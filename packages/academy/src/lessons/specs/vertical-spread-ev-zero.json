@@ -1,0 +1,157 @@
+{
+  "slug": "vertical-spread-ev-zero",
+  "sourceId": "DbtCAxXOya4",
+  "title": "A high win rate is not an edge: fair spreads have zero expected value",
+  "summary": "A 10-wide debit call spread on Lululemon costs about $3.40 and can lose $6.60. Roughly two thirds of the time it makes about 50% in a month. The expected value comes out near zero: the market prices it fairly. A 70% win rate is the price of admission, not an edge. The edge must come from a view that differs from what the market already prices.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["expected value", "win rate", "edge", "conviction"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "LULU price",
+      "default": 200,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 185,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 195,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 40,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The market's price distribution for the stock one month out.",
+      "time": [0.05, 1]
+    },
+    {
+      "element": "band1",
+      "color": "cyan",
+      "caption": "The one standard deviation band from implied volatility."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "A 10-wide in-the-money call spread breaks even below the market."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "About two thirds of the outcomes end above the short strike and earn the maximum, about 50% on the debit."
+    },
+    {
+      "element": "ev",
+      "color": "gold",
+      "caption": "Weigh wins and losses by probability: the expected value is about zero. The trade is fairly priced."
+    },
+    {
+      "element": "ev",
+      "color": "blue",
+      "caption": "Change the drift to your own view. Only a view different from the market's makes the expected value positive."
+    }
+  ],
+  "formulas": [
+    "expectedValue",
+    "probabilityOfProfit",
+    "verticalMaxProfit",
+    "delta"
+  ],
+  "takeaways": [
+    "A high win rate is the price of admission, not an edge.",
+    "The probability of max profit is roughly the delta of the short leg.",
+    "At fair prices the expected value of a vertical spread is about zero.",
+    "Start with a view. Use option leverage only when conviction is high: risk first, invest second, option overlays third."
+  ],
+  "caveats": [
+    "The transcript does not give the Lululemon price or strikes; the chart uses example values with a 10-wide spread.",
+    "The example is educational and not a trade recommendation."
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "slug": "macro-why-government-borrows",
+  "sourceId": "DTGUQgOiTQ7",
+  "title": "Why does a government that can create money still borrow and tax?",
+  "summary": "A short macro question with no answer given. If the US government can create money by typing numbers into a computer, why does it issue Treasuries and collect taxes? The speaker quotes Sherlock Holmes: an obvious fact can deceive. The lesson frames the question and leaves the answer open.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "treasuries", "taxes", "money"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "recovery"
+  },
+  "params": [
+    {
+      "id": "lossPct",
+      "label": "Loss of purchasing power",
+      "default": 20,
+      "min": 1,
+      "max": 90,
+      "step": 1,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The transcript only asks a question. This chart is a generic reference for loss of purchasing power, one of the speaker's two risks."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "The red curve shows the gain needed to recover from a loss. Inflation is a quiet loss of purchasing power.",
+      "time": [0, 1]
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "At a 20% loss you need a 25% gain to get back to even."
+    },
+    {
+      "element": "curve",
+      "color": "gold",
+      "caption": "The open question: if money can be created, what do borrowing and taxes do? Think about it before you read an answer."
+    }
+  ],
+  "formulas": ["recovery"],
+  "takeaways": [
+    "A government that issues its own currency can create money, yet it still borrows and taxes.",
+    "The speaker asks why and gives no answer in this clip.",
+    "An obvious fact can be deceptive; test it before you trade on it."
+  ],
+  "caveats": [
+    "The clip is a question only; it contains no answer and no trade.",
+    "The chart is a generic reference, not part of the original video."
+  ]
+}

@@ -1,0 +1,45 @@
+//! Historical Data example
+//!
+//! # Usage
+//!
+//! ```bash
+//! cargo run --features sync --example historical_data -- <STOCK_SYMBOL> [--connection_string <HOST:PORT>]
+//! ```
+
+use clap::{arg, Command};
+use ibapi::client::blocking::Client;
+use time::macros::datetime;
+
+use ibapi::market_data::historical::ToDuration;
+use ibapi::prelude::*;
+
+fn main() {
+    env_logger::init();
+
+    let matches = Command::new("historical_data")
+        .about("Get one day of hourly trade bars for the given stock")
+        .arg(arg!(<STOCK_SYMBOL>).required(true))
+        .arg(arg!(--connection_string <VALUE>).default_value("127.0.0.1:4002"))
+        .get_matches();
+
+    let connection_string = matches.get_one::<String>("connection_string").expect("connection_string is required");
+    let stock_symbol = matches.get_one::<String>("STOCK_SYMBOL").expect("stock symbol is required");
+
+    let client = Client::connect(connection_string, 100).expect("connection failed");
+
+    let contract = Contract::stock(stock_symbol.as_str()).build();
+
+    let historical_data = client
+        .historical_data(&contract, HistoricalBarSize::Hour)
+        .what_to_show(HistoricalWhatToShow::Trades)
+        .duration(1.days())
+        .ending(datetime!(2023-04-11 20:00 UTC))
+        .fetch()
+        .expect("historical data request failed");
+
+    println!("start: {:?}, end: {:?}", historical_data.start, historical_data.end);
+
+    for bar in &historical_data.bars {
+        println!("{bar:?}");
+    }
+}

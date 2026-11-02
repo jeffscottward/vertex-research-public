@@ -1,0 +1,194 @@
+{
+  "slug": "pmcc-95-delta-vs-70-delta",
+  "sourceId": "DYVD9auJ8JR",
+  "title": "PMCC long leg: buy 95 delta or higher, not 70 delta",
+  "summary": "A poor man's covered call with a 70 delta long call and a 45 delta short call is net long only 25 delta and is really a short gamma trade. In a rally the short call reaches 100 delta fast while the long call lags, so on day one the position can go net short. A 95 delta or higher long call avoids this and beats the 70 delta version in all cases except an extreme sell-off.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["leaps", "spreads", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["pmcc", "short gamma", "delta", "diagonal"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "PMCC, 70 delta long",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "long70",
+          "dte": "coreDte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "shortStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "PMCC, 95 delta long",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "long95",
+          "dte": "coreDte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "shortStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "long70",
+      "label": "70 delta long strike",
+      "default": 85,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "long95",
+      "label": "95 delta long strike",
+      "default": 60,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "45 delta short strike",
+      "default": 102,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "coreDte",
+      "label": "Long call DTE",
+      "default": 365,
+      "min": 30,
+      "max": 1000,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "dte",
+      "label": "Short call DTE",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Both versions sell the same 45 delta call one month out."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "A: 70 delta long. Net delta is only about +25, and in a sharp rally the position can turn net short."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "B: 95 delta long. It already moves nearly one for one, so the short call cannot outrun it."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: B beats A at almost every price. A only wins in an extreme sell-off."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The reason A wins there: the 70 delta call costs less, so less money is at risk."
+    }
+  ],
+  "formulas": ["delta", "gamma", "extrinsic"],
+  "takeaways": [
+    "A 70 delta long leg against a 45 delta short leg is a short gamma trade, not a covered call.",
+    "In a rally the short leg goes to 100 delta faster than the 70 delta long leg.",
+    "Buy the long leg at 95 delta or higher.",
+    "The 70 delta version only wins in an extreme sell-off because less money is at risk."
+  ],
+  "caveats": [
+    "Strikes here approximate the deltas; the clip's graph is not in the transcript.",
+    "A deep ITM long call puts more premium at risk; size it within the owner's caps."
+  ],
+  "backtest": {
+    "structure": "pmcc",
+    "tickers": ["SPY", "QQQ", "AAPL", "MSFT"],
+    "scenario": {
+      "label": "2015-2024 incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 365,
+      "coreDelta": 0.95,
+      "coreExitDte": 90,
+      "dte": 30,
+      "shortDelta": 0.45,
+      "riskPct": 25
+    },
+    "note": "PMCC with a 95 delta one-year long call and monthly 45 delta short calls; compare by setting coreDelta to 0.70."
+  }
+}

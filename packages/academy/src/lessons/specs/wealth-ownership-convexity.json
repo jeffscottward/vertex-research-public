@@ -1,0 +1,124 @@
+{
+  "slug": "wealth-ownership-convexity",
+  "sourceId": "DT02M5wCWkL",
+  "title": "Wealth needs ownership, convexity and time; selling options gives up two",
+  "summary": "The speaker says monetary wealth comes from ownership times convexity times time. Selling options rents out ownership and flips the sign of convexity. Young investors with long horizons should think hard before giving those up for income.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish", "any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["convexity", "gamma", "ownership", "long horizon"]
+  },
+  "scene": {
+    "type": "greeks",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1,
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "greek": "gamma"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We own 100 shares and sell one 30-day call at $105 for income."
+    },
+    {
+      "element": "delta",
+      "color": "green",
+      "caption": "Delta of the shares alone is 1.0 everywhere. The short call cuts delta above $105: you rent out the upside."
+    },
+    {
+      "element": "gamma",
+      "color": "red",
+      "caption": "Gamma is negative. The position loses convexity: gains slow down as the price rises."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The cap sits at the $105 strike. Above it, the shares belong to the call buyer in effect."
+    },
+    {
+      "element": "theta",
+      "color": "violet",
+      "caption": "Theta is positive. You collect time decay, which is the income you get for the lost convexity.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vega",
+      "color": "gray",
+      "caption": "Vega is negative: the position is short volatility, which also limits upside from large moves."
+    }
+  ],
+  "formulas": ["gamma", "delta", "theta"],
+  "takeaways": [
+    "The speaker frames wealth as ownership times convexity times time.",
+    "Selling an option gives away part of ownership and turns positive convexity into negative convexity.",
+    "A long time horizon makes ownership and convexity more valuable, so young investors should weigh this before selling options."
+  ],
+  "caveats": [
+    "The formula is a framing by the speaker, not a measured model.",
+    "The transcript ends with a website promotion."
+  ]
+}

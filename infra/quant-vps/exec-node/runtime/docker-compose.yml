@@ -1,0 +1,413 @@
+name: ibkr-nautilus-exec-node
+
+x-bounded-logging: &bounded-logging
+  driver: "json-file"
+  options:
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *bounded-logging
+    command: redis-server --appendonly yes
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - prototype
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *bounded-logging
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vertex_quant}
+      POSTGRES_USER: ${POSTGRES_USER:-vertex_quant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vertex_quant_dev_only}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - prototype
+
+  # Dashboards default to loopback; use a private VPN/LAN address for
+  # DASHBOARD_BIND_HOST only after host access is secured.
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    logging: *bounded-logging
+    ports:
+      - "${DASHBOARD_BIND_HOST:-127.0.0.1}:${UPTIME_KUMA_PORT:-14001}:3001"
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/uptime-kuma:/app/data
+    networks:
+      - prototype
+
+  netdata:
+    image: netdata/netdata:stable
+    restart: unless-stopped
+    logging: *bounded-logging
+    ports:
+      - "${DASHBOARD_BIND_HOST:-127.0.0.1}:${NETDATA_PORT:-14002}:19999"
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/netdata/config:/etc/netdata
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/netdata/lib:/var/lib/netdata
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data/netdata/cache:/var/cache/netdata
+    networks:
+      - prototype
+
+  # Profile-gated so the default Phase 01 prototype never needs IBKR credentials.
+  ib-gateway:
+    image: gnzsnz/ib-gateway
+    profiles:
+      - ibkr
+    restart: unless-stopped
+    logging: *bounded-logging
+    labels:
+      com.ibkr-nautilus-exec-node.service: ib-gateway
+      com.ibkr-nautilus-exec-node.trading-mode: ${IBKR_TRADING_MODE:-paper}
+      com.ibkr-nautilus-exec-node.live-trading-enabled: ${ENABLE_LIVE_TRADING:-false}
+    environment:
+      TWS_USERID: ${TWS_USERID:-}
+      TWS_PASSWORD: ${TWS_PASSWORD:-}
+      TRADING_MODE: ${IBKR_TRADING_MODE:-paper}
+      READ_ONLY_API: "no"
+      TWOFA_TIMEOUT_ACTION: restart
+      AUTO_RESTART_TIME: ${AUTO_RESTART_TIME:-}
+      VNC_SERVER_PASSWORD: ${VNC_SERVER_PASSWORD:-}
+      TWS_SETTINGS_PATH: /home/ibgateway/Jts
+    expose:
+      - "4003"
+      - "4004"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "bash -lc '</dev/tcp/127.0.0.1/${IB_GATEWAY_PORT:-4004}'"
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    networks:
+      - prototype
+
+  nautilus-trader:
+    build:
+      context: .
+      dockerfile: nautilus/Dockerfile
+      args:
+        NAUTILUS_IMAGE_VERSION: ${NAUTILUS_IMAGE_VERSION:-unlabelled}
+    image: ibkr-nautilus-exec-node-nautilus:phase01
+    # Always on (owner decision 2026-10-30). The node starts DISARMED; only the
+    # owner arm record data/nautilus/ARMED lets it submit or cancel orders.
+    # See docs/NAUTILUS_ARMING.md.
+    restart: always
+    logging: *bounded-logging
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      ENABLE_LIVE_TRADING: ${ENABLE_LIVE_TRADING:-false}
+      I_UNDERSTAND_LIVE_TRADING_RISK: ${I_UNDERSTAND_LIVE_TRADING_RISK:-false}
+      IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
+      LIVE_TRADING_ACCOUNT_ALLOWLIST: ${LIVE_TRADING_ACCOUNT_ALLOWLIST:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:vertex_quant_dev_only@postgres:5432/vertex_quant}
+      NAUTILUS_CONFIG: ${NAUTILUS_CONFIG:-/app/nautilus/config/paper.yaml}
+      NAUTILUS_LOG_DIR: /app/data/nautilus/logs
+      NAUTILUS_HEALTH_FILE: /app/data/nautilus/health.json
+      NAUTILUS_HEALTH_HOST: 0.0.0.0
+      NAUTILUS_HEALTH_PORT: 8080
+      NAUTILUS_WATCHLIST: ${NAUTILUS_WATCHLIST:-AAPL}
+      NAUTILUS_SAMPLE_ORDERS_ENABLED: ${NAUTILUS_SAMPLE_ORDERS_ENABLED:-false}
+      NAUTILUS_RISK_ORDERS_ENABLED: ${NAUTILUS_RISK_ORDERS_ENABLED:-false}
+      NAUTILUS_RISK_DRY_RUN: ${NAUTILUS_RISK_DRY_RUN:-false}
+      NAUTILUS_RISK_MAX_ORDER_QUANTITY: ${NAUTILUS_RISK_MAX_ORDER_QUANTITY:-0}
+      NAUTILUS_RISK_MAX_POSITION_NOTIONAL_USD: ${NAUTILUS_RISK_MAX_POSITION_NOTIONAL_USD:-0}
+      NAUTILUS_RISK_MAX_DAILY_LOSS_USD: ${NAUTILUS_RISK_MAX_DAILY_LOSS_USD:-0}
+      NAUTILUS_RISK_ALLOWED_INSTRUMENTS: ${NAUTILUS_RISK_ALLOWED_INSTRUMENTS:-*}
+      RISK_DENIED_INSTRUMENTS: ${RISK_DENIED_INSTRUMENTS:-}
+      KILL_SWITCH_PATH: /app/data/KILL_SWITCH
+      NAUTILUS_ARMED_PATH: /app/data/nautilus/ARMED
+      NAUTILUS_ARM_AUDIT_PATH: /app/data/nautilus/arm-audit.jsonl
+      IBKR_GATEWAY_ENABLED: ${IBKR_GATEWAY_ENABLED:-false}
+      IB_GATEWAY_REQUIRED: ${IB_GATEWAY_REQUIRED:-false}
+      IB_GATEWAY_HOST: ${IB_GATEWAY_HOST:-ib-gateway}
+      IB_GATEWAY_PORT: ${IB_GATEWAY_PORT:-4004}
+      # Nautilus owns IB client ids 61-62. Do not reuse 31, 41, 45, 49, 52,
+      # 77, 78, 97, 98 or 191-198 (other services and tools).
+      IBKR_CLIENT_ID: ${IBKR_CLIENT_ID:-61}
+      CHARAN_TRADE_INTENTS_ENABLED: ${CHARAN_TRADE_INTENTS_ENABLED:-false}
+      CHARAN_API_BASE_URL: ${CHARAN_API_BASE_URL:-https://charan-discord-bot.localhost:1355}
+      CHARAN_TRADE_INTENTS_PATH: ${CHARAN_TRADE_INTENTS_PATH:-/api/v1/trade-intents}
+      CHARAN_DEDUPE_FILE: ${CHARAN_DEDUPE_FILE:-./data/nautilus/charan_seen_idempotency_keys.json}
+      CHARAN_TRADE_INTENT_LIMIT: ${CHARAN_TRADE_INTENT_LIMIT:-25}
+      CHARAN_REQUEST_TIMEOUT_SECONDS: ${CHARAN_REQUEST_TIMEOUT_SECONDS:-5}
+      CHARAN_TARGET_NOTIONAL_USD: ${CHARAN_TARGET_NOTIONAL_USD:-1000}
+      CHARAN_OPTION_ENTER_TARGET_NOTIONAL_USD: ${CHARAN_OPTION_ENTER_TARGET_NOTIONAL_USD:-3000}
+      CHARAN_OPTION_INCREASE_TARGET_NOTIONAL_USD: ${CHARAN_OPTION_INCREASE_TARGET_NOTIONAL_USD:-1500}
+      CHARAN_OPTION_UNIT_NOTIONAL_REVIEW_THRESHOLD_USD: ${CHARAN_OPTION_UNIT_NOTIONAL_REVIEW_THRESHOLD_USD:-1500}
+      CHARAN_MAX_OPTION_UNIT_NOTIONAL_USD: ${CHARAN_MAX_OPTION_UNIT_NOTIONAL_USD:-2500}
+      CHARAN_ALLOWED_READINESS: ${CHARAN_ALLOWED_READINESS:-ready_for_sizing}
+      CHARAN_ALLOWED_ASSET_CLASSES: ${CHARAN_ALLOWED_ASSET_CLASSES:-option}
+      CHARAN_APPROVED_SOURCES: ${CHARAN_APPROVED_SOURCES:-DEV}
+      CHARAN_IGNORE_REDUCTIONS_WITHOUT_POSITIONS: ${CHARAN_IGNORE_REDUCTIONS_WITHOUT_POSITIONS:-true}
+      CHARAN_REQUIRE_POSITION_FOR_INCREASES: ${CHARAN_REQUIRE_POSITION_FOR_INCREASES:-true}
+      CHARAN_EXISTING_POSITION_SYMBOLS: ${CHARAN_EXISTING_POSITION_SYMBOLS:-}
+      CHARAN_CASH_BUDGET_USD: ${CHARAN_CASH_BUDGET_USD:-0}
+      CHARAN_MAX_INTENT_AGE_HOURS: ${CHARAN_MAX_INTENT_AGE_HOURS:-0}
+      CHARAN_TLS_VERIFY: ${CHARAN_TLS_VERIFY:-false}
+      CHARAN_2FA_TRIGGER_TIMEOUT_SECONDS: ${CHARAN_2FA_TRIGGER_TIMEOUT_SECONDS:-240}
+      CHARAN_2FA_TRIGGER_URL: ${CHARAN_2FA_TRIGGER_URL:-http://portfolio-ui:4177}
+      CHARAN_2FA_TRIGGER_PASSWORD_ENV: ${CHARAN_2FA_TRIGGER_PASSWORD_ENV:-PORTFOLIO_AUTH_PASSWORD}
+      CHARAN_2FA_TRIGGER_COOLDOWN_SECONDS: ${CHARAN_2FA_TRIGGER_COOLDOWN_SECONDS:-300}
+      PORTFOLIO_AUTH_USERNAME: ${PORTFOLIO_AUTH_USERNAME:-operator}
+      PORTFOLIO_AUTH_PASSWORD: ${PORTFOLIO_AUTH_PASSWORD:-}
+      CHARAN_RESCAN_REQUEST_FILE: ${CHARAN_RESCAN_REQUEST_FILE:-./data/nautilus/charan_rescan_request.json}
+      CHARAN_RESCAN_TRADE_INTENT_LIMIT: ${CHARAN_RESCAN_TRADE_INTENT_LIMIT:-1000}
+      CHARAN_RESCAN_LOOKBACK_HOURS: ${CHARAN_RESCAN_LOOKBACK_HOURS:-24}
+      CHARAN_LIVE_TRANSMIT_ENABLED: ${CHARAN_LIVE_TRANSMIT_ENABLED:-false}
+      CHARAN_LIVE_TRANSMIT_ACTIONS: ${CHARAN_LIVE_TRANSMIT_ACTIONS:-BUY}
+      CHARAN_LIVE_TRANSMIT_SOURCES: ${CHARAN_LIVE_TRANSMIT_SOURCES:-DEV}
+      CHARAN_LIVE_TRANSMIT_CLIENT_ID: ${CHARAN_LIVE_TRANSMIT_CLIENT_ID:-62}
+      CHARAN_LIVE_TRANSMIT_TIMEOUT_SECONDS: ${CHARAN_LIVE_TRANSMIT_TIMEOUT_SECONDS:-10}
+      CHARAN_LIVE_TRANSMIT_SETTLE_SECONDS: ${CHARAN_LIVE_TRANSMIT_SETTLE_SECONDS:-5}
+      CHARAN_LIVE_TRANSMIT_PREFLIGHT_ENABLED: ${CHARAN_LIVE_TRANSMIT_PREFLIGHT_ENABLED:-true}
+      SYNTHETIC_STOPS_ENABLED: ${SYNTHETIC_STOPS_ENABLED:-false}
+      SYNTHETIC_STOP_MODE: ${SYNTHETIC_STOP_MODE:-disabled}
+      SYNTHETIC_STOP_ACCOUNT_FINGERPRINT_KEY: ${SYNTHETIC_STOP_ACCOUNT_FINGERPRINT_KEY:-}
+      SYNTHETIC_STOP_APPROVAL_HMAC_KEY: ${SYNTHETIC_STOP_APPROVAL_HMAC_KEY:-}
+      SYNTHETIC_STOP_STATE_HMAC_KEY: ${SYNTHETIC_STOP_STATE_HMAC_KEY:-}
+      SYNTHETIC_STOP_REVIEWER_PUBLIC_KEY: ${SYNTHETIC_STOP_REVIEWER_PUBLIC_KEY:-}
+      SYNTHETIC_STOP_REVIEWER_KEY_ID: ${SYNTHETIC_STOP_REVIEWER_KEY_ID:-}
+      SYNTHETIC_STOP_PLAN_PATH: ${SYNTHETIC_STOP_PLAN_PATH:-./data/nautilus/reports/current/staged-protection-plan.json}
+      SYNTHETIC_STOP_PLAN_SCHEMA: ${SYNTHETIC_STOP_PLAN_SCHEMA:-staged-protection-plan/v1}
+      SYNTHETIC_STOP_ATR_MULTIPLIER: ${SYNTHETIC_STOP_ATR_MULTIPLIER:-1.0}
+      SYNTHETIC_STOP_ROUND_HANDLE_BUFFER_ATR: ${SYNTHETIC_STOP_ROUND_HANDLE_BUFFER_ATR:-1.0}
+      SYNTHETIC_STOP_INITIAL_LIMIT_OFFSET_ATR: ${SYNTHETIC_STOP_INITIAL_LIMIT_OFFSET_ATR:-0.10}
+      SYNTHETIC_STOP_REPRICE_INTERVAL_SECONDS: ${SYNTHETIC_STOP_REPRICE_INTERVAL_SECONDS:-0.35}
+      SYNTHETIC_STOP_MAXIMUM_EXECUTION_TIME_SECONDS: ${SYNTHETIC_STOP_MAXIMUM_EXECUTION_TIME_SECONDS:-10.0}
+      SYNTHETIC_STOP_MARKET_ESCALATION_ATR: ${SYNTHETIC_STOP_MARKET_ESCALATION_ATR:-0.5}
+      SYNTHETIC_STOP_FINAL_MARKET_ORDER_ENABLED: ${SYNTHETIC_STOP_FINAL_MARKET_ORDER_ENABLED:-true}
+      SYNTHETIC_STOP_EXECUTION_HOURS: ${SYNTHETIC_STOP_EXECUTION_HOURS:-regular}
+      SYNTHETIC_STOP_PLAN_MAX_AGE_HOURS: ${SYNTHETIC_STOP_PLAN_MAX_AGE_HOURS:-24}
+      SYNTHETIC_STOP_CLIENT_ID: ${SYNTHETIC_STOP_CLIENT_ID:-42}
+      SYNTHETIC_STOP_MAX_ORDER_QUANTITY: ${SYNTHETIC_STOP_MAX_ORDER_QUANTITY:-13000}
+      SYNTHETIC_STOP_CONNECT_TIMEOUT_SECONDS: ${SYNTHETIC_STOP_CONNECT_TIMEOUT_SECONDS:-10}
+      SYNTHETIC_STOP_CANCEL_CONFIRMATION_TIMEOUT_SECONDS: ${SYNTHETIC_STOP_CANCEL_CONFIRMATION_TIMEOUT_SECONDS:-0.5}
+      SYNTHETIC_STOP_POLL_INTERVAL_SECONDS: ${SYNTHETIC_STOP_POLL_INTERVAL_SECONDS:-0.10}
+      SYNTHETIC_STOP_QUOTE_MAX_AGE_SECONDS: ${SYNTHETIC_STOP_QUOTE_MAX_AGE_SECONDS:-5.0}
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data:/app/data
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - prototype
+
+  watchdog:
+    build:
+      context: .
+      dockerfile: watchdog/Dockerfile
+    image: ibkr-nautilus-exec-node-watchdog:phase01
+    restart: unless-stopped
+    logging: *bounded-logging
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      nautilus-trader:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    labels:
+      com.ibkr-nautilus-exec-node.docker-socket: "read-write restart path"
+      com.ibkr-nautilus-exec-node.docker-socket-risk: "Docker socket grants host-level control; keep watchdog restart envs false unless explicitly approved"
+    environment:
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      ENABLE_LIVE_TRADING: ${ENABLE_LIVE_TRADING:-false}
+      I_UNDERSTAND_LIVE_TRADING_RISK: ${I_UNDERSTAND_LIVE_TRADING_RISK:-false}
+      IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
+      LIVE_TRADING_ACCOUNT_ALLOWLIST: ${LIVE_TRADING_ACCOUNT_ALLOWLIST:-}
+      NAUTILUS_RISK_ORDERS_ENABLED: ${NAUTILUS_RISK_ORDERS_ENABLED:-false}
+      NAUTILUS_RISK_DRY_RUN: ${NAUTILUS_RISK_DRY_RUN:-false}
+      CHARAN_TRADE_INTENTS_ENABLED: ${CHARAN_TRADE_INTENTS_ENABLED:-false}
+      CHARAN_LIVE_TRANSMIT_ENABLED: ${CHARAN_LIVE_TRANSMIT_ENABLED:-false}
+      WATCHDOG_HEALTH_PORT: ${WATCHDOG_HEALTH_PORT:-8081}
+      WATCHDOG_CHECK_INTERVAL_SECONDS: ${WATCHDOG_CHECK_INTERVAL_SECONDS:-30}
+      WATCHDOG_FAILURE_THRESHOLD: ${WATCHDOG_FAILURE_THRESHOLD:-3}
+      WATCHDOG_RESTART_COOLDOWN_SECONDS: ${WATCHDOG_RESTART_COOLDOWN_SECONDS:-300}
+      WATCHDOG_MAX_RESTARTS: ${WATCHDOG_MAX_RESTARTS:-3}
+      WATCHDOG_KILL_SWITCH_FAILURE_THRESHOLD: ${WATCHDOG_KILL_SWITCH_FAILURE_THRESHOLD:-6}
+      WATCHDOG_STATUS_LOG_INTERVAL_SECONDS: ${WATCHDOG_STATUS_LOG_INTERVAL_SECONDS:-60}
+      WATCHDOG_DOCKER_ENABLED: ${WATCHDOG_DOCKER_ENABLED:-false}
+      WATCHDOG_RESTART_ENABLED: ${WATCHDOG_RESTART_ENABLED:-false}
+      WATCHDOG_REQUIRE_IB_GATEWAY: ${WATCHDOG_REQUIRE_IB_GATEWAY:-false}
+      WATCHDOG_CREATE_KILL_SWITCH_ON_FAILURE: ${WATCHDOG_CREATE_KILL_SWITCH_ON_FAILURE:-false}
+      WATCHDOG_CREATE_KILL_SWITCH_ON_CRITICAL: ${WATCHDOG_CREATE_KILL_SWITCH_ON_CRITICAL:-false}
+      IB_GATEWAY_REQUIRED: ${IB_GATEWAY_REQUIRED:-false}
+      WATCHDOG_LOG_DIR: /app/data/nautilus/logs
+      WATCHDOG_REDIS_CONTAINER: ${WATCHDOG_REDIS_CONTAINER:-redis}
+      WATCHDOG_POSTGRES_CONTAINER: ${WATCHDOG_POSTGRES_CONTAINER:-postgres}
+      WATCHDOG_NAUTILUS_CONTAINER: ${WATCHDOG_NAUTILUS_CONTAINER:-nautilus-trader}
+      WATCHDOG_IB_GATEWAY_CONTAINER: ${WATCHDOG_IB_GATEWAY_CONTAINER:-ib-gateway}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      POSTGRES_URL: ${POSTGRES_URL:-postgresql://vertex_quant:vertex_quant_dev_only@postgres:5432/vertex_quant}
+      NAUTILUS_HEALTH_URL: ${NAUTILUS_HEALTH_URL:-http://nautilus-trader:8080/health}
+      IBKR_GATEWAY_ENABLED: ${IBKR_GATEWAY_ENABLED:-false}
+      IBKR_HOST: ${IB_GATEWAY_HOST:-ib-gateway}
+      IBKR_PORT: ${IB_GATEWAY_PORT:-4004}
+      WATCHDOG_IBAPI_TEST_ENABLED: ${WATCHDOG_IBAPI_TEST_ENABLED:-true}
+      WATCHDOG_IBAPI_CLIENT_ID: ${WATCHDOG_IBAPI_CLIENT_ID:-97}
+      UPTIME_KUMA_PUSH_URL: ${UPTIME_KUMA_PUSH_URL:-}
+      KILL_SWITCH_PATH: /app/data/KILL_SWITCH
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/data:/app/data
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/watchdog:/app/watchdog:ro
+      # Read/write Docker API access is required only when watchdog restart
+      # behavior is enabled; keep WATCHDOG_DOCKER_ENABLED and
+      # WATCHDOG_RESTART_ENABLED false for observation-only deployments.
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: false
+    expose:
+      - "8081"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os, urllib.request; port = os.getenv('WATCHDOG_HEALTH_PORT', '8081'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=2).read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - prototype
+
+  portfolio-ui:
+    build:
+      context: .
+      dockerfile: portfolio-ui/Dockerfile
+    image: ibkr-nautilus-exec-node-portfolio-ui:phase01
+    profiles:
+      - portfolio
+    restart: unless-stopped
+    logging: *bounded-logging
+    working_dir: /app/portfolio-ui
+    command: >
+      sh -lc "corepack enable &&
+      corepack prepare pnpm@10.12.4 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm run build &&
+      node server.mjs"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 4177
+      PORTFOLIO_AUTH_USERNAME: ${PORTFOLIO_AUTH_USERNAME:-}
+      PORTFOLIO_AUTH_PASSWORD: ${PORTFOLIO_AUTH_PASSWORD:-}
+      PORTFOLIO_IBKR_CLIENT_ID: ${PORTFOLIO_IBKR_CLIENT_ID:-31}
+      PORTFOLIO_CLOSE_IBKR_CLIENT_ID: ${PORTFOLIO_CLOSE_IBKR_CLIENT_ID:-52}
+      PORTFOLIO_OPEN_ORDERS_CLIENT_ID: ${PORTFOLIO_OPEN_ORDERS_CLIENT_ID:-}
+      IBKR_OPEN_ORDERS_CLIENT_ID: ${IBKR_OPEN_ORDERS_CLIENT_ID:-}
+      IBKR_CANCEL_ORDER_CLIENT_ID: ${IBKR_CANCEL_ORDER_CLIENT_ID:-}
+      PORTFOLIO_CLOSE_TIMEOUT_SECONDS: ${PORTFOLIO_CLOSE_TIMEOUT_SECONDS:-15}
+      PORTFOLIO_SNAPSHOT_PYTHON: ${PORTFOLIO_SNAPSHOT_PYTHON:-/opt/ibkr-snapshot-venv/bin/python3}
+      PORTFOLIO_SNAPSHOT_REFRESH_ON_LOAD: ${PORTFOLIO_SNAPSHOT_REFRESH_ON_LOAD:-true}
+      PORTFOLIO_SNAPSHOT_TIMEOUT_SECONDS: ${PORTFOLIO_SNAPSHOT_TIMEOUT_SECONDS:-20}
+      IBKR_ACCOUNT_ID: ${IBKR_ACCOUNT_ID:-}
+      IB_GATEWAY_HOST: ${IB_GATEWAY_HOST:-ib-gateway}
+      IB_GATEWAY_PORT: ${IB_GATEWAY_PORT:-4004}
+      IBKR_TRADING_MODE: ${IBKR_TRADING_MODE:-paper}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      ENABLE_LIVE_TRADING: ${ENABLE_LIVE_TRADING:-false}
+      I_UNDERSTAND_LIVE_TRADING_RISK: ${I_UNDERSTAND_LIVE_TRADING_RISK:-false}
+      LIVE_TRADING_ACCOUNT_ALLOWLIST: ${LIVE_TRADING_ACCOUNT_ALLOWLIST:-}
+      PORTFOLIO_ENABLE_LIVE_ORDER_CANCEL: ${PORTFOLIO_ENABLE_LIVE_ORDER_CANCEL:-false}
+      KILL_SWITCH_PATH: ${KILL_SWITCH_PATH:-./data/KILL_SWITCH}
+      CHARAN_RESCAN_REQUEST_FILE: ${CHARAN_RESCAN_REQUEST_FILE:-./data/nautilus/charan_rescan_request.json}
+      VERTEX_QUANT_HOST_ROOT: ${VERTEX_QUANT_HOST_ROOT:-${PWD}}
+      IBKR_2FA_UI_NOTIFY_ENABLED: ${IBKR_2FA_UI_NOTIFY_ENABLED:-0}
+      IBKR_2FA_NOTIFY_EMAIL: ${IBKR_2FA_NOTIFY_EMAIL:-owner@example.com}
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}:/app
+      # Docker socket lets the portfolio-ui server restart ib-gateway
+      # to trigger IBKR 2FA when the dashboard detects a disconnect.
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    expose:
+      - "4177"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('net').connect(4177, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    networks:
+      - prototype
+
+  caddy:
+    image: caddy:2-alpine
+    profiles:
+      - portfolio
+    restart: unless-stopped
+    logging: *bounded-logging
+    depends_on:
+      portfolio-ui:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${VERTEX_QUANT_HOST_ROOT:-.}/deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - prototype
+
+networks:
+  prototype:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

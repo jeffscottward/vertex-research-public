@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # npm packages (pnpm workspace and catalog). Minor and patch releases arrive as one weekly
+  # group; majors come separately so each one gets its own review. The cooldown mirrors
+  # pnpm's minimumReleaseAge supply-chain gate, so brand-new releases wait a few days.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-and-patch:
+        update-types: ["minor", "patch"]

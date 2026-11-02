@@ -1,0 +1,131 @@
+{
+  "slug": "iv-needs-context",
+  "sourceId": "DaQasV7u19l",
+  "title": "Implied volatility needs context: 60% IV alone means nothing",
+  "summary": "A score of 95 means little without knowing it is out of 100. In the same way, 60% IV can be high, low, rich or cheap. Beginners should at least use IV rank and IV percentile. The speaker compares IV with realized volatility instead: sellers want high IV and low realized movement.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "volatility"
+    ],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": [
+      "implied volatility",
+      "IV rank",
+      "context",
+      "realized volatility"
+    ]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 55,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV minus RV (premium)",
+      "default": 5,
+      "min": -20,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 60,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "iv",
+      "color": "blue",
+      "caption": "This stock shows about 60% implied volatility. On its own, that number tells you little.",
+      "time": [0, 1]
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "IV rank and IV percentile compare IV with its own past. That is some context, but not enough."
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility shows how much the stock really moves. This is the better reference.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vrp",
+      "color": "violet",
+      "caption": "IV minus realized: the context. A positive gap means sellers are paid more than the stock moves.",
+      "time": [0, 1]
+    },
+    {
+      "element": "price",
+      "color": "green",
+      "caption": "Best case for covered calls and cash-secured puts: high IV with a calm, low-volatility price.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "blackScholes"],
+  "takeaways": [
+    "A raw IV number has no meaning without a reference.",
+    "IV rank and IV percentile are a minimum for beginners.",
+    "Compare IV with realized volatility; sell options when IV is high and realized movement is low."
+  ],
+  "caveats": [
+    "VAY (volatility-adjusted yield) is the speaker's own metric, sold through his tools. It is unverified here."
+  ]
+}

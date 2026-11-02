@@ -1,0 +1,120 @@
+{
+  "slug": "vrp-cheap-fair-rich",
+  "sourceId": "DcL4aS1O_SF",
+  "title": "Use the volatility risk premium to see if premium is cheap, fair or rich",
+  "summary": "Most covered call and put sellers do not know if what they sell is cheap, fair or rich. The volatility risk premium (implied minus realized) answers that. The speaker shows SPY with implied right on top of realized, so no edge, and another name with implied well above realized, which gives an edge. He uses his own VAY score.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol"],
+    "instruments": ["etf", "covered-calls", "cash-secured-puts", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["VRP", "SPY", "pricing"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 18,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied minus realized",
+      "default": 0,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average gap between implied and realized volatility, in vol points."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 50,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days shown",
+      "default": 250,
+      "min": 20,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "SPY's price path. One-month options are the tenor here.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: what SPY actually delivered."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility sits right on top of realized: the premium is fair, no edge."
+    },
+    {
+      "element": "vrp",
+      "color": "gray",
+      "caption": "A near-zero gap means no head start for a seller."
+    },
+    {
+      "element": "vrp",
+      "color": "green",
+      "caption": "Raise the implied premium: when implied is well above realized, the seller gets an edge."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol"],
+  "takeaways": [
+    "Know whether the volatility you sell is cheap, fair or rich.",
+    "Volatility risk premium = implied minus realized volatility.",
+    "Combine a positive premium with good entry points."
+  ],
+  "caveats": [
+    "VAY score and screener are the speaker's products with a waitlist; promotional and unverified.",
+    "The second ticker in the video is not named; it is not a trade recommendation."
+  ]
+}

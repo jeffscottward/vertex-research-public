@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "kind": "approved-optional-numeric-source-plan",
+  "state": "pinned-source-plan-runtime-unavailable",
+  "proposal": {
+    "path": "private/verification/foundation/VertexNumericRuntimeClosureProposal-v1.json",
+    "sha256": "a7284645dae0626e027cfa516f520a2ebef7e72063c13ac81080844324b5cb07"
+  },
+  "approval": {
+    "authority": "Main",
+    "scope": "Exact numpy2.4.6/scipy1.18.1 versions and observed target-wheel metadata hashes; additive lock and numeric optional extra only",
+    "notAuthorized": [
+      "wheel acquisition",
+      "installation",
+      "imports",
+      "runtime probes",
+      "tests",
+      "benchmarking",
+      "base lock modification"
+    ]
+  },
+  "target": {
+    "implementation": "CPython",
+    "python": "3.12.11",
+    "os": "Linux",
+    "architecture": "x86_64",
+    "python_tag": "cp312",
+    "abi_tag": "cp312",
+    "platform_tags": ["manylinux_2_27_x86_64", "manylinux_2_28_x86_64"],
+    "platform_condition": "glibc >= 2.27; host libc and installer tag acceptance were not probed"
+  },
+  "metadataEvidence": {
+    "observed_date": "2026-09-22",
+    "proposal": {
+      "numpy": "2.4.6",
+      "scipy": "1.18.1",
+      "requirements": ["numpy==2.4.6", "scipy==1.18.1"],
+      "optional": true,
+      "selected_extras": [],
+      "status": "metadata-compatible-proposal-awaiting-approval",
+      "target": {
+        "implementation": "CPython",
+        "python": "3.12.11",
+        "os": "Linux",
+        "architecture": "x86_64",
+        "python_tag": "cp312",
+        "abi_tag": "cp312",
+        "platform_tags": ["manylinux_2_27_x86_64", "manylinux_2_28_x86_64"],
+        "platform_condition": "glibc >= 2.27; host libc and installer tag acceptance were not probed"
+      }
+    },
+    "existing_source": {
+      "path": "/home/jeffscottward/Github/trading/gamma-forge/forge/uv.lock",
+      "lock_sha256_supplied_by_parent": "e053a7bc967ebfd6fe45e749c4d4ee188fb7649f5a2141a8ed422a6b9e4ec3cb",
+      "lock_sha256_independently_recomputed": false,
+      "requires_python": ">=3.12, <3.15",
+      "numpy": {
+        "version": "2.4.6",
+        "package_header_lines": [1701, 1702, 1703, 1704],
+        "wheel_line": 1712,
+        "registry": "https://pypi.org/simple",
+        "dependencies_field_present": false,
+        "wheel_url": "https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "wheel_sha256": "90f9849678c75fe7afa2d348ac842c168b0a4d3d61919687216dfc547976d853",
+        "wheel_size": 16645538
+      },
+      "scipy": {
+        "package_count": 0,
+        "case_insensitive_reference_count": 0,
+        "provenance": "New official-PyPI proposal, not a Gamma lock selection"
+      },
+      "numpy_source_vs_official_json": {
+        "version_match": true,
+        "url_match": true,
+        "sha256_match": true,
+        "size_match": true
+      },
+      "source_modified": false
+    },
+    "packages": [
+      {
+        "name": "numpy",
+        "version": "2.4.6",
+        "prerelease": false,
+        "release_yanked": false,
+        "release_yanked_reason": null,
+        "metadata_url": "https://pypi.org/pypi/numpy/2.4.6/json",
+        "metadata_http_status": 200,
+        "requires_python": ">=3.11",
+        "requires_dist": null,
+        "normalized_runtime_requires_dist": [],
+        "wheel": {
+          "filename": "numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "90f9849678c75fe7afa2d348ac842c168b0a4d3d61919687216dfc547976d853",
+          "size": 16645538,
+          "upload_time": "2026-05-18T23:34:09",
+          "upload_time_iso_8601": "2026-05-18T23:34:09.265355Z",
+          "yanked": false,
+          "yanked_reason": null,
+          "requires_python": ">=3.11",
+          "packagetype": "bdist_wheel",
+          "python_version": "cp312",
+          "downloaded": false,
+          "core_metadata_url": "https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+          "core_metadata_http_status": 200,
+          "core_metadata_version": "2.4",
+          "core_requires_python": ">=3.11",
+          "core_requires_dist": []
+        },
+        "license": {
+          "expression": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+          "legacy_license_field": null,
+          "license_classifiers": [],
+          "license_files": [
+            "LICENSE.txt",
+            "numpy/_core/include/numpy/libdivide/LICENSE.txt",
+            "numpy/_core/src/common/pythoncapi-compat/COPYING",
+            "numpy/_core/src/highway/LICENSE",
+            "numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+            "numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+            "numpy/_core/src/umath/svml/LICENSE",
+            "numpy/fft/pocketfft/LICENSE.md",
+            "numpy/linalg/lapack_lite/LICENSE.txt",
+            "numpy/ma/LICENSE",
+            "numpy/random/LICENSE.md",
+            "numpy/random/src/distributions/LICENSE.md",
+            "numpy/random/src/mt19937/LICENSE.md",
+            "numpy/random/src/pcg64/LICENSE.md",
+            "numpy/random/src/philox/LICENSE.md",
+            "numpy/random/src/sfc64/LICENSE.md",
+            "numpy/random/src/splitmix64/LICENSE.md"
+          ],
+          "evidence": "Exact expression and License-File declarations agree between version JSON and selected cp312 manylinux wheel core-metadata sidecar. License files themselves were not downloaded or extracted; this is declared metadata, not a complete audit of bundled native code."
+        }
+      },
+      {
+        "name": "scipy",
+        "version": "1.18.1",
+        "prerelease": false,
+        "release_yanked": false,
+        "release_yanked_reason": null,
+        "discovery_url": "https://pypi.org/pypi/scipy/json",
+        "discovery_http_status": 200,
+        "selection": "Current PyPI version and highest observed stable release with a non-yanked cp312 manylinux x86_64 wheel",
+        "metadata_url": "https://pypi.org/pypi/scipy/1.18.1/json",
+        "metadata_http_status": 200,
+        "requires_python": ">=3.12",
+        "requires_dist": [
+          "numpy<2.8,>=2.0.0",
+          "pytest>=8.0.0; extra == \"test\"",
+          "pytest-cov; extra == \"test\"",
+          "pytest-timeout; extra == \"test\"",
+          "pytest-xdist; extra == \"test\"",
+          "asv; extra == \"test\"",
+          "mpmath; extra == \"test\"",
+          "gmpy2; extra == \"test\"",
+          "threadpoolctl; extra == \"test\"",
+          "scikit-umfpack; extra == \"test\"",
+          "pooch; extra == \"test\"",
+          "hypothesis>=6.30; extra == \"test\"",
+          "array-api-strict>=2.3.1; extra == \"test\"",
+          "Cython; extra == \"test\"",
+          "meson; extra == \"test\"",
+          "ninja; sys_platform != \"emscripten\" and extra == \"test\"",
+          "scipy-doctest>=2.0.0; extra == \"test\"",
+          "sphinx<8.2.0,>=5.0.0; extra == \"doc\"",
+          "intersphinx_registry; extra == \"doc\"",
+          "pydata-sphinx-theme>=0.15.2; extra == \"doc\"",
+          "sphinx-copybutton; extra == \"doc\"",
+          "sphinx-design>=0.4.0; extra == \"doc\"",
+          "matplotlib>=3.5; extra == \"doc\"",
+          "numpydoc; extra == \"doc\"",
+          "jupytext; extra == \"doc\"",
+          "myst-nb>=1.2.0; extra == \"doc\"",
+          "pooch; extra == \"doc\"",
+          "jupyterlite-sphinx>=0.19.1; extra == \"doc\"",
+          "jupyterlite-pyodide-kernel; extra == \"doc\"",
+          "linkify-it-py; extra == \"doc\"",
+          "tabulate; extra == \"doc\"",
+          "click<8.3.0; extra == \"dev\"",
+          "spin; extra == \"dev\"",
+          "mypy==1.19.1; extra == \"dev\"",
+          "pyrefly==0.63.0; extra == \"dev\"",
+          "typing_extensions; extra == \"dev\"",
+          "types-psutil; extra == \"dev\"",
+          "pycodestyle; extra == \"dev\"",
+          "ruff>=0.12.0; extra == \"dev\"",
+          "cython-lint>=0.12.2; extra == \"dev\""
+        ],
+        "normalized_runtime_requires_dist": ["numpy<2.8,>=2.0.0"],
+        "excluded_extras": ["test", "doc", "dev"],
+        "wheel": {
+          "filename": "scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "url": "https://files.pythonhosted.org/packages/df/64/ff35eb9e54894cf471ff4716abd3c81eb0a0626869217ce3e6ba4ccf17d7/scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+          "sha256": "f55fa87b6c612ecd6b058f167c53231b1d14e412efe361d3d6e38b3631c73218",
+          "size": 35344199,
+          "upload_time": "2026-08-21T23:24:07",
+          "upload_time_iso_8601": "2026-08-21T23:24:07.844164Z",
+          "yanked": false,
+          "yanked_reason": null,
+          "requires_python": ">=3.12",
+          "packagetype": "bdist_wheel",
+          "python_version": "cp312",
+          "downloaded": false,
+          "core_metadata_url": "https://files.pythonhosted.org/packages/df/64/ff35eb9e54894cf471ff4716abd3c81eb0a0626869217ce3e6ba4ccf17d7/scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+          "core_metadata_http_status": 200,
+          "core_metadata_version": "2.1",
+          "core_requires_python": ">=3.12",
+          "core_runtime_requires_dist": ["numpy<2.8,>=2.0.0"],
+          "core_requires_dist_evidence": "Selected wheel sidecar exposes the same complete Requires-Dist entries listed above, including test/doc/dev markers."
+        },
+        "license": {
+          "expression": null,
+          "license_files": null,
+          "core_license_expression_present": false,
+          "core_license_file_headers_present": false,
+          "legacy_license_field": "Long license text present in both version JSON and target-wheel core metadata; evidence summarized rather than reproduced in full.",
+          "license_classifiers": ["License :: OSI Approved :: BSD License"],
+          "project_license_interpretation": "BSD-3-Clause, inferred from the explicit three-clause text; not a populated License-Expression field.",
+          "project_license_evidence": [
+            "Copyright (c) 2001-2002 Enthought, Inc. 2003, SciPy Developers.",
+            "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:",
+            "1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.",
+            "2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.",
+            "3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission."
+          ],
+          "target_wheel_declared_bundled_notices": [
+            {
+              "name": "OpenBLAS",
+              "files": "scipy.libs/libscipy_openblas*.so",
+              "license": "BSD-3-Clause",
+              "availability": "https://github.com/OpenMathLib/OpenBLAS/"
+            },
+            {
+              "name": "LAPACK",
+              "files": "scipy.libs/libscipy_openblas*.so",
+              "license": "BSD-3-Clause-Open-MPI",
+              "availability": "https://github.com/OpenMathLib/OpenBLAS/"
+            },
+            {
+              "name": "GCC runtime library",
+              "files": "scipy.libs/libgfortran*.so",
+              "license": "GPL-3.0-or-later WITH GCC-exception-3.1",
+              "availability": "https://gcc.gnu.org/git/?p=gcc.git;a=tree;f=libgfortran"
+            },
+            {
+              "name": "libquadmath",
+              "files": "scipy.libs/libquadmath*.so",
+              "license": "LGPL-2.1-or-later",
+              "availability": "https://gcc.gnu.org/git/?p=gcc.git;a=tree;f=libquadmath"
+            }
+          ],
+          "notice_scope": "Metadata says this binary distribution can also bundle these components; actual archive members were not inspected.",
+          "release_vs_target_metadata_difference": "Release JSON license text references scipy/.dylibs paths and libgcc as well as libgfortran. The selected Linux wheel sidecar references scipy.libs and lists libgfortran for GCC runtime. Preserve this distinction; use selected-wheel metadata for its declared notices, not a blanket BSD-only artifact characterization.",
+          "consolidated_wheel_spdx_expression": "Not supplied; not invented"
+        }
+      }
+    ],
+    "compatibility_reasoning": [
+      "CPython 3.12.11 satisfies NumPy >=3.11 and SciPy >=3.12; both selected wheels are tagged cp312-cp312.",
+      "NumPy 2.4.6 satisfies SciPy's exact observed runtime constraint: >=2.0.0 and <2.8.",
+      "Both selected wheels provide x86_64 manylinux_2_27 and manylinux_2_28 tags. Linux/x86_64 alone does not prove libc compatibility; glibc >=2.27 remains a stated condition.",
+      "Both package versions are stable releases and both release and selected-file yanked flags are false.",
+      "No extras are selected. SciPy's test/doc/dev requirements are excluded; NumPy has null Requires-Dist in version JSON and no Requires-Dist headers in selected-wheel core metadata.",
+      "Python distribution runtime closure is exactly NumPy and SciPy. Native shared libraries and operating-system dependencies are not additional pip Requires-Dist entries, and their actual runtime closure was not inspected."
+    ],
+    "identity_separation": {
+      "existing_source": "Gamma lock establishes its NumPy choice and expected artifact URL/hash/size, not an installed environment or downloaded artifact.",
+      "official_release": "PyPI version JSON supplies release requirements, license metadata, file hashes, sizes, upload times and yanked flags.",
+      "selected_artifact_metadata": "Only plain core-metadata sidecars ending .whl.metadata were fetched from files.pythonhosted.org; no .whl or source-archive content was fetched.",
+      "artifact_integrity": "Wheel SHA256 values are observed PyPI metadata values, not hashes independently calculated over downloaded wheel bytes.",
+      "scipy_origin": "SciPy is a new official-artifact proposal. It must not be attributed to Gamma's existing lock."
+    },
+    "unavailable_or_mismatched_metadata": [
+      "SciPy 1.18.1 license_expression and license_files are null in PyPI version JSON; selected core metadata also has no License-Expression or License-File headers. Legacy license text and classifier evidence are available.",
+      "SciPy release JSON and exact Linux wheel metadata have different bundled-library path notices, as recorded above.",
+      "No NumPy pin or artifact identity mismatch was observed; no alternative NumPy version is proposed.",
+      "Full license-file contents, actual bundled artifact inventory, host libc, installed environment and runtime behavior remain outside this investigation."
+    ],
+    "execution_status": {
+      "runtime_unexecuted": true,
+      "approval_needed": true,
+      "approval_scope": "Adopting the optional pair, acquiring artifacts, changing any dependency lock and any later installation/execution require separate authorization under the parent's workflow.",
+      "wheels_downloaded": false,
+      "source_archives_downloaded": false,
+      "packages_imported": false,
+      "packages_installed": false,
+      "builds_tests_lint_formatters_or_validation_commands_run": false,
+      "project_files_written": false,
+      "source_files_written": false,
+      "existing_native_dependency_lock_modified": false,
+      "credentials_or_dotenv_read": false,
+      "metadata_network_only": true
+    }
+  },
+  "sourceIdentity": {
+    "originalGammaLockSha256": "e053a7bc967ebfd6fe45e749c4d4ee188fb7649f5a2141a8ed422a6b9e4ec3cb",
+    "originalGammaLockHashObservedByPackagingOwner": true,
+    "numpyOrigin": "Exact source Gamma package/artifact, also matched official metadata",
+    "scipyOrigin": "New official PyPI artifact, not original Gamma lock"
+  },
+  "pythonRuntimeClosure": [
+    {
+      "name": "numpy",
+      "version": "2.4.6",
+      "requires": [],
+      "wheel": {
+        "filename": "numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "sha256": "90f9849678c75fe7afa2d348ac842c168b0a4d3d61919687216dfc547976d853",
+        "size": 16645538,
+        "upload_time": "2026-05-18T23:34:09",
+        "upload_time_iso_8601": "2026-05-18T23:34:09.265355Z",
+        "yanked": false,
+        "yanked_reason": null,
+        "requires_python": ">=3.11",
+        "packagetype": "bdist_wheel",
+        "python_version": "cp312",
+        "downloaded": false,
+        "core_metadata_url": "https://files.pythonhosted.org/packages/99/60/14115e6364fa676c5397c2ad3004e527e9aa487abf5d0706ec81bbd08529/numpy-2.4.6-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+        "core_metadata_http_status": 200,
+        "core_metadata_version": "2.4",
+        "core_requires_python": ">=3.11",
+        "core_requires_dist": []
+      }
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.1",
+      "requires": ["numpy<2.8,>=2.0.0"],
+      "wheel": {
+        "filename": "scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "url": "https://files.pythonhosted.org/packages/df/64/ff35eb9e54894cf471ff4716abd3c81eb0a0626869217ce3e6ba4ccf17d7/scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "sha256": "f55fa87b6c612ecd6b058f167c53231b1d14e412efe361d3d6e38b3631c73218",
+        "size": 35344199,
+        "upload_time": "2026-08-21T23:24:07",
+        "upload_time_iso_8601": "2026-08-21T23:24:07.844164Z",
+        "yanked": false,
+        "yanked_reason": null,
+        "requires_python": ">=3.12",
+        "packagetype": "bdist_wheel",
+        "python_version": "cp312",
+        "downloaded": false,
+        "core_metadata_url": "https://files.pythonhosted.org/packages/df/64/ff35eb9e54894cf471ff4716abd3c81eb0a0626869217ce3e6ba4ccf17d7/scipy-1.18.1-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata",
+        "core_metadata_http_status": 200,
+        "core_metadata_version": "2.1",
+        "core_requires_python": ">=3.12",
+        "core_runtime_requires_dist": ["numpy<2.8,>=2.0.0"],
+        "core_requires_dist_evidence": "Selected wheel sidecar exposes the same complete Requires-Dist entries listed above, including test/doc/dev markers."
+      }
+    }
+  ],
+  "hashMeaning": "Hashes are source-lock/official-PyPI artifact metadata, NOT locally acquired wheel byte verification. No wheel was downloaded.",
+  "packaging": {
+    "extra": "numeric",
+    "additiveLock": "services/research/requirements-numeric-linux-py312.lock",
+    "baseLock": "services/research/requirements-linux-py312.lock",
+    "baseLockChanged": false,
+    "licensePreservation": "Retain upstream distribution notices, including selected-wheel native bundled-library notices. Do not characterize SciPy wheel as blanket BSD-only.",
+    "runtimeAvailability": "Unavailable until exact artifacts are acquired, composed, and accepted in the final authorized phase; metadata compatibility does not establish numerical/runtime compatibility."
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "slug": "three-rules-define-size-dry-powder",
+  "sourceId": "Da5k4GCupsY",
+  "title": "Three rules: define risk, size on max loss, keep dry powder",
+  "summary": "After almost 25 years trading derivatives, the speaker keeps three rules. Define the risk on every trade: no one-by-two call spreads and no short straddles. Size each trade on its maximum possible loss, not on premium targets; even in the core portfolio no single name exceeds 5%. Keep dry powder so you can act in a crash instead of facing margin calls.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "spreads", "hedging"],
+    "timeframe": "years",
+    "risk": "defined",
+    "topics": ["defined risk", "sizing", "dry powder", "tail risk"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "core",
+      "color": "blue",
+      "caption": "The core portfolio. Rule two: no more than 5% in any single name."
+    },
+    {
+      "element": "options",
+      "color": "gold",
+      "caption": "The options sleeve holds only defined-risk trades. Rule one: no short tail risk such as short straddles."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Size every trade on its maximum possible loss, not on how much premium you want each week."
+    },
+    {
+      "element": "cash",
+      "color": "green",
+      "caption": "Rule three: dry powder. Cash lets you buy in a crash instead of facing margin calls."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "A forced liquidation in a crash wastes the best opportunities. Cash keeps them open."
+    }
+  ],
+  "formulas": ["positionSize", "recovery", "kelly"],
+  "takeaways": [
+    "Define the risk on every trade. Avoid structures with short tail risk.",
+    "Size trades on the maximum possible loss, with no single name above 5%.",
+    "Keep dry powder so a crash is an opportunity, not a margin call."
+  ],
+  "caveats": [
+    "The 25-year track record is the speaker's own claim. Part of the transcript is missing."
+  ]
+}

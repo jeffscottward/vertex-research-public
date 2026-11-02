@@ -1,0 +1,7 @@
+[toolchain]
+channel = "1.88.0"
+profile = "minimal"
+targets = ["x86_64-unknown-linux-gnu"]
+
+# Exact source proposal only: not installed, resolved, downloaded or validated.
+# Release requires reviewed compiler/dependency/image hashes and an actual lock.

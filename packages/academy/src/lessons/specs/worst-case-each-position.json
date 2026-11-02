@@ -1,0 +1,84 @@
+{
+  "slug": "worst-case-each-position",
+  "sourceId": "DW1XVHKDuBD",
+  "title": "Assess risk by the worst case of each position",
+  "summary": "The biggest risk is what is possible, not what is likely. Do not judge trades by probability alone. Go through the portfolio line by line, take the worst case for each position, and check how much it would hurt the whole portfolio. If one line can do too much damage, the structure or the size is wrong. Risk first, invest second, option overlays third.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "hedging"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["worst case", "position sizing", "risk first"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "core",
+      "color": "blue",
+      "caption": "Start with the core holdings. These are the investments that come first."
+    },
+    {
+      "element": "options",
+      "color": "gold",
+      "caption": "The options sleeve is an overlay on top of the core, not the other way round."
+    },
+    {
+      "element": "cash",
+      "color": "green",
+      "caption": "Cash is the buffer that absorbs a bad outcome and keeps you able to act."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Ask for each line: what is the worst case, and how much of the portfolio would it take?"
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "If one position's worst case is too large, change the structure or cut the size."
+    }
+  ],
+  "formulas": ["positionSize", "recovery"],
+  "takeaways": [
+    "The real risk is what is possible, not what is likely.",
+    "Check the worst case one position at a time; all worst cases at once is unrealistic.",
+    "If one worst case hurts the portfolio too much, the structure or the size is wrong.",
+    "Risk first, invest second, option overlays third."
+  ],
+  "caveats": [
+    "Part of the transcript is missing. Allocation numbers in the chart are example values."
+  ]
+}

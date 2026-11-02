@@ -1,0 +1,134 @@
+{
+  "slug": "option-leverage-by-strike",
+  "sourceId": "DXHkycUET53",
+  "title": "Option leverage by strike: why a 50% strike gives about 2x",
+  "summary": "Using a three-month option on a $100 stock, the speaker shows that extrinsic value peaks at the money and leverage rises as the strike moves out of the money: about 10x at the money and 20 to 30x far out of the money. For stock replacement he uses a deep in-the-money call at about 50% of the stock price, which gives about 2x leverage.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "leaps", "synthetics"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["leverage", "extrinsic", "stock replacement"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ATM call ($100)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Deep ITM call ($50)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "atmStrike",
+      "label": "At-the-money strike",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "Deep ITM strike",
+      "default": 50,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 90,
+      "min": 7,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock and three-month calls."
+    },
+    {
+      "element": "a",
+      "color": "violet",
+      "caption": "The at-the-money call is almost all extrinsic value. Its leverage is about 10x."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "The $50 strike call is mostly intrinsic value. Its leverage is about 2x."
+    },
+    {
+      "element": "diff",
+      "color": "gold",
+      "caption": "Far out-of-the-money calls reach 20 to 30x leverage, like lottery tickets."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The deep ITM call breaks even close to the stock price, so it tracks the stock with less capital."
+    }
+  ],
+  "formulas": ["delta", "extrinsic", "blackScholes"],
+  "takeaways": [
+    "Extrinsic value peaks at the money.",
+    "Leverage rises as the strike moves out of the money: about 10x ATM, 20-30x far OTM.",
+    "For stock replacement the speaker uses a strike near 50% of the stock price for about 2x leverage."
+  ],
+  "caveats": [
+    "The calculator in the video is the speaker's own tool.",
+    "Leverage figures are approximate and change with volatility and time."
+  ]
+}

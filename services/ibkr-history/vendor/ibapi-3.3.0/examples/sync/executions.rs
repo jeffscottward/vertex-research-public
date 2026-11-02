@@ -1,0 +1,34 @@
+//! Executions example
+//!
+//! # Usage
+//!
+//! ```bash
+//! cargo run --features sync --example executions
+//! ```
+
+use ibapi::client::blocking::Client;
+use ibapi::orders::ExecutionFilter;
+
+fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
+    let filter = ExecutionFilter {
+        client_id: Some(32),
+        ..Default::default()
+    };
+    // filter.account_code = account_code.to_owned();
+    // filter.time = time.to_owned();
+    // filter.symbol = symbol.to_owned();
+    // filter.security_type = security_type.to_owned();
+    // filter.exchange = exchange.to_owned();
+    // filter.side = Some(ibapi::orders::ExecutionFilterSide::Buy);
+
+    let client = Client::connect("127.0.0.1:4002", 100)?;
+
+    let subscription = client.executions(filter)?;
+    for execution in &subscription {
+        println!("{execution:?}")
+    }
+
+    Ok(())
+}

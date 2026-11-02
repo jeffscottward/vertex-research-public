@@ -1,0 +1,69 @@
+{
+  "account_fingerprint": "0000000000000000000000000000000000000000",
+  "account_masked": "U***0042",
+  "available_funds_usd": 120000.5,
+  "captured_at_epoch": 1789762550.74,
+  "generated_at": "2026-09-18T20:15:50.744897+00:00",
+  "schemaVersion": "ibkr-account-snapshot/v1",
+  "source": "ibkr_tws_api",
+  "summary": {
+    "AvailableFunds": {
+      "USD": "120000.50"
+    },
+    "BuyingPower": {
+      "USD": "480002.00"
+    },
+    "NetLiquidation": {
+      "USD": "150000.25"
+    },
+    "TotalCashValue": {
+      "USD": "90000.00"
+    }
+  },
+  "positions": [
+    {
+      "account_masked": "U***0042",
+      "average_cost": 100.5,
+      "contract": {
+        "currency": "USD",
+        "exchange": "",
+        "lastTradeDateOrContractMonth": "",
+        "multiplier": "",
+        "right": "0",
+        "secType": "STK",
+        "strike": 0.0,
+        "symbol": "ORCL"
+      },
+      "currency": "USD",
+      "market_price": 101.0,
+      "market_value": 10100.0,
+      "quantity": 100.0,
+      "realized_pnl": 0.0,
+      "sec_type": "STK",
+      "symbol": "ORCL",
+      "unrealized_pnl": 50.0
+    },
+    {
+      "account_masked": "U***0042",
+      "average_cost": 250.0,
+      "contract": {
+        "currency": "USD",
+        "exchange": "",
+        "lastTradeDateOrContractMonth": "20261120",
+        "multiplier": "100",
+        "right": "C",
+        "secType": "OPT",
+        "strike": 150.0,
+        "symbol": "AAPL"
+      },
+      "currency": "USD",
+      "market_price": 3.1,
+      "market_value": 620.0,
+      "quantity": 2.0,
+      "realized_pnl": 12.5,
+      "sec_type": "OPT",
+      "symbol": "AAPL",
+      "unrealized_pnl": 120.0
+    }
+  ]
+}

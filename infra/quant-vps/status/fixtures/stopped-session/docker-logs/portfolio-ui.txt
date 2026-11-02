@@ -1,0 +1,3 @@
+2026-09-25T16:39:40.349777632Z vertex portfolio listening on 0.0.0.0:4177
+2026-10-02T14:00:00.000000000Z IBKR cancel order failed: Error 201 account DU7654321 Authorization: Bearer FixtureBearerAbCdEf0123456789 rejected
+2026-10-02T14:05:00.000000000Z ERROR snapshot refresh failed url=https://operator:fixturepw@ib.example/x token=abc123fixture contact jeff@example.com

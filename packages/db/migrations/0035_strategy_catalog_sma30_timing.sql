@@ -1,0 +1,6 @@
+-- Seed: 30-day moving average market timing (card vertex-30dma-timing, owner request 2026-10-30).
+-- Spec: docs/specs/strategies/sma30-market-timing.md; results: research/backtests/sma30-timing/results.json.
+-- Research only. The pre-set pass/fail test failed; the row records the result. Existing slugs are never overwritten.
+INSERT INTO "strategies" ("id", "slug", "name", "description", "kind", "status", "source_ref", "tags", "section", "params") VALUES
+  ('strategy-seed-sma30-market-timing', 'sma30-market-timing', '30-Day Moving Average Market Timing', 'Exit the US stock market when it closes below its 30-day moving average, re-enter when it closes above, hold T-bills while out (Instagram @alanintelligence). The creator''s 1926-2026 result reproduces exactly on Ken French daily data (USD 1,000 to 339.87 M vs 17.68 M, 1,936 trades) but only with a trade at the signal close; one day later it ends below buy-and-hold. Pre-set test at 0.1% per trade: FAIL (Sharpe 0.50 vs 0.51 in 1974-2026; 0.18 vs 0.52 on SPY + BIL since 1993). Spec: docs/specs/strategies/sma30-market-timing.md. Research only.', 'python', 'backtested', 'services/research/strategies/sma_timing.py', '["instagram","market-timing","moving-average","daily","failed"]'::jsonb, 'Macro filters', '[]'::jsonb)
+ON CONFLICT ("slug") DO NOTHING;

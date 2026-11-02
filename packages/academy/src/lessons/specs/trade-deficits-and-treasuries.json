@@ -1,0 +1,79 @@
+{
+  "slug": "trade-deficits-and-treasuries",
+  "sourceId": "DTV_J_4ibyp",
+  "title": "Trade deficits: dollars, Treasuries and the interest rate gap",
+  "summary": "The speaker says a trade deficit is not bad by itself. The US buys foreign goods and the foreign side wants dollars. Foreign holders often move those dollars into Treasuries to earn interest. A dollar and a Treasury differ only by the interest paid, so foreign Treasury purchases do not mean the US depends on them to borrow.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "trade deficit", "treasuries", "dollar"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Dollars moved to Treasuries",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Other uses",
+      "default": 0,
+      "min": 0,
+      "max": 50,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Leverage",
+      "default": 1,
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "A foreign exporter's dollar holdings after selling goods to the US."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Dollars in a checking account: they earn no interest."
+    },
+    {
+      "element": "core",
+      "color": "blue",
+      "caption": "Dollars moved into Treasuries: a savings account that pays interest."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "The only difference between a dollar and a Treasury is the interest rate it pays."
+    }
+  ],
+  "formulas": ["recovery"],
+  "takeaways": [
+    "A trade deficit means both sides want what they get: goods for dollars.",
+    "Foreign Treasury purchases are a choice to earn interest, not loans the US needs.",
+    "The speaker argues a government that issues its own currency does not need to borrow it."
+  ],
+  "caveats": [
+    "This is a macro opinion from the speaker. The transcript gives no data and is cut off at the end.",
+    "The allocation chart is an analogy, not a trading position."
+  ]
+}

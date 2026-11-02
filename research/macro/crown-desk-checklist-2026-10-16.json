@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "id": "crown-desk-checklist-2026-10-16",
+  "title": "Crown desk checklist: cap weight versus equal weight rotation (RSP/SPY)",
+  "attribution": "crown",
+  "source": {
+    "platform": "instagram",
+    "account": "nicholascrown",
+    "shortcode": "DejvlgDD22R",
+    "url": "https://www.instagram.com/reel/DejvlgDD22R/",
+    "published": "2026-10-16",
+    "caption": "It's not fancy but it works.",
+    "transcript": "Local faster-whisper large-v3 ASR (KB page timestamps 00:10-01:19). Nobody checked it against the audio; it repeats one phrase near 00:56-00:59. Full text: knowledge-bases repository, trading/nicholas-crown/raw/ig-DejvlgDD22R.md.",
+    "corroboration": "Not included in the public copy (paid newsletter content)."
+  },
+  "marketHealth": {
+    "file": "research/expansion/market-health.json",
+    "revision": "health-d2b267514f5df389",
+    "asOf": "2026-09-10T22:17:33.335Z",
+    "note": "Measured observations in this revision end 2026-09-09. They are stale for October 2026 decisions until the market-health input is collected and imported again."
+  },
+  "coverageLevels": {
+    "measured": "A mapped market-health series measures the check itself (status available).",
+    "partial": "A mapped series measures part of the check; the gaps list the rest.",
+    "concept-only": "The Crown concept is recorded with source anchors, but no series measures it.",
+    "missing": "No market-health indicator covers the check."
+  },
+  "caveats": [
+    "The reel is marketing for the Crown Macro Letter. It reports one trade (RSP over SPY, profit target hit in four days). That result is the author's claim, not verified performance.",
+    "The reel names the checks but gives no thresholds, weights, look-back windows or position sizes. Do not invent them.",
+    "This checklist is a research filter for manual review. It is not a composite score and not an order signal."
+  ],
+  "steps": [
+    {
+      "order": 1,
+      "layer": "Breadth / composition",
+      "check": "Cap weight versus equal weight dispersion: RSP/SPY. Read it also as semiconductor leadership versus broad sector participation.",
+      "sourceAnchor": "we monitor cap weight versus equal weight dispersion in the market via RSP SPY. This is always sitting on our screens.",
+      "existing": [
+        "rsp-spy",
+        "rsp-spy-sma20",
+        "crown-equal-weight-versus-capitalization-weighted-s-p-rsp-spy",
+        "igv-soxx",
+        "soxx-adjusted-close",
+        "soxx-sma50",
+        "soxx-sma200",
+        "crown-concentration-share-of-the-top-ten-mag-seven-and-semiconductor-leadership",
+        "crown-percentage-of-s-p-constituents-above-their-50-day-and-200-day-moving-averages",
+        "crown-newer-semiconductor-resilience"
+      ],
+      "coverage": "measured",
+      "gaps": [
+        "No SOXX/SPY or SOXX/RSP ratio (semiconductor leadership against the broad index).",
+        "No sector participation count, for example the number of the 11 SPDR sector funds above their 50-day average."
+      ]
+    },
+    {
+      "order": 2,
+      "layer": "Volatility",
+      "check": "Implied versus realized volatility.",
+      "sourceAnchor": "we're gonna overlay implied versus realized vol.",
+      "existing": [
+        "vix",
+        "vixeq",
+        "vixeq-minus-vix",
+        "crown-implied-volatility-rank-implied-versus-realized-volatility-event-premium-term-structure",
+        "crown-vix-30-day-s-p-implied-volatility-protection-price-not-a-mechanical-fear-sell-signal"
+      ],
+      "coverage": "partial",
+      "gaps": [
+        "Implied side only. No realized S&P volatility series (for example 20-day close-to-close SPY volatility, annualized) and no VIX minus realized spread. SPY closes already exist, so this needs no new provider."
+      ]
+    },
+    {
+      "order": 3,
+      "layer": "Volatility / positioning",
+      "check": "Index skew.",
+      "sourceAnchor": "Then we're gonna take a look at index skew",
+      "existing": ["crown-put-call-ratio-and-directional-skew"],
+      "coverage": "concept-only",
+      "gaps": [
+        "No skew series. Candidates: Cboe SKEW index, or 25-delta put minus call implied volatility on SPX from an options chain."
+      ]
+    },
+    {
+      "order": 4,
+      "layer": "Volatility / positioning",
+      "check": "Options flow.",
+      "sourceAnchor": "options flow",
+      "existing": [
+        "crown-0dte-strike-crowding-and-market-maker-futures-hedges",
+        "crown-dealer-delta-and-hedging-flow-changes"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "No options-flow feed. Cboe daily put/call volume is the smallest public proxy; real flow (sweeps, block prints) needs a paid feed."
+      ]
+    },
+    {
+      "order": 5,
+      "layer": "Volatility / positioning",
+      "check": "Dealer gamma exposure.",
+      "sourceAnchor": "dealer gamma exposure",
+      "existing": [
+        "crown-dealer-gamma-sign-concentration-at-strikes-support-resistance-magnets-call-walls-gamma-flips",
+        "crown-gamma-asymmetry-for-5-versus-5-moves"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "No gamma series in market health. The market-watch-bot GEX dry run computes one outside this repository; it is not imported here."
+      ]
+    },
+    {
+      "order": 6,
+      "layer": "Positioning",
+      "check": "Futures positioning.",
+      "sourceAnchor": "and futures positioning",
+      "existing": [
+        "crown-cftc-commitment-of-traders-managed-money-speculative-positioning-crowding-room-to-add-or-unwind"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "No CFTC data. The weekly Traders in Financial Futures report (public, free) gives leveraged-fund and asset-manager net positions for ES and NQ."
+      ]
+    },
+    {
+      "order": 7,
+      "layer": "Positioning / technicals",
+      "check": "Technical levels that CTAs follow.",
+      "sourceAnchor": "various other technical indicators that CTAs follow and billions of dollars of flow execute on.",
+      "existing": [
+        "crown-cta-systematic-trend-following-flows",
+        "crown-simple-moving-averages-20-50-and-200-days-break-reclaim-hold-behavior",
+        "crown-prior-20-day-high-low-channels-support-resistance-and-breakout-confirmation",
+        "spy-sma50",
+        "spy-sma200",
+        "qqq-sma50",
+        "qqq-sma200"
+      ],
+      "coverage": "partial",
+      "gaps": [
+        "Moving averages only. No CTA trend-signal estimate (for example the sign of 20/60/120-day returns on ES, NQ and RTY) and no RSP moving averages."
+      ]
+    },
+    {
+      "order": 8,
+      "layer": "Rates",
+      "check": "Ten-year yield level and repeated rejection near a level (5.35% in October 2026).",
+      "sourceAnchor": "we saw repeated rejection near 535 in 10s",
+      "existing": [
+        "series-dgs10",
+        "series-dgs30",
+        "treasury-10y-minus-2y",
+        "crown-nominal-treasury-yields-and-yield-curve-shape-short-end-ten-year-belly-and-long-end-two-year-ten-year-flattening"
+      ],
+      "coverage": "partial",
+      "gaps": [
+        "Daily FRED closes only. No intraday high, so a rejection (intraday touch, lower close) cannot be detected. The level is from the source; it is not a general threshold."
+      ]
+    },
+    {
+      "order": 9,
+      "layer": "Rates",
+      "check": "Treasury auction demand on 10-year and 30-year auctions.",
+      "sourceAnchor": "followed up with strong auction demand, both on 10s and 30s",
+      "existing": [],
+      "coverage": "missing",
+      "gaps": [
+        "No auction indicator. Treasury FiscalData auction results (public) give bid-to-cover, high yield and indirect/direct takedown. The tail versus when-issued yield needs a when-issued quote, which is not public."
+      ]
+    },
+    {
+      "order": 10,
+      "layer": "Rates",
+      "check": "Fed funds futures strip: implied hike or cut odds.",
+      "sourceAnchor": "changes in the Fed funds strip. This is where you see the rate hike odds implied in the futures market",
+      "existing": [
+        "crown-fed-funds-futures-cme-fedwatch-rate-probabilities-ois-and-currency-relative-rate-pricing",
+        "series-sofr"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "SOFR (series-sofr) is the spot rate, not the expected path. No ZQ or SR3 futures strip and no implied probability per FOMC meeting."
+      ]
+    },
+    {
+      "order": 11,
+      "layer": "Credit",
+      "check": "Credit spreads widening while duration rallies (risk to AI build-out financing).",
+      "sourceAnchor": "credit spreads widening, even as duration caught a bit. So a really dangerous sign in terms of the financing behind the AI build out.",
+      "existing": [
+        "series-bamlh0a0hym2",
+        "series-bamlc0a0cm",
+        "hyg-lqd",
+        "crown-high-yield-credit-spreads-high-yield-versus-investment-grade-performance",
+        "crown-hyg-and-lqd-comparison-explicitly-duration-confounded",
+        "crown-corporate-refinancing-burden-maturity-wall-bankruptcy-large-bankruptcy-counts"
+      ],
+      "coverage": "measured",
+      "gaps": [
+        "No divergence flag that compares the 5-day change of HY and IG spreads with the 5-day change of the 10-year yield. No issuer-level series for AI build-out debt."
+      ]
+    },
+    {
+      "order": 12,
+      "layer": "Narrative",
+      "check": "Press sentiment and headline frequency compared with price action.",
+      "sourceAnchor": "we use a press listener that runs sentiment analysis and measures headline frequency.",
+      "existing": [
+        "crown-reaction-to-adverse-headlines-failure-to-fall",
+        "crown-trade-thesis-confirmation-positioning-cross-asset-behavior-narrative-saturation-and-remaining-risk-reward"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "No headline-count or sentiment series per theme (for example rate hike, geopolitics, AI capex). The market-watch-bot news job collects headlines outside this repository."
+      ]
+    },
+    {
+      "order": 13,
+      "layer": "Synthesis",
+      "check": "Ask how market composition will change, not whether one event happens. Act only when independent layers agree.",
+      "sourceAnchor": "the question for our desk wasn't whether the Fed was gonna hike. It's how is market composition gonna change considering all of these variables?",
+      "existing": [
+        "crown-signal-stacking-not-one-indicator-triggers",
+        "crown-growth-conflict-regime-grid"
+      ],
+      "coverage": "concept-only",
+      "gaps": [
+        "Manual synthesis by design. The application must not convert this into a composite score."
+      ]
+    }
+  ]
+}

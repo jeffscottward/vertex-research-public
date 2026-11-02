@@ -1,0 +1,36 @@
+{
+  "provider": "Yahoo Finance public chart endpoint v8 (query1.finance.yahoo.com), interval 1d",
+  "fetchedAt": "2026-10-23T06:42:28Z",
+  "generator": "services/research/tests/golden/fetch_yahoo.py",
+  "range": {
+    "start": "2015-01-01",
+    "end": "2024-12-31"
+  },
+  "fields": {
+    "date": "exchange-local trading date (America/New_York)",
+    "open, high, low, close": "split-adjusted prices in USD, rounded to 6 decimals",
+    "adj_close": "split- and dividend-adjusted close as Yahoo reported it on fetchedAt, rounded to 6 decimals",
+    "volume": "shares, split-adjusted"
+  },
+  "adjustment": "Both backtest paths scale open, high, low and close by adj_close/close (total-return bars).",
+  "delay": "End-of-day history only; the newest bar is from 2024-12-31. No live or intraday data.",
+  "license": "Yahoo Finance data is for personal, non-commercial use and must not be redistributed. This copy is a test fixture in a private repository. Do not publish it, copy it to report pages or ship it in a build.",
+  "files": {
+    "SPY": {
+      "file": "SPY-1d.csv",
+      "sha256": "e623801fed6bb02f2484602c54fc12640c728074ae4aa356217ae1d97adf9387",
+      "downloadSha256": "6a7c9c1b3987eaa0a2f026e95cfb3aeb93188366a05e960ba0e30c306507761b",
+      "rows": 2516,
+      "first": "2015-01-02",
+      "last": "2024-12-31"
+    },
+    "QQQ": {
+      "file": "QQQ-1d.csv",
+      "sha256": "560ea79bd3af7279f8a4601d55a627b10c70563f9b9a73eaa7ff0d26b6febbce",
+      "downloadSha256": "5b411d70a31e3ce477a0406fa28a1c19707ee95eabf5c7dae58df328640a95ef",
+      "rows": 2516,
+      "first": "2015-01-02",
+      "last": "2024-12-31"
+    }
+  }
+}

@@ -1,0 +1,155 @@
+{
+  "slug": "earnings-call-diagonal",
+  "sourceId": "DbY5IZqNwNh",
+  "title": "The call diagonal as an earnings trade: three bets in one",
+  "summary": "A diagonal combines a vertical call spread and a calendar spread. It makes three bets: term structure (one-week vol rich versus one-month), implied volatility (a call diagonal is net long vega), and direction (the strike difference). If the stock drops after earnings, the speaker covers the short leg at 80-90% of its max profit and waits for a rebound.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["event", "bullish"],
+    "instruments": ["single-stock", "spreads", "volatility"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["diagonal", "term structure", "earnings", "vega"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "3d",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "longDte",
+        "label": "Long 1-month call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "shortDte",
+        "label": "Short 1-week call"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AAPL price",
+      "default": 230,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 230,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 240,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longDte",
+      "label": "Long call days",
+      "default": 30,
+      "min": 2,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "shortDte",
+      "label": "Short call days",
+      "default": 7,
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Diagonals",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Apple before earnings. Buy a one-month call, sell a one-week call at a higher strike."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The strike difference sets the directional bet."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "Two legs with two expiries: a vertical spread and a calendar spread in one."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At the short call's expiry, the payoff peaks near the short strike.",
+      "time": [0, 1]
+    },
+    {
+      "element": "surface",
+      "color": "violet",
+      "caption": "The surface shows the long vega and term-structure bets: rich one-week vol is sold, cheaper one-month vol is bought."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "If the stock drops, cover the short call at 80-90% of its max profit and keep the long call for a rebound."
+    }
+  ],
+  "formulas": ["vega", "theta", "delta"],
+  "takeaways": [
+    "A diagonal is a vertical spread plus a calendar spread.",
+    "It bets on term structure, implied volatility and direction at once.",
+    "On a drop, the speaker buys back the short leg at 80-90% of max profit and waits for a rebound."
+  ],
+  "caveats": [
+    "The speaker says this is educational, not a trade recommendation.",
+    "Earnings trades are event trades. The owner's X06 rule says do not pre-position for event moves.",
+    "Strikes, expiries and price are illustrative; the transcript does not give them.",
+    "Kept as a concept: the backtest engine has no event-timed diagonal structure."
+  ]
+}

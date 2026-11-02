@@ -1,0 +1,123 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build and tool output
+.next/
+.vinext/
+dist/
+build/
+.turbo/
+.wrangler/
+.alchemy/
+.cache/
+coverage/
+playwright-report/
+test-results/
+graphify-out/
+.graphify/manifest.json
+
+# Local agent recovery artifacts
+.session-recovery/
+/.scratch/
+# Per-machine agent checkpoint; never publish session state.
+/.omp-status.md
+
+# Environment and local credentials
+.env
+.env.*
+.dev.vars*
+!.env.example
+.certs/
+*.pem
+*.key
+
+# Editors and operating systems
+.DS_Store
+.idea/
+# Shared VS Code workspace settings are tracked; everything else stays local.
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+*.swp
+
+# Logs
+*.log
+pnpm-debug.log*
+
+# Private Vertex review material; never an executable trading input
+/private/
+/local-tools/
+/broker-evidence/
+/imported-credentials/
+/ssh-trust/
+**/known_hosts
+**/known_hosts.*
+**/id_rsa
+**/id_ed25519
+*.p12
+*.pfx
+
+# Native external-service local artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vitest-reports/
+
+# Vertex Academy rendered media (MP4, VTT, thumbnails); see docs/vertex-academy.md
+apps/web/public/academy-media/
+
+# Private broker, account and portfolio data (restored from the pre-rebuild
+# rules). Ignore is not redaction; verify before publishing.
+user-portfolio.json
+knowledge-manifest.json
+/private/
+/account-snapshots/
+/accounts/
+/broker/
+/raw-broker/
+/raw-account/
+/raw-transcripts/
+/raw-videos/
+/agent-handoffs/
+/research/raw/
+/research/broker-*
+/research/evidence/
+/data/*.json
+!/data/public-catalog.json
+/data/reports/APP/
+/data/reports/SIVE/
+/research/reports/APP/
+/research/reports/SIVE/
+*.har
+*.har.gz
+
+# Local runtime databases at every size
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.wal
+*.shm
+
+# Local credential files
+.npmrc
+.netrc
+.git-credentials
+credentials*.json
+/secrets/
+/.secrets/
+token*.json
+
+# Full media are local evidence, not curated research
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.mkv
+
+# Temporary bundle folder of packages/email/src/server/server-bundle.test.ts. A format check that
+# runs while the test is in progress must not see it (it broke pre-push, card vertex-public-audit).
+.server-production-bundle-*/

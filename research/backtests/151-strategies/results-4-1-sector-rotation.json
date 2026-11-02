@@ -1,0 +1,252 @@
+{
+  "parameters": {
+    "formation_sessions": 252,
+    "top_n": 2,
+    "ma_length": 200,
+    "cost_per_side": 0.001
+  },
+  "spy_buy_and_hold": {
+    "start": "2006-01-31",
+    "end": "2026-10-23",
+    "cagr": 0.11,
+    "vol": 0.192,
+    "sharpe": 0.641,
+    "max_drawdown": -0.5519
+  },
+  "equal-weight": {
+    "full": {
+      "start": "2006-01-31",
+      "end": "2026-10-23",
+      "cagr": 0.1012,
+      "vol": 0.1828,
+      "sharpe": 0.62,
+      "max_drawdown": -0.5354
+    },
+    "first_half": {
+      "start": "2006-01-31",
+      "end": "2016-06-10",
+      "cagr": 0.0779,
+      "vol": 0.1984,
+      "sharpe": 0.478,
+      "max_drawdown": -0.5354
+    },
+    "second_half": {
+      "start": "2016-06-10",
+      "end": "2026-10-23",
+      "cagr": 0.125,
+      "vol": 0.1657,
+      "sharpe": 0.796,
+      "max_drawdown": -0.3616
+    }
+  },
+  "base": {
+    "full": {
+      "start": "2006-01-31",
+      "end": "2026-10-23",
+      "cagr": 0.1037,
+      "vol": 0.1973,
+      "sharpe": 0.6,
+      "max_drawdown": -0.4625
+    },
+    "first_half": {
+      "start": "2006-01-31",
+      "end": "2016-06-10",
+      "cagr": 0.0541,
+      "vol": 0.1995,
+      "sharpe": 0.365,
+      "max_drawdown": -0.4625
+    },
+    "second_half": {
+      "start": "2016-06-10",
+      "end": "2026-10-23",
+      "cagr": 0.1555,
+      "vol": 0.195,
+      "sharpe": 0.841,
+      "max_drawdown": -0.3324
+    },
+    "rebalances": 249,
+    "turnover": 135.37,
+    "verdict": "fail",
+    "last_rebalances": [
+      {
+        "day": "2026-07-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4007,
+          "XLK": 0.3319,
+          "XLV": 0.2325,
+          "XLI": 0.1984
+        }
+      },
+      {
+        "day": "2026-08-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4673,
+          "XLK": 0.4068,
+          "XLV": 0.2719,
+          "XLB": 0.1644
+        }
+      },
+      {
+        "day": "2026-09-30",
+        "weights": {
+          "XLK": 0.5,
+          "XLE": 0.5
+        },
+        "formation": {
+          "XLK": 0.4037,
+          "XLE": 0.401,
+          "XLV": 0.26,
+          "XLB": 0.1119
+        }
+      }
+    ]
+  },
+  "ma-filter": {
+    "full": {
+      "start": "2006-01-31",
+      "end": "2026-10-23",
+      "cagr": 0.0853,
+      "vol": 0.1679,
+      "sharpe": 0.573,
+      "max_drawdown": -0.2535
+    },
+    "first_half": {
+      "start": "2006-01-31",
+      "end": "2016-06-10",
+      "cagr": 0.048,
+      "vol": 0.1668,
+      "sharpe": 0.365,
+      "max_drawdown": -0.2525
+    },
+    "second_half": {
+      "start": "2016-06-10",
+      "end": "2026-10-23",
+      "cagr": 0.1239,
+      "vol": 0.1691,
+      "sharpe": 0.778,
+      "max_drawdown": -0.2535
+    },
+    "rebalances": 249,
+    "turnover": 139.78,
+    "verdict": "fail",
+    "last_rebalances": [
+      {
+        "day": "2026-07-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4007,
+          "XLK": 0.3319,
+          "XLV": 0.2325,
+          "XLI": 0.1984
+        }
+      },
+      {
+        "day": "2026-08-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4673,
+          "XLK": 0.4068,
+          "XLV": 0.2719,
+          "XLB": 0.1644
+        }
+      },
+      {
+        "day": "2026-09-30",
+        "weights": {
+          "XLK": 0.5,
+          "XLE": 0.5
+        },
+        "formation": {
+          "XLK": 0.4037,
+          "XLE": 0.401,
+          "XLV": 0.26,
+          "XLB": 0.1119
+        }
+      }
+    ]
+  },
+  "dual-momentum": {
+    "full": {
+      "start": "2006-01-31",
+      "end": "2026-10-23",
+      "cagr": 0.1067,
+      "vol": 0.1721,
+      "sharpe": 0.677,
+      "max_drawdown": -0.2967
+    },
+    "first_half": {
+      "start": "2006-01-31",
+      "end": "2016-06-10",
+      "cagr": 0.1187,
+      "vol": 0.1729,
+      "sharpe": 0.736,
+      "max_drawdown": -0.2491
+    },
+    "second_half": {
+      "start": "2016-06-10",
+      "end": "2026-10-23",
+      "cagr": 0.0949,
+      "vol": 0.1713,
+      "sharpe": 0.616,
+      "max_drawdown": -0.2967
+    },
+    "rebalances": 249,
+    "turnover": 167.52,
+    "verdict": "fail",
+    "last_rebalances": [
+      {
+        "day": "2026-07-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4007,
+          "XLK": 0.3319,
+          "XLV": 0.2325,
+          "XLI": 0.1984
+        }
+      },
+      {
+        "day": "2026-08-31",
+        "weights": {
+          "XLE": 0.5,
+          "XLK": 0.5
+        },
+        "formation": {
+          "XLE": 0.4673,
+          "XLK": 0.4068,
+          "XLV": 0.2719,
+          "XLB": 0.1644
+        }
+      },
+      {
+        "day": "2026-09-30",
+        "weights": {
+          "XLK": 0.5,
+          "XLE": 0.5
+        },
+        "formation": {
+          "XLK": 0.4037,
+          "XLE": 0.401,
+          "XLV": 0.26,
+          "XLB": 0.1119
+        }
+      }
+    ]
+  }
+}

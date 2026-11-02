@@ -1,0 +1,63 @@
+{
+  "slug": "define-your-risk-no-short-tail",
+  "sourceId": "DTLvHGwiWk7",
+  "title": "Never be short tail risk: survival compounds",
+  "summary": "The speaker managed over $2 billion of option premium at a large hedge fund. He says he could sleep because he never sold tail risk: every trade had a defined, known worst case. Returns come and go, but survival is what compounds. A large loss needs a much larger gain to recover.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["hedging", "portfolio"],
+    "timeframe": "years",
+    "risk": "defined",
+    "topics": ["tail risk", "survival", "risk first"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "recovery"
+  },
+  "params": [
+    {
+      "id": "lossPct",
+      "label": "Loss on the account",
+      "default": 50,
+      "min": 0,
+      "max": 95,
+      "step": 1,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The chart shows a loss on the account and the gain needed to get back to even."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "The curve rises faster and faster: a 50% loss needs a 100% gain to recover. Tail losses are hard to undo.",
+      "time": [0, 1]
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "Move the marker. A trade with an unlimited worst case can put you on the steep part of this curve."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "Defining the risk on every trade keeps losses on the flat part of the curve, so the account survives to compound."
+    }
+  ],
+  "formulas": ["recovery", "positionSize"],
+  "takeaways": [
+    "Define the worst case of every trade before you enter it.",
+    "Do not sell tail risk: a single blow-up can end the account.",
+    "Returns come and go, but survival is what compounds."
+  ],
+  "caveats": [
+    "The $2 billion premium figure and hedge fund role are the speaker's own claims and are not verified.",
+    "Part of the transcript is garbled; the lesson keeps only the clear points.",
+    "Define Your Risk is the speaker's brand; the video is partly promotional."
+  ]
+}

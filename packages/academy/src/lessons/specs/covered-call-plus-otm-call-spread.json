@@ -1,0 +1,167 @@
+{
+  "slug": "covered-call-plus-otm-call-spread",
+  "sourceId": "DUjHMTICf3w",
+  "title": "Keep upside on covered calls with an OTM call spread",
+  "summary": "Covered calls sell linear upside. The speaker adds a long out-of-the-money call spread with 6 to 12 months to expiry, paid with about two weeks to a month of covered call premium. The spread replaces some of the sold upside with convex upside. The result is path dependent.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "covered-calls", "spreads"],
+    "timeframe": "months",
+    "risk": "stock-like",
+    "topics": ["convexity", "upside", "overlay"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "ccStrike",
+        "dte": "ccDte",
+        "label": "Short covered call"
+      },
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "longStrike",
+        "dte": "spreadDte",
+        "label": "Long OTM call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "shortStrike",
+        "dte": "spreadDte",
+        "label": "Short OTM call"
+      }
+    ],
+    "view": "2d"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "ccStrike",
+      "label": "Covered call strike",
+      "default": 105,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "ccDte",
+      "label": "Covered call days",
+      "default": 30,
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "longStrike",
+      "label": "Spread long strike",
+      "default": 115,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Spread short strike",
+      "default": 140,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "spreadDte",
+      "label": "Spread days to expiry",
+      "default": 270,
+      "min": 90,
+      "max": 400,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "legs",
+      "color": "blue",
+      "caption": "Own 100 shares and sell a 30-day covered call at $105. Upside stops at the strike."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "Add a 9-month call spread: long $115 call, short $140 call, paid with about a month of call premium."
+    },
+    {
+      "element": "zones",
+      "color": "green",
+      "caption": "If the stock rallies hard over 6 to 12 months, the spread pays and gives back the lost upside."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The combined payoff: covered call income plus convex upside from the spread."
+    },
+    {
+      "element": "now",
+      "color": "violet",
+      "caption": "Results depend on the path and on timing of the two expiries.",
+      "time": [0, 1]
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The downside of the shares remains. The spread does not protect it."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "extrinsic"],
+  "takeaways": [
+    "Covered calls sell linear upside for premium.",
+    "A long OTM call spread buys back convex upside at low cost.",
+    "Fund the spread with about two weeks to a month of covered call premium."
+  ],
+  "caveats": [
+    "The result is path dependent; the speaker says so.",
+    "The backtest engine has no structure for this combination, so this is a concept lesson.",
+    "Stock legs conflict with the owner's options-only rule."
+  ]
+}

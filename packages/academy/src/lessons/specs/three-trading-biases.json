@@ -1,0 +1,108 @@
+{
+  "slug": "three-trading-biases",
+  "sourceId": "DZVqkHHNYXX",
+  "title": "Three biases that hurt traders: anchoring, loss aversion, recency",
+  "summary": "Being a good portfolio manager is often about overcoming human biases. Anchoring: deciding from a past number like your cost basis. Loss aversion: a $100 loss hurts about twice as much as a $100 gain, so traders cut winners early and let losers run. Recency bias: after three wins you size up and get hurt. Be aware of them and look forward.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "intraday",
+    "risk": "none",
+    "topics": ["behavior", "bias", "sizing"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "equity"
+  },
+  "params": [
+    {
+      "id": "capital",
+      "label": "Starting capital",
+      "default": 100000,
+      "min": 1000,
+      "max": 10000000,
+      "step": 1000,
+      "unit": "$"
+    },
+    {
+      "id": "riskPct",
+      "label": "Risk per trade",
+      "default": 5,
+      "min": 0.25,
+      "max": 25,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "winRate",
+      "label": "Win rate",
+      "default": 50,
+      "min": 5,
+      "max": 95,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "payoffRatio",
+      "label": "Average win / average loss",
+      "default": 1.5,
+      "min": 0.2,
+      "max": 10,
+      "step": 0.1,
+      "unit": "x"
+    },
+    {
+      "id": "trades",
+      "label": "Number of trades",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 10,
+      "unit": "trades"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "paths",
+      "color": "blue",
+      "caption": "Many possible equity paths for the same strategy.",
+      "time": [0, 1]
+    },
+    {
+      "element": "median",
+      "color": "gold",
+      "caption": "The median path. Your edge is the same, whatever happened in the last three trades."
+    },
+    {
+      "element": "drawdown",
+      "color": "red",
+      "caption": "Recency bias: sizing up after a win streak makes these drawdowns deeper."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "Anchoring: your cost basis is a past number. It says nothing about the trade's future."
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Loss aversion: losses hurt about twice as much as gains. Cut losers by rule, not by feeling."
+    }
+  ],
+  "formulas": ["kelly", "positionSize"],
+  "takeaways": [
+    "Anchoring on cost basis is backward looking.",
+    "Loss aversion makes traders cut winners early and hold losers too long.",
+    "Recency bias leads to oversizing after a streak; keep sizing rules fixed."
+  ],
+  "caveats": ["The 2x loss aversion figure is quoted from the video."]
+}

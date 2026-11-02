@@ -1,0 +1,36 @@
+[Unit]
+Description=Vertex IBKR recovery (human-triggered 2FA request script, 127.0.0.1:8793)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root: the service reads docker (ps, inspect, logs) through the docker socket, and the one script it may
+# start drives docker compose and writes under /opt/vertex-exec-node. No ProtectHome and no ProtectSystem=strict,
+# because docker compose and the script need the normal paths.
+# Default KillMode (control-group): a stop or restart also ends a running script, so a second script can
+# never run next to an old one. The service marks such a request "failed" when it starts again.
+User=root
+StateDirectory=vertex-ibkr-recovery
+StateDirectoryMode=0700
+UMask=0077
+EnvironmentFile=/opt/vertex-status/token.env
+EnvironmentFile=/opt/vertex-ibkr-recovery/token.env
+ExecStart=/usr/bin/python3 -I -W ignore /opt/vertex-ibkr-recovery/vertex_ibkr_recovery.py
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,153 @@
+{
+  "status": "source-authored-unexecuted",
+  "owner": "VertexNativeContractsBuild",
+  "scope": ["services/contracts/**", "scripts/vertex-native-contracts/**"],
+  "contractVersion": "1.0.0",
+  "bundleFormat": "vertex-native-contract-bundle-v1",
+  "semanticProfile": "vertex-invariants-v1",
+  "hashProfile": "gamma-json-utf8-safe-integer-v1",
+  "python": {
+    "packageRoot": "services/contracts/python",
+    "importPath": "services/contracts/python/src/vertex_contracts",
+    "version": ">=3.12",
+    "runtimeDependencies": ["ada-url==4.0.0"],
+    "buildDependencyProposal": "setuptools==82.0.1 (aligned by Main with existing hash-locked research wheel)",
+    "api": [
+      "ContractAuthority(bundle: bytes, expected_sha256: str)",
+      "validate(contract_name, payload, schema_version='1.0.0') -> Literal[True]; rejection raises ContractError; unavailable authority raises ContractUnavailable",
+      "validate_native_journal_proof(projection, proof_bytes, schema_version='1.0.0') -> Literal[True]; full paired replay identity, not publisher authentication",
+      "encode(value) -> canonical JSON UTF-8 bytes",
+      "digest(value) -> lowercase SHA256(encode(value)); raw bytes rejected",
+      "epoch_ns(timestamp) -> exact int",
+      "rawSHA256(bytes) -> lowercase SHA256 of original bytes, distinct from canonical digest"
+    ],
+    "deferredConformance": "python -m vertex_contracts.conformance --bundle <explicit-path> --bundle-sha256 <trusted-pin> --fixtures <explicit-path> --fixtures-sha256 <trusted-pin>",
+    "deferredProofConformance": "python -m vertex_contracts.proof_conformance --bundle <explicit-path> --bundle-sha256 <trusted-pin> --fixtures <proof-fixtures-path> --fixtures-sha256 <trusted-pin>"
+  },
+  "rust": {
+    "packageRoot": "services/contracts/rust",
+    "crate": "vertex-contracts",
+    "edition": "2021",
+    "minimumRustVersion": "1.85",
+    "compilerProposal": "1.85.1",
+    "dependencies": {
+      "serde": "=1.0.228",
+      "serde_json": "=1.0.145",
+      "sha2": "=0.10.9",
+      "regex": "=1.12.2",
+      "num-bigint": "=0.4.6",
+      "url": "=2.5.7",
+      "base64": "=0.22.1"
+    },
+    "api": [
+      "ContractAuthority::from_bundle(&[u8], &str) -> Result<Self, ContractError>",
+      "validate(&self, &str, &[u8], &str) -> Result<ValidatedArtifact, ContractError>",
+      "validate_native_journal_proof(&self, projection_json: &[u8], proof_bytes: &[u8], schema_version: &str) -> Result<ValidatedArtifact, ContractError>; returns immutable proof",
+      "encode(&self, &serde_json::Value) -> Result<Vec<u8>, ContractError>",
+      "digest(&self, &serde_json::Value) -> Result<String, ContractError>",
+      "epoch_ns(&self, &str) -> Result<i128, ContractError>",
+      "ValidatedArtifact private fields with canonical_bytes(), sha256(), value() read-only accessors"
+    ],
+    "deferredConformance": "cargo run --manifest-path services/contracts/rust/Cargo.toml --example conformance -- <bundle-path> <trusted-bundle-sha256> <fixtures-path> <trusted-fixture-sha256>",
+    "deferredProofConformance": "cargo run --manifest-path services/contracts/rust/Cargo.toml --example proof_conformance -- <bundle-path> <trusted-bundle-sha256> <proof-fixtures-path> <trusted-fixture-sha256>",
+    "dependencyWarning": "Concrete serde_json::Value dependencies aligned with Execution by Main. No arbitrary_precision. Resolution, transitive lock and compiler/MSRV compatibility remain unverified."
+  },
+  "generator": {
+    "source": "scripts/vertex-native-contracts/generate.civet",
+    "metadata": "scripts/vertex-native-contracts/invariants-v1.json",
+    "fixtureSource": "scripts/vertex-native-contracts/fixtures.civet",
+    "fixtureExporter": "scripts/vertex-native-contracts/export-fixtures.civet",
+    "proofFixtureExporter": "scripts/vertex-native-contracts/export-proof-fixtures.civet",
+    "authoritativeExporterHookNeeded": false,
+    "schemaOrigin": "buildVertexContractDocument() plus z.toJSONSchema of VERTEX_CONTROL_CONTRACT_SCHEMAS, VERTEX_NATIVE_FACT_CONTRACT_SCHEMAS, VERTEX_WORKER_CONTRACT_SCHEMAS, VERTEX_POLICY_CONTRACT_SCHEMAS, VERTEX_MODEL_USE_CONTRACT_SCHEMAS and VERTEX_EPOCH_CONTRACT_SCHEMAS, input mode; no handwritten structural schemas",
+    "contractRulesAuthored": 99,
+    "semanticProgramsAuthored": 138,
+    "workerContractRulesAuthored": 43,
+    "exactBundleSourceKeys": 9,
+    "nativeFactsFreeze": "VertexNativeFactPortFreeze-v2",
+    "nativeFactsSourceRawSHA256": "ddc7e4dc2cb08d486a0046bad16446b4e8e463bbc4a515dbc3cb56d75fb4cf31",
+    "metadataSourceRawSHA256": "5c8b47f9449acc652549adad7229ee03a37e9ec30b477e78f0441da1c5e9308f",
+    "workerSourceRawSHA256": "302230ea11c326022516ae11cfd8ee9ae79a75eb72863c2cee199fa1d89df156",
+    "policySourceRawSHA256": "fd577deee888699b3ed68dfed3fbee45f2de02876cfaca061b1dd0425c561bf6",
+    "modelUseSourceRawSHA256": "49de3bb07d13c6c9d73b3b55d5c31cc29f558b8fc8da4333fd474092674f544c",
+    "workerEpochSourceRawSHA256": "a1856de8f2bc393dd07ce6054f8206481ce642197ce14fdcf6aedabd619228f0",
+    "workerEpochFreeze": "private/verification/foundation/VertexPortfolioEpochTransitionFreeze-v4.json",
+    "workerFixtureSource": "scripts/vertex-native-contracts/worker-fixtures.civet",
+    "policyFixtureSource": "scripts/vertex-native-contracts/policy-fixtures.civet",
+    "modelEpochFixtureSource": "scripts/vertex-native-contracts/model-epoch-fixtures.civet",
+    "modelEpochFixtureSourceRawSHA256": "d63ed495403db7c7210241edd14b861779027fe544e2419837e90685e234bf00",
+    "modelEpochFixtureCasesAuthored": 146,
+    "modelEpochCapacityCasesAuthored": 4,
+    "rootDependencyHook": "zod: catalog: devDependency",
+    "rootScriptHook": "bun --preload @danielx/civet/bun-civet scripts/vertex-native-contracts/generate.civet --output <new-explicit-path>",
+    "rootFixtureHook": "bun --preload @danielx/civet/bun-civet scripts/vertex-native-contracts/export-fixtures.civet --output <new-explicit-path>",
+    "vitestRoutingHook": "Contract project includes generate.contract.test.civet; operations project must exclude **/*contract.test.civet to avoid duplicate execution",
+    "runtimeArtifactsGenerated": false
+  },
+  "replayIdentity": {
+    "EventEnvelope": "eventId is event- plus canonical digest excluding eventId and receivedAt",
+    "ExecutionProjection": "eventHash covers complete record except eventHash; original stable receivedAt is included and may not change on retry",
+    "PortfolioGenesis": "Approved native-only alias of exact source PortfolioSnapshotSchema with parsePortfolioGenesis semantics. Requires paper-simulation sequence1 continuous checkpoint and hashes full snapshot excluding only sourceEventHash and continuity.highWaterEventHash. Ordinary PortfolioSnapshot validation is unchanged.",
+    "NativeFacts": "NativeFact, NativeFactProjection and NativeJournalProof are generated from vertex-native-facts.civet. Full projection hash excludes only eventHash. Generic NativeJournalProof validates its own schema/refinements only; approved two-input helper additionally binds original canonical proof bytes <=1MiB and private source-derived crossbinding semantics. Proof journalSequence/head match projection proofJournalSequence/proofJournalHeadHash, and proof factOrdinal matches projection factOrdinal (0..63). Journal sequence is not projection sequence; one transition can emit multiple ordinal facts.",
+    "RuntimePolicySelection": "Canonical hash covers every source selection field except selectionSha256; source policy/reference/module/capability/group joins are retained. Selection records, component evidence and ownership pins do not grant current authorization.",
+    "WorkerTransport": "Nested projection, model-use, epoch and replay fields retain actual source schema refinements, not stronger standalone parser checks. Services must explicitly invoke standalone native validation where source parse helpers are required. WorkerBytes remains its source structural base64 rule; only CanonicalApprovalBase64 and replay fields receive strict canonical decoding semantics.",
+    "ModelUse": "Standalone ModelUseRequest verifies canonical requestSha256; nested WorkerCurrentModelUseInput retains schema-only semantics. Grant/proof source refinements and evidence uniqueness are preserved. ModelUseProof validation does not prove a current grant, aggregate compute reservation, evidence liveness or first-dispatch admission, and does not authorize model/provider dispatch or capital.",
+    "PortfolioEpochTransition": "Standalone validation additionally parses the embedded PortfolioGenesis identity. Nested worker transition schema does not silently gain that stronger check. Transition hash includes approvalBase64, while the replay-grant signing subject excludes only approvalBase64.",
+    "NativeOutboxReplay": "Standalone validate runs the complete source-backed private replay adapter after schema/refinements: strict canonical base64, bounded original canonical JSON bytes, raw serialization SHA distinct from event identity, fixed PortfolioGenesis/PortfolioSnapshot/ExecutionProjection/NativeFactProjection dispatch, exact old-epoch/scope/emitter/sequence/head joins and paired native journal proof validation. Private NativeReplayRowBinding receives exactly {grant,identity,value,priorHash}; snapshots preserve the prior head. Approval signature, actual journal/fence/outbox evidence and current authenticated grants remain independent external requirements.",
+    "RetainedEpochTransitionV4": "Required nullable replay.retainedEpochTransitionBase64 and grant.retainedEpochTransitionSha256 form an explicit null pair on the normal path. A present sidecar requires startingSequence0/null head and first genesis. Standalone replay verifies original canonical sidecar bytes/raw SHA, full PortfolioEpochTransition validation and exact snapshot bytes against the first original projection. Private NativeReplayRetainedTransitionBinding receives exactly {grant,transition} and binds snapshot ownerEpoch to grant.priorOwnerEpoch plus account/stream. Historical prior epoch remains older and current replay owner newer under existing source refinements. The current replay signing subject includes the new sidecar SHA. No expired historical approval becomes current authority: original signature/current key-approval-nonce nonrevocation, fresh explicit human ratification, actual native evidence and exact cloud prior-head CAS remain independent admission responsibilities.",
+    "authorityWarning": "Validation and replay identity prove neither publisher authentication nor approved capital. Native journal ownership, fencing, current grants and per-event authorization remain separate. All base drafts and control projections retain nonauthority flags."
+  },
+  "limits": {
+    "bundleBytes": 8388608,
+    "payloadBytes": 67108864,
+    "stringBytes": 2097152,
+    "nodes": 1000000,
+    "depth": 64,
+    "schemaAndSemanticSteps": 16000000,
+    "expressionIntegerBits": 512,
+    "replayWireBytes": 12582912,
+    "replayAggregateDecodedBytes": 8388608,
+    "replayBlobDecodedBytes": 1048576,
+    "replayBlobEncodedCharacters": 1398104,
+    "replayRows": 64,
+    "replayAggregateIncludes": "Current grant approval, complete original retained-transition sidecar when present, every projection and every proof; sidecar bytes counted once inside the existing 8MiB cap",
+    "workBudgetAccounting": "Finite instructions and ceiling(byteLength/1024) string/decode work units, not one instruction per base64 character; hard byte/node/depth limits remain independent.",
+    "scope": "Bounded admission/off-hot-path ceilings only; not latency, peak-memory or all-public-maxima acceptance proofs. API/network readers need stricter per-contract ingress limits; never parse maximum-size inputs in tick/callback paths."
+  },
+  "portability": {
+    "regularExpressions": "Finite 17-pattern source-bound allowlist, including actual worker/policy regex spellings; unknown regex support unavailable. Unicode scalar values, ASCII digit shorthand, UTF-16 source string lengths, codepoint key ordering.",
+    "replayOpcodes": "Exactly base64Length, sum, at and index were added. base64Length enforces nonempty canonical RFC4648 decode/re-encode and 1MiB decoded cap; sum uses bounded exact integers; at rejects negative/noninteger/out-of-range indices; index is lexically scoped to every/some/sum and resets across named calls. No domain-shaped replay opcode.",
+    "uriBackend": "Source-compatible WHATWG parsing authored through exact ada-url==4.0.0 Python binding and existing Rust url==2.5.7. Python authority construction fails ContractUnavailable if backend distribution/version/native load is unavailable; no urllib fallback. Source HTTPS/empty credentials/query/fragment predicates inspect normalized parser components while canonical hashes preserve the original URI string. IDNA/punycode, percent-normalized hosts, legacy IPv4/IPv6, special-scheme recovery and empty query/fragment fixtures authored; cross-runtime parity remains unverified until deferred conformance.",
+    "uriPrimarySources": [
+      "https://pypi.org/pypi/ada-url/json",
+      "https://ada-url.readthedocs.io/en/latest/_modules/ada_url/ada_adapter.html"
+    ],
+    "resourceRejection": "Budgets fail closed before or during bounded work; unsupported bundle/profile/schema keyword/opcode/rule never falls back to structural-only acceptance.",
+    "gammaHashes": "Original raw Gamma provenance hashes remain unchanged and separate from newly encoded canonical artifact digests."
+  },
+  "verification": {
+    "performed": "Source inspection/readback and source-only refinement reviews, including final model-use/epoch/replay semantics and the narrow actual v4 retained-transition metadata plus both native byte adapters; no actionable source-parity findings. Source metadata counts are 99 rules/138 programs. Prior undersized resource ceilings corrected. No runtime acceptance inferred.",
+    "notExecuted": [
+      "generation",
+      "conformance",
+      "tests",
+      "compiler",
+      "typecheck",
+      "lint",
+      "formatter",
+      "build",
+      "install",
+      "runtime probes"
+    ],
+    "externalReads": "Official public Python package metadata and documentation inspected to ground WHATWG parser API/version; no dependencies acquired or parser code executed.",
+    "newPythonCases": "Source-authored test_replay_primitives.py and test_replay_adapter.py cover canonical pad bits, per-blob boundary, sum/index/at lexical isolation, fixed replay dispatch, snapshot head preservation, raw SHA mismatch, noncanonical original bytes and paired proof routing. Six added v4 orchestration cases cover full retained-transition dispatch, original raw hash/canonical bytes, exact first-snapshot bytes, required null pairing and sidecar aggregate accounting. Synthetic orchestration cases do not replace source-backed conformance.",
+    "rustCasesAuthored": 21,
+    "rootIntegrationRequirements": [
+      "Resolve approved exact base64=0.22.1 alongside existing native dependencies in the final packaging stage",
+      "Authenticated replay ingress must enforce the approved 12MiB wire cap without broadening unrelated worker/public request limits",
+      "Include the v4 required nullable pair and retained raw SHA in the fresh signed replay grant subject; historical signature/current nonrevocation and current explicit ratification remain separate",
+      "Generate fresh bundle and shared fixtures from the final nine-source v4 profile only during deferred final verification"
+    ],
+    "nextOwner": "Main final deferred generation, dependency resolution and full verification stage"
+  }
+}

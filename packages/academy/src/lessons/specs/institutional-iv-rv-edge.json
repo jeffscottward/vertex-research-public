@@ -1,0 +1,113 @@
+{
+  "slug": "institutional-iv-rv-edge",
+  "sourceId": "DbTvhbqtn6t",
+  "title": "The institutional view: implied vs realized volatility",
+  "summary": "Institutional volatility desks focus on the relationship between implied and realized volatility. Retail sellers of covered calls and cash-secured puts are short vega but often look only at implied volatility. Implied is what you get paid; realized is the risk you take. The bigger the gap, the bigger the edge in a volatility selling program.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["IV vs RV", "short vega", "institutional"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 22,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 6,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 60,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 9,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The underlying's price path.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility: what a short-vega seller is paid."
+    },
+    {
+      "element": "rv",
+      "color": "blue",
+      "caption": "Realized volatility: what the underlying actually delivers."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The bigger the gap between IV and RV, the bigger the edge in selling volatility."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "vega"],
+  "takeaways": [
+    "Covered calls and cash-secured puts are short vega trades.",
+    "Look at implied relative to realized volatility, not implied alone.",
+    "A larger IV minus RV gap means a better selling opportunity."
+  ],
+  "caveats": [
+    "The speaker's metric behind the bio link is promotional and not verified here."
+  ]
+}

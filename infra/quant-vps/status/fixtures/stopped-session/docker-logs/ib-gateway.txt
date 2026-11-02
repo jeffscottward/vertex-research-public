@@ -1,0 +1,5 @@
+2026-10-03T11:17:40.100000000Z Forking :::4003 onto 0.0.0.0:4004
+2026-10-03T11:17:49.985079149Z 2026/10/03 11:17:49 socat[128494] E connect(5, AF=2 127.0.0.1:4001, 16): Connection refused
+2026-10-03T11:17:55.357585908Z 2026/10/03 11:17:55 socat[128505] E connect(5, AF=2 127.0.0.1:4001, 16): Connection refused
+2026-10-03T11:18:01.000000000Z WARN login dialog for account U1234567 password=hunter2fixture still open
+2026-10-03T11:18:23.016256831Z 2026/10/03 11:18:23 socat[128506] E connect(5, AF=2 127.0.0.1:4001, 16): Connection refused

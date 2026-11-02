@@ -1,0 +1,19 @@
+[Unit]
+Description=Vertex Nautilus node: always on, starts DISARMED (owner arm gate data/nautilus/ARMED)
+Documentation=file:///opt/vertex-exec-node/docs/NAUTILUS_ARMING.md
+Wants=network-online.target
+Requires=docker.service
+After=network-online.target docker.service
+
+[Service]
+# Create and start the container after boot, also after `docker compose down`.
+# The container itself has restart: always for crashes and Docker restarts.
+# This unit never builds, never arms and never stops the node.
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/vertex-exec-node
+ExecStart=/usr/bin/docker compose -p ibkr-nautilus-exec-node up -d --no-build --no-recreate nautilus-trader
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

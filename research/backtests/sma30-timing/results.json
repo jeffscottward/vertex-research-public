@@ -1,0 +1,2117 @@
+{
+  "rule": "fixed on 2026-10-30 before the first full run (card vertex-30dma-timing):\nthe 30-day rule (signal at the close of day t, position on day t+1) passes only if, after 0.1% per\ntrade, it has a higher Sharpe ratio AND a smaller maximum drawdown than buy-and-hold in BOTH halves\nof the Ken French sample AND on the SPY + T-bill ETF proxy since 1993. Return alone is not the bar.",
+  "creator_claims": {
+    "source": "Instagram @alanintelligence (untrusted claims); owner message https://discord.com/channels/1511468532876185770/1559295973912477737/1565916282996400218",
+    "period": "1926-07 to 2026-06",
+    "start_usd": 1000,
+    "timing_final_usd": 339900000.0,
+    "buy_hold_final_usd": 17700000.0,
+    "trades": 1936,
+    "fraction_out": 0.3612,
+    "timing_max_drawdown": -0.3952,
+    "buy_hold_max_drawdown": -0.8407,
+    "at_0_2pct_vs_buy_hold": -0.6013
+  },
+  "data_manifest": {
+    "BIL.adj.csv": {
+      "first": "2007-05-30",
+      "last": "2026-10-29",
+      "rows": 4887,
+      "sha256": "683801b28997dd7f93ed6e77efafbf74f6d90cd350f8e347e0207656126a80ae"
+    },
+    "F-F_Research_Data_Factors_daily_CSV.zip": {
+      "sha256": "96c23b88e651cbfff3740a53f8225e59ee39893371e96385a1d8125ec2cd9c89"
+    },
+    "SHV.adj.csv": {
+      "first": "2007-01-11",
+      "last": "2026-10-29",
+      "rows": 4982,
+      "sha256": "cf898639cd709c69474f90345e64f2a7c85ee7cf3664873f370020c0e68ccab7"
+    },
+    "SPY.adj.csv": {
+      "first": "1993-01-29",
+      "last": "2026-10-29",
+      "rows": 8496,
+      "sha256": "c2453082607f4f51cdae614f2146cf186d462ff79ba19c95c3c0a2c81b4e0e6a"
+    },
+    "french_daily.csv": {
+      "first": "1926-07-01",
+      "last": "2026-09-30",
+      "rows": 26338,
+      "sha256": "e1658a696260e5ec635b15d655f1fdad21c78ced34393b5663629d414b5b2abd"
+    }
+  },
+  "ken_french": {
+    "first": "1926-07-01",
+    "last": "2026-06-30",
+    "days": 26274,
+    "reproduction": {
+      "lag1_close_t_to_t+1": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 339873.577935,
+          "cagr": 0.13583,
+          "volatility": 0.105708,
+          "sharpe": 0.961,
+          "max_drawdown": -0.395207,
+          "trades": 1936,
+          "fraction_out": 0.361232
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true,
+        "timing_final_usd": 339873577.94,
+        "buy_hold_final_usd": 17677631.6,
+        "at_0_2pct_vs_buy_hold": -0.601323
+      },
+      "lag0_same_close_lookahead": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 3146611036163449.0,
+          "cagr": 0.428823,
+          "volatility": 0.105321,
+          "sharpe": 3.1438,
+          "max_drawdown": -0.109508,
+          "trades": 1936,
+          "fraction_out": 0.361232
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true,
+        "timing_final_usd": 3.146611036163449e18,
+        "buy_hold_final_usd": 17677631.6,
+        "at_0_2pct_vs_buy_hold": 3691024388.228868
+      },
+      "lag2_one_day_late": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 9572.495462,
+          "cagr": 0.095999,
+          "volatility": 0.107533,
+          "sharpe": 0.6144,
+          "max_drawdown": -0.343573,
+          "trades": 1935,
+          "fraction_out": 0.361232
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true,
+        "timing_final_usd": 9572495.46,
+        "buy_hold_final_usd": 17677631.6,
+        "at_0_2pct_vs_buy_hold": -0.988749
+      }
+    },
+    "costs": {
+      "0.0000": {
+        "lag1": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 339873.577935,
+            "cagr": 0.13583,
+            "volatility": 0.105708,
+            "sharpe": 0.961,
+            "max_drawdown": -0.395207,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "lag2": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 9572.495462,
+            "cagr": 0.095999,
+            "volatility": 0.107533,
+            "sharpe": 0.6144,
+            "max_drawdown": -0.343573,
+            "trades": 1935,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "0.0005": {
+        "lag1": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 129066.998553,
+            "cagr": 0.124885,
+            "volatility": 0.105665,
+            "sharpe": 0.8697,
+            "max_drawdown": -0.402124,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "lag2": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 3636.973845,
+            "cagr": 0.085444,
+            "volatility": 0.107545,
+            "sharpe": 0.5244,
+            "max_drawdown": -0.350756,
+            "trades": 1935,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "0.0010": {
+        "lag1": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 48989.455107,
+            "cagr": 0.114041,
+            "volatility": 0.105665,
+            "sharpe": 0.778,
+            "max_drawdown": -0.408966,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "lag2": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 1381.162844,
+            "cagr": 0.074985,
+            "volatility": 0.107599,
+            "sharpe": 0.4341,
+            "max_drawdown": -0.38018,
+            "trades": 1935,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        }
+      },
+      "0.0020": {
+        "lag1": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 7047.666354,
+            "cagr": 0.092648,
+            "volatility": 0.105793,
+            "sharpe": 0.5938,
+            "max_drawdown": -0.43499,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "lag2": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 198.894402,
+            "cagr": 0.054353,
+            "volatility": 0.107832,
+            "sharpe": 0.2537,
+            "max_drawdown": -0.452566,
+            "trades": 1935,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        }
+      }
+    },
+    "windows": {
+      "10": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 715351.225393,
+            "cagr": 0.144314,
+            "volatility": 0.110454,
+            "sharpe": 0.9918,
+            "max_drawdown": -0.404014,
+            "trades": 3770,
+            "fraction_out": 0.397351
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 16459.246043,
+            "cagr": 0.101956,
+            "volatility": 0.110384,
+            "sharpe": 0.6504,
+            "max_drawdown": -0.607703,
+            "trades": 3770,
+            "fraction_out": 0.397351
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "20": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 173519.386671,
+            "cagr": 0.128219,
+            "volatility": 0.10812,
+            "sharpe": 0.8797,
+            "max_drawdown": -0.451151,
+            "trades": 2610,
+            "fraction_out": 0.373601
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 12743.017331,
+            "cagr": 0.099139,
+            "volatility": 0.108106,
+            "sharpe": 0.6382,
+            "max_drawdown": -0.46597,
+            "trades": 2610,
+            "fraction_out": 0.373601
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "30": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 339873.577935,
+            "cagr": 0.13583,
+            "volatility": 0.105708,
+            "sharpe": 0.961,
+            "max_drawdown": -0.395207,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 48989.455107,
+            "cagr": 0.114041,
+            "volatility": 0.105665,
+            "sharpe": 0.778,
+            "max_drawdown": -0.408966,
+            "trades": 1936,
+            "fraction_out": 0.361232
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "50": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 94667.832938,
+            "cagr": 0.121404,
+            "volatility": 0.107159,
+            "sharpe": 0.8301,
+            "max_drawdown": -0.36916,
+            "trades": 1440,
+            "fraction_out": 0.343686
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 22413.283328,
+            "cagr": 0.105363,
+            "volatility": 0.107129,
+            "sharpe": 0.6958,
+            "max_drawdown": -0.401739,
+            "trades": 1440,
+            "fraction_out": 0.343686
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "100": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 62620.20193,
+            "cagr": 0.116779,
+            "volatility": 0.109911,
+            "sharpe": 0.7743,
+            "max_drawdown": -0.409998,
+            "trades": 974,
+            "fraction_out": 0.310878
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 23631.973766,
+            "cagr": 0.105949,
+            "volatility": 0.109894,
+            "sharpe": 0.6857,
+            "max_drawdown": -0.42209,
+            "trades": 974,
+            "fraction_out": 0.310878
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "200": {
+        "0.0000": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 58363.559549,
+            "cagr": 0.115993,
+            "volatility": 0.114707,
+            "sharpe": 0.7406,
+            "max_drawdown": -0.335599,
+            "trades": 562,
+            "fraction_out": 0.273236
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 26274,
+            "final_wealth": 33261.83113,
+            "cagr": 0.109735,
+            "volatility": 0.114707,
+            "sharpe": 0.6915,
+            "max_drawdown": -0.340236,
+            "trades": 562,
+            "fraction_out": 0.273236
+          },
+          "buy_hold": {
+            "days": 26274,
+            "final_wealth": 17677.631599,
+            "cagr": 0.102743,
+            "volatility": 0.174651,
+            "sharpe": 0.4677,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      }
+    },
+    "windows_lag2": {
+      "10": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 45.623607,
+          "cagr": 0.038943,
+          "volatility": 0.111316,
+          "sharpe": 0.1169,
+          "max_drawdown": -0.647773,
+          "trades": 3769,
+          "fraction_out": 0.397351
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "20": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 621.868993,
+          "cagr": 0.066441,
+          "volatility": 0.108104,
+          "sharpe": 0.3588,
+          "max_drawdown": -0.425184,
+          "trades": 2609,
+          "fraction_out": 0.373601
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "30": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 1381.162844,
+          "cagr": 0.074985,
+          "volatility": 0.107599,
+          "sharpe": 0.4341,
+          "max_drawdown": -0.38018,
+          "trades": 1935,
+          "fraction_out": 0.361232
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "50": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 2625.419229,
+          "cagr": 0.081912,
+          "volatility": 0.107778,
+          "sharpe": 0.4932,
+          "max_drawdown": -0.487115,
+          "trades": 1440,
+          "fraction_out": 0.343686
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "100": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 10865.827135,
+          "cagr": 0.097389,
+          "volatility": 0.109822,
+          "sharpe": 0.6153,
+          "max_drawdown": -0.362078,
+          "trades": 974,
+          "fraction_out": 0.310878
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "200": {
+        "timing": {
+          "days": 26274,
+          "final_wealth": 15118.02155,
+          "cagr": 0.101019,
+          "volatility": 0.116027,
+          "sharpe": 0.6172,
+          "max_drawdown": -0.410849,
+          "trades": 562,
+          "fraction_out": 0.273236
+        },
+        "buy_hold": {
+          "days": 26274,
+          "final_wealth": 17677.631599,
+          "cagr": 0.102743,
+          "volatility": 0.174651,
+          "sharpe": 0.4677,
+          "max_drawdown": -0.84074,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      }
+    },
+    "start_by_decade": {
+      "1930": {
+        "first": "1930-01-02",
+        "timing": {
+          "days": 25237,
+          "final_wealth": 27923.114964,
+          "cagr": 0.111925,
+          "volatility": 0.105811,
+          "sharpe": 0.76,
+          "max_drawdown": -0.408966,
+          "trades": 1861,
+          "fraction_out": 0.365614
+        },
+        "buy_hold": {
+          "days": 25237,
+          "final_wealth": 10352.408952,
+          "cagr": 0.10055,
+          "volatility": 0.173419,
+          "sharpe": 0.4589,
+          "max_drawdown": -0.802402,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "1940": {
+        "first": "1940-01-02",
+        "timing": {
+          "days": 22249,
+          "final_wealth": 9129.516976,
+          "cagr": 0.111191,
+          "volatility": 0.094269,
+          "sharpe": 0.8001,
+          "max_drawdown": -0.399998,
+          "trades": 1624,
+          "fraction_out": 0.352106
+        },
+        "buy_hold": {
+          "days": 22249,
+          "final_wealth": 10833.792574,
+          "cagr": 0.113392,
+          "volatility": 0.151658,
+          "sharpe": 0.5571,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "1950": {
+        "first": "1950-01-03",
+        "timing": {
+          "days": 19331,
+          "final_wealth": 3262.978809,
+          "cagr": 0.111567,
+          "volatility": 0.095109,
+          "sharpe": 0.75,
+          "max_drawdown": -0.399998,
+          "trades": 1426,
+          "fraction_out": 0.347318
+        },
+        "buy_hold": {
+          "days": 19331,
+          "final_wealth": 4540.845472,
+          "cagr": 0.11638,
+          "volatility": 0.153601,
+          "sharpe": 0.54,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "1960": {
+        "first": "1960-01-04",
+        "timing": {
+          "days": 16733,
+          "final_wealth": 701.032477,
+          "cagr": 0.103571,
+          "volatility": 0.097816,
+          "sharpe": 0.6243,
+          "max_drawdown": -0.399998,
+          "trades": 1286,
+          "fraction_out": 0.35672
+        },
+        "buy_hold": {
+          "days": 16733,
+          "final_wealth": 854.937087,
+          "cagr": 0.10687,
+          "volatility": 0.159935,
+          "sharpe": 0.4507,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "1970": {
+        "first": "1970-01-02",
+        "timing": {
+          "days": 14244,
+          "final_wealth": 177.844304,
+          "cagr": 0.096046,
+          "volatility": 0.103481,
+          "sharpe": 0.5221,
+          "max_drawdown": -0.399998,
+          "trades": 1161,
+          "fraction_out": 0.358256
+        },
+        "buy_hold": {
+          "days": 14244,
+          "final_wealth": 385.772377,
+          "cagr": 0.111173,
+          "volatility": 0.168487,
+          "sharpe": 0.4546,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": true
+      },
+      "1980": {
+        "first": "1980-01-02",
+        "timing": {
+          "days": 11718,
+          "final_wealth": 44.526333,
+          "cagr": 0.085072,
+          "volatility": 0.106967,
+          "sharpe": 0.4506,
+          "max_drawdown": -0.399998,
+          "trades": 986,
+          "fraction_out": 0.341185
+        },
+        "buy_hold": {
+          "days": 11718,
+          "final_wealth": 213.974497,
+          "cagr": 0.122333,
+          "volatility": 0.175183,
+          "sharpe": 0.5231,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "1990": {
+        "first": "1990-01-02",
+        "timing": {
+          "days": 9190,
+          "final_wealth": 7.394812,
+          "cagr": 0.056357,
+          "volatility": 0.107668,
+          "sharpe": 0.314,
+          "max_drawdown": -0.399998,
+          "trades": 818,
+          "fraction_out": 0.340914
+        },
+        "buy_hold": {
+          "days": 9190,
+          "final_wealth": 45.321511,
+          "cagr": 0.110164,
+          "volatility": 0.180706,
+          "sharpe": 0.5204,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "2000": {
+        "first": "2000-01-03",
+        "timing": {
+          "days": 6662,
+          "final_wealth": 2.575607,
+          "cagr": 0.036358,
+          "volatility": 0.113018,
+          "sharpe": 0.2031,
+          "max_drawdown": -0.399998,
+          "trades": 602,
+          "fraction_out": 0.349445
+        },
+        "buy_hold": {
+          "days": 6662,
+          "final_wealth": 8.73617,
+          "cagr": 0.085258,
+          "volatility": 0.195583,
+          "sharpe": 0.4184,
+          "max_drawdown": -0.545655,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "2010": {
+        "first": "2010-01-04",
+        "timing": {
+          "days": 4147,
+          "final_wealth": 2.376431,
+          "cagr": 0.053903,
+          "volatility": 0.106028,
+          "sharpe": 0.4135,
+          "max_drawdown": -0.221663,
+          "trades": 382,
+          "fraction_out": 0.309863
+        },
+        "buy_hold": {
+          "days": 4147,
+          "final_wealth": 9.087061,
+          "cagr": 0.143223,
+          "volatility": 0.177036,
+          "sharpe": 0.7642,
+          "max_drawdown": -0.342163,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      },
+      "2020": {
+        "first": "2020-01-02",
+        "timing": {
+          "days": 1631,
+          "final_wealth": 1.619811,
+          "cagr": 0.077095,
+          "volatility": 0.120341,
+          "sharpe": 0.4401,
+          "max_drawdown": -0.221663,
+          "trades": 142,
+          "fraction_out": 0.31821
+        },
+        "buy_hold": {
+          "days": 1631,
+          "final_wealth": 2.54091,
+          "cagr": 0.154415,
+          "volatility": 0.209801,
+          "sharpe": 0.6536,
+          "max_drawdown": -0.342163,
+          "trades": 0,
+          "fraction_out": 0.0
+        },
+        "beats_on_sharpe_and_drawdown": false
+      }
+    },
+    "halves": {
+      "first": {
+        "first": "1926-07-01",
+        "last": "1974-05-20",
+        "lag1_daily_return_autocorrelation": 0.1004,
+        "0.0000": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 1079.027783,
+            "cagr": 0.157008,
+            "volatility": 0.105823,
+            "sharpe": 1.2439,
+            "max_drawdown": -0.395207,
+            "trades": 853,
+            "fraction_out": 0.374058
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 45.828494,
+            "cagr": 0.083149,
+            "volatility": 0.178279,
+            "sharpe": 0.4259,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0005": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 704.303276,
+            "cagr": 0.146746,
+            "volatility": 0.10577,
+            "sharpe": 1.1603,
+            "max_drawdown": -0.402124,
+            "trades": 853,
+            "fraction_out": 0.374058
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 45.828494,
+            "cagr": 0.083149,
+            "volatility": 0.178279,
+            "sharpe": 0.4259,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 459.614883,
+            "cagr": 0.136571,
+            "volatility": 0.105756,
+            "sharpe": 1.0761,
+            "max_drawdown": -0.408966,
+            "trades": 853,
+            "fraction_out": 0.374058
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 45.828494,
+            "cagr": 0.083149,
+            "volatility": 0.178279,
+            "sharpe": 0.4259,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0020": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 195.606979,
+            "cagr": 0.116475,
+            "volatility": 0.105848,
+            "sharpe": 0.9067,
+            "max_drawdown": -0.422424,
+            "trades": 853,
+            "fraction_out": 0.374058
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 45.828494,
+            "cagr": 0.083149,
+            "volatility": 0.178279,
+            "sharpe": 0.4259,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "lag2_0.0010": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 54.881232,
+            "cagr": 0.087234,
+            "volatility": 0.108657,
+            "sharpe": 0.6417,
+            "max_drawdown": -0.38018,
+            "trades": 853,
+            "fraction_out": 0.373982
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 45.828494,
+            "cagr": 0.083149,
+            "volatility": 0.178279,
+            "sharpe": 0.4259,
+            "max_drawdown": -0.84074,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      },
+      "second": {
+        "first": "1974-05-21",
+        "last": "2026-06-30",
+        "lag1_daily_return_autocorrelation": -0.0089,
+        "0.0000": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 314.981304,
+            "cagr": 0.11671,
+            "volatility": 0.105601,
+            "sharpe": 0.7005,
+            "max_drawdown": -0.362877,
+            "trades": 1083,
+            "fraction_out": 0.348405
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 385.734508,
+            "cagr": 0.121061,
+            "volatility": 0.171246,
+            "sharpe": 0.5079,
+            "max_drawdown": -0.545655,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0005": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 183.25486,
+            "cagr": 0.105164,
+            "volatility": 0.105567,
+            "sharpe": 0.6022,
+            "max_drawdown": -0.381711,
+            "trades": 1083,
+            "fraction_out": 0.348405
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 385.734508,
+            "cagr": 0.121061,
+            "volatility": 0.171246,
+            "sharpe": 0.5079,
+            "max_drawdown": -0.545655,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        },
+        "0.0010": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 106.588052,
+            "cagr": 0.093731,
+            "volatility": 0.105578,
+            "sharpe": 0.5036,
+            "max_drawdown": -0.399998,
+            "trades": 1083,
+            "fraction_out": 0.348405
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 385.734508,
+            "cagr": 0.121061,
+            "volatility": 0.171246,
+            "sharpe": 0.5079,
+            "max_drawdown": -0.545655,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "0.0020": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 36.029729,
+            "cagr": 0.071202,
+            "volatility": 0.105736,
+            "sharpe": 0.3061,
+            "max_drawdown": -0.43499,
+            "trades": 1083,
+            "fraction_out": 0.348405
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 385.734508,
+            "cagr": 0.121061,
+            "volatility": 0.171246,
+            "sharpe": 0.5079,
+            "max_drawdown": -0.545655,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "lag2_0.0010": {
+          "timing": {
+            "days": 13137,
+            "final_wealth": 25.166396,
+            "cagr": 0.063851,
+            "volatility": 0.106621,
+            "sharpe": 0.2398,
+            "max_drawdown": -0.317293,
+            "trades": 1082,
+            "fraction_out": 0.348481
+          },
+          "buy_hold": {
+            "days": 13137,
+            "final_wealth": 385.734508,
+            "cagr": 0.121061,
+            "volatility": 0.171246,
+            "sharpe": 0.5079,
+            "max_drawdown": -0.545655,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        }
+      }
+    }
+  },
+  "spy_proxy": {
+    "BIL": {
+      "first_return_day": "1993-02-01",
+      "last": "2026-09-30",
+      "days": 8474,
+      "cash_days": {
+        "french_rf": 3609,
+        "BIL": 4865
+      },
+      "costs": {
+        "0.0000": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 7.72297,
+              "cagr": 0.062609,
+              "volatility": 0.109249,
+              "sharpe": 0.3919,
+              "max_drawdown": -0.327712,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 7.17233,
+              "cagr": 0.060277,
+              "volatility": 0.109602,
+              "sharpe": 0.3709,
+              "max_drawdown": -0.300992,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 5.797082,
+              "cagr": 0.053593,
+              "volatility": 0.11092,
+              "sharpe": 0.3108,
+              "max_drawdown": -0.315219,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0005": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 5.23623,
+              "cagr": 0.050413,
+              "volatility": 0.109251,
+              "sharpe": 0.2862,
+              "max_drawdown": -0.346934,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 4.862892,
+              "cagr": 0.048107,
+              "volatility": 0.109614,
+              "sharpe": 0.2656,
+              "max_drawdown": -0.320634,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 3.93243,
+              "cagr": 0.041515,
+              "volatility": 0.110948,
+              "sharpe": 0.2069,
+              "max_drawdown": -0.336927,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0010": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 3.549512,
+              "cagr": 0.03835,
+              "volatility": 0.109302,
+              "sharpe": 0.1805,
+              "max_drawdown": -0.365614,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 3.296436,
+              "cagr": 0.036071,
+              "volatility": 0.109673,
+              "sharpe": 0.1602,
+              "max_drawdown": -0.340067,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 2.667032,
+              "cagr": 0.029571,
+              "volatility": 0.111023,
+              "sharpe": 0.103,
+              "max_drawdown": -0.391106,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0020": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.630103,
+              "cagr": 0.014622,
+              "volatility": 0.109547,
+              "sharpe": -0.0306,
+              "max_drawdown": -0.491275,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.513878,
+              "cagr": 0.012395,
+              "volatility": 0.109934,
+              "sharpe": -0.0501,
+              "max_drawdown": -0.457041,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.226054,
+              "cagr": 0.006073,
+              "volatility": 0.111315,
+              "sharpe": -0.1043,
+              "max_drawdown": -0.522658,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5172,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        }
+      },
+      "windows_0.0010": {
+        "10": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 0.752379,
+            "cagr": -0.008417,
+            "volatility": 0.11502,
+            "sharpe": -0.2229,
+            "max_drawdown": -0.693052,
+            "trades": 1505,
+            "fraction_out": 0.382936
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "20": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 1.932319,
+            "cagr": 0.019761,
+            "volatility": 0.111027,
+            "sharpe": 0.0168,
+            "max_drawdown": -0.506093,
+            "trades": 998,
+            "fraction_out": 0.352726
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "30": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 3.549512,
+            "cagr": 0.03835,
+            "volatility": 0.109302,
+            "sharpe": 0.1805,
+            "max_drawdown": -0.365614,
+            "trades": 777,
+            "fraction_out": 0.332193
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "50": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 3.59113,
+            "cagr": 0.03871,
+            "volatility": 0.110004,
+            "sharpe": 0.1833,
+            "max_drawdown": -0.446766,
+            "trades": 590,
+            "fraction_out": 0.306939
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "100": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 8.023204,
+            "cagr": 0.063814,
+            "volatility": 0.115019,
+            "sharpe": 0.3879,
+            "max_drawdown": -0.505348,
+            "trades": 364,
+            "fraction_out": 0.259028
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "200": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 15.662914,
+            "cagr": 0.085166,
+            "volatility": 0.120734,
+            "sharpe": 0.5396,
+            "max_drawdown": -0.248494,
+            "trades": 214,
+            "fraction_out": 0.221147
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5172,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      }
+    },
+    "SHV": {
+      "first_return_day": "1993-02-01",
+      "last": "2026-09-30",
+      "days": 8474,
+      "cash_days": {
+        "french_rf": 3514,
+        "SHV": 4960
+      },
+      "costs": {
+        "0.0000": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 7.899205,
+              "cagr": 0.063322,
+              "volatility": 0.109229,
+              "sharpe": 0.3904,
+              "max_drawdown": -0.320005,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 7.336,
+              "cagr": 0.060988,
+              "volatility": 0.109569,
+              "sharpe": 0.3695,
+              "max_drawdown": -0.294589,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 5.954298,
+              "cagr": 0.054431,
+              "volatility": 0.1109,
+              "sharpe": 0.3105,
+              "max_drawdown": -0.315219,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0005": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 5.355719,
+              "cagr": 0.051117,
+              "volatility": 0.109232,
+              "sharpe": 0.2848,
+              "max_drawdown": -0.339447,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 4.973862,
+              "cagr": 0.04881,
+              "volatility": 0.109581,
+              "sharpe": 0.2642,
+              "max_drawdown": -0.312846,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 4.039077,
+              "cagr": 0.042344,
+              "volatility": 0.110929,
+              "sharpe": 0.2066,
+              "max_drawdown": -0.336927,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0010": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 3.630511,
+              "cagr": 0.039047,
+              "volatility": 0.109284,
+              "sharpe": 0.179,
+              "max_drawdown": -0.358342,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 3.371659,
+              "cagr": 0.036766,
+              "volatility": 0.109641,
+              "sharpe": 0.1588,
+              "max_drawdown": -0.334784,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 2.739362,
+              "cagr": 0.030389,
+              "volatility": 0.111005,
+              "sharpe": 0.1027,
+              "max_drawdown": -0.38177,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        },
+        "0.0020": {
+          "close_t_to_t+1": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.667301,
+              "cagr": 0.015302,
+              "volatility": 0.109531,
+              "sharpe": -0.0321,
+              "max_drawdown": -0.485414,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "next_open": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.548424,
+              "cagr": 0.013074,
+              "volatility": 0.109904,
+              "sharpe": -0.0515,
+              "max_drawdown": -0.44783,
+              "trades": 777,
+              "fraction_out": 0.332193
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          },
+          "one_day_late": {
+            "timing": {
+              "days": 8474,
+              "final_wealth": 1.259304,
+              "cagr": 0.006873,
+              "volatility": 0.111298,
+              "sharpe": -0.1046,
+              "max_drawdown": -0.515339,
+              "trades": 776,
+              "fraction_out": 0.332075
+            },
+            "buy_hold": {
+              "days": 8474,
+              "final_wealth": 31.705529,
+              "cagr": 0.10814,
+              "volatility": 0.185196,
+              "sharpe": 0.5127,
+              "max_drawdown": -0.551894,
+              "trades": 0,
+              "fraction_out": 0.0
+            },
+            "beats_on_sharpe_and_drawdown": false
+          }
+        }
+      },
+      "windows_0.0010": {
+        "10": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 0.768676,
+            "cagr": -0.007785,
+            "volatility": 0.115007,
+            "sharpe": -0.2248,
+            "max_drawdown": -0.689013,
+            "trades": 1505,
+            "fraction_out": 0.382936
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "20": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 1.973074,
+            "cagr": 0.020394,
+            "volatility": 0.111007,
+            "sharpe": 0.0149,
+            "max_drawdown": -0.500317,
+            "trades": 998,
+            "fraction_out": 0.352726
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "30": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 3.630511,
+            "cagr": 0.039047,
+            "volatility": 0.109284,
+            "sharpe": 0.179,
+            "max_drawdown": -0.358342,
+            "trades": 777,
+            "fraction_out": 0.332193
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "50": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 3.67967,
+            "cagr": 0.039462,
+            "volatility": 0.109982,
+            "sharpe": 0.1823,
+            "max_drawdown": -0.439871,
+            "trades": 590,
+            "fraction_out": 0.306939
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "100": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 8.206544,
+            "cagr": 0.064528,
+            "volatility": 0.114995,
+            "sharpe": 0.3865,
+            "max_drawdown": -0.505348,
+            "trades": 364,
+            "fraction_out": 0.259028
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": false
+        },
+        "200": {
+          "timing": {
+            "days": 8474,
+            "final_wealth": 15.803958,
+            "cagr": 0.085455,
+            "volatility": 0.120711,
+            "sharpe": 0.5348,
+            "max_drawdown": -0.248494,
+            "trades": 214,
+            "fraction_out": 0.221147
+          },
+          "buy_hold": {
+            "days": 8474,
+            "final_wealth": 31.705529,
+            "cagr": 0.10814,
+            "volatility": 0.185196,
+            "sharpe": 0.5127,
+            "max_drawdown": -0.551894,
+            "trades": 0,
+            "fraction_out": 0.0
+          },
+          "beats_on_sharpe_and_drawdown": true
+        }
+      }
+    }
+  },
+  "pass_fail": {
+    "checks": {
+      "first_half": true,
+      "second_half": false,
+      "spy_bil_proxy": false
+    },
+    "passed": false
+  }
+}

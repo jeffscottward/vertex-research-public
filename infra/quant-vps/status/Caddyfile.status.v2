@@ -1,0 +1,29 @@
+{
+  admin off
+  auto_https off
+}
+:8080 {
+  @authorized header Authorization "Bearer {$VERTEX_STATUS_TOKEN}"
+  handle @authorized {
+    root * /srv
+    header Cache-Control "no-store"
+    header Vary "Accept"
+    @v2q query schema=v2
+    @v2h header Accept *application/vnd.vertex.deploy-status-v2+json*
+    handle @v2q {
+      rewrite * /status-v2.json
+      file_server
+    }
+    handle @v2h {
+      rewrite * /status-v2.json
+      file_server
+    }
+    handle {
+      rewrite * /status.json
+      file_server
+    }
+  }
+  handle {
+    respond "unauthorized" 401
+  }
+}

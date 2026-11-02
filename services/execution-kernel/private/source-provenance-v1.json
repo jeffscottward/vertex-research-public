@@ -1,0 +1,221 @@
+{
+  "version": "1.0.0",
+  "status": "source-authored-not-validated",
+  "owner": "VertexExecutionBuild.ExecutionRiskKernel",
+  "goal": "Slice B / WP6 pure deterministic execution-risk kernel source buildout",
+  "resumePath": "/home/jeffscottward/Github/trading/vertex-research-platform/services/execution-kernel",
+  "branchFromRootCheckpoint": "vertex/rebuild-darkfactory-20260921",
+  "authoringDate": "2026-09-22",
+  "scope": "Initial scope services/execution-kernel/**. Parent followup additionally authorized services/execution/tests/test_native_risk.py only. No Python implementation/journal, contracts, root manifests, other services or original-source edits.",
+  "followup": {
+    "pythonRegressionSource": "services/execution/tests/test_native_risk.py",
+    "purpose": "Explicit nonconformance injection doubles exercise trusted-evidence wiring, all-sleeve positions/reservations, settled-share coverage, separate reviewed leg caps, ordered hashes, complete response correlations, limits/model IDs, expiry, canonical bytes and absent default runtime/evidence.",
+    "chronology": "Parent clarified real source observed_at_ns <= local reconciled_at_ns <= now_ns. Kernel guard and Rust/Python regression sources updated without reversing or synthesizing timestamps.",
+    "pythonImplementationOwner": "VertexExecutionBuild; concerns communicated, no cross-edit",
+    "executed": false
+  },
+  "implementation": {
+    "files": [
+      "Cargo.toml",
+      "src/lib.rs",
+      "src/decimal.rs",
+      "src/calendar.rs",
+      "src/model.rs",
+      "src/authority.rs",
+      "src/qualification.rs",
+      "src/risk.rs",
+      "tests/decimal.rs",
+      "tests/calendar.rs",
+      "tests/wire.rs",
+      "tests/risk/regression.rs",
+      "private/kernel-wire-v1.json",
+      "private/source-provenance-v1.json"
+    ],
+    "newAuthoring": "Original Rust implementation against reviewed domain requirements; no legacy broker code or Fincept code copied.",
+    "arithmetic": "Normalized exact canonical decimal strings, <=30 whole digits and <=18 fractional digits, checked i128 coefficient/operations, overflow/inexact rejection, upward currency liability rounding, no floats.",
+    "qualification": "Immutable policy-pinned instrument/calendar hashes; exchange-local date/cutoff/expiry using explicit tzdb offset intervals; ambiguous or nonexistent local time rejected; no host clock, timezone or 16:00 default.",
+    "risk": "Quote/rights/freshness/Greek provenance and units; explicit cost/latency policy; owner-observed readiness and durable kill state; five-sleeve settled cash/share budgets; portfolio Greek interval, gross/loss/position, per-instrument and per-expiry limits.",
+    "settlement": "Independent-leg pessimism with no presumed spread atomicity or sale credits. Physical call exercise reserves strike cash in addition to premium; physical long puts and short calls reserve existing settled shares; short puts reserve strike cash; uncovered cash-settled short calls reject. No borrowing, margin or FX assumptions.",
+    "dispatch": "Exact pending reservation replacement bound by key, sleeve, immutable strategy artifact and proposal hash set. Already-filled positions, other pending orders, unknown acceptance and kill flags remain included. Returned revision/head/epoch are CAS prerequisites, not durable admission.",
+    "paperOnly": "PAPER-SIMULATION only. Public TradeIntent remains proposalOnly true and executionAuthorized false. Plan/envelope live_authorization and broker_submission_allowed are always false. No broker/live implementation.",
+    "nativeContractConsumer": "Frozen vertex-contracts ContractAuthority only for StrategySpec/TradeIntent validation, canonical encoding, digest and exact timestamp-to-epoch conversion. No copied public schemas. Exact immutable artifact ID and digest, not latest strategy aliases.",
+    "trustedInputs": "A private request is not an authentication mechanism. Authenticated owner supplies approved immutable policy and trustworthy current data/journal observations. A caller-authored source string, hash or evidence ID alone cannot establish current rights or external gate completion."
+  },
+  "sourceAuthority": {
+    "publicContracts": [
+      "packages/api/src/contracts/vertex.civet",
+      "packages/api/src/contracts/vertex-control.civet"
+    ],
+    "freeze": "private/verification/foundation/VertexControlPortFreeze-v2.json",
+    "freezeV3Read": "Knowledge-only shard addition; carried-forward public execution shape and immutable strategy identity unchanged.",
+    "traceability": "docs/vertex-rebuild/deliverables.json",
+    "dispatchMap": "private/verification/foundation/RebuildNextWaveMap-v1.json",
+    "reportRoot": "/home/jeffscottward/Github/trading/vertex-research/plans/platform-consolidation-2026-09-11",
+    "reportEvidence": "evidence-0dte.json",
+    "reportSha256FromTraceability": "e033e3a3dc87684a828baa5b9a7faedccb7aa7bdb456ad6d0ae35cd2fa5dc91b",
+    "hashStatus": "Recorded source-report hashes, not newly executed verification of this revision."
+  },
+  "characterizedSources": [
+    {
+      "root": "/home/jeffscottward/Github/trading/gamma-forge",
+      "revisionFromReport": "f8860e68cfcfa786dbdf582e3a78db8eb24cc403",
+      "workingTreeFromReport": "dirty",
+      "file": "forge/src/options_alpha/schemas/execution.py",
+      "locator": "24-34",
+      "sha256FromReport": "a21ab01da17b1656ad9f195975be1d3d0fa2a7df950d5c0184f4d9a0faa77dfb",
+      "observed": "Execution intents reject DTE <=0 and require nearest-leg DTE consistency.",
+      "decision": "Retain original restriction. New independent private paper 0DTE gate requires all explicit reviewed evidence; no public validator bypass or lowering legacy default.",
+      "rights": "User-authorized first-party Gamma reuse, original preserved; this file is evidence only, not copied."
+    },
+    {
+      "root": "/home/jeffscottward/Github/trading/gamma-forge",
+      "revisionFromReport": "f8860e68cfcfa786dbdf582e3a78db8eb24cc403",
+      "workingTreeFromReport": "dirty",
+      "file": "app/backend/gamma_terminal/live_options/provider.py",
+      "locator": "290-320",
+      "sha256FromReport": "3963a82069fa6c87da6cb3ccc1ed49a020688345e439926cda485f21fece97f5",
+      "observed": "Read-only chain keeps local-day expiry only before fixed New York hour16; delta validation is partial snapshot quality, not executable qualification.",
+      "decision": "Characterize fixed-cutoff limitation; require pinned instrument calendar, early close, explicit offsets and expiry.",
+      "rights": "User-authorized first-party evidence, no copied implementation."
+    },
+    {
+      "root": "/home/jeffscottward/Github/trading/vertex-quant",
+      "revisionFromReport": "9ef5e9446d24c81ae94501764fb6c8bba9267fd1",
+      "workingTreeFromReport": "dirty",
+      "file": "nautilus/charan.py",
+      "locator": "338-350",
+      "sha256FromReport": "68e5dbd7cb7f8b408ff415a75475055b4333fb66ee7f2bc0b1d3f719cb1fe08a",
+      "observed": "LOTTO rejected; current-date difference0..1 rejected as expiry_too_soon before drafting.",
+      "decision": "Source boundary preserved, no broker mutation path copied; reviewed paper protocol is distinct.",
+      "rights": "Read-only source characterization; new source written independently."
+    }
+  ],
+  "deliverableMapping": [
+    {
+      "id": "WP6",
+      "area": "Pure risk/qualification half of one-writer edge; journal/simulator parent-owned",
+      "status": "source-authored-integration-and-verification-pending"
+    },
+    {
+      "id": "U04",
+      "area": "Native Rust kernel and Python injected byte adapter boundary",
+      "files": ["Cargo.toml", "src/lib.rs", "private/kernel-wire-v1.json"]
+    },
+    {
+      "id": "U15",
+      "area": "Explicit paper 0DTE qualification/gates, not a sixth funded sleeve or live approval",
+      "files": ["src/qualification.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-3b29621c98cd8e",
+      "sourcePointer": "/gates/0",
+      "area": "Qualified metadata, exact local expiry, multiplier/exercise/settlement",
+      "files": ["src/model.rs", "src/qualification.rs", "tests/calendar.rs"]
+    },
+    {
+      "id": "S-cbc6143c84d394",
+      "sourcePointer": "/gates/1",
+      "area": "Holiday, early close, DST conversion and entry cutoff",
+      "files": ["src/calendar.rs", "tests/calendar.rs"]
+    },
+    {
+      "id": "S-bc46d2bfd9a484",
+      "sourcePointer": "/gates/2",
+      "area": "Fresh executable option/underlying quotes, entitlement, Greek provenance",
+      "files": ["src/qualification.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-3b3c52e9df7f1e",
+      "sourcePointer": "/gates/3",
+      "area": "Explicit liquidity, cost/slippage/latency and partial-leg interval exposure",
+      "files": [
+        "src/qualification.rs",
+        "src/risk.rs",
+        "tests/risk/regression.rs"
+      ]
+    },
+    {
+      "id": "S-a9607f2a2aeb0e",
+      "sourcePointer": "/gates/4",
+      "area": "Current positions + open reservations across sleeves, per-Greek and concentration limits",
+      "files": ["src/risk.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-01f0c71d1d65c5",
+      "sourcePointer": "/gates/5",
+      "area": "Defined settlement liabilities/collateral beyond premium, covered shares and cash",
+      "files": ["src/risk.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-416bc3074e7045",
+      "sourcePointer": "/gates/6",
+      "area": "Expiry/zero-time rejection and explicit replay/expiry report gate",
+      "status": "Kernel prerequisites authored; reproducible intraday replay and simulator lifecycle proof remain external/pending",
+      "files": ["src/qualification.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-a200a83bf169c8",
+      "sourcePointer": "/gates/7",
+      "area": "Kill/unknown-readiness rejection and explicit rapid-exit/partial-leg evidence gate",
+      "status": "Kernel prerequisites authored; recovery/cancel races/rapid-exit proof belong journal/simulator integration, not claimed by this crate",
+      "files": [
+        "src/risk.rs",
+        "src/qualification.rs",
+        "tests/risk/regression.rs"
+      ]
+    },
+    {
+      "id": "S-5d253275316cff",
+      "area": "Unready position feed is unknown not zero",
+      "files": ["src/risk.rs", "tests/risk/regression.rs"]
+    },
+    {
+      "id": "S-608aefd92a3a23",
+      "area": "Account/strategy/policy/expiry/freshness, cross-sleeve cash/share reservation plan",
+      "files": ["src/authority.rs", "src/lib.rs", "src/risk.rs"]
+    },
+    {
+      "id": "S-de4fa00b0ccf0a",
+      "area": "Durable kill flag blocks new risk without UI/model availability; no cancel/liquidate authority inferred",
+      "files": ["src/risk.rs"]
+    },
+    {
+      "id": "S-70e6c5eb035f20",
+      "area": "Preserve quote identity, multiplier, Greek units and reservation deltas across native boundary",
+      "files": ["src/model.rs", "private/kernel-wire-v1.json"]
+    }
+  ],
+  "dependencyProposal": {
+    "rust": "1.85 minimum, edition2021; exact toolchain/target and lock must be parent-owned final integration decision",
+    "serde": "=1.0.228 with derive",
+    "serde_json": "=1.0.145 without arbitrary_precision",
+    "vertex-contracts": "path ../contracts/rust, frozen concrete ContractAuthority API",
+    "agreement": "Serde pair aligned to native owner/Main freeze. Concrete serde_json::Value must use one version.",
+    "noDependencies": [
+      "pyo3",
+      "broker SDK",
+      "async runtime",
+      "HTTP client",
+      "host timezone database",
+      "persistence library"
+    ],
+    "installationResolutionLicenseAndLockEvidence": "pending; nothing downloaded, installed, resolved or executed"
+  },
+  "regressionSources": {
+    "decimal": "tests/decimal.rs: exact addition, canonical rejection, i128/scale overflow, tick alignment, conservative rounding",
+    "calendar": "tests/calendar.rs: early-close boundary, distinct winter/summer UTC cutoffs, ambiguous fall-fold proof, exchange vs UTC date, holiday and invalid date",
+    "wire": "tests/wire.rs: unavailable native bundle, exact-nanosecond string requirement, incomplete private requests",
+    "risk": "tests/risk/regression.rs (unit module included from lib.rs): unready feed/kill/unknown, stale/unentitled quotes, missing policy/latency, physical exercise reserve, cross-sleeve cash and settled share contention, worst partial Greeks, undefined short cash call, explicit 0DTE evidence, stale position Greek units, zero time, exact dispatch exclusion preserving fills, independent Greek/concentration caps, per-leg/aggregate reconciliation",
+    "executed": false,
+    "receipt": null
+  },
+  "pending": [
+    "Trusted current qualification/calendar/rights/Greek/policy evidence provider and owner conversion; private declarations are not live data or external gate verification.",
+    "Parent durable CAS/reservation persistence, atomic batch ownership, dispatch recheck and simulator bridge integration; risk plans alone do not reserve.",
+    "Native generated/frozen authority bundle availability and full public parity at exact revision.",
+    "All Cargo/test/build/lint/format/typecheck/coverage/security/compatibility/graph validation deferred by user's source-only instruction.",
+    "No real intraday option dataset, rights evidence, accepted replay, rapid-exit or expiry lifecycle result established by authored synthetic tests.",
+    "No deployment or provider/broker/live approval. Margin, borrowing, FX, overnight sessions and unsupported cash-settled short calls remain fail-closed rather than approximated."
+  ],
+  "rollback": "Leave this library/transport uncomposed or disable the injected risk capability; preserve original public schemas, legacy source restrictions, journals and reservations. No migration or deletion action implemented."
+}

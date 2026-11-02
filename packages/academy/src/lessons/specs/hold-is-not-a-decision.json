@@ -1,0 +1,160 @@
+{
+  "slug": "hold-is-not-a-decision",
+  "sourceId": "DZFdLY9uJre",
+  "title": "Hold is not a decision: ask if you would put the trade on today",
+  "summary": "The speaker, a former portfolio manager, reviewed every position each day with one question: would I put this trade on today? Yes means keep or add. No means start to unwind. Waiting to get back to breakeven or an old high is anchoring bias, a decision based on an arbitrary past price.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "portfolio"],
+    "timeframe": "days",
+    "risk": "stock-like",
+    "topics": ["anchoring bias", "process", "position review"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "lots"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Entry price",
+        "color": "amber"
+      },
+      {
+        "day": 40,
+        "label": "Thesis breaks",
+        "color": "red"
+      },
+      {
+        "day": 90,
+        "label": "Waiting for breakeven",
+        "color": "gray"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 20,
+        "movePct": 3
+      },
+      {
+        "day": 40,
+        "movePct": -5
+      },
+      {
+        "day": 60,
+        "movePct": -14
+      },
+      {
+        "day": 90,
+        "movePct": -20
+      },
+      {
+        "day": 120,
+        "movePct": -26
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -15,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    },
+    {
+      "id": "lots",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 120,
+      "min": 30,
+      "max": 250,
+      "step": 5,
+      "unit": "days"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock you own. Each morning, first triage any position hit by world events.",
+      "time": [0, 0.4]
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "Your entry price is a past number. It says nothing about the trade from here."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "The loss grows while you wait to get back to breakeven.",
+      "time": [0.4, 1]
+    },
+    {
+      "element": "spot",
+      "color": "gold",
+      "caption": "The only question: would I put this trade on today? Yes: keep or add. No: start to unwind."
+    }
+  ],
+  "formulas": ["recovery", "expectedValue"],
+  "takeaways": [
+    "Review every position with one question: would I put it on today?",
+    "If the answer is no, start to unwind.",
+    "Waiting for breakeven or an old high is anchoring bias."
+  ],
+  "caveats": [
+    "The price path is simulated to illustrate the point; the transcript gives no example trade."
+  ]
+}

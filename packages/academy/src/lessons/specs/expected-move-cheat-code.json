@@ -1,0 +1,105 @@
+{
+  "slug": "expected-move-cheat-code",
+  "sourceId": "DadM4GlOtQZ",
+  "title": "Calculate a stock's expected move: formula and straddle shortcut",
+  "summary": "Expected move helps you pick strikes. Formula: stock price x implied volatility x square root of time. For a one-month Apple option near $310 this gives about plus or minus $25.6, so about 68% of the time the price ends between about $284.5 and $335.5. Shortcut: add the at-the-money call and put prices, then multiply by about 1.25 to get one standard deviation.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "volatility"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["expected move", "straddle", "strike selection"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": []
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AAPL price",
+      "default": 310,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 29,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Apple trades near $310. We look one month ahead."
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "Implied volatility of about 29% turns into a distribution of prices. It widens as time grows.",
+      "time": [0.05, 1]
+    },
+    {
+      "element": "band1",
+      "color": "amber",
+      "caption": "One standard deviation: $310 x 0.29 x square root of 1/12 is about $25.6. Range about $284.5 to $335.5, 68% of the time."
+    },
+    {
+      "element": "band2",
+      "color": "blue",
+      "caption": "Two standard deviations cover about 95% of outcomes under the model."
+    },
+    {
+      "element": "band1",
+      "color": "amber",
+      "caption": "Shortcut: the at-the-money straddle price x 1.25 is about one standard deviation, from Black-Scholes."
+    }
+  ],
+  "formulas": ["expectedMove", "blackScholes"],
+  "takeaways": [
+    "Expected move = stock price x implied volatility x square root of time in years.",
+    "One standard deviation covers about 68% of outcomes under the model.",
+    "Shortcut: add the at-the-money call and put, then multiply by about 1.25.",
+    "Use the expected move to choose strikes."
+  ],
+  "caveats": [
+    "The Apple price and volatility input are partly garbled in the transcript; $310 and 29% match the stated $25.6 move.",
+    "Real price moves have fatter tails than the normal model."
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "slug": "itm-covered-call-downside",
+  "sourceId": "DYm2zf-Os-L",
+  "title": "Sell in-the-money covered calls when downside protection matters",
+  "summary": "Covered call premium is downside protection. When a stock is at all-time highs and looks rich, protection matters more than upside. An in-the-money covered call has intrinsic and extrinsic value and protects dollar for dollar down to the strike. The speaker compares a 70 delta covered call with a 30 delta one.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bearish", "range"],
+    "instruments": ["single-stock", "covered-calls", "hedging"],
+    "timeframe": "weeks",
+    "risk": "hedged",
+    "topics": ["ITM call", "protection", "delta"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "70-delta covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "30-delta covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "ITM call strike (70 delta)",
+      "default": 95,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "OTM call strike (30 delta)",
+      "default": 105,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock is at all-time highs, $100. You care more about the downside than the upside."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "The 70 delta covered call at $95: big premium, intrinsic plus extrinsic. Protection is dollar for dollar down to the strike."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "The 30 delta covered call at $105: smaller premium, more upside if the stock rallies."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: the ITM call gives up upside for much more downside protection."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The ITM call's breakeven is much lower, so it absorbs a larger drop."
+    }
+  ],
+  "formulas": ["breakevenCall", "extrinsic", "delta"],
+  "takeaways": [
+    "Covered call premium is your downside protection.",
+    "When the stock looks rich, an ITM covered call protects more than an OTM one.",
+    "Expect assignment if the stock stays above the ITM strike; roll or close if you want to keep the shares."
+  ],
+  "caveats": [
+    "Stock legs conflict with the owner's options-only rule; a deployment needs an override.",
+    "The claim that this beats collars or long puts is the speaker's view, not tested here."
+  ],
+  "backtest": {
+    "structure": "covered_call",
+    "tickers": ["AAPL", "MSFT", "SPY"],
+    "scenario": {
+      "label": "2021-2023: highs into the 2022 bear market",
+      "start": "2021-07-01",
+      "end": "2023-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": 0.7,
+      "exitDte": 3
+    },
+    "note": "Monthly 70-delta in-the-money covered calls on stock near highs."
+  }
+}

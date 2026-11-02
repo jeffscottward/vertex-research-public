@@ -1,0 +1,142 @@
+{
+  "slug": "covered-call-strike-by-view",
+  "sourceId": "DceBhgpRV19",
+  "title": "Choose covered call strikes from your view at expiration",
+  "summary": "Covered call strike choice depends on your view of the stock at expiry. Bullish: strike out of the money. Expect a drift down but want to keep the shares: sell in the money and close or roll before expiry. For one-week calls he has no view; for one month he sells about 30 delta. You never have to lose your shares: close or roll, accepting a realized loss on the call against a gain on the stock.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["strike selection", "rolling", "assignment"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "OTM call (30 delta)",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "ITM call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "OTM strike (about 30 delta)",
+      "default": 105,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "ITM strike",
+      "default": 95,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock with one-month covered calls."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Bullish view: sell about a 30 delta call at $105. You make the most at or above the strike."
+    },
+    {
+      "element": "b",
+      "color": "red",
+      "caption": "Mildly bearish view: sell an in-the-money call at $95 for more protection."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference shows where each strike wins: up for OTM, flat or down for ITM.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Above the strike you may be assigned. Close or roll before expiry if you want to keep the shares."
+    }
+  ],
+  "formulas": ["delta", "breakevenCall", "extrinsic"],
+  "takeaways": [
+    "Strike choice follows your view of the stock at expiry.",
+    "Bullish: out of the money; drifting down: in the money.",
+    "You can always close or roll before expiry to keep the shares."
+  ],
+  "caveats": ["Stock legs conflict with the owner's options-only rule."]
+}

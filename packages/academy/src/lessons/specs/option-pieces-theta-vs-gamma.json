@@ -1,0 +1,127 @@
+{
+  "slug": "option-pieces-theta-vs-gamma",
+  "sourceId": "DcJYzHRuST1",
+  "title": "Break a 28-day option into weekly pieces: theta versus gamma",
+  "summary": "A 28-day at-the-money Nvidia call costs about $10; a weekly costs about $5. Split into weeks, the first week decays about 13% of the price, the second about 16%, and the last week about 50%. That suggests always selling weeklies, but gamma is the price of theta. If implied stays above realized, weeklies win; if realized ends above implied, monthlies smooth the risk.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["theta", "gamma", "weeklies", "term structure"]
+  },
+  "scene": {
+    "type": "greeks",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "greek": "theta"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "NVDA price",
+      "default": 180,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 180,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 28,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 50,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Calls sold",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Nvidia trades near $180. A 28-day at-the-money call costs about $10; a weekly about $5."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "The at-the-money strike, where theta and gamma are largest."
+    },
+    {
+      "element": "theta",
+      "color": "gold",
+      "caption": "Theta speeds up near expiry: about 13% of the price decays in week one, 16% in week two, 50% in the last week.",
+      "time": [0, 0.95]
+    },
+    {
+      "element": "gamma",
+      "color": "red",
+      "caption": "Gamma rises in mirror image. The fast decay of weeklies is paid for with gamma risk.",
+      "time": [0, 0.95]
+    },
+    {
+      "element": "delta",
+      "color": "blue",
+      "caption": "High gamma means delta swings fast near the strike, so a sharp move hurts a short weekly."
+    },
+    {
+      "element": "vega",
+      "color": "violet",
+      "caption": "Which wins depends on volatility: implied above realized favors weeklies; realized above implied favors monthlies."
+    }
+  ],
+  "formulas": ["theta", "gamma", "vrp", "extrinsic"],
+  "takeaways": [
+    "A 28-day option decays slowly at first and fastest in its last week.",
+    "Gamma is the price of theta: fast decay comes with large gamma risk.",
+    "Sell weeklies only if you expect implied to stay above realized; otherwise monthlies smooth the P&L."
+  ],
+  "caveats": [
+    "The speaker promotes a waitlist for his tools; this is promotional.",
+    "The decay percentages are from the speaker's table and are not verified. The $180 price is an example matching a $10 option."
+  ]
+}

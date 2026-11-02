@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-native-host"
+version = "0.1.0"
+description = "Explicitly configured single-owner native paper and isolated research host"
+requires-python = "==3.12.11"
+dependencies = [
+  "vertex-contracts==1.0.0",
+  "vertex-execution[nautilus]==0.1.0",
+  "vertex-kernel-bridge==0.1.0",
+  "vertex-control-client==0.1.0",
+  "vertex-gamma-research==0.1.0",
+  "vertex-native-gateway==0.1.0",
+  "vertex-market-data==0.1.0",
+]
+
+[project.optional-dependencies]
+native-approval = ["cryptography==46.0.3"]
+
+[project.scripts]
+vertex-host = "vertex_host.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vertex_host", "vertex_host.*"]
+
+[tool.vertex.host]
+activation = "unavailable-until-reviewed-release-and-human-native-enrollment"
+platform = "linux-x86_64"
+python = "3.12.11"
+contract-authority = "../contracts/python"
+kernel-bridge = "../kernel-bridge"
+worker-client = "../control-client"
+no-live-execution = true
+no-cloud-capital = true
+no-auto-rearm = true
+no-import-startup = true
+research-engine = "nautilus-trader==2.0.0rc5"
+research-runtime-state = "source-only-requires-reviewed-two-task-abi-and-runtime-qualification"
+
+[tool.vertex.proposed-native-approval-crypto]
+package = "cryptography"
+version = "46.0.3"
+state = "proposal-not-installed-or-runtime-verified"
+wheel-sha256 = "pending-reviewed-platform-wheel"
+
+[tool.vertex.proposed-isolation]
+backend = "linux-cgroup-v2-bubblewrap-seccomp"
+state = "requires-explicit-reviewed-runtime-and-kernel-capabilities"
+installable = false

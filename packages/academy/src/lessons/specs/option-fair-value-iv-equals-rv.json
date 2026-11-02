@@ -1,0 +1,121 @@
+{
+  "slug": "option-fair-value-iv-equals-rv",
+  "sourceId": "DbN-QbGuTKi",
+  "title": "An option is fair when implied volatility equals realized volatility",
+  "summary": "The speaker defines fair value as implied volatility equal to realized volatility. Implied usually trades a bit above realized, so options usually carry a small premium. The further IV sits above RV, the richer the option. Many wheel traders sell IV blindly and may sell fairly priced options; for an edge, look for high IV on an absolute level and high IV relative to RV.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol", "any"],
+    "instruments": ["covered-calls", "cash-secured-puts", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["fair value", "iv vs rv", "rich options", "wheel"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Start price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 3,
+      "min": -15,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average points that implied vol trades above realized vol."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 13,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "A stock path with its realized and implied volatility."
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much the stock actually moves. This is the fair level for implied vol.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility usually sits a little above realized: a small premium over fair value."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The wider IV is above RV, the richer the option. Sell rich options and buy cheap ones."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "Selling blindly, without this check, can mean selling options at fair value with no edge.",
+      "time": [1, 1]
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "blackScholes"],
+  "takeaways": [
+    "An option is fairly priced when implied volatility equals realized volatility.",
+    "Implied usually trades above realized, so options are usually a little rich.",
+    "For an edge, sell options with high IV and a wide gap over RV, not IV alone."
+  ],
+  "caveats": [
+    "The speaker's VAY screener is promotional and not verified here.",
+    "Defining fair value as IV equal to RV is the speaker's view; it ignores jump and event risk."
+  ]
+}

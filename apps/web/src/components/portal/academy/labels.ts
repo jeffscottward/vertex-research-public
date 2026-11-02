@@ -1,0 +1,50 @@
+// Display labels for Academy tags and scene types.
+const NAMES: Readonly<Record<string, string>> = {
+  any: "Any regime",
+  bullish: "Bullish",
+  bearish: "Bearish",
+  range: "Range-bound",
+  "high-vol": "High volatility",
+  "low-vol": "Low volatility",
+  "regime-change": "Regime change",
+  event: "Event / earnings",
+  "single-stock": "Single stock",
+  etf: "ETF",
+  "index-options": "Index options",
+  "0dte": "0DTE",
+  futures: "Futures",
+  leaps: "LEAPS",
+  spreads: "Spreads",
+  "covered-calls": "Covered calls",
+  "cash-secured-puts": "Cash-secured puts",
+  hedging: "Hedging",
+  synthetics: "Synthetics",
+  volatility: "Volatility",
+  portfolio: "Portfolio",
+  intraday: "Intraday",
+  days: "Days",
+  weeks: "Weeks",
+  months: "Months",
+  years: "Years",
+  defined: "Defined risk",
+  undefined: "Undefined risk",
+  hedged: "Hedged",
+  "stock-like": "Stock-like risk",
+  none: "No position",
+  strategy: "Strategy",
+  concept: "Concept",
+  payoff: "Payoff",
+  compare: "Comparison",
+  greeks: "Greeks",
+  distribution: "Distribution",
+  ivrv: "IV vs RV",
+  gex: "Gamma exposure",
+  pricepath: "Price path",
+};
+
+export const labelOf = (value: string): string => NAMES[value] ?? value;
+
+export const LABELS = {
+  disclaimer:
+    "Educational content based on Define Your Risk videos. Charts use illustrative values and Black-Scholes pricing. Backtests are modeled, not historical option fills. Nothing here is advice or an order.",
+} as const;

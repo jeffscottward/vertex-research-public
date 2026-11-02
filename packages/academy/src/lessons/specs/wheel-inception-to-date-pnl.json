@@ -1,0 +1,180 @@
+{
+  "slug": "wheel-inception-to-date-pnl",
+  "sourceId": "DUG4StiCSH7",
+  "title": "Tracking covered call P&L from inception, not trade by trade",
+  "summary": "The speaker runs a survey: how do you track the P&L of covered calls, cash-secured puts or the wheel? His frustration is that brokers do not show inception-to-date P&L on an anchored stock position with many calls sold against it. He says he is building a tool for this. The chart shows why per-trade premium can hide the total result.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["pnl tracking", "inception to date", "wheel", "record keeping"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts",
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Monthly call"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Buy stock, sell call",
+        "color": "gold"
+      },
+      {
+        "day": 30,
+        "label": "Call expires",
+        "color": "cyan"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 10,
+        "movePct": -2
+      },
+      {
+        "day": 20,
+        "movePct": -5
+      },
+      {
+        "day": 30,
+        "movePct": -7
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 9,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "One anchored stock position with a call sold against it."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock path over the month: here it slips about 7%, more than the call premium.",
+      "time": [0, 1]
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The call strike. Each new call is a separate line on a broker statement."
+    },
+    {
+      "element": "events",
+      "color": "gold",
+      "caption": "Premium shows up as many small wins on the statement."
+    },
+    {
+      "element": "pnl",
+      "color": "blue",
+      "caption": "Inception-to-date P&L adds stock and all calls together. That is the number that matters.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["annualizedYield", "extrinsic"],
+  "takeaways": [
+    "Track covered call results as one position from inception, stock plus every call.",
+    "Per-trade premium on broker statements can hide losses on the stock.",
+    "Write down what frustrates you about P&L tracking; the speaker asks for this feedback."
+  ],
+  "caveats": [
+    "The clip is a survey with little teaching; the chart is an illustration.",
+    "The tool the speaker is building is promotional and not verified here."
+  ]
+}

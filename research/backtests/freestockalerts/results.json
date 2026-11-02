@@ -1,0 +1,4143 @@
+{
+  "method": "(fixed before the first run; see docs/specs/strategies/<slug>.md):\n* An event is one alert (trigger session t). Forward return = adj_close[t+h] / adj_close[t] - 1 for\n  h = 5, 20, 60 sessions, measured from the trigger-day close (the alert is known by then).\n* Benchmark = equal-weight mean forward return, same date and horizon, of every symbol in the\n  strategy's universe with data. Excess = event return - benchmark. Market stress uses SPY's average\n  forward return over all sessions; the earnings-calendar move alerts also report excess over the\n  same stock's average forward return over all sessions (selection check).\n* Cost = 10 bp per side (0.20% round trip), charged to the event return only.\n* Halves = events split at the median event date. Verdict at h = 20:\n  pass = at least 30 events, mean net excess > 0 with t >= 2, and mean net excess > 0 in both halves;\n  fail = at least 30 events and not pass; inconclusive = fewer than 30 events.\n  t uses the plain standard error; overlapping events make it too high, so treat it as an upper bound.",
+  "universe_sizes": {
+    "stocks": 145,
+    "sector_etfs": 11
+  },
+  "quality-breakout-radar": {
+    "events": 6354,
+    "h5": {
+      "net": {
+        "n": 6354,
+        "mean": -0.00073,
+        "t": -1.7
+      },
+      "benchmark": {
+        "n": 6354,
+        "mean": 0.00213,
+        "t": 9.5
+      },
+      "excess": {
+        "n": 6354,
+        "mean": -0.00286,
+        "t": -7.22
+      },
+      "hit_rate": 0.492,
+      "first_half_excess": {
+        "n": 3177,
+        "mean": -0.00226,
+        "t": -4.26
+      },
+      "second_half_excess": {
+        "n": 3177,
+        "mean": -0.00346,
+        "t": -5.87
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 6343,
+        "mean": 0.00593,
+        "t": 7.1
+      },
+      "benchmark": {
+        "n": 6343,
+        "mean": 0.00788,
+        "t": 17.59
+      },
+      "excess": {
+        "n": 6343,
+        "mean": -0.00195,
+        "t": -2.52
+      },
+      "hit_rate": 0.558,
+      "first_half_excess": {
+        "n": 3177,
+        "mean": -0.00159,
+        "t": -1.66
+      },
+      "second_half_excess": {
+        "n": 3166,
+        "mean": -0.00231,
+        "t": -1.91
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 6311,
+        "mean": 0.02397,
+        "t": 16.08
+      },
+      "benchmark": {
+        "n": 6311,
+        "mean": 0.02742,
+        "t": 33.55
+      },
+      "excess": {
+        "n": 6311,
+        "mean": -0.00344,
+        "t": -2.54
+      },
+      "hit_rate": 0.598,
+      "first_half_excess": {
+        "n": 3177,
+        "mean": -0.00168,
+        "t": -0.95
+      },
+      "second_half_excess": {
+        "n": 3134,
+        "mean": -0.00523,
+        "t": -2.54
+      }
+    },
+    "first_event": "2006-01-04",
+    "last_event": "2026-10-14",
+    "split_day": "2016-07-06",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "OGN",
+        "day": "2026-10-07",
+        "kind": "new-52-week-high",
+        "level": 13.785,
+        "r5": -0.0056,
+        "x5": -0.0243,
+        "b5": 0.0186
+      },
+      {
+        "symbol": "BOX",
+        "day": "2026-10-09",
+        "kind": "new-52-week-high",
+        "level": 36.34,
+        "r5": 0.0851,
+        "x5": 0.0649,
+        "b5": 0.0202
+      },
+      {
+        "symbol": "AAPL",
+        "day": "2026-10-13",
+        "kind": "new-52-week-high",
+        "level": 345.34,
+        "r5": -0.0072,
+        "x5": -0.0357,
+        "b5": 0.0285
+      },
+      {
+        "symbol": "CVX",
+        "day": "2026-10-13",
+        "kind": "new-52-week-high",
+        "level": 217.78,
+        "r5": 0.0347,
+        "x5": 0.0061,
+        "b5": 0.0285
+      },
+      {
+        "symbol": "PFE",
+        "day": "2026-10-14",
+        "kind": "new-52-week-high",
+        "level": 29.21,
+        "r5": 0.0199,
+        "x5": -0.0091,
+        "b5": 0.029
+      }
+    ]
+  },
+  "under-the-radar-breakouts": {
+    "events": 5086,
+    "h5": {
+      "net": {
+        "n": 5086,
+        "mean": -0.00072,
+        "t": -1.38
+      },
+      "benchmark": {
+        "n": 5086,
+        "mean": 0.00235,
+        "t": 9.16
+      },
+      "excess": {
+        "n": 5086,
+        "mean": -0.00306,
+        "t": -6.42
+      },
+      "hit_rate": 0.496,
+      "first_half_excess": {
+        "n": 2543,
+        "mean": -0.00252,
+        "t": -4.1
+      },
+      "second_half_excess": {
+        "n": 2543,
+        "mean": -0.00361,
+        "t": -4.95
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 5071,
+        "mean": 0.00662,
+        "t": 6.31
+      },
+      "benchmark": {
+        "n": 5071,
+        "mean": 0.00844,
+        "t": 16.86
+      },
+      "excess": {
+        "n": 5071,
+        "mean": -0.00182,
+        "t": -1.87
+      },
+      "hit_rate": 0.554,
+      "first_half_excess": {
+        "n": 2543,
+        "mean": -0.00111,
+        "t": -0.89
+      },
+      "second_half_excess": {
+        "n": 2528,
+        "mean": -0.00253,
+        "t": -1.69
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 5039,
+        "mean": 0.02578,
+        "t": 13.43
+      },
+      "benchmark": {
+        "n": 5039,
+        "mean": 0.02706,
+        "t": 29.01
+      },
+      "excess": {
+        "n": 5039,
+        "mean": -0.00129,
+        "t": -0.74
+      },
+      "hit_rate": 0.581,
+      "first_half_excess": {
+        "n": 2543,
+        "mean": 0.0022,
+        "t": 0.96
+      },
+      "second_half_excess": {
+        "n": 2496,
+        "mean": -0.00484,
+        "t": -1.85
+      }
+    },
+    "first_event": "2006-01-04",
+    "last_event": "2026-10-15",
+    "split_day": "2017-01-26",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "AAPL",
+        "day": "2026-10-13",
+        "kind": "new-52-week-high",
+        "level": 345.34,
+        "r5": -0.0072,
+        "x5": -0.0357,
+        "b5": 0.0285
+      },
+      {
+        "symbol": "CVX",
+        "day": "2026-10-13",
+        "kind": "new-52-week-high",
+        "level": 217.78,
+        "r5": 0.0347,
+        "x5": 0.0061,
+        "b5": 0.0285
+      },
+      {
+        "symbol": "DOCU",
+        "day": "2026-10-14",
+        "kind": "new-52-week-high",
+        "level": 75.0,
+        "r5": 0.0811,
+        "x5": 0.0521,
+        "b5": 0.029
+      },
+      {
+        "symbol": "XOM",
+        "day": "2026-10-14",
+        "kind": "new-52-week-high",
+        "level": 176.41,
+        "r5": 0.0041,
+        "x5": -0.0249,
+        "b5": 0.029
+      },
+      {
+        "symbol": "GILD",
+        "day": "2026-10-15",
+        "kind": "new-52-week-high",
+        "level": 157.29,
+        "r5": -0.0031,
+        "x5": -0.0305,
+        "b5": 0.0273
+      }
+    ]
+  },
+  "quality-compounders-on-pullback": {
+    "events": 3009,
+    "h5": {
+      "net": {
+        "n": 3004,
+        "mean": 0.00288,
+        "t": 3.4
+      },
+      "benchmark": {
+        "n": 3004,
+        "mean": 0.00398,
+        "t": 9.26
+      },
+      "excess": {
+        "n": 3004,
+        "mean": -0.0011,
+        "t": -1.47
+      },
+      "hit_rate": 0.535,
+      "first_half_excess": {
+        "n": 1502,
+        "mean": -0.00112,
+        "t": -1.13
+      },
+      "second_half_excess": {
+        "n": 1502,
+        "mean": -0.00109,
+        "t": -0.96
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 2976,
+        "mean": 0.01432,
+        "t": 8.9
+      },
+      "benchmark": {
+        "n": 2976,
+        "mean": 0.01578,
+        "t": 20.08
+      },
+      "excess": {
+        "n": 2976,
+        "mean": -0.00147,
+        "t": -1.03
+      },
+      "hit_rate": 0.587,
+      "first_half_excess": {
+        "n": 1502,
+        "mean": -0.00277,
+        "t": -1.49
+      },
+      "second_half_excess": {
+        "n": 1474,
+        "mean": -0.00014,
+        "t": -0.07
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 2951,
+        "mean": 0.04005,
+        "t": 13.45
+      },
+      "benchmark": {
+        "n": 2951,
+        "mean": 0.03942,
+        "t": 29.63
+      },
+      "excess": {
+        "n": 2951,
+        "mean": 0.00063,
+        "t": 0.24
+      },
+      "hit_rate": 0.62,
+      "first_half_excess": {
+        "n": 1502,
+        "mean": -0.00134,
+        "t": -0.38
+      },
+      "second_half_excess": {
+        "n": 1449,
+        "mean": 0.00267,
+        "t": 0.67
+      }
+    },
+    "first_event": "2006-01-04",
+    "last_event": "2026-10-22",
+    "split_day": "2018-07-09",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "HON",
+        "day": "2026-10-20",
+        "kind": "reclaims-50-day",
+        "level": 213.797
+      },
+      {
+        "symbol": "SBUX",
+        "day": "2026-10-20",
+        "kind": "reclaims-50-day",
+        "level": 100.0516
+      },
+      {
+        "symbol": "ABT",
+        "day": "2026-10-21",
+        "kind": "reclaims-50-day",
+        "level": 105.6732
+      },
+      {
+        "symbol": "COF",
+        "day": "2026-10-21",
+        "kind": "reclaims-50-day",
+        "level": 207.3496
+      },
+      {
+        "symbol": "SPG",
+        "day": "2026-10-22",
+        "kind": "reclaims-50-day",
+        "level": 208.2984
+      }
+    ]
+  },
+  "leader-pullback-and-reclaim": {
+    "events": 1786,
+    "h5": {
+      "net": {
+        "n": 1783,
+        "mean": 0.00108,
+        "t": 1.02
+      },
+      "benchmark": {
+        "n": 1783,
+        "mean": 0.00353,
+        "t": 5.87
+      },
+      "excess": {
+        "n": 1783,
+        "mean": -0.00246,
+        "t": -2.65
+      },
+      "hit_rate": 0.526,
+      "first_half_excess": {
+        "n": 893,
+        "mean": -0.00245,
+        "t": -2.04
+      },
+      "second_half_excess": {
+        "n": 890,
+        "mean": -0.00246,
+        "t": -1.74
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 1776,
+        "mean": 0.01239,
+        "t": 6.11
+      },
+      "benchmark": {
+        "n": 1776,
+        "mean": 0.01397,
+        "t": 12.81
+      },
+      "excess": {
+        "n": 1776,
+        "mean": -0.00158,
+        "t": -0.88
+      },
+      "hit_rate": 0.577,
+      "first_half_excess": {
+        "n": 893,
+        "mean": 0.00028,
+        "t": 0.12
+      },
+      "second_half_excess": {
+        "n": 883,
+        "mean": -0.00346,
+        "t": -1.27
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 1751,
+        "mean": 0.03591,
+        "t": 9.24
+      },
+      "benchmark": {
+        "n": 1751,
+        "mean": 0.03531,
+        "t": 19.82
+      },
+      "excess": {
+        "n": 1751,
+        "mean": 0.0006,
+        "t": 0.18
+      },
+      "hit_rate": 0.593,
+      "first_half_excess": {
+        "n": 893,
+        "mean": 0.0097,
+        "t": 1.92
+      },
+      "second_half_excess": {
+        "n": 858,
+        "mean": -0.00888,
+        "t": -1.98
+      }
+    },
+    "first_event": "2006-01-23",
+    "last_event": "2026-10-22",
+    "split_day": "2018-01-17",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "LLY",
+        "day": "2026-10-06",
+        "kind": "reclaims-50-day",
+        "level": 1175.7312,
+        "r5": 0.0058,
+        "x5": -0.0104,
+        "b5": 0.0161
+      },
+      {
+        "symbol": "MRK",
+        "day": "2026-10-07",
+        "kind": "reclaims-50-day",
+        "level": 142.682,
+        "r5": 0.0301,
+        "x5": 0.0114,
+        "b5": 0.0186
+      },
+      {
+        "symbol": "AMD",
+        "day": "2026-10-20",
+        "kind": "reclaims-50-day",
+        "level": 538.2322
+      },
+      {
+        "symbol": "MMM",
+        "day": "2026-10-20",
+        "kind": "reclaims-50-day",
+        "level": 169.8682
+      },
+      {
+        "symbol": "JNJ",
+        "day": "2026-10-22",
+        "kind": "reclaims-50-day",
+        "level": 265.0322
+      }
+    ]
+  },
+  "200-day-comeback-watchlist": {
+    "events": 1151,
+    "h5": {
+      "net": {
+        "n": 1146,
+        "mean": 0.00115,
+        "t": 0.64
+      },
+      "benchmark": {
+        "n": 1146,
+        "mean": 0.0014,
+        "t": 1.81
+      },
+      "excess": {
+        "n": 1146,
+        "mean": -0.00025,
+        "t": -0.16
+      },
+      "hit_rate": 0.519,
+      "first_half_excess": {
+        "n": 575,
+        "mean": -0.00026,
+        "t": -0.12
+      },
+      "second_half_excess": {
+        "n": 571,
+        "mean": -0.00024,
+        "t": -0.11
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 1145,
+        "mean": 0.00954,
+        "t": 2.79
+      },
+      "benchmark": {
+        "n": 1145,
+        "mean": 0.01316,
+        "t": 8.39
+      },
+      "excess": {
+        "n": 1145,
+        "mean": -0.00362,
+        "t": -1.24
+      },
+      "hit_rate": 0.534,
+      "first_half_excess": {
+        "n": 575,
+        "mean": -0.00088,
+        "t": -0.22
+      },
+      "second_half_excess": {
+        "n": 570,
+        "mean": -0.0064,
+        "t": -1.48
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 1134,
+        "mean": 0.04065,
+        "t": 6.3
+      },
+      "benchmark": {
+        "n": 1134,
+        "mean": 0.04434,
+        "t": 16.89
+      },
+      "excess": {
+        "n": 1134,
+        "mean": -0.00368,
+        "t": -0.65
+      },
+      "hit_rate": 0.593,
+      "first_half_excess": {
+        "n": 575,
+        "mean": -0.00793,
+        "t": -1.08
+      },
+      "second_half_excess": {
+        "n": 559,
+        "mean": 0.00068,
+        "t": 0.08
+      }
+    },
+    "first_event": "2006-05-11",
+    "last_event": "2026-10-21",
+    "split_day": "2018-10-24",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "CCL",
+        "day": "2026-10-20",
+        "kind": "crosses-above-200-day",
+        "level": 27.2553
+      },
+      {
+        "symbol": "ISRG",
+        "day": "2026-10-20",
+        "kind": "crosses-above-200-day",
+        "level": 438.968
+      },
+      {
+        "symbol": "IBM",
+        "day": "2026-10-21",
+        "kind": "crosses-above-200-day",
+        "level": 251.1386
+      },
+      {
+        "symbol": "RBLX",
+        "day": "2026-10-21",
+        "kind": "crosses-above-200-day",
+        "level": 53.3579
+      },
+      {
+        "symbol": "TSLA",
+        "day": "2026-10-21",
+        "kind": "crosses-above-200-day",
+        "level": 387.2612
+      }
+    ]
+  },
+  "dividend-growth-buy-zones": {
+    "events": 927,
+    "h5": {
+      "net": {
+        "n": 927,
+        "mean": -0.00046,
+        "t": -0.27
+      },
+      "benchmark": {
+        "n": 927,
+        "mean": 0.00305,
+        "t": 2.82
+      },
+      "excess": {
+        "n": 927,
+        "mean": -0.00351,
+        "t": -2.75
+      },
+      "hit_rate": 0.516,
+      "first_half_excess": {
+        "n": 462,
+        "mean": -0.00307,
+        "t": -1.73
+      },
+      "second_half_excess": {
+        "n": 465,
+        "mean": -0.00394,
+        "t": -2.15
+      }
+    },
+    "h20": {
+      "net": {
+        "n": 920,
+        "mean": 0.01392,
+        "t": 4.64
+      },
+      "benchmark": {
+        "n": 920,
+        "mean": 0.01807,
+        "t": 9.63
+      },
+      "excess": {
+        "n": 920,
+        "mean": -0.00415,
+        "t": -1.77
+      },
+      "hit_rate": 0.608,
+      "first_half_excess": {
+        "n": 462,
+        "mean": 6e-5,
+        "t": 0.02
+      },
+      "second_half_excess": {
+        "n": 458,
+        "mean": -0.0084,
+        "t": -2.31
+      }
+    },
+    "h60": {
+      "net": {
+        "n": 906,
+        "mean": 0.04289,
+        "t": 9.11
+      },
+      "benchmark": {
+        "n": 906,
+        "mean": 0.05519,
+        "t": 17.85
+      },
+      "excess": {
+        "n": 906,
+        "mean": -0.01229,
+        "t": -3.03
+      },
+      "hit_rate": 0.65,
+      "first_half_excess": {
+        "n": 462,
+        "mean": -0.01013,
+        "t": -2.02
+      },
+      "second_half_excess": {
+        "n": 444,
+        "mean": -0.01455,
+        "t": -2.27
+      }
+    },
+    "first_event": "2011-01-05",
+    "last_event": "2026-10-13",
+    "split_day": "2020-03-16",
+    "verdict": "fail",
+    "sample": [
+      {
+        "symbol": "LW",
+        "day": "2026-10-06",
+        "kind": "reclaims-200-day",
+        "level": 45.7881,
+        "r5": 0.0825,
+        "x5": 0.0664,
+        "b5": 0.0161
+      },
+      {
+        "symbol": "MDLZ",
+        "day": "2026-10-06",
+        "kind": "reclaims-200-day",
+        "level": 59.6225,
+        "r5": 0.0295,
+        "x5": 0.0134,
+        "b5": 0.0161
+      },
+      {
+        "symbol": "AMT",
+        "day": "2026-10-09",
+        "kind": "reclaims-200-day",
+        "level": 176.663,
+        "r5": 0.0146,
+        "x5": -0.0056,
+        "b5": 0.0202
+      },
+      {
+        "symbol": "ABT",
+        "day": "2026-10-13",
+        "kind": "reclaims-200-day",
+        "level": 103.2293,
+        "r5": 0.0026,
+        "x5": -0.026,
+        "b5": 0.0285
+      },
+      {
+        "symbol": "KR",
+        "day": "2026-10-13",
+        "kind": "reclaims-200-day",
+        "level": 63.4422,
+        "r5": 0.0349,
+        "x5": 0.0063,
+        "b5": 0.0285
+      }
+    ]
+  },
+  "sector-leadership-radar": {
+    "all": {
+      "events": 3551,
+      "h5": {
+        "net": {
+          "n": 3545,
+          "mean": -0.00025,
+          "t": -0.55
+        },
+        "benchmark": {
+          "n": 3545,
+          "mean": 0.00192,
+          "t": 5.31
+        },
+        "excess": {
+          "n": 3545,
+          "mean": -0.00217,
+          "t": -7.52
+        },
+        "hit_rate": 0.539,
+        "first_half_excess": {
+          "n": 1775,
+          "mean": -0.00243,
+          "t": -6.58
+        },
+        "second_half_excess": {
+          "n": 1770,
+          "mean": -0.00191,
+          "t": -4.3
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 3528,
+          "mean": 0.00769,
+          "t": 8.41
+        },
+        "benchmark": {
+          "n": 3528,
+          "mean": 0.00823,
+          "t": 11.28
+        },
+        "excess": {
+          "n": 3528,
+          "mean": -0.00055,
+          "t": -0.95
+        },
+        "hit_rate": 0.616,
+        "first_half_excess": {
+          "n": 1775,
+          "mean": -0.00018,
+          "t": -0.25
+        },
+        "second_half_excess": {
+          "n": 1753,
+          "mean": -0.00091,
+          "t": -1.02
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 3512,
+          "mean": 0.02409,
+          "t": 15.93
+        },
+        "benchmark": {
+          "n": 3512,
+          "mean": 0.02407,
+          "t": 21.0
+        },
+        "excess": {
+          "n": 3512,
+          "mean": 2e-5,
+          "t": 0.02
+        },
+        "hit_rate": 0.676,
+        "first_half_excess": {
+          "n": 1775,
+          "mean": 0.00396,
+          "t": 3.2
+        },
+        "second_half_excess": {
+          "n": 1737,
+          "mean": -0.004,
+          "t": -2.71
+        }
+      },
+      "first_event": "2005-03-24",
+      "last_event": "2026-10-23",
+      "split_day": "2016-11-18",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "XLB",
+          "day": "2026-10-20",
+          "kind": "crosses-above-50-day",
+          "level": 51.1304
+        },
+        {
+          "symbol": "XLU",
+          "day": "2026-10-20",
+          "kind": "crosses-above-50-day",
+          "level": 41.974
+        },
+        {
+          "symbol": "XLU",
+          "day": "2026-10-21",
+          "kind": "crosses-above-50-day",
+          "level": 41.949
+        },
+        {
+          "symbol": "XLF",
+          "day": "2026-10-22",
+          "kind": "crosses-above-50-day",
+          "level": 56.1492
+        },
+        {
+          "symbol": "XLRE",
+          "day": "2026-10-23",
+          "kind": "crosses-above-50-day",
+          "level": 42.9256
+        }
+      ]
+    },
+    "leadership": {
+      "events": 3015,
+      "h5": {
+        "net": {
+          "n": 3009,
+          "mean": -0.00021,
+          "t": -0.43
+        },
+        "benchmark": {
+          "n": 3009,
+          "mean": 0.00198,
+          "t": 5.04
+        },
+        "excess": {
+          "n": 3009,
+          "mean": -0.00219,
+          "t": -7.15
+        },
+        "hit_rate": 0.536,
+        "first_half_excess": {
+          "n": 1506,
+          "mean": -0.0028,
+          "t": -7.62
+        },
+        "second_half_excess": {
+          "n": 1503,
+          "mean": -0.00158,
+          "t": -3.23
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 3000,
+          "mean": 0.0075,
+          "t": 7.92
+        },
+        "benchmark": {
+          "n": 3000,
+          "mean": 0.00808,
+          "t": 10.74
+        },
+        "excess": {
+          "n": 3000,
+          "mean": -0.00059,
+          "t": -0.95
+        },
+        "hit_rate": 0.611,
+        "first_half_excess": {
+          "n": 1506,
+          "mean": -0.00084,
+          "t": -1.17
+        },
+        "second_half_excess": {
+          "n": 1494,
+          "mean": -0.00033,
+          "t": -0.33
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 2987,
+          "mean": 0.02516,
+          "t": 16.25
+        },
+        "benchmark": {
+          "n": 2987,
+          "mean": 0.02477,
+          "t": 21.08
+        },
+        "excess": {
+          "n": 2987,
+          "mean": 0.00039,
+          "t": 0.38
+        },
+        "hit_rate": 0.679,
+        "first_half_excess": {
+          "n": 1506,
+          "mean": 0.00267,
+          "t": 2.13
+        },
+        "second_half_excess": {
+          "n": 1481,
+          "mean": -0.00193,
+          "t": -1.2
+        }
+      },
+      "first_event": "2005-03-24",
+      "last_event": "2026-10-23",
+      "split_day": "2016-06-30",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "XLB",
+          "day": "2026-10-20",
+          "kind": "crosses-above-50-day",
+          "level": 51.1304
+        },
+        {
+          "symbol": "XLU",
+          "day": "2026-10-20",
+          "kind": "crosses-above-50-day",
+          "level": 41.974
+        },
+        {
+          "symbol": "XLU",
+          "day": "2026-10-21",
+          "kind": "crosses-above-50-day",
+          "level": 41.949
+        },
+        {
+          "symbol": "XLF",
+          "day": "2026-10-22",
+          "kind": "crosses-above-50-day",
+          "level": 56.1492
+        },
+        {
+          "symbol": "XLRE",
+          "day": "2026-10-23",
+          "kind": "crosses-above-50-day",
+          "level": 42.9256
+        }
+      ]
+    },
+    "bounce-in-downtrend": {
+      "events": 536,
+      "h5": {
+        "net": {
+          "n": 536,
+          "mean": -0.00048,
+          "t": -0.38
+        },
+        "benchmark": {
+          "n": 536,
+          "mean": 0.00161,
+          "t": 1.72
+        },
+        "excess": {
+          "n": 536,
+          "mean": -0.00209,
+          "t": -2.49
+        },
+        "hit_rate": 0.556,
+        "first_half_excess": {
+          "n": 268,
+          "mean": -0.00058,
+          "t": -0.49
+        },
+        "second_half_excess": {
+          "n": 268,
+          "mean": -0.00359,
+          "t": -3.04
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 528,
+          "mean": 0.00877,
+          "t": 3.02
+        },
+        "benchmark": {
+          "n": 528,
+          "mean": 0.00909,
+          "t": 3.87
+        },
+        "excess": {
+          "n": 528,
+          "mean": -0.00031,
+          "t": -0.2
+        },
+        "hit_rate": 0.644,
+        "first_half_excess": {
+          "n": 268,
+          "mean": 0.00188,
+          "t": 0.83
+        },
+        "second_half_excess": {
+          "n": 260,
+          "mean": -0.00258,
+          "t": -1.13
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 525,
+          "mean": 0.01797,
+          "t": 3.62
+        },
+        "benchmark": {
+          "n": 525,
+          "mean": 0.02004,
+          "t": 5.35
+        },
+        "excess": {
+          "n": 525,
+          "mean": -0.00207,
+          "t": -0.73
+        },
+        "hit_rate": 0.657,
+        "first_half_excess": {
+          "n": 268,
+          "mean": 0.00696,
+          "t": 1.89
+        },
+        "second_half_excess": {
+          "n": 257,
+          "mean": -0.01148,
+          "t": -2.67
+        }
+      },
+      "first_event": "2006-07-06",
+      "last_event": "2026-10-15",
+      "split_day": "2018-07-24",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "XLC",
+          "day": "2026-10-08",
+          "kind": "crosses-above-50-day",
+          "level": 111.7032,
+          "r5": 0.0013,
+          "x5": -0.0144,
+          "b5": 0.0157
+        },
+        {
+          "symbol": "XLC",
+          "day": "2026-10-12",
+          "kind": "crosses-above-50-day",
+          "level": 111.8304,
+          "r5": -0.0142,
+          "x5": -0.0178,
+          "b5": 0.0036
+        },
+        {
+          "symbol": "XLC",
+          "day": "2026-10-13",
+          "kind": "crosses-above-50-day",
+          "level": 111.8946,
+          "r5": -0.0206,
+          "x5": -0.0312,
+          "b5": 0.0106
+        },
+        {
+          "symbol": "XLC",
+          "day": "2026-10-15",
+          "kind": "crosses-above-50-day",
+          "level": 111.889,
+          "r5": -0.0466,
+          "x5": -0.055,
+          "b5": 0.0084
+        },
+        {
+          "symbol": "XLU",
+          "day": "2026-10-15",
+          "kind": "crosses-above-50-day",
+          "level": 42.0826,
+          "r5": 0.0273,
+          "x5": 0.0189,
+          "b5": 0.0084
+        }
+      ]
+    }
+  },
+  "market-stress-alerts": {
+    "note": "Forward returns are SPY's, from the alert-day close, against SPY's average forward return over all sessions.",
+    "^VIX vix-above-25": {
+      "events": 169,
+      "h5": {
+        "net": {
+          "n": 169,
+          "mean": 0.00049,
+          "t": 0.22
+        },
+        "benchmark": {
+          "n": 169,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 169,
+          "mean": -0.00186,
+          "t": -0.84
+        },
+        "hit_rate": 0.538,
+        "first_half_excess": {
+          "n": 84,
+          "mean": -0.00311,
+          "t": -1.02
+        },
+        "second_half_excess": {
+          "n": 85,
+          "mean": -0.00063,
+          "t": -0.19
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 169,
+          "mean": 0.01149,
+          "t": 2.56
+        },
+        "benchmark": {
+          "n": 169,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 169,
+          "mean": 0.00212,
+          "t": 0.47
+        },
+        "hit_rate": 0.669,
+        "first_half_excess": {
+          "n": 84,
+          "mean": 0.00313,
+          "t": 0.52
+        },
+        "second_half_excess": {
+          "n": 85,
+          "mean": 0.00112,
+          "t": 0.17
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 169,
+          "mean": 0.04004,
+          "t": 7.04
+        },
+        "benchmark": {
+          "n": 169,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 169,
+          "mean": 0.012,
+          "t": 2.11
+        },
+        "hit_rate": 0.757,
+        "first_half_excess": {
+          "n": 84,
+          "mean": 0.00866,
+          "t": 1.04
+        },
+        "second_half_excess": {
+          "n": 85,
+          "mean": 0.01529,
+          "t": 1.96
+        }
+      },
+      "first_event": "2007-08-01",
+      "last_event": "2026-04-07",
+      "split_day": "2018-04-02",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2026-03-11",
+          "kind": "vix-above-25",
+          "level": null,
+          "r5": -0.024,
+          "x5": -0.0264,
+          "b5": 0.0024,
+          "r20": 0.006,
+          "x20": -0.0033,
+          "b20": 0.0094,
+          "r60": 0.0915,
+          "x60": 0.0635,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-18",
+          "kind": "vix-above-25",
+          "level": null,
+          "r5": -0.0063,
+          "x5": -0.0086,
+          "b5": 0.0024,
+          "r20": 0.0617,
+          "x20": 0.0523,
+          "b20": 0.0094,
+          "r60": 0.1225,
+          "x60": 0.0945,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-20",
+          "kind": "vix-above-25",
+          "level": null,
+          "r5": -0.0243,
+          "x5": -0.0267,
+          "b5": 0.0024,
+          "r20": 0.0907,
+          "x20": 0.0814,
+          "b20": 0.0094,
+          "r60": 0.1549,
+          "x60": 0.1269,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-04-02",
+          "kind": "vix-above-25",
+          "level": null,
+          "r5": 0.034,
+          "x5": 0.0317,
+          "b5": 0.0024,
+          "r20": 0.0968,
+          "x20": 0.0875,
+          "b20": 0.0094,
+          "r60": 0.1396,
+          "x60": 0.1116,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-04-07",
+          "kind": "vix-above-25",
+          "level": null,
+          "r5": 0.0515,
+          "x5": 0.0491,
+          "b5": 0.0024,
+          "r20": 0.0959,
+          "x20": 0.0865,
+          "b20": 0.0094,
+          "r60": 0.1307,
+          "x60": 0.1027,
+          "b60": 0.028
+        }
+      ]
+    },
+    "^VIX vix-above-35": {
+      "events": 62,
+      "h5": {
+        "net": {
+          "n": 62,
+          "mean": 0.00715,
+          "t": 1.35
+        },
+        "benchmark": {
+          "n": 62,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 62,
+          "mean": 0.0048,
+          "t": 0.91
+        },
+        "hit_rate": 0.645,
+        "first_half_excess": {
+          "n": 31,
+          "mean": 0.00711,
+          "t": 1.07
+        },
+        "second_half_excess": {
+          "n": 31,
+          "mean": 0.00249,
+          "t": 0.3
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 62,
+          "mean": 0.01449,
+          "t": 1.41
+        },
+        "benchmark": {
+          "n": 62,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 62,
+          "mean": 0.00512,
+          "t": 0.5
+        },
+        "hit_rate": 0.71,
+        "first_half_excess": {
+          "n": 31,
+          "mean": -0.01141,
+          "t": -0.73
+        },
+        "second_half_excess": {
+          "n": 31,
+          "mean": 0.02164,
+          "t": 1.69
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 62,
+          "mean": 0.05655,
+          "t": 4.45
+        },
+        "benchmark": {
+          "n": 62,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 62,
+          "mean": 0.02851,
+          "t": 2.24
+        },
+        "hit_rate": 0.774,
+        "first_half_excess": {
+          "n": 31,
+          "mean": 0.00153,
+          "t": 0.08
+        },
+        "second_half_excess": {
+          "n": 31,
+          "mean": 0.05548,
+          "t": 3.63
+        }
+      },
+      "first_event": "2007-08-16",
+      "last_event": "2026-03-09",
+      "split_day": "2020-02-27",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2024-08-05",
+          "kind": "vix-above-35",
+          "level": null,
+          "r5": 0.0287,
+          "x5": 0.0264,
+          "b5": 0.0024,
+          "r20": 0.0651,
+          "x20": 0.0557,
+          "b20": 0.0094,
+          "r60": 0.1259,
+          "x60": 0.0979,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-04",
+          "kind": "vix-above-35",
+          "level": null,
+          "r5": 0.0547,
+          "x5": 0.0524,
+          "b5": 0.0024,
+          "r20": 0.1132,
+          "x20": 0.1039,
+          "b20": 0.0094,
+          "r60": 0.2296,
+          "x60": 0.2015,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-10",
+          "kind": "vix-above-35",
+          "level": null,
+          "r5": 0.0015,
+          "x5": -0.0009,
+          "b5": 0.0024,
+          "r20": 0.0738,
+          "x20": 0.0644,
+          "b20": 0.0094,
+          "r60": 0.1912,
+          "x60": 0.1631,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-21",
+          "kind": "vix-above-35",
+          "level": null,
+          "r5": 0.0699,
+          "x5": 0.0676,
+          "b5": 0.0024,
+          "r20": 0.1556,
+          "x20": 0.1462,
+          "b20": 0.0094,
+          "r60": 0.2238,
+          "x60": 0.1957,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-09",
+          "kind": "vix-above-35",
+          "level": null,
+          "r5": -0.0156,
+          "x5": -0.018,
+          "b5": 0.0024,
+          "r20": -0.0274,
+          "x20": -0.0368,
+          "b20": 0.0094,
+          "r60": 0.113,
+          "x60": 0.085,
+          "b60": 0.028
+        }
+      ]
+    },
+    "^VIX vix-below-13": {
+      "events": 206,
+      "h5": {
+        "net": {
+          "n": 206,
+          "mean": -0.00183,
+          "t": -1.88
+        },
+        "benchmark": {
+          "n": 206,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 206,
+          "mean": -0.00418,
+          "t": -4.29
+        },
+        "hit_rate": 0.51,
+        "first_half_excess": {
+          "n": 103,
+          "mean": -0.00323,
+          "t": -2.73
+        },
+        "second_half_excess": {
+          "n": 103,
+          "mean": -0.00512,
+          "t": -3.31
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 206,
+          "mean": 0.0034,
+          "t": 1.92
+        },
+        "benchmark": {
+          "n": 206,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 206,
+          "mean": -0.00597,
+          "t": -3.37
+        },
+        "hit_rate": 0.626,
+        "first_half_excess": {
+          "n": 103,
+          "mean": -0.00377,
+          "t": -1.87
+        },
+        "second_half_excess": {
+          "n": 103,
+          "mean": -0.00816,
+          "t": -2.81
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 206,
+          "mean": 0.01634,
+          "t": 4.6
+        },
+        "benchmark": {
+          "n": 206,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 206,
+          "mean": -0.01171,
+          "t": -3.29
+        },
+        "hit_rate": 0.704,
+        "first_half_excess": {
+          "n": 103,
+          "mean": -0.00705,
+          "t": -2.23
+        },
+        "second_half_excess": {
+          "n": 103,
+          "mean": -0.01636,
+          "t": -2.58
+        }
+      },
+      "first_event": "2005-01-07",
+      "last_event": "2024-12-06",
+      "split_day": "2015-04-28",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2024-06-25",
+          "kind": "vix-below-13",
+          "level": null,
+          "r5": 0.0057,
+          "x5": 0.0033,
+          "b5": 0.0024,
+          "r20": -0.0086,
+          "x20": -0.018,
+          "b20": 0.0094,
+          "r60": 0.046,
+          "x60": 0.018,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2024-07-16",
+          "kind": "vix-below-13",
+          "level": null,
+          "r5": -0.0216,
+          "x5": -0.024,
+          "b5": 0.0024,
+          "r20": -0.0424,
+          "x20": -0.0518,
+          "b20": 0.0094,
+          "r60": 0.0229,
+          "x60": -0.0052,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2024-07-19",
+          "kind": "vix-below-13",
+          "level": null,
+          "r5": -0.0103,
+          "x5": -0.0126,
+          "b5": 0.0024,
+          "r20": 0.0077,
+          "x20": -0.0017,
+          "b20": 0.0094,
+          "r60": 0.0656,
+          "x60": 0.0376,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2024-12-04",
+          "kind": "vix-below-13",
+          "level": null,
+          "r5": -0.0023,
+          "x5": -0.0047,
+          "b5": 0.0024,
+          "r20": -0.0246,
+          "x20": -0.0339,
+          "b20": 0.0094,
+          "r60": -0.0393,
+          "x60": -0.0673,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2024-12-06",
+          "kind": "vix-below-13",
+          "level": null,
+          "r5": -0.0079,
+          "x5": -0.0103,
+          "b5": 0.0024,
+          "r20": -0.0303,
+          "x20": -0.0397,
+          "b20": 0.0094,
+          "r60": -0.0513,
+          "x60": -0.0793,
+          "b60": 0.028
+        }
+      ]
+    },
+    "SPY crosses-above-200-day": {
+      "events": 122,
+      "h5": {
+        "net": {
+          "n": 122,
+          "mean": -0.0017,
+          "t": -0.63
+        },
+        "benchmark": {
+          "n": 122,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 122,
+          "mean": -0.00405,
+          "t": -1.49
+        },
+        "hit_rate": 0.557,
+        "first_half_excess": {
+          "n": 61,
+          "mean": 0.00146,
+          "t": 0.47
+        },
+        "second_half_excess": {
+          "n": 61,
+          "mean": -0.00956,
+          "t": -2.18
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 122,
+          "mean": 0.00511,
+          "t": 0.96
+        },
+        "benchmark": {
+          "n": 122,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 122,
+          "mean": -0.00426,
+          "t": -0.8
+        },
+        "hit_rate": 0.598,
+        "first_half_excess": {
+          "n": 61,
+          "mean": 0.00744,
+          "t": 1.11
+        },
+        "second_half_excess": {
+          "n": 61,
+          "mean": -0.01596,
+          "t": -1.97
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 122,
+          "mean": 0.02973,
+          "t": 4.01
+        },
+        "benchmark": {
+          "n": 122,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 122,
+          "mean": 0.00168,
+          "t": 0.23
+        },
+        "hit_rate": 0.648,
+        "first_half_excess": {
+          "n": 61,
+          "mean": 0.02325,
+          "t": 2.52
+        },
+        "second_half_excess": {
+          "n": 61,
+          "mean": -0.01989,
+          "t": -1.8
+        }
+      },
+      "first_event": "2005-10-24",
+      "last_event": "2026-04-08",
+      "split_day": "2012-11-19",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2023-11-02",
+          "kind": "crosses-above-200-day",
+          "level": null,
+          "r5": 0.0051,
+          "x5": 0.0028,
+          "b5": 0.0024,
+          "r20": 0.0638,
+          "x20": 0.0544,
+          "b20": 0.0094,
+          "r60": 0.1235,
+          "x60": 0.0955,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-03-24",
+          "kind": "crosses-above-200-day",
+          "level": null,
+          "r5": -0.0276,
+          "x5": -0.0299,
+          "b5": 0.0024,
+          "r20": -0.0836,
+          "x20": -0.0929,
+          "b20": 0.0094,
+          "r60": 0.0387,
+          "x60": 0.0106,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-05-12",
+          "kind": "crosses-above-200-day",
+          "level": null,
+          "r5": 0.0183,
+          "x5": 0.016,
+          "b5": 0.0024,
+          "r20": 0.0325,
+          "x20": 0.0231,
+          "b20": 0.0094,
+          "r60": 0.0857,
+          "x60": 0.0577,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-23",
+          "kind": "crosses-above-200-day",
+          "level": null,
+          "r5": -0.0377,
+          "x5": -0.0401,
+          "b5": 0.0024,
+          "r20": 0.0723,
+          "x20": 0.0629,
+          "b20": 0.0094,
+          "r60": 0.1286,
+          "x60": 0.1005,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-04-08",
+          "kind": "crosses-above-200-day",
+          "level": null,
+          "r5": 0.0334,
+          "x5": 0.031,
+          "b5": 0.0024,
+          "r20": 0.0835,
+          "x20": 0.0742,
+          "b20": 0.0094,
+          "r60": 0.1122,
+          "x60": 0.0842,
+          "b60": 0.028
+        }
+      ]
+    },
+    "SPY crosses-below-200-day": {
+      "events": 129,
+      "h5": {
+        "net": {
+          "n": 129,
+          "mean": -0.00245,
+          "t": -0.86
+        },
+        "benchmark": {
+          "n": 129,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 129,
+          "mean": -0.0048,
+          "t": -1.69
+        },
+        "hit_rate": 0.543,
+        "first_half_excess": {
+          "n": 64,
+          "mean": -0.00764,
+          "t": -2.05
+        },
+        "second_half_excess": {
+          "n": 65,
+          "mean": -0.002,
+          "t": -0.47
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 129,
+          "mean": -0.00012,
+          "t": -0.02
+        },
+        "benchmark": {
+          "n": 129,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 129,
+          "mean": -0.00949,
+          "t": -1.97
+        },
+        "hit_rate": 0.566,
+        "first_half_excess": {
+          "n": 64,
+          "mean": -0.00366,
+          "t": -0.61
+        },
+        "second_half_excess": {
+          "n": 65,
+          "mean": -0.01523,
+          "t": -2.03
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 129,
+          "mean": 0.02784,
+          "t": 4.18
+        },
+        "benchmark": {
+          "n": 129,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 129,
+          "mean": -0.0002,
+          "t": -0.03
+        },
+        "hit_rate": 0.682,
+        "first_half_excess": {
+          "n": 64,
+          "mean": 0.00322,
+          "t": 0.32
+        },
+        "second_half_excess": {
+          "n": 65,
+          "mean": -0.00357,
+          "t": -0.41
+        }
+      },
+      "first_event": "2006-05-19",
+      "last_event": "2026-03-19",
+      "split_day": "2015-08-07",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2025-03-07",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0248,
+          "x5": -0.0271,
+          "b5": 0.0024,
+          "r20": -0.122,
+          "x20": -0.1314,
+          "b20": 0.0094,
+          "r60": 0.0361,
+          "x60": 0.0081,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-03-10",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": 0.0097,
+          "x5": 0.0074,
+          "b5": 0.0024,
+          "r20": -0.0995,
+          "x20": -0.1089,
+          "b20": 0.0094,
+          "r60": 0.0643,
+          "x60": 0.0362,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-03-25",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0272,
+          "x5": -0.0295,
+          "b5": 0.0024,
+          "r20": -0.0716,
+          "x20": -0.0809,
+          "b20": 0.0094,
+          "r60": 0.0338,
+          "x60": 0.0057,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-03-26",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0092,
+          "x5": -0.0115,
+          "b5": 0.0024,
+          "r20": -0.0405,
+          "x20": -0.0499,
+          "b20": 0.0094,
+          "r60": 0.0566,
+          "x60": 0.0286,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-19",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0216,
+          "x5": -0.024,
+          "b5": 0.0024,
+          "r20": 0.0772,
+          "x20": 0.0679,
+          "b20": 0.0094,
+          "r60": 0.1452,
+          "x60": 0.1171,
+          "b60": 0.028
+        }
+      ]
+    },
+    "SPY move-down": {
+      "events": 372,
+      "h5": {
+        "net": {
+          "n": 372,
+          "mean": 0.00401,
+          "t": 1.8
+        },
+        "benchmark": {
+          "n": 372,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 372,
+          "mean": 0.00166,
+          "t": 0.75
+        },
+        "hit_rate": 0.562,
+        "first_half_excess": {
+          "n": 186,
+          "mean": 0.00087,
+          "t": 0.27
+        },
+        "second_half_excess": {
+          "n": 186,
+          "mean": 0.00245,
+          "t": 0.8
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 372,
+          "mean": 0.01343,
+          "t": 3.41
+        },
+        "benchmark": {
+          "n": 372,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 372,
+          "mean": 0.00406,
+          "t": 1.03
+        },
+        "hit_rate": 0.642,
+        "first_half_excess": {
+          "n": 186,
+          "mean": -0.00625,
+          "t": -1.1
+        },
+        "second_half_excess": {
+          "n": 186,
+          "mean": 0.01437,
+          "t": 2.68
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 372,
+          "mean": 0.04358,
+          "t": 7.73
+        },
+        "benchmark": {
+          "n": 372,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 372,
+          "mean": 0.01553,
+          "t": 2.75
+        },
+        "hit_rate": 0.712,
+        "first_half_excess": {
+          "n": 186,
+          "mean": -0.01145,
+          "t": -1.31
+        },
+        "second_half_excess": {
+          "n": 186,
+          "mean": 0.04252,
+          "t": 6.47
+        }
+      },
+      "first_event": "2005-10-20",
+      "last_event": "2026-06-26",
+      "split_day": "2014-10-09",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2026-03-03",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0066,
+          "x5": -0.009,
+          "b5": 0.0024,
+          "r20": -0.0435,
+          "x20": -0.0528,
+          "b20": 0.0094,
+          "r60": 0.1102,
+          "x60": 0.0822,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-20",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0243,
+          "x5": -0.0267,
+          "b5": 0.0024,
+          "r20": 0.0907,
+          "x20": 0.0814,
+          "b20": 0.0094,
+          "r60": 0.1549,
+          "x60": 0.1269,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-05",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0037,
+          "x5": 0.0013,
+          "b5": 0.0024,
+          "r20": 0.0144,
+          "x20": 0.005,
+          "b20": 0.0094,
+          "r60": 0.0335,
+          "x60": 0.0055,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-09",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.016,
+          "x5": 0.0137,
+          "b5": 0.0024,
+          "r20": 0.0205,
+          "x20": 0.0111,
+          "b20": 0.0094,
+          "r60": 0.0497,
+          "x60": 0.0217,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-26",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0286,
+          "x5": 0.0262,
+          "b5": 0.0024,
+          "r20": 0.0119,
+          "x20": 0.0025,
+          "b20": 0.0094,
+          "r60": 0.0615,
+          "x60": 0.0335,
+          "b60": 0.028
+        }
+      ]
+    },
+    "SPY move-up": {
+      "events": 273,
+      "h5": {
+        "net": {
+          "n": 273,
+          "mean": -0.00238,
+          "t": -0.93
+        },
+        "benchmark": {
+          "n": 273,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 273,
+          "mean": -0.00473,
+          "t": -1.85
+        },
+        "hit_rate": 0.542,
+        "first_half_excess": {
+          "n": 136,
+          "mean": -0.00872,
+          "t": -2.21
+        },
+        "second_half_excess": {
+          "n": 137,
+          "mean": -0.00076,
+          "t": -0.24
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 273,
+          "mean": 0.01268,
+          "t": 3.1
+        },
+        "benchmark": {
+          "n": 273,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 273,
+          "mean": 0.00331,
+          "t": 0.81
+        },
+        "hit_rate": 0.678,
+        "first_half_excess": {
+          "n": 136,
+          "mean": -0.00869,
+          "t": -1.3
+        },
+        "second_half_excess": {
+          "n": 137,
+          "mean": 0.01522,
+          "t": 3.37
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 272,
+          "mean": 0.03846,
+          "t": 5.72
+        },
+        "benchmark": {
+          "n": 272,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 272,
+          "mean": 0.01042,
+          "t": 1.55
+        },
+        "hit_rate": 0.71,
+        "first_half_excess": {
+          "n": 136,
+          "mean": -0.0158,
+          "t": -1.4
+        },
+        "second_half_excess": {
+          "n": 136,
+          "mean": 0.03663,
+          "t": 5.51
+        }
+      },
+      "first_event": "2005-04-21",
+      "last_event": "2026-08-04",
+      "split_day": "2012-06-06",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2026-03-31",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0375,
+          "x5": 0.0351,
+          "b5": 0.0024,
+          "r20": 0.0922,
+          "x20": 0.0828,
+          "b20": 0.0094,
+          "r60": 0.1218,
+          "x60": 0.0938,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-04-08",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0334,
+          "x5": 0.031,
+          "b5": 0.0024,
+          "r20": 0.0835,
+          "x20": 0.0742,
+          "b20": 0.0094,
+          "r60": 0.1122,
+          "x60": 0.0842,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-11",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0128,
+          "x5": 0.0104,
+          "b5": 0.0024,
+          "r20": 0.0161,
+          "x20": 0.0067,
+          "b20": 0.0094,
+          "r60": 0.0389,
+          "x60": 0.0109,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-15",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0276,
+          "x5": -0.03,
+          "b5": 0.0024,
+          "r20": 0.0005,
+          "x20": -0.0088,
+          "b20": 0.0094,
+          "r60": 0.0046,
+          "x60": -0.0235,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-08-04",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.003,
+          "x5": -0.0053,
+          "b5": 0.0024,
+          "r20": -0.0144,
+          "x20": -0.0238,
+          "b20": 0.0094
+        }
+      ]
+    },
+    "QQQ move-down": {
+      "events": 201,
+      "h5": {
+        "net": {
+          "n": 200,
+          "mean": 0.00416,
+          "t": 1.22
+        },
+        "benchmark": {
+          "n": 200,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 200,
+          "mean": 0.00181,
+          "t": 0.53
+        },
+        "hit_rate": 0.575,
+        "first_half_excess": {
+          "n": 100,
+          "mean": 0.00242,
+          "t": 0.48
+        },
+        "second_half_excess": {
+          "n": 100,
+          "mean": 0.0012,
+          "t": 0.26
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 200,
+          "mean": 0.00779,
+          "t": 1.28
+        },
+        "benchmark": {
+          "n": 200,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 200,
+          "mean": -0.00158,
+          "t": -0.26
+        },
+        "hit_rate": 0.61,
+        "first_half_excess": {
+          "n": 100,
+          "mean": -0.01012,
+          "t": -1.17
+        },
+        "second_half_excess": {
+          "n": 100,
+          "mean": 0.00697,
+          "t": 0.81
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 200,
+          "mean": 0.04314,
+          "t": 5.31
+        },
+        "benchmark": {
+          "n": 200,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 200,
+          "mean": 0.0151,
+          "t": 1.86
+        },
+        "hit_rate": 0.7,
+        "first_half_excess": {
+          "n": 100,
+          "mean": -0.01762,
+          "t": -1.44
+        },
+        "second_half_excess": {
+          "n": 100,
+          "mean": 0.04782,
+          "t": 4.97
+        }
+      },
+      "first_event": "2006-01-20",
+      "last_event": "2026-10-22",
+      "split_day": "2018-03-27",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2025-10-10",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0154,
+          "x5": 0.0131,
+          "b5": 0.0024,
+          "r20": 0.0255,
+          "x20": 0.0161,
+          "b20": 0.0094,
+          "r60": 0.0571,
+          "x60": 0.0291,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-05",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0037,
+          "x5": 0.0013,
+          "b5": 0.0024,
+          "r20": 0.0144,
+          "x20": 0.005,
+          "b20": 0.0094,
+          "r60": 0.0335,
+          "x60": 0.0055,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-09",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.016,
+          "x5": 0.0137,
+          "b5": 0.0024,
+          "r20": 0.0205,
+          "x20": 0.0111,
+          "b20": 0.0094,
+          "r60": 0.0497,
+          "x60": 0.0217,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-23",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.016,
+          "x5": 0.0136,
+          "b5": 0.0024,
+          "r20": 0.0169,
+          "x20": 0.0075,
+          "b20": 0.0094,
+          "r60": 0.0376,
+          "x60": 0.0095,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-22",
+          "kind": "move-down",
+          "level": null
+        }
+      ]
+    },
+    "QQQ move-up": {
+      "events": 148,
+      "h5": {
+        "net": {
+          "n": 148,
+          "mean": -0.00691,
+          "t": -1.73
+        },
+        "benchmark": {
+          "n": 148,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 148,
+          "mean": -0.00926,
+          "t": -2.32
+        },
+        "hit_rate": 0.48,
+        "first_half_excess": {
+          "n": 74,
+          "mean": -0.01399,
+          "t": -2.46
+        },
+        "second_half_excess": {
+          "n": 74,
+          "mean": -0.00454,
+          "t": -0.81
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 148,
+          "mean": 0.00574,
+          "t": 0.91
+        },
+        "benchmark": {
+          "n": 148,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 148,
+          "mean": -0.00363,
+          "t": -0.57
+        },
+        "hit_rate": 0.622,
+        "first_half_excess": {
+          "n": 74,
+          "mean": -0.02057,
+          "t": -2.13
+        },
+        "second_half_excess": {
+          "n": 74,
+          "mean": 0.01331,
+          "t": 1.71
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 146,
+          "mean": 0.02731,
+          "t": 2.71
+        },
+        "benchmark": {
+          "n": 146,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 146,
+          "mean": -0.00073,
+          "t": -0.07
+        },
+        "hit_rate": 0.603,
+        "first_half_excess": {
+          "n": 74,
+          "mean": -0.0331,
+          "t": -2.14
+        },
+        "second_half_excess": {
+          "n": 72,
+          "mean": 0.03254,
+          "t": 2.77
+        }
+      },
+      "first_event": "2006-06-15",
+      "last_event": "2026-09-21",
+      "split_day": "2018-03-26",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2026-06-11",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0128,
+          "x5": 0.0104,
+          "b5": 0.0024,
+          "r20": 0.0161,
+          "x20": 0.0067,
+          "b20": 0.0094,
+          "r60": 0.0389,
+          "x60": 0.0109,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-06-15",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0276,
+          "x5": -0.03,
+          "b5": 0.0024,
+          "r20": 0.0005,
+          "x20": -0.0088,
+          "b20": 0.0094,
+          "r60": 0.0046,
+          "x60": -0.0235,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-07-30",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0342,
+          "x5": 0.0319,
+          "b5": 0.0024,
+          "r20": 0.0377,
+          "x20": 0.0283,
+          "b20": 0.0094,
+          "r60": 0.0252,
+          "x60": -0.0029,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-08-04",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.003,
+          "x5": -0.0053,
+          "b5": 0.0024,
+          "r20": -0.0144,
+          "x20": -0.0238,
+          "b20": 0.0094
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-09-21",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0122,
+          "x5": -0.0146,
+          "b5": 0.0024,
+          "r20": -0.0111,
+          "x20": -0.0204,
+          "b20": 0.0094
+        }
+      ]
+    },
+    "TLT move-down": {
+      "events": 184,
+      "h5": {
+        "net": {
+          "n": 184,
+          "mean": -0.00265,
+          "t": -0.97
+        },
+        "benchmark": {
+          "n": 184,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 184,
+          "mean": -0.005,
+          "t": -1.84
+        },
+        "hit_rate": 0.538,
+        "first_half_excess": {
+          "n": 92,
+          "mean": -0.00604,
+          "t": -1.54
+        },
+        "second_half_excess": {
+          "n": 92,
+          "mean": -0.00395,
+          "t": -1.05
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 184,
+          "mean": 0.006,
+          "t": 1.36
+        },
+        "benchmark": {
+          "n": 184,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 184,
+          "mean": -0.00337,
+          "t": -0.76
+        },
+        "hit_rate": 0.598,
+        "first_half_excess": {
+          "n": 92,
+          "mean": -0.01098,
+          "t": -1.59
+        },
+        "second_half_excess": {
+          "n": 92,
+          "mean": 0.00425,
+          "t": 0.78
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 184,
+          "mean": 0.04515,
+          "t": 6.76
+        },
+        "benchmark": {
+          "n": 184,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 184,
+          "mean": 0.01711,
+          "t": 2.56
+        },
+        "hit_rate": 0.766,
+        "first_half_excess": {
+          "n": 92,
+          "mean": 0.01377,
+          "t": 1.53
+        },
+        "second_half_excess": {
+          "n": 92,
+          "mean": 0.02045,
+          "t": 2.06
+        }
+      },
+      "first_event": "2008-01-24",
+      "last_event": "2025-04-10",
+      "split_day": "2016-11-09",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2024-11-06",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0084,
+          "x5": 0.0061,
+          "b5": 0.0024,
+          "r20": 0.0244,
+          "x20": 0.0151,
+          "b20": 0.0094,
+          "r60": 0.0237,
+          "x60": -0.0043,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-07",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0669,
+          "x5": 0.0645,
+          "b5": 0.0024,
+          "r20": 0.1059,
+          "x20": 0.0965,
+          "b20": 0.0094,
+          "r60": 0.2415,
+          "x60": 0.2134,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-08",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0808,
+          "x5": 0.0785,
+          "b5": 0.0024,
+          "r20": 0.1283,
+          "x20": 0.1189,
+          "b20": 0.0094,
+          "r60": 0.2519,
+          "x60": 0.2238,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-09",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0439,
+          "x5": -0.0462,
+          "b5": 0.0024,
+          "r20": 0.028,
+          "x20": 0.0186,
+          "b20": 0.0094,
+          "r60": 0.1321,
+          "x60": 0.104,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-10",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0015,
+          "x5": -0.0009,
+          "b5": 0.0024,
+          "r20": 0.0738,
+          "x20": 0.0644,
+          "b20": 0.0094,
+          "r60": 0.1912,
+          "x60": 0.1631,
+          "b60": 0.028
+        }
+      ]
+    },
+    "TLT move-up": {
+      "events": 163,
+      "h5": {
+        "net": {
+          "n": 162,
+          "mean": 0.00436,
+          "t": 1.19
+        },
+        "benchmark": {
+          "n": 162,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 162,
+          "mean": 0.00201,
+          "t": 0.55
+        },
+        "hit_rate": 0.617,
+        "first_half_excess": {
+          "n": 81,
+          "mean": 0.00198,
+          "t": 0.37
+        },
+        "second_half_excess": {
+          "n": 81,
+          "mean": 0.00204,
+          "t": 0.41
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 161,
+          "mean": 0.01882,
+          "t": 3.06
+        },
+        "benchmark": {
+          "n": 161,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 161,
+          "mean": 0.00945,
+          "t": 1.54
+        },
+        "hit_rate": 0.683,
+        "first_half_excess": {
+          "n": 81,
+          "mean": -0.00429,
+          "t": -0.48
+        },
+        "second_half_excess": {
+          "n": 80,
+          "mean": 0.02335,
+          "t": 2.84
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 161,
+          "mean": 0.04724,
+          "t": 5.31
+        },
+        "benchmark": {
+          "n": 161,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 161,
+          "mean": 0.0192,
+          "t": 2.16
+        },
+        "hit_rate": 0.733,
+        "first_half_excess": {
+          "n": 81,
+          "mean": -0.00697,
+          "t": -0.54
+        },
+        "second_half_excess": {
+          "n": 80,
+          "mean": 0.0457,
+          "t": 3.91
+        }
+      },
+      "first_event": "2007-02-27",
+      "last_event": "2026-10-22",
+      "split_day": "2015-07-06",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2024-11-25",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0087,
+          "x5": 0.0063,
+          "b5": 0.0024,
+          "r20": 0.0077,
+          "x20": -0.0017,
+          "b20": 0.0094,
+          "r60": -0.0042,
+          "x60": -0.0322,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-04",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0547,
+          "x5": 0.0524,
+          "b5": 0.0024,
+          "r20": 0.1132,
+          "x20": 0.1039,
+          "b20": 0.0094,
+          "r60": 0.2296,
+          "x60": 0.2015,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-23",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0337,
+          "x5": 0.0314,
+          "b5": 0.0024,
+          "r20": 0.0866,
+          "x20": 0.0772,
+          "b20": 0.0094,
+          "r60": 0.1758,
+          "x60": 0.1478,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-15",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0121,
+          "x5": -0.0145,
+          "b5": 0.0024
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-22",
+          "kind": "move-up",
+          "level": null
+        }
+      ]
+    },
+    "HYG move-down": {
+      "events": 163,
+      "h5": {
+        "net": {
+          "n": 163,
+          "mean": 0.00616,
+          "t": 1.48
+        },
+        "benchmark": {
+          "n": 163,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 163,
+          "mean": 0.00381,
+          "t": 0.92
+        },
+        "hit_rate": 0.577,
+        "first_half_excess": {
+          "n": 81,
+          "mean": -0.00455,
+          "t": -0.71
+        },
+        "second_half_excess": {
+          "n": 82,
+          "mean": 0.01208,
+          "t": 2.31
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 163,
+          "mean": 0.01851,
+          "t": 2.72
+        },
+        "benchmark": {
+          "n": 163,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 163,
+          "mean": 0.00914,
+          "t": 1.34
+        },
+        "hit_rate": 0.663,
+        "first_half_excess": {
+          "n": 81,
+          "mean": -0.01453,
+          "t": -1.38
+        },
+        "second_half_excess": {
+          "n": 82,
+          "mean": 0.03252,
+          "t": 4.12
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 163,
+          "mean": 0.04946,
+          "t": 4.89
+        },
+        "benchmark": {
+          "n": 163,
+          "mean": 0.02804,
+          "t": 1.0287325851523523e17
+        },
+        "excess": {
+          "n": 163,
+          "mean": 0.02142,
+          "t": 2.12
+        },
+        "hit_rate": 0.699,
+        "first_half_excess": {
+          "n": 81,
+          "mean": -0.03026,
+          "t": -1.93
+        },
+        "second_half_excess": {
+          "n": 82,
+          "mean": 0.07247,
+          "t": 7.14
+        }
+      },
+      "first_event": "2007-07-26",
+      "last_event": "2025-04-10",
+      "split_day": "2009-07-02",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2022-10-31",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0182,
+          "x5": -0.0206,
+          "b5": 0.0024,
+          "r20": 0.0214,
+          "x20": 0.012,
+          "b20": 0.0094,
+          "r60": 0.0532,
+          "x60": 0.0252,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2023-02-21",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0091,
+          "x5": -0.0114,
+          "b5": 0.0024,
+          "r20": 0.0014,
+          "x20": -0.008,
+          "b20": 0.0094,
+          "r60": 0.0424,
+          "x60": 0.0144,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2024-12-18",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0271,
+          "x5": 0.0248,
+          "b5": 0.0024,
+          "r20": 0.0301,
+          "x20": 0.0207,
+          "b20": 0.0094,
+          "r60": -0.0314,
+          "x60": -0.0594,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-04",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0547,
+          "x5": 0.0524,
+          "b5": 0.0024,
+          "r20": 0.1132,
+          "x20": 0.1039,
+          "b20": 0.0094,
+          "r60": 0.2296,
+          "x60": 0.2015,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-10",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0015,
+          "x5": -0.0009,
+          "b5": 0.0024,
+          "r20": 0.0738,
+          "x20": 0.0644,
+          "b20": 0.0094,
+          "r60": 0.1912,
+          "x60": 0.1631,
+          "b60": 0.028
+        }
+      ]
+    },
+    "HYG move-up": {
+      "events": 137,
+      "h5": {
+        "net": {
+          "n": 137,
+          "mean": -0.00146,
+          "t": -0.37
+        },
+        "benchmark": {
+          "n": 137,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 137,
+          "mean": -0.00381,
+          "t": -0.97
+        },
+        "hit_rate": 0.533,
+        "first_half_excess": {
+          "n": 68,
+          "mean": -0.00818,
+          "t": -1.32
+        },
+        "second_half_excess": {
+          "n": 69,
+          "mean": 0.0005,
+          "t": 0.1
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 137,
+          "mean": 0.01029,
+          "t": 1.46
+        },
+        "benchmark": {
+          "n": 137,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 137,
+          "mean": 0.00092,
+          "t": 0.13
+        },
+        "hit_rate": 0.635,
+        "first_half_excess": {
+          "n": 68,
+          "mean": -0.02006,
+          "t": -1.66
+        },
+        "second_half_excess": {
+          "n": 69,
+          "mean": 0.0216,
+          "t": 3.24
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 137,
+          "mean": 0.0355,
+          "t": 3.17
+        },
+        "benchmark": {
+          "n": 137,
+          "mean": 0.02804,
+          "t": null
+        },
+        "excess": {
+          "n": 137,
+          "mean": 0.00746,
+          "t": 0.67
+        },
+        "hit_rate": 0.642,
+        "first_half_excess": {
+          "n": 68,
+          "mean": -0.04113,
+          "t": -2.22
+        },
+        "second_half_excess": {
+          "n": 69,
+          "mean": 0.05534,
+          "t": 5.59
+        }
+      },
+      "first_event": "2007-08-06",
+      "last_event": "2025-04-09",
+      "split_day": "2009-05-20",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2022-11-30",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0376,
+          "x5": -0.04,
+          "b5": 0.0024,
+          "r20": -0.0571,
+          "x20": -0.0665,
+          "b20": 0.0094,
+          "r60": -0.0255,
+          "x60": -0.0536,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2022-12-13",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.051,
+          "x5": -0.0533,
+          "b5": 0.0024,
+          "r20": -0.0099,
+          "x20": -0.0193,
+          "b20": 0.0094,
+          "r60": -0.0389,
+          "x60": -0.067,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2023-01-06",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0249,
+          "x5": 0.0225,
+          "b5": 0.0024,
+          "r20": 0.054,
+          "x20": 0.0447,
+          "b20": 0.0094,
+          "r60": 0.0551,
+          "x60": 0.027,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2023-12-13",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0027,
+          "x5": -0.0051,
+          "b5": 0.0024,
+          "r20": 0.0152,
+          "x20": 0.0059,
+          "b20": 0.0094,
+          "r60": 0.1008,
+          "x60": 0.0728,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2025-04-09",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0439,
+          "x5": -0.0462,
+          "b5": 0.0024,
+          "r20": 0.028,
+          "x20": 0.0186,
+          "b20": 0.0094,
+          "r60": 0.1321,
+          "x60": 0.104,
+          "b60": 0.028
+        }
+      ]
+    },
+    "IWM crosses-below-200-day": {
+      "events": 184,
+      "h5": {
+        "net": {
+          "n": 184,
+          "mean": 0.00217,
+          "t": 1.15
+        },
+        "benchmark": {
+          "n": 184,
+          "mean": 0.00235,
+          "t": null
+        },
+        "excess": {
+          "n": 184,
+          "mean": -0.00018,
+          "t": -0.1
+        },
+        "hit_rate": 0.609,
+        "first_half_excess": {
+          "n": 92,
+          "mean": 0.00154,
+          "t": 0.54
+        },
+        "second_half_excess": {
+          "n": 92,
+          "mean": -0.0019,
+          "t": -0.77
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 181,
+          "mean": 0.00212,
+          "t": 0.47
+        },
+        "benchmark": {
+          "n": 181,
+          "mean": 0.00937,
+          "t": null
+        },
+        "excess": {
+          "n": 181,
+          "mean": -0.00725,
+          "t": -1.62
+        },
+        "hit_rate": 0.641,
+        "first_half_excess": {
+          "n": 92,
+          "mean": -0.01111,
+          "t": -1.6
+        },
+        "second_half_excess": {
+          "n": 89,
+          "mean": -0.00326,
+          "t": -0.58
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 181,
+          "mean": 0.02024,
+          "t": 2.79
+        },
+        "benchmark": {
+          "n": 181,
+          "mean": 0.02804,
+          "t": 1.0843793574381827e17
+        },
+        "excess": {
+          "n": 181,
+          "mean": -0.0078,
+          "t": -1.08
+        },
+        "hit_rate": 0.729,
+        "first_half_excess": {
+          "n": 92,
+          "mean": -0.01741,
+          "t": -1.38
+        },
+        "second_half_excess": {
+          "n": 89,
+          "mean": 0.00212,
+          "t": 0.31
+        }
+      },
+      "first_event": "2005-10-20",
+      "last_event": "2026-10-13",
+      "split_day": "2014-07-31",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "SPY",
+          "day": "2026-03-20",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0243,
+          "x5": -0.0267,
+          "b5": 0.0024,
+          "r20": 0.0907,
+          "x20": 0.0814,
+          "b20": 0.0094,
+          "r60": 0.1549,
+          "x60": 0.1269,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-03-30",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": 0.0411,
+          "x5": 0.0388,
+          "b5": 0.0024,
+          "r20": 0.1241,
+          "x20": 0.1148,
+          "b20": 0.0094,
+          "r60": 0.1629,
+          "x60": 0.1349,
+          "b60": 0.028
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-01",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": 0.011,
+          "x5": 0.0087,
+          "b5": 0.0024
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-08",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0048,
+          "x5": -0.0071,
+          "b5": 0.0024
+        },
+        {
+          "symbol": "SPY",
+          "day": "2026-10-13",
+          "kind": "crosses-below-200-day",
+          "level": null,
+          "r5": -0.0135,
+          "x5": -0.0159,
+          "b5": 0.0024
+        }
+      ]
+    }
+  },
+  "earnings-calendar-alerts": {
+    "large-moves-all": {
+      "events": 1006,
+      "h5": {
+        "net": {
+          "n": 1006,
+          "mean": 0.01161,
+          "t": 3.88
+        },
+        "benchmark": {
+          "n": 1006,
+          "mean": 0.0061,
+          "t": 3.69
+        },
+        "excess": {
+          "n": 1006,
+          "mean": 0.00551,
+          "t": 2.7
+        },
+        "hit_rate": 0.553,
+        "first_half_excess": {
+          "n": 503,
+          "mean": 0.00612,
+          "t": 2.12
+        },
+        "second_half_excess": {
+          "n": 503,
+          "mean": 0.0049,
+          "t": 1.69
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 1006,
+          "mean": 0.04341,
+          "t": 7.69
+        },
+        "benchmark": {
+          "n": 1006,
+          "mean": 0.02569,
+          "t": 8.11
+        },
+        "excess": {
+          "n": 1006,
+          "mean": 0.01772,
+          "t": 4.67
+        },
+        "hit_rate": 0.579,
+        "first_half_excess": {
+          "n": 503,
+          "mean": 0.01768,
+          "t": 3.62
+        },
+        "second_half_excess": {
+          "n": 503,
+          "mean": 0.01775,
+          "t": 3.05
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 1003,
+          "mean": 0.14517,
+          "t": 14.25
+        },
+        "benchmark": {
+          "n": 1003,
+          "mean": 0.09571,
+          "t": 17.51
+        },
+        "excess": {
+          "n": 1003,
+          "mean": 0.04946,
+          "t": 7.08
+        },
+        "hit_rate": 0.672,
+        "first_half_excess": {
+          "n": 503,
+          "mean": 0.03041,
+          "t": 3.28
+        },
+        "second_half_excess": {
+          "n": 500,
+          "mean": 0.06862,
+          "t": 6.59
+        }
+      },
+      "first_event": "2005-01-07",
+      "last_event": "2026-09-03",
+      "split_day": "2017-08-14",
+      "verdict": "pass",
+      "sample": [
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-02",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0344,
+          "x5": -0.0054,
+          "b5": 0.0398,
+          "r20": -0.211,
+          "x20": -0.2219,
+          "b20": 0.0109,
+          "r60": -0.0935,
+          "x60": -0.1913,
+          "b60": 0.0978
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-23",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0359,
+          "x5": -0.0454,
+          "b5": 0.0095,
+          "r20": 0.0776,
+          "x20": 0.0152,
+          "b20": 0.0623,
+          "r60": 0.1076,
+          "x60": -0.0222,
+          "b60": 0.1297
+        },
+        {
+          "symbol": "AAPL",
+          "day": "2026-07-31",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0123,
+          "x5": -0.0349,
+          "b5": 0.0472,
+          "r20": 0.0338,
+          "x20": -0.0147,
+          "b20": 0.0485
+        },
+        {
+          "symbol": "NVDA",
+          "day": "2026-08-27",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0001,
+          "x5": -0.0287,
+          "b5": 0.0287,
+          "r20": -0.0137,
+          "x20": -0.0772,
+          "b20": 0.0636
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-09-03",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.031,
+          "x5": -0.0244,
+          "b5": -0.0066,
+          "r20": -0.0174,
+          "x20": -0.0473,
+          "b20": 0.0299
+        }
+      ]
+    },
+    "large-moves-up": {
+      "events": 520,
+      "h5": {
+        "net": {
+          "n": 520,
+          "mean": 0.01162,
+          "t": 2.81
+        },
+        "benchmark": {
+          "n": 520,
+          "mean": 0.00427,
+          "t": 1.95
+        },
+        "excess": {
+          "n": 520,
+          "mean": 0.00735,
+          "t": 2.57
+        },
+        "hit_rate": 0.544,
+        "first_half_excess": {
+          "n": 260,
+          "mean": 0.00696,
+          "t": 1.77
+        },
+        "second_half_excess": {
+          "n": 260,
+          "mean": 0.00774,
+          "t": 1.86
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 520,
+          "mean": 0.04725,
+          "t": 6.06
+        },
+        "benchmark": {
+          "n": 520,
+          "mean": 0.02495,
+          "t": 6.1
+        },
+        "excess": {
+          "n": 520,
+          "mean": 0.0223,
+          "t": 4.16
+        },
+        "hit_rate": 0.604,
+        "first_half_excess": {
+          "n": 260,
+          "mean": 0.0214,
+          "t": 3.09
+        },
+        "second_half_excess": {
+          "n": 260,
+          "mean": 0.0232,
+          "t": 2.82
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 518,
+          "mean": 0.1454,
+          "t": 10.37
+        },
+        "benchmark": {
+          "n": 518,
+          "mean": 0.09366,
+          "t": 13.08
+        },
+        "excess": {
+          "n": 518,
+          "mean": 0.05175,
+          "t": 5.35
+        },
+        "hit_rate": 0.685,
+        "first_half_excess": {
+          "n": 260,
+          "mean": 0.02923,
+          "t": 2.28
+        },
+        "second_half_excess": {
+          "n": 258,
+          "mean": 0.07444,
+          "t": 5.17
+        }
+      },
+      "first_event": "2005-01-07",
+      "last_event": "2026-09-03",
+      "split_day": "2017-02-01",
+      "verdict": "pass",
+      "sample": [
+        {
+          "symbol": "AAPL",
+          "day": "2026-05-01",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.045,
+          "x5": 0.0042,
+          "b5": 0.0409,
+          "r20": 0.0924,
+          "x20": 0.044,
+          "b20": 0.0484,
+          "r60": 0.2063,
+          "x60": 0.2698,
+          "b60": -0.0634
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-06-29",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.0237,
+          "x5": -0.0669,
+          "b5": 0.0432,
+          "r20": -0.2555,
+          "x20": -0.2542,
+          "b20": -0.0013,
+          "r60": -0.079,
+          "x60": -0.2157,
+          "b60": 0.1366
+        },
+        {
+          "symbol": "AAPL",
+          "day": "2026-07-02",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0197,
+          "x5": -0.0201,
+          "b5": 0.0398,
+          "r20": -0.0011,
+          "x20": -0.012,
+          "b20": 0.0109,
+          "r60": 0.0954,
+          "x60": -0.0024,
+          "b60": 0.0978
+        },
+        {
+          "symbol": "NVDA",
+          "day": "2026-08-27",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0001,
+          "x5": -0.0287,
+          "b5": 0.0287,
+          "r20": -0.0137,
+          "x20": -0.0772,
+          "b20": 0.0636
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-09-03",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.031,
+          "x5": -0.0244,
+          "b5": -0.0066,
+          "r20": -0.0174,
+          "x20": -0.0473,
+          "b20": 0.0299
+        }
+      ]
+    },
+    "large-moves-down": {
+      "events": 486,
+      "h5": {
+        "net": {
+          "n": 486,
+          "mean": 0.0116,
+          "t": 2.67
+        },
+        "benchmark": {
+          "n": 486,
+          "mean": 0.00806,
+          "t": 3.25
+        },
+        "excess": {
+          "n": 486,
+          "mean": 0.00355,
+          "t": 1.21
+        },
+        "hit_rate": 0.562,
+        "first_half_excess": {
+          "n": 243,
+          "mean": 0.00502,
+          "t": 1.17
+        },
+        "second_half_excess": {
+          "n": 243,
+          "mean": 0.00207,
+          "t": 0.52
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 486,
+          "mean": 0.0393,
+          "t": 4.81
+        },
+        "benchmark": {
+          "n": 486,
+          "mean": 0.02649,
+          "t": 5.43
+        },
+        "excess": {
+          "n": 486,
+          "mean": 0.01281,
+          "t": 2.4
+        },
+        "hit_rate": 0.551,
+        "first_half_excess": {
+          "n": 243,
+          "mean": 0.0118,
+          "t": 1.73
+        },
+        "second_half_excess": {
+          "n": 243,
+          "mean": 0.01383,
+          "t": 1.67
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 485,
+          "mean": 0.14491,
+          "t": 9.77
+        },
+        "benchmark": {
+          "n": 485,
+          "mean": 0.0979,
+          "t": 11.75
+        },
+        "excess": {
+          "n": 485,
+          "mean": 0.04701,
+          "t": 4.65
+        },
+        "hit_rate": 0.658,
+        "first_half_excess": {
+          "n": 243,
+          "mean": 0.03035,
+          "t": 2.27
+        },
+        "second_half_excess": {
+          "n": 242,
+          "mean": 0.06375,
+          "t": 4.21
+        }
+      },
+      "first_event": "2005-01-11",
+      "last_event": "2026-07-31",
+      "split_day": "2018-04-02",
+      "verdict": "pass",
+      "sample": [
+        {
+          "symbol": "TSLA",
+          "day": "2026-06-05",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0375,
+          "x5": 0.0621,
+          "b5": -0.0247,
+          "r20": 0.0284,
+          "x20": 0.0327,
+          "b20": -0.0043,
+          "r60": -0.0913,
+          "x60": -0.1137,
+          "b60": 0.0224
+        },
+        {
+          "symbol": "AAPL",
+          "day": "2026-06-25",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.1197,
+          "x5": 0.0536,
+          "b5": 0.0661,
+          "r20": 0.2083,
+          "x20": 0.1751,
+          "b20": 0.0332,
+          "r60": 0.231,
+          "x60": 0.0369,
+          "b60": 0.1942
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-02",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0344,
+          "x5": -0.0054,
+          "b5": 0.0398,
+          "r20": -0.211,
+          "x20": -0.2219,
+          "b20": 0.0109,
+          "r60": -0.0935,
+          "x60": -0.1913,
+          "b60": 0.0978
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-23",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0359,
+          "x5": -0.0454,
+          "b5": 0.0095,
+          "r20": 0.0776,
+          "x20": 0.0152,
+          "b20": 0.0623,
+          "r60": 0.1076,
+          "x60": -0.0222,
+          "b60": 0.1297
+        },
+        {
+          "symbol": "AAPL",
+          "day": "2026-07-31",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0123,
+          "x5": -0.0349,
+          "b5": 0.0472,
+          "r20": 0.0338,
+          "x20": -0.0147,
+          "b20": 0.0485
+        }
+      ]
+    },
+    "large-moves-all-vs-own-average": {
+      "events": 1006,
+      "h5": {
+        "net": {
+          "n": 1006,
+          "mean": 0.01161,
+          "t": 3.88
+        },
+        "benchmark": {
+          "n": 1006,
+          "mean": 0.00861,
+          "t": 178.27
+        },
+        "excess": {
+          "n": 1006,
+          "mean": 0.00301,
+          "t": 1.01
+        },
+        "hit_rate": 0.553,
+        "first_half_excess": {
+          "n": 503,
+          "mean": 0.00107,
+          "t": 0.26
+        },
+        "second_half_excess": {
+          "n": 503,
+          "mean": 0.00494,
+          "t": 1.14
+        }
+      },
+      "h20": {
+        "net": {
+          "n": 1006,
+          "mean": 0.04341,
+          "t": 7.69
+        },
+        "benchmark": {
+          "n": 1006,
+          "mean": 0.03546,
+          "t": 162.82
+        },
+        "excess": {
+          "n": 1006,
+          "mean": 0.00795,
+          "t": 1.42
+        },
+        "hit_rate": 0.579,
+        "first_half_excess": {
+          "n": 503,
+          "mean": -0.00107,
+          "t": -0.15
+        },
+        "second_half_excess": {
+          "n": 503,
+          "mean": 0.01697,
+          "t": 1.92
+        }
+      },
+      "h60": {
+        "net": {
+          "n": 1003,
+          "mean": 0.14517,
+          "t": 14.25
+        },
+        "benchmark": {
+          "n": 1003,
+          "mean": 0.11068,
+          "t": 153.43
+        },
+        "excess": {
+          "n": 1003,
+          "mean": 0.03448,
+          "t": 3.41
+        },
+        "hit_rate": 0.672,
+        "first_half_excess": {
+          "n": 503,
+          "mean": -0.0039,
+          "t": -0.31
+        },
+        "second_half_excess": {
+          "n": 500,
+          "mean": 0.0731,
+          "t": 4.7
+        }
+      },
+      "first_event": "2005-01-07",
+      "last_event": "2026-09-03",
+      "split_day": "2017-08-14",
+      "verdict": "fail",
+      "sample": [
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-02",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0344,
+          "x5": 0.0243,
+          "b5": 0.0101,
+          "r20": -0.211,
+          "x20": -0.2534,
+          "b20": 0.0424,
+          "r60": -0.0935,
+          "x60": -0.2271,
+          "b60": 0.1336
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-07-23",
+          "kind": "move-down",
+          "level": null,
+          "r5": -0.0359,
+          "x5": -0.046,
+          "b5": 0.0101,
+          "r20": 0.0776,
+          "x20": 0.0352,
+          "b20": 0.0424,
+          "r60": 0.1076,
+          "x60": -0.026,
+          "b60": 0.1336
+        },
+        {
+          "symbol": "AAPL",
+          "day": "2026-07-31",
+          "kind": "move-down",
+          "level": null,
+          "r5": 0.0123,
+          "x5": 0.006,
+          "b5": 0.0063,
+          "r20": 0.0338,
+          "x20": 0.0084,
+          "b20": 0.0254
+        },
+        {
+          "symbol": "NVDA",
+          "day": "2026-08-27",
+          "kind": "move-up",
+          "level": null,
+          "r5": 0.0001,
+          "x5": -0.0087,
+          "b5": 0.0087,
+          "r20": -0.0137,
+          "x20": -0.0493,
+          "b20": 0.0356
+        },
+        {
+          "symbol": "TSLA",
+          "day": "2026-09-03",
+          "kind": "move-up",
+          "level": null,
+          "r5": -0.031,
+          "x5": -0.0411,
+          "b5": 0.0101,
+          "r20": -0.0174,
+          "x20": -0.0597,
+          "b20": 0.0424
+        }
+      ]
+    },
+    "reminders": "needs data source: historical earnings dates (FinancialDatasets /earnings adapter exists; no API key is configured)"
+  },
+  "post-earnings-strength-radar": {
+    "verdict": "not run: needs data source"
+  },
+  "insider-purchase-confirmation": {
+    "verdict": "not run: needs data source"
+  },
+  "analyst-upgrade-clusters": {
+    "verdict": "not run: needs data source"
+  }
+}

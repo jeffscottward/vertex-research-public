@@ -1,0 +1,133 @@
+{
+  "slug": "wheel-csp-equals-covered-call",
+  "sourceId": "DYpq_qeNxmu",
+  "title": "In the wheel, a cash-secured put and a covered call are the same trade",
+  "summary": "A cash-secured put and a covered call at the same strike and expiry have the same payoff, maximum loss and maximum profit. This follows from put-call parity. The wheel looks like two trades only because people strike puts below and calls above the stock price.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "cash-secured-puts", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["wheel", "put-call parity", "strike location"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Cash-secured put",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short put"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Shared strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We compare a short $100 put with 100 shares plus a short $100 call."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "Line A: the cash-secured put. Gain capped at the premium, loss grows as the stock falls."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Line B: the covered call. It lies on top of line A: same max profit, same max loss."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is near zero, only carry. Put-call parity makes them one economic trade.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Most traders strike the put below and the call above the price. That is only a strike choice."
+    }
+  ],
+  "formulas": ["putCallParity", "breakevenPut", "annualizedYield"],
+  "takeaways": [
+    "A cash-secured put and a covered call at the same strike have the same payoff at expiry.",
+    "The wheel is one economic exposure, not two different trades.",
+    "Differences come from where you choose to strike each leg."
+  ],
+  "caveats": [
+    "Small differences remain from dividends, interest and early assignment."
+  ]
+}

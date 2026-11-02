@@ -1,0 +1,183 @@
+{
+  "slug": "strategy-needs-off-switch",
+  "sourceId": "DaA0To7ONV9",
+  "title": "A strategy needs an off switch: be wary of sell-only teachers",
+  "summary": "The speaker warns about two kinds of options educators: those who say to sell options all the time, and those who teach only one strategy. Option selling has a time to use and a time to avoid. A strategy must have an on and off switch; without one it is a habit.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["discipline", "on-off switch", "education"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1,
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Switch on: sell call",
+        "color": "green"
+      },
+      {
+        "day": 22,
+        "label": "Rally: call caps the gain",
+        "color": "red"
+      },
+      {
+        "day": 30,
+        "label": "Switch off: conditions change",
+        "color": "gray"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 8,
+        "movePct": 1
+      },
+      {
+        "day": 14,
+        "movePct": 2
+      },
+      {
+        "day": 18,
+        "movePct": 3
+      },
+      {
+        "day": 24,
+        "movePct": 9
+      },
+      {
+        "day": 30,
+        "movePct": 12
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 25,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 19,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock path over one month. A covered-call program runs on it, and the stock rallies late in the month.",
+      "time": [0, 1]
+    },
+    {
+      "element": "events",
+      "color": "green",
+      "caption": "On: the trader sells a $105 call when conditions favor selling."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The $105 strike caps the gain while the call is open."
+    },
+    {
+      "element": "events",
+      "color": "red",
+      "caption": "Off: when conditions change, the trader stops selling. That choice makes it a strategy."
+    },
+    {
+      "element": "pnl",
+      "color": "gold",
+      "caption": "Selling every month with no off switch is a habit, not a strategy.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["annualizedYield", "vrp"],
+  "takeaways": [
+    "Be careful of anyone who says to sell options all the time.",
+    "A strategy needs rules for when to use it and when not to.",
+    "Be careful of teachers who only ever talk about one strategy."
+  ],
+  "caveats": [
+    "This is opinion about social media educators; the chart is an illustration."
+  ]
+}

@@ -1,0 +1,17 @@
+# Vertex Autopilot tick (research only: breeds and gates strategy candidates on stored bars; no
+# broker, order or deployment calls). Install as a user unit on the research host: copy this file
+# and the .timer to ~/.config/systemd/user/, create the environment file below (mode 0600) and run:
+# systemctl --user enable --now vertex-autopilot.timer
+# Environment file keys: VERTEX_ORIGIN (portal origin) and VERTEX_AGENT_API_KEY (operator write key).
+[Unit]
+Description=Vertex Autopilot tick (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/vertex/autopilot.env
+WorkingDirectory=%h/Github/trading/vertex-research-platform
+ExecStart=/usr/bin/env bun run vertex:autopilot:tick
+TimeoutStartSec=900
+Nice=10
+NoNewPrivileges=yes

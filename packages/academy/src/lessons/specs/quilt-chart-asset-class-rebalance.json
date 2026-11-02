@@ -1,0 +1,83 @@
+{
+  "slug": "quilt-chart-asset-class-rebalance",
+  "sourceId": "DTGZS_iiZhU",
+  "title": "The quilt chart of asset class returns, for year-end rebalancing",
+  "summary": "If you are rebalancing your portfolio at year end, the speaker calls the quilt chart one of the most important charts you will see and one of his favorites. He maintains it in an Excel spreadsheet, offers it for free, and says it shows 15 years of 15 asset classes. The clip cuts off before he explains the chart.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "etf"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["quilt chart", "asset classes", "rebalancing", "year end"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Risk assets",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%",
+      "help": "Share of the portfolio in invested asset classes; the rest is cash."
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 0,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Not part of the clip; left at 0."
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 3,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Illustration, not the quilt chart: how a portfolio mix responds to market moves."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "The invested asset classes: 70% of the portfolio here."
+    },
+    {
+      "element": "cash",
+      "color": "blue",
+      "caption": "The total portfolio with the rest in cash. Rebalancing resets this mix to your target weights."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "Sweep the market move. The speaker suggests year end, with the quilt chart in hand, to review the mix.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["positionSize"],
+  "takeaways": [
+    "The speaker calls the quilt chart one of the most important charts when rebalancing at year end.",
+    "It shows 15 years of returns for 15 different asset classes.",
+    "He maintains it in an Excel spreadsheet and offers it for free."
+  ],
+  "caveats": [
+    "The clip is about 30 seconds and cuts off before the chart is shown or explained.",
+    "The allocation chart is added illustration, not the quilt chart. Added context: quilt charts usually rank asset-class returns by year.",
+    "The free spreadsheet offer is promotional and not verified here."
+  ]
+}

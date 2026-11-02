@@ -1,0 +1,63 @@
+{
+  "name": "@darkfactory/auth",
+  "brick": "product",
+  "description": "Better Auth setup: sessions, email verification and password reset on Postgres.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.js"
+  ],
+  "exports": {
+    "./server": {
+      "workerd": "./src/server.ts",
+      "worker": "./src/server.ts",
+      "browser": "./src/server/unsupported.js",
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./db": {
+      "workerd": "./src/db.ts",
+      "worker": "./src/db.ts",
+      "browser": "./src/server/unsupported.js",
+      "import": "./src/db.ts",
+      "default": "./src/db.ts"
+    },
+    "./client": {
+      "import": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./types": {
+      "import": "./src/types.ts",
+      "default": "./src/types.ts"
+    }
+  },
+  "scripts": {
+    "auth:schema:generate": "bun scripts/check-auth-schema.ts --write",
+    "auth:schema:check": "bun scripts/check-auth-schema.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "catalog:",
+    "@better-auth/drizzle-adapter": "catalog:",
+    "@darkfactory/db": "workspace:*",
+    "@darkfactory/email": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "auth": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

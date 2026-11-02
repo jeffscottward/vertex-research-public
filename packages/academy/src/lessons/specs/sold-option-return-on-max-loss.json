@@ -1,0 +1,117 @@
+{
+  "slug": "sold-option-return-on-max-loss",
+  "sourceId": "DUY66rdiaOQ",
+  "title": "Measure a sold option's return against max loss, not premium",
+  "summary": "Brokers show the return on a sold option as a percent of the premium. If you sell for $10,000 and the option falls to $5,000, the broker shows 50%. The speaker says to measure against max loss: with $100,000 at risk, the gain is 5%.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["cash-secured-puts", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["P&L", "return on risk", "brokers"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 90,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 50,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 10,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Sell 10 puts at the $100 strike. The premium is about $10 a share, or $10,000 on day one."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The most you can make is the $10,000 premium."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "caption": "Time passes and the option is worth $5,000. You keep $5,000.",
+      "time": [0, 0.5]
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The max loss is near $100,000 if the stock goes to zero. That is the capital at risk."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Return = $5,000 / $100,000 = 5%, not $5,000 / $10,000 = 50%."
+    }
+  ],
+  "formulas": ["positionSize", "extrinsic", "breakevenPut"],
+  "takeaways": [
+    "The broker's percent is relative to premium received.",
+    "Measure the return on a sold option against the max loss or capital at risk.",
+    "$5,000 gained on $100,000 at risk is 5%, not 50%."
+  ],
+  "caveats": ["The speaker promotes a product he is building."]
+}

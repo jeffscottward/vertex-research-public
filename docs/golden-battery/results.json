@@ -1,0 +1,1854 @@
+{
+  "schema": "vertex-golden-battery/v1",
+  "note": "Research and backtest evidence only. No result authorizes a trade.",
+  "pass": true,
+  "summary": {
+    "cases": 8,
+    "casesPassed": 8,
+    "indicatorChecks": 80,
+    "indicatorChecksPassed": 80
+  },
+  "dataSource": {
+    "provider": "Yahoo Finance public chart endpoint v8 (query1.finance.yahoo.com), interval 1d",
+    "fetchedAt": "2026-10-23T06:42:28Z",
+    "range": {
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "fields": {
+      "date": "exchange-local trading date (America/New_York)",
+      "open, high, low, close": "split-adjusted prices in USD, rounded to 6 decimals",
+      "adj_close": "split- and dividend-adjusted close as Yahoo reported it on fetchedAt, rounded to 6 decimals",
+      "volume": "shares, split-adjusted"
+    },
+    "adjustment": "Both backtest paths scale open, high, low and close by adj_close/close (total-return bars).",
+    "delay": "End-of-day history only; the newest bar is from 2024-12-31. No live or intraday data.",
+    "license": "Yahoo Finance data is for personal, non-commercial use and must not be redistributed. This copy is a test fixture in a private repository. Do not publish it, copy it to report pages or ship it in a build.",
+    "files": {
+      "SPY": {
+        "path": "tests/fixtures/golden/SPY-1d.csv",
+        "sha256": "e623801fed6bb02f2484602c54fc12640c728074ae4aa356217ae1d97adf9387",
+        "rows": 2516,
+        "first": "2015-01-02",
+        "last": "2024-12-31"
+      },
+      "QQQ": {
+        "path": "tests/fixtures/golden/QQQ-1d.csv",
+        "sha256": "560ea79bd3af7279f8a4601d55a627b10c70563f9b9a73eaa7ff0d26b6febbce",
+        "rows": 2516,
+        "first": "2015-01-02",
+        "last": "2024-12-31"
+      }
+    }
+  },
+  "implementations": {
+    "vertexBacktest": "packages/api/src/instant-backtest-engine.ts",
+    "vertexChartIndicators": "apps/web/src/features/charts/indicator-math.ts",
+    "vertexPythonIndicators": "services/research/indicators/core.py",
+    "referenceBacktest": "services/research/tests/golden/pandas_reference.py (pandas 3.1.0, numpy 2.5.4)",
+    "referenceIndicators": "TA-Lib C 0.8.1 via Python TA-Lib 0.8.2; smma_20 from pandas 3.1.0",
+    "referenceGenerator": "services/research/tests/golden/make_golden_reference.py"
+  },
+  "tolerance": {
+    "value": 1e-9,
+    "rule": "|vertex - reference| <= value * max(1, |reference|) for every price, P&L, return, ratio and indicator value; trade count, entry bar, exit bar and exit reason must be equal"
+  },
+  "cases": [
+    {
+      "id": "SPY-sma-20-50-0bps",
+      "symbol": "SPY",
+      "rule": {
+        "kind": "smaCross",
+        "fast": 20,
+        "slow": 50
+      },
+      "costBps": 0,
+      "pass": true,
+      "trades": {
+        "vertexCount": 24,
+        "referenceCount": 24,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 1.7763568394002505e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.266426877121355,
+          "reference": 2.2664268771213583,
+          "absDiff": 3.1086244689504383e-15,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.2664268771213552,
+          "reference": 1.2664268771213583,
+          "absDiff": 3.1086244689504383e-15,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.085297419165415,
+          "reference": 0.08529741916541522,
+          "absDiff": 2.220446049250313e-16,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.2780803333838001,
+          "reference": -0.2780803333837998,
+          "absDiff": 3.3306690738754696e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.7795048115832525,
+          "reference": 0.7795048115832449,
+          "absDiff": 7.549516567451064e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 1.0615620034919775,
+          "reference": 1.061562003491975,
+          "absDiff": 2.4424906541753444e-15,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 3.410425703801694,
+          "reference": 3.4104257038017107,
+          "absDiff": 1.687538997430238e-14,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.625,
+          "reference": 0.625,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.7003179650238474,
+          "reference": 0.7003179650238474,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 2.395737322713843,
+          "reference": 2.395737322713843,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3371724867369611,
+          "reference": -0.3371724867369611,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "SPY-sma-20-50-5bps",
+      "symbol": "SPY",
+      "rule": {
+        "kind": "smaCross",
+        "fast": 20,
+        "slow": 50
+      },
+      "costBps": 5,
+      "pass": true,
+      "trades": {
+        "vertexCount": 24,
+        "referenceCount": 24,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 2.6645352591003757e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.21266689187663,
+          "reference": 2.212666891876636,
+          "absDiff": 6.217248937900877e-15,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.21266689187663,
+          "reference": 1.2126668918766361,
+          "absDiff": 6.217248937900877e-15,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.0826941108453294,
+          "reference": 0.08269411084532985,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.28168182093995675,
+          "reference": -0.28168182093995653,
+          "absDiff": 2.220446049250313e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.7583021596362257,
+          "reference": 0.7583021596362218,
+          "absDiff": 3.885780586188048e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 1.0319350039149349,
+          "reference": 1.031935003914932,
+          "absDiff": 2.886579864025407e-15,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 3.284814963332693,
+          "reference": 3.2848149633327095,
+          "absDiff": 1.6431300764452317e-14,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.625,
+          "reference": 0.625,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.7003179650238474,
+          "reference": 0.7003179650238474,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 2.395737322713843,
+          "reference": 2.395737322713843,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3371724867369611,
+          "reference": -0.3371724867369611,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "SPY-rsi-14-30-70-0bps",
+      "symbol": "SPY",
+      "rule": {
+        "kind": "rsiReversion",
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "costBps": 0,
+      "pass": true,
+      "trades": {
+        "vertexCount": 10,
+        "referenceCount": 10,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 1.5543122344752192e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.013798047731029,
+          "reference": 2.0137980477310284,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.0137980477310289,
+          "reference": 1.0137980477310284,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.07254144204448543,
+          "reference": 0.07254144204448543,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.2870820219340261,
+          "reference": -0.2870820219340261,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.5648928530463788,
+          "reference": 0.5648928530463885,
+          "absDiff": 9.658940314238862e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.8145123029089049,
+          "reference": 0.8145123029089057,
+          "absDiff": 8.881784197001252e-16,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 68.59560777877101,
+          "reference": 68.59560777877398,
+          "absDiff": 2.9700686354772188e-12,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.9,
+          "reference": 0.9,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.3251192368839428,
+          "reference": 0.3251192368839428,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 2.395737322713843,
+          "reference": 2.395737322713843,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3371724867369611,
+          "reference": -0.3371724867369611,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "SPY-rsi-14-30-70-5bps",
+      "symbol": "SPY",
+      "rule": {
+        "kind": "rsiReversion",
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "costBps": 5,
+      "pass": true,
+      "trades": {
+        "vertexCount": 10,
+        "referenceCount": 10,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 1.5543122344752192e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 1.993755436303595,
+          "reference": 1.9937554363035905,
+          "absDiff": 4.440892098500626e-15,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 0.993755436303595,
+          "reference": 0.9937554363035905,
+          "absDiff": 4.440892098500626e-15,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.07146872841861285,
+          "reference": 0.07146872841861263,
+          "absDiff": 2.220446049250313e-16,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.28779476168259743,
+          "reference": -0.2877947616825973,
+          "absDiff": 1.1102230246251565e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.5578612786026946,
+          "reference": 0.5578612786027028,
+          "absDiff": 8.215650382226158e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.8040984132538513,
+          "reference": 0.8040984132538481,
+          "absDiff": 3.219646771412954e-15,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 61.41985256913272,
+          "reference": 61.41985256913082,
+          "absDiff": 1.9042545318370685e-12,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.9,
+          "reference": 0.9,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.3251192368839428,
+          "reference": 0.3251192368839428,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 2.395737322713843,
+          "reference": 2.395737322713843,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3371724867369611,
+          "reference": -0.3371724867369611,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "QQQ-sma-20-50-0bps",
+      "symbol": "QQQ",
+      "rule": {
+        "kind": "smaCross",
+        "fast": 20,
+        "slow": 50
+      },
+      "costBps": 0,
+      "pass": true,
+      "trades": {
+        "vertexCount": 25,
+        "referenceCount": 25,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 3.3306690738754696e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.2157039422113387,
+          "reference": 2.215703942211351,
+          "absDiff": 1.2434497875801753e-14,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.2157039422113387,
+          "reference": 1.2157039422113511,
+          "absDiff": 1.2434497875801753e-14,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.08284268799931915,
+          "reference": 0.08284268799931982,
+          "absDiff": 6.661338147750939e-16,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.2960762925999125,
+          "reference": -0.2960762925999124,
+          "absDiff": 1.1102230246251565e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.5935750439423346,
+          "reference": 0.5935750439423311,
+          "absDiff": 3.552713678800501e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.8144264167032569,
+          "reference": 0.814426416703256,
+          "absDiff": 8.881784197001252e-16,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 2.848097007541281,
+          "reference": 2.8480970075412926,
+          "absDiff": 1.1546319456101628e-14,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.64,
+          "reference": 0.64,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.6983306836248012,
+          "reference": 0.6983306836248012,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 4.366392257802689,
+          "reference": 4.366392257802689,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3511872276509239,
+          "reference": -0.3511872276509239,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "QQQ-sma-20-50-5bps",
+      "symbol": "QQQ",
+      "rule": {
+        "kind": "smaCross",
+        "fast": 20,
+        "slow": 50
+      },
+      "costBps": 5,
+      "pass": true,
+      "trades": {
+        "vertexCount": 25,
+        "referenceCount": 25,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 1.7763568394002505e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.160984506259836,
+          "reference": 2.16098450625984,
+          "absDiff": 3.9968028886505635e-15,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.1609845062598358,
+          "reference": 1.1609845062598398,
+          "absDiff": 3.9968028886505635e-15,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.08013717732878267,
+          "reference": 0.0801371773287829,
+          "absDiff": 2.220446049250313e-16,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.29958800254482654,
+          "reference": -0.29958800254482687,
+          "absDiff": 3.3306690738754696e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.577301097722721,
+          "reference": 0.5773010977227216,
+          "absDiff": 6.661338147750939e-16,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.7914318951338707,
+          "reference": 0.7914318951338724,
+          "absDiff": 1.6653345369377348e-15,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 2.75314052002179,
+          "reference": 2.753140520021793,
+          "absDiff": 2.6645352591003757e-15,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.6,
+          "reference": 0.6,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.6983306836248012,
+          "reference": 0.6983306836248012,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 4.366392257802689,
+          "reference": 4.366392257802689,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3511872276509239,
+          "reference": -0.3511872276509239,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "QQQ-rsi-14-30-70-0bps",
+      "symbol": "QQQ",
+      "rule": {
+        "kind": "rsiReversion",
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "costBps": 0,
+      "pass": true,
+      "trades": {
+        "vertexCount": 10,
+        "referenceCount": 10,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 2.220446049250313e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.3974271248241026,
+          "reference": 2.397427124824105,
+          "absDiff": 2.220446049250313e-15,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.3974271248241026,
+          "reference": 1.3974271248241048,
+          "absDiff": 2.220446049250313e-15,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.09141556519364546,
+          "reference": 0.09141556519364546,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.29561745134996575,
+          "reference": -0.29561745134996587,
+          "absDiff": 1.1102230246251565e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.6168536397095297,
+          "reference": 0.6168536397095362,
+          "absDiff": 6.5503158452884236e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.8976593103790346,
+          "reference": 0.8976593103790341,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 6.047000954189492,
+          "reference": 6.0470009541895395,
+          "absDiff": 4.796163466380676e-14,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.9,
+          "reference": 0.9,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.30723370429252783,
+          "reference": 0.30723370429252783,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 4.366392257802689,
+          "reference": 4.366392257802689,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3511872276509239,
+          "reference": -0.3511872276509239,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    },
+    {
+      "id": "QQQ-rsi-14-30-70-5bps",
+      "symbol": "QQQ",
+      "rule": {
+        "kind": "rsiReversion",
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "costBps": 5,
+      "pass": true,
+      "trades": {
+        "vertexCount": 10,
+        "referenceCount": 10,
+        "sameBarsAndReasons": true,
+        "maxPriceDiff": 0,
+        "maxPnlDiff": 4.884981308350689e-15,
+        "pass": true
+      },
+      "metrics": [
+        {
+          "name": "finalEquity",
+          "vertex": 2.37356639045574,
+          "reference": 2.3735663904557396,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "totalReturn",
+          "vertex": 1.37356639045574,
+          "reference": 1.3735663904557396,
+          "absDiff": 4.440892098500626e-16,
+          "pass": true
+        },
+        {
+          "name": "cagr",
+          "vertex": 0.09032397441460671,
+          "reference": 0.09032397441460671,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "maxDrawdown",
+          "vertex": -0.29561745134996587,
+          "reference": -0.29561745134996675,
+          "absDiff": 8.881784197001252e-16,
+          "pass": true
+        },
+        {
+          "name": "sharpe",
+          "vertex": 0.6108115015900817,
+          "reference": 0.6108115015900767,
+          "absDiff": 4.9960036108132044e-15,
+          "pass": true
+        },
+        {
+          "name": "sortino",
+          "vertex": 0.8884991504166765,
+          "reference": 0.8884991504166758,
+          "absDiff": 6.661338147750939e-16,
+          "pass": true
+        },
+        {
+          "name": "profitFactor",
+          "vertex": 5.9613318348559625,
+          "reference": 5.961331834855874,
+          "absDiff": 8.881784197001252e-14,
+          "pass": true
+        },
+        {
+          "name": "winRate",
+          "vertex": 0.9,
+          "reference": 0.9,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "exposure",
+          "vertex": 0.30723370429252783,
+          "reference": 0.30723370429252783,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldReturn",
+          "vertex": 4.366392257802689,
+          "reference": 4.366392257802689,
+          "absDiff": 0,
+          "pass": true
+        },
+        {
+          "name": "buyHoldMaxDrawdown",
+          "vertex": -0.3511872276509239,
+          "reference": -0.3511872276509239,
+          "absDiff": 0,
+          "pass": true
+        }
+      ]
+    }
+  ],
+  "indicators": [
+    {
+      "layer": "engine",
+      "symbol": "SPY",
+      "indicator": "sma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.2505552149377763e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "engine",
+      "symbol": "SPY",
+      "indicator": "sma_50",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080801e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 49,
+        "expected": 49
+      }
+    },
+    {
+      "layer": "engine",
+      "symbol": "SPY",
+      "indicator": "rsi_14",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 2.842170943040401e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "sma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 7.958078640513122e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "sma_50",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 7.389644451905042e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 49,
+        "expected": 49
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "ema_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 0,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "smma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080801e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "lwma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.0249582272954285e-11,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "atr_14",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-15,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "bollinger_upper",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 7.048583938740194e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "bollinger_middle",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.0231815394945443e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "bollinger_lower",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 9.094947017729282e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "sar",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 1,
+        "expected": 1
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "macd",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 25,
+        "expected": 25
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "macd_signal",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 4.729550084903167e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 33,
+        "expected": 33
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "macd_histogram",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 9.547918011776346e-15,
+      "pass": true,
+      "warmup": {
+        "firstBar": 33,
+        "expected": 33
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "stoch_k",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 2.2737367544323206e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 15,
+        "expected": 15
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "stoch_d",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 2.2737367544323206e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 17,
+        "expected": 17
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "plus_di",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.4210854715202004e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "minus_di",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.4210854715202004e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "SPY",
+      "indicator": "adx",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 27,
+        "expected": 27
+      }
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "sma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 9.094947017729282e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "sma_50",
+      "scope": "all bars",
+      "comparedBars": 2467,
+      "missingBars": 0,
+      "maxAbsDiff": 8.526512829121202e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "ema_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 2.842170943040401e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "smma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 6.821210263296962e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "lwma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 7.685230229981244e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "rsi_14",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 4.973799150320701e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "atr_14",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "bollinger_upper",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 8.22524270915892e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "bollinger_middle",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 1.1368683772161603e-12,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "bollinger_lower",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 8.361666914424859e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "sar",
+      "scope": "all bars",
+      "comparedBars": 2515,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "macd",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "macd_signal",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 5.3512749786932545e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "macd_histogram",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 4.551914400963142e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "stoch_k",
+      "scope": "all bars",
+      "comparedBars": 2499,
+      "missingBars": 0,
+      "maxAbsDiff": 2.2737367544323206e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "stoch_d",
+      "scope": "all bars",
+      "comparedBars": 2499,
+      "missingBars": 0,
+      "maxAbsDiff": 2.984279490192421e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "plus_di",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 7.105427357601002e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "minus_di",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 1.4210854715202004e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "SPY",
+      "indicator": "adx",
+      "scope": "all bars",
+      "comparedBars": 2489,
+      "missingBars": 0,
+      "maxAbsDiff": 2.842170943040401e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "engine",
+      "symbol": "QQQ",
+      "indicator": "sma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080801e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "engine",
+      "symbol": "QQQ",
+      "indicator": "sma_50",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 4.547473508864641e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 49,
+        "expected": 49
+      }
+    },
+    {
+      "layer": "engine",
+      "symbol": "QQQ",
+      "indicator": "rsi_14",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "sma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 7.389644451905042e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "sma_50",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.3073986337985843e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 49,
+        "expected": 49
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "ema_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 0,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "smma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 4.547473508864641e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "lwma_20",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.0118128557223827e-11,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "atr_14",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-15,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "bollinger_upper",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 9.038103598868474e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "bollinger_middle",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080801e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "bollinger_lower",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 8.810729923425242e-12,
+      "pass": true,
+      "warmup": {
+        "firstBar": 19,
+        "expected": 19
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "sar",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 1,
+        "expected": 1
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "macd",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 0,
+      "pass": true,
+      "warmup": {
+        "firstBar": 25,
+        "expected": 25
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "macd_signal",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 8.326672684688674e-17,
+      "pass": true,
+      "warmup": {
+        "firstBar": 33,
+        "expected": 33
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "macd_histogram",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 2.220446049250313e-16,
+      "pass": true,
+      "warmup": {
+        "firstBar": 33,
+        "expected": 33
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "stoch_k",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 3.979039320256561e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 15,
+        "expected": 15
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "stoch_d",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 7.389644451905042e-13,
+      "pass": true,
+      "warmup": {
+        "firstBar": 17,
+        "expected": 17
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "plus_di",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "minus_di",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.0658141036401503e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 14,
+        "expected": 14
+      }
+    },
+    {
+      "layer": "chart",
+      "symbol": "QQQ",
+      "indicator": "adx",
+      "scope": "checkpoints",
+      "comparedBars": 51,
+      "missingBars": 0,
+      "maxAbsDiff": 1.7763568394002505e-14,
+      "pass": true,
+      "warmup": {
+        "firstBar": 27,
+        "expected": 27
+      }
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "sma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 7.389644451905042e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "sma_50",
+      "scope": "all bars",
+      "comparedBars": 2467,
+      "missingBars": 0,
+      "maxAbsDiff": 1.4210854715202004e-12,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "ema_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 0,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "smma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080801e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "lwma_20",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 1.0459189070388675e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "rsi_14",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 4.263256414560601e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "atr_14",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 3.552713678800501e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "bollinger_upper",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 5.866240826435387e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "bollinger_middle",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 1.3073986337985843e-12,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "bollinger_lower",
+      "scope": "all bars",
+      "comparedBars": 2497,
+      "missingBars": 0,
+      "maxAbsDiff": 6.059508450562134e-11,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "sar",
+      "scope": "all bars",
+      "comparedBars": 2515,
+      "missingBars": 0,
+      "maxAbsDiff": 5.684341886080802e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "macd",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 0,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "macd_signal",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 1.5543122344752192e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "macd_histogram",
+      "scope": "all bars",
+      "comparedBars": 2483,
+      "missingBars": 0,
+      "maxAbsDiff": 1.5543122344752192e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "stoch_k",
+      "scope": "all bars",
+      "comparedBars": 2499,
+      "missingBars": 0,
+      "maxAbsDiff": 3.979039320256561e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "stoch_d",
+      "scope": "all bars",
+      "comparedBars": 2499,
+      "missingBars": 0,
+      "maxAbsDiff": 7.815970093361102e-13,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "plus_di",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 7.105427357601002e-15,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "minus_di",
+      "scope": "all bars",
+      "comparedBars": 2502,
+      "missingBars": 0,
+      "maxAbsDiff": 1.4210854715202004e-14,
+      "warmup": null,
+      "pass": true
+    },
+    {
+      "layer": "python",
+      "symbol": "QQQ",
+      "indicator": "adx",
+      "scope": "all bars",
+      "comparedBars": 2489,
+      "missingBars": 0,
+      "maxAbsDiff": 2.842170943040401e-14,
+      "warmup": null,
+      "pass": true
+    }
+  ]
+}

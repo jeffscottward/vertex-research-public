@@ -1,0 +1,201 @@
+{
+  "slug": "covered-call-path-dependency-aapl",
+  "sourceId": "DTno1-2Do5Q",
+  "title": "Covered call path dependency: AAPL weekly calls in 2025",
+  "summary": "The speaker simulated selling at-the-money covered calls on Apple every week of 2025 for about 1% a week, or 52% a year. Apple fell in 25 of 52 weeks for a total of -86% on those weeks, while the upside was capped. Net, the program lost 34% in a year when the stock rose 9%. The path, not only the end price, decides the result.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["any", "bullish"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["path dependency", "capped upside", "weekly calls", "aapl"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts",
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Weekly ATM call"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Sell ATM call, 1%",
+        "color": "gold"
+      },
+      {
+        "day": 7,
+        "label": "Expiry, reset at the money",
+        "color": "cyan"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 2,
+        "movePct": 1.5
+      },
+      {
+        "day": 4,
+        "movePct": -2
+      },
+      {
+        "day": 7,
+        "movePct": -4
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AAPL price",
+      "default": 250,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 250,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 7,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 9,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 5,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "One week of a weekly covered call on Apple, sold at the money."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The strike equals the price at entry. Any gain above it goes to the call buyer."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The price path: here a down week, about -4%. In 2025 Apple fell in 25 of 52 weeks.",
+      "time": [0, 1]
+    },
+    {
+      "element": "events",
+      "color": "gold",
+      "caption": "Each week: collect about 1%. Over 52 weeks that is about 52% of premium."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "Down weeks are not capped. The down weeks added up to -86%, so the net was about -34%.",
+      "time": [0, 1]
+    },
+    {
+      "element": "spot",
+      "color": "blue",
+      "caption": "Apple still ended 2025 up 9%. The order of the moves, the path, decided the result."
+    }
+  ],
+  "formulas": ["annualizedYield", "realizedVol", "extrinsic"],
+  "takeaways": [
+    "A covered call caps the upside each week but keeps the full downside.",
+    "Weekly ATM calls on Apple in 2025: about +52% premium, -86% from down weeks, net about -34%.",
+    "The stock rose 9% that year, so the path, not the end price, drove the loss.",
+    "Collected premium is not the same as profit."
+  ],
+  "caveats": [
+    "The simulation is the speaker's own; the method and resets are not shown, so the numbers are unverified.",
+    "The clip's transcript repeats words; the core numbers are 52%, 25 of 52 weeks, -86%, -34% and +9%."
+  ],
+  "backtest": {
+    "structure": "covered_call",
+    "tickers": ["AAPL"],
+    "scenario": {
+      "label": "AAPL 2025 weekly covered calls",
+      "start": "2025-01-01",
+      "end": "2025-12-31"
+    },
+    "rules": {
+      "dte": 7,
+      "shortDelta": 0.5,
+      "riskPct": 5
+    },
+    "note": "Weekly at-the-money covered call on Apple through 2025, held to expiry, to test path dependency."
+  }
+}

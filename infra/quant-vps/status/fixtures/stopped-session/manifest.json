@@ -1,0 +1,25 @@
+{
+  "description": "Synthetic, redacted inputs modelled on the 2026-10-03 QuantVPS state (nautilus-trader created/stopped, IB Gateway API not logged in). Contains planted fake secrets that must never reach the output.",
+  "now": "2026-10-03T11:18:30+00:00",
+  "files": {
+    "/opt/vertex-exec-node/data/nautilus/health.json": "files/health.json",
+    "/opt/vertex-exec-node/data/nautilus/logs/watchdog.log": "files/watchdog.jsonl",
+    "/opt/vertex-exec-node/data/nautilus/logs/prototype-runner.log": "files/prototype-runner.jsonl",
+    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-account-snapshot-20260918T201550Z.json": "files/reports/ibkr-account-snapshot-20260918T201550Z.json",
+    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-open-orders.json": "files/reports/ibkr-open-orders.json",
+    "/opt/vertex-exec-node/data/nautilus/reports/ibkr-fills.json": "files/reports/ibkr-fills.json"
+  },
+  "exists": {
+    "/opt/vertex-exec-node/data/KILL_SWITCH": false,
+    "/opt/vertex-exec-node/portfolio-ui/data/KILL_SWITCH": false
+  },
+  "redis": {
+    "vertex_quant:nautilus:heartbeat:state": {
+      "last_event": "strategy_heartbeat",
+      "last_timestamp": "2026-09-25T16:38:38.611831+00:00",
+      "service": "nautilus-trader",
+      "trading_mode": "live"
+    }
+  },
+  "token": "FixtureStatusTokenAbCdEfGhIjKlMnOpQrStUv0123456789"
+}

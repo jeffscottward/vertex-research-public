@@ -1,0 +1,139 @@
+{
+  "slug": "csp-covered-call-same-greeks",
+  "sourceId": "DW7Dvryic5-",
+  "title": "A cash-secured put and a covered call are the same trade",
+  "summary": "The speaker shows that a cash-secured put and a covered call at the same strike have the same payoff and the same Greeks, except rho. Both harvest volatility by selling upside for premium today. People use them for different goals, but at the same strike the two lines sit on top of each other.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": ["covered-calls", "cash-secured-puts", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["put call parity", "equivalence", "greeks", "wheel"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Cash-secured put",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike (both)",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Both trades use the $100 strike, 30 days out."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "A: sell a cash-secured put at $100."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "B: own 100 shares and sell the $100 call. The line lands on top of A."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is near zero. Only rho, the interest rate effect, differs slightly."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Same breakeven, same max profit, same risk: both sell upside for premium today."
+    }
+  ],
+  "formulas": ["putCallParity", "delta", "breakevenPut"],
+  "takeaways": [
+    "At the same strike and expiry, a cash-secured put and a covered call have the same payoff.",
+    "Their Greeks match except rho.",
+    "Both trades harvest volatility by selling upside; only the goals people attach to them differ."
+  ],
+  "caveats": [
+    "Small differences come from interest on cash and dividends; the clip treats rho as minor."
+  ]
+}

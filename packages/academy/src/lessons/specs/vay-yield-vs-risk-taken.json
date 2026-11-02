@@ -1,0 +1,122 @@
+{
+  "slug": "vay-yield-vs-risk-taken",
+  "sourceId": "DZp2jK_uNJL",
+  "title": "Volatility-adjusted yield: income per unit of realized risk",
+  "summary": "The speaker's volatility-adjusted yield (VAY) divides option income by realized volatility. Two covered calls both yield 3% a month, but one stock realizes 28% volatility and the other 10%. The one at 10% is the better trade per unit of risk. He says this beats IV rank and IV percentile.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["VAY", "realized volatility", "yield", "risk"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 10,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV minus RV (premium)",
+      "default": 8,
+      "min": -20,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 13,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock path. We sell covered calls on it for a 3% monthly yield.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility here is about 10%. Another stock with the same 3% yield realizes 28%.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "blue",
+      "caption": "Implied volatility sets the option price. IV rank only compares IV with its own past.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vrp",
+      "color": "violet",
+      "caption": "The gap from IV to realized volatility is the edge. 3% on 10% realized is much more income per unit of risk.",
+      "time": [0, 1]
+    },
+    {
+      "element": "axes",
+      "color": "gold",
+      "caption": "Main idea: divide yield by realized volatility before you compare two income trades."
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "annualizedYield"],
+  "takeaways": [
+    "Equal yields do not mean equal trades; normalize by realized volatility.",
+    "3% on a stock that realizes 10% beats 3% on one that realizes 28%.",
+    "IV rank and IV percentile compare IV only with itself."
+  ],
+  "caveats": [
+    "VAY (volatility-adjusted yield) is the speaker's own metric, sold through his tools. It is unverified here.",
+    "The follower testimonial and free Chrome extension are promotional."
+  ]
+}

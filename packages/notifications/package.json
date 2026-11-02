@@ -1,0 +1,52 @@
+{
+  "name": "@darkfactory/notifications",
+  "brick": "product",
+  "description": "Vertex operator notifications: ntfy and email ports with dispatch policy.",
+  "version": "0.2.1",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.ts"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./server": {
+      "workerd": "./src/server.ts",
+      "worker": "./src/server.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./server/dispatch": {
+      "workerd": "./src/server/dispatch/index.ts",
+      "worker": "./src/server/dispatch/index.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/dispatch/index.ts",
+      "default": "./src/server/dispatch/index.ts"
+    },
+    "./test": {
+      "import": "./src/test.ts",
+      "default": "./src/test.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@darkfactory/email": "workspace:*",
+    "@darkfactory/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  }
+}

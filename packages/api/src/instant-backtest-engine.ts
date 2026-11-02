@@ -1,0 +1,769 @@
+// Instant backtest engine: a deterministic, single-pass columnar backtest over typed arrays.
+// Research and paper use only. It simulates fills on stored bars and never creates orders.
+//
+// Model:
+// - Long only, fully invested while in a position, flat (cash, 0% yield) otherwise.
+// - Signals use only data up to and including the close of bar i. Signal fills happen at the open
+//   of bar i + 1, so a run never uses a future price.
+// - Stop-loss and take-profit levels are checked inside each bar from the fill bar on. A gap
+//   through the level fills at the open. When both levels are inside one bar, the stop fills first.
+// - Cost is charged in basis points of the traded value on each side (entry and exit).
+// - An optional cost profile adds half the spread and slippage to each fill price, then charges
+//   commission and fees in money for the initial capital. Entries buy the most units whose value
+//   plus charges fit the cash; an entry whose minimum charges exceed the cash is skipped. ATR
+//   slippage uses the ATR up to the bar before the fill.
+// - Equity is marked at each close. Statistics use simple per-bar returns, a risk-free rate of 0
+//   and the observed bar frequency (bars per elapsed year) for annualization.
+
+import {
+  affordableUnits,
+  averageTrueRange,
+  type CostProfile,
+  fillCosts,
+} from "./backtest-costs.ts";
+
+const YEAR_MS = 365.25 * 24 * 60 * 60 * 1000;
+const BPS = 10_000;
+const PERCENT = 100;
+
+export type BarColumns = Readonly<{
+  t: Float64Array;
+  o: Float64Array;
+  h: Float64Array;
+  l: Float64Array;
+  c: Float64Array;
+  /** Optional bar volume. Only the strategy DSL rvol indicator reads it. */
+  v?: Float64Array;
+}>;
+
+export type SmaCrossRule = Readonly<{
+  kind: "smaCross";
+  fast: number;
+  slow: number;
+}>;
+
+export type BreakoutRule = Readonly<{
+  kind: "breakout";
+  entryLookback: number;
+  exitLookback: number;
+  /** 0 turns the trend filter off. */
+  trendSma: number;
+}>;
+
+/**
+ * Mean reversion on Wilder RSI: entry (1) on every bar with RSI below `oversold`, exit (-1) on
+ * every bar with RSI above `overbought`. Engine only; the oRPC contract does not expose it yet.
+ */
+export type RsiReversionRule = Readonly<{
+  kind: "rsiReversion";
+  period: number;
+  oversold: number;
+  overbought: number;
+}>;
+
+export type InstantRule = SmaCrossRule | BreakoutRule | RsiReversionRule;
+
+export type InstantRunParams = Readonly<{
+  rule: InstantRule;
+  /** Percent below the entry price; 0 turns the stop off. */
+  stopLossPct: number;
+  /** Percent above the entry price; 0 turns the target off. */
+  takeProfitPct: number;
+  costBps: number;
+  /** Optional cost profile; `capital` converts unit equity to money for the charges. */
+  costs?: Readonly<{ profile: CostProfile; capital: number }>;
+}>;
+
+/** Costs of one trade in unit equity (starting equity 1), both legs together. */
+export type InstantTradeCosts = Readonly<{
+  commission: number;
+  fees: number;
+  spread: number;
+  slippage: number;
+  /** The flat `costBps` charge. */
+  bps: number;
+  total: number;
+}>;
+
+export type InstantTrade = Readonly<{
+  entryIndex: number;
+  exitIndex: number;
+  entryPrice: number;
+  exitPrice: number;
+  /** Units held, for starting equity 1 (multiply by the capital for real units). */
+  units: number;
+  /** Net return of the trade after both cost legs. */
+  netReturn: number;
+  /** Change in equity (starting equity 1) from entry to exit, after both cost legs. */
+  pnl: number;
+  exitReason: "signal" | "stop" | "target" | "end";
+  /** Only when a cost profile is set: charges of both legs and the P&L before them. */
+  costs?: InstantTradeCosts;
+  grossPnl?: number;
+}>;
+
+export type InstantStats = Readonly<{
+  bars: number;
+  totalReturn: number;
+  cagr: number | null;
+  maxDrawdown: number;
+  sharpe: number | null;
+  sortino: number | null;
+  trades: number;
+  winRate: number | null;
+  profitFactor: number | null;
+  exposure: number;
+  buyHoldReturn: number;
+  buyHoldMaxDrawdown: number;
+}>;
+
+export type InstantRunResult = Readonly<{
+  equity: Float64Array;
+  trades: readonly InstantTrade[];
+  stats: InstantStats;
+}>;
+
+export class InstantBacktestInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InstantBacktestInputError";
+  }
+}
+
+/** Simple moving average of `values`; NaN until `length` values are available. */
+export const rollingMean = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const out = new Float64Array(values.length).fill(Number.NaN);
+  let sum = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    sum += values[index] as number;
+    if (index >= length) sum -= values[index - length] as number;
+    if (index >= length - 1) out[index] = sum / length;
+  }
+  return out;
+};
+
+/**
+ * Highest (`direction` 1) or lowest (`direction` -1) value of the `length` bars BEFORE each bar,
+ * excluding the bar itself. NaN until `length` prior bars exist. O(n) with a monotonic deque.
+ */
+export const priorExtreme = (
+  values: Float64Array,
+  length: number,
+  direction: 1 | -1
+): Float64Array => {
+  const size = values.length;
+  const out = new Float64Array(size).fill(Number.NaN);
+  const deque = new Int32Array(size);
+  let head = 0;
+  let tail = 0;
+  for (let index = 0; index < size; index += 1) {
+    while (head < tail && (deque[head] as number) < index - length) head += 1;
+    if (index >= length) out[index] = values[deque[head] as number] as number;
+    const value = (values[index] as number) * direction;
+    while (
+      head < tail &&
+      (values[deque[tail - 1] as number] as number) * direction <= value
+    ) {
+      tail -= 1;
+    }
+    deque[tail] = index;
+    tail += 1;
+  }
+  return out;
+};
+
+const rsiOf = (gain: number, loss: number): number =>
+  gain + loss === 0 ? 50 : (100 * gain) / (gain + loss);
+
+/**
+ * Wilder RSI (TA-Lib RSI): average gain and loss seeded with the mean of the first `period`
+ * changes, then smoothed as (previous·(period−1)+change)/period. NaN until bar `period`.
+ * A window without any change gives 50.
+ */
+export const wilderRsi = (
+  values: Float64Array,
+  period: number
+): Float64Array => {
+  const result = new Float64Array(values.length).fill(Number.NaN);
+  if (values.length <= period) return result;
+  let gain = 0;
+  let loss = 0;
+  for (let index = 1; index <= period; index += 1) {
+    const change = (values[index] as number) - (values[index - 1] as number);
+    if (change > 0) gain += change;
+    else loss -= change;
+  }
+  gain /= period;
+  loss /= period;
+  result[period] = rsiOf(gain, loss);
+  for (let index = period + 1; index < values.length; index += 1) {
+    const change = (values[index] as number) - (values[index - 1] as number);
+    gain = (gain * (period - 1) + Math.max(change, 0)) / period;
+    loss = (loss * (period - 1) + Math.max(-change, 0)) / period;
+    result[index] = rsiOf(gain, loss);
+  }
+  return result;
+};
+
+const assertWindow = (name: string, value: number, max: number): void => {
+  if (!Number.isInteger(value) || value < 1 || value > max) {
+    throw new InstantBacktestInputError(
+      `${name} must be an integer from 1 to ${max}`
+    );
+  }
+};
+
+const assertColumns = (bars: BarColumns): number => {
+  const size = bars.c.length;
+  if (
+    bars.t.length !== size ||
+    bars.o.length !== size ||
+    bars.h.length !== size ||
+    bars.l.length !== size
+  ) {
+    throw new InstantBacktestInputError("Bar columns must have equal length");
+  }
+  if (size < 2) throw new InstantBacktestInputError("At least 2 bars needed");
+  return size;
+};
+
+/**
+ * Entry (1) only on the bar where the fast average moves above the slow one (the first bar with
+ * both averages counts when fast is already above). Exit (-1) on every bar with fast <= slow.
+ * After a stop or target exit, the rule waits for the next cross up instead of buying again.
+ */
+const smaCrossSignals = (
+  bars: BarColumns,
+  rule: SmaCrossRule,
+  size: number
+): Int8Array => {
+  assertWindow("fast", rule.fast, size);
+  assertWindow("slow", rule.slow, size);
+  if (rule.fast >= rule.slow) {
+    throw new InstantBacktestInputError("fast must be shorter than slow");
+  }
+  const signals = new Int8Array(size);
+  const fast = rollingMean(bars.c, rule.fast);
+  const slow = rollingMean(bars.c, rule.slow);
+  let wasAbove = false;
+  for (let index = 0; index < size; index += 1) {
+    const slowValue = slow[index] as number;
+    if (Number.isNaN(slowValue)) continue;
+    const above = (fast[index] as number) > slowValue;
+    if (!above) signals[index] = -1;
+    else if (!wasAbove) signals[index] = 1;
+    wasAbove = above;
+  }
+  return signals;
+};
+
+/** Entry (1) above the prior high (and the trend average), exit (-1) below the prior low. */
+const breakoutSignals = (
+  bars: BarColumns,
+  rule: BreakoutRule,
+  size: number
+): Int8Array => {
+  assertWindow("entryLookback", rule.entryLookback, size);
+  assertWindow("exitLookback", rule.exitLookback, size);
+  if (rule.trendSma !== 0) assertWindow("trendSma", rule.trendSma, size);
+  const signals = new Int8Array(size);
+  const highs = priorExtreme(bars.h, rule.entryLookback, 1);
+  const lows = priorExtreme(bars.l, rule.exitLookback, -1);
+  const trend = rule.trendSma === 0 ? null : rollingMean(bars.c, rule.trendSma);
+  for (let index = 0; index < size; index += 1) {
+    const close = bars.c[index] as number;
+    if (close < (lows[index] as number)) {
+      signals[index] = -1;
+      continue;
+    }
+    const trendValue = trend === null ? Number.NEGATIVE_INFINITY : trend[index];
+    if (close > (highs[index] as number) && close > (trendValue as number)) {
+      signals[index] = 1;
+    }
+  }
+  return signals;
+};
+
+const rsiReversionSignals = (
+  bars: BarColumns,
+  rule: RsiReversionRule,
+  size: number
+): Int8Array => {
+  assertWindow("period", rule.period, size - 1);
+  const level = (name: string, value: number) => {
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new InstantBacktestInputError(`${name} must be from 0 to 100`);
+    }
+  };
+  level("oversold", rule.oversold);
+  level("overbought", rule.overbought);
+  if (rule.oversold >= rule.overbought) {
+    throw new InstantBacktestInputError("oversold must be below overbought");
+  }
+  const signals = new Int8Array(size);
+  const rsi = wilderRsi(bars.c, rule.period);
+  for (let index = rule.period; index < size; index += 1) {
+    const value = rsi[index] as number;
+    if (value < rule.oversold) signals[index] = 1;
+    else if (value > rule.overbought) signals[index] = -1;
+  }
+  return signals;
+};
+
+const signalsFor = (
+  bars: BarColumns,
+  rule: InstantRule,
+  size: number
+): Int8Array => {
+  switch (rule.kind) {
+    case "smaCross":
+      return smaCrossSignals(bars, rule, size);
+    case "breakout":
+      return breakoutSignals(bars, rule, size);
+    case "rsiReversion":
+      return rsiReversionSignals(bars, rule, size);
+  }
+};
+
+const assertParams = (params: InstantRunParams): void => {
+  const percent = (name: string, value: number, max: number) => {
+    if (!Number.isFinite(value) || value < 0 || value > max) {
+      throw new InstantBacktestInputError(`${name} must be from 0 to ${max}`);
+    }
+  };
+  percent("stopLossPct", params.stopLossPct, 99);
+  percent("takeProfitPct", params.takeProfitPct, 10_000);
+  percent("costBps", params.costBps, 500);
+  if (params.costs !== undefined) {
+    const capital = params.costs.capital;
+    if (!Number.isFinite(capital) || capital <= 0) {
+      throw new InstantBacktestInputError("capital must be above 0");
+    }
+  }
+};
+
+interface Legs {
+  bps: number;
+  commission: number;
+  fees: number;
+  slippage: number;
+  spread: number;
+}
+
+interface PositionState {
+  entryCash: number;
+  entryIndex: number;
+  entryPrice: number;
+  legs: Legs | null;
+  /** Cash not used by the position (0 when fully invested). */
+  rest: number;
+  /** Cash committed to the position, including the entry costs. */
+  spent: number;
+  /** Stop and target price levels; NaN when off. */
+  stop: number;
+  target: number;
+  units: number;
+}
+
+const drawdownOf = (series: Float64Array): number => {
+  let peak = series[0] as number;
+  let worst = 0;
+  for (const value of series) {
+    if (value > peak) peak = value;
+    const drawdown = value / peak - 1;
+    if (drawdown < worst) worst = drawdown;
+  }
+  return worst;
+};
+
+const ratioStats = (
+  equity: Float64Array,
+  years: number
+): Pick<InstantStats, "sharpe" | "sortino"> => {
+  const periods = equity.length - 1;
+  let sum = 0;
+  let downsideSquares = 0;
+  for (let index = 1; index <= periods; index += 1) {
+    const change =
+      (equity[index] as number) / (equity[index - 1] as number) - 1;
+    sum += change;
+    if (change < 0) downsideSquares += change * change;
+  }
+  const mean = sum / periods;
+  let squares = 0;
+  for (let index = 1; index <= periods; index += 1) {
+    const change =
+      (equity[index] as number) / (equity[index - 1] as number) - 1;
+    squares += (change - mean) * (change - mean);
+  }
+  const annualizer = years > 0 ? Math.sqrt(periods / years) : 0;
+  const deviation = periods > 1 ? Math.sqrt(squares / (periods - 1)) : 0;
+  const downside = Math.sqrt(downsideSquares / periods);
+  return {
+    sharpe:
+      deviation > 0 && annualizer > 0 ? (mean / deviation) * annualizer : null,
+    sortino:
+      downside > 0 && annualizer > 0 ? (mean / downside) * annualizer : null,
+  };
+};
+
+const summarize = (
+  bars: BarColumns,
+  equity: Float64Array,
+  trades: readonly InstantTrade[],
+  barsInPosition: number
+): InstantStats => {
+  const size = equity.length;
+  const first = equity[0] as number;
+  const last = equity[size - 1] as number;
+  const years =
+    ((bars.t[size - 1] as number) - (bars.t[0] as number)) / YEAR_MS;
+  // Profit factor uses equity P&L per trade, so later trades on a larger account weigh more.
+  let grossWin = 0;
+  let grossLoss = 0;
+  let wins = 0;
+  for (const trade of trades) {
+    if (trade.pnl > 0) {
+      wins += 1;
+      grossWin += trade.pnl;
+    } else {
+      grossLoss -= trade.pnl;
+    }
+  }
+  // A very short series can make the annualized growth overflow; report it as not available.
+  const growth = years > 0 ? (last / first) ** (1 / years) - 1 : Number.NaN;
+  return {
+    bars: size,
+    cagr: Number.isFinite(growth) ? growth : null,
+    maxDrawdown: drawdownOf(equity),
+    totalReturn: last / first - 1,
+    ...ratioStats(equity, years),
+    buyHoldMaxDrawdown: drawdownOf(bars.c),
+    buyHoldReturn: (bars.c[size - 1] as number) / (bars.c[0] as number) - 1,
+    exposure: barsInPosition / size,
+    profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
+    trades: trades.length,
+    winRate: trades.length > 0 ? wins / trades.length : null,
+  };
+};
+
+/** Runs one backtest. Starting equity is 1. Throws InstantBacktestInputError on bad input. */
+export const runInstantBacktest = (
+  bars: BarColumns,
+  params: InstantRunParams
+): InstantRunResult => {
+  const size = assertColumns(bars);
+  assertParams(params);
+  const signals = signalsFor(bars, params.rule, size);
+  return runSignalBacktest(bars, signals, {
+    costBps: params.costBps,
+    stopLossPct: params.stopLossPct,
+    takeProfitPct: params.takeProfitPct,
+    ...(params.costs === undefined ? {} : { costs: params.costs }),
+  });
+};
+
+export type SignalRunOptions = Readonly<{
+  costBps: number;
+  /** Percent below the entry price; 0 turns the percent stop off. */
+  stopLossPct: number;
+  /** Percent above the entry price; 0 turns the percent target off. */
+  takeProfitPct: number;
+  /** Optional cost profile; `capital` converts unit equity to money for the charges. */
+  costs?: NonNullable<InstantRunParams["costs"]>;
+  /**
+   * Price distance below the entry price for the stop, read at the signal bar. Replaces the
+   * percent stop. A missing value (NaN or not above 0) on the signal bar blocks that entry.
+   */
+  stopDistance?: Float64Array;
+  /** Price distance above the entry price for the target, read at the signal bar. Replaces the percent target. */
+  targetDistance?: Float64Array;
+  /** Bars (1) on which to exit while in a position, in addition to -1 signals. */
+  exits?: Uint8Array;
+  /**
+   * Percent of equity to lose when the stop fills, before costs and gaps. Undefined means fully
+   * invested. Needs a stop; the position is capped at the available cash.
+   */
+  riskPct?: number;
+  /**
+   * Time exit: once a position has been held this many bars (the fill bar counts as one), it exits
+   * at the next open as a signal exit. Undefined means no time limit.
+   */
+  maxHoldBars?: number;
+}>;
+
+const assertSignalOptions = (
+  size: number,
+  signals: Int8Array,
+  options: SignalRunOptions
+): void => {
+  if (signals.length !== size) {
+    throw new InstantBacktestInputError("Signals must match the bar count");
+  }
+  assertParams({ ...options, rule: { fast: 1, kind: "smaCross", slow: 2 } });
+  const { maxHoldBars, riskPct } = options;
+  if (
+    riskPct !== undefined &&
+    !(Number.isFinite(riskPct) && riskPct > 0 && riskPct <= 100)
+  ) {
+    throw new InstantBacktestInputError(
+      "riskPct must be above 0 and at most 100"
+    );
+  }
+  if (
+    maxHoldBars !== undefined &&
+    !(Number.isInteger(maxHoldBars) && maxHoldBars >= 1)
+  ) {
+    throw new InstantBacktestInputError(
+      "maxHoldBars must be a whole number of at least 1"
+    );
+  }
+};
+
+/** Distance at the signal bar; NaN when missing or not above 0. */
+const distanceAt = (series: Float64Array | undefined, index: number) => {
+  const value = series === undefined ? Number.NaN : (series[index] as number);
+  return value > 0 ? value : Number.NaN;
+};
+
+/**
+ * Runs the fill and accounting model over precomputed signals: 1 enters while flat, -1 exits while
+ * in a position, 0 does nothing. Signals act at the open of the next bar.
+ */
+export const runSignalBacktest = (
+  bars: BarColumns,
+  signals: Int8Array,
+  options: SignalRunOptions
+): InstantRunResult => {
+  const size = assertColumns(bars);
+  assertSignalOptions(size, signals, options);
+  const cost = options.costBps / BPS;
+  const stopFactor =
+    options.stopLossPct > 0 ? 1 - options.stopLossPct / PERCENT : 0;
+  const targetFactor =
+    options.takeProfitPct > 0 ? 1 + options.takeProfitPct / PERCENT : 0;
+  const equity = new Float64Array(size);
+  const trades: InstantTrade[] = [];
+  let cash = 1;
+  let position: PositionState | null = null;
+  let pending: 1 | -1 | 0 = 0;
+  let pendingStop = Number.NaN;
+  let pendingTarget = Number.NaN;
+  let barsInPosition = 0;
+  const costs = options.costs ?? null;
+  const slip = costs?.profile.slippage;
+  const atr =
+    slip?.kind === "atr"
+      ? averageTrueRange(bars.h, bars.l, bars.c, slip.period)
+      : null;
+  const atrBefore = (index: number): number =>
+    atr === null || index === 0 ? Number.NaN : (atr[index - 1] as number);
+
+  const exitPosition = (
+    index: number,
+    price: number,
+    reason: InstantTrade["exitReason"]
+  ) => {
+    const open = position as PositionState;
+    let fill = price;
+    let legs: Legs | null = null;
+    let proceeds: number;
+    if (costs === null || open.legs === null) {
+      proceeds = open.units * price * (1 - cost);
+    } else {
+      const { capital, profile } = costs;
+      const sell = fillCosts(
+        profile,
+        "sell",
+        open.units * capital,
+        price,
+        atrBefore(index)
+      );
+      fill = sell.price;
+      proceeds =
+        open.units * fill * (1 - cost) -
+        (sell.commission + sell.fees) / capital;
+      legs = {
+        bps: open.legs.bps + open.units * fill * cost,
+        commission: open.legs.commission + sell.commission / capital,
+        fees: open.legs.fees + sell.fees / capital,
+        slippage: open.legs.slippage + sell.slippage / capital,
+        spread: open.legs.spread + sell.spread / capital,
+      };
+    }
+    cash = open.rest + proceeds;
+    const pnl = cash - open.entryCash;
+    const total =
+      legs === null
+        ? 0
+        : legs.commission + legs.fees + legs.spread + legs.slippage + legs.bps;
+    trades.push({
+      entryIndex: open.entryIndex,
+      entryPrice: open.entryPrice,
+      exitIndex: index,
+      exitPrice: fill,
+      exitReason: reason,
+      netReturn: proceeds / open.spent - 1,
+      pnl,
+      units: open.units,
+      ...(legs === null
+        ? {}
+        : { costs: { ...legs, total }, grossPnl: pnl + total }),
+    });
+    position = null;
+  };
+
+  /** Cash to commit: all of it, or the amount that loses riskPct of equity at the stop. */
+  const spendFor = (open: number, stop: number): number => {
+    if (options.riskPct === undefined) return cash;
+    const perUnit = open - stop;
+    if (!(perUnit > 0)) return 0;
+    const riskUnits = (cash * options.riskPct) / PERCENT / perUnit;
+    return Math.min(cash, (riskUnits * open) / (1 - cost));
+  };
+
+  const enter = (index: number, open: number) => {
+    // A configured distance level that is not available yet (too few bars) blocks the entry, so
+    // a position never opens without the stop or target the strategy asked for.
+    if (
+      (options.stopDistance !== undefined && Number.isNaN(pendingStop)) ||
+      (options.targetDistance !== undefined && Number.isNaN(pendingTarget))
+    )
+      return;
+    const levels = (entryPrice: number) => ({
+      stop:
+        options.stopDistance === undefined
+          ? stopFactor > 0
+            ? entryPrice * stopFactor
+            : Number.NaN
+          : entryPrice - pendingStop,
+      target:
+        options.targetDistance === undefined
+          ? targetFactor > 0
+            ? entryPrice * targetFactor
+            : Number.NaN
+          : entryPrice + pendingTarget,
+    });
+    if (costs === null) {
+      const { stop, target } = levels(open);
+      const spent = spendFor(open, stop);
+      if (spent <= 0) return;
+      position = {
+        entryCash: cash,
+        entryIndex: index,
+        entryPrice: open,
+        legs: null,
+        rest: cash - spent,
+        spent,
+        stop,
+        target,
+        units: (spent * (1 - cost)) / open,
+      };
+      return;
+    }
+    const { capital, profile } = costs;
+    const atrNow = atrBefore(index);
+    const quote = fillCosts(profile, "buy", 0, open, atrNow);
+    const quoted = levels(quote.price);
+    const spent = spendFor(quote.price, quoted.stop);
+    const units = affordableUnits(
+      profile,
+      spent * (1 - cost),
+      quote.price,
+      capital
+    );
+    if (!(units > 0)) return;
+    const buy = fillCosts(profile, "buy", units * capital, open, atrNow);
+    position = {
+      entryCash: cash,
+      entryIndex: index,
+      entryPrice: buy.price,
+      legs: {
+        bps: spent * cost,
+        commission: buy.commission / capital,
+        fees: buy.fees / capital,
+        slippage: buy.slippage / capital,
+        spread: buy.spread / capital,
+      },
+      rest: cash - spent,
+      spent,
+      units,
+      ...levels(buy.price),
+    };
+  };
+
+  for (let index = 0; index < size; index += 1) {
+    const open = bars.o[index] as number;
+    // A pending entry exists only while flat and a pending exit only while in a position.
+    if (pending === 1) enter(index, open);
+    else if (pending === -1) exitPosition(index, open, "signal");
+    pending = 0;
+    if (position !== null) {
+      const held: PositionState = position;
+      if (!Number.isNaN(held.stop) && (bars.l[index] as number) <= held.stop) {
+        exitPosition(index, Math.min(open, held.stop), "stop");
+      } else if (
+        !Number.isNaN(held.target) &&
+        (bars.h[index] as number) >= held.target
+      ) {
+        exitPosition(index, Math.max(open, held.target), "target");
+      }
+    }
+    const signal = signals[index] as number;
+    if (index < size - 1) {
+      if (signal === 1 && position === null) {
+        pending = 1;
+        pendingStop = distanceAt(options.stopDistance, index);
+        pendingTarget = distanceAt(options.targetDistance, index);
+      }
+      // A time exit counts the fill bar as the first bar held.
+      if (
+        position !== null &&
+        (signal === -1 ||
+          options.exits?.[index] === 1 ||
+          (options.maxHoldBars !== undefined &&
+            index - (position as PositionState).entryIndex + 1 >=
+              options.maxHoldBars))
+      )
+        pending = -1;
+    }
+    const mark = bars.c[index] as number;
+    if (position !== null) barsInPosition += 1;
+    equity[index] =
+      position === null
+        ? cash
+        : (position as PositionState).rest +
+          (position as PositionState).units * mark;
+  }
+  if (position !== null) {
+    exitPosition(size - 1, bars.c[size - 1] as number, "end");
+    equity[size - 1] = cash;
+  }
+  return {
+    equity,
+    stats: summarize(bars, equity, trades, barsInPosition),
+    trades,
+  };
+};
+
+/**
+ * Reduces a series to at most `maxPoints` indexes for charting: the last bar of each equal-size
+ * bucket, always including the first and last bar. Statistics never use the reduced series.
+ */
+export const downsampleIndexes = (
+  size: number,
+  maxPoints: number
+): number[] => {
+  if (maxPoints < 2) throw new RangeError("maxPoints must be at least 2");
+  if (size <= maxPoints) return Array.from({ length: size }, (_, i) => i);
+  const bucket = Math.ceil((size - 1) / (maxPoints - 1));
+  const indexes = [0];
+  for (let index = bucket; index < size - 1; index += bucket) {
+    indexes.push(index);
+  }
+  indexes.push(size - 1);
+  return indexes;
+};

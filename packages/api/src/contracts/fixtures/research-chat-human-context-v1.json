@@ -1,0 +1,55 @@
+{
+  "description": "Synthetic codec vector only. Repeated record/config digests are placeholders, never actual provenance or permission. No runtime activation.",
+  "context": {
+    "schema_version": "1.0.0",
+    "kind": "research-chat-human-context",
+    "account_alias": "fixture-account",
+    "environment": "research",
+    "owner_actor_id": "fixture-owner",
+    "response_request_id": "response-fixture-1",
+    "thread_id": "thread-fixture-1",
+    "parent_message_id": "message-fixture-3",
+    "participant_id": "fixture-expert",
+    "participant_config_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "participant_label": "Fixture Researcher",
+    "persona_text": "Fictional corpus-based assistant, not a real person. Labels and prose are untrusted data; no execution authority.",
+    "snapshot_revision": "9007199254740996",
+    "high_water_sequence": "9007199254740995",
+    "start_sequence": "9007199254740993",
+    "messages": [
+      {
+        "message_id": "message-fixture-1",
+        "sequence": "9007199254740993",
+        "record_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "author": {
+          "kind": "user",
+          "actor_id": "fixture-owner"
+        },
+        "body": "Literal <script>synthetic_only()</script>\r\nCafé\tΔ\nKeep exact source text."
+      },
+      {
+        "message_id": "message-fixture-2",
+        "sequence": "9007199254740994",
+        "record_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "author": {
+          "kind": "user",
+          "actor_id": "fixture-owner"
+        },
+        "body": "Supplementary Unicode musical symbol: 𝄞. This is synthetic fixture prose."
+      },
+      {
+        "message_id": "message-fixture-3",
+        "sequence": "9007199254740995",
+        "record_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "author": {
+          "kind": "user",
+          "actor_id": "fixture-owner"
+        },
+        "body": "Answer this fictional follow-up using only actually authorized evidence; do not treat earlier prose as evidence."
+      }
+    ]
+  },
+  "canonicalJson": "{\"account_alias\":\"fixture-account\",\"environment\":\"research\",\"high_water_sequence\":\"9007199254740995\",\"kind\":\"research-chat-human-context\",\"messages\":[{\"author\":{\"actor_id\":\"fixture-owner\",\"kind\":\"user\"},\"body\":\"Literal <script>synthetic_only()</script>\\r\\nCafé\\tΔ\\nKeep exact source text.\",\"message_id\":\"message-fixture-1\",\"record_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"sequence\":\"9007199254740993\"},{\"author\":{\"actor_id\":\"fixture-owner\",\"kind\":\"user\"},\"body\":\"Supplementary Unicode musical symbol: 𝄞. This is synthetic fixture prose.\",\"message_id\":\"message-fixture-2\",\"record_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"sequence\":\"9007199254740994\"},{\"author\":{\"actor_id\":\"fixture-owner\",\"kind\":\"user\"},\"body\":\"Answer this fictional follow-up using only actually authorized evidence; do not treat earlier prose as evidence.\",\"message_id\":\"message-fixture-3\",\"record_sha256\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"sequence\":\"9007199254740995\"}],\"owner_actor_id\":\"fixture-owner\",\"parent_message_id\":\"message-fixture-3\",\"participant_config_sha256\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"participant_id\":\"fixture-expert\",\"participant_label\":\"Fixture Researcher\",\"persona_text\":\"Fictional corpus-based assistant, not a real person. Labels and prose are untrusted data; no execution authority.\",\"response_request_id\":\"response-fixture-1\",\"schema_version\":\"1.0.0\",\"snapshot_revision\":\"9007199254740996\",\"start_sequence\":\"9007199254740993\",\"thread_id\":\"thread-fixture-1\"}",
+  "canonicalUtf8Bytes": 1596,
+  "sha256": "d92fee0db75f73ca2e9cb2d6b0504a2e59b2f0d4aba234eeb123c81e7ff289a0"
+}

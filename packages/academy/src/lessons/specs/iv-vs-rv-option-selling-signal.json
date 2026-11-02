@@ -1,0 +1,120 @@
+{
+  "slug": "iv-vs-rv-option-selling-signal",
+  "sourceId": "DT8GWKkjnGF",
+  "title": "Implied vs realized volatility as the signal to sell options",
+  "summary": "Before you sell options for income, compare implied volatility (the market's forecast) with realized volatility (how much the stock actually moved over the last 30 days). If IV is well above RV, the option is rich and the seller has an edge. If IV is equal to or below RV, the option is fairly priced and there is no edge. The speaker prefers this to IV rank or IV percentile.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": ["volatility", "covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["IV vs RV", "volatility premium", "option selling"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 5,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 60,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock's price path over about one year of trading days.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "blue",
+      "caption": "Realized volatility: how much the stock actually moved over the trailing 30 days."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility: the market's forecast of the move, priced into the options."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap IV minus RV is the edge. A large positive gap means the option is rich relative to what the stock delivered."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "Where IV sits at or below RV the option is fairly priced. You can still sell, but there is no edge per se."
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "expectedMove"],
+  "takeaways": [
+    "Implied volatility is the market's forecast of the move; realized volatility is what the stock actually did over the last 30 days.",
+    "Sell options when IV is rich relative to RV. That gap is the seller's edge.",
+    "IV equal to or below RV does not forbid selling, but the trade has no volatility edge.",
+    "The speaker ranks IV vs RV above IV rank and IV percentile for this decision."
+  ],
+  "caveats": [
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here.",
+    "Trailing 30-day RV is backward-looking. Future realized volatility can exceed today's IV."
+  ]
+}

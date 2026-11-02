@@ -1,0 +1,233 @@
+"use client";
+
+import type { Lesson } from "@darkfactory/academy";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { useMemo } from "react";
+
+import {
+  type AcademyGateway,
+  createBrowserAcademyGateway,
+} from "./academy-client.ts";
+import type { AcademyMediaEntry } from "./academy-gallery.tsx";
+import { AcademyThemeScope, AcademyThemeToggle } from "./academy-theme.tsx";
+import { LABELS, labelOf } from "./labels.ts";
+import { LessonBacktest } from "./lesson-backtest.tsx";
+import { LessonDeploy } from "./lesson-deploy.tsx";
+import { LessonInteractive } from "./lesson-interactive.tsx";
+import { LessonVideo } from "./lesson-video.tsx";
+
+const clock = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
+const Section = ({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) => (
+  <section
+    aria-labelledby={`${id}-title`}
+    className="flex scroll-mt-20 flex-col gap-3"
+    id={id}
+  >
+    <h2 className="font-heading font-semibold text-xl" id={`${id}-title`}>
+      {title}
+    </h2>
+    {children}
+  </section>
+);
+
+export type AcademyLessonProps = Readonly<{
+  lesson: Lesson;
+  media: AcademyMediaEntry | null;
+  previous: { slug: string; title: string } | null;
+  next: { slug: string; title: string } | null;
+  gateway?: AcademyGateway;
+}>;
+
+export const AcademyLesson = ({
+  lesson,
+  media,
+  previous,
+  next,
+  gateway: injected,
+}: AcademyLessonProps) => {
+  const gateway = useMemo(
+    () => injected ?? createBrowserAcademyGateway(),
+    [injected]
+  );
+  const strategy = lesson.kind === "strategy" && lesson.backtest !== undefined;
+  const sections = [
+    ["video", "Video"],
+    ["interactive", "Interactive example"],
+    ...(strategy
+      ? [
+          ["backtest", "Backtest"],
+          ["deploy", "Deploy"],
+        ]
+      : []),
+    ["transcript", "Transcript"],
+  ] as const;
+  return (
+    <AcademyThemeScope>
+      <article
+        className="mx-auto flex max-w-7xl flex-col gap-8"
+        data-academy-lesson={lesson.slug}
+      >
+        <header className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Link
+              className="inline-flex min-h-11 items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
+              href="/academy"
+              prefetch={false}
+            >
+              <ArrowLeft aria-hidden className="size-4" /> All lessons
+            </Link>
+            <AcademyThemeToggle />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded px-2 py-0.5 font-medium text-xs ${strategy ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
+            >
+              {strategy ? "Strategy" : "Concept lesson"}
+            </span>
+            {[
+              ...lesson.tags.regime,
+              ...lesson.tags.instruments,
+              lesson.tags.timeframe,
+              lesson.tags.risk,
+            ].map((tag) => (
+              <span
+                className="rounded border border-border px-1.5 py-0.5 text-muted-foreground text-xs"
+                key={tag}
+              >
+                {labelOf(tag)}
+              </span>
+            ))}
+          </div>
+          <h1 className="font-heading font-semibold text-2xl sm:text-3xl">
+            {lesson.title}
+          </h1>
+          <p className="max-w-4xl text-muted-foreground">{lesson.summary}</p>
+          <nav aria-label="Lesson sections" className="flex flex-wrap gap-2">
+            {sections.map(([id, label]) => (
+              <a
+                className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-sm hover:bg-muted"
+                href={`#${id}`}
+                key={id}
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+        </header>
+        <Section id="video" title="Chart video">
+          <LessonVideo lesson={lesson} media={media} />
+        </Section>
+        <Section id="interactive" title="Interactive example">
+          <LessonInteractive lesson={lesson} />
+        </Section>
+        <section aria-label="Key points" className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-border p-3">
+            <h2 className="mb-2 font-semibold text-sm">Takeaways</h2>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {lesson.takeaways.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <h2 className="mb-2 font-semibold text-sm">Caveats</h2>
+            <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-sm">
+              {[...lesson.caveats, LABELS.disclaimer].map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </section>
+        {strategy ? (
+          <>
+            <Section id="backtest" title="Backtest">
+              <LessonBacktest gateway={gateway} lesson={lesson} />
+            </Section>
+            <Section id="deploy" title="Deploy (paper request)">
+              <LessonDeploy gateway={gateway} lesson={lesson} />
+            </Section>
+          </>
+        ) : (
+          <p
+            className="rounded-lg border border-border p-3 text-muted-foreground text-sm"
+            data-concept-note
+          >
+            Concept lesson: this video explains an idea and has no tradeable
+            rule set, so it has no backtest and no deploy button.
+          </p>
+        )}
+        <Section id="transcript" title="Transcript">
+          <p className="text-muted-foreground text-sm">
+            Source:{" "}
+            <a
+              className="inline-flex items-center gap-1 underline"
+              href={lesson.source.url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {lesson.source.caption.slice(0, 90)}{" "}
+              <ExternalLink aria-hidden className="size-3" />
+            </a>{" "}
+            · published {lesson.source.publishedAt.slice(0, 10)} ·{" "}
+            {clock(lesson.source.durationSeconds)}. Timestamps are estimated
+            from word position (speech-to-text without segment times).
+          </p>
+          <ol
+            className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
+            data-transcript
+          >
+            {lesson.source.transcript.map((line) => (
+              <li
+                className="flex gap-3"
+                key={`${line.start}-${line.text.slice(0, 12)}`}
+              >
+                <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
+                  {clock(line.start)}
+                </span>
+                <span>{line.text}</span>
+              </li>
+            ))}
+          </ol>
+        </Section>
+        <nav
+          aria-label="More lessons"
+          className="flex flex-wrap justify-between gap-3 border-border border-t pt-4 text-sm"
+        >
+          {previous === null ? (
+            <span />
+          ) : (
+            <Link
+              className="min-h-11 underline"
+              href={`/academy/${previous.slug}`}
+              prefetch={false}
+            >
+              ← {previous.title}
+            </Link>
+          )}
+          {next === null ? (
+            <span />
+          ) : (
+            <Link
+              className="min-h-11 underline"
+              href={`/academy/${next.slug}`}
+              prefetch={false}
+            >
+              {next.title} →
+            </Link>
+          )}
+        </nav>
+      </article>
+    </AcademyThemeScope>
+  );
+};

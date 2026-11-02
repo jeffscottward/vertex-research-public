@@ -1,0 +1,94 @@
+{
+  "slug": "selling-volatility-second-order",
+  "sourceId": "DTfuUhdkRzD",
+  "title": "Selling volatility should support core positions, not replace them",
+  "summary": "The speaker compares option income to taxes: a second-order effect. You would not sell a stock you like only for a tax loss. If selling volatility becomes the main return driver, you cap upside, add tail risk and lower long-run returns. Manage volatility around good core positions.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "covered-calls", "hedging"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": [
+      "portfolio construction",
+      "core positions",
+      "overlays",
+      "tail risk"
+    ]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 80,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options overlay",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Leverage",
+      "default": 1,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.1,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The bar is the whole portfolio. Each part has a different job."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Core: 80% in anchor positions you want to own. They drive most of the return."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "Options overlay: about 10%. Selling volatility here complements the core."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Cash and reserves fill the rest and back any short options."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "If option selling becomes the main driver, upside is capped and tail risk grows."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "Main idea: treat option income like taxes, a second-order effect around the core."
+    }
+  ],
+  "formulas": ["positionSize", "annualizedYield"],
+  "takeaways": [
+    "Option income is a second-order effect, like taxes.",
+    "Making short volatility the main return driver caps upside, increases tail risk and lowers total return over time.",
+    "Build good core positions first; use option overlays around them."
+  ],
+  "caveats": [
+    "The 80/10/10 split is an illustration, not the speaker's number.",
+    "The transcript ends with a promotion for the speaker's website and waitlist."
+  ]
+}

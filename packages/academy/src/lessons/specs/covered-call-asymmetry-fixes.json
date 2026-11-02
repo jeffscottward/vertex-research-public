@@ -1,0 +1,155 @@
+{
+  "slug": "covered-call-asymmetry-fixes",
+  "sourceId": "DcywZpsxhBF",
+  "title": "Covered calls have negative asymmetry: four ways to reduce it",
+  "summary": "Covered calls take the elevator down and the escalator up: full downside, capped upside. The speaker gives fixes: choose strikes on purpose (OTM for more upside, ITM for more downside protection), sell fewer calls than shares you own, such as 4 contracts on 500 shares, and keep some names with no calls as the growth part of the portfolio.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["covered-calls", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "asymmetry", "partial overwrite"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "lots"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 108,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "lots",
+      "label": "Lots of 100 shares",
+      "default": 5,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "shares"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 4,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Own 500 shares at $100."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "Sell only 4 calls, one strike further out, instead of 5."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At expiry: a normal covered call below the strike, and still rising above it."
+    },
+    {
+      "element": "zones",
+      "color": "green",
+      "caption": "Above the strike the uncovered 100 shares keep participating in the upside."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Premium lowers breakeven a little. An ITM strike would protect more on the downside."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The downside is still almost the full stock loss: the elevator down."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield", "breakevenCall"],
+  "takeaways": [
+    "Covered calls keep the downside and cap the upside.",
+    "Pick OTM strikes for upside or ITM strikes for downside protection.",
+    "Sell fewer calls than shares, and leave some names uncovered for growth."
+  ],
+  "caveats": [
+    "Part of the transcript is cut, so one of the four ideas is missing.",
+    "Covered calls hold stock; check the owner's options-only rule before deploying."
+  ],
+  "backtest": {
+    "structure": "covered_call",
+    "tickers": ["AAPL", "MSFT", "KO", "JPM", "SPY"],
+    "scenario": {
+      "label": "2015-2024 decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": 0.25,
+      "exitDte": 3,
+      "riskPct": 20
+    },
+    "note": "Monthly 25-delta covered call on liquid names; OTM strike to keep more upside."
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@darkfactory/shared",
+  "brick": "product",
+  "description": "Vertex shared primitives: canonical JSON, hashing and artifact helpers.",
+  "version": "0.2.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./vertex": {
+      "import": "./src/vertex/index.ts",
+      "default": "./src/vertex/index.ts"
+    },
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "devDependencies": {
+    "@darkfactory/testkit": "workspace:*",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  }
+}

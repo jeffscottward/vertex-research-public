@@ -1,0 +1,210 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_at": "2026-09-23T21:19:20.671Z",
+  "state": "concrete-source-authored-static-hash-inspected-NOT-compiled-built-loaded-or-runtime-qualified",
+  "supersedes": "Owner-unmounted continuation and two-file vendor delta in services/ibkr-history/source-handoff.json are historical; this handoff plus current provenance.json describe the new source.",
+  "mount": {
+    "path": "HostRuntime.__init__ -> StartupHistoryPort -> first trusted IBKR dataset acquire after durable intent ACK -> HostRuntime._start_history_owner -> fresh current control lease/selection/rights/capability/profile review -> measured same-image VertexHistoryOwner.bootstrap -> existing registry as_arc -> HistoryAdapter",
+    "defaults": "ibkrHistory absent/null: no history module activation, SDK import, connection, startup or changed ordinary Nautilus/native-paper behavior.",
+    "scope": "Explicit exclusive research dataset-only host. Reject kernel/paper/native approval/native admin/ordinary Nautilus config and ordinary existing/pending registry use. Managed-image API ownership only; NOT external TWS/API client/account-wide pacing.",
+    "startup": "Exactly once per process generation; retained failure latch/no retry/reconnect. Already active dispatcher renewal/cancellation/deadline machinery remains unchanged. Native import/bootstrap runs in retained joined thread, native qualification checks live host authority and cancellation before sends and while awaiting; insufficient startup+request+outcome budget fails before connection. The original staged request bytes are never rewritten.",
+    "config": {
+      "optional_key": "ibkrHistory",
+      "exact_fields": [
+        "distributionRoot",
+        "endpoint",
+        "profileArtifactId",
+        "profileEvidenceArtifactId",
+        "profileCollectionId"
+      ],
+      "endpoint_exact_fields": [
+        "endpointRef",
+        "host",
+        "port",
+        "clientId",
+        "connectionTimeoutSeconds"
+      ],
+      "profile_contract": "HostIBKRHistoryProfile@1.0.0, role dependency",
+      "profile_exact_fields": [
+        "format",
+        "accountAlias",
+        "environment",
+        "collectionId",
+        "endpointRef",
+        "distribution",
+        "binding",
+        "qualifications",
+        "capabilities"
+      ],
+      "profile_format": "vertex-ibkr-history-owner-v1",
+      "profile_review": "Selected ResearchEvidence in the exact nonnull profileCollectionId must bind profile artifact ID and bytes through sourceLocator/sourceIdentity.sourceId/contentHash. Existing scoped readArtifact and acceptedEvidence return the same original evidence bytes/hash plus current accepted research review and current rights. Config chooses scope/endpoint but grants no authority; no imaginary RuntimePolicySelection.collections."
+    }
+  },
+  "same_image": {
+    "nautilus_commit": "1b0a49d2792a9432a3aca3fcb617ce7a630d905e",
+    "source_patch": "services/ibkr-history/nautilus/nautilus-2.0.0rc5-vertex-history.patch",
+    "build_copy_and_feature_provenance": "services/ibkr-history/nautilus/provenance.json",
+    "ibapi_identity": "Root Cargo path patch and Vertex library relative path resolve to the identical vendor/ibapi-3.3.0 crate. Direct Rust Arc<Client> argument, no opaque wheel/capsule/unsafe cast/second registry.",
+    "registry": "Permanent atomic pristine -> ordinary OR pristine -> exclusive latch. Ordinary prior calls include in-flight connect and exposed handles; they exclude history forever in this process. History branch calls existing connection implementation and holds its SharedClientHandle. No raw client/account/order/login/reset/disconnect is exposed to the dataset.",
+    "reconnect": "Approved opt-in ibapi/vertex-exclusive-history-owner feature closes existing routed channels and marks disconnected on connection loss before the stock reconnect path. Feature-off branch retains original behavior."
+  },
+  "authority_and_retention": {
+    "api": "One native admission object checks expected generation, connected state and current host authority; one mutex atomically reserves possible API units. Conservative max4 units through latest possible send +1sec; bootstrap reserves2 units, qualifier1, history2 including possible cancel. Not a claim of official universal provider rate limits.",
+    "history": "One SharedHistoryBudget per exclusive owner, reused across jobs. Existing bounded strict one-shot adapter/no retry semantics remain.",
+    "futures": "Native retains every JoinHandle and exact outcome; Python shielded waiter maps task/event cancellation to native token and returns incomplete capture, never drops it as cancellation proof. Native exact ACK joins completed task before release. Up to8 outcomes/4MiB each; missing ACK/full retention prevents more work/clean drain.",
+    "ack_interface": "async HistoryOwnerPort.acknowledge_capture(*, request_sha256:str, capture_sha256:str, stage_artifact_id:str)->None; native local release only after trusted dataset handler verifies actual matching immutable stage accepted/duplicate receipt. stage_artifact_id exactly blob-<captureSha>. No ACK-on-return or broker acknowledgment claim.",
+    "durability": "Original request intent is staged before acquisition by the dataset handler. Every complete/incomplete returned capture embeds qualification originals and is staged before ordinary qualification/publication. Stage is NOT committed/reviewed dataset. Expired/revoked/unknown stage can fail; unacknowledged native memory and unresolved dispatch block clean drain. Memory is NOT crash durability; surviving durable intent requires reconciliation after crash, never fabricated outcome/receipt."
+  },
+  "qualification": {
+    "request": "Existing ibapi contract_details: one send_raw -> send_request -> write_message, returns only on ContractDataEnd, no retry; exactly one result accepted. Timeout/cancellation/other failure latches this generation unavailable.",
+    "reviewed_stable_projection": [
+      "contract_id",
+      "security_type",
+      "symbol",
+      "currency",
+      "exchange",
+      "primary_exchange",
+      "local_symbol",
+      "trading_class",
+      "min_tick_f64_bits",
+      "price_magnifier",
+      "timezone"
+    ],
+    "projection_hash": "SHA256 of serde_json::to_vec(BTreeMap<String,Value>) for the listed stable decoded fields. Currency/security serialization is pinned SDK serialization. Rolling trading_hours/liquid_hours intentionally excluded.",
+    "reviewed_qualification_exact_fields": [
+      "contract_ref",
+      "contract",
+      "expected_stable_sha256",
+      "price_precision",
+      "volume_unit",
+      "calendar_ref"
+    ],
+    "full_original": "Every qualified_contract now has exact keys decoded_contract,semantics,qualification_capture. qualification_capture exact fields encoding=ibapi-serde-json,original_bytes_base64,sha256,observed_unix_ns,raw_wire=false. Nonempty original <=65536bytes, canonical Base64<=87384chars, SHA equals semantics.details_sha256; native verifies full original ContractDetails.contract and magnifier/timezone match. True observed clock after terminal must precede history acquisition clock. SDK-serde fidelity, NOT original wire.",
+    "byte_accounting": "Qualification embedding occurs in native Envelope::new before overhead reservation, any request dispatch and final capture SHA. Missing/oversized originals fail unavailable; no post-hash Python rewriting. All original bar/tick numeric bits, dates/timestamps/ordinals/request metadata remain unchanged."
+  },
+  "verification": {
+    "performed": [
+      "static source inspection of SDK qualification/one-shot send/automatic-reconnect/shutdown paths",
+      "8 exact tagged files matched immutable Nautilus commit",
+      "all466 upstream SDK file paths/hash compared: exactly4 opt-in modified files",
+      "text-only unified patch hunk/context reconstruction:5 Nautilus existing files and4 SDK files",
+      "source hashes and JSON handoff readback"
+    ],
+    "not_performed": [
+      "tests",
+      "test authoring",
+      "application imports",
+      "compiler",
+      "build",
+      "lint",
+      "format",
+      "schema/code generation",
+      "runtime",
+      "data/broker/API session requests",
+      "gateway/session/restart",
+      "models",
+      "native-paper",
+      "grants",
+      "deployment"
+    ]
+  },
+  "remaining_prerequisites": [
+    "Future explicitly authorized compile/type/runtime verification and reviewed same-image build with exact feature/path patch, resolved lockfile/dependency identity and complete compiled distribution inventory. This source patch is NOT installed/built/loaded.",
+    "Real current scoped profile/evidence review, exact stable equity/units/calendar qualification sources, authorized owner endpoint/client ID and unambiguous external session ownership; actual broker permissions/subscriptions/availability/storage/derived rights. No invented account-wide exclusivity.",
+    "Actual future owner process/resource containment and SDK predecode allocation qualification; output row/byte caps alone do not bound protobuf frames/vectors before decoding.",
+    "Operational recovery for unresolved durable intents, missing outcomes/ACKs or generation loss, including crashes. No automatic reconnect, reset, lease fabrication, bypass grant or new persistence protocol."
+  ],
+  "untouched": "No dispatcher/backtest-ledger edit, gateway recovery/control API, pure risk crate, native-paper runner, live feed, model/process/deployment/config activation, or lab-gate changes.",
+  "source_files": [
+    {
+      "path": "services/ibkr-history/Cargo.toml",
+      "sha256": "d0c8ae720098df76c52d61d72185c608a1754f748826a1499e160e057ea56534",
+      "bytes": 785
+    },
+    {
+      "path": "services/ibkr-history/src/lib.rs",
+      "sha256": "8a24bfd213e9db3e56685ef672a664e6105cf4e4feb634a2a10e1225cffeb04c",
+      "bytes": 1636
+    },
+    {
+      "path": "services/ibkr-history/src/adapter.rs",
+      "sha256": "c32a1d3854de7028b7a1448594b24c266172eaba8c5b370a83d1f7078b37bce0",
+      "bytes": 28528
+    },
+    {
+      "path": "services/ibkr-history/src/contracts.rs",
+      "sha256": "54badd15a0d2c2245da776bdce2d0eff0c049b94d4ee6bb925dfd97b7b33fd8d",
+      "bytes": 5856
+    },
+    {
+      "path": "services/ibkr-history/src/pacing.rs",
+      "sha256": "9a8fef78e158794910a8137f278d77298a2e4c3dd624289d4a2549612537550e",
+      "bytes": 4347
+    },
+    {
+      "path": "services/ibkr-history/ibapi-3.3.0-vertex-strict.patch",
+      "sha256": "dce6c55e99875d78d8bc8c121f8ea850617dd9e6260d5c8014f09f96c6877b4a",
+      "bytes": 13150
+    },
+    {
+      "path": "services/ibkr-history/provenance.json",
+      "sha256": "814a039847347af219c76f7b7adc230abd927437f1f74c4b266090f8a6dcf770",
+      "bytes": 2964
+    },
+    {
+      "path": "services/ibkr-history/nautilus/vertex_history.rs",
+      "sha256": "d98715125f30825862c94b916cb6d10dcc09535bca74e952829f043aa9470f0a",
+      "bytes": 16196
+    },
+    {
+      "path": "services/ibkr-history/nautilus/nautilus-2.0.0rc5-vertex-history.patch",
+      "sha256": "b1ff889820a08ef59e81f830fa3aafdad6535138830fac9a8dfcd0b53bf77f88",
+      "bytes": 4008
+    },
+    {
+      "path": "services/ibkr-history/nautilus/LICENSE",
+      "sha256": "ee907919ec88c9c017b1f8b608db20960b6598aefcc4fe58820bde955d65ed3c",
+      "bytes": 7651
+    },
+    {
+      "path": "services/ibkr-history/nautilus/provenance.json",
+      "sha256": "e91d118d03b07ccb946663f40d0c44f3d14573b116eeb2aed0250f2b0e958af3",
+      "bytes": 6253
+    },
+    {
+      "path": "services/ibkr-history/vendor/ibapi-3.3.0/Cargo.toml",
+      "sha256": "c3d2d2e8b6fe9e4b59a1745d69b877caedd19f74c9e720e2020ddc379378937b",
+      "bytes": 18741
+    },
+    {
+      "path": "services/ibkr-history/vendor/ibapi-3.3.0/src/transport/async.rs",
+      "sha256": "6621c2953c047179441fbdc91dbf09c1e41c5d700bcae287a7b67336fa1cefb9",
+      "bytes": 34709
+    },
+    {
+      "path": "services/host/vertex_host/config.py",
+      "sha256": "7f561659dcf72941f740501ce13d4ac45072707fb24f404df25fc2593900def8",
+      "bytes": 8776
+    },
+    {
+      "path": "services/host/vertex_host/lifecycle.py",
+      "sha256": "cafe1fa8dac3ee2ed93ccd474d597d4cce22493a0e1bd21662e201c83d4970a9",
+      "bytes": 59626
+    },
+    {
+      "path": "services/host/vertex_host/selection.py",
+      "sha256": "5059e1b882645116be79b669c433a2dfe2d32a117b10cb986aa44016f31afea8",
+      "bytes": 6133
+    },
+    {
+      "path": "services/host/vertex_host/ibkr_history.py",
+      "sha256": "d877c227c995c9f36e0d85a12e1fa02cbfd8dacaedddde972b6d9d8a0d4ce442",
+      "bytes": 19567
+    },
+    {
+      "path": "services/research/providers/ibkr_history.py",
+      "sha256": "5911ac0b185e72dd083fec494e558a48932002b1b877bd19b713f1cee6f9dd06",
+      "bytes": 12045
+    }
+  ]
+}

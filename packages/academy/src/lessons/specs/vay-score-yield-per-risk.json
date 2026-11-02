@@ -1,0 +1,165 @@
+{
+  "slug": "vay-score-yield-per-risk",
+  "sourceId": "DXwz7NWOt3Z",
+  "title": "Volatility adjusted yield: option yield per unit of risk",
+  "summary": "The key question for an option seller: am I paid enough for the risk? The speaker's VAY metric divides option yield by risk. For a one-month at-the-money covered call, a VAY of 0.5 means 0.5 units of yield per unit of risk, a poor trade; 2.2 is a good trade. Two trades with the same premium can have very different VAY.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["vay", "yield per risk", "premium", "covered call"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Same yield, IV 25%",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Same yield, IV 60%",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strikeB",
+          "dte": "dte",
+          "iv": "ivB"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike A",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strikeB",
+      "label": "Call strike B",
+      "default": 104,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivB",
+      "label": "IV of name B",
+      "default": 60,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Two one-month at-the-money style covered calls on $100 stocks."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "A: the low-volatility name. Its yield per unit of risk is high, like a VAY of 2.2."
+    },
+    {
+      "element": "b",
+      "color": "red",
+      "caption": "B: the same premium on a much more volatile name. Its VAY is low, like 0.5."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Same premium, very different trades: B gets far less yield for each unit of risk."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Ask first: am I paid enough for the risk I am taking?"
+    }
+  ],
+  "formulas": ["annualizedYield", "vrp", "realizedVol"],
+  "takeaways": [
+    "The key question for an option seller is whether the pay covers the risk.",
+    "Yield per unit of risk lets you compare trades apples to apples.",
+    "Two trades with the same premium can carry very different risk."
+  ],
+  "caveats": [
+    "VAY is the speaker's proprietary metric; the 0.5 and 2.2 values are his examples, and his free tool is promotional.",
+    "The transcript garbles some numbers; the values used are 0.5 and 2.2."
+  ]
+}

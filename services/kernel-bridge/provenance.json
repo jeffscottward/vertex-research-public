@@ -1,0 +1,101 @@
+{
+  "format": "vertex-kernel-bridge-source-provenance-v1",
+  "status": "authored-unbuilt-unverified",
+  "artifact": {
+    "path": null,
+    "sha256": null,
+    "buildId": null,
+    "dependencyLockSha256": null
+  },
+  "authority": {
+    "bundleSha256": null,
+    "contractSourceSha256": null,
+    "kernelSourceSha256": null
+  },
+  "sources": [
+    {
+      "path": "services/execution-kernel/src/lib.rs",
+      "symbol": "vertex_execution_kernel::evaluate_json",
+      "role": "Sole canonical paper-only evaluation implementation; no copied risk domain"
+    },
+    {
+      "path": "services/contracts/rust/src/lib.rs",
+      "symbol": "ContractAuthority::from_bundle",
+      "role": "Exact externally pinned native contract authority"
+    },
+    {
+      "path": "services/contracts/python/src/vertex_contracts/authority.py",
+      "symbol": "ContractAuthority",
+      "role": "Source identity and independent expected bundle pin conventions; no replacement implementation"
+    },
+    {
+      "path": "services/execution/vertex_execution/native_risk.py",
+      "symbol": "NativeRiskPort",
+      "role": "Callable bytes-to-bytes transport, 4194304-byte input and 2000000-byte response boundary"
+    }
+  ],
+  "proposedDirectPins": {
+    "rust": "1.88.0",
+    "target": "x86_64-unknown-linux-gnu",
+    "python": "3.12.11",
+    "setuptools": "82.0.1",
+    "serde_json": "1.0.145",
+    "sha2": "0.10.9",
+    "vertex-execution-kernel": "0.1.0 local path",
+    "vertex-contracts": "0.1.0 local path"
+  },
+  "abi": {
+    "version": 1,
+    "storage": "Caller-owned disjoint buffers; no retained pointers, allocator handles, returned C strings or callbacks",
+    "operations": [
+      "vertex_kernel_bridge_identity_v1",
+      "vertex_kernel_bridge_validate_bundle_v1",
+      "vertex_kernel_bridge_evaluate_v1"
+    ],
+    "maxInputBytes": 4194304,
+    "maxOutputBytes": 2000000,
+    "maxBundleBytes": 8388608,
+    "maxIdentityBytes": 4096
+  },
+  "sourceIdentityAlgorithm": {
+    "name": "vertex-kernel-source-v1",
+    "inputs": [
+      "services/execution-kernel/Cargo.toml",
+      "services/execution-kernel/src/**/*.rs",
+      "services/contracts/rust/Cargo.toml",
+      "services/contracts/rust/src/**/*.rs"
+    ],
+    "algorithm": "SHA256 of UTF-8 vertex-kernel-source-v1 followed by NUL, then each sorted services-relative slash-separated path followed by NUL and raw 32-byte SHA256 of file bytes. Symlink source entries rejected. Build compares actual digest to independently reviewed VERTEX_KERNEL_SOURCE_SHA256.",
+    "contractIdentity": "The independently reviewed sourceDigest inside the actual externally pinned authority bundle; embedded at build and checked during native bundle loading.",
+    "requiredBuildEnvironment": [
+      "VERTEX_KERNEL_BUILD_ID",
+      "VERTEX_KERNEL_SOURCE_SHA256",
+      "VERTEX_KERNEL_CONTRACT_SOURCE_SHA256"
+    ]
+  },
+  "ffiSourceReview": [
+    "Pointer ranges checked for integer overflow, isize length, null/nonempty, length-cell alignment and all-region overlap before constructing slices.",
+    "Foreign caller remains responsible for real allocation validity, immutability and lifetime; arithmetic cannot prove pointers safe.",
+    "Rust result Vec drops before return; output copy uses caller capacity and written count; insufficient capacity writes no output bytes.",
+    "Unwind panics mapped to fixed status; abort/OOM/invalid pointers are not recoverable. No global panic hook mutation.",
+    "Only the existing ContractAuthority and exact existing kernel evaluate_json decide domain output; rejection JSON remains a successful ABI response.",
+    "Input/output/bundle limits are safety ceilings, not latency or maximum RSS proofs; authority is reconstructed per call."
+  ],
+  "loaderSourceReview": [
+    "No import-time file reads, library selection, environment discovery or native load.",
+    "Explicit reviewed absolute image path copied into bounded memfd, full externally pinned SHA256 checked before dlopen, write/grow/shrink/seal seals enforced.",
+    "Exact canonical build identity bytes checked, not permissive JSON field coercion.",
+    "Pinned bundle is natively validated before a bridge instance is returned; absent configuration has no fallback.",
+    "At most eight process-lifetime native mappings/descriptors, including mapped images that fail ABI inspection; close retires bundle bytes without unsafe dlclose.",
+    "One call per bridge, fail-fast busy; async offloads locally and shields native work from waiter cancellation; no timeout claim or retry."
+  ],
+  "unverifiedLimitations": [
+    "No build, import, execution, test, typecheck, formatter, linter, probe, installation, network, DB access or generation performed for this source handoff.",
+    "No artifact digest, build ID, contract bundle digest or reviewed dependency lock has been created or fabricated.",
+    "Linux memfd, procfs, ELF loader and Python 3.12.11 only; platform behavior remains untested.",
+    "A reviewed ELF image is trusted executable code. External release verification must seal its native dependency closure, loader environment, toolchain and runtime permissions. A primary-image hash is not a sandbox.",
+    "In-process OOM, abort, process faults and native deadline enforcement require host supervision; Python cannot forcibly cancel a native call.",
+    "Rust parity regression requires VERTEX_KERNEL_TEST_BUNDLE and independent VERTEX_KERNEL_TEST_BUNDLE_SHA256 matching compiled contract source identity; it must not be skipped or replaced with permissive generated schemas.",
+    "Successful admission parity with fully qualified market/calendar/Greek/policy/journal fixtures remains a final integration acceptance responsibility."
+  ]
+}

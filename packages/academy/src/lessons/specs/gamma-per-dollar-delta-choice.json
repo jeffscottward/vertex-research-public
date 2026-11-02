@@ -1,0 +1,150 @@
+{
+  "slug": "gamma-per-dollar-delta-choice",
+  "sourceId": "DYkYiReRgsV",
+  "title": "Compare deltas per dollar invested, not per contract",
+  "summary": "A 50 delta option has more gamma than a 20 delta option per contract. But for the same money you buy several 20 delta options, and the net gamma is much higher. The cost is theta: if the move does not come quickly, the low delta position decays faster. If you are unsure of the timing, the speaker prefers 40 to 50 delta.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["event", "bullish"],
+    "instruments": ["single-stock"],
+    "timeframe": "days",
+    "risk": "defined",
+    "topics": ["gamma", "convexity", "theta", "delta choice"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "1 x 50 delta call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Same money in 20 delta",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "otmContracts",
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "atmStrike",
+      "label": "50 delta strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "20 delta strike",
+      "default": 109,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "otmContracts",
+      "label": "20 delta contracts",
+      "default": 4,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts",
+      "help": "About the same cost as one at-the-money call."
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We compare one 50 delta call with about the same money in 20 delta calls."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "One 50 delta call: more gamma per contract, but only one contract."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Four 20 delta calls cost about the same. Their curve bends much more on a fast move: more net gamma."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference grows with the size of the move. This is the convexity you buy with low delta."
+    },
+    {
+      "element": "b",
+      "color": "red",
+      "caption": "The catch is theta. If the move does not come quickly, the 20 delta position decays toward zero.",
+      "time": [0, 0.8]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The low delta position needs a bigger move to break even at expiry."
+    }
+  ],
+  "formulas": ["gamma", "theta", "delta", "blackScholes"],
+  "takeaways": [
+    "Per contract, a 50 delta option has more gamma than a 20 delta option.",
+    "For the same money, 20 delta options carry much more net gamma.",
+    "Low delta options lose more to theta if the move is slow.",
+    "With an uncertain time frame, 40 to 50 delta balances gamma and theta."
+  ],
+  "caveats": [
+    "Strikes and contract counts in the chart are example values; the transcript gives none. Betting on earnings is an event trade."
+  ]
+}

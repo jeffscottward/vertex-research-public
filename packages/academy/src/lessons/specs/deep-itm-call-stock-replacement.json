@@ -1,0 +1,165 @@
+{
+  "slug": "deep-itm-call-stock-replacement",
+  "sourceId": "DVB7IOMCSfs",
+  "title": "Three steps to synthetic long stock with a deep ITM call",
+  "summary": "Step one: a long call and a short put at the same strike replicate stock. Step two: move the call down to 95 delta or more. Step three: do not sell the put, because it pays very little and carries the big downside. Without the put, losses slow as the call delta falls in a crash.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "synthetics", "leaps"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["synthetic stock", "convexity", "capital efficiency"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Call + short put",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Long deep ITM call"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short put"
+        }
+      ]
+    },
+    "b": {
+      "label": "Deep ITM call only",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Long deep ITM call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 200,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 140,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 180,
+      "min": 30,
+      "max": 900,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $200. Goal: long stock exposure built with options."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "Step 1: buy a call and sell a put at the same strike and expiry. The gold line is stock exposure, synthetically."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Steps 2 and 3: keep only a 95+ delta call. The blue line tracks the stock above the strike."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The violet gap is the value of NOT selling the put: below the strike your losses stop, the put's would not."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "time": [0, 0.8],
+      "caption": "Through time the call lags the stock a little: you pay a small extrinsic value instead of collecting a tiny put premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the strike plus the premium paid. One downside: calls do not collect dividends."
+    }
+  ],
+  "formulas": ["putCallParity", "delta", "extrinsic"],
+  "takeaways": [
+    "Long call + short put at one strike = synthetic long stock (put-call parity).",
+    "A 95+ delta call behaves like stock but its maximum loss is the premium paid.",
+    "Size by total delta: one deep ITM contract is close to 100 shares of exposure."
+  ],
+  "caveats": [
+    "Deep ITM premium is large; per-name premium caps on NLV limit the size."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["MSFT", "NVDA", "SPY"],
+    "scenario": {
+      "label": "2019-2024: COVID crash, 2022 bear, AI rally",
+      "start": "2019-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDelta": 0.95,
+      "coreDte": 180,
+      "coreExitDte": 60,
+      "riskPct": 30
+    },
+    "note": "Six-month 95-delta call, rolled at 60 days to expiry; 30% of the strategy capital per position."
+  }
+}

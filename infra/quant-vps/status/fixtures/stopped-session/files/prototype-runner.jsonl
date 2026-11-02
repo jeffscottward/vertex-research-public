@@ -1,0 +1,5 @@
+{"event": "charan_live_order_submit_failed", "reason": "account U7654321 rejected order api_key=FixtureKey1234", "service": "nautilus-trader", "timestamp": "2026-09-18T16:20:00.000000+00:00", "trading_mode": "live"}
+{"event": "ibkr_adapter_disconnected", "service": "nautilus-trader", "timestamp": "2026-09-18T16:24:06.589596+00:00", "trading_mode": "live"}
+{"event": "strategy_heartbeat", "kill_switch_active": false, "observation_only": true, "orders_enabled": false, "service": "nautilus-trader", "strategy": "example_strategy", "timestamp": "2026-09-25T16:38:38.611831+00:00", "trading_mode": "live", "watchlist": ["AAPL"]}
+{"account_id_configured": true, "adapter": "tws_api", "client_id": 1, "event": "ibkr_adapter_connected", "host": "ib-gateway", "port": 4003, "service": "nautilus-trader", "timestamp": "2026-09-25T16:38:38.661744+00:00", "trading_mode": "live"}
+{"event": "runner_stopped", "service": "nautilus-trader", "timestamp": "2026-09-25T16:38:44.685128+00:00", "trading_mode": "live"}

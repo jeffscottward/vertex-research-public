@@ -1,0 +1,131 @@
+{
+  "slug": "extrinsic-premium-pnl-attribution",
+  "sourceId": "DTvailMDnkd",
+  "title": "Only extrinsic value is income: separate it from intrinsic value",
+  "summary": "When you track P&L on short options, split the premium into intrinsic and extrinsic value. Only the extrinsic value is true premium or income. Intrinsic value is capital: money you owe or money returned to you. Counting the whole premium as income overstates the yield, most of all on in-the-money strikes.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["extrinsic value", "P&L attribution", "income"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 90,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We sell an in-the-money $90 call against 100 shares."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The $90 strike is $10 below the market. That $10 is intrinsic value."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "The legs: long stock and a short call. The call premium has two parts."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At expiry the stock is called away at $90. The $10 intrinsic part only returns capital; it is not income."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The maximum profit equals the extrinsic value only. That is the true premium."
+    },
+    {
+      "element": "now",
+      "color": "violet",
+      "caption": "Extrinsic value decays to zero by expiry. Track it as income; track intrinsic as capital.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield"],
+  "takeaways": [
+    "Separate intrinsic from extrinsic value when you attribute P&L.",
+    "Only extrinsic value is income from selling options.",
+    "Intrinsic value is capital that you owe or that is returned to you."
+  ],
+  "caveats": [
+    "The transcript says 'covered put'; the rule applies to covered calls, cash-secured puts and other short options alike.",
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "@darkfactory/testkit",
+  "brick": "tooling",
+  "description": "Isolated, disposable Postgres databases for tests.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./postgres": {
+      "import": "./src/postgres.ts",
+      "default": "./src/postgres.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "devDependencies": {
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
+    "vitest": "catalog:"
+  }
+}

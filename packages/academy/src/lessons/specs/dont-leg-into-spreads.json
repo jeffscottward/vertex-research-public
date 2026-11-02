@@ -1,0 +1,190 @@
+{
+  "slug": "dont-leg-into-spreads",
+  "sourceId": "DZU1sd1OGMT",
+  "title": "Enter and exit spreads as one order, never leg in",
+  "summary": "Legging into or out of spreads adds execution risk and turns a trade into a gamble. For verticals, diagonals and calendars, always send both legs as a single order at one net price.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["spreads"],
+    "timeframe": "intraday",
+    "risk": "defined",
+    "topics": ["execution", "legging", "order entry"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "longStrike",
+        "dte": "dte",
+        "label": "Long call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "shortStrike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Buy long call alone",
+        "color": "amber"
+      },
+      {
+        "day": 3,
+        "label": "Price drops before short leg",
+        "color": "red"
+      },
+      {
+        "day": 5,
+        "label": "Short leg sold lower",
+        "color": "gray"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 3,
+        "movePct": -4
+      },
+      {
+        "day": 5,
+        "movePct": -4
+      },
+      {
+        "day": 20,
+        "movePct": -2
+      },
+      {
+        "day": 30,
+        "movePct": 1
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 35,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -10,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 5,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The plan is a $100/$105 call spread. The stock moves while you wait between legs.",
+      "time": [0, 0.2]
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "Legging: the trader buys the long call first, hoping to sell the short call at a better price."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "The price drops first. The long call alone loses value, and the short call now pays less.",
+      "time": [0, 0.2]
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "The finished spread has the same strikes but a worse net price than one order would give."
+    },
+    {
+      "element": "spot",
+      "color": "gold",
+      "caption": "Rule: send both legs as one order at one net price. That removes the execution risk."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "delta"],
+  "takeaways": [
+    "Legging into or out of spreads adds execution risk.",
+    "Send verticals, diagonals and calendars as a single order at one net price.",
+    "Trying to time each leg is gambling, not trading."
+  ],
+  "caveats": [
+    "The price path is simulated to show the risk; legging can also work by luck, which is the point of the warning."
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0.0",
+  "recorded_at": "2026-09-23T22:34:49.315Z",
+  "package": "ibapi",
+  "version": "3.3.0",
+  "source": "https://static.crates.io/crates/ibapi/ibapi-3.3.0.crate",
+  "repository": "https://github.com/wboayue/rust-ibapi/",
+  "upstream_archive_sha256": "fc5651f11bacdf138a1a910dc075c21e425912ff767e7f3e237b9fe14d9f3f76",
+  "upstream_archive_bytes": 702145,
+  "upstream_file_count": 466,
+  "upstream_tree_manifest_sha256": "b9491169e4e284d11efb7df4b2ad6b182e9753bad46c7607ddfbc9852c61a65c",
+  "license": "MIT",
+  "license_path": "vendor/ibapi-3.3.0/LICENSE",
+  "license_sha256": "a871ee487f4cc317c9312ed0ee91fb3718fe8bf8436259e5d8a9d54ce71a5bbf",
+  "intended_nautilus": "2.0.0rc5",
+  "extension": "vertex-history-strict-v1",
+  "patch_path": "ibapi-3.3.0-vertex-strict.patch",
+  "patch_sha256": "b5715fa9862d8de4aa1564cff7a6e632b904f5b57ed39473fe10c157fd2c804c",
+  "modified_files": [
+    {
+      "path": "Cargo.toml",
+      "upstream_sha256": "f303cfbe1a73ab19bef6280d94a86adaff706eec808919a59a272b80b654ff31",
+      "patched_sha256": "c3d2d2e8b6fe9e4b59a1745d69b877caedd19f74c9e720e2020ddc379378937b"
+    },
+    {
+      "path": "src/connection/async.rs",
+      "upstream_sha256": "81cd8690bcd3d3c5593efbfafc7e146083726cc20989fda3145c5c3b4e0e04a0",
+      "patched_sha256": "a6ceec94beb762156bba7d103c91392f67119e91674f778a0819cc0f76cee779"
+    },
+    {
+      "path": "src/connection/async_tests.rs",
+      "upstream_sha256": "b7b5fe65f2bb508be0beadc01c95f24d5ce16de9b62c3c4970cb54af990cd2fb",
+      "patched_sha256": "5862111f1b9284530c5d65177d64b5e5b6e4ce83771bd660fd92e254c8594f4c"
+    },
+    {
+      "path": "src/market_data/historical/async.rs",
+      "upstream_sha256": "1423d7b42708a4bccec7baeed342231b91e64fecf5bd9b7adb384a73acd7cc46",
+      "patched_sha256": "79a66210545c6a19b7dec19d3a053031745b42fad4f2bb834eea5a4ba0babd97"
+    },
+    {
+      "path": "src/market_data/historical/async_tests.rs",
+      "upstream_sha256": "47d560b65c4f4480683d35aa37688c05beb37cde8f4750694601ba6f1b6b0509",
+      "patched_sha256": "d50d9707964cd546479364540f6781b729ad9b6e9e235e587f38b5886ab29720"
+    },
+    {
+      "path": "src/market_data/historical/builder/data.rs",
+      "upstream_sha256": "9f32ad71c843a8b174fa16279b7fe3e5311ebc8fd4e99eb782f3968c958be958",
+      "patched_sha256": "e13156ef383d42f5828cd5252070a168fa94248bce6757f075d6f59866084de5"
+    },
+    {
+      "path": "src/transport/async.rs",
+      "upstream_sha256": "8a765ff3cc3f6e9b86054461261286532985f8f117668daedf77b4dfbe8ab040",
+      "patched_sha256": "e36044ae0d1bf4ee11df04fa57bca647ab726bf2fb0cad2688d5b52635f7c09c"
+    },
+    {
+      "path": "src/transport/async/io.rs",
+      "upstream_sha256": "81c0bcffdfc01cbe6855614c84cc270c5b89d140e59555e7837dcbc2a2cb91e7",
+      "patched_sha256": "1a60283abad57a46b093618c8c5c76dd688daab75ee8114fb82b0dec9f5db462"
+    },
+    {
+      "path": "src/transport/async_tests.rs",
+      "upstream_sha256": "f228fa457f0122ba16b3442d532e863c1ba51d03039088551b74d95464518486",
+      "patched_sha256": "adac6804b16f333fa0f502fdfbb8cbeea8b84b573ae6981ad9192cd26edcfdfb"
+    },
+    {
+      "path": "src/transport/common.rs",
+      "upstream_sha256": "8f92d9e57e442bba113283635e726c3cb09c12baf7c75daf9c9c43c0238736d8",
+      "patched_sha256": "cb29973d3d0b079007035d2a6d101040c945e0205abe18dcca2c2da3d877cb7f"
+    }
+  ],
+  "scope": "Ten-file opt-in delta: seven production/feature files for strict history and exclusive no-reconnect ownership, plus three existing unit-test modules containing five bounded synthetic regressions and one environment-free test-only connection constructor. Default and sync implementation bodies remain unchanged; no global lint suppression.",
+  "dependency_scope": "Isolated Vertex library remains opt-in path dependency. Same-image upstream root ibapi patch exists ONLY in unapplied Nautilus source patch artifact; normal repository Nautilus/live/paper/risk dependencies unchanged.",
+  "source_status": "Source/hash and synthetic test authoring only in this follow-up. Main owns all compiler/test execution and exact safe filters. No worker compilation, test run, application import, broker/session/gateway access, or prepared-tree mutation.",
+  "owner_continuation": "Concrete same-image Nautilus2.0.0rc5 patch and restricted HostRuntime startup port are source-authored in nautilus/ and owner-source-handoff.json; NOT built/loaded/activated. Exact root patch unifies ibapi crate path; no opaque wheel injection.",
+  "allocation_limit": "Adapter output bounds do not constrain upstream protobuf frame/vector allocations; owner resource containment is separately required.",
+  "cfg_repair_handoff": "../../private/basic-assembly/ibkr-sdk-exclusive-cfg-source-handoff.json",
+  "synthetic_regression_handoff": "../../private/basic-assembly/ibkr-sdk-synthetic-regression-source-handoff.json"
+}

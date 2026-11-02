@@ -1,0 +1,560 @@
+/* Feature-scoped overrides follow the vendor's public v2 stylesheet. */
+.vx-research-chat {
+  container-type: inline-size;
+  min-width: 0;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-body);
+  line-height: 1.65;
+  /* Resolve aliases here, before nested vendor roots reset generic token names. */
+  --vx-chat-background: var(--background);
+  --vx-chat-foreground: var(--foreground);
+  --vx-chat-surface: var(--surface);
+  --vx-chat-surface-raised: var(--surface-raised);
+  --vx-chat-primary: var(--primary);
+  --vx-chat-primary-foreground: var(--primary-foreground);
+  --vx-chat-primary-hover: var(--primary-hover);
+  --vx-chat-primary-active: var(--primary-active);
+  --vx-chat-muted: var(--muted);
+  --vx-chat-muted-foreground: var(--muted-foreground);
+  --vx-chat-accent: var(--accent);
+  --vx-chat-accent-foreground: var(--accent-foreground);
+  --vx-chat-border: var(--border);
+  --vx-chat-border-strong: var(--border-strong);
+  --vx-chat-ring: var(--ring);
+  --vx-chat-destructive: var(--destructive);
+  --vx-chat-destructive-foreground: var(--destructive-foreground);
+  --vx-chat-disabled: var(--disabled);
+  --vx-chat-disabled-foreground: var(--disabled-foreground);
+  --vx-chat-disabled-border: var(--disabled-border);
+}
+
+/* CopilotChatView's children branch ignores className/style props and emits an
+   unclassed data-copilotkit root; the input emits another nested vendor root.
+   Both must inherit the captured project palette. This selector outranks the
+   vendor's [data-copilotkit] and .dark [data-copilotkit] token resets without
+   changing global theme state or forcing every descendant's text color. */
+.vx-research-chat .vx-chat-main [data-copilotkit] {
+  --background: var(--vx-chat-background);
+  --foreground: var(--vx-chat-foreground);
+  --surface: var(--vx-chat-surface);
+  --surface-raised: var(--vx-chat-surface-raised);
+  --card: var(--vx-chat-surface);
+  --card-foreground: var(--vx-chat-foreground);
+  --popover: var(--vx-chat-surface-raised);
+  --popover-foreground: var(--vx-chat-foreground);
+  --primary: var(--vx-chat-primary);
+  --primary-foreground: var(--vx-chat-primary-foreground);
+  --primary-hover: var(--vx-chat-primary-hover);
+  --primary-active: var(--vx-chat-primary-active);
+  --secondary: var(--vx-chat-muted);
+  --secondary-foreground: var(--vx-chat-foreground);
+  --muted: var(--vx-chat-muted);
+  --muted-foreground: var(--vx-chat-muted-foreground);
+  --accent: var(--vx-chat-accent);
+  --accent-foreground: var(--vx-chat-accent-foreground);
+  --border: var(--vx-chat-border);
+  --border-strong: var(--vx-chat-border-strong);
+  --input: var(--vx-chat-border-strong);
+  --ring: var(--vx-chat-ring);
+  --destructive: var(--vx-chat-destructive);
+  --destructive-foreground: var(--vx-chat-destructive-foreground);
+  --disabled: var(--vx-chat-disabled);
+  --disabled-foreground: var(--vx-chat-disabled-foreground);
+  --disabled-border: var(--vx-chat-disabled-border);
+  font-family: var(--font-body);
+  line-height: inherit;
+}
+
+.vx-research-chat :is(div, section, aside, article, form, fieldset, nav, li) {
+  min-width: 0;
+}
+
+.vx-research-chat :is(h2, h3, h4, p, dd, span, button, summary) {
+  overflow-wrap: anywhere;
+}
+
+.vx-research-chat :is(h2, h3, h4) {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.vx-chat-heading {
+  padding-block: var(--space-6);
+}
+.vx-chat-heading h2 {
+  font-size: var(--text-2xl);
+  margin-block: var(--space-2) var(--space-4);
+}
+.vx-chat-heading > p {
+  max-width: var(--content-reading);
+}
+.vx-chat-eyebrow {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.vx-chat-authority {
+  margin-top: var(--space-4);
+  font-weight: 600;
+}
+.vx-chat-layout {
+  display: grid;
+  border-block: 1px solid var(--border-strong);
+}
+.vx-chat-layout h3 {
+  font-size: var(--text-lg);
+  margin-bottom: var(--space-4);
+}
+.vx-chat-layout h4 {
+  font-size: var(--text-base);
+}
+.vx-chat-sidebar,
+.vx-chat-roster {
+  padding: var(--space-4);
+  background: var(--surface);
+}
+.vx-chat-sidebar {
+  border-bottom: 1px solid var(--border-strong);
+}
+.vx-chat-roster {
+  border-top: 1px solid var(--border-strong);
+}
+.vx-chat-main {
+  display: flex;
+  flex-direction: column;
+}
+.vx-chat-room-heading,
+.vx-chat-status {
+  padding: var(--space-4);
+}
+.vx-chat-room-heading {
+  border-bottom: 1px solid var(--border);
+}
+.vx-chat-room-heading h3 {
+  margin-bottom: var(--space-2);
+}
+.vx-chat-room-heading p,
+.vx-chat-meta,
+.vx-chat-message-header time,
+.vx-chat-pins,
+.vx-chat-status {
+  font-size: var(--text-sm);
+}
+.vx-chat-threads,
+.vx-chat-messages,
+.vx-chat-citations ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vx-chat-threads {
+  max-height: 18rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.vx-chat-thread {
+  width: 100%;
+  height: auto;
+  justify-content: start;
+  text-align: left;
+  padding: var(--space-3);
+}
+.vx-chat-thread small {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.vx-chat-thread[aria-current="page"] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-color: var(--border-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.vx-chat-create {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+}
+.vx-chat-create summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding-block: var(--space-3);
+}
+.vx-chat-create form {
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+}
+.vx-chat-create label > input:not([type="checkbox"]) {
+  margin-top: var(--space-2);
+}
+.vx-research-chat fieldset {
+  padding: 0;
+  border: 0;
+  margin: var(--space-4) 0 0;
+}
+.vx-research-chat legend {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  margin-bottom: var(--space-2);
+}
+.vx-chat-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding-block: var(--space-2);
+  cursor: pointer;
+}
+.vx-chat-choice input {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--primary);
+}
+.vx-chat-choice:has(input:disabled) {
+  cursor: not-allowed;
+}
+.vx-chat-choice input:disabled + span {
+  color: var(--disabled-foreground);
+}
+.vx-chat-roster-entry {
+  border-bottom: 1px solid var(--border);
+  padding-block: var(--space-4);
+}
+.vx-chat-participant p {
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+.vx-chat-availability {
+  font-weight: 600;
+}
+.vx-chat-participant[data-participant-kind="first-mate"] h4::before {
+  content: "First mate / ";
+}
+.vx-chat-pins {
+  margin-top: var(--space-3);
+}
+.vx-chat-pins > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-2);
+}
+.vx-chat-pins dt {
+  font-weight: 600;
+}
+.vx-chat-pins dd {
+  margin: 0;
+}
+.vx-chat-controlled {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.vx-chat-transcript {
+  flex: 1;
+  min-height: 14rem;
+  max-height: min(36rem, 65dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-4);
+  scrollbar-gutter: stable;
+}
+.vx-chat-empty {
+  padding: var(--space-6) var(--space-4);
+  min-height: 12rem;
+}
+.vx-chat-messages > li + li {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-6);
+}
+.vx-chat-message-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: message headers contain no .vx-chat-choice inputs, so source order does not decide the cascade. */
+.vx-chat-message-header > span {
+  font-size: var(--text-sm);
+}
+.vx-chat-message-header time {
+  flex-basis: 100%;
+}
+.vx-chat-message[data-speaker-kind="first-mate"]
+  .vx-chat-message-header
+  strong {
+  text-decoration: underline;
+  text-decoration-color: var(--primary);
+  text-underline-offset: 0.3em;
+}
+.vx-chat-meta {
+  margin-top: var(--space-2);
+}
+.vx-chat-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-block: var(--space-3);
+}
+.vx-chat-citations {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+.vx-chat-citations h4 {
+  font-size: var(--text-sm);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: citation lists are not .vx-chat-messages items, so source order does not decide the cascade. */
+.vx-chat-citations li {
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+/* biome-ignore lint/style/noDescendingSpecificity: citations contain no .vx-chat-choice inputs, so source order does not decide the cascade. */
+.vx-chat-citations span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.vx-chat-composer {
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+}
+.vx-chat-composer > p {
+  font-size: var(--text-sm);
+}
+.vx-chat-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.vx-chat-mode select {
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  background: var(--surface);
+  font: inherit;
+}
+.vx-chat-status {
+  min-height: 5rem;
+  border-top: 1px solid var(--border);
+}
+.vx-chat-warning {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  overflow-wrap: anywhere;
+}
+.vx-chat-warning > button {
+  margin-top: var(--space-3);
+}
+
+/* Exact context and ephemeral answers remain separate from the vendor tree. */
+.vx-chat-response-controls,
+.vx-chat-private {
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-4);
+}
+.vx-chat-response-controls > p,
+.vx-chat-private > p,
+.vx-chat-preview > p {
+  margin-block: var(--space-3);
+  font-size: var(--text-sm);
+}
+.vx-chat-selection {
+  display: grid;
+  gap: var(--space-4);
+}
+.vx-chat-selection label {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.vx-chat-selection :is(select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-base);
+}
+.vx-chat-selection textarea {
+  resize: vertical;
+  font-weight: 400;
+}
+.vx-chat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.vx-chat-response-controls button,
+.vx-chat-private button {
+  height: auto;
+  white-space: normal;
+  text-align: left;
+}
+.vx-chat-preview,
+.vx-chat-metadata,
+.vx-chat-operation {
+  margin-block: var(--space-4);
+}
+.vx-chat-preview {
+  border-block: 1px solid var(--border);
+  padding-block: var(--space-4);
+}
+.vx-chat-metadata pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+.vx-chat-bound-messages,
+.vx-chat-native-claims,
+.vx-chat-native-proposals {
+  padding-left: var(--space-6);
+  margin-block: var(--space-4);
+}
+.vx-chat-bound-messages > li + li,
+.vx-chat-native-claims > li + li,
+.vx-chat-native-proposals > li + li {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+}
+.vx-chat-native-claim .vx-chat-citations {
+  list-style: none;
+  padding-left: 0;
+}
+.vx-chat-private h4 {
+  margin-top: var(--space-4);
+}
+
+/* Keep the real vendor composer and IME behavior; replace only its visual skin.
+   The inner data-layout structure is pinned to react-core 1.73.3. */
+.vx-research-chat .vx-chat-input {
+  transform: none;
+  transition: none;
+  z-index: auto;
+}
+.vx-research-chat .vx-chat-input > div {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.vx-research-chat .copilotKitInput {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: none;
+}
+.vx-research-chat .copilotKitInput > [data-layout] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: var(--space-3);
+  gap: var(--space-2);
+}
+.vx-research-chat .copilotKitInput > [data-layout] > div:first-child {
+  display: none;
+}
+.vx-research-chat .copilotKitInput > [data-layout] > div:last-child {
+  justify-content: flex-end;
+}
+.vx-research-chat .vx-chat-textarea {
+  width: 100%;
+  min-height: 6rem;
+  max-height: 16rem;
+  padding: var(--space-2);
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--foreground);
+  background: var(--surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.vx-research-chat .vx-chat-textarea::placeholder {
+  color: var(--muted-foreground);
+}
+.vx-research-chat :is(textarea, select, input):disabled {
+  color: var(--disabled-foreground);
+  background: var(--disabled);
+  cursor: not-allowed;
+}
+.vx-research-chat
+  :is(button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  scroll-margin-block: var(--space-4);
+}
+.vx-research-chat :is(button, summary) {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+@container (min-width: 52rem) {
+  .vx-chat-layout {
+    grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr);
+  }
+  .vx-chat-sidebar {
+    border-right: 1px solid var(--border-strong);
+    border-bottom: 0;
+  }
+  .vx-chat-roster {
+    grid-column: 1 / -1;
+  }
+  .vx-chat-roster fieldset {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+
+@container (min-width: 76rem) {
+  .vx-chat-layout {
+    grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr) minmax(
+        15rem,
+        1.2fr
+      );
+  }
+  .vx-chat-roster {
+    grid-column: auto;
+    border-top: 0;
+    border-left: 1px solid var(--border-strong);
+    max-height: 65rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .vx-chat-roster fieldset {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-research-chat *,
+  .vx-research-chat *::before,
+  .vx-research-chat *::after {
+    scroll-behavior: auto;
+    animation: none;
+    transition: none;
+  }
+}

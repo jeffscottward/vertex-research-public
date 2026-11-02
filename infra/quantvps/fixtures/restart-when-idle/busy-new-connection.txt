@@ -1,0 +1,6 @@
+@@NOW 1000
+@@ACTIVE active
+@@LAST 900
+0      0      127.0.0.1:3450 127.0.0.1:42318
+	 cubic rto:204 mss:32768 bytes_received:31 segs_out:1 segs_in:2 data_segs_in:1 lastsnd:40000 lastrcv:40000 lastack:40000
+@@END

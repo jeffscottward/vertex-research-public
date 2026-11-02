@@ -1,0 +1,136 @@
+{
+  "slug": "stop-selling-calls-after-crash",
+  "sourceId": "DZX8Rm5J6I5",
+  "title": "Stop selling covered calls after a crash and volatility spike",
+  "summary": "After a crash, implied volatility is high and premiums look fat. The speaker does the opposite of most sellers: he stops selling covered calls and adds convexity in a vega-sensitive way. Every sold option caps your upside. He expects the rebound to pay more than the extra premium, so he does not cap the upside at the wrong time.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol", "regime-change"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["upside cap", "rebound", "convexity"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Shares only",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price after crash",
+      "default": 80,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 88,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 55,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "After a crash the stock trades at $80 and implied volatility jumps to about 55%."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Shares alone keep the full rebound. Every dollar of recovery above $80 is yours."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "A covered call collects the fat premium but caps the gain at the $88 strike."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is the upside you give away in a sharp rebound. It can be far more than the premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium only lowers the breakeven a little. It does not protect much if the fall continues."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield", "vega", "breakevenCall"],
+  "takeaways": [
+    "Every option you sell caps your upside: a covered call at the strike, a cash-secured put at the premium.",
+    "After a crash the rebound can pay more than the higher premium.",
+    "There are times to sell premium and times not to. Do not cap the upside at the wrong time."
+  ],
+  "caveats": [
+    "Adding convexity after a crash is a view on a rebound, not a certainty. Strikes and prices are example values."
+  ]
+}

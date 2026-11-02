@@ -1,0 +1,106 @@
+{
+  "slug": "decision-quality-vs-outcome",
+  "sourceId": "DTVfLtVDpEx",
+  "title": "Judge the decision, not the outcome",
+  "summary": "A bad outcome does not prove a bad decision, and a good outcome does not prove a good one. The speaker uses driving home drunk as the example: arriving safely does not make it a good choice. In trading, judge each trade by the process and the odds at entry. Good decision making is a learned skill.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["decision making", "process", "variance", "psychology"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "equity"
+  },
+  "params": [
+    {
+      "id": "capital",
+      "label": "Starting capital",
+      "default": 100000,
+      "min": 1000,
+      "max": 10000000,
+      "step": 1000,
+      "unit": "$"
+    },
+    {
+      "id": "riskPct",
+      "label": "Risk per trade",
+      "default": 2,
+      "min": 0.1,
+      "max": 25,
+      "step": 0.1,
+      "unit": "%"
+    },
+    {
+      "id": "winRate",
+      "label": "Win rate",
+      "default": 50,
+      "min": 1,
+      "max": 99,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "payoffRatio",
+      "label": "Win/loss ratio",
+      "default": 1.5,
+      "min": 0.1,
+      "max": 10,
+      "step": 0.1,
+      "unit": "x"
+    },
+    {
+      "id": "trades",
+      "label": "Trades",
+      "default": 100,
+      "min": 5,
+      "max": 500,
+      "step": 5,
+      "unit": "trades"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Each path uses the same decision rule: 2% risk, 50% win rate, wins 1.5 times the size of losses."
+    },
+    {
+      "element": "paths",
+      "color": "blue",
+      "caption": "Same good decision, many outcomes. Some paths lose money for long stretches.",
+      "time": [0, 1]
+    },
+    {
+      "element": "median",
+      "color": "gold",
+      "caption": "The median path shows the edge that the process earns over many trades."
+    },
+    {
+      "element": "drawdown",
+      "color": "red",
+      "caption": "Drawdowns happen even with a positive edge. A loss alone does not mean the decision was bad."
+    }
+  ],
+  "formulas": ["expectedValue", "kelly"],
+  "takeaways": [
+    "Separate the quality of a decision from its outcome.",
+    "A good outcome after a bad decision is luck, like getting home safely after driving drunk.",
+    "Judge a trade by its process and odds at entry, not by one result.",
+    "Good decision making can be learned."
+  ],
+  "caveats": [
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here."
+  ]
+}

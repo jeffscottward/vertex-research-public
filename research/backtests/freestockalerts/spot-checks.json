@@ -1,0 +1,348 @@
+{
+  "quality-breakout-radar": [
+    {
+      "symbol": "AAPL",
+      "day": "2026-10-13",
+      "kind": "new-52-week-high",
+      "chart": "quality-breakout-radar_AAPL_2026-10-13.png",
+      "close": 341.269989,
+      "high": 348.149994,
+      "low": 340.73999,
+      "prev_close": 340.970001,
+      "level": 345.339996,
+      "ok": true
+    },
+    {
+      "symbol": "CVX",
+      "day": "2026-10-13",
+      "kind": "new-52-week-high",
+      "chart": "quality-breakout-radar_CVX_2026-10-13.png",
+      "close": 217.729996,
+      "high": 218.789993,
+      "low": 215.949997,
+      "prev_close": 215.0,
+      "level": 217.779999,
+      "ok": true
+    },
+    {
+      "symbol": "PFE",
+      "day": "2026-10-14",
+      "kind": "new-52-week-high",
+      "chart": "quality-breakout-radar_PFE_2026-10-14.png",
+      "close": 29.209999,
+      "high": 29.49,
+      "low": 28.549999,
+      "prev_close": 28.370001,
+      "level": 29.209999,
+      "ok": true
+    }
+  ],
+  "under-the-radar-breakouts": [
+    {
+      "symbol": "DOCU",
+      "day": "2026-10-14",
+      "kind": "new-52-week-high",
+      "chart": "under-the-radar-breakouts_DOCU_2026-10-14.png",
+      "close": 75.230003,
+      "high": 75.309998,
+      "low": 72.029999,
+      "prev_close": 72.309998,
+      "level": 75.0,
+      "ok": true
+    },
+    {
+      "symbol": "XOM",
+      "day": "2026-10-14",
+      "kind": "new-52-week-high",
+      "chart": "under-the-radar-breakouts_XOM_2026-10-14.png",
+      "close": 177.009995,
+      "high": 177.429993,
+      "low": 174.529999,
+      "prev_close": 174.080002,
+      "level": 176.410004,
+      "ok": true
+    },
+    {
+      "symbol": "GILD",
+      "day": "2026-10-15",
+      "kind": "new-52-week-high",
+      "chart": "under-the-radar-breakouts_GILD_2026-10-15.png",
+      "close": 157.369995,
+      "high": 160.509995,
+      "low": 156.020004,
+      "prev_close": 153.539993,
+      "level": 157.289993,
+      "ok": true
+    }
+  ],
+  "quality-compounders-on-pullback": [
+    {
+      "symbol": "ABT",
+      "day": "2026-10-21",
+      "kind": "reclaims-50-day",
+      "chart": "quality-compounders-on-pullback_ABT_2026-10-21.png",
+      "close": 100.510002,
+      "high": 106.349998,
+      "low": 97.669998,
+      "prev_close": 102.449997,
+      "level": 105.6732,
+      "ok": true
+    },
+    {
+      "symbol": "COF",
+      "day": "2026-10-21",
+      "kind": "reclaims-50-day",
+      "chart": "quality-compounders-on-pullback_COF_2026-10-21.png",
+      "close": 206.660004,
+      "high": 211.490005,
+      "low": 205.240005,
+      "prev_close": 201.559998,
+      "level": 207.3496,
+      "ok": true
+    },
+    {
+      "symbol": "SPG",
+      "day": "2026-10-22",
+      "kind": "reclaims-50-day",
+      "chart": "quality-compounders-on-pullback_SPG_2026-10-22.png",
+      "close": 212.039993,
+      "high": 212.740005,
+      "low": 205.789993,
+      "prev_close": 205.550003,
+      "level": 208.2984,
+      "ok": true
+    }
+  ],
+  "leader-pullback-and-reclaim": [
+    {
+      "symbol": "AMD",
+      "day": "2026-10-20",
+      "kind": "reclaims-50-day",
+      "chart": "leader-pullback-and-reclaim_AMD_2026-10-20.png",
+      "close": 534.73999,
+      "high": 548.109985,
+      "low": 524.599976,
+      "prev_close": 538.049988,
+      "level": 538.2322,
+      "ok": true
+    },
+    {
+      "symbol": "MMM",
+      "day": "2026-10-20",
+      "kind": "reclaims-50-day",
+      "chart": "leader-pullback-and-reclaim_MMM_2026-10-20.png",
+      "close": 171.369995,
+      "high": 172.949997,
+      "low": 162.130005,
+      "prev_close": 162.009995,
+      "level": 169.8682,
+      "ok": true
+    },
+    {
+      "symbol": "JNJ",
+      "day": "2026-10-22",
+      "kind": "reclaims-50-day",
+      "chart": "leader-pullback-and-reclaim_JNJ_2026-10-22.png",
+      "close": 267.609985,
+      "high": 269.670013,
+      "low": 259.040009,
+      "prev_close": 257.779999,
+      "level": 265.0322,
+      "ok": true
+    }
+  ],
+  "200-day-comeback-watchlist": [
+    {
+      "symbol": "IBM",
+      "day": "2026-10-21",
+      "kind": "crosses-above-200-day",
+      "chart": "200-day-comeback-watchlist_IBM_2026-10-21.png",
+      "close": 251.460007,
+      "high": 251.75,
+      "low": 240.619995,
+      "prev_close": 241.919998,
+      "level": 251.1386,
+      "ok": true
+    },
+    {
+      "symbol": "RBLX",
+      "day": "2026-10-21",
+      "kind": "crosses-above-200-day",
+      "chart": "200-day-comeback-watchlist_RBLX_2026-10-21.png",
+      "close": 52.549999,
+      "high": 53.705002,
+      "low": 51.98,
+      "prev_close": 52.349998,
+      "level": 53.3579,
+      "ok": true
+    },
+    {
+      "symbol": "TSLA",
+      "day": "2026-10-21",
+      "kind": "crosses-above-200-day",
+      "chart": "200-day-comeback-watchlist_TSLA_2026-10-21.png",
+      "close": 386.470001,
+      "high": 388.839996,
+      "low": 380.51001,
+      "prev_close": 373.709991,
+      "level": 387.2612,
+      "ok": true
+    }
+  ],
+  "dividend-growth-buy-zones": [
+    {
+      "symbol": "AMT",
+      "day": "2026-10-09",
+      "kind": "reclaims-200-day",
+      "chart": "dividend-growth-buy-zones_AMT_2026-10-09.png",
+      "close": 182.240005,
+      "high": 182.520004,
+      "low": 175.020004,
+      "prev_close": 166.729996,
+      "level": 176.663,
+      "ok": true
+    },
+    {
+      "symbol": "ABT",
+      "day": "2026-10-13",
+      "kind": "reclaims-200-day",
+      "chart": "dividend-growth-buy-zones_ABT_2026-10-13.png",
+      "close": 102.610001,
+      "high": 103.440002,
+      "low": 100.629997,
+      "prev_close": 101.82,
+      "level": 103.2293,
+      "ok": true
+    },
+    {
+      "symbol": "KR",
+      "day": "2026-10-13",
+      "kind": "reclaims-200-day",
+      "chart": "dividend-growth-buy-zones_KR_2026-10-13.png",
+      "close": 60.740002,
+      "high": 63.799999,
+      "low": 60.580002,
+      "prev_close": 62.560001,
+      "level": 63.4422,
+      "ok": true
+    }
+  ],
+  "sector-leadership-radar": [
+    {
+      "symbol": "XLU",
+      "day": "2026-10-21",
+      "kind": "crosses-above-50-day",
+      "chart": "sector-leadership-radar_XLU_2026-10-21.png",
+      "close": 42.0,
+      "high": 42.259998,
+      "low": 41.869999,
+      "prev_close": 41.880001,
+      "level": 41.949,
+      "ok": true
+    },
+    {
+      "symbol": "XLF",
+      "day": "2026-10-22",
+      "kind": "crosses-above-50-day",
+      "chart": "sector-leadership-radar_XLF_2026-10-22.png",
+      "close": 56.650002,
+      "high": 56.669998,
+      "low": 55.82,
+      "prev_close": 56.040001,
+      "level": 56.1492,
+      "ok": true
+    },
+    {
+      "symbol": "XLRE",
+      "day": "2026-10-23",
+      "kind": "crosses-above-50-day",
+      "chart": "sector-leadership-radar_XLRE_2026-10-23.png",
+      "close": 42.57,
+      "high": 43.209999,
+      "low": 42.349998,
+      "prev_close": 42.52,
+      "level": 42.9256,
+      "ok": true
+    }
+  ],
+  "earnings-calendar-alerts": [
+    {
+      "symbol": "AAPL",
+      "day": "2026-07-31",
+      "kind": "move-down",
+      "chart": "earnings-calendar-alerts_AAPL_2026-07-31.png",
+      "close": 308.910004,
+      "high": 310.690002,
+      "low": 300.0,
+      "prev_close": 333.429993,
+      "up": -0.0682,
+      "down": -0.1003,
+      "ok": true
+    },
+    {
+      "symbol": "NVDA",
+      "day": "2026-08-27",
+      "kind": "move-up",
+      "chart": "earnings-calendar-alerts_NVDA_2026-08-27.png",
+      "close": 227.979996,
+      "high": 230.470001,
+      "low": 220.899994,
+      "prev_close": 209.660004,
+      "up": 0.0993,
+      "down": 0.0536,
+      "ok": true
+    },
+    {
+      "symbol": "TSLA",
+      "day": "2026-09-03",
+      "kind": "move-up",
+      "chart": "earnings-calendar-alerts_TSLA_2026-09-03.png",
+      "close": 376.369995,
+      "high": 384.040009,
+      "low": 365.820007,
+      "prev_close": 357.01001,
+      "up": 0.0757,
+      "down": 0.0247,
+      "ok": true
+    }
+  ],
+  "market-stress-alerts": [
+    {
+      "symbol": "^VIX",
+      "day": "2026-04-07",
+      "kind": "vix-above-25",
+      "chart": "market-stress-alerts_VIX_2026-04-07.png",
+      "close": 25.780001,
+      "high": 28.0,
+      "low": 24.34,
+      "prev_close": 24.17,
+      "level": 25.0,
+      "ok": true
+    },
+    {
+      "symbol": "SPY",
+      "day": "2026-06-26",
+      "kind": "move-down",
+      "chart": "market-stress-alerts_SPY_2026-06-26.png",
+      "close": 728.98999,
+      "high": 736.530029,
+      "low": 716.580017,
+      "prev_close": 734.299988,
+      "up": 0.003,
+      "down": -0.0241,
+      "ok": true
+    },
+    {
+      "symbol": "SPY",
+      "day": "2026-04-08",
+      "kind": "crosses-above-200-day",
+      "chart": "market-stress-alerts_SPY_2026-04-08.png",
+      "close": 676.01001,
+      "high": 677.080017,
+      "low": 671.460022,
+      "prev_close": 659.219971,
+      "level": 663.1915,
+      "ok": true
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "slug": "iv-vs-rv-beats-iv-rank",
+  "sourceId": "DT-hbA-Dg3A",
+  "title": "Use implied vs realized volatility, not IV rank, to judge option prices",
+  "summary": "IV rank and IV percentile only compare implied volatility with its own past. The speaker says an option seller should compare implied volatility with realized volatility, usually over the last 30 days. When IV is well above RV, the seller is overpaid for the risk. When IV is equal to or below RV, there is no edge.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": ["volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": [
+      "iv rank",
+      "implied vol",
+      "realized vol",
+      "vrp",
+      "option selling"
+    ]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Start price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 4,
+      "min": -15,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average points that implied vol trades above realized vol."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The chart shows one year of a stock price and two volatility lines."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock path. Realized volatility measures how much this price actually moved.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: the actual move over the last 30 days or so, looking backward."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility: the market's forecast of the move over the option's life, looking forward."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap IV minus RV is the edge. A wide positive gap means the seller is overpaid for the risk."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "When IV is equal to or below RV, the options are fair or cheap. There is no edge in selling them.",
+      "time": [0.5, 1]
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "expectedMove"],
+  "takeaways": [
+    "IV rank and IV percentile only show where IV sits versus its own history.",
+    "Compare IV with recent realized volatility to judge if options are rich or cheap.",
+    "Sell options when IV is well above RV; skip the trade when IV is at or below RV."
+  ],
+  "caveats": [
+    "The speaker promotes tools he is building to track this metric. They are not verified here.",
+    "Realized volatility looks backward. A future event can make the current IV fair."
+  ]
+}

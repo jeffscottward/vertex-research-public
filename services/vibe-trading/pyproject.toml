@@ -1,0 +1,18 @@
+# The Vertex driver for Vibe-Trading. It runs as a script inside Vibe-Trading's own virtual
+# environment (see README.md); nothing here is installed into a Vertex environment and no
+# Vibe-Trading code is part of this repository.
+[project]
+name = "vertex-vibe-trading-driver"
+version = "0.1.0"
+description = "Vertex driver that runs one read-only Vibe-Trading analysis and prints JSON-line events"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest==9.0.3"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["driver"]

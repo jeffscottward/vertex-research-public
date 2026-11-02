@@ -1,0 +1,121 @@
+{
+  "slug": "iv-rv-jump-risk-earnings",
+  "sourceId": "DUD9UE4DgOu",
+  "title": "Jump risk makes high IV over RV a false signal near earnings",
+  "summary": "High implied volatility versus realized volatility is usually an edge for the seller. It misleads when there is jump risk, most often an earnings release soon. Realized volatility looks backward and does not include the coming jump, so IV looks rich when it is only fair. Filter out names with events before you sell.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["event", "high-vol"],
+    "instruments": ["single-stock", "volatility"],
+    "timeframe": "days",
+    "risk": "undefined",
+    "topics": ["jump risk", "earnings", "iv vs rv", "false positive"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Start price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 8,
+      "min": -15,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average points that implied vol trades above realized vol."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 90,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days",
+      "default": 120,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 21,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "A stock path with its realized and implied volatility before an event."
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility measures only past moves. It cannot see the earnings date ahead.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility rises into earnings because it prices the expected jump."
+    },
+    {
+      "element": "vrp",
+      "color": "amber",
+      "caption": "IV minus RV looks large. Here it is a false positive: the gap is the price of the jump."
+    },
+    {
+      "element": "price",
+      "color": "red",
+      "caption": "The jump: one earnings move can exceed many days of premium.",
+      "time": [1, 1]
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "expectedMove"],
+  "takeaways": [
+    "High IV versus RV is usually an edge for an option seller.",
+    "Before earnings the gap reflects jump risk, not overpricing.",
+    "Check for events and filter them out before you trust the IV versus RV signal."
+  ],
+  "caveats": [
+    "The speaker's screener and early-access offer on his website are promotional.",
+    "The path here is simulated; it does not model a specific earnings date."
+  ]
+}

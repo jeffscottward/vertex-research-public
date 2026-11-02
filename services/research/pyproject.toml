@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-gamma-research"
+version = "0.1.0"
+description = "Offline, internal Gamma feature and setup research kernels"
+requires-python = ">=3.12,<3.15"
+dependencies = ["pydantic==2.13.4", "tzdata==2026.2"]
+
+[project.optional-dependencies]
+test = ["pytest==9.0.3"]
+numeric = ["numpy==2.4.6", "scipy==1.18.1"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*"]
+exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
+
+[tool.setuptools.package-data]
+backtesting = ["AI_HEDGE_FUND_LICENSE.txt"]
+
+# Approved source plan; artifacts have not been acquired or runtime-qualified.
+[tool.vertex.optional-backends.event-study-numerics]
+state = "pinned-source-plan-runtime-unavailable"
+extra = "numeric"
+requirements-lock = "requirements-numeric-linux-py312.lock"
+runtime-qualified = false
+reason = "Main-approved exact CPython 3.12 Linux x86_64 artifact metadata; optional numerical runtime is unavailable until composed and accepted. Existing base lock is unchanged."
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
+testpaths = ["tests"]
+pythonpath = ["."]

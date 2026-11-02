@@ -1,0 +1,572 @@
+{
+  "description": "Pinned id/status extract of the legacy market-health revision that the Crown desk checklist was mapped against. The full file stays in the legacy workspace until merge-plan P1 imports market health into PostgreSQL.",
+  "source": {
+    "file": "research/expansion/market-health.json",
+    "commit": "eca068e1ac1d1861b87d3cb980acaaf8d95e944c",
+    "blob": "93a23b6e791b3b3a13f4552e3c204583daa1b46b"
+  },
+  "revision": "health-d2b267514f5df389",
+  "asOf": "2026-09-10T22:17:33.335Z",
+  "indicators": [
+    {
+      "id": "crown-equal-weight-versus-capitalization-weighted-s-p-rsp-spy",
+      "status": "partial"
+    },
+    {
+      "id": "crown-concentration-share-of-the-top-ten-mag-seven-and-semiconductor-leadership",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-percentage-of-s-p-constituents-above-their-50-day-and-200-day-moving-averages",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-percentage-of-s-p-stocks-outperforming-the-index-over-30-days",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-small-and-mid-cap-performance-versus-s-p-large-caps",
+      "status": "partial"
+    },
+    {
+      "id": "crown-defense-sector-relative-breadth-xar-versus-ita",
+      "status": "partial"
+    },
+    {
+      "id": "crown-healthcare-relative-performance-iyh-versus-vti-constituent-sleeves-xbi-xph-ihf-versus-the-overall-market",
+      "status": "partial"
+    },
+    {
+      "id": "crown-software-versus-semiconductors-igv-versus-the-semiconductor-benchmark",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-within-mag-seven-relative-performance-google-versus-nvidia-google-versus-meta",
+      "status": "partial"
+    },
+    {
+      "id": "crown-ai-supply-chain-versus-downstream-equity-performance",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-korea-semiconductor-joint-confirmation-ewy-and-soxx",
+      "status": "partial"
+    },
+    {
+      "id": "crown-utilities-as-a-rates-sensitive-defensive-bond-proxy-xlu-and-the-ten-year",
+      "status": "partial"
+    },
+    {
+      "id": "crown-equity-benchmarks-and-international-session-confirmation",
+      "status": "partial"
+    },
+    {
+      "id": "crown-vix-30-day-s-p-implied-volatility-protection-price-not-a-mechanical-fear-sell-signal",
+      "status": "partial"
+    },
+    {
+      "id": "crown-vvix",
+      "status": "partial"
+    },
+    {
+      "id": "crown-implied-volatility-rank-implied-versus-realized-volatility-event-premium-term-structure",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-put-call-ratio-and-directional-skew",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-dealer-gamma-sign-concentration-at-strikes-support-resistance-magnets-call-walls-gamma-flips",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-gamma-asymmetry-for-5-versus-5-moves",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-dealer-delta-and-hedging-flow-changes",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-0dte-strike-crowding-and-market-maker-futures-hedges",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-options-expiry-opex-and-vix-expiry-resets",
+      "status": "partial"
+    },
+    {
+      "id": "crown-single-name-upside-versus-short-index-volatility-dispersion-like-positioning",
+      "status": "partial"
+    },
+    {
+      "id": "crown-cftc-commitment-of-traders-managed-money-speculative-positioning-crowding-room-to-add-or-unwind",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-prime-brokerage-hedge-fund-exposure-and-sector-flow",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-cta-systematic-trend-following-flows",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-active-manager-equity-exposure-remaining-buying-capacity",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-prediction-market-event-probabilities-as-supplementary-positioning-information",
+      "status": "partial"
+    },
+    {
+      "id": "crown-high-yield-credit-spreads-high-yield-versus-investment-grade-performance",
+      "status": "partial"
+    },
+    {
+      "id": "crown-hyg-and-lqd-comparison-explicitly-duration-confounded",
+      "status": "partial"
+    },
+    {
+      "id": "crown-corporate-refinancing-burden-maturity-wall-bankruptcy-large-bankruptcy-counts",
+      "status": "partial"
+    },
+    {
+      "id": "crown-private-credit-redemption-gates-regional-bank-stress-commercial-bank-lending",
+      "status": "partial"
+    },
+    {
+      "id": "crown-corporate-bond-transaction-evidence",
+      "status": "partial"
+    },
+    {
+      "id": "crown-nominal-treasury-yields-and-yield-curve-shape-short-end-ten-year-belly-and-long-end-two-year-ten-year-flattening",
+      "status": "partial"
+    },
+    {
+      "id": "crown-real-yields-and-their-relationship-to-gold-silver",
+      "status": "partial"
+    },
+    {
+      "id": "crown-global-sovereign-yields",
+      "status": "partial"
+    },
+    {
+      "id": "crown-fed-funds-futures-cme-fedwatch-rate-probabilities-ois-and-currency-relative-rate-pricing",
+      "status": "partial"
+    },
+    {
+      "id": "crown-fomc-statement-versus-press-conference-tone-sep-dot-plot-inflation-growth-and-rate-projections",
+      "status": "partial"
+    },
+    {
+      "id": "crown-cpi-core-headline-inflation-and-energy-contribution-ppi-pce-import-prices",
+      "status": "partial"
+    },
+    {
+      "id": "crown-nonfarm-payrolls-unemployment-wage-growth-adp-initial-jobless-claims",
+      "status": "partial"
+    },
+    {
+      "id": "crown-gdp-growth-revisions-industrial-production-new-home-sales",
+      "status": "partial"
+    },
+    {
+      "id": "crown-consumer-confidence",
+      "status": "partial"
+    },
+    {
+      "id": "crown-ny-fed-recession-probability-and-term-premium-data-bls-bea-income-data",
+      "status": "partial"
+    },
+    {
+      "id": "crown-sector-momentum-forward-p-e-earnings-eps-revisions-and-an-incomplete-composite-rubric",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-dollar-dxy-direction-range-trend-breaks-and-safe-haven-demand",
+      "status": "partial"
+    },
+    {
+      "id": "crown-usd-jpy-yen-carry-unwind-boj-policy-and-intervention-dollar-versus-euro-high-yield-currencies",
+      "status": "partial"
+    },
+    {
+      "id": "crown-gold-silver-ratio-and-relative-performance",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-copper-gold-ratio-including-the-ratio-s-200-day-moving-average",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-silver-copper-30-day-return-correlation",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-copper-aluminum-ratio-versus-its-200-day-moving-average",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-s-p-es-priced-in-gold-stocks-priced-in-bitcoin",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-bitcoin-versus-equities-nasdaq-and-gold",
+      "status": "partial"
+    },
+    {
+      "id": "crown-gold-and-treasury-yields-rising-together",
+      "status": "partial"
+    },
+    {
+      "id": "crown-front-month-crude-price-oil-risk-premium-and-the-front-versus-second-month-calendar-spread-backwardation",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-rbob-gasoline-and-the-sequence-of-oil-risk-premium-removal",
+      "status": "partial"
+    },
+    {
+      "id": "crown-heating-oil-diesel-versus-brent-crack-spread-distillate-inventories-versus-their-five-year-average-refinery-throughput-feedstock-constraints",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-eia-crude-energy-inventories-and-price-response-to-inventory-surprises",
+      "status": "partial"
+    },
+    {
+      "id": "crown-corn-soybean-spread-ethanol-economics-versus-oil-nitrogen-fertilizer-price-supply",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-copper-versus-semiconductor-performance-ai-physical-buildout-demand",
+      "status": "partial"
+    },
+    {
+      "id": "crown-physical-supply-chain-observations",
+      "status": "partial"
+    },
+    {
+      "id": "crown-repo-facility-usage-and-regional-bank-funding-stress",
+      "status": "partial"
+    },
+    {
+      "id": "crown-fed-balance-sheet-qt-changes-t-bill-repo-and-commercial-paper-funding-conditions",
+      "status": "partial"
+    },
+    {
+      "id": "crown-m1-money-supply",
+      "status": "partial"
+    },
+    {
+      "id": "crown-market-depth-bid-ask-widening-turnover-and-thin-holiday-liquidity",
+      "status": "partial"
+    },
+    {
+      "id": "crown-event-calendar-liquidity-positioning-resets",
+      "status": "partial"
+    },
+    {
+      "id": "crown-simple-moving-averages-20-50-and-200-days-break-reclaim-hold-behavior",
+      "status": "partial"
+    },
+    {
+      "id": "crown-prior-20-day-high-low-channels-support-resistance-and-breakout-confirmation",
+      "status": "partial"
+    },
+    {
+      "id": "crown-volume-volume-spikes-as-conviction-and-positioning-evidence",
+      "status": "partial"
+    },
+    {
+      "id": "crown-rsi-momentum-divergence-not-an-automatic-overbought-sell",
+      "status": "partial"
+    },
+    {
+      "id": "crown-bollinger-bands-volatility-attention-cue-not-direction",
+      "status": "partial"
+    },
+    {
+      "id": "crown-fibonacci-retracements-socially-watched-technical-levels",
+      "status": "partial"
+    },
+    {
+      "id": "crown-macd-mentioned-and-explicitly-rejected-as-lagging",
+      "status": "partial"
+    },
+    {
+      "id": "crown-an-unnamed-noisy-oscillator-passage-is-incomplete",
+      "status": "unavailable"
+    },
+    {
+      "id": "crown-historical-return-percentiles-mean-reversion-seasonality-and-regime-dependent-correlations",
+      "status": "partial"
+    },
+    {
+      "id": "crown-reaction-to-adverse-headlines-failure-to-fall",
+      "status": "partial"
+    },
+    {
+      "id": "crown-signal-stacking-not-one-indicator-triggers",
+      "status": "partial"
+    },
+    {
+      "id": "crown-growth-conflict-regime-grid",
+      "status": "partial"
+    },
+    {
+      "id": "crown-trade-thesis-confirmation-positioning-cross-asset-behavior-narrative-saturation-and-remaining-risk-reward",
+      "status": "partial"
+    },
+    {
+      "id": "vix",
+      "status": "available"
+    },
+    {
+      "id": "vvix",
+      "status": "available"
+    },
+    {
+      "id": "vixeq",
+      "status": "available"
+    },
+    {
+      "id": "vixeq-minus-vix",
+      "status": "available"
+    },
+    {
+      "id": "series-dgs2",
+      "status": "available"
+    },
+    {
+      "id": "series-dgs10",
+      "status": "available"
+    },
+    {
+      "id": "series-dgs30",
+      "status": "available"
+    },
+    {
+      "id": "series-dfii10",
+      "status": "available"
+    },
+    {
+      "id": "series-bamlh0a0hym2",
+      "status": "available"
+    },
+    {
+      "id": "series-bamlc0a0cm",
+      "status": "available"
+    },
+    {
+      "id": "series-walcl",
+      "status": "available"
+    },
+    {
+      "id": "series-rrpontsyd",
+      "status": "available"
+    },
+    {
+      "id": "series-rpontsyd",
+      "status": "available"
+    },
+    {
+      "id": "series-sofr",
+      "status": "available"
+    },
+    {
+      "id": "series-m1sl",
+      "status": "available"
+    },
+    {
+      "id": "series-cpiaucsl",
+      "status": "available"
+    },
+    {
+      "id": "series-cpilfesl",
+      "status": "available"
+    },
+    {
+      "id": "series-pcepi",
+      "status": "available"
+    },
+    {
+      "id": "series-pcepilfe",
+      "status": "available"
+    },
+    {
+      "id": "series-ppifis",
+      "status": "available"
+    },
+    {
+      "id": "series-payems",
+      "status": "available"
+    },
+    {
+      "id": "series-unrate",
+      "status": "available"
+    },
+    {
+      "id": "series-ces0500000003",
+      "status": "available"
+    },
+    {
+      "id": "series-icsa",
+      "status": "available"
+    },
+    {
+      "id": "series-indpro",
+      "status": "available"
+    },
+    {
+      "id": "series-gdpc1",
+      "status": "partial"
+    },
+    {
+      "id": "series-hsn1f",
+      "status": "available"
+    },
+    {
+      "id": "series-busloans",
+      "status": "available"
+    },
+    {
+      "id": "series-dexjpus",
+      "status": "available"
+    },
+    {
+      "id": "series-dexuseu",
+      "status": "available"
+    },
+    {
+      "id": "series-dtwexbgs",
+      "status": "available"
+    },
+    {
+      "id": "series-dcoilwtico",
+      "status": "available"
+    },
+    {
+      "id": "series-dcoilbrenteu",
+      "status": "available"
+    },
+    {
+      "id": "series-dhhngsp",
+      "status": "available"
+    },
+    {
+      "id": "treasury-10y-minus-2y",
+      "status": "available"
+    },
+    {
+      "id": "rsp-spy",
+      "status": "available"
+    },
+    {
+      "id": "hyg-lqd",
+      "status": "available"
+    },
+    {
+      "id": "xar-ita",
+      "status": "available"
+    },
+    {
+      "id": "iyh-vti",
+      "status": "available"
+    },
+    {
+      "id": "xbi-vti",
+      "status": "available"
+    },
+    {
+      "id": "xph-vti",
+      "status": "available"
+    },
+    {
+      "id": "ihf-vti",
+      "status": "available"
+    },
+    {
+      "id": "iwm-spy",
+      "status": "available"
+    },
+    {
+      "id": "mdy-spy",
+      "status": "available"
+    },
+    {
+      "id": "igv-soxx",
+      "status": "available"
+    },
+    {
+      "id": "rsp-spy-sma20",
+      "status": "available"
+    },
+    {
+      "id": "ewy-adjusted-close",
+      "status": "available"
+    },
+    {
+      "id": "ewy-sma50",
+      "status": "available"
+    },
+    {
+      "id": "ewy-sma200",
+      "status": "available"
+    },
+    {
+      "id": "soxx-adjusted-close",
+      "status": "available"
+    },
+    {
+      "id": "soxx-sma50",
+      "status": "available"
+    },
+    {
+      "id": "soxx-sma200",
+      "status": "available"
+    },
+    {
+      "id": "spy-adjusted-close",
+      "status": "available"
+    },
+    {
+      "id": "spy-sma50",
+      "status": "available"
+    },
+    {
+      "id": "spy-sma200",
+      "status": "available"
+    },
+    {
+      "id": "qqq-adjusted-close",
+      "status": "available"
+    },
+    {
+      "id": "qqq-sma50",
+      "status": "available"
+    },
+    {
+      "id": "qqq-sma200",
+      "status": "available"
+    },
+    {
+      "id": "xlu-adjusted-close",
+      "status": "available"
+    },
+    {
+      "id": "xlu-sma50",
+      "status": "available"
+    },
+    {
+      "id": "xlu-sma200",
+      "status": "available"
+    },
+    {
+      "id": "crown-newer-semiconductor-resilience",
+      "status": "partial"
+    }
+  ]
+}

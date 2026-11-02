@@ -1,0 +1,120 @@
+{
+  "slug": "implied-volatility-five-components",
+  "sourceId": "DbQfQnJuYez",
+  "title": "Implied volatility is five components stacked on realized volatility",
+  "summary": "Implied volatility starts with realized volatility; when the two are equal the option is priced fairly. On top come added layers: event risk, market risk such as macro or geopolitics, tail risk for big moves, and supply and demand, which makes puts trade richer than calls. The more premium is stacked on, the richer the option relative to realized volatility.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "volatility", "hedging"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["implied volatility", "risk premium", "skew", "tail risk"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Stacked premium",
+      "default": 5,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "gray",
+      "caption": "The stock price path whose moves the options are priced on.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Layer one is realized volatility: what the stock actually did. Implied equal to realized means a fair price."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility stacks event risk, market risk, tail risk and supply and demand on top of realized."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap is the risk premium. The bigger it is, the richer the option and the more a seller captures."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "When realized rises above implied, the stacked premium was not enough and sellers lose."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "blackScholes"],
+  "takeaways": [
+    "Implied volatility = realized volatility plus several risk premiums.",
+    "Event risk, market risk, tail risk and supply and demand each add to it.",
+    "Demand for protection makes puts trade richer than calls.",
+    "Judge an option's richness relative to realized volatility."
+  ],
+  "caveats": [
+    "The second component is garbled in the transcript; event risk is a likely reading.",
+    "The speaker promotes his VAY metric; it is not verified."
+  ]
+}

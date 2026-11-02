@@ -1,0 +1,251 @@
+{
+  "source": "https://www.swinglytics.com/ (Market Intelligence Dashboard)",
+  "parser": "market-watch-bot market_watch/swing/parse.py dashboard_data()",
+  "generated_at": "2026-10-16T20:06:39.374083+00:00",
+  "indexes": [
+    {
+      "ticker": "SPY",
+      "name": "S&P 500"
+    },
+    {
+      "ticker": "QQQ",
+      "name": "Nasdaq 100"
+    },
+    {
+      "ticker": "DIA",
+      "name": "Dow 30"
+    },
+    {
+      "ticker": "IWM",
+      "name": "Russell 2000"
+    }
+  ],
+  "sectors": [
+    {
+      "etf": "XLK",
+      "name": "Technology"
+    },
+    {
+      "etf": "XLF",
+      "name": "Financials"
+    },
+    {
+      "etf": "XLE",
+      "name": "Energy"
+    },
+    {
+      "etf": "XLV",
+      "name": "Healthcare"
+    },
+    {
+      "etf": "XLI",
+      "name": "Industrials"
+    },
+    {
+      "etf": "XLP",
+      "name": "Consumer Staples"
+    },
+    {
+      "etf": "XLY",
+      "name": "Consumer Discretionary"
+    },
+    {
+      "etf": "XLU",
+      "name": "Utilities"
+    },
+    {
+      "etf": "XLB",
+      "name": "Materials"
+    },
+    {
+      "etf": "XLRE",
+      "name": "Real Estate"
+    },
+    {
+      "etf": "XLC",
+      "name": "Communication Services"
+    },
+    {
+      "etf": "XBI",
+      "name": "Biotech"
+    }
+  ],
+  "themes": [
+    {
+      "name": "Software / SaaS",
+      "tickers": ["ORCL", "TEAM", "SNOW", "MSFT", "NOW", "APP"]
+    },
+    {
+      "name": "AI Software",
+      "tickers": ["APP", "AI", "PLTR", "SOUN", "TEM", "ZETA", "INOD"]
+    },
+    {
+      "name": "Gold / Metals",
+      "tickers": [
+        "GLD",
+        "SLV",
+        "GDX",
+        "COPX",
+        "NEM",
+        "FCX",
+        "GOLD",
+        "NAK",
+        "PALL",
+        "SILJ",
+        "UGL"
+      ]
+    },
+    {
+      "name": "Fintech",
+      "tickers": [
+        "SOFI",
+        "NU",
+        "COIN",
+        "HOOD",
+        "AFRM",
+        "UPST",
+        "LMND",
+        "RKT",
+        "OPEN",
+        "IBKR"
+      ]
+    },
+    {
+      "name": "Biotech",
+      "tickers": ["MRNA", "BNTX", "ARCT", "EXAS", "RXRX", "VKTX", "HIMS"]
+    },
+    {
+      "name": "Cybersecurity",
+      "tickers": ["CRWD", "PANW", "ZS", "S", "FTNT", "NET", "OKTA"]
+    },
+    {
+      "name": "Crypto",
+      "tickers": [
+        "BTC-USD",
+        "ETH-USD",
+        "SOL-USD",
+        "MSTR",
+        "COIN",
+        "MARA",
+        "CLSK"
+      ]
+    },
+    {
+      "name": "Semiconductors",
+      "tickers": [
+        "NVDA",
+        "AMD",
+        "MU",
+        "TSM",
+        "LRCX",
+        "NVTS",
+        "ARM",
+        "AMKR",
+        "AEHR",
+        "CRDO"
+      ]
+    },
+    {
+      "name": "Clean Energy / EV",
+      "tickers": [
+        "RIVN",
+        "RUN",
+        "SEDG",
+        "FSLR",
+        "QS",
+        "EOSE",
+        "FLNC",
+        "DQ",
+        "BE",
+        "XPEV",
+        "ENVX",
+        "SLDP"
+      ]
+    },
+    {
+      "name": "Nuclear Energy",
+      "tickers": ["CEG", "SMR", "OKLO", "VST", "LEU", "GEV", "CCJ", "NNE"]
+    },
+    {
+      "name": "AI Infrastructure",
+      "tickers": ["SMCI", "ALAB", "CRDO", "VRT", "ANET"]
+    },
+    {
+      "name": "Defense & Drones",
+      "tickers": [
+        "KTOS",
+        "AVAV",
+        "RCAT",
+        "AIRO",
+        "ONDS",
+        "DRSHF",
+        "DPRO",
+        "UMAC",
+        "KRMN",
+        "KRKNF",
+        "BBAI"
+      ]
+    },
+    {
+      "name": "Space",
+      "tickers": [
+        "RKLB",
+        "ASTS",
+        "PL",
+        "RDW",
+        "BKSY",
+        "LUNR",
+        "SPIR",
+        "FLY",
+        "VOYG"
+      ]
+    },
+    {
+      "name": "AI Optical",
+      "tickers": ["AAOI", "POET", "LWLG", "VIAV", "LITE", "COHR", "CIEN", "FN"]
+    },
+    {
+      "name": "Rare Earths",
+      "tickers": [
+        "MP",
+        "USAR",
+        "UAMY",
+        "CRML",
+        "TMC",
+        "PPTA",
+        "IDR",
+        "UUUU",
+        "LAC",
+        "NAK",
+        "NEXA"
+      ]
+    },
+    {
+      "name": "Aviation / eVTOL",
+      "tickers": ["JOBY", "ACHR", "EH", "EVTL"]
+    },
+    {
+      "name": "Quantum Computing",
+      "tickers": ["IONQ", "RGTI", "QUBT", "QBTS", "ARQQ", "LAES", "BTQ", "INFQ"]
+    },
+    {
+      "name": "Robotics / Automation",
+      "tickers": ["PATH", "SERV", "RR", "PONY", "IOT", "PDYN", "OUST", "AUR"]
+    },
+    {
+      "name": "AI Data Centers",
+      "tickers": [
+        "CRWV",
+        "CORZ",
+        "APLD",
+        "IREN",
+        "CIFR",
+        "HUT",
+        "WGMI",
+        "NBIS",
+        "BITF",
+        "RIOT"
+      ]
+    }
+  ]
+}

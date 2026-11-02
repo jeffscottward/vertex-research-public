@@ -1,0 +1,139 @@
+{
+  "slug": "95-delta-calls-core-holdings",
+  "sourceId": "DbBx_mqtpQ9",
+  "title": "Use 95-delta calls instead of shares for core holdings",
+  "summary": "The speaker no longer buys shares for core holdings. A 95-delta call 13 to 14 months out costs about 52-55% of the share price and gives 95% of the move. The rest stays in cash as dry powder for drawdowns like March 2020. Interest on that cash roughly offsets the small extrinsic value. He rolls after 12 to 13 months to avoid steep late theta.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps", "synthetics"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["stock replacement", "dry powder", "deep ITM", "LEAPS"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "100 shares",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        }
+      ]
+    },
+    "b": {
+      "label": "95-delta call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 200,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 410,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Stock at $200. The call is about 14 months out, deep in the money."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "100 shares: you put up the full $20,000."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "95-delta call: you pay about 52-55% of the share price and get about 95% of the move."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The gap is small extrinsic value. Interest on the cash you keep roughly pays for it.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the strike the call loses less than the stock, and the unused cash is dry powder for drawdowns."
+    }
+  ],
+  "formulas": ["delta", "extrinsic", "putCallParity"],
+  "takeaways": [
+    "A 95-delta call gives nearly the same exposure for about half the capital.",
+    "Keep the rest in cash as dry powder for large drawdowns.",
+    "Buy 13-14 months out and roll after 12-13 months to avoid late theta."
+  ],
+  "caveats": [
+    "Cost works best on lower implied volatility names. Large position size: check the owner's LEAPS cap."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["SPY", "QQQ", "AAPL", "MSFT", "GOOGL"],
+    "scenario": {
+      "label": "2015-2024 decade incl. 2020 crash",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 410,
+      "coreDelta": 0.95,
+      "coreExitDte": 30,
+      "riskPct": 30
+    },
+    "note": "95-delta call about 13-14 months out, rolled with about one month left, as a share replacement."
+  }
+}

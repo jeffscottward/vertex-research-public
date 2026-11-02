@@ -1,0 +1,1 @@
+example_strategy	2026-09-18 16:24:08.740038+00	{"event": "strategy_started", "service": "nautilus-trader", "strategy": "example_strategy", "timestamp": "2026-09-18T16:24:08.740038+00:00", "watchlist": ["AAPL"], "trading_mode": "live", "observation_only": true}

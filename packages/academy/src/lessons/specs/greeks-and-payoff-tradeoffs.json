@@ -1,0 +1,112 @@
+{
+  "slug": "greeks-and-payoff-tradeoffs",
+  "sourceId": "DZh3jMOuHG6",
+  "title": "Know the Greeks and the trade-offs in every payoff",
+  "summary": "Most option traders lose because they do not understand the basics. First, the Greeks: delta, gamma, theta and vega. Second, payoff profiles and their trade-offs: a higher win rate means a lower payout, more theta costs gamma, and more time costs more premium. The third point is cut off in the transcript.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["Greeks", "trade-offs", "payoff"]
+  },
+  "scene": {
+    "type": "greeks",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "greek": "theta"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "delta",
+      "color": "green",
+      "caption": "Delta: how much the option moves with the stock."
+    },
+    {
+      "element": "gamma",
+      "color": "red",
+      "caption": "Gamma: a short option is short gamma. Big moves hurt."
+    },
+    {
+      "element": "theta",
+      "color": "violet",
+      "caption": "Theta: the short option earns time decay. More theta costs you gamma.",
+      "time": [0, 0.9]
+    },
+    {
+      "element": "vega",
+      "color": "violet",
+      "caption": "Vega: exposure to changes in implied volatility."
+    },
+    {
+      "element": "strikes",
+      "color": "gold",
+      "caption": "No free lunch: every gain in one Greek is paid for in another."
+    }
+  ],
+  "formulas": ["delta", "gamma", "theta", "vega"],
+  "takeaways": [
+    "Learn delta, gamma, theta and vega.",
+    "Every payoff profile has trade-offs: higher win rate, lower payout.",
+    "More theta means more short gamma; more time means a higher price."
+  ],
+  "caveats": [
+    "The transcript is cut off; the third point is not stated.",
+    "The speaker mentions tools he is building."
+  ]
+}

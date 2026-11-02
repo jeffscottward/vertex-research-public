@@ -1,0 +1,120 @@
+{
+  "slug": "nvda-put-spread-iv-below-rv",
+  "sourceId": "DZ5hWBsv1ee",
+  "title": "Do not sell options when implied volatility is below realized",
+  "summary": "The speaker reviews a social media trade: sell an NVIDIA put spread, short $210, long $207.50, stock near $224, 8 days to expiry, for about $0.30 ($30) with $220 max loss. The trade hit max loss. He would have refused it: a poor entry and implied volatility trading below realized since late May, so the seller was not paid for the risk.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["low-vol"],
+    "instruments": ["single-stock", "spreads", "volatility"],
+    "timeframe": "days",
+    "risk": "defined",
+    "topics": ["IV vs RV", "credit spread", "NVDA"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 224,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 45,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied minus realized",
+      "default": -4,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average gap between implied and realized volatility, in vol points."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days shown",
+      "default": 60,
+      "min": 20,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "NVIDIA near $224. A put spread is sold at $210/$207.50 for $0.30 with 8 days left.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much NVIDIA actually moved."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility had been below realized since about the third week of May."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "A negative gap means the seller is paid less than the risk taken. $30 credit against $220 max loss."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "Rule: when implied is at or below realized, do not sell options."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "verticalMaxProfit"],
+  "takeaways": [
+    "Compare implied with realized volatility before selling options.",
+    "When implied is at or below realized, you are not paid enough for the risk.",
+    "The cited trade risked $220 to make $30 and hit max loss."
+  ],
+  "caveats": [
+    "VAY is the speaker's proprietary score; it is promotional and unverified.",
+    "Trade figures are quoted from the video and not checked here."
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "slug": "otm-call-spread-leverage",
+  "sourceId": "DTsywKcDoCN",
+  "title": "Out-of-the-money call spreads for leveraged upside on names you like",
+  "summary": "The speaker uses one-year out-of-the-money call spreads on stocks he likes to add leverage in a tactical sleeve. The Lululemon example needs the stock near $250 within a year. He describes it as roughly 10 to 1 leverage on the stock. If the stock does not get there, the whole premium is lost, so size it small.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["call spread", "leverage", "tactical sleeve"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "LULU price",
+      "default": 200,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 220,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 250,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 365,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 40,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Lululemon trades near $200 in this example. The view is bullish over one year."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "Buy the lower call and sell the $250 call, both out of the money, one year out."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At expiry the spread pays its full width if the stock is above $250."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "If right, the return on premium is large: the speaker calls it about 10 to 1 leverage on the stock move."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the long strike plus the debit paid."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Below the long strike at expiry you lose 100% of the premium. Size it as a full loss."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "caption": "Before expiry the spread moves less than the stock; most of the payoff comes late.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "positionSize"],
+  "takeaways": [
+    "An OTM call spread gives leveraged upside with a defined maximum loss.",
+    "Use it in a small tactical sleeve on names you already like.",
+    "Size each trade so a 100% loss of premium is acceptable."
+  ],
+  "caveats": [
+    "The transcript is partly cut: the exact strikes and cost are not stated. The strikes here are illustrative.",
+    "Not a trade recommendation (the speaker says this too). The waitlist and tools are promotional."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["AAPL", "MSFT", "NVDA", "AMZN", "META"],
+    "scenario": {
+      "label": "2015-2024 single-stock decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 365,
+      "longDelta": 0.4,
+      "shortDelta": 0.2,
+      "exitDte": 30,
+      "profitTakePct": 200,
+      "stopLossPct": 100,
+      "riskPct": 1
+    },
+    "note": "One-year OTM call spread, about 40/20 delta, small risk per trade, hold for the move or the full loss."
+  }
+}

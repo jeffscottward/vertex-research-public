@@ -1,0 +1,155 @@
+{
+  "slug": "qe-is-not-money-printing",
+  "sourceId": "DTQu3NKCWJf",
+  "title": "Quantitative easing swaps reserves for long-term Treasuries",
+  "summary": "The speaker says quantitative easing is not money printing. The Fed buys long-term Treasuries from primary dealers and pays with bank reserves. The aim is lower term interest rates to support the economy. The chart shows a long Treasury fund position along a path where QE pushes long rates down.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "regime-change"],
+    "instruments": ["etf"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "quantitative easing", "interest rates", "treasuries"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "lots"
+      }
+    ],
+    "events": [
+      {
+        "day": 60,
+        "label": "Fed announces QE",
+        "color": "violet"
+      },
+      {
+        "day": 180,
+        "label": "Term rates lower",
+        "color": "green"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 30,
+        "movePct": -1
+      },
+      {
+        "day": 60,
+        "movePct": -2
+      },
+      {
+        "day": 90,
+        "movePct": 3
+      },
+      {
+        "day": 180,
+        "movePct": 8
+      },
+      {
+        "day": 250,
+        "movePct": 9
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "TLT-like fund price",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 15,
+      "min": 3,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    },
+    {
+      "id": "lots",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 30,
+      "max": 500,
+      "step": 5,
+      "unit": "days"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A long-term Treasury fund price. Its price rises when long-term interest rates fall.",
+      "time": [0, 1]
+    },
+    {
+      "element": "events",
+      "color": "violet",
+      "caption": "QE: the Fed buys long-term Treasuries from primary dealers and pays with reserves."
+    },
+    {
+      "element": "spot",
+      "color": "blue",
+      "caption": "Reserves replace bonds on bank balance sheets. The total amount of assets does not grow."
+    },
+    {
+      "element": "pnl",
+      "color": "green",
+      "caption": "The goal is lower term rates. Lower rates lift long bond prices and support the economy.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["recovery"],
+  "takeaways": [
+    "QE is an asset swap: Treasuries out, reserves in.",
+    "The goal of QE is lower long-term interest rates.",
+    "The speaker says calling QE money printing is a common mistake."
+  ],
+  "caveats": [
+    "This is a macro opinion with no data in the transcript. The price path is simulated and only illustrates the rate effect."
+  ]
+}

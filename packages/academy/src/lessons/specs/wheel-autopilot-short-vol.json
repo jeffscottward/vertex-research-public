@@ -1,0 +1,120 @@
+{
+  "slug": "wheel-autopilot-short-vol",
+  "sourceId": "DXr0cWhES-F",
+  "title": "The wheel on autopilot sells volatility without checking its price",
+  "summary": "The wheel runs on autopilot, which is why many like it and why the speaker dislikes it. The wheel is short volatility. Professionals sell volatility only when it is mispriced, so ask if what you sell is rich, fair or cheap. He uses his own volatility-adjusted yield (VAY) metric for this.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol", "low-vol"],
+    "instruments": ["cash-secured-puts", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["wheel", "VRP", "short volatility"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied minus realized",
+      "default": 1,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average gap between implied and realized volatility, in vol points."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 80,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days shown",
+      "default": 250,
+      "min": 20,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock path. The wheel sells puts and calls on it every cycle, without condition.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much the stock actually moves."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility: the price you get paid when you sell an option."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "When implied is above realized, the option is rich. When it is below, you sell cheap and give away edge."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "Autopilot selling ignores this gap. Professionals sell only when volatility is mispriced."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol"],
+  "takeaways": [
+    "The wheel is a short volatility strategy.",
+    "Ask whether the volatility you sell is rich, fair, or cheap.",
+    "Do not sell volatility on autopilot."
+  ],
+  "caveats": [
+    "VAY is the speaker's proprietary metric; it is promotional and unverified.",
+    "The claim that no hedge fund runs the wheel is the speaker's opinion."
+  ]
+}

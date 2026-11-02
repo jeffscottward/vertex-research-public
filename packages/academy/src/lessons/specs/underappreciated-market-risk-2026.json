@@ -1,0 +1,55 @@
+{
+  "slug": "underappreciated-market-risk-2026",
+  "sourceId": "DTYrvy9CZk5",
+  "title": "An open question: the most underappreciated market risk in 2026",
+  "summary": "This clip is a five-second question with no lesson content. The speaker asks viewers which market risk for 2026 they think is most underappreciated. The chart shows why risk planning matters: a large loss needs a much larger gain to recover.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "hedging"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["market risk", "drawdown", "question"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "recovery"
+  },
+  "params": [
+    {
+      "id": "lossPct",
+      "label": "Portfolio loss",
+      "default": 30,
+      "min": 1,
+      "max": 95,
+      "step": 1,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The transcript only asks a question. This chart is a general reference on downside risk."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "The gain needed to recover rises faster than the loss: a 50% loss needs a 100% gain.",
+      "time": [0, 1]
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "A 30% loss needs about a 43% gain to get back to even."
+    }
+  ],
+  "formulas": ["recovery"],
+  "takeaways": [
+    "The clip asks which market risk in 2026 is most underappreciated and gives no answer.",
+    "Planning for unexpected risks matters because losses compound against you."
+  ],
+  "caveats": [
+    "The transcript has almost no content (one question). The chart and takeaways add general context, not the speaker's view."
+  ]
+}

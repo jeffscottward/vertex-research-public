@@ -1,0 +1,211 @@
+{
+  "slug": "pmcc-negative-delta-trap",
+  "sourceId": "DUrFpAciZ4S",
+  "title": "The poor man's covered call negative delta trap",
+  "summary": "A poor man's covered call (long LEAPS call, short weekly calls) can lose when the stock falls and again when it rallies back through the short strike. Short call delta rises fast near expiry while the LEAPS delta barely moves. Selling fewer short calls than the LEAPS delta allows keeps net delta positive.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish", "range"],
+    "instruments": ["single-stock", "leaps", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["delta", "gamma", "diagonal"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "10 short calls (trap)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "leapsQty",
+          "strike": "leapsStrike",
+          "dte": "leapsDte",
+          "label": "Long LEAPS call"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "trapQty",
+          "strike": "shortStrike",
+          "dte": "shortDte",
+          "label": "Short weekly calls"
+        }
+      ]
+    },
+    "b": {
+      "label": "7 short calls (delta matched)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "leapsQty",
+          "strike": "leapsStrike",
+          "dte": "leapsDte",
+          "label": "Long LEAPS call"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "fixQty",
+          "strike": "shortStrike",
+          "dte": "shortDte",
+          "label": "Short weekly calls"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 20,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "leapsStrike",
+      "label": "LEAPS strike",
+      "default": 85,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "leapsDte",
+      "label": "LEAPS days to expiry",
+      "default": 365,
+      "min": 120,
+      "max": 900,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "leapsQty",
+      "label": "LEAPS contracts",
+      "default": 10,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 104,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortDte",
+      "label": "Short call days to expiry",
+      "default": 7,
+      "min": 1,
+      "max": 45,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "trapQty",
+      "label": "Short calls (trap)",
+      "default": 10,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "fixQty",
+      "label": "Short calls (delta matched)",
+      "default": 7,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts",
+      "help": "LEAPS contracts x LEAPS delta, rounded down."
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We own 10 one-year LEAPS calls (about 70 delta) and sell weekly calls at the $104 strike."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "Trap: 10 short weekly calls against 10 LEAPS. Near $104 the short calls' delta jumps toward 1.0."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "time": [0, 0.95],
+      "caption": "As the week ends, the red line slopes down above the strike: net negative delta. A rally now loses money."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "Fix: sell 7 calls, which is 10 LEAPS x 0.70 delta. Short call delta can never exceed the LEAPS delta."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The violet line is the gap between the two: the cost of the trap when the stock rallies through the short strike."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Both versions keep the same downside from the LEAPS. Only the upside changes with the short call count."
+    }
+  ],
+  "formulas": ["delta", "gamma", "putCallParity"],
+  "takeaways": [
+    "Short-dated call delta changes fast (high gamma); LEAPS delta changes slowly.",
+    "Size the short calls so that their total delta stays below the LEAPS delta: short contracts <= LEAPS contracts x LEAPS delta.",
+    "Check net delta at the short strike near expiry, not only at entry."
+  ],
+  "caveats": [
+    "The backtest sells one short call per LEAPS; it does not model the delta-matched ratio."
+  ],
+  "backtest": {
+    "structure": "pmcc",
+    "tickers": ["AAPL", "MSFT", "SPY"],
+    "scenario": {
+      "label": "2018-2024: two bear markets and two rallies",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDelta": 0.7,
+      "coreDte": 365,
+      "coreExitDte": 120,
+      "dte": 7,
+      "shortDelta": 0.3
+    },
+    "note": "Diagonal: one-year 70-delta call, 30-delta weekly short calls rolled at expiry."
+  }
+}

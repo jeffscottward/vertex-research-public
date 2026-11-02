@@ -1,0 +1,55 @@
+{
+  "name": "@darkfactory/storage",
+  "brick": "product",
+  "description": "Vertex object storage: R2 adapter, chat copies and artifact metadata.",
+  "version": "0.2.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/r2/unsupported.ts"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./vertex": {
+      "import": "./src/vertex.ts",
+      "default": "./src/vertex.ts"
+    },
+    "./chat-copies": {
+      "import": "./src/chat-copies.ts",
+      "default": "./src/chat-copies.ts"
+    },
+    "./r2": {
+      "workerd": "./src/r2.ts",
+      "worker": "./src/r2.ts",
+      "browser": "./src/r2/unsupported.ts",
+      "import": "./src/r2.ts",
+      "default": "./src/r2.ts"
+    },
+    "./test": {
+      "import": "./src/test.ts",
+      "default": "./src/test.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@darkfactory/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  }
+}

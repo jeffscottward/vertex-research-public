@@ -1,0 +1,25 @@
+{
+  "ibkr": {
+    "checked_at": "2026-09-25T16:38:38.670098+00:00",
+    "detail": "connected",
+    "ok": true
+  },
+  "kill_switch_active": false,
+  "last_heartbeat_at": "2026-09-25T16:38:38.611831+00:00",
+  "postgres": {
+    "ok": true
+  },
+  "redis": {
+    "ok": true
+  },
+  "safe_mode": true,
+  "service": "nautilus-trader",
+  "started_at": "2026-09-18T16:24:08.345230+00:00",
+  "status": "ok",
+  "synthetic_stops": {
+    "armed": false,
+    "detail": "disabled",
+    "required": false
+  },
+  "trading_mode": "live"
+}

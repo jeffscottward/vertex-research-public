@@ -1,0 +1,596 @@
+// @vitest-environment jsdom
+import type {
+  BacktestGetOutput,
+  MarketBarsInput,
+  MarketBarsOutput,
+} from "@darkfactory/api";
+import { act, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+const chartProps = vi.hoisted(() => ({
+  last: null as null | Record<string, unknown>,
+}));
+vi.mock("../../features/charts/market-chart.tsx", () => ({
+  MarketBarsChart: (props: Record<string, unknown>) => {
+    chartProps.last = props;
+    return null;
+  },
+}));
+
+import type { BacktestsGateway } from "./agent-ops-client.tsx";
+import { ChartsWorkspace } from "./charts-workspace.tsx";
+import type { MarketDataGateway } from "./market-data-client.ts";
+import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
+
+const testGlobal = globalThis as typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+const previousAct = testGlobal.IS_REACT_ACT_ENVIRONMENT;
+// jsdom has no scrollIntoView (so vi.spyOn cannot wrap it): install a mock and
+// put the prototype back afterwards.
+const scrollDescriptor = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  "scrollIntoView"
+);
+const scrolled = vi.fn();
+beforeAll(() => {
+  testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    configurable: true,
+    value: scrolled,
+    writable: true,
+  });
+});
+afterAll(() => {
+  if (scrollDescriptor === undefined)
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  else
+    Object.defineProperty(
+      Element.prototype,
+      "scrollIntoView",
+      scrollDescriptor
+    );
+  if (previousAct === undefined) {
+    delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
+    return;
+  }
+  testGlobal.IS_REACT_ACT_ENVIRONMENT = previousAct;
+});
+const roots: Root[] = [];
+afterEach(async () => {
+  for (const root of roots.splice(0)) await act(async () => root.unmount());
+  scrolled.mockClear();
+  window.history.replaceState(null, "", "/");
+  document.body.replaceChildren();
+  chartProps.last = null;
+});
+const flush = async () => ({
+  ...(await (async () => {
+    const results = {};
+    for (let i = 0; i < 30; i += 1)
+      Object.assign(results, await Promise.resolve());
+    return results;
+  })()),
+});
+const mount = async (element: ReactElement) => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  roots.push(root);
+  await act(async () => {
+    root.render(element);
+    return await flush();
+  });
+  return container;
+};
+
+const select = (label: string): HTMLSelectElement => {
+  const element = document.querySelector<HTMLSelectElement>(
+    `select[aria-label="${label}"]`
+  );
+  if (element === null) throw new Error(`Missing select ${label}`);
+  return element;
+};
+const change = async (
+  element: HTMLSelectElement | HTMLInputElement,
+  value: string
+) => {
+  return await act(async () => {
+    const prototype =
+      element instanceof HTMLSelectElement
+        ? HTMLSelectElement.prototype
+        : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(
+      element,
+      value
+    );
+    element.dispatchEvent(
+      new Event(element instanceof HTMLSelectElement ? "change" : "input", {
+        bubbles: true,
+      })
+    );
+    return await flush();
+  });
+};
+const submit = async () => {
+  const button = [...document.querySelectorAll("button")].find(
+    (node) => node.textContent?.trim() === "Load bars"
+  );
+  if (button === undefined) throw new Error("Missing Load bars");
+  return await act(async () => {
+    button.click();
+    return await flush();
+  });
+};
+const symbolInput = (): HTMLInputElement => {
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Symbol"]'
+  );
+  if (input === null) throw new Error("Missing Symbol");
+  return input;
+};
+
+const DAY = 86_400;
+const t0 = Date.parse("2024-01-01T00:00:00Z") / 1000;
+const output = (count = 5): MarketBarsOutput => ({
+  source: "ibkr-gateway",
+  request: {
+    symbol: "SPY",
+    secType: "STK",
+    exchange: "SMART",
+    currency: "USD",
+    barSize: "1 day",
+    duration: "1 Y",
+    whatToShow: "TRADES",
+    useRTH: true,
+    contractMonth: null,
+  },
+  contract: {
+    conId: 756_733,
+    secType: "STK",
+    localSymbol: "SPY",
+    exchange: "SMART",
+    currency: "USD",
+    lastTradeDateOrContractMonth: null,
+    multiplier: null,
+    longName: "SPDR S&P 500 ETF TRUST",
+    timeZoneId: "US/Eastern",
+    matches: 1,
+  },
+  bars: Array.from({ length: count }, (_, index) => ({
+    t: t0 + index * DAY,
+    o: 100 + index,
+    h: 102 + index,
+    l: 99 + index,
+    c: 101 + index,
+    v: index === 0 ? null : 1000,
+  })),
+  count,
+  fetchedAt: "2024-01-06T01:00:00Z",
+  asOf: "2024-01-05T00:00:00Z",
+  cache: { hit: true, ageSeconds: 42, ttlSeconds: 300, stale: false },
+  receivedAt: "2024-01-06T01:00:01Z",
+});
+
+const marketGateway = (
+  implementation: (input: MarketBarsInput) => Promise<MarketBarsOutput>
+) => {
+  return { bars: vi.fn(implementation) } satisfies MarketDataGateway;
+};
+
+const backtestsGateway = (): BacktestsGateway => ({
+  list: vi.fn(
+    async () =>
+      [
+        {
+          id: "bt-1",
+          strategy: "jump-model v1",
+          instruments: "SPY",
+          periodStart: "2024-01-01",
+          periodEnd: "2024-01-05",
+        },
+      ] as never
+  ),
+  get: vi.fn(
+    async () =>
+      ({
+        backtest: {
+          id: "bt-1",
+          trades: [
+            {
+              entry_t: "2024-01-02",
+              exit_t: "2024-01-03",
+              side: "long",
+              qty: 1,
+              entry_px: 101.5,
+              exit_px: 103,
+              pnl: 1.5,
+            },
+            {
+              entry_t: "2023-06-01",
+              exit_t: "2023-06-02",
+              side: "short",
+              qty: 1,
+              entry_px: 90,
+              exit_px: 89,
+              pnl: 1,
+            },
+          ],
+        },
+        task: null,
+      }) as unknown as BacktestGetOutput
+  ),
+});
+
+// The options panel stays in its loading state, so no test reaches the network.
+const optionsGateway = () =>
+  ({
+    snapshot: vi.fn(() => new Promise<never>(() => undefined)),
+  }) satisfies OptionsAnalyticsGateway;
+
+describe("ChartsWorkspace", () => {
+  it("loads the SPY daily defaults and shows source, contract, timing, cache and bar count", async () => {
+    const market = marketGateway(async () => output());
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(market.bars).toHaveBeenCalledWith({
+      symbol: "SPY",
+      secType: "STK",
+      exchange: "SMART",
+      currency: "USD",
+      barSize: "1 day",
+      duration: "1 Y",
+      whatToShow: "TRADES",
+      useRTH: true,
+    });
+    const text = container.textContent ?? "";
+    expect(text).toContain("IBKR Gateway");
+    expect(text).toContain("SPDR S&P 500 ETF TRUST");
+    expect(text).toContain("756733");
+    expect(text).toContain("2024-01-05T00:00:00Z");
+    expect(text).toContain("2024-01-06T01:00:00Z");
+    expect(text).toContain("hit");
+    expect(text).toContain("42 s");
+    expect(container.querySelector("[data-bar-count]")?.textContent).toContain(
+      "5"
+    );
+    expect(chartProps.last?.["candles"]).toHaveLength(5);
+    expect(chartProps.last?.["studies"]).toEqual({
+      volume: true,
+      sma: [],
+      ema: [],
+      extra: [],
+    });
+    const indicator = (label: string) =>
+      [
+        ...container.querySelectorAll<HTMLInputElement>(
+          "[data-vertex-studies] input[type=checkbox]"
+        ),
+      ].find((input) => input.parentElement?.textContent === label);
+    const click = async (input: HTMLInputElement | undefined) =>
+      await act(async () => input?.click());
+    expect(
+      container.querySelectorAll("[data-vertex-studies] input")
+    ).toHaveLength(9);
+    await click(indicator("MACD 12, 26, 9"));
+    await click(indicator("Bollinger 20, 2"));
+    expect(chartProps.last?.["studies"]).toMatchObject({
+      extra: ["boll", "macd"],
+    });
+    await click(indicator("MACD 12, 26, 9"));
+    expect(chartProps.last?.["studies"]).toMatchObject({ extra: ["boll"] });
+    expect(container.querySelector("[data-return-stats]")).not.toBeNull();
+    expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
+    return expect(container.querySelector("[data-hour-stats]")).toBeNull();
+  });
+
+  it("limits durations to the bar size and switches futures to an exchange", async () => {
+    const market = marketGateway(async () => output());
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    await change(select("Bar size"), "1 min");
+    expect(
+      [...select("Duration").options].map((option) => option.value)
+    ).toEqual(["1 D", "2 D"]);
+    expect(select("Duration").value).toBe("2 D");
+    await change(select("Security type"), "FUT");
+    const exchange = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Exchange"]'
+    )!;
+    expect(exchange.value).toBe("CME");
+    await change(
+      document.querySelector<HTMLInputElement>('input[aria-label="Symbol"]')!,
+      "es"
+    );
+    await submit();
+    return expect(market.bars).toHaveBeenLastCalledWith({
+      symbol: "ES",
+      secType: "FUT",
+      exchange: "CME",
+      currency: "USD",
+      barSize: "1 min",
+      duration: "2 D",
+      whatToShow: "TRADES",
+      useRTH: true,
+    });
+  });
+
+  it("mounts the options panel only for USD stock charts", async () => {
+    const usd = optionsGateway();
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={marketGateway(async () => output())}
+        optionsAnalytics={usd}
+      />
+    );
+    expect(
+      container.querySelector('[data-options-analytics="SPY"]')
+    ).not.toBeNull();
+    expect(usd.snapshot).toHaveBeenCalledWith({ flowHours: 24, symbol: "SPY" });
+
+    const eur = optionsGateway();
+    const base = output();
+    const sap = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={marketGateway(async () => ({
+          ...base,
+          request: { ...base.request, currency: "EUR", exchange: "IBIS" },
+        }))}
+        optionsAnalytics={eur}
+      />
+    );
+    expect(sap.querySelector("[data-options-analytics]")).toBeNull();
+    return expect(eur.snapshot).not.toHaveBeenCalled();
+  });
+
+  it("shows the oRPC error code and message", async () => {
+    const market = marketGateway(async () => {
+      throw Object.assign(new Error("IBKR pacing: retry in 12 s"), {
+        code: "PACED",
+      });
+    });
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    const alert = container.querySelector("[role=alert]");
+    expect(alert?.textContent).toContain("PACED");
+    return expect(alert?.textContent).toContain("IBKR pacing: retry in 12 s");
+  });
+
+  it("reports truncation to the renderer cap", async () => {
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={marketGateway(async () => output(4100))}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(chartProps.last?.["candles"]).toHaveLength(4096);
+    return expect(container.textContent).toContain("last 4096 of 4100");
+  });
+
+  return it("overlays a selected backtest's trades and counts markers outside the range", async () => {
+    const backtests = backtestsGateway();
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtests}
+        marketData={marketGateway(async () => output())}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    await change(select("Backtest trades"), "bt-1");
+    expect(backtests.get).toHaveBeenCalledWith("bt-1");
+    expect(chartProps.last?.["markers"]).toHaveLength(2);
+    expect(
+      container.querySelector("[data-marker-summary]")?.textContent
+    ).toContain("2 shown");
+    expect(
+      container.querySelector("[data-marker-summary]")?.textContent
+    ).toContain("2 outside");
+    await change(select("Backtest trades"), "");
+    return expect(chartProps.last?.["markers"]).toEqual([]);
+  });
+});
+
+describe("ChartsWorkspace ?symbol= deep link", () => {
+  it("loads the linked ticker and follows back/forward", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=nvda");
+    const market = marketGateway(async () => output());
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ secType: "STK", symbol: "NVDA" })
+    );
+    expect(
+      document.querySelector<HTMLInputElement>('input[aria-label="Symbol"]')
+        ?.value
+    ).toBe("NVDA");
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    expect(scrolled).toHaveBeenCalledWith({ block: "start" });
+    expect(scrolled.mock.contexts[0]).toBe(
+      document.querySelector("[data-chart-results]")
+    );
+
+    window.history.pushState(null, "", "/charts?symbol=AAPL");
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return await flush();
+    });
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ symbol: "AAPL" })
+    );
+  });
+
+  it("writes the submitted symbol to the URL once", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=SPY&x=1");
+    const market = marketGateway(async () => output());
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    const length = window.history.length;
+    await submit();
+    expect(window.history.length).toBe(length);
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Symbol"]'
+    );
+    if (input === null) throw new Error("Missing Symbol");
+    await change(input, "brk.b");
+    await submit();
+    expect(window.location.search).toBe("?symbol=BRK.B&x=1");
+  });
+
+  it("shows a clear message for an invalid ticker and loads the default", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=%3Cscript%3E");
+    const market = marketGateway(async () => output());
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(container.querySelector("[data-link-error]")?.textContent).toBe(
+      '"<script>" is not a valid ticker. Showing SPY.'
+    );
+    expect(scrolled).not.toHaveBeenCalled();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ symbol: "SPY" })
+    );
+  });
+
+  it("ignores back/forward to another route", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=NVDA");
+    const market = marketGateway(async () => output());
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    const calls = market.bars.mock.calls.length;
+    window.history.pushState(null, "", "/elsewhere?symbol=AAPL");
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      return await flush();
+    });
+    expect(market.bars).toHaveBeenCalledTimes(calls);
+    expect(symbolInput().value).toBe("NVDA");
+  });
+
+  it("adds no URL entry for futures or tickers the server would reject", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=SPY");
+    const market = marketGateway(async () => output());
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    const length = window.history.length;
+    await change(symbolInput(), "bf-b");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ secType: "STK", symbol: "BF-B" })
+    );
+    await change(select("Security type"), "FUT");
+    await change(symbolInput(), "es");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ secType: "FUT", symbol: "ES" })
+    );
+    expect(window.history.length).toBe(length);
+    expect(window.location.search).toBe("?symbol=SPY");
+  });
+
+  it("cancels the pending scroll when the linked load fails", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=NVDA");
+    const market = marketGateway(async (input) => {
+      if (input.symbol === "NVDA") throw new Error("offline");
+      return output();
+    });
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(container.querySelector("[data-link-error]")).toBeNull();
+    await change(symbolInput(), "spy");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ symbol: "SPY" })
+    );
+    expect(scrolled).not.toHaveBeenCalled();
+  });
+
+  it("cancels the pending scroll on a manual submit", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=NVDA");
+    // The web tsconfig lib predates Promise.withResolvers.
+    let release: (value: MarketBarsOutput) => void = () => undefined;
+    const linked = new Promise<MarketBarsOutput>((resolve) => {
+      release = resolve;
+    });
+    const market = marketGateway(async (input) =>
+      input.symbol === "NVDA" ? await linked : output()
+    );
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    // The button is disabled while loading; submit the form itself.
+    await act(async () => {
+      document
+        .querySelector('form[aria-label="Bar request"]')
+        ?.dispatchEvent(
+          new Event("submit", { bubbles: true, cancelable: true })
+        );
+      return await flush();
+    });
+    await act(async () => {
+      release(output());
+      return await flush();
+    });
+    expect(market.bars).toHaveBeenCalledTimes(2);
+    expect(scrolled).not.toHaveBeenCalled();
+  });
+});

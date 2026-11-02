@@ -1,0 +1,12 @@
+# Runs the price alert tick every 5 minutes on weekdays during US market hours (with margins).
+# A tick evaluates at most 200 active rules; a tick with no active rules does nothing.
+[Unit]
+Description=Vertex price alert tick timer (research only)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 13..21:00/5:00 UTC
+RandomizedDelaySec=30
+Persistent=false
+
+[Install]
+WantedBy=timers.target

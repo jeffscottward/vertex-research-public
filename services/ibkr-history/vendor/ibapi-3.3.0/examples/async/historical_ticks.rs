@@ -1,0 +1,154 @@
+#![allow(clippy::uninlined_format_args)]
+//! Async historical tick data example
+//!
+//! This example demonstrates how to request historical tick-level data using the async API.
+//! This includes trades, bid/ask quotes, and midpoint data.
+//!
+//! # Usage
+//!
+//! Make sure IB Gateway or TWS is running with API connections enabled, then run:
+//!
+//! ```bash
+//! cargo run --features async --example async_historical_ticks
+//! ```
+//!
+//! # Configuration
+//!
+//! - Adjust the connection address if needed (default: 127.0.0.1:4002)
+//! - Change the stock symbol if desired (default: AAPL)
+//! - Modify start/end times or number of ticks
+
+use std::sync::Arc;
+
+use ibapi::prelude::*;
+use time::format_description::well_known::Rfc3339;
+use time::{Duration, OffsetDateTime};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
+    // Connect to IB Gateway
+    let client = Arc::new(Client::connect("127.0.0.1:4002", 100).await?);
+    println!("Connected to IB Gateway");
+
+    // Create a stock contract
+    let contract = Contract::stock("AAPL").build();
+    println!("Requesting historical tick data for {}\n", contract.symbol);
+
+    // Example 1: Get last 100 trades
+    println!("=== Historical Trades (last 100) ===");
+    // `filter_data()` drops notices and yields `Result<_, Error>`; `?` propagates
+    // a mid-stream error instead of letting it masquerade as end-of-data.
+    let mut ticks = client.historical_ticks(&contract, 100).trade().await?.filter_data();
+
+    let mut trade_count = 0;
+    while let Some(tick) = ticks.next().await {
+        let tick = tick?;
+        trade_count += 1;
+        if trade_count <= 5 {
+            // Show first 5
+            println!(
+                "Trade {}: {} - ${:.2} x {} on {} [{}]",
+                trade_count,
+                tick.timestamp.format(&Rfc3339).unwrap(),
+                tick.price,
+                tick.size,
+                tick.exchange,
+                tick.special_conditions
+            );
+        }
+    }
+    println!("Total trades received: {trade_count}");
+
+    // Example 2: Get trades from specific time period
+    println!("\n=== Historical Trades (time range) ===");
+    let end_time = OffsetDateTime::now_utc();
+    let start_time = end_time - Duration::minutes(30); // Last 30 minutes
+
+    let mut ticks = client
+        .historical_ticks(&contract, 0) // 0 = get all ticks in range
+        .starting(start_time)
+        .ending(end_time)
+        .trade()
+        .await?
+        .filter_data();
+
+    let mut period_trades = 0;
+    let mut total_volume = 0;
+    let mut min_price = f64::MAX;
+    let mut max_price = f64::MIN;
+
+    while let Some(tick) = ticks.next().await {
+        let tick = tick?;
+        period_trades += 1;
+        total_volume += tick.size;
+        min_price = min_price.min(tick.price);
+        max_price = max_price.max(tick.price);
+    }
+
+    println!(
+        "Period: {} to {}",
+        start_time.format(&Rfc3339).unwrap(),
+        end_time.format(&Rfc3339).unwrap()
+    );
+    println!("Trades in period: {period_trades}");
+    println!("Total volume: {total_volume}");
+    if period_trades > 0 {
+        println!("Price range: ${min_price:.2} - ${max_price:.2}");
+    }
+
+    // Example 3: Get historical bid/ask quotes
+    println!("\n=== Historical Bid/Ask Quotes ===");
+    let mut ticks = client.historical_ticks(&contract, 50).bid_ask(IgnoreSize::No).await?.filter_data();
+
+    let mut quote_count = 0;
+    let mut total_spread = 0.0;
+
+    while let Some(tick) = ticks.next().await {
+        let tick = tick?;
+        quote_count += 1;
+        let spread = tick.price_ask - tick.price_bid;
+        total_spread += spread;
+
+        if quote_count <= 5 {
+            println!(
+                "Quote {}: {} - Bid: ${:.2} x {} | Ask: ${:.2} x {} | Spread: ${:.2}",
+                quote_count,
+                tick.timestamp.format(&Rfc3339).unwrap(),
+                tick.price_bid,
+                tick.size_bid,
+                tick.price_ask,
+                tick.size_ask,
+                spread
+            );
+        }
+    }
+
+    println!("Total quotes received: {quote_count}");
+    if quote_count > 0 {
+        println!("Average spread: ${:.3}", total_spread / quote_count as f64);
+    }
+
+    // Example 4: Get historical midpoint data
+    println!("\n=== Historical Midpoint Data ===");
+    let mut ticks = client.historical_ticks(&contract, 30).mid_point().await?.filter_data();
+
+    let mut midpoint_count = 0;
+    while let Some(tick) = ticks.next().await {
+        let tick = tick?;
+        midpoint_count += 1;
+        if midpoint_count <= 5 {
+            println!(
+                "Midpoint {}: {} - ${:.2}",
+                midpoint_count,
+                tick.timestamp.format(&Rfc3339).unwrap(),
+                tick.price
+            );
+        }
+    }
+    println!("Total midpoints received: {midpoint_count}");
+
+    println!("\nHistorical ticks example completed!");
+    Ok(())
+}

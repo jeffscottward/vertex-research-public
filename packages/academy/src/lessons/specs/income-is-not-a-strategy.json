@@ -1,0 +1,111 @@
+{
+  "slug": "income-is-not-a-strategy",
+  "sourceId": "DUWbn1iiWw9",
+  "title": "Selling options for income is not a strategy",
+  "summary": "If you say your strategy is to sell options for income, the speaker says that is not a strategy; it is like saying a business's strategy is to generate revenue. He calls selling options for income one of the biggest lies in options trading and asks option sellers to state their actual strategy. The chart shows a typical income trade only as an illustration.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["cash-secured-puts", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["income", "strategy", "short volatility"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Illustration: a $100 stock and a 30-day put sold at $95, the kind of trade often called income."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The most this trade can make is the premium received."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The loss can run much further, down to a stock price of zero."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the breakeven the trade loses money."
+    },
+    {
+      "element": "now",
+      "color": "violet",
+      "caption": "Collecting premium is the outcome. It does not say why, when or what you sell: that is the strategy.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["breakevenPut", "extrinsic"],
+  "takeaways": [
+    "Selling options for income is not a strategy, just as generating revenue is not a business strategy.",
+    "The speaker calls 'selling options for income' one of the biggest lies in options trading.",
+    "If you sell options, be able to say what your actual strategy is."
+  ],
+  "caveats": [
+    "The clip is very short and ends with a link-in-bio promotion.",
+    "The short put example is added illustration; the speaker shows no trade."
+  ]
+}

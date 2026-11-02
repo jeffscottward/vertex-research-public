@@ -1,0 +1,46 @@
+{
+  "name": "@darkfactory/analytics",
+  "brick": "capability",
+  "description": "Product analytics port with a PostHog adapter.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.js"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./adapters": {
+      "import": "./src/adapters.ts",
+      "default": "./src/adapters.ts"
+    },
+    "./server/posthog": {
+      "workerd": "./src/server/posthog.ts",
+      "worker": "./src/server/posthog.ts",
+      "browser": "./src/server/unsupported.js",
+      "import": "./src/server/posthog.ts",
+      "default": "./src/server/posthog.ts"
+    },
+    "./test": {
+      "import": "./src/test.ts",
+      "default": "./src/test.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-09-25T16:39:03.549489872Z",
+    "FinishedAt": "2026-09-25T16:39:01.863982963Z",
+    "ExitCode": 0,
+    "OOMKilled": false,
+    "Health": {
+      "Status": "healthy"
+    }
+  },
+  "RestartCount": 0,
+  "Config": {
+    "Image": "ibkr-nautilus-exec-node-portfolio-ui:phase01",
+    "Env": []
+  }
+}

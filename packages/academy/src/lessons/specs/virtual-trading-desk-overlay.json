@@ -1,0 +1,82 @@
+{
+  "slug": "virtual-trading-desk-overlay",
+  "sourceId": "DTdgWu6CSCy",
+  "title": "A portfolio with an option overlay: the speaker's virtual trading desk plan",
+  "summary": "A promotional clip. The speaker plans a virtual trading desk with education and software tools to find trades, manage them and build a portfolio with an option overlay. He traded OTC derivatives for about 25 years and his team built its own tools. The chart shows the core-plus-overlay portfolio he describes.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "weeks",
+    "risk": "hedged",
+    "topics": ["option overlay", "process", "tools"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Option overlay",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Overlay leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "core",
+      "color": "blue",
+      "caption": "The core: long-term holdings that carry most of the portfolio."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "The option overlay: a smaller sleeve of option trades on top of the core."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Cash kept as reserve."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Scenario tools show the worst case of the overlay before you add a trade."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "The idea: a process to find, manage and size trades, not single alerts."
+    }
+  ],
+  "formulas": ["positionSize"],
+  "takeaways": [
+    "The speaker contrasts a process with tools against groups that sell trade alerts.",
+    "Portfolio first, option overlay on top."
+  ],
+  "caveats": [
+    "Promotional: the clip advertises the speaker's website, community and tools. Nothing here is a verified result."
+  ]
+}

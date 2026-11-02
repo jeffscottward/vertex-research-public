@@ -1,0 +1,104 @@
+{
+  "slug": "implied-one-day-move-rule-of-16",
+  "sourceId": "DaiyyCItE_P",
+  "title": "The rule of 16: the market's implied one-day move",
+  "summary": "To get the market's implied one-day move, divide implied volatility by 16. A $100 stock with 32% IV has a one-day move of about 2%, so about two-thirds of the time it trades between $98 and $102. The 16 comes from the square root of 252 trading days, which is 15.87.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "volatility"],
+    "timeframe": "days",
+    "risk": "none",
+    "topics": ["expected move", "rule of 16", "implied volatility"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": []
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 32,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "dte",
+      "label": "Days ahead",
+      "default": 1,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock with 32% implied volatility.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The implied one-day price distribution."
+    },
+    {
+      "element": "band1",
+      "color": "gold",
+      "caption": "One standard deviation: 32 / 16 = 2%, so $98 to $102 about two-thirds of the time."
+    },
+    {
+      "element": "band2",
+      "color": "blue",
+      "caption": "Two standard deviations, about $96 to $104, cover about 95% under the model."
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Why 16: one day is 1/252 of a year, and the square root of 252 is 15.87."
+    }
+  ],
+  "formulas": ["expectedMove"],
+  "takeaways": [
+    "One-day implied move is roughly IV divided by 16.",
+    "32% IV on a $100 stock gives about a $2 (2%) daily move.",
+    "16 is the square root of 252 trading days, rounded."
+  ],
+  "caveats": [
+    "Real returns have fat tails; moves beyond the bands happen more often than the normal model says.",
+    "The chart uses calendar days for dte, so the band differs slightly from the 252-day rule."
+  ]
+}

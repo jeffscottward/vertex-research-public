@@ -1,0 +1,359 @@
+{
+  "tolerance_note": "Tolerances were set on 2026-10-29 after a first prototype run on the same data; they are not pre-registered.",
+  "data_manifest": {
+    "AAPL.adj.csv": {
+      "first": "1993-01-04",
+      "last": "2026-10-28",
+      "rows": 8514,
+      "sha256": "ad3f1708aff3251337207ce65710df892f4afac50767b8d542fb62934f0744d6"
+    },
+    "JPM.adj.csv": {
+      "first": "1993-01-04",
+      "last": "2026-10-28",
+      "rows": 8514,
+      "sha256": "fd59dbcd95e6a036fa0f0b77bb59bd2d2f492e03ec39e39797e3546b25c05f7a"
+    },
+    "MSFT.adj.csv": {
+      "first": "1993-01-04",
+      "last": "2026-10-28",
+      "rows": 8514,
+      "sha256": "079774cddd839f75fdb8b2aa1aebad207da45b4d397cc8da3ed3e12ee092788d"
+    },
+    "QQQ.adj.csv": {
+      "first": "1999-03-10",
+      "last": "2026-10-28",
+      "rows": 6953,
+      "sha256": "380b00a36d1b3f824ed3f554790357b5636acf192a9a664ebe893cf6880bb119"
+    },
+    "SPY.adj.csv": {
+      "first": "1993-01-29",
+      "last": "2026-10-28",
+      "rows": 8495,
+      "sha256": "3f126adb6d833f3cf762c64d022a70b812057a421b535713be442128fb9bf1cf"
+    },
+    "SPY.raw.csv": {
+      "first": "1993-01-29",
+      "last": "2026-10-28",
+      "rows": 8495,
+      "sha256": "63d6a8cffce44b227fde90552b9de27c54ebaf7fcf7c8b475a0099e64b5a9dec"
+    },
+    "XLE.adj.csv": {
+      "first": "1998-12-22",
+      "last": "2026-10-28",
+      "rows": 7005,
+      "sha256": "b2822fc3f5190ec1b91a39eb3550416c94f33b641879719ce79d36be49660f62"
+    },
+    "chan/GDX.csv": {
+      "first": "2006-05-23",
+      "last": "2007-11-30",
+      "rows": 385,
+      "sha256": "3d7e87e5b6a94342e91fdc87cd47014dc8dcf6374f825fe11f5971e64f3d6a57"
+    },
+    "chan/GDX.xls": {
+      "sha256": "757aa109b0617bbe1d6983456c4c397ffdc946e417ce3ac98e3ef255d740df34"
+    },
+    "chan/GLD.csv": {
+      "first": "2004-11-18",
+      "last": "2007-11-30",
+      "rows": 764,
+      "sha256": "a1ab9c272eed9f2abc87967a244741f845ec7f92cfdb5ed0473c333fddd82ead"
+    },
+    "chan/GLD.xls": {
+      "sha256": "3b866a8a43bf52f915ed73209ab542434c85ef033e5b9f01d57ff508820f4563"
+    }
+  },
+  "strategies": [
+    {
+      "slug": "close-to-open-edge",
+      "reference": "https://github.com/Guillain-RDCDE/Open-Alpha-Lab/blob/main/studies/01-overnight-anomaly/docs/results.md (SPY, Yahoo split-only OHLC, 1993-01-29 to 2026-06-01, as-of 2026-06-01)",
+      "reference_quality": "third-party open-source study (Open Alpha Lab, MIT licence; small repository, 2 GitHub stars on 2026-10-29); not peer reviewed",
+      "checks": [
+        {
+          "name": "SPY sessions",
+          "reference": 8391,
+          "reproduced": 8391,
+          "tolerance": 0,
+          "unit": "rows",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "overnight cumulative return",
+          "reference": 1185.0,
+          "reproduced": 1185.450756,
+          "tolerance": 1.0,
+          "unit": "percent",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "intraday cumulative return",
+          "reference": 34.0,
+          "reproduced": 34.208157,
+          "tolerance": 1.0,
+          "unit": "percent",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "overnight mean",
+          "reference": 3.27,
+          "reproduced": 3.269151,
+          "tolerance": 0.01,
+          "unit": "bps per day",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "Knuteson (2018 letter) overnight 1993-01-29 to 2018-10-31, dividends in the overnight leg",
+          "reference": 1171.0,
+          "reproduced": 1087.385348,
+          "tolerance": 0.0,
+          "unit": "percent",
+          "primary": false,
+          "pass": false
+        },
+        {
+          "name": "Knuteson (2018 letter) intraday 1993-01-29 to 2018-10-31",
+          "reference": -21.0,
+          "reproduced": -16.073543,
+          "tolerance": 0.0,
+          "unit": "percent",
+          "primary": false,
+          "pass": false
+        }
+      ],
+      "secondary_note": "Knuteson's figures (letter of 2018-11-02 in https://bruceknuteson.github.io/spy-day-and-night/correspondence/1/OFR.pdf) were not reproduced; the source and adjustment of his data are not stated, so the difference is unexplained.",
+      "validated": true
+    },
+    {
+      "slug": "pairs-trading-divergence",
+      "reference": "Ernest Chan, Quantitative Trading (Wiley, 2008), example 3.6, author MATLAB code and the GLD.xls/GDX.xls files (copy: github.com/egorpe/EPChan-QuantitativeTrading); training set = first 252 joint days",
+      "reference_quality": "author's book code and data files",
+      "checks": [
+        {
+          "name": "training-set Sharpe ratio (code comment: about 2.3)",
+          "reference": 2.3,
+          "reproduced": 2.327844,
+          "tolerance": 0.05,
+          "unit": "ratio",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "test-set Sharpe ratio (code comment: about 1.5)",
+          "reference": 1.5,
+          "reproduced": 1.508212,
+          "tolerance": 0.05,
+          "unit": "ratio",
+          "primary": true,
+          "pass": true
+        }
+      ],
+      "data_provenance": {
+        "joint_days": 385,
+        "first": "2006-05-23",
+        "last": "2007-11-30"
+      },
+      "hedge_ratio": 1.631009,
+      "validated": true
+    },
+    {
+      "slug": "volatility-compression-breakout",
+      "reference": "https://github.com/Guillain-RDCDE/Open-Alpha-Lab/blob/main/studies/190-nr7/docs/results.md (SPY, Yahoo split- and dividend-adjusted OHLC, 2000-01-03 to 2026-06-15, as-of 2026-06-15)",
+      "reference_quality": "third-party open-source study (Open Alpha Lab, MIT licence; small repository, 2 GitHub stars on 2026-10-29); not peer reviewed",
+      "note": "This run has one NR7 day and one trade more than the reference. Without the trade on the 2022-10-12 NR7 day (short on 2022-10-13, -479.9 bps) the mean is +5.407 bps over 1,009 trades, equal to the reference. Why the reference lacks this trade is not known.",
+      "checks": [
+        {
+          "name": "SPY sessions",
+          "reference": 6652,
+          "reproduced": 6652,
+          "tolerance": 0,
+          "unit": "rows",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "NR7 days",
+          "reference": 1035,
+          "reproduced": 1036,
+          "tolerance": 10,
+          "unit": "days",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "next-day range / 20-day mean range",
+          "reference": 0.91,
+          "reproduced": 0.910728,
+          "tolerance": 0.005,
+          "unit": "ratio",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "breakout trades",
+          "reference": 1009,
+          "reproduced": 1010,
+          "tolerance": 10,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "breakout mean gross return",
+          "reference": 5.4,
+          "reproduced": 4.926607,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        }
+      ],
+      "validated": true
+    },
+    {
+      "slug": "zscore-mean-reversion",
+      "reference": "https://github.com/Guillain-RDCDE/Open-Alpha-Lab/blob/main/studies/104-bollinger-reversion/docs/results.md (SPY, QQQ, AAPL, MSFT, JPM, XLE; Yahoo adjusted OHLC 2005-01-03 to 2026-06-12; lower band = 20-day mean minus 2 standard deviations; enter next open; exit at the close 20 sessions later)",
+      "reference_quality": "third-party open-source study (Open Alpha Lab, MIT licence; small repository, 2 GitHub stars on 2026-10-29); not peer reviewed",
+      "checks": [
+        {
+          "name": "SPY trades",
+          "reference": 149,
+          "reproduced": 149,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "SPY mean gross 20-day return",
+          "reference": 140,
+          "reproduced": 140.402983,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "QQQ trades",
+          "reference": 140,
+          "reproduced": 140,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "QQQ mean gross 20-day return",
+          "reference": 226,
+          "reproduced": 226.006928,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "AAPL trades",
+          "reference": 112,
+          "reproduced": 112,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "AAPL mean gross 20-day return",
+          "reference": 116,
+          "reproduced": 115.606139,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "MSFT trades",
+          "reference": 119,
+          "reproduced": 119,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "MSFT mean gross 20-day return",
+          "reference": 219,
+          "reproduced": 218.536393,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "JPM trades",
+          "reference": 139,
+          "reproduced": 139,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "JPM mean gross 20-day return",
+          "reference": 354,
+          "reproduced": 353.545468,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "XLE trades",
+          "reference": 152,
+          "reproduced": 152,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "XLE mean gross 20-day return",
+          "reference": 105,
+          "reproduced": 104.852643,
+          "tolerance": 1.0,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "pooled trades",
+          "reference": 811,
+          "reproduced": 811,
+          "tolerance": 0,
+          "unit": "trades",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "pooled mean gross 20-day return",
+          "reference": 193.09,
+          "reproduced": 193.08897,
+          "tolerance": 0.5,
+          "unit": "bps per trade",
+          "primary": true,
+          "pass": true
+        },
+        {
+          "name": "pooled win rate",
+          "reference": 64.6,
+          "reproduced": 64.611591,
+          "tolerance": 0.1,
+          "unit": "percent",
+          "primary": true,
+          "pass": true
+        }
+      ],
+      "validated": true
+    }
+  ]
+}

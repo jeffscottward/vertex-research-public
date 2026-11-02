@@ -1,0 +1,1297 @@
+{
+  "schemaVersion": "1.0.0",
+  "asOf": "2026-09-21",
+  "applicationCount": 13,
+  "rootCount": 15,
+  "applicationMeaning": "Report application rows include base/trail variants; they are not thirteen independent production runtimes.",
+  "rootMeaning": "Containers, collections and residual worktrees are roots, not applications.",
+  "applications": [
+    {
+      "id": "gamma-forge",
+      "name": "Gamma Forge",
+      "sourcePath": "gamma-forge",
+      "sourceDisposition": "Salvage the options/evidence kernel, typed provider ports, replay contracts and decision/readiness leaf models. Wrap providers/AI dependencies, replace the top-level UI and unified persistence/execution spine. Do not import the terminal runtime, SQLite ledger or eight-route shell wholesale. Preserve source/history/provenance until characterization, migration parity, reconciliation, paper evidence and rollback gates pass; no deletion now.",
+      "effectiveDecision": "Canonical trading-domain source. Preserve user-authorized first-party Python modules with characterization and scoped third-party/data-rights review; replace UI, legacy BFF, terminal SQLite authority, empty placeholders and unsafe command ordering.",
+      "targetModules": [
+        "services/research/gamma",
+        "services/market-data",
+        "packages/api/vertex",
+        "services/execution"
+      ],
+      "sourceAssets": [
+        {
+          "name": "Strict source/artifact contracts",
+          "note": "SourceRef plus canonical JSON/SHA-256 identity.",
+          "evidence": ["forge/src/options_alpha/schemas/base.py:21-106"]
+        },
+        {
+          "name": "Pure feature and options research kernel",
+          "note": "SetupEngine, OptionsStrategySelector and PortfolioCommittee. Eight constructors: long call/put, four vertical spreads, straddle/strangle. Calendar/diagonal/iron-condor vocabulary has no constructors; confidence is heuristic, not calibrated probability.",
+          "evidence": [
+            "forge/src/options_alpha/engines/setup_engine.py:47-169",
+            "forge/src/options_alpha/engines/options_strategy_selector.py:324-368",
+            "forge/src/options_alpha/engines/portfolio_committee.py:21-125"
+          ]
+        },
+        {
+          "name": "Replay provenance and immutable gates",
+          "note": "Source hashes, cutoffs, outcomes, execution bindings and candidate-matched revisions. Preserve contracts, replace supplied-outcome ledger economics. Manifest replay currently one decision day.",
+          "evidence": [
+            "forge/src/options_alpha/backtesting/manifest.py:38-73,120-237",
+            "forge/src/options_alpha/backtesting/replay.py:451-659",
+            "forge/src/options_alpha/workflows/research_agent_v1.py:223-382"
+          ]
+        },
+        {
+          "name": "DataHub local fan-out and cache",
+          "note": "Process-local pub/sub, bounded queues and selective persistence/replay. Overflow drops messages; not durable command delivery.",
+          "evidence": ["app/backend/gamma_terminal/bus/datahub.py:58-183"]
+        },
+        {
+          "name": "Opportunity board / readiness leaf logic",
+          "note": "Joins thesis, rank, quotes, replay state and source evidence; useful decision-UX seed. Preserve fixture/local-production blocking and read-only review labels.",
+          "evidence": [
+            "app/ui/src/components/opportunities/OpportunityBoardPanel.tsx:31-189",
+            "app/ui/src/screens/dashboard/dashboardHeaderViewModel.ts:295-319",
+            "app/ui/src/screens/runs/RunDetailScreen.tsx:845-864"
+          ]
+        },
+        {
+          "name": "Curated static watchlist build",
+          "note": "Separate static entrypoint and research JSON generation; bundle exclusion not build-verified.",
+          "evidence": [
+            "app/ui/src/main.tsx:13-20",
+            "app/ui/src/apps/StaticApp.tsx:7-19",
+            "app/ui/scripts/build-data.mjs:1-24"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "First-party NOASSERTION; ownership/reuse rights not established by a root license",
+        "evidence": "No root LICENSE/COPYING/NOTICE found; manifests lack license. forge/external/TradingAgents/LICENSE:1-3,89-118 is Apache-2.0; forge/external/quant-mind/LICENSE:1-13 is MIT.",
+        "note": "The user explicitly authorized rebuilding from their first-party Gamma project. Missing root licensing is evidence, not a blanket first-party reuse prohibition or a new permission requirement. Preserve actual component notices and source/data restrictions; no complete transitive legal clearance is implied."
+      },
+      "rightsState": "first-party-reuse-authorized-scoped-review-required",
+      "zeroDte": {
+        "id": "gamma-forge",
+        "state": "scaffold",
+        "note": "The read-only options snapshot explicitly retains same-day contracts before 16:00 New York time and removes them at the fixed 16:00 cutoff. Dedicated 0DTE strategy and execution are absent: research candidates require 14–60 DTE, and execution intents reject DTE <= 0.",
+        "evidence": [
+          "gamma-forge/app/backend/gamma_terminal/live_options/provider.py:290-320",
+          "gamma-forge/app/backend/gamma_terminal/live_options/guidance.py:142-173",
+          "gamma-forge/forge/src/options_alpha/schemas/execution.py:24-34",
+          "gamma-forge/app/backend/tests/test_live_options.py:274-290"
+        ],
+        "reusable": "Explicit same-day snapshot filtering, supported by an existing source test for inclusion before close and exclusion at close. Tests were not run.",
+        "missing": "A same-day strategy-to-execution path. The fixed 16:00 filter also does not establish instrument-specific expiry, early-close settlement, or exercise handling.",
+        "revision": {
+          "head": "f8860e68cfcfa786dbdf582e3a78db8eb24cc403",
+          "workingTree": "dirty",
+          "changedPathCount": 12
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "vertex-quant",
+      "name": "Vertex Quant",
+      "sourcePath": "trading/vertex-quant",
+      "sourceDisposition": "Retain as provenance-bearing source and operational reference. Extract shared research/domain assets into Vertex Research, replace the UI/runtime split with the chosen Next.js shell, and migrate broker/portfolio capabilities behind one execution authority. Do not retire this checkout or any operational path until verified parity, preserved artifacts/provenance, and explicit retirement gates are satisfied.",
+      "effectiveDecision": "Selective improvement source for deterministic session/reel studies, parser lineage and protection invariants; do not copy its shell or activate another writer.",
+      "runtimeMove": {
+        "asOf": "2026-10-31",
+        "state": "switched",
+        "switchedAt": "2026-11-01T03:00:02Z",
+        "verification": "exec_node.py verify: 18/18 checks passed at 2026-11-01T03:21Z (gateway not restarted, account snapshot OK, Nautilus DISARMED, no orders)",
+        "from": "/opt/vertex-quant (QuantVPS, deploy commit 3511184 plus recorded live edits)",
+        "to": "/opt/vertex-exec-node (QuantVPS), defined by infra/quant-vps/exec-node",
+        "composeProject": "ibkr-nautilus-exec-node (container, network and volume names unchanged)",
+        "owned": "compose file, watchdog, arm gate code and owner arm CLI, IBKR 2FA readiness script, account heartbeat, systemd units, stage/gate/switch/verify/rollback tool",
+        "frozen": "Other runtime files (Nautilus node code, portfolio-ui, src, remaining scripts) are carried byte-for-byte from the frozen tree and pinned by infra/quant-vps/exec-node/frozen-manifest.sha256.",
+        "data": "data/ is renamed into the new root at switch time; it is never copied or reset.",
+        "freeze": "vertex-quant gets a FROZEN banner after a verified switch; /opt/vertex-quant is archived to /opt/vertex-quant-frozen-20261031 only after 7 days of stable running."
+      },
+      "targetModules": [
+        "services/research/strategies",
+        "services/execution",
+        "apps/web/src/features/strategies"
+      ],
+      "sourceAssets": [
+        {
+          "module": "src/strategies/session-opening-range/",
+          "reuse": "Shared with trail, not unique to this checkout. Reuse pure calendars, contract/expiry identity, bounded bar imports, timestamp-aware signals, ATR/tick protection and deterministic backtest contract.",
+          "evidence": [
+            "src/strategies/session-opening-range/index.ts:43",
+            "src/strategies/session-opening-range/types.ts:11",
+            "src/strategies/session-opening-range/backtest.ts:899"
+          ]
+        },
+        {
+          "module": "src/strategies/reel-session-v2/",
+          "reuse": "Shared with trail. Preserve protocol versions, source receipts, implementation-closure identities, ledger rules and research caveats as one strategy/research module—not a generally validated trading product.",
+          "evidence": [
+            "src/strategies/reel-session-v2/index.ts:9",
+            "src/strategies/reel-session-v2/index.ts:22",
+            "src/strategies/reel-session-v2/backtest-manifest.ts:419",
+            "src/strategies/reel-session-v2/paper-ledger.ts:137"
+          ]
+        },
+        {
+          "module": "src/signal-event-parser.ts; src/trade-intents.ts; src/parser-rule-store.ts; src/position-lifecycle.ts",
+          "reuse": "Normalize permitted analyst-source content into source-linked events/intents; retain review/readiness/idempotency semantics. Move persistence behind common services and do not equate source confidence with expected profit.",
+          "evidence": [
+            "src/signal-event-parser.ts:832",
+            "src/trade-intents.ts:28",
+            "src/parser-rule-store.ts:55",
+            "src/position-lifecycle.ts:61"
+          ]
+        },
+        {
+          "module": "nautilus/ibkr_account.py; nautilus/ibkr_order_actions.py; scripts/real-data-session-study/",
+          "reuse": "Qualified IBKR contracts, bounded snapshot/order collection and historical-source acquisition are valuable adapter assets. Prefer explicitly reviewed trail revisions where changed; keep data acquisition separate from execution permissions.",
+          "evidence": [
+            "nautilus/ibkr_account.py:2664",
+            "nautilus/ibkr_account.py:2829",
+            "nautilus/ibkr_order_actions.py:785",
+            "scripts/real-data-session-study/fetch_ibkr_m6_bars.py:3031"
+          ]
+        },
+        {
+          "module": "nautilus/synthetic_stops.py; nautilus/staged_protection.py; native/staged_protection_*/",
+          "reuse": "Retain stop design, confirmation, reviewed-plan/state integrity and deployment-security knowledge. Refactor behind the single execution lifecycle only after parity; do not transplant another standalone mutation daemon wholesale.",
+          "evidence": [
+            "nautilus/synthetic_stops.py:208",
+            "nautilus/synthetic_stops.py:788",
+            "nautilus/staged_protection.py:1283",
+            "nautilus/staged_protection.py:5779"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "Project license unspecified; vendored IBAPI subject to IB API Non-Commercial or Commercial License as applicable",
+        "evidence": [
+          "package.json:1",
+          "nautilus/vendor/ibapi-10.30.1/setup.py:2",
+          "nautilus/vendor/ibapi-10.30.1/setup.py:19",
+          "nautilus/vendor/ibapi-10.30.1/provenance.json:5"
+        ]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "vertex-quant",
+        "state": "scaffold",
+        "note": "Explicit 0DTE parsing derives option expiry from the message’s UTC date and supports option-intent construction. Dedicated 0DTE strategy/execution is absent in the inspected path: Charan rejects both 0 and 1 DTE before order drafting.",
+        "evidence": [
+          "vertex-quant/src/signal-event-parser.ts:602-624",
+          "vertex-quant/src/trade-intents.ts:129-159",
+          "vertex-quant/nautilus/charan.py:338-350",
+          "vertex-quant/tests/test_charan_trade_intents.py:315-356"
+        ],
+        "reusable": "Same-day parser and option identity normalization.",
+        "missing": "Permitted same-day strategy/execution with exchange-local expiry, intraday option simulation, and expiry-risk controls.",
+        "revision": {
+          "head": "9ef5e9446d24c81ae94501764fb6c8bba9267fd1",
+          "workingTree": "dirty",
+          "changedPathCount": 4
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "vertex-quant-trail-capability",
+      "name": "Vertex Quant — Trail Capability Worktree",
+      "sourcePath": "trading/vertex-quant-trail-capability",
+      "sourceDisposition": "Preserve this linked worktree as the execution capability source, not another app to host. Selectively integrate its execution contracts/repository/recovery and reviewed adapter revisions into one execution service, retaining base provenance and every safety invariant. Keep paper and narrow live-proof permissions distinct. Retire duplicate shells/checkouts only after caller migration, parity, deployment provenance retention and safe retirement gates; do not assume merging the branch alone completes consolidation.",
+      "effectiveDecision": "Unique execution/recovery delta is a safety-improvement source, not a separate product or competing authority. Characterize and selectively integrate into the single edge.",
+      "targetModules": [
+        "services/execution",
+        "services/execution-kernel",
+        "packages/db"
+      ],
+      "sourceAssets": [
+        {
+          "module": "nautilus/execution/models.py; approvals.py; validation.py; safety.py; lifecycle.py",
+          "reuse": "Canonical execution contract: Decimal values, immutable draft hashes, exact contract/account identities, explicit lifecycle, signed review/approval, startup/recovery-bound capabilities. High-value reusable basis after compatibility/security review.",
+          "evidence": [
+            "nautilus/execution/models.py:20",
+            "nautilus/execution/models.py:80",
+            "nautilus/execution/models.py:217",
+            "nautilus/execution/approvals.py:61",
+            "nautilus/execution/safety.py:261"
+          ]
+        },
+        {
+          "module": "nautilus/execution/repository.py; migrations/0001_execution_core.sql; migrations/0002_protected_buy.sql; migrations/0003_live_proof.sql; migration_runner.py",
+          "reuse": "Durable queue, claims, identity/fill reconciliation, reservations and recovery obligations. Integrate into the common Postgres authority with explicit migration ownership; retain concurrency/integration tests.",
+          "evidence": [
+            "nautilus/execution/repository.py:923",
+            "nautilus/execution/repository.py:2131",
+            "nautilus/execution/migrations/0001_execution_core.sql:58",
+            "nautilus/execution/migrations/0002_protected_buy.sql:33",
+            "nautilus/execution/migration_runner.py:135"
+          ]
+        },
+        {
+          "module": "nautilus/execution/planning.py; templates.py; ibkr_adapter.py; service.py; mutation.py; execution_startup_recovery.py",
+          "reuse": "TRAIL quantity/tick/buffer allocation, exact dormant rendering, paper submit/protected-buy lifecycle, cancel/reconcile/replace and restart protection recovery. Keep as one mutation authority rather than a TRAIL daemon.",
+          "evidence": [
+            "nautilus/execution/planning.py:29",
+            "nautilus/execution/planning.py:85",
+            "nautilus/execution/templates.py:24",
+            "nautilus/execution/ibkr_adapter.py:99",
+            "nautilus/execution/service.py:1911",
+            "nautilus/execution/execution_startup_recovery.py:905"
+          ]
+        },
+        {
+          "module": "nautilus/kill_switch.py; changed native/staged_protection_*/ and activation/deployment code",
+          "reuse": "New no-follow parent/leaf verification and additional native peer/runtime identity and recovery-journal source are unique deltas. Preserve as security-critical deployment knowledge; native changes were inventoried, not exhaustively semantically audited.",
+          "evidence": [
+            "nautilus/kill_switch.py:24",
+            "nautilus/kill_switch.py:83",
+            "native/staged_protection_container_broker/authorizer.go:1",
+            "native/staged_protection_container_broker/peer_identity_linux.go:1",
+            "native/staged_protection_recovery_broker/journal.go:1"
+          ]
+        },
+        {
+          "module": "src/market-regime.ts; src/market-regime.schema.json; src/strategies/regime-policy.ts",
+          "reuse": "Small evidence-bearing data contract with completeness/warnings/freshness/confidence guards and explicit unknown dealer sign. Use as a contract candidate only: no concrete provider; decision policy is test-only and references a template not found among configured templates.",
+          "evidence": [
+            "src/market-regime.ts:17",
+            "src/market-regime.ts:23",
+            "src/strategies/regime-policy.ts:7",
+            "src/strategies/regime-policy.ts:14",
+            "nautilus/config/execution_templates/trail_exit_v1.json:1"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "Same unspecified project license and restricted vendored IBAPI provenance as base",
+        "evidence": [
+          "package.json:1",
+          "nautilus/vendor/ibapi-10.30.1/setup.py:2",
+          "nautilus/vendor/ibapi-10.30.1/provenance.json:5"
+        ]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "vertex-quant-trail-capability",
+        "state": "scaffold",
+        "note": "The worktree inherits explicit 0DTE parsing and the base 0–1 DTE rejection. Branch-specific qualified-option identities, TRAIL protection, and portfolio gates are reusable, but dedicated 0DTE strategy/execution is absent in the inspected path.",
+        "evidence": [
+          "vertex-quant-trail-capability/src/signal-event-parser.ts:602-624",
+          "vertex-quant-trail-capability/nautilus/charan.py:612-623",
+          "vertex-quant-trail-capability/nautilus/execution/models.py:169-235",
+          "vertex-quant-trail-capability/nautilus/execution/validation.py:538-613"
+        ],
+        "reusable": "Hash-bound protection, exact contract identity, and reconciled exposure gates.",
+        "missing": "Same-day strategy, expiry cutoff/assignment handling, and option-specific intraday simulation; TRAIL does not supply these.",
+        "revision": {
+          "head": null,
+          "workingTree": "unresolved Git metadata",
+          "changedPathCount": null
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "vertex-research",
+      "name": "Vertex Research",
+      "sourcePath": "trading/vertex-research",
+      "sourceDisposition": "Use as the evidence/research domain and reviewed-order control reference for the consolidated platform. Retain current application and private source/journal provenance until Next.js/shadcn/Postgres parity and migration gates are satisfied. Do not transplant its application shell or declare it autonomous. Preserve private research material and order journals outside shareable seeds; do not delete, reset or bypass unresolved-order state.",
+      "effectiveDecision": "Retain accepted dossiers, review/version rules, publication, payoff and portfolio semantics; rebuild Civet UI/control, never transplant legacy BFF or global KB replacement.",
+      "targetModules": [
+        "apps/web/src/features/research",
+        "apps/web/src/features/portfolio",
+        "packages/api/vertex",
+        "packages/db"
+      ],
+      "sourceAssets": [
+        {
+          "name": "Accepted research and evidence publication contract",
+          "evidence": [
+            "packages/reporting/company-research.d.mts:3",
+            "packages/reporting/company-research.d.mts:52",
+            "scripts/reporting/company-research-publication.mjs:24",
+            "scripts/reporting/company-research-publication.mjs:170",
+            "packages/reporting/company-research-store.mjs:43",
+            "apps/web/src/lib/company-research.ts:20"
+          ],
+          "reuseGuidance": "Extract CompanyResearch, ResearchSource, ResearchEnvelope, strict validators, capture-hash publication and client/server revision verification. Proposed Postgres contract: report identity plus immutable dossier revision, linked dataset revision, acceptedAt and retained source-hash references; private captured bytes stay outside public browser payloads. Accepting structurally valid research must remain separate from investment/risk approval."
+        },
+        {
+          "name": "Atomic reviewed dataset generations",
+          "evidence": [
+            "scripts/reporting/workspace-publication.mjs:146",
+            "scripts/reporting/workspace-publication.mjs:535",
+            "scripts/reporting/workspace-publication.mjs:558",
+            "packages/reporting/workspace-store.mjs:107",
+            "packages/reporting/workspace-store.mjs:188"
+          ],
+          "reuseGuidance": "Preserve seven-dataset registration, identity/native-unit checks, review role/round records, immutable content fingerprints and one atomic publication pointer. Implement equivalent Postgres transactions/version constraints. Generalize the hardcoded 56-new/58-total publication gate only after retaining its legacy-report protection and source provenance; do not copy that fixed universe as a platform-wide invariant."
+        },
+        {
+          "name": "Technical and option analysis primitives",
+          "evidence": [
+            "scripts/workspace-analysis.mjs:53",
+            "scripts/workspace-analysis.mjs:168",
+            "scripts/analyze-technicals.mjs:27",
+            "scripts/analyze-options.mjs:18",
+            "apps/web/src/lib/payoff.ts:38"
+          ],
+          "reuseGuidance": "Reuse completed-bar indicators, matched-date returns, contract quote/liquidity checks and intrinsic-expiry engine behind explicit Instrument/Observation/OptionLeg contracts. Keep clock, currency, multiplier, adjustment basis and unavailable reason. Do not reuse legacy APP order assumptions/default sizing or market them as a backtest/forecast."
+        },
+        {
+          "name": "Review priority and independent research screen",
+          "evidence": [
+            "apps/server/src/research-screen.ts:69",
+            "apps/server/src/research-screen.ts:147",
+            "apps/web/src/lib/action-ranking.ts:21",
+            "apps/web/src/lib/order-suggestions.ts:4",
+            "packages/reporting/research-refresh.d.mts:1"
+          ],
+          "reuseGuidance": "Reuse ScreenOpportunity and separate reasons/blockingWarnings/freshness semantics as strategy-module output. Preserve rankActions as an explanatory review-priority projection. Future strategy proposals need explicit sleeve, instrument, evidence revision, expiry and risk constraints; rank or AI confidence cannot grant execution authority."
+        },
+        {
+          "name": "Reviewed order protocol and durable uncertainty",
+          "evidence": [
+            "packages/reporting/broker-orders.d.mts:1",
+            "apps/server/src/broker-order-service.ts:45",
+            "apps/server/src/broker-order-service.ts:85",
+            "scripts/reporting/broker-orders.py:337",
+            "apps/server/src/broker-order-storage.ts:123"
+          ],
+          "reuseGuidance": "Keep Draft -> Preview(token,digest,expiry) -> explicit confirmed Submit -> acknowledged/rejected/unknown, exact contract qualification, atomic single-use claim and account-level unresolved block. Replace Bun SQLite persistence with a transactional Postgres order journal without losing tokens/results/unknown locks. Keep native ibapi in a dedicated execution service, not a Next.js route with process-lifetime assumptions. Expand only after reconciliation, risk and instrument-specific parity."
+        },
+        {
+          "name": "Source-aware actual portfolio read model",
+          "evidence": [
+            "packages/reporting/broker-portfolio.d.mts:5",
+            "packages/reporting/broker-portfolio.mjs:29",
+            "packages/reporting/broker-portfolio.mjs:68",
+            "packages/reporting/catalog.d.mts:134"
+          ],
+          "reuseGuidance": "Reuse explicit source/completeness/freshness/currency contracts and separation from comparison holdings. Generalize APP-only executions and application-specific floor policy into a central account/instrument/sleeve ledger and separately configured risk policy. An observation snapshot is not the ledger of record or proof of full manual-order coverage."
+        },
+        {
+          "name": "Durable screening-worker semantics",
+          "evidence": [
+            "apps/server/src/research-calendar.ts:164",
+            "apps/server/src/research-refresh.ts:107",
+            "apps/server/src/research-refresh.ts:165",
+            "apps/server/src/research-lock.ts:15",
+            "apps/server/src/index.ts:203"
+          ],
+          "reuseGuidance": "Preserve fixed four-hour UTC schedule, NYSE-local checkpoints with DST/holidays/early closes, deduplication and at-most-one recent catch-up. Move scheduling/locking into an always-on worker with Postgres job claims rather than serverless request timers. Current automation defaults on unless VERTEX_RESEARCH_AUTOMATION=0, requires awake local host, polls each minute and never rewrites accepted dossiers."
+        },
+        {
+          "name": "Knowledge and measured macro evidence separation",
+          "evidence": [
+            "packages/reporting/catalog.d.mts:91",
+            "packages/reporting/catalog.d.mts:102",
+            "packages/reporting/workspace-store.mjs:302",
+            "scripts/import-crown-knowledge.mjs:322",
+            "scripts/prepare-market-health.mjs:241"
+          ],
+          "reuseGuidance": "Reuse bounded parameterized search and knowledge/source mappings; replace SQLite FTS with Postgres full-text search behind the same read contract. Maintain separate historical interpretation, named-provider observations and analyst/user extensions, with source/publication/retrieval clocks and licensing metadata. Do not derive a Crown trading model from unlabeled ASR fragments."
+        },
+        {
+          "name": "Swinglytics corroboration adapter",
+          "evidence": [
+            "packages/reporting/research-vectors.d.mts:44",
+            "apps/server/src/swinglytics.ts:21",
+            "apps/server/src/swinglytics.ts:339",
+            "apps/server/src/swinglytics.ts:371"
+          ],
+          "reuseGuidance": "Keep as a read-only context plug-in with isolated failure and explicit third-party classification. Preserve bounded parsing, stale cache disclosure and both generated/retrieved clocks. Its snapshot must remain outside canonical signal scoring and broker authorization unless a separate reviewed policy explicitly changes that contract."
+        }
+      ],
+      "sourceLicense": {
+        "id": "unknown; no project license declaration located",
+        "evidence": [
+          "package.json:1",
+          "apps/web/package.json:1",
+          "apps/server/package.json:1",
+          "README.md:144"
+        ],
+        "note": "Root/nested nondependency LICENSE/COPYING/NOTICE searches found no license file; package manifests have no license field. private:true is an npm publication control, not a copyright grant. Confirm ownership/provenance before extracting code; check licenses of directly used sibling adapters separately. Crown transcripts, articles, exchange data and vendor outputs have separate redistribution rights not established by source-code ownership."
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "vertex-research",
+        "state": "scaffold",
+        "note": "Read-only collection explicitly includes expiry equal to today, qualifies OPT contracts, and requests snapshots marked executable=false. Dedicated 0DTE strategy/execution is absent: candidate selection uses 30–60 DTE puts or 120+ DTE calls, while order qualification supports stocks only.",
+        "evidence": [
+          "vertex-research/scripts/reporting/collect-broker.remote.py:235-272",
+          "vertex-research/scripts/analyze-options.mjs:145-162",
+          "vertex-research/scripts/analyze-options.mjs:180-183",
+          "vertex-research/scripts/reporting/broker-orders.py:254-269"
+        ],
+        "reusable": "Same-day-inclusive contract qualification and quote provenance.",
+        "missing": "Dedicated 0DTE selection and option-order execution; expiry payoff and first-order Greek scenarios are not intraday simulation.",
+        "revision": {
+          "head": "7a1297112156e4fc9e18ed2baf73225e7babc874",
+          "workingTree": "dirty",
+          "changedPathCount": 165
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "ibkr-vertex-ai-fund",
+      "name": "IBKR Client Portal Docker utilities (directory-name mismatch)",
+      "sourcePath": "trading/ibkr-vertex-ai-fund",
+      "sourceDisposition": "Correct the consolidation inventory identity first. Retain/reuse as an optional Client Portal gateway-operations adapter; do not credit it with wheel or AI-fund functionality. Compare against any actual ibkr-client-portal-docker sibling in Main's wider inventory before proposing retirement. Preserve operational documentation and provenance until parity and replacement gates are satisfied.",
+      "effectiveDecision": "Gateway utility identity only; optional operational reference. Not an AI fund, not verified deployed gateway. Human recovery remains explicit.",
+      "targetModules": ["services/gateway"],
+      "sourceAssets": [
+        {
+          "name": "Readiness and session-maintenance interfaces",
+          "evidence": [
+            "src/ibkr_client_portal_docker/readiness.py:13",
+            "src/ibkr_client_portal_docker/readiness.py:25",
+            "src/ibkr_client_portal_docker/keepalive.py:14",
+            "src/ibkr_client_portal_docker/keepalive.py:57"
+          ],
+          "reuseGuidance": "Wrap as an optional operational adapter returning reachability, authentication, connected status and observedAt/error classification to the platform's operations panel. Preserve distinction between HTTP reachability, authenticated session, market-data entitlement and execution readiness. Do not infer one from another."
+        },
+        {
+          "name": "Redacted smoke endpoint contract",
+          "evidence": [
+            "src/ibkr_client_portal_docker/config.py:21",
+            "src/ibkr_client_portal_docker/smoke.py:27",
+            "src/ibkr_client_portal_docker/redaction.py:31"
+          ],
+          "reuseGuidance": "Reuse the explicit allowlisted diagnostic operations and recursive redaction; expose only typed operations, not arbitrary method/path forwarding. Keep credentials/account identifiers out of platform logs and browser responses."
+        },
+        {
+          "name": "Loopback-only assisted operations",
+          "evidence": [
+            "src/ibkr_client_portal_docker/remote_login.py:78",
+            "src/ibkr_client_portal_docker/remote_login.py:83",
+            "docker-compose.yaml:24",
+            "scripts/install-systemd.sh:59"
+          ],
+          "reuseGuidance": "Preserve private-network/loopback boundaries and operator-assisted 2FA flow. Integrate status into the future Next.js UI while leaving login/control tools in a restricted operational service. Do not automate authentication changes during consolidation."
+        }
+      ],
+      "sourceLicense": {
+        "id": "MIT",
+        "evidence": ["LICENSE:1", "LICENSE:3", "LICENSE:12"],
+        "note": "Retain copyright and permission notice in copies/substantial portions. This code license does not grant rights to redistribute IBKR gateway binaries, data or credentials; those external terms were not reviewed."
+      },
+      "rightsState": "review-notices-and-transitive-rights",
+      "zeroDte": {
+        "id": "ibkr-vertex-ai-fund",
+        "state": "absent",
+        "note": "This project supplies gateway transport and operational checks, not an options strategy. Authentication, keepalive, and account checks do not establish same-day contract handling or execution.",
+        "evidence": [
+          "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/client.py:17-49",
+          "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/smoke.py:27-49",
+          "ibkr-vertex-ai-fund/tests/test_config.py:8-14"
+        ],
+        "reusable": "Gateway session transport and readiness checks.",
+        "missing": "Same-day contract qualification, strategy, and trade lifecycle.",
+        "revision": {
+          "head": "c2bfb6d7d79758ce61b313e848bf88d3ae4adea7",
+          "workingTree": "clean",
+          "changedPathCount": 0
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "ai-hedge-fund",
+      "name": "AI Hedge Fund",
+      "sourcePath": "trading/ai-hedge-fund",
+      "sourceDisposition": "Selectively absorb research/data/statistics/numeric modules into Vertex workers. Adapt UI primitives to Next.js, not whole Vite flow-editor navigation. Preserve corpus/history. Retire duplicates only after parity, reconciliation, provenance/license retention and rollback approval.",
+      "effectiveDecision": "Reuse rights-cleared numeric/event-study/provider and cited research modules; Crown metadata remains attributed. No agent execution authority or flow-editor transplant.",
+      "targetModules": [
+        "services/research/agents",
+        "services/research/providers"
+      ],
+      "sourceAssets": [
+        {
+          "name": "Typed artifacts",
+          "contract": "decisions + analyst_signals; ticker action/quantity/confidence/reasoning; SSE start/progress/error/complete; SQLite run/cycle JSON. Prose is not citations. Add run/model/source lineage; exclude secrets/private portfolio records from corpus.",
+          "evidence": [
+            "src/main.py:85-88",
+            "src/agents/portfolio_manager.py:13-21",
+            "app/backend/models/events.py:5-44"
+          ]
+        },
+        {
+          "name": "Financial/filing interfaces",
+          "contract": "News source/date/url; EarningsRecord filing date/datetime/window/URL/accession; DataClient, BaseSignal and Strategy/TradeSignal. Preserve availability/revision provenance; DataClient misses some earnings-strategy methods.",
+          "evidence": [
+            "src/data/models.py:102-109",
+            "v2/data/models.py:229-272",
+            "v2/backtesting/strategy.py:22-35"
+          ]
+        },
+        {
+          "name": "Event study",
+          "contract": "Pure OLS/abnormal-return/CAR/t-test/bootstrap; per-event/aggregate models, source-type segmentation, plots. Reuse after timing review; confidence interval never execution approval.",
+          "evidence": [
+            "v2/event_study/stats.py:16-119",
+            "v2/event_study/models.py:31-103"
+          ]
+        },
+        {
+          "name": "Crown source-harvest corpus",
+          "contract": "Manifest: sourceId, shortcode, canonicalUrl, linkType, captionSnippet, inventorySource, inScopeVideo. Metadata: 1780 distinct sources, 1700 in-scope videos. Notes claim 1663 transcripts/1421 selections; content not inspected. Preserve source index, methods/failure ledger and legacy IDs; rights-first ingestion, no re-harvest.",
+          "evidence": [
+            "scratchpad/source-harvest-2026-05-31-nicholas-crown/prepare_sources.py:18-35",
+            "scratchpad/source-harvest-2026-05-31-nicholas-crown/sources-normalized.json:1",
+            "docs/personas/nicholas_crown/notes.md:3-12"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "MIT code; third-party media/data rights unverified",
+        "evidence": ["LICENSE:1-21", "app/frontend/package.json:36"],
+        "reuseGuidance": "Retain copyright/permission notices. No implied Instagram/news/vendor-data redistribution rights or persona endorsement."
+      },
+      "rightsState": "review-notices-and-transitive-rights",
+      "zeroDte": {
+        "id": "ai-hedge-fund",
+        "state": "absent",
+        "note": "The inspected workflow produces share-based equity decisions and simulates trades on business days using closing prices. No dedicated same-day option strategy, contract handling, or execution path was found.",
+        "evidence": [
+          "ai-hedge-fund/src/agents/portfolio_manager.py:13-17",
+          "ai-hedge-fund/src/backtesting/engine.py:101-123",
+          "ai-hedge-fund/src/backtesting/engine.py:145-149",
+          "ai-hedge-fund/src/agents/risk_manager.py:129-175"
+        ],
+        "reusable": "Analyst orchestration and volatility/correlation-adjusted equity sizing.",
+        "missing": "Option identity, chains, Greeks, intraday fills, and expiry/assignment controls.",
+        "revision": {
+          "head": "b431dddcee0d857da2d7a94193448a2e4f6324aa",
+          "workingTree": "clean",
+          "changedPathCount": 0
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "TradingAgents",
+      "name": "TradingAgents",
+      "sourcePath": "trading/TradingAgents",
+      "sourceDisposition": "Optional bounded research/debate plugin, never portfolio/risk/execution spine. Source-first adapters, preserve reports/claims separately. Keep archive until provider/report parity and provenance/license retention established; no deletion now.",
+      "effectiveDecision": "Optional bounded cited research/debate adapter, deduplicated against Gamma vendored lineage. Narrative risk judge never owns risk.",
+      "targetModules": ["services/research/agents"],
+      "sourceAssets": [
+        {
+          "name": "Research state/graph",
+          "contract": "Company/date, four report strings, debates, investment/trader plans, final string; propagate returns state/action text. Research-only permissions/cost bounds.",
+          "evidence": [
+            "tradingagents/agents/utils/agent_states.py:50-76",
+            "tradingagents/graph/trading_graph.py:161-194"
+          ]
+        },
+        {
+          "name": "Actual artifacts",
+          "contract": "Full-state JSON wraps prose; seven Markdown report types; batch JSON date/counts/recommendations/heuristic confidence. Not executable order schema; keep source claims and labels distinct.",
+          "evidence": [
+            "tradingagents/graph/trading_graph.py:196-236",
+            "cli/batch_processor.py:282-302,510-525"
+          ]
+        },
+        {
+          "name": "Publication-aware SimFin",
+          "contract": "Publish Date <= requested date, then latest publication. Retain Report Date vs Publish Date; verify revisions/dataset/rights.",
+          "evidence": ["tradingagents/dataflows/interface.py:163-180"]
+        },
+        {
+          "name": "Divergent archived adapters",
+          "contract": "Direct Finnhub news, Yahoo fundamentals, Groq path. Yahoo current info labelled historical date is not point-in-time data; review before retirement.",
+          "evidence": [
+            "xxx_old-TradingAgents/tradingagents/dataflows/interface.py:21-86,883-939",
+            "xxx_old-TradingAgents/tradingagents/graph/trading_graph.py:62-75"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "Apache-2.0 including archive",
+        "evidence": ["LICENSE:1-3,73-120", "xxx_old-TradingAgents/LICENSE:1-3"],
+        "reuseGuidance": "Retain license/attribution/NOTICE where applicable and modification notices; patent terms apply. Data/media/dependency rights remain separate gates."
+      },
+      "rightsState": "review-notices-and-transitive-rights",
+      "zeroDte": {
+        "id": "TradingAgents",
+        "state": "absent",
+        "note": "The active application runs company/date research and returns BUY, SELL, or HOLD recommendations. No dedicated 0DTE contract selection, simulation, or execution was found; its risk judge produces narrative advice rather than enforceable broker gates.",
+        "evidence": [
+          "TradingAgents/tradingagents/dataflows/yfin_utils.py:25-43",
+          "TradingAgents/tradingagents/graph/trading_graph.py:161-194",
+          "TradingAgents/tradingagents/graph/signal_processing.py:12-30",
+          "TradingAgents/tradingagents/agents/managers/risk_manager.py:25-66"
+        ],
+        "reusable": "Analyst/debate graph and research provenance.",
+        "missing": "Option contracts, same-day selection, quantitative option-risk gates, and execution.",
+        "revision": {
+          "head": "a438acdbbd622a4d3c112d23f7462651f8f9aeee",
+          "workingTree": "dirty",
+          "changedPathCount": 14
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "optical-photonics-reports",
+      "name": "Optical Photonics Dual-Track Reports",
+      "sourcePath": "trading/optical-photonics-reports",
+      "sourceDisposition": "Advisory swing module plus Vertex decision-table design. Emit typed analysis/evidence before rendering. Migrate cadence after output/schedule parity and owner approval; retain current scheduler/state/history until retirement gates.",
+      "effectiveDecision": "Selective advisory swing analysis and scheduling/output parity; preserve history. No claimed options or 0DTE engine.",
+      "targetModules": ["services/research/strategies", "packages/email"],
+      "sourceAssets": [
+        {
+          "name": "Analysis dataclass",
+          "contract": "Metrics/returns, regime, dual zones, preference, horizon actions, confirmations, trade/trend/thesis invalidations, risk-reward/escalation. Seed SetupObservation with source/time/algorithm version and advisory status.",
+          "evidence": ["src/optical_photonics_reports/generator.py:39-69"]
+        },
+        {
+          "name": "Cadence escalation",
+          "contract": "Base ET 09:10/09:40/11:00/13:30/15:35; same-session half-hour escalation 10:00-15:30. Zone/volume/high/directional triggers; research refresh, not trading/notification permission.",
+          "evidence": [
+            "scripts/schedule_router.py:17-36",
+            "src/optical_photonics_reports/generator.py:261-272,306-319"
+          ]
+        },
+        {
+          "name": "Actual artifacts",
+          "contract": "Analysis only in memory; persisted HTML/escalation JSON; return value paths, not normalized analysis. Generic Yahoo note lacks observation lineage. Preserve originals; latest/Desktop copies not independent sources.",
+          "evidence": [
+            "src/optical_photonics_reports/generator.py:571-577,594-617"
+          ]
+        }
+      ],
+      "sourceLicense": {
+        "id": "unknown: no explicit license grant found",
+        "evidence": ["pyproject.toml:1-8", "README.md:1-22"],
+        "reuseGuidance": "LICENSE/LICENSE.md/LICENSE.txt/COPYING/NOTICE and doc/source searches found no grant. Confirm ownership/permission before copying/distribution; Yahoo/content rights separate."
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "optical-photonics-reports",
+        "state": "absent",
+        "note": "This application analyzes daily equity bars and writes HTML reports. Intraday observations and entry zones do not establish option expiry selection or execution.",
+        "evidence": [
+          "optical-photonics-reports/src/optical_photonics_reports/generator.py:21-24",
+          "optical-photonics-reports/src/optical_photonics_reports/generator.py:140-210",
+          "optical-photonics-reports/src/optical_photonics_reports/generator.py:590-610"
+        ],
+        "reusable": "Equity regime context and report rendering.",
+        "missing": "Option contract/chain models and the full same-day strategy lifecycle.",
+        "revision": {
+          "head": null,
+          "workingTree": "unresolved Git metadata",
+          "changedPathCount": null
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "charan-discord-bot",
+      "name": "Charan Discord Trade Analysis",
+      "sourcePath": "charan-discord-bot",
+      "sourceDisposition": "Discord adapter; migrate unique parser-review/contracts, reuse canonical chart/lifecycle modules, then archive old app only after parity and provenance retention.",
+      "effectiveDecision": "Reuse parser/accepted-rule provenance and characterize user-confirmed KLineCharts 9.8.12 behind the normalized replaceable renderer port. Verify source/API/license/runtime; no blind upgrade or Discord-to-order bypass.",
+      "targetModules": [
+        "services/research/signals",
+        "apps/web/src/features/charts"
+      ],
+      "sourceAssets": [
+        "Discord trading vocabulary and accepted-rule workflow",
+        "Provenance-bearing open/add/hold/trim/close events",
+        "Unsized non-transmitting intent projection"
+      ],
+      "sourceLicense": {
+        "id": "unknown; no authored license file/package declaration found",
+        "evidence": ["package.json", "bounded authored-tree license inventory"]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "charan-discord-bot",
+        "state": "scaffold",
+        "note": "Explicit 0DTE parsing maps an alert timestamp to a same-day option expiry and produces IBKR contract drafts. This is a source component; dedicated strategy/execution is absent and drafts remain unsized and non-transmitting.",
+        "evidence": [
+          "charan-discord-bot/src/signal-event-parser.ts:594-615",
+          "charan-discord-bot/src/signal-event-parser.test.ts:434-461",
+          "charan-discord-bot/src/trade-intents.ts:127-155",
+          "charan-discord-bot/src/trade-intents.ts:172-240"
+        ],
+        "reusable": "0DTE token recognition, expiry normalization, and normalized option intents.",
+        "missing": "Exchange-calendar qualification and stale-alert rejection; expiry derives from UTC, while risk checks are only listed in drafts.",
+        "revision": {
+          "head": "eaa9e31fa1516789ac5f6dfa55137e22dbfbe1cd",
+          "workingTree": "clean",
+          "changedPathCount": 0
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "roth-bot",
+      "name": "Roth Bot",
+      "sourcePath": "AI-Cornell-bots/roth-bot",
+      "sourceDisposition": "Options payoff/Greek calculator modules, research Strategy plug-ins and optional intelligence workers. Quarantine Composer code as adapter reference until justified and reworked under central authorization/risk; do not carry forward competing Convex accounting.",
+      "effectiveDecision": "Characterize payoff/Greeks/spreads and research ABC. Quarantine Composer executor and competing Convex ledger; do not port arbitrary personas or compliance claims.",
+      "targetModules": ["services/research/options"],
+      "sourceAssets": [
+        "Vertical/iron-condor payoff, break-even and chain selection",
+        "Strategy ABC and portfolio simulator",
+        "Regime/news context and scheduled signals",
+        "Roth compliance-domain ideas, requiring independent review"
+      ],
+      "sourceLicense": {
+        "id": "Python package MIT; Convex backend ISC; no monorepo-wide license found",
+        "evidence": [
+          "apps/python-trader/pyproject.toml:6",
+          "packages/backend/package.json:9",
+          "package.json"
+        ]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "roth-bot",
+        "state": "absent",
+        "note": "Generic options chains and spreads exist, but no dedicated same-day expiry selector was found. A zero-DTE probability fallback uses one day, while chain Greeks require positive DTE.",
+        "evidence": [
+          "AI-Cornell-bots/roth-bot/apps/python-trader/src/roth_bot/data/options.py:353-357",
+          "AI-Cornell-bots/roth-bot/apps/python-trader/src/roth_bot/data/options.py:435-447",
+          "AI-Cornell-bots/roth-bot/apps/python-trader/src/roth_bot/agents/options_trader.py:664-668",
+          "AI-Cornell-bots/roth-bot/apps/python-trader/tests/test_options_trader.py:779-789"
+        ],
+        "reusable": "Typed chains and spread payoff calculations.",
+        "missing": "Exchange-session expiry selection and intraday time-to-expiry Greeks.",
+        "revision": {
+          "head": "c73d4b843fa0fee62cba31f854153d9c8d9b30ab",
+          "workingTree": "clean",
+          "changedPathCount": 0
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "trade-calculator",
+      "name": "Earnings Volatility Trading System",
+      "sourcePath": "trade-calculator",
+      "sourceDisposition": "Calculator/research plug-in for earnings-volatility and calendar spreads. Reconcile duplicate formulas; retain legacy simulations and broker code as quarantined reference, not validated-quant or execution foundation.",
+      "effectiveDecision": "Research calculator for earnings/IV-RV/term structure; reconcile duplicate formulas. close_position stub blocks execution reuse.",
+      "targetModules": ["services/research/options"],
+      "sourceAssets": [
+        "Earnings-event calendar-spread research flow",
+        "Yang-Zhang/IV-RV/term-structure screening",
+        "Spread pricing/strike selection and priority scoring",
+        "Pre/post-earnings timing concepts"
+      ],
+      "sourceLicense": {
+        "id": "unknown; no authored license file/frontend declaration located",
+        "evidence": [
+          "frontend/package.json",
+          "bounded authored-tree license inventory"
+        ]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "trade-calculator",
+        "state": "absent",
+        "note": "The inspected strategy uses earnings calendar spreads, not same-day options. Its front-expiry selector requires expiry after today, and term-structure analysis skips DTE <= 0.",
+        "evidence": [
+          "trade-calculator/backend/automation/trade_executor.py:335-368",
+          "trade-calculator/backend/automation/utils/options_analysis.py:30-36",
+          "trade-calculator/backend/automation/trade_executor.py:370-374",
+          "trade-calculator/backend/tests/automation/test_trade_flow.py:82-96"
+        ],
+        "reusable": "Earnings timing, IV analysis, and combo-order construction.",
+        "missing": "Dedicated same-day selection and a complete exit lifecycle; close_position is a pass stub.",
+        "revision": {
+          "head": "42658b2d193695da81305e986d35e55ed15ccc26",
+          "workingTree": "dirty",
+          "changedPathCount": 2
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "asts-stock-watcher",
+      "name": "ASTS Stock Watcher",
+      "sourcePath": "asts-stock-watcher",
+      "sourceDisposition": "Extract the pure entry heuristic and injected cooldown/dry-run notification lifecycle. Replace the legacy iMessage transport with the approved ntfy-only phone-alert boundary; do not enable any notification here. Archive the standalone poller only after alert parity and provenance gates.",
+      "effectiveDecision": "Pure heuristic, session filtering and cooldown/dry-run semantics; replace iMessage with explicitly enabled ntfy, no fallback.",
+      "targetModules": [
+        "services/market-data/alerts",
+        "packages/notifications"
+      ],
+      "sourceAssets": [
+        "Minimal deterministic low/range heuristic",
+        "Separated watcher/delivery interfaces",
+        "Atomic cooldown and dry-run"
+      ],
+      "sourceLicense": {
+        "id": "unknown; no license file/package declaration found",
+        "evidence": ["package.json", "bounded authored-tree license inventory"]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "asts-stock-watcher",
+        "state": "absent",
+        "note": "The watcher evaluates stock prices within their intraday range and sends alerts. Market-session filtering and one-minute bars do not provide same-day options support.",
+        "evidence": [
+          "asts-stock-watcher/src/yahoo.ts:490-527",
+          "asts-stock-watcher/src/analysis.ts:13-100",
+          "asts-stock-watcher/src/watcher.ts:225-288"
+        ],
+        "reusable": "Snapshot validation, regular-session filtering, and persistent alert cooldown.",
+        "missing": "Option selection, expiry controls, and order execution.",
+        "revision": {
+          "head": "464b2318930166a190473bf1c13cfdf9e7661c0d",
+          "workingTree": "clean",
+          "changedPathCount": 0
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    },
+    {
+      "id": "full-port",
+      "name": "Full Port",
+      "sourcePath": "full-port",
+      "sourceDisposition": "Prioritize provider-evidence adapters/contracts and safety invariants as candidates; compare Gamma/Vertex lineage before canonical ownership. Fold into one platform authority rather than finish a competing service/UI/executor.",
+      "effectiveDecision": "Selective provider-evidence, permissions, callback identity and protected-quantity safety improvements. Do not finish another service/UI/executor.",
+      "targetModules": ["services/market-data", "services/execution"],
+      "sourceAssets": [
+        "Request-bound evidence with capability/permission/error states",
+        "IBKR callback session/binding/entitlement integrity",
+        "Protected-quantity execution invariants",
+        "Research qualification separated from trade authority",
+        "Locked-offline/import-safe foundation"
+      ],
+      "sourceLicense": {
+        "id": "authored source unknown; ibapi metadata: IB API Non-Commercial License or IB API Commercial License",
+        "evidence": [
+          "pyproject.toml:24",
+          "vendor/ibapi/ibapi-10.30.1-py3-none-any.whl:ibapi-10.30.1.dist-info/METADATA:8"
+        ]
+      },
+      "rightsState": "blocked-pending-scope-clearance",
+      "zeroDte": {
+        "id": "full-port",
+        "state": "scaffold",
+        "note": "The read-only IBKR options capture selects the nearest expiry including today's date, then qualifies the selected contracts. Dedicated 0DTE strategy and execution are absent; the capture bridge cannot mutate broker state, and execution security types support stocks only.",
+        "evidence": [
+          "full-port/src/full_port/providers/ibkr_options/selection.py:17-63",
+          "full-port/scripts/capture/phase02_ibkr_options.py:1972-2010",
+          "full-port/scripts/capture/phase02_ibkr_options.py:633-638",
+          "full-port/src/full_port/contracts/base.py:85-88"
+        ],
+        "reusable": "A bounded same-day-capable capture path: nearest unexpired expiry, up to three strikes, both option rights, and broker qualification.",
+        "missing": "An option strategy and order path with same-day admission and expiry handling. The selector accepts a date only and has no expiry-hour or session-close gate.",
+        "revision": {
+          "head": "3ef1d1eeeba9c2fb6f0b90614318c6113919e9c0",
+          "workingTree": "dirty",
+          "changedPathCount": 1
+        }
+      },
+      "state": "planned",
+      "gates": [
+        "G-source",
+        "G-rights",
+        "G-characterization",
+        "G-contracts",
+        "G-migration",
+        "G-rollback"
+      ],
+      "retirement": "No original deletion, reset, writer cutover or archive until explicit owner approval plus history/data/deployment parity."
+    }
+  ],
+  "roots": [
+    {
+      "id": "ibkr-vertex-ai-fund",
+      "kind": "Repository / project",
+      "components": ["ibkr-vertex-ai-fund"],
+      "note": "Actual package identity: ibkr-client-portal-docker. Gateway utility, not a fund engine.",
+      "nestedBoundaries": [],
+      "head": "c2bfb6d7d79758ce61b313e848bf88d3ae4adea7",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/ibkr-vertex-ai-fund",
+      "decision": "Gateway utility identity only; optional operational reference. Not an AI fund, not verified deployed gateway. Human recovery remains explicit.",
+      "targetModules": ["services/gateway"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "charan-discord-bot",
+      "kind": "Repository / project",
+      "components": ["charan-discord-bot"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": ["charan-discord-bot"],
+      "head": "eaa9e31fa1516789ac5f6dfa55137e22dbfbe1cd",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/charan-discord-bot",
+      "decision": "Reuse parser/accepted-rule source lineage and evaluate actual chart renderer version; normalize exchange dates; no direct Discord-to-order bridge.",
+      "targetModules": [
+        "services/research/signals",
+        "apps/web/src/features/charts"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "AI-Cornell-bots",
+      "kind": "Container / collection",
+      "components": ["roth-bot"],
+      "note": "Nested Roth Bot is the application; the folder itself is not a separate product.",
+      "nestedBoundaries": [
+        "AI-Cornell-bots/roth-bot",
+        "AI-Cornell-bots/roth-bot/apps/web",
+        "AI-Cornell-bots/roth-bot/apps/python-trader",
+        "AI-Cornell-bots/roth-bot/packages/backend"
+      ],
+      "head": null,
+      "branch": null,
+      "sourcePath": "/home/jeffscottward/Github/trading/AI-Cornell-bots",
+      "decision": "Container: migrate only characterized Roth components under their individual rights.",
+      "targetModules": ["services/research/knowledge"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "vertex-research",
+      "kind": "Repository / project",
+      "components": ["vertex-research"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": "7a1297112156e4fc9e18ed2baf73225e7babc874",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/vertex-research",
+      "decision": "Retain accepted dossiers, review/version rules, publication, payoff and portfolio semantics; rebuild Civet UI/control, never transplant legacy BFF or global KB replacement.",
+      "targetModules": [
+        "apps/web/src/features/research",
+        "apps/web/src/features/portfolio",
+        "packages/api/vertex",
+        "packages/db"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "vertex-quant-trail-capability",
+      "kind": "Linked worktree",
+      "components": ["vertex-quant-trail-capability"],
+      "note": "Same Git repository as Vertex Quant; execution branch delta is substantive, shared research is duplicated.",
+      "nestedBoundaries": [],
+      "head": "8cb08d50f3a99168983504d8008f60084945df24",
+      "branch": "feature/trail-order-capability",
+      "sourcePath": "/home/jeffscottward/Github/trading/vertex-quant-trail-capability",
+      "decision": "Unique execution/recovery delta is a safety-improvement source, not a separate product or competing authority. Characterize and selectively integrate into the single edge.",
+      "targetModules": [
+        "services/execution",
+        "services/execution-kernel",
+        "packages/db"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "trade-calculator",
+      "kind": "Repository / project",
+      "components": ["trade-calculator"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [
+        "trade-calculator",
+        "trade-calculator/frontend/apps/web",
+        "trade-calculator/frontend/apps/server",
+        "trade-calculator/backend"
+      ],
+      "head": "42658b2d193695da81305e986d35e55ed15ccc26",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/trade-calculator",
+      "decision": "Research calculator for earnings/IV-RV/term structure; reconcile duplicate formulas. close_position stub blocks execution reuse.",
+      "targetModules": ["services/research/options"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "optical-photonics-reports",
+      "kind": "Repository / project",
+      "components": ["optical-photonics-reports"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": null,
+      "branch": null,
+      "sourcePath": "/home/jeffscottward/Github/trading/optical-photonics-reports",
+      "decision": "Selective advisory swing analysis and scheduling/output parity; preserve history. No claimed options or 0DTE engine.",
+      "targetModules": ["services/research/strategies", "packages/email"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "asts-stock-watcher",
+      "kind": "Repository / project",
+      "components": ["asts-stock-watcher"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": ["asts-stock-watcher"],
+      "head": "464b2318930166a190473bf1c13cfdf9e7661c0d",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/asts-stock-watcher",
+      "decision": "Pure heuristic, session filtering and cooldown/dry-run semantics; replace iMessage with explicitly enabled ntfy, no fallback.",
+      "targetModules": [
+        "services/market-data/alerts",
+        "packages/notifications"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "ai-hedge-fund",
+      "kind": "Repository / project",
+      "components": ["ai-hedge-fund"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": "b431dddcee0d857da2d7a94193448a2e4f6324aa",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/ai-hedge-fund",
+      "decision": "Reuse rights-cleared numeric/event-study/provider and cited research modules; Crown metadata remains attributed. No agent execution authority or flow-editor transplant.",
+      "targetModules": [
+        "services/research/agents",
+        "services/research/providers"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "youtube-knowledge-bases",
+      "kind": "Container / collection",
+      "components": ["coach-jon-barbera", "trading-verrillo-aleks"],
+      "note": "Knowledge bundles plus ingestion scripts, not a trading or execution app.",
+      "nestedBoundaries": [
+        "youtube-knowledge-bases/coach-jon-barbera",
+        "youtube-knowledge-bases/trading-verrillo-aleks"
+      ],
+      "head": null,
+      "branch": null,
+      "sourcePath": "/home/jeffscottward/Github/trading/youtube-knowledge-bases",
+      "decision": "Preserve collection identities and missing-transcript records; allowlist trading collections; exclude Coach Jon by default.",
+      "targetModules": ["services/research/knowledge"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "TradingAgents",
+      "kind": "Repository / project",
+      "components": ["TradingAgents"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": "a438acdbbd622a4d3c112d23f7462651f8f9aeee",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/TradingAgents",
+      "decision": "Optional bounded cited research/debate adapter, deduplicated against Gamma vendored lineage. Narrative risk judge never owns risk.",
+      "targetModules": ["services/research/agents"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "worktrees",
+      "kind": "Residual worktree container",
+      "components": [],
+      "note": "Residual directories are not another production application; preserve runtime/provenance until inspected retirement.",
+      "nestedBoundaries": [
+        "worktrees/maestro/phase-01-safe-prototype-foundation"
+      ],
+      "head": null,
+      "branch": null,
+      "sourcePath": "/home/jeffscottward/Github/trading/worktrees",
+      "decision": "Preserve residual provenance/runtime artifacts; no product count or automatic retirement.",
+      "targetModules": ["services/research/knowledge"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "vertex-quant",
+      "kind": "Repository / project",
+      "components": ["vertex-quant"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": "9ef5e9446d24c81ae94501764fb6c8bba9267fd1",
+      "branch": "workstream-separation-20260719",
+      "sourcePath": "/home/jeffscottward/Github/trading/vertex-quant",
+      "decision": "Selective improvement source for deterministic session/reel studies, parser lineage and protection invariants; do not copy its shell or activate another writer.",
+      "targetModules": [
+        "services/research/strategies",
+        "services/execution",
+        "apps/web/src/features/strategies"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "gamma-forge",
+      "kind": "Repository / project",
+      "components": ["gamma-forge"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": [],
+      "head": "65a0dda4d21052a2e86bb306e33546d718682d7d",
+      "branch": "ui-research-readonly-audit",
+      "sourcePath": "/home/jeffscottward/Github/trading/gamma-forge",
+      "decision": "Canonical trading-domain source. Preserve Python source modules after rights and characterization; replace UI, legacy BFF, terminal SQLite authority, empty placeholders and unsafe command ordering.",
+      "targetModules": [
+        "services/research/gamma",
+        "services/market-data",
+        "packages/api/vertex",
+        "services/execution"
+      ],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    },
+    {
+      "id": "full-port",
+      "kind": "Repository / project",
+      "components": ["full-port"],
+      "note": "Source inventory, not runtime certification.",
+      "nestedBoundaries": ["full-port"],
+      "head": "3ef1d1eeeba9c2fb6f0b90614318c6113919e9c0",
+      "branch": "main",
+      "sourcePath": "/home/jeffscottward/Github/trading/full-port",
+      "decision": "Selective provider-evidence, permissions, callback identity and protected-quantity safety improvements. Do not finish another service/UI/executor.",
+      "targetModules": ["services/market-data", "services/execution"],
+      "state": "planned",
+      "gates": ["G-source", "G-rights", "G-migration", "G-rollback"]
+    }
+  ],
+  "externalSources": [
+    {
+      "id": "Fincept",
+      "decision": "Concept/capability checklist only; NO COPY pending exact-revision license clarification. Root restrictions conflict with newer commercial-license withdrawal. No frontend/trade-dress copy.",
+      "state": "blocked",
+      "gates": ["G-fincept-rights"]
+    },
+    {
+      "id": "DarkFactory",
+      "decision": "Preserve isolated immutable foundation and inherited engineering gates; specialize product domain, not operator tooling.",
+      "state": "source-baseline",
+      "gates": ["G-baseline"]
+    },
+    {
+      "id": "knowledge-bases/trading/deltatrendtrading",
+      "decision": "Canonical DeltaTrend metadata/rights-scoped import; not merged persona or QuantPad-author proof.",
+      "state": "planned",
+      "gates": ["G-knowledge"]
+    },
+    {
+      "id": "DefineYourRisk",
+      "decision": "Required attributed corpus; canonical location, identity, completeness and rights unresolved. No invented sources.",
+      "state": "blocked",
+      "gates": ["G-knowledge", "G-rights"]
+    }
+  ]
+}

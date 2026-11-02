@@ -1,0 +1,105 @@
+{
+  "slug": "expected-move-square-root-time",
+  "sourceId": "DakyEZMukdb",
+  "title": "Expected move grows with the square root of time",
+  "summary": "Expected move = IV x sqrt(trading days / 252). Trading days are about calendar days x 0.69, because volatility does not accrue over weekends. For a $100 stock with 25% IV and 30 days: 25 x sqrt(30 x 0.69 / 252) is about 7.2%, so two-thirds of the time it stays within about $14.40 centered on today.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["expected move", "square root of time", "implied volatility"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": []
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock with 25% implied volatility."
+    },
+    {
+      "element": "pdf",
+      "color": "gray",
+      "caption": "The distribution of prices 30 days out.",
+      "time": [0, 1]
+    },
+    {
+      "element": "band1",
+      "color": "blue",
+      "caption": "One standard deviation: 25 x sqrt(30 x 0.69 / 252) = about 7.2%, or $92.80 to $107.20.",
+      "time": [0, 1]
+    },
+    {
+      "element": "band2",
+      "color": "violet",
+      "caption": "Two standard deviations: about 14.4%. Doubling time does not double the move.",
+      "time": [0, 1]
+    },
+    {
+      "element": "axes",
+      "color": "gold",
+      "caption": "The move grows with the square root of time: four times the days gives twice the move."
+    }
+  ],
+  "formulas": ["expectedMove", "realizedVol"],
+  "takeaways": [
+    "Expected move scales with the square root of time, not with time.",
+    "Use trading days: calendar days x 0.69, divided by 252.",
+    "For one day, IV divided by 16 is a quick estimate."
+  ],
+  "caveats": [
+    "The transcript says the range is $14.40 wide, which is plus or minus 7.2% on $100."
+  ]
+}

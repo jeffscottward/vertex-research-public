@@ -1,0 +1,54 @@
+import { sql } from "drizzle-orm";
+import type { DevelopmentEnvironment } from "./seeds/index.ts";
+import { type Database, withTransaction } from "./server/client.ts";
+
+export type ResetDevelopmentOptions = Readonly<{
+  environment: DevelopmentEnvironment;
+}>;
+
+export type ResetDevelopmentResult = Readonly<{
+  tablesCleared: number;
+}>;
+
+export class DevelopmentResetError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DevelopmentResetError";
+  }
+}
+
+export const resetDevelopment = async (
+  database: Database,
+  options: ResetDevelopmentOptions
+): Promise<ResetDevelopmentResult> => {
+  if (options.environment !== "development" && options.environment !== "test") {
+    throw new DevelopmentResetError(
+      "Development reset requires an explicit development or test environment"
+    );
+  }
+
+  // Names only product tables. CASCADE also empties every table that references
+  // them, such as the operator-plane tables owned by @darkfactory/jobs, so this
+  // package never needs to know their names.
+  await withTransaction(database, async (transaction) => {
+    return await transaction.execute(sql`
+      TRUNCATE TABLE
+        "session",
+        "account",
+        "addresses",
+        "profiles",
+        "user_preferences",
+        "feature_items",
+        "watchlist_items",
+        "contact_rate_limits",
+        "audit_records",
+        "user",
+        "verification",
+        "rate_limit",
+        "outbox_events"
+      RESTART IDENTITY CASCADE
+    `);
+  });
+
+  return Object.freeze({ tablesCleared: 13 });
+};

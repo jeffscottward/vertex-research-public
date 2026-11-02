@@ -1,0 +1,126 @@
+{
+  "slug": "covered-call-selection-iv-over-rv",
+  "sourceId": "DbmG18MhWDc",
+  "title": "Choosing covered calls: IV divided by realized volatility, not IV alone",
+  "summary": "Selling covered calls or cash-secured puts only on high-IV names is like shorting a stock only because its price is high. You need a valuation ratio, like P/E for stocks. For options, divide implied volatility by realized volatility, your unit of risk, to see if the option is cheap, fair or rich.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "volatility"
+    ],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["valuation", "IV/RV ratio", "strike selection"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 40,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV minus RV (premium)",
+      "default": 6,
+      "min": -20,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 88,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A high-IV stock. High IV alone is like a high share price: it says nothing about value.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "blue",
+      "caption": "Implied volatility: the price of the option, quoted in volatility terms.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: the unit of risk, how much the stock really moves.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vrp",
+      "color": "violet",
+      "caption": "IV relative to realized works like a P/E ratio. It tells you if the option is cheap, fair or rich.",
+      "time": [0, 1]
+    },
+    {
+      "element": "axes",
+      "color": "gold",
+      "caption": "Rank candidate covered calls by IV over realized, not by IV alone."
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "annualizedYield"],
+  "takeaways": [
+    "High IV alone is not a reason to sell an option.",
+    "Divide IV by realized volatility to compare options on an equal basis.",
+    "Use the ratio to judge cheap, fair or rich, like P/E for stocks."
+  ],
+  "caveats": [
+    "VAY (volatility-adjusted yield) is the speaker's own metric, sold through his tools. It is unverified here."
+  ]
+}

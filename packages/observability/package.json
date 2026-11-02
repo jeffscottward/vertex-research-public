@@ -1,0 +1,73 @@
+{
+  "name": "@darkfactory/observability",
+  "brick": "product",
+  "description": "Telemetry port: OpenTelemetry traces and metrics, evlog events and redaction.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.ts"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./port": {
+      "import": "./src/port.ts",
+      "default": "./src/port.ts"
+    },
+    "./redaction": {
+      "import": "./src/redaction.ts",
+      "default": "./src/redaction.ts"
+    },
+    "./server/otel": {
+      "workerd": "./src/server/otel.ts",
+      "worker": "./src/server/otel.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/otel.ts",
+      "default": "./src/server/otel.ts"
+    },
+    "./server/evlog": {
+      "workerd": "./src/server/evlog.ts",
+      "worker": "./src/server/evlog.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/evlog.ts",
+      "default": "./src/server/evlog.ts"
+    },
+    "./server/fanout": {
+      "workerd": "./src/server/fanout.ts",
+      "worker": "./src/server/fanout.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/fanout.ts",
+      "default": "./src/server/fanout.ts"
+    },
+    "./test": {
+      "import": "./src/test.ts",
+      "default": "./src/test.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/exporter-metrics-otlp-http": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/resources": "catalog:",
+    "@opentelemetry/sdk-metrics": "catalog:",
+    "@opentelemetry/sdk-trace-base": "catalog:",
+    "evlog": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

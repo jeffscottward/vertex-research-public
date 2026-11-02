@@ -1,0 +1,701 @@
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { runDocsCli } from "./cli.ts";
+import {
+  buildPackageGraph,
+  type DocsDependencies,
+  GENERATED_PACKAGE_GRAPH_PATH,
+  renderPackageGraph,
+  runDocsAction,
+} from "./docs.ts";
+import { createDocsFileSystem } from "./system.ts";
+
+const manifests = new Map([
+  [
+    "package.json",
+    JSON.stringify({
+      name: "@darkfactory/root",
+      brick: "workspace",
+      description: "The workspace.",
+      devDependencies: { "@darkfactory/api": "workspace:*" },
+    }),
+  ],
+  [
+    "apps/web/package.json",
+    JSON.stringify({
+      name: "@darkfactory/web",
+      brick: "app",
+      description: "The web app.",
+      dependencies: { "@darkfactory/api": "workspace:*" },
+    }),
+  ],
+  [
+    "packages/api/package.json",
+    JSON.stringify({
+      name: "@darkfactory/api",
+      brick: "product",
+      description: "Contracts and services.",
+      exports: {
+        "./server": "./src/server/index.ts",
+        ".": "./src/index.ts",
+      },
+      dependencies: { "@darkfactory/db": "workspace:*", zod: "catalog:" },
+    }),
+  ],
+  [
+    "packages/db/package.json",
+    JSON.stringify({
+      name: "@darkfactory/db",
+      brick: "product",
+      description: "Schema and repositories.",
+    }),
+  ],
+]);
+
+const sources = () =>
+  [...manifests.entries()].map(([path, source]) => ({ path, source }));
+
+const fixture = (
+  generated?: string,
+  repository: Readonly<Record<string, string>> = {},
+  ignored: readonly string[] = []
+) => {
+  const writes: Array<readonly [string, string]> = [];
+  const dependencies: DocsDependencies = {
+    files: {
+      discoverPackageManifests: async () => sources().reverse(),
+      listRepositoryFiles: async () => Object.keys(repository),
+      listIgnoredPaths: async (paths) =>
+        paths.filter((path) => ignored.includes(path)),
+      readFile: async (path) =>
+        path === GENERATED_PACKAGE_GRAPH_PATH ? generated : repository[path],
+      writeGenerated: async (path, content) => {
+        writes.push([path, content]);
+      },
+    },
+  };
+  return { dependencies, writes };
+};
+
+const current = (): string => renderPackageGraph(buildPackageGraph(sources()));
+
+const manifest = (path: string, value: Record<string, unknown>) => ({
+  path,
+  source: JSON.stringify({ description: "A test brick.", ...value }),
+});
+
+describe("package graph docs", () => {
+  it("sorts packages and records roles, public exports and workspace edges deterministically", () => {
+    const graph = buildPackageGraph(sources());
+    expect(graph.packages.map((entry) => entry.name)).toEqual([
+      "@darkfactory/api",
+      "@darkfactory/db",
+      "@darkfactory/root",
+      "@darkfactory/web",
+    ]);
+    expect(graph.packages[0]).toEqual({
+      name: "@darkfactory/api",
+      brick: "product",
+      description: "Contracts and services.",
+      directory: "packages/api",
+      publicExports: [".", "./server"],
+      workspaceDependencies: ["@darkfactory/db"],
+    });
+    return expect(renderPackageGraph(graph)).toBe(
+      renderPackageGraph(buildPackageGraph(sources().reverse()))
+    );
+  });
+
+  it("renders a Mermaid flowchart grouped by role and a package table", () => {
+    const rendered = renderPackageGraph(buildPackageGraph(sources()));
+    expect(rendered).toContain('subgraph appBricks["Apps"]');
+    // Node ids follow the npm scope, which init may set apart from the slug.
+    const id = (name: string): string =>
+      name.slice(1).replaceAll(/[^A-Za-z0-9]/gu, "_");
+    expect(rendered).toContain(
+      `${id("@darkfactory/web")}["<b>web</b><br/>The web app."]`
+    );
+    expect(rendered).toContain(
+      `${id("@darkfactory/web")} --> ${id("@darkfactory/api")}`
+    );
+    expect(rendered).toContain(
+      `${id("@darkfactory/api")} --> ${id("@darkfactory/db")}`
+    );
+    expect(rendered).not.toContain(id("@darkfactory/root"));
+    expect(rendered).not.toContain("capabilityBricks");
+    expect(rendered).toContain("| capability | tooling |");
+    expect(rendered).toContain(
+      "| [`@darkfactory/api`](../../packages/api/package.json) | product | Contracts and services. | `@darkfactory/db` | `.`, `./server` |"
+    );
+    expect(rendered).toContain(
+      "| [`@darkfactory/root`](../../package.json) | workspace | The workspace. | `@darkfactory/api` | — |"
+    );
+    return expect(rendered.indexOf("@darkfactory/root`]")).toBeLessThan(
+      rendered.indexOf("@darkfactory/web`]")
+    );
+  });
+
+  it("generates the real deterministic artifact", async () => {
+    const state = fixture();
+    await expect(
+      runDocsAction("generate", state.dependencies)
+    ).resolves.toMatchObject({ ok: true, changed: true, packageCount: 4 });
+    expect(state.writes).toHaveLength(1);
+    expect(state.writes[0]?.[0]).toBe(GENERATED_PACKAGE_GRAPH_PATH);
+    return expect(state.writes[0]?.[1]).toMatch(/^<!-- Generated by/);
+  });
+
+  it("checks freshness without mutating", async () => {
+    const expected = renderPackageGraph(buildPackageGraph(sources()));
+    const fresh = fixture(expected);
+    await expect(
+      runDocsAction("check", fresh.dependencies)
+    ).resolves.toMatchObject({ ok: true, changed: false });
+    expect(fresh.writes).toHaveLength(0);
+
+    const stale = fixture("# stale\n");
+    await expect(
+      runDocsAction("check", stale.dependencies)
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/stale/i),
+    });
+    return expect(stale.writes).toHaveLength(0);
+  });
+
+  it("does not rewrite current generated docs", async () => {
+    const current = fixture(renderPackageGraph(buildPackageGraph(sources())));
+
+    await expect(
+      runDocsAction("generate", current.dependencies)
+    ).resolves.toEqual({
+      action: "generate",
+      ok: true,
+      changed: false,
+      reason: "Generated package graph is already current",
+      packageCount: 4,
+    });
+    return expect(current.writes).toHaveLength(0);
+  });
+
+  it("reports discovery, read, write, and non-Error operation failures deterministically", async () => {
+    const failing = (
+      overrides: Partial<DocsDependencies["files"]>
+    ): DocsDependencies => ({
+      files: {
+        discoverPackageManifests: async () => sources(),
+        listRepositoryFiles: async () => [],
+        listIgnoredPaths: async () => [],
+        readFile: async () => undefined,
+        writeGenerated: async () => undefined,
+        ...overrides,
+      },
+    });
+
+    await expect(
+      runDocsAction(
+        "check",
+        failing({
+          discoverPackageManifests: async () => {
+            throw new Error("manifest discovery failed");
+          },
+        })
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "manifest discovery failed",
+    });
+    await expect(
+      runDocsAction(
+        "check",
+        failing({
+          readFile: async () => {
+            throw new Error("generated read failed");
+          },
+        })
+      )
+    ).resolves.toMatchObject({ ok: false, reason: "generated read failed" });
+    await expect(
+      runDocsAction(
+        "generate",
+        failing({
+          writeGenerated: async () => {
+            throw new Error("generated write failed");
+          },
+        })
+      )
+    ).resolves.toMatchObject({ ok: false, reason: "generated write failed" });
+    return await expect(
+      runDocsAction(
+        "check",
+        failing({
+          discoverPackageManifests: () => Promise.reject("non-error failure"),
+        })
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: "Documentation generation failed",
+      packageCount: undefined,
+    });
+  });
+
+  it("rejects malformed and duplicate package manifests", () => {
+    expect(() =>
+      buildPackageGraph([{ path: "package.json", source: "{" }])
+    ).toThrow(/invalid package manifest/i);
+    return expect(() =>
+      buildPackageGraph([
+        manifest("a/package.json", { name: "same", brick: "app" }),
+        manifest("b/package.json", { name: "same", brick: "app" }),
+      ])
+    ).toThrow(/duplicate/i);
+  });
+
+  it.each([
+    ["an array root", "[]"],
+    ["a null root", "null"],
+    ["a missing name", JSON.stringify({ brick: "workspace" })],
+    ["an empty name", JSON.stringify({ name: "", brick: "workspace" })],
+  ])("rejects %s package manifest", (_name, source) => {
+    return expect(() =>
+      buildPackageGraph([{ path: "package.json", source }])
+    ).toThrow(/invalid package manifest/i);
+  });
+
+  it.each([
+    ["a package without a brick", "packages/a/package.json", undefined],
+    ["a package with an unknown brick", "packages/a/package.json", "service"],
+    [
+      "a package claiming the workspace role",
+      "packages/a/package.json",
+      "workspace",
+    ],
+    ["a root that is not the workspace", "package.json", "product"],
+  ])("rejects %s", async (_name, path, brick) => {
+    const invalid = manifest(path, { name: "@darkfactory/a", brick });
+    expect(() => buildPackageGraph([invalid])).toThrow(
+      /lacks a valid brick role/i
+    );
+    return await expect(
+      runDocsAction("check", {
+        files: {
+          discoverPackageManifests: async () => [invalid],
+          listRepositoryFiles: async () => [],
+          listIgnoredPaths: async () => [],
+          readFile: async () => undefined,
+          writeGenerated: async () => undefined,
+        },
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining(path),
+    });
+  });
+
+  it("rejects a workspace dependency on an unknown package", () => {
+    return expect(() =>
+      buildPackageGraph([
+        manifest("apps/web/package.json", {
+          name: "@darkfactory/web",
+          brick: "app",
+          dependencies: { "@darkfactory/missing": "workspace:*" },
+        }),
+      ])
+    ).toThrow(
+      "Unknown workspace dependency @darkfactory/missing in apps/web/package.json"
+    );
+  });
+
+  it.each([
+    ["a product brick on an app", "product", "app"],
+    ["a capability brick on a product brick", "capability", "product"],
+    ["a product brick on the opt-in agent plane", "product", "agent-sdlc"],
+  ])("rejects %s", (_name, consumer, dependency) => {
+    return expect(() =>
+      buildPackageGraph([
+        manifest("packages/consumer/package.json", {
+          name: "@darkfactory/consumer",
+          brick: consumer,
+          dependencies: { "@darkfactory/dependency": "workspace:*" },
+        }),
+        manifest("packages/dependency/package.json", {
+          name: "@darkfactory/dependency",
+          brick: dependency,
+        }),
+      ])
+    ).toThrow(
+      `Brick rule violation: @darkfactory/consumer (${consumer}) must not depend on @darkfactory/dependency (${dependency})`
+    );
+  });
+
+  it("merges only workspace-protocol dependencies across dependency sections", () => {
+    const graph = buildPackageGraph([
+      manifest("package.json", {
+        name: "@acme/root",
+        brick: "workspace",
+        dependencies: ["not", "a", "record"],
+      }),
+      manifest("packages/consumer/package.json", {
+        name: "@acme/consumer",
+        brick: "agent-sdlc",
+        exports: ["not", "a", "record"],
+        dependencies: { "@acme/api": "workspace:*", "@acme/npm": "^1.0.0" },
+        devDependencies: { "@acme/testkit": "workspace:*" },
+        peerDependencies: { "@acme/db": "workspace:^" },
+        optionalDependencies: {
+          "@acme/api": "workspace:~",
+          "@acme/ignored": 42,
+        },
+      }),
+      manifest("packages/api/package.json", {
+        name: "@acme/api",
+        brick: "product",
+      }),
+      manifest("packages/db/package.json", {
+        name: "@acme/db",
+        brick: "product",
+      }),
+      manifest("packages/testkit/package.json", {
+        name: "@acme/testkit",
+        brick: "tooling",
+      }),
+    ]);
+
+    expect(
+      graph.packages.find(({ name }) => name === "@acme/root")
+    ).toMatchObject({ workspaceDependencies: [] });
+    return expect(
+      graph.packages.find(({ name }) => name === "@acme/consumer")
+    ).toMatchObject({
+      publicExports: [],
+      workspaceDependencies: ["@acme/api", "@acme/db", "@acme/testkit"],
+    });
+  });
+
+  it("maps fresh, stale, and invalid CLI invocations to deterministic exit codes", async () => {
+    const expected = renderPackageGraph(buildPackageGraph(sources()));
+    const output: string[] = [];
+    const streams = {
+      writeOutput: (value: string) => output.push(value),
+      writeError: (value: string) => output.push(value),
+    };
+    await expect(
+      runDocsCli(["check"], fixture(expected).dependencies, streams)
+    ).resolves.toBe(0);
+    await expect(
+      runDocsCli(["check"], fixture("# stale\n").dependencies, streams)
+    ).resolves.toBe(1);
+    await expect(
+      runDocsCli(["unknown"], fixture().dependencies, streams)
+    ).resolves.toBe(2);
+    await expect(runDocsCli([], fixture().dependencies, streams)).resolves.toBe(
+      2
+    );
+    await expect(
+      runDocsCli(["check", "extra"], fixture().dependencies, streams)
+    ).resolves.toBe(2);
+    await expect(
+      runDocsCli(["generate"], fixture().dependencies, streams)
+    ).resolves.toBe(0);
+    return expect(output.join("")).toMatch(/current|stale|updated|Usage/);
+  });
+
+  it("rejects an ancestor symlink swap without publishing outside the repository", async () => {
+    const root = await mkdtemp(join(tmpdir(), "darkfactory-docs-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "darkfactory-docs-outside-"));
+    try {
+      await mkdir(join(root, "docs"));
+      const files = await createDocsFileSystem(root, {
+        beforePublish: async () => {
+          await rename(join(root, "docs"), join(root, "docs-original"));
+          return await symlink(outside, join(root, "docs"));
+        },
+      });
+      await expect(
+        files.writeGenerated("docs/generated/package-graph.md", "{}\n")
+      ).rejects.toThrow(/identity|symbolic/i);
+      return await expect(
+        access(join(outside, "generated/package-graph.md"))
+      ).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(root, { force: true, recursive: true });
+      await rm(outside, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects same-byte target replacement and preserves the replacement", async () => {
+    const root = await mkdtemp(join(tmpdir(), "darkfactory-docs-target-"));
+    try {
+      const target = join(root, "docs/generated/package-graph.md");
+      await mkdir(join(root, "docs/generated"), { recursive: true });
+      await writeFile(target, "{}\n", "utf8");
+      const files = await createDocsFileSystem(root, {
+        beforePublish: async () => {
+          const replacement = join(root, "replacement.json");
+          await writeFile(replacement, "{}\n", "utf8");
+          return await rename(replacement, target);
+        },
+      });
+      await expect(
+        files.writeGenerated(
+          "docs/generated/package-graph.md",
+          '{"changed":true}\n'
+        )
+      ).rejects.toThrow(/target changed/i);
+      return expect(await readFile(target, "utf8")).toBe("{}\n");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("refuses an occupied global operations lock without deleting it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "darkfactory-docs-lock-"));
+    try {
+      const lock = join(root, ".darkfactory-operations.lock");
+      await writeFile(lock, "owned elsewhere", "utf8");
+      const files = await createDocsFileSystem(root);
+      await expect(
+        files.writeGenerated("docs/generated/package-graph.md", "{}\n")
+      ).rejects.toMatchObject({ code: "EEXIST" });
+      return expect(await readFile(lock, "utf8")).toBe("owned elsewhere");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  return it("rejects a symlinked workspace root without reading external manifests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "darkfactory-docs-read-root-"));
+    const outside = await mkdtemp(
+      join(tmpdir(), "darkfactory-docs-read-outside-")
+    );
+    try {
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({
+          name: "@darkfactory/root",
+          version: "0.1.0",
+        }),
+        "utf8"
+      );
+      await mkdir(join(root, "packages"));
+      await mkdir(join(outside, "external"));
+      await writeFile(
+        join(outside, "external/package.json"),
+        JSON.stringify({
+          name: "external",
+          version: "1.0.0",
+        }),
+        "utf8"
+      );
+      await symlink(outside, join(root, "apps"));
+      const files = await createDocsFileSystem(root);
+      return await expect(files.discoverPackageManifests()).rejects.toThrow(
+        /ancestor|unsafe|symbolic/i
+      );
+    } finally {
+      await rm(root, { force: true, recursive: true });
+      await rm(outside, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("brick imports and doc paths", () => {
+  const check = (
+    repository: Readonly<Record<string, string>>,
+    ignored: readonly string[] = []
+  ) =>
+    runDocsAction(
+      "check",
+      fixture(current(), repository, ignored).dependencies
+    );
+
+  it("fails when a package imports a workspace package it does not declare", async () => {
+    const graph = [
+      ...sources(),
+      manifest("packages/ui/package.json", {
+        name: "@darkfactory/ui",
+        brick: "product",
+      }),
+      manifest("packages/jobs/package.json", {
+        name: "@darkfactory/jobs",
+        brick: "agent-sdlc",
+      }),
+    ];
+    const state = fixture(renderPackageGraph(buildPackageGraph(graph)), {
+      "packages/ui/src/probe.ts": [
+        'import type * as Jobs from "@darkfactory/jobs/schema/workflow";',
+        'export { run } from "@darkfactory/jobs";',
+        'vi.mock("@darkfactory/jobs");',
+        'import "@darkfactory/ui/styles.css";',
+      ].join("\n"),
+    });
+    const files = {
+      ...state.dependencies.files,
+      discoverPackageManifests: async () => graph,
+    };
+
+    return await expect(runDocsAction("check", { files })).resolves.toEqual({
+      action: "check",
+      ok: false,
+      changed: false,
+      reason: "Undeclared brick imports or broken doc paths; see problems",
+      packageCount: 6,
+      problems: [
+        "packages/ui/src/probe.ts imports @darkfactory/jobs, which packages/ui/package.json does not declare",
+      ],
+    });
+  });
+
+  it("accepts declared, self and root imports and ignores non-source files", async () => {
+    await expect(
+      check({
+        "apps/web/src/page.tsx": [
+          'import { client } from "@darkfactory/api";',
+          'const lazy = await import("@darkfactory/api/server");',
+          'import { mark } from "@darkfactory/web/mark";',
+        ].join("\n"),
+        "apps/web/src/globals.css": '@import "@darkfactory/api/styles.css";',
+        "apps/web/src/linked.ts": undefined as unknown as string,
+        "apps/web/notes.txt": 'from "@darkfactory/db"',
+        "tests/e2e/root.spec.ts": 'import "@darkfactory/db";',
+        "scripts/tool.ts": 'import "@darkfactory/db";',
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      reason: expect.stringMatching(/current/),
+    });
+    return await expect(
+      check({
+        "apps/web/src/page.tsx":
+          'import "@darkfactory/db";\nimport { a } from "@darkfactory/db";',
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      problems: [
+        "apps/web/src/page.tsx imports @darkfactory/db, which apps/web/package.json does not declare",
+      ],
+    });
+  });
+
+  it("reports backticked repository paths that do not exist", async () => {
+    const readme = [
+      "Edit `packages/api/src/index.ts` and `packages/api/src/gone.ts`.",
+      "Line refs `packages/api/src/index.ts:12` and `packages/api/src/index.ts#L3-L9` resolve.",
+      "Directories `packages/api/` and `./packages/db/src` resolve; `packages/nope/` does not.",
+      "Not paths: `@darkfactory/api`, `packages/*/src`, `https://example.com/a/b`,",
+      "`bun run docs:check`, `a/b c`, `<dir>/x.ts`, `origin/main`, `README.md`.",
+      "```sh",
+      "cat `packages/api/src/fenced.ts`",
+      "```",
+    ].join("\n");
+    await expect(
+      check({
+        "README.md": readme,
+        "packages/api/src/index.ts": "export const x = 1;",
+        "packages/db/src/schema.ts": "",
+        "docs/archive/old.md": "`packages/api/src/archived.ts`",
+        "CHANGELOG.md": "`packages/shared/src/index.ts`",
+        "services/ibkr/vendor/lib/README.md": "`docs/migration.md`",
+        "CLAUDE.md": undefined as unknown as string,
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      problems: [
+        "README.md: `packages/api/src/gone.ts` does not exist",
+        "README.md: `packages/nope/` does not exist",
+      ],
+    });
+    return await expect(
+      check(
+        {
+          "README.md": readme,
+          "packages/api/src/index.ts": "",
+          "packages/db/src/schema.ts": "",
+        },
+        ["packages/api/src/gone.ts", "packages/nope/"]
+      )
+    ).resolves.toMatchObject({ ok: true });
+  });
+
+  it("resolves paths from the Markdown file's directory", () => {
+    return expect(
+      check({
+        "packages/api/README.md":
+          "See `src/index.ts`, `src/missing.ts`, and `lib/unknown.ts`.",
+        "packages/api/src/index.ts": "",
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      problems: ["packages/api/README.md: `src/missing.ts` does not exist"],
+    });
+  });
+
+  it("requires a #symbol suffix to name an identifier in the source file", () => {
+    return expect(
+      check({
+        "docs/debugging.md": [
+          "`packages/api/src/index.ts#createApi` exists.",
+          "`packages/api/src/index.ts#$state` exists.",
+          "`packages/api/src/index.ts#createApiClient` is only a prefix match.",
+          "`packages/api/src/index.ts#removed` is gone.",
+          "`packages/api/src/linked.ts#anything` cannot be read.",
+          "`docs/deploy.md#hyperdrive` is a heading anchor.",
+          "`packages/api/src/index.ts#not-an-identifier` is not checked.",
+        ].join("\n"),
+        "docs/deploy.md": "",
+        "packages/api/src/index.ts":
+          "export const createApi = () => $state;\nconst $state = 1;",
+        "packages/api/src/linked.ts": undefined as unknown as string,
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      problems: [
+        "docs/debugging.md: `packages/api/src/index.ts#createApiClient` names createApiClient, which packages/api/src/index.ts does not contain",
+        "docs/debugging.md: `packages/api/src/index.ts#removed` names removed, which packages/api/src/index.ts does not contain",
+        "docs/debugging.md: `packages/api/src/linked.ts#anything` names anything, which packages/api/src/linked.ts does not contain",
+      ],
+    });
+  });
+
+  return it("rejects package descriptions that are missing or unsafe to render", () => {
+    for (const description of [
+      undefined,
+      "",
+      "Two\nlines",
+      'A "quoted" purpose',
+      "A <b>bold</b> purpose",
+      "A | piped purpose",
+      "x".repeat(81),
+    ]) {
+      expect(() =>
+        buildPackageGraph([
+          manifest("packages/a/package.json", {
+            name: "@darkfactory/a",
+            brick: "product",
+            description,
+          }),
+        ])
+      ).toThrow(/lacks a one-line description.*packages\/a\/package\.json/);
+    }
+    return expect(
+      buildPackageGraph([
+        manifest("packages/a/package.json", {
+          name: "@darkfactory/a",
+          brick: "product",
+          description: "x".repeat(80),
+        }),
+      ]).packages[0]?.description
+    ).toHaveLength(80);
+  });
+});

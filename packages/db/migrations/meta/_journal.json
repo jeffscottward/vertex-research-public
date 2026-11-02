@@ -1,0 +1,293 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1784778536731,
+      "tag": "0000_misty_lockheed",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784820000000,
+      "tag": "0001_bounded_admin_directory",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784836800000,
+      "tag": "0002_contact_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784903006802,
+      "tag": "0003_groovy_klaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784903632482,
+      "tag": "0004_amused_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785312000000,
+      "tag": "0005_workflow_durability",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785326400000,
+      "tag": "0006_workflow_omp_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785330000000,
+      "tag": "0007_workflow_submission_admission",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790110226964,
+      "tag": "0008_vertex_buildout",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790179200000,
+      "tag": "0009_vertex_experiment_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790208000000,
+      "tag": "0010_vertex_research_chat",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790224072620,
+      "tag": "0011_vertex_research_chat_responses",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790273458697,
+      "tag": "0012_vertex_research_chat_copy_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790281732659,
+      "tag": "0013_vertex_research_chat_copy_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790290000000,
+      "tag": "0014_watchlist_items",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0015_agent_ops_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790310000000,
+      "tag": "0016_agent_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790320000000,
+      "tag": "0017_backtest_results",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790330000000,
+      "tag": "0018_backtest_run_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790340000000,
+      "tag": "0019_strategy_library",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790350000000,
+      "tag": "0020_optimization_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790360000000,
+      "tag": "0021_deployment_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790370000000,
+      "tag": "0022_assistant",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791142643004,
+      "tag": "0023_appearance_preferences",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791151487970,
+      "tag": "0024_shadcn_themes",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792378154973,
+      "tag": "0025_market_bars",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792730942931,
+      "tag": "0026_backtest_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792750086371,
+      "tag": "0027_forward_drift",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792762184136,
+      "tag": "0028_paper_forward_runner",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792810828067,
+      "tag": "0029_ai_builder",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792982982435,
+      "tag": "0030_todos",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793110421046,
+      "tag": "0031_strategy_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793313348093,
+      "tag": "0032_strategy_catalog_carousel",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793447412248,
+      "tag": "0033_strategy_catalog_quantjourney",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793504520842,
+      "tag": "0034_autopilot",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793505000000,
+      "tag": "0035_strategy_catalog_sma30_timing",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793582464810,
+      "tag": "0036_backtest_rating_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793582659509,
+      "tag": "0037_agent_model_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793582891588,
+      "tag": "0038_agent_model_run_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793595044922,
+      "tag": "0039_app_role_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793611521969,
+      "tag": "0040_price_alert_rules",
+      "breakpoints": true
+    }
+  ]
+}

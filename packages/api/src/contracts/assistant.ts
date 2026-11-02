@@ -1,0 +1,261 @@
+import { oc } from "@orpc/contract";
+import { z } from "zod";
+
+import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
+
+// Operator research assistant. A server-side tool loop calls an OpenRouter model with the MCP tool
+// catalogue; every tool call is an internal oRPC request bound to the caller's session, so operator
+// checks and validation stay with the existing procedures. Plan mode exposes read tools only; Act mode
+// adds record-keeping write tools (tasks, papers, strategies, presets) and three research tools that
+// never run inside a turn: saving a strategy definition revision, running a backtest and running a
+// parameter sweep each become a confirm card (an assistant action) that runs only after the operator
+// approves it with actions.decide. No tool requests deployments or orders. Session only: agent API
+// keys are refused.
+
+export const ASSISTANT_MODE_VALUES = ["plan", "act"] as const;
+export const ASSISTANT_MESSAGE_MAX = 4000;
+// "stopped": the operator pressed Stop; the turn ends at its next step and keeps what it did.
+export const ASSISTANT_STOP_REASONS = [
+  "completed",
+  "step_limit",
+  "budget",
+  "stopped",
+] as const;
+
+export const ASSISTANT_API_ERRORS = {
+  ...AGENT_OPS_API_ERRORS,
+  NOT_CONFIGURED: { status: 503, message: "Assistant model not configured" },
+  UPSTREAM_ERROR: { status: 502, message: "Model provider failed" },
+  BUDGET_EXCEEDED: { status: 429, message: "Daily assistant budget used up" },
+} as const;
+
+export const ASSISTANT_ACTION_STATUS_VALUES = [
+  "pending",
+  "running",
+  "executed",
+  "failed",
+  "rejected",
+] as const;
+export const ASSISTANT_ACTION_DECISIONS = ["approve", "reject"] as const;
+
+export const AssistantModeSchema = z.enum(ASSISTANT_MODE_VALUES);
+export const AssistantStopReasonSchema = z.enum(ASSISTANT_STOP_REASONS);
+
+const IdSchema = z.string().trim().min(1).max(128);
+
+export const AssistantToolTraceSchema = z
+  .object({
+    tool: z.string(),
+    args: z.string(),
+    ok: z.boolean(),
+    error: z.string().nullable(),
+    durationMs: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const AssistantActionSchema = z
+  .object({
+    id: z.string().min(1),
+    threadId: z.string().min(1),
+    messageId: z.string().min(1),
+    tool: z.string(),
+    /** One-line description shown on the confirm card. */
+    summary: z.string(),
+    /** The validated tool arguments that run on approval. */
+    args: z.record(z.string(), z.unknown()),
+    status: z.enum(ASSISTANT_ACTION_STATUS_VALUES),
+    /** Tool result text after an approved action executed (untrusted data). */
+    result: z.string().nullable(),
+    error: z.string().nullable(),
+    createdAt: z.date(),
+    decidedAt: z.date().nullable(),
+    finishedAt: z.date().nullable(),
+  })
+  .strict();
+
+export const AssistantThreadSchema = z
+  .object({
+    id: z.string().min(1),
+    title: z.string(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  })
+  .strict();
+
+export const AssistantMessageSchema = z
+  .object({
+    id: z.string().min(1),
+    threadId: z.string().min(1),
+    role: z.enum(["user", "assistant"]),
+    mode: AssistantModeSchema,
+    content: z.string(),
+    toolCalls: z.array(AssistantToolTraceSchema),
+    model: z.string().nullable(),
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    createdAt: z.date(),
+  })
+  .strict();
+
+export const AssistantUsageSchema = z
+  .object({
+    day: z.string(),
+    requests: z.number().int().nonnegative(),
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    requestLimit: z.number().int().positive(),
+    tokenLimit: z.number().int().positive(),
+  })
+  .strict();
+
+export const AssistantStatusSchema = z
+  .object({
+    configured: z.boolean(),
+    model: z.string(),
+    maxSteps: z.number().int().positive(),
+    usage: AssistantUsageSchema,
+  })
+  .strict();
+
+export const AssistantThreadListInputSchema = z
+  .object({
+    limit: z.number().int().min(1).max(100).optional(),
+  })
+  .strict();
+export const AssistantThreadListOutputSchema = z
+  .object({
+    threads: z.array(AssistantThreadSchema),
+    status: AssistantStatusSchema,
+  })
+  .strict();
+
+export const AssistantThreadCreateInputSchema = z
+  .object({
+    title: z.string().max(200).optional(),
+  })
+  .strict();
+
+export const AssistantThreadGetInputSchema = z
+  .object({ id: IdSchema })
+  .strict();
+export const AssistantThreadGetOutputSchema = z
+  .object({
+    thread: AssistantThreadSchema,
+    messages: z.array(AssistantMessageSchema),
+    actions: z.array(AssistantActionSchema),
+  })
+  .strict();
+
+export const AssistantSendInputSchema = z
+  .object({
+    threadId: IdSchema,
+    message: z.string().trim().min(1).max(ASSISTANT_MESSAGE_MAX),
+    mode: AssistantModeSchema.default("plan"),
+  })
+  .strict();
+export const AssistantSendOutputSchema = z
+  .object({
+    thread: AssistantThreadSchema,
+    userMessage: AssistantMessageSchema,
+    reply: AssistantMessageSchema,
+    trace: z.array(AssistantToolTraceSchema),
+    stopReason: AssistantStopReasonSchema,
+    steps: z.number().int().nonnegative(),
+    usage: AssistantUsageSchema,
+    /** Confirm cards proposed in this turn; none of them has run. */
+    actions: z.array(AssistantActionSchema),
+  })
+  .strict();
+
+export const AssistantActionDecideInputSchema = z
+  .object({
+    id: IdSchema,
+    decision: z.enum(ASSISTANT_ACTION_DECISIONS),
+  })
+  .strict();
+
+const assistantApi = oc.errors(ASSISTANT_API_ERRORS);
+const tags = ["Assistant"];
+
+const threadsList = assistantApi
+  .route({
+    method: "GET",
+    path: "/assistant/threads",
+    operationId: "assistant.threads.list",
+    summary:
+      "List your assistant threads with model status and today's budget use",
+    tags,
+  })
+  .input(AssistantThreadListInputSchema)
+  .output(AssistantThreadListOutputSchema);
+
+const threadsCreate = assistantApi
+  .route({
+    method: "POST",
+    path: "/assistant/threads",
+    operationId: "assistant.threads.create",
+    summary: "Create an assistant thread",
+    tags,
+  })
+  .input(AssistantThreadCreateInputSchema)
+  .output(AssistantThreadSchema);
+
+const threadsGet = assistantApi
+  .route({
+    method: "GET",
+    path: "/assistant/threads/{id}",
+    operationId: "assistant.threads.get",
+    summary: "Read one of your assistant threads with its messages",
+    tags,
+  })
+  .input(AssistantThreadGetInputSchema)
+  .output(AssistantThreadGetOutputSchema);
+
+const send = assistantApi
+  .route({
+    method: "POST",
+    path: "/assistant/threads/{threadId}/send",
+    operationId: "assistant.send",
+    summary:
+      "Send a message; the assistant may call ledger tools (Plan: read only; Act: also record-keeping writes and confirm cards)",
+    tags,
+  })
+  .input(AssistantSendInputSchema)
+  .output(AssistantSendOutputSchema);
+
+const actionsDecide = assistantApi
+  .route({
+    method: "POST",
+    path: "/assistant/actions/{id}/decision",
+    operationId: "assistant.actions.decide",
+    summary:
+      "Approve (run now) or reject one of your pending assistant confirm cards (research only, no orders)",
+    tags,
+  })
+  .input(AssistantActionDecideInputSchema)
+  .output(AssistantActionSchema);
+
+export const assistantContract = {
+  threads: { list: threadsList, create: threadsCreate, get: threadsGet },
+  send,
+  actions: { decide: actionsDecide },
+};
+
+export type AssistantModeValue = z.infer<typeof AssistantModeSchema>;
+export type AssistantStopReason = z.infer<typeof AssistantStopReasonSchema>;
+export type AssistantActionOutput = z.infer<typeof AssistantActionSchema>;
+export type AssistantActionDecision =
+  (typeof ASSISTANT_ACTION_DECISIONS)[number];
+export type AssistantToolTraceOutput = z.infer<typeof AssistantToolTraceSchema>;
+export type AssistantThreadOutput = z.infer<typeof AssistantThreadSchema>;
+export type AssistantMessageOutput = z.infer<typeof AssistantMessageSchema>;
+export type AssistantUsageOutput = z.infer<typeof AssistantUsageSchema>;
+export type AssistantStatusOutput = z.infer<typeof AssistantStatusSchema>;
+export type AssistantThreadListOutput = z.infer<
+  typeof AssistantThreadListOutputSchema
+>;
+export type AssistantThreadGetOutput = z.infer<
+  typeof AssistantThreadGetOutputSchema
+>;
+export type AssistantSendInput = z.input<typeof AssistantSendInputSchema>;
+export type AssistantSendOutput = z.infer<typeof AssistantSendOutputSchema>;

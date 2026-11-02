@@ -1,0 +1,339 @@
+{
+  "location": "~/Documents/reports/vertex-quantsmd/assets (rig); not committed",
+  "repository": "https://github.com/QuantJourneyOrg/quantjourney-bt",
+  "commit": "4f403d853833e1daa6de01c5b6c6cb3983dc0044",
+  "license": "Apache-2.0 for repository files (copy of LICENSE included). The quants.md snapshot is third-party page data kept for provenance only.",
+  "attribution": "Strategies, backtests, result previews and skill prompts by QuantJourney.",
+  "files": [
+    {
+      "path": "LICENSE.quantjourney-bt",
+      "origin": "quantjourney-bt LICENSE",
+      "bytes": 11362,
+      "sha256": "cd66c90c3b626a3de7ca8b54ab0e3f054659dd8b9bf90e72b6692d2f364e72d9"
+    },
+    {
+      "path": "quants.md-index-2026-10-31.html",
+      "origin": "https://quants.md (page data, saved 2026-10-31)",
+      "bytes": 642811,
+      "sha256": "fc9a4370a8e29c4de953bca5151a792f3f4a3ad24f998bceab4eee9f6c309eca"
+    },
+    {
+      "path": "quants.md-lib-data-2026-10-31.json",
+      "origin": "https://quants.md (page data, saved 2026-10-31)",
+      "bytes": 192956,
+      "sha256": "48ff547fbe774050a46f904a0fe035202634b83668c53a6060c0fcfe0725d769"
+    },
+    {
+      "path": "skills/README.md",
+      "origin": "quantjourney-bt skills/README.md",
+      "bytes": 1787,
+      "sha256": "409270b2fccdc52df128ebc7def9b118719eb6fc768f6e6e14ff49ee480d6497"
+    },
+    {
+      "path": "skills/qj-config-helper.SKILL.md",
+      "origin": "quantjourney-bt skills/qj-config-helper/SKILL.md",
+      "bytes": 2781,
+      "sha256": "d1dc3c84d6d284bfff22161203939e688696f31d0c75249194a189a1d29dacdc"
+    },
+    {
+      "path": "skills/qj-report-analyst.SKILL.md",
+      "origin": "quantjourney-bt skills/qj-report-analyst/SKILL.md",
+      "bytes": 2214,
+      "sha256": "dbb187465423db9086284c39dccf7da999af651bf325f919403ae657673bcc5c"
+    },
+    {
+      "path": "skills/qj-strategy-author.SKILL.md",
+      "origin": "quantjourney-bt skills/qj-strategy-author/SKILL.md",
+      "bytes": 692,
+      "sha256": "5617e93ad20cdcbbc6896e2cafc6d8c46b2daff5185ee350f35dbfea00bcaaee"
+    },
+    {
+      "path": "skills/qj-strategy-ideas.SKILL.md",
+      "origin": "quantjourney-bt skills/qj-strategy-ideas/SKILL.md",
+      "bytes": 2397,
+      "sha256": "043a042fb48904a71b2b216a9a92a2c791e0a750d0f9dc8d2f76ee43d195c29c"
+    },
+    {
+      "path": "skills/qj-strategy-reviewer.SKILL.md",
+      "origin": "quantjourney-bt skills/qj-strategy-reviewer/SKILL.md",
+      "bytes": 1855,
+      "sha256": "e56afd5139c330463656ad8f002883828db460f16cb26c6bfcdfadcdc1e878da"
+    },
+    {
+      "path": "strategy-results/README.md",
+      "origin": "quantjourney-bt docs/strategy-results/README.md",
+      "bytes": 901,
+      "sha256": "5759e51003c5999fc673f4fec91e84a3dd81e2ed0cefdde40d5a15b4a995416b"
+    },
+    {
+      "path": "strategy-results/example-orders-01-market-sma-cross.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-01-market-sma-cross.png",
+      "bytes": 260008,
+      "sha256": "41e1a0f71defd1ec08e21f1333aad7d111b211d403095e7f7a3e727e6b86727d"
+    },
+    {
+      "path": "strategy-results/example-orders-02-market-rsi-reversion.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-02-market-rsi-reversion.png",
+      "bytes": 238002,
+      "sha256": "56e50320bba5a829608b441496c4f65f14124efe23b0e8a4db98d95b1304f6ca"
+    },
+    {
+      "path": "strategy-results/example-orders-03-limit-rsi-dip.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-03-limit-rsi-dip.png",
+      "bytes": 247857,
+      "sha256": "c7a35a1ae3d4ac41f0cb3b23253d0c2ff4908a8132f9a6efab43f33777c91e01"
+    },
+    {
+      "path": "strategy-results/example-orders-04-limit-trend-pullback.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-04-limit-trend-pullback.png",
+      "bytes": 246544,
+      "sha256": "bbad531ba396eb2309246846e2dedb3e806c2203530e77cd27d50379e1a85608"
+    },
+    {
+      "path": "strategy-results/example-orders-05-stop-breakout-entry.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-05-stop-breakout-entry.png",
+      "bytes": 240605,
+      "sha256": "040d30707ddee1a298190df1bcfad933ea7d3d6dbf00c984da94e1c8f0db3a5b"
+    },
+    {
+      "path": "strategy-results/example-orders-06-stop-loss-protection.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-06-stop-loss-protection.png",
+      "bytes": 250635,
+      "sha256": "4ba68547e466100246d98498da7d923733b75ceab9863ed7a5aca8cc275077ad"
+    },
+    {
+      "path": "strategy-results/example-orders-07-stop-limit-breakout.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-07-stop-limit-breakout.png",
+      "bytes": 245428,
+      "sha256": "3efec192ca93b17dce5d696006976ccecd8dba968e33fb6b05dff107a7c68547"
+    },
+    {
+      "path": "strategy-results/example-orders-08-stop-limit-protection.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-08-stop-limit-protection.png",
+      "bytes": 250118,
+      "sha256": "38ff61822e9488fe8a7e64fc93c72325dacba2d9d4cd1dbb7f54f5b99ea575fd"
+    },
+    {
+      "path": "strategy-results/example-orders-09-trailing-stop-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-09-trailing-stop-trend.png",
+      "bytes": 238535,
+      "sha256": "bf6de665922e9487f01ddebf850c5a980aeb95f68f1b68a7155b40b88730e1a8"
+    },
+    {
+      "path": "strategy-results/example-orders-10-trailing-stop-rsi.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-10-trailing-stop-rsi.png",
+      "bytes": 241490,
+      "sha256": "8a23de0e695c654dffdfc3c50cf962877f40a9b3953d5e2cdcc27808c2fd22da"
+    },
+    {
+      "path": "strategy-results/example-orders-11-trailing-stop-limit.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-11-trailing-stop-limit.png",
+      "bytes": 238645,
+      "sha256": "8b7e45d0fba8416ee45f967a6f4b61e0eb2713253e0194451e2fa3e04c3f996c"
+    },
+    {
+      "path": "strategy-results/example-orders-12-bracket-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-12-bracket-trend.png",
+      "bytes": 235370,
+      "sha256": "bf2efd432c639f4a7a42b57e240628f573d2add083c89b3db4474ba26033de28"
+    },
+    {
+      "path": "strategy-results/example-orders-13-bracket-rsi-reversion.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-13-bracket-rsi-reversion.png",
+      "bytes": 234032,
+      "sha256": "bde0636f37b3ef03d6a4b8f49c2b31d6c814e6304c2b5635e1894884df1d6d37"
+    },
+    {
+      "path": "strategy-results/example-orders-14-oco-dip-or-breakout.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-14-oco-dip-or-breakout.png",
+      "bytes": 247830,
+      "sha256": "36827c367a4e426553a2d780e8048241cef8490c4f5b7af0634149a4c4dbc926"
+    },
+    {
+      "path": "strategy-results/example-orders-15-intraday-5m-bracket-reversion.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-15-intraday-5m-bracket-reversion.png",
+      "bytes": 215338,
+      "sha256": "f401dd8a86658ab013bc4430ffa6e875eedf3869ff7ee51aa6c5067b41c3cee2"
+    },
+    {
+      "path": "strategy-results/example-orders-16-intraday-30m-stop-breakout.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-16-intraday-30m-stop-breakout.png",
+      "bytes": 199634,
+      "sha256": "18046415fd2b48f0e8411abf024baf1dd0dd2f8e81fe553a84a7e2382e711ecd"
+    },
+    {
+      "path": "strategy-results/example-orders-17-monthly-rotation-orders.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-17-monthly-rotation-orders.png",
+      "bytes": 297868,
+      "sha256": "cb803c5cb4adc9c5b154df04fe19873db4214f8b396bfb1eab55c2657de7cf7b"
+    },
+    {
+      "path": "strategy-results/example-orders-18-signal-change-rotation-orders.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-18-signal-change-rotation-orders.png",
+      "bytes": 262837,
+      "sha256": "395329c48ca2cdcb0b06fba6a307e34dd2cb63d5674dfdf968d55103e06be806"
+    },
+    {
+      "path": "strategy-results/example-orders-19-fx-momentum-lots.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-19-fx-momentum-lots.png",
+      "bytes": 388046,
+      "sha256": "2e8c7f575a9c492ceb31b0fea28fb2bfb9787679c49c1bdc7dbdbf695bf3ab54"
+    },
+    {
+      "path": "strategy-results/example-orders-20-futures-donchian-contracts.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-orders-20-futures-donchian-contracts.png",
+      "bytes": 317379,
+      "sha256": "1a0d0be6e7e401e7227d918e4778635e06c875098bccd3592872c113787b30f8"
+    },
+    {
+      "path": "strategy-results/example-weights-01-sma-daily.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-01-sma-daily.png",
+      "bytes": 283962,
+      "sha256": "3ca079276742e28a8307e1b5e3a236fef350c0d2a1f193252baf6f1c507495f6"
+    },
+    {
+      "path": "strategy-results/example-weights-02-monthly-drift-etf.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-02-monthly-drift-etf.png",
+      "bytes": 272682,
+      "sha256": "d26be4296dec8061b8f19694b416c0ae6f3f8bee2f80daab9e870ab466e56712"
+    },
+    {
+      "path": "strategy-results/example-weights-03-weekly-rsi-reversion.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-03-weekly-rsi-reversion.png",
+      "bytes": 277224,
+      "sha256": "97672f4bebcd49379f3663d5f7cdd472608316488c55052f05af2d496db0fb0d"
+    },
+    {
+      "path": "strategy-results/example-weights-04-quarterly-dual-momentum.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-04-quarterly-dual-momentum.png",
+      "bytes": 268065,
+      "sha256": "3f64afba827800115a8abb8f7e151cf6ac3f34412e85b15489af4c71627a8757"
+    },
+    {
+      "path": "strategy-results/example-weights-05-monthly-inverse-vol.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-05-monthly-inverse-vol.png",
+      "bytes": 272343,
+      "sha256": "0495f278180c870562ea4c73210c621cf1089235a330ff858398d39f1af257dc"
+    },
+    {
+      "path": "strategy-results/example-weights-06-signal-change-defensive.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-06-signal-change-defensive.png",
+      "bytes": 275662,
+      "sha256": "809de39ad3733c4e525670028d287a296e495fd3825f195b12effcc0956b8e0d"
+    },
+    {
+      "path": "strategy-results/example-weights-07-intraday-rsi-15m.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-07-intraday-rsi-15m.png",
+      "bytes": 190250,
+      "sha256": "200b1f9700febd322cea31147a16ccb3e79fa8b4ba4991bfc57e20764cc64f61"
+    },
+    {
+      "path": "strategy-results/example-weights-08-intraday-1m-ema-scalp.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-08-intraday-1m-ema-scalp.png",
+      "bytes": 144309,
+      "sha256": "94f6fe688668283180bf630b556a0fab73a929e4d9fe0d0e3a0191ad05163d14"
+    },
+    {
+      "path": "strategy-results/example-weights-09-intraday-1h-sma-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-09-intraday-1h-sma-trend.png",
+      "bytes": 231001,
+      "sha256": "e046e36872b4c188aaa6e63e1824769cacbe77cda35330ad0e822b4e7b70d241"
+    },
+    {
+      "path": "strategy-results/example-weights-10-monthly-circuit-breaker.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-10-monthly-circuit-breaker.png",
+      "bytes": 238175,
+      "sha256": "c5867c7e26f93ba52b1938f2e67d2ad2e1f4231709bb9699e1e57b52e09194cf"
+    },
+    {
+      "path": "strategy-results/example-weights-11-quarterly-te-cost-gate.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-11-quarterly-te-cost-gate.png",
+      "bytes": 285040,
+      "sha256": "5107a7bf4df32a398f9523d0ff8bf00f56bee29703f749084b96388b9a774e0c"
+    },
+    {
+      "path": "strategy-results/example-weights-12-daily-partial-drift.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-12-daily-partial-drift.png",
+      "bytes": 283824,
+      "sha256": "65c0314c6ae62fe3ea4bfe90f97da716f06c34984bf2535c12880f1391c5aa0d"
+    },
+    {
+      "path": "strategy-results/example-weights-13-pairs-ratio-zscore.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-13-pairs-ratio-zscore.png",
+      "bytes": 252438,
+      "sha256": "b865a1a7733e2b05b948eda2202c980810d29237ef657502ee26904da3979f98"
+    },
+    {
+      "path": "strategy-results/example-weights-14-pairs-hedge-ratio.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-14-pairs-hedge-ratio.png",
+      "bytes": 234015,
+      "sha256": "9cd39aab5661f1b20d23e0e90389adbfc5e466ff0dba71d7f67293e350ccf79e"
+    },
+    {
+      "path": "strategy-results/example-weights-15-cross-sectional-momentum.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-15-cross-sectional-momentum.png",
+      "bytes": 250990,
+      "sha256": "af708aabe4ee15e536c870fa3c93775eae520c404c2cca6de9d96e2ace1b8096"
+    },
+    {
+      "path": "strategy-results/example-weights-16-cross-sectional-reversal.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-16-cross-sectional-reversal.png",
+      "bytes": 252766,
+      "sha256": "2c5088744dfd0a1e42c7c1d48bc52e1c60f9d2a2ed708a656972cee808aaefe6"
+    },
+    {
+      "path": "strategy-results/example-weights-17-vol-target-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-17-vol-target-trend.png",
+      "bytes": 275689,
+      "sha256": "d68a2e3da632c778edf6639f17b8ff7b2828a2669c7f4d74731c415001122bfa"
+    },
+    {
+      "path": "strategy-results/example-weights-18-vol-target-momentum.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-18-vol-target-momentum.png",
+      "bytes": 297530,
+      "sha256": "ad25728f5997055bc23382f294114ecb931b8af7e4b78a82e1df843c046acb45"
+    },
+    {
+      "path": "strategy-results/example-weights-19-risk-parity-multiasset.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-19-risk-parity-multiasset.png",
+      "bytes": 272550,
+      "sha256": "11f7858f9dc0db8d6e2f924241e5f0b85c2e481eef0dcb61a780e2622b4d43e0"
+    },
+    {
+      "path": "strategy-results/example-weights-20-risk-parity-capped.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-20-risk-parity-capped.png",
+      "bytes": 303464,
+      "sha256": "c84dd1ad80699e8e515b7677eac44e1beb2e2fa98c8ee8cc8f5f332d3d120335"
+    },
+    {
+      "path": "strategy-results/example-weights-21-bollinger-reversion.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-21-bollinger-reversion.png",
+      "bytes": 273218,
+      "sha256": "9cf44234c05a785356d97a6ee09dc7971c7ddb058f6d31f0cf6575ec28e14519"
+    },
+    {
+      "path": "strategy-results/example-weights-22-macd-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-22-macd-trend.png",
+      "bytes": 270975,
+      "sha256": "45f29a722f7246dff822af77604eb73e1900b917e74c79ec65e076238682ca5c"
+    },
+    {
+      "path": "strategy-results/example-weights-23-fx-time-series-momentum.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-23-fx-time-series-momentum.png",
+      "bytes": 373598,
+      "sha256": "2ba977f6b60e81eac6176ba41e57db968bf4620dbc4897143830fa1ab50a7801"
+    },
+    {
+      "path": "strategy-results/example-weights-24-fx-cross-sectional-momentum.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-24-fx-cross-sectional-momentum.png",
+      "bytes": 336938,
+      "sha256": "b42ca78714630f033cf478b4c6f410c7b0c290d87ba07cc6065f7fb36cf51144"
+    },
+    {
+      "path": "strategy-results/example-weights-25-continuous-futures-trend.png",
+      "origin": "quantjourney-bt docs/strategy-results/example-weights-25-continuous-futures-trend.png",
+      "bytes": 304929,
+      "sha256": "6d686cd3c92708cdbc2f2b24dedaff13db5b4e44755eca275bff7f5a22ddba3f"
+    }
+  ]
+}

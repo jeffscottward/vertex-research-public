@@ -1,0 +1,122 @@
+{
+  "slug": "csp-vs-buying-stock",
+  "sourceId": "DY0JGT5tZu_",
+  "title": "If you want to own the stock, buy it instead of selling a cash-secured put",
+  "summary": "A cash-secured put harvests the volatility risk premium and takes on delta risk. The speaker says if you already want to own the stock, selling puts is often a poor deal: you are not paid enough for the upside you give up if the stock rallies without you.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["cash-secured-puts", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["cash-secured puts", "upside", "volatility risk premium"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Buy the stock",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        }
+      ]
+    },
+    "b": {
+      "label": "Sell a cash-secured put",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Buy the stock: full upside if the stock you like rallies."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Sell the $95 put: you keep only the premium if the stock rises."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The gap on the right is the upside you sold for the premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the strike both positions lose almost the same: the put carries most of the stock's downside."
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "If you want to own it, the missed rally is the real cost of waiting."
+    }
+  ],
+  "formulas": ["breakevenPut", "vrp", "putCallParity"],
+  "takeaways": [
+    "A short put earns the volatility risk premium and carries delta risk.",
+    "If you really want the stock, the upside you give up may cost more than the premium.",
+    "Sell puts when the premium is rich, not just to get a lower entry."
+  ],
+  "caveats": [
+    "The transcript gives no numbers; the strike and volatility are illustrative."
+  ]
+}

@@ -1,0 +1,6 @@
+@@NOW 1000
+@@ACTIVE active
+@@LAST 900
+0      0      127.0.0.1:3450 127.0.0.1:42318
+	 cubic rto:204 mss:32768 lastsnd:2000 lastrcv:2100 lastack:2000
+@@END

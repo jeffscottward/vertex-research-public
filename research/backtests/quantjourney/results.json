@@ -1,0 +1,4663 @@
+{
+  "data": {
+    "manifestSha256": "c5b0bc57b0ff44e4a5a93bdb468dea65932335905a1e08fdb4d304ebb376c936",
+    "source": "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)"
+  },
+  "generated": "2026-10-31",
+  "strategies": [
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.16338666414248432,
+          "sharpe": 0.21474087163915093,
+          "totalReturn": 1.266849246094277
+        },
+        "summary": {
+          "cagr": 0.03328938392805347,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.018611508070853,
+          "firstHalf": {
+            "cagr": 0.027053510352923693,
+            "sharpe": 0.39349142783717006
+          },
+          "maxDrawdown": -0.16338666414248437,
+          "meanReturn": 0.00014042207895581535,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.03956863687169809,
+            "sharpe": 0.6048007541131292
+          },
+          "sharpe": 0.4933717953979421,
+          "skew": -0.5329109533601334,
+          "start": "2001-01-03",
+          "stdReturn": 0.004513578681611626,
+          "totalReturn": 1.2668492460942846,
+          "volatility": 0.07157823005090691
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.1654074827714038,
+          "sharpe": 0.19556258604980117,
+          "totalReturn": 1.190577890062313
+        },
+        "summary": {
+          "cagr": 0.03187525563438798,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.02181299363299,
+          "firstHalf": {
+            "cagr": 0.02564440644928312,
+            "sharpe": 0.37511787664360385
+          },
+          "maxDrawdown": -0.16540748277140382,
+          "meanReturn": 0.00013497973179667856,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.03814947071644759,
+            "sharpe": 0.5846253182399651
+          },
+          "sharpe": 0.4741598450016181,
+          "skew": -0.5323926189149508,
+          "start": "2001-01-03",
+          "stdReturn": 0.004514438346029071,
+          "totalReturn": 1.1905778900623094,
+          "volatility": 0.0715918629709863
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": 0.05538957863597771,
+        "end": "2025-12-31",
+        "excessKurtosis": 5.146992891938002,
+        "firstHalf": {
+          "cagr": 0.042569160850712606,
+          "sharpe": 0.37380938579291484
+        },
+        "maxDrawdown": -0.2883883247823229,
+        "meanReturn": 0.0002482813090101711,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.06837909744247672,
+          "sharpe": 0.5956517196937801
+        },
+        "sharpe": 0.47884544503115894,
+        "skew": -0.5134880208977016,
+        "start": "2001-01-03",
+        "stdReturn": 0.008222589388987457,
+        "totalReturn": 2.846907191800651,
+        "volatility": 0.13039728260346592
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.021236126871390208,
+        "pass": false,
+        "qValue": 0.03138431932247221
+      },
+      "id": "O01",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.16015101116617286,
+          "sharpe": -0.16883100567549894,
+          "totalReturn": 0.2907796714916675
+        },
+        "summary": {
+          "cagr": 0.010265828224093276,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.510331593791243,
+          "firstHalf": {
+            "cagr": 0.0038047907842448936,
+            "sharpe": 0.09706852929144628
+          },
+          "maxDrawdown": -0.1601510111661728,
+          "meanReturn": 0.00004564188904175495,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.016774172321420533,
+            "sharpe": 0.3852829102360217
+          },
+          "sharpe": 0.2282689451618354,
+          "skew": -0.21788038870864843,
+          "start": "2001-01-03",
+          "stdReturn": 0.003170857437740186,
+          "totalReturn": 0.2907796714916693,
+          "volatility": 0.0502847915473041
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.16035087467410483,
+          "sharpe": -0.18227642126668805,
+          "totalReturn": 0.26876274731494565
+        },
+        "summary": {
+          "cagr": 0.009570586543174109,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.68524040881185,
+          "firstHalf": {
+            "cagr": 0.0031447757303564305,
+            "sharpe": 0.08497628543398508
+          },
+          "maxDrawdown": -0.1603508746741048,
+          "meanReturn": 0.000042915759442778214,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.016043247390719495,
+            "sharpe": 0.3684691888011623
+          },
+          "sharpe": 0.2143964219384643,
+          "skew": -0.22867596213667837,
+          "start": "2001-01-03",
+          "stdReturn": 0.003174382137909586,
+          "totalReturn": 0.26876274731494365,
+          "volatility": 0.0503406877257874
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": 0.02349144605954323,
+        "end": "2025-12-31",
+        "excessKurtosis": 26.939299323278295,
+        "firstHalf": {
+          "cagr": 0.0037374901463624877,
+          "sharpe": 0.1068085638852822
+        },
+        "maxDrawdown": -0.4351658715082468,
+        "meanReturn": 0.0001402606934709887,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.043652001860823075,
+          "sharpe": 0.37757025225082674
+        },
+        "sharpe": 0.2273059574136293,
+        "skew": 0.014569038741744597,
+        "start": "2001-01-03",
+        "stdReturn": 0.009785546864658193,
+        "totalReturn": 0.7865521760623502,
+        "volatility": 0.1551833199465435
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.0004809571515644979,
+        "pass": false,
+        "qValue": 0.19383549461123775
+      },
+      "id": "O02",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.19109894517414105,
+          "sharpe": 0.13549693504134785,
+          "totalReturn": 0.9444610904594315
+        },
+        "summary": {
+          "cagr": 0.026966042058242268,
+          "end": "2025-12-31",
+          "excessKurtosis": 18.03530693489285,
+          "firstHalf": {
+            "cagr": 0.024738486085792877,
+            "sharpe": 0.3755267978030223
+          },
+          "maxDrawdown": -0.19109894517414105,
+          "meanReturn": 0.00011409001803419323,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.0292003997605077,
+            "sharpe": 0.5413267181605571
+          },
+          "sharpe": 0.4447288466032635,
+          "skew": -0.2091794942520017,
+          "start": "2001-01-03",
+          "stdReturn": 0.004068293588297381,
+          "totalReturn": 0.9444610904594319,
+          "volatility": 0.06451671166476768
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.19098547722498294,
+          "sharpe": 0.134307445078933,
+          "totalReturn": 0.9406155088513406
+        },
+        "summary": {
+          "cagr": 0.02688469421201556,
+          "end": "2025-12-31",
+          "excessKurtosis": 18.020566060479087,
+          "firstHalf": {
+            "cagr": 0.02468569652431607,
+            "sharpe": 0.3750362388861118
+          },
+          "maxDrawdown": -0.19098547722498294,
+          "meanReturn": 0.00011376575765768004,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.02909034530743204,
+            "sharpe": 0.5395507696312325
+          },
+          "sharpe": 0.44371520638792766,
+          "skew": -0.21356353427306043,
+          "start": "2001-01-03",
+          "stdReturn": 0.00406599826125822,
+          "totalReturn": 0.9406155088513346,
+          "volatility": 0.064480311402705
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.013522554713520901,
+        "pass": false,
+        "qValue": 0.03322262026102224
+      },
+      "id": "O03",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.0683519483179103,
+          "sharpe": -0.021064613075459374,
+          "totalReturn": 0.590852145024946
+        },
+        "summary": {
+          "cagr": 0.018751038132743814,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.869001198291299,
+          "firstHalf": {
+            "cagr": 0.021918176450234528,
+            "sharpe": 0.5773496460896943
+          },
+          "maxDrawdown": -0.06835194831791025,
+          "meanReturn": 0.00007638888536190013,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.015590951370745953,
+            "sharpe": 0.5003958084492853
+          },
+          "sharpe": 0.5401098395162791,
+          "skew": -0.5082216817506291,
+          "start": "2001-01-03",
+          "stdReturn": 0.0022428902418526776,
+          "totalReturn": 0.5908521450249367,
+          "volatility": 0.03556869726550148
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.07159378042682868,
+          "sharpe": -0.09569989264030096,
+          "totalReturn": 0.4887167143926139
+        },
+        "summary": {
+          "cagr": 0.016049680803454702,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.867043471073826,
+          "firstHalf": {
+            "cagr": 0.019241625787770333,
+            "sharpe": 0.5098750977641804
+          },
+          "maxDrawdown": -0.07159378042682862,
+          "meanReturn": 0.0000658340799188158,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.0128649464068884,
+            "sharpe": 0.41553883394621166
+          },
+          "sharpe": 0.4651489145730201,
+          "skew": -0.5127196655867703,
+          "start": "2001-01-03",
+          "stdReturn": 0.002244495278141444,
+          "totalReturn": 0.4887167143926088,
+          "volatility": 0.035594150606369425
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.01799932971273903,
+        "pass": false,
+        "qValue": 0.03138431932247221
+      },
+      "id": "O04",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.10483112940727106,
+          "sharpe": -0.18398553647436436,
+          "totalReturn": 0.4221378209533724
+        },
+        "summary": {
+          "cagr": 0.01419121803102863,
+          "end": "2025-12-31",
+          "excessKurtosis": 7.649783371328748,
+          "firstHalf": {
+            "cagr": 0.007024912863767829,
+            "sharpe": 0.22945043443767715
+          },
+          "maxDrawdown": -0.10483112940727102,
+          "meanReturn": 0.000057769879887297824,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.021414871548915304,
+            "sharpe": 0.8340398937929937
+          },
+          "sharpe": 0.49168571992729154,
+          "skew": -0.35442412787861516,
+          "start": "2001-01-03",
+          "stdReturn": 0.0018632614854157317,
+          "totalReturn": 0.4221378209533717,
+          "volatility": 0.0295483846978072
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.11931247156789236,
+          "sharpe": -0.29915200169610634,
+          "totalReturn": 0.3065638674803124
+        },
+        "summary": {
+          "cagr": 0.010757283815183483,
+          "end": "2025-12-31",
+          "excessKurtosis": 7.628505264464211,
+          "firstHalf": {
+            "cagr": 0.0037547688695362957,
+            "sharpe": 0.13056299755141912
+          },
+          "maxDrawdown": -0.11931247156789238,
+          "meanReturn": 0.0000442803083148396,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.017814854782099765,
+            "sharpe": 0.697624761000515
+          },
+          "sharpe": 0.37717558244199006,
+          "skew": -0.3581566544809426,
+          "start": "2001-01-03",
+          "stdReturn": 0.0018617741845940244,
+          "totalReturn": 0.3065638674803042,
+          "volatility": 0.02952479845551906
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.005513174846776495,
+        "pass": false,
+        "qValue": 0.0550025478013445
+      },
+      "id": "O05",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.16206311889670613,
+          "sharpe": 0.003660301540255014,
+          "totalReturn": 0.6011593021050388
+        },
+        "summary": {
+          "cagr": 0.019014334418595125,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.257651001888959,
+          "firstHalf": {
+            "cagr": 0.021855540130308437,
+            "sharpe": 0.425739494376008
+          },
+          "maxDrawdown": -0.1620631188967061,
+          "meanReturn": 0.00008010891388392256,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.016178547695909762,
+            "sharpe": 0.3591630658327456
+          },
+          "sharpe": 0.39380483758209034,
+          "skew": -0.5962714518424829,
+          "start": "2001-01-03",
+          "stdReturn": 0.0032259656180795102,
+          "totalReturn": 0.6011593021050317,
+          "volatility": 0.05115872026069623
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.1640297063363351,
+          "sharpe": -0.014329775899299027,
+          "totalReturn": 0.5647743380542105
+        },
+        "summary": {
+          "cagr": 0.01807749655687063,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.262324150232477,
+          "firstHalf": {
+            "cagr": 0.02089670661941123,
+            "sharpe": 0.4083856548022038
+          },
+          "maxDrawdown": -0.16402970633633507,
+          "meanReturn": 0.00007645265943312355,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.01526361008228605,
+            "sharpe": 0.3403130158359152
+          },
+          "sharpe": 0.375783466466945,
+          "skew": -0.5961419180917495,
+          "start": "2001-01-03",
+          "stdReturn": 0.0032263751676897493,
+          "totalReturn": 0.5647743380542078,
+          "volatility": 0.05116521507075424
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": 0.0373735094425951,
+        "end": "2025-12-31",
+        "excessKurtosis": 5.166166258425768,
+        "firstHalf": {
+          "cagr": 0.04265646650138066,
+          "sharpe": 0.41438886593862984
+        },
+        "maxDrawdown": -0.319824346687958,
+        "meanReturn": 0.00017075026045046502,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.03211272323339287,
+          "sharpe": 0.3525952015245904
+        },
+        "sharpe": 0.3846414726457649,
+        "skew": -0.5520718408096552,
+        "start": "2001-01-03",
+        "stdReturn": 0.007039879146308763,
+        "totalReturn": 1.5017104817595426,
+        "volatility": 0.11164136588954879
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.006225726912775449,
+        "pass": false,
+        "qValue": 0.05454213943599395
+      },
+      "id": "O06",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.06378224243392826,
+          "sharpe": -0.04329630338073068,
+          "totalReturn": 0.5756539715886235
+        },
+        "summary": {
+          "cagr": 0.018359797775618913,
+          "end": "2025-12-31",
+          "excessKurtosis": 8.274432622155999,
+          "firstHalf": {
+            "cagr": 0.016983026066026197,
+            "sharpe": 0.5295677742957402
+          },
+          "maxDrawdown": -0.06378224243392827,
+          "meanReturn": 0.00007416333356404522,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.01973964294962971,
+            "sharpe": 0.7262397450918598
+          },
+          "sharpe": 0.6166668498164347,
+          "skew": -0.09989591692873735,
+          "start": "2001-01-03",
+          "stdReturn": 0.0019072102740810917,
+          "totalReturn": 0.5756539715886342,
+          "volatility": 0.030245343082151703
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.07117089403479278,
+          "sharpe": -0.15014581707478758,
+          "totalReturn": 0.45374926710861163
+        },
+        "summary": {
+          "cagr": 0.015083794632840597,
+          "end": "2025-12-31",
+          "excessKurtosis": 8.27449218166224,
+          "firstHalf": {
+            "cagr": 0.013860398390851403,
+            "sharpe": 0.43621715326733124
+          },
+          "maxDrawdown": -0.07117089403479282,
+          "meanReturn": 0.0000613462851526259,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.016309741738737005,
+            "sharpe": 0.6042563072920824
+          },
+          "sharpe": 0.5106642419868243,
+          "skew": -0.10297661337006181,
+          "start": "2001-01-03",
+          "stdReturn": 0.0019050779837970475,
+          "totalReturn": 0.4537492671086063,
+          "volatility": 0.03021152832555769
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.029951942456022142,
+        "pass": false,
+        "qValue": 0.025270853968677554
+      },
+      "id": "O07",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.1419275999476381,
+          "sharpe": 0.019089496440892036,
+          "totalReturn": 0.6357339080499682
+        },
+        "summary": {
+          "cagr": 0.01988581137607559,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.6229562677623335,
+          "firstHalf": {
+            "cagr": 0.025574376078803862,
+            "sharpe": 0.49665780921331165
+          },
+          "maxDrawdown": -0.14192759994763804,
+          "meanReturn": 0.00008308232394318645,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.014223853176020818,
+            "sharpe": 0.3445718679904059
+          },
+          "sharpe": 0.426227668872009,
+          "skew": -0.6357881200743801,
+          "start": "2001-01-03",
+          "stdReturn": 0.003091198789823872,
+          "totalReturn": 0.6357339080499707,
+          "volatility": 0.049021531188217546
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.14471422341090467,
+          "sharpe": -0.0019068740961288857,
+          "totalReturn": 0.5943862212470938
+        },
+        "summary": {
+          "cagr": 0.018841500112189546,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.66544286177521,
+          "firstHalf": {
+            "cagr": 0.024666474250121917,
+            "sharpe": 0.4802116201148743
+          },
+          "maxDrawdown": -0.14471422341090467,
+          "meanReturn": 0.0000789943073324295,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.013044575626475208,
+            "sharpe": 0.3189860196451897
+          },
+          "sharpe": 0.4058546384258423,
+          "skew": -0.6380180675064828,
+          "start": "2001-01-03",
+          "stdReturn": 0.0030866345926488783,
+          "totalReturn": 0.5943862212470954,
+          "volatility": 0.048949150228798276
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.008426107665556622,
+        "pass": false,
+        "qValue": 0.046205790363650016
+      },
+      "id": "O08",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.07009415528934307,
+          "sharpe": -0.33485124451177,
+          "totalReturn": 0.30027178742999583
+        },
+        "summary": {
+          "cagr": 0.010562060827722375,
+          "end": "2025-12-31",
+          "excessKurtosis": 12.15185359271805,
+          "firstHalf": {
+            "cagr": 0.011166481281569274,
+            "sharpe": 0.4077674203506136
+          },
+          "maxDrawdown": -0.07009415528934304,
+          "meanReturn": 0.0000432447611759284,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.00995747217793208,
+            "sharpe": 0.393196116322249
+          },
+          "sharpe": 0.40049170020161495,
+          "skew": -0.1545315372389487,
+          "start": "2001-01-03",
+          "stdReturn": 0.0017123791075232353,
+          "totalReturn": 0.3002717874299925,
+          "volatility": 0.027155628457749645
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.07353546723093114,
+          "sharpe": -0.37471774851148415,
+          "totalReturn": 0.264458776352406
+        },
+        "summary": {
+          "cagr": 0.009433325171665174,
+          "end": "2025-12-31",
+          "excessKurtosis": 12.156556270582126,
+          "firstHalf": {
+            "cagr": 0.010018851297858289,
+            "sharpe": 0.3665817647165313
+          },
+          "maxDrawdown": -0.07353546723093118,
+          "meanReturn": 0.00003881059374496061,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.008847625537789838,
+            "sharpe": 0.3497227296570892
+          },
+          "sharpe": 0.3582410265322651,
+          "skew": -0.18693359829124984,
+          "start": "2001-01-03",
+          "stdReturn": 0.0017180464591048153,
+          "totalReturn": 0.26445877635241266,
+          "volatility": 0.02724550370395691
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.0041320175422447656,
+        "pass": false,
+        "qValue": 0.06324107723237843
+      },
+      "id": "O09",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.38972096111921906,
+          "sharpe": -0.4135200193142915,
+          "totalReturn": -0.12071022507065698
+        },
+        "summary": {
+          "cagr": -0.005134237455576285,
+          "end": "2025-12-31",
+          "excessKurtosis": 20.43595291626188,
+          "firstHalf": {
+            "cagr": -0.017301492000250107,
+            "sharpe": -0.2513325985037282
+          },
+          "maxDrawdown": -0.38972096111921906,
+          "meanReturn": -0.000014025150995037829,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.007194532704693168,
+            "sharpe": 0.1652997326454017
+          },
+          "sharpe": -0.062038645266401286,
+          "skew": -1.0370956107299103,
+          "start": "2001-01-03",
+          "stdReturn": 0.0035851322239580778,
+          "totalReturn": -0.12071022507065621,
+          "volatility": 0.05685453543434465
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.41214953099227053,
+          "sharpe": -0.4707789538980229,
+          "totalReturn": -0.1910464100251128
+        },
+        "summary": {
+          "cagr": -0.00844768478297031,
+          "end": "2025-12-31",
+          "excessKurtosis": 20.53461952810315,
+          "firstHalf": {
+            "cagr": -0.02105145370209338,
+            "sharpe": -0.3121716832495262
+          },
+          "maxDrawdown": -0.4121495309922706,
+          "meanReturn": -0.00002725324853583034,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.004329620351662733,
+            "sharpe": 0.1097055023623059
+          },
+          "sharpe": -0.12021623333474926,
+          "skew": -1.088255340990504,
+          "start": "2001-01-03",
+          "stdReturn": 0.003595134130254009,
+          "totalReturn": -0.19104641002511313,
+          "volatility": 0.057013149873196556
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 2.0874741851052766e-7,
+        "pass": false,
+        "qValue": 0.9075757163637036
+      },
+      "id": "O10",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.06157116495157988,
+          "sharpe": -0.3672106715688228,
+          "totalReturn": 0.28771463993767954
+        },
+        "summary": {
+          "cagr": 0.010169727076857926,
+          "end": "2025-12-31",
+          "excessKurtosis": 13.477522841863891,
+          "firstHalf": {
+            "cagr": 0.010843113309626062,
+            "sharpe": 0.41567484926205567
+          },
+          "maxDrawdown": -0.06157116495157988,
+          "meanReturn": 0.00004156929652708823,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.009496199588403531,
+            "sharpe": 0.3908026861398725
+          },
+          "sharpe": 0.4034635366115802,
+          "skew": -0.10689839254029934,
+          "start": "2001-01-03",
+          "stdReturn": 0.0016339107178303233,
+          "totalReturn": 0.2877146399376951,
+          "volatility": 0.025911243714431514
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.0647636363715165,
+          "sharpe": -0.40881219627954807,
+          "totalReturn": 0.25260872129465395
+        },
+        "summary": {
+          "cagr": 0.009053075252148712,
+          "end": "2025-12-31",
+          "excessKurtosis": 13.509716406030552,
+          "firstHalf": {
+            "cagr": 0.009720568615155134,
+            "sharpe": 0.37324429918962243
+          },
+          "maxDrawdown": -0.0647636363715165,
+          "meanReturn": 0.00003717823792871477,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.008385438463885508,
+            "sharpe": 0.34599582698098047
+          },
+          "sharpe": 0.35991115134046164,
+          "skew": -0.14222230698901403,
+          "start": "2001-01-03",
+          "stdReturn": 0.0016381491362886516,
+          "totalReturn": 0.2526087212946462,
+          "volatility": 0.02597845833787393
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.004221552358021534,
+        "pass": false,
+        "qValue": 0.06324107723237843
+      },
+      "id": "O11",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.06811429196195178,
+          "sharpe": -0.3827403462523705,
+          "totalReturn": 0.29435187736759816
+        },
+        "summary": {
+          "cagr": 0.01037755528516171,
+          "end": "2025-12-31",
+          "excessKurtosis": 17.27876939657778,
+          "firstHalf": {
+            "cagr": 0.010659802044477473,
+            "sharpe": 0.44989241799372315
+          },
+          "maxDrawdown": -0.06811429196195173,
+          "meanReturn": 0.00004223816627136938,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.01009513997619993,
+            "sharpe": 0.42027901700811066
+          },
+          "sharpe": 0.4349908549787833,
+          "skew": -0.16910729883994732,
+          "start": "2001-01-03",
+          "stdReturn": 0.001539872866113129,
+          "totalReturn": 0.29435187736759416,
+          "volatility": 0.024419951890688896
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.07194442385772652,
+          "sharpe": -0.4214000282927972,
+          "totalReturn": 0.26384060202060833
+        },
+        "summary": {
+          "cagr": 0.00941357365465656,
+          "end": "2025-12-31",
+          "excessKurtosis": 17.253709076081314,
+          "firstHalf": {
+            "cagr": 0.009699360001054647,
+            "sharpe": 0.41023735603277256
+          },
+          "maxDrawdown": -0.07194442385772648,
+          "meanReturn": 0.0000384450212259079,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.009127617724057124,
+            "sharpe": 0.38097495746516263
+          },
+          "sharpe": 0.3955105664437473,
+          "skew": -0.1943021779758382,
+          "start": "2001-01-03",
+          "stdReturn": 0.0015414944024919434,
+          "totalReturn": 0.26384060202060744,
+          "volatility": 0.02444566689692808
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": 0.02310295892386205,
+        "end": "2025-12-31",
+        "excessKurtosis": 17.92207274055342,
+        "firstHalf": {
+          "cagr": 0.024004234141455694,
+          "sharpe": 0.49317913727272417
+        },
+        "maxDrawdown": -0.15500096843983202,
+        "meanReturn": 0.00009619671253979424,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.022201687759497712,
+          "sharpe": 0.43887702406836315
+        },
+        "sharpe": 0.465266288133564,
+        "skew": 0.11756532854445174,
+        "start": "2001-01-03",
+        "stdReturn": 0.0032788276005073945,
+        "totalReturn": 0.769682086981506,
+        "volatility": 0.05199702782240668
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.01729338962869053,
+        "pass": false,
+        "qValue": 0.03138431932247221
+      },
+      "id": "O12",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.1161981532515264,
+          "sharpe": -0.4307546141143806,
+          "totalReturn": 0.08476800519854888
+        },
+        "summary": {
+          "cagr": 0.0032611104578155192,
+          "end": "2025-12-31",
+          "excessKurtosis": 55.33000726839019,
+          "firstHalf": {
+            "cagr": 0.0035641958161276577,
+            "sharpe": 0.11010377523619903
+          },
+          "maxDrawdown": -0.11619815325152638,
+          "meanReturn": 0.000015704048095824887,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.0029578510066119446,
+            "sharpe": 0.10207585023354117
+          },
+          "sharpe": 0.10615184634346457,
+          "skew": -1.36079607322511,
+          "start": "2001-01-03",
+          "stdReturn": 0.002346086399431539,
+          "totalReturn": 0.08476800519855154,
+          "volatility": 0.037205225357421635
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.1309175762527622,
+          "sharpe": -0.49799677303470585,
+          "totalReturn": 0.01786134851214949
+        },
+        "summary": {
+          "cagr": 0.0007086514677172584,
+          "end": "2025-12-31",
+          "excessKurtosis": 55.33979379406553,
+          "firstHalf": {
+            "cagr": 0.0005463792264246425,
+            "sharpe": 0.03356617087935271
+          },
+          "maxDrawdown": -0.13091757625276224,
+          "meanReturn": 0.0000055886248001465735,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.0008710923432027062,
+            "sharpe": 0.042455290855882996
+          },
+          "sharpe": 0.03768542077375668,
+          "skew": -1.48568070140921,
+          "start": "2001-01-03",
+          "stdReturn": 0.002351752002745619,
+          "totalReturn": 0.01786134851214749,
+          "volatility": 0.037295072878867214
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": -0.010056353402889573,
+        "end": "2025-12-31",
+        "excessKurtosis": 21.56026161547346,
+        "firstHalf": {
+          "cagr": -0.021625186769506755,
+          "sharpe": -0.25678544788278856
+        },
+        "maxDrawdown": -0.3564989214457023,
+        "meanReturn": -0.000030215001999370224,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.0016596002025064394,
+          "sharpe": 0.05827079350446246
+        },
+        "sharpe": -0.10718961400812416,
+        "skew": 0.6311322047387374,
+        "start": "2001-01-03",
+        "stdReturn": 0.004470229887844525,
+        "totalReturn": -0.2232149190878756,
+        "volatility": 0.07089078663813739
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 3.446630938187589e-7,
+        "pass": false,
+        "qValue": 0.9025132482878703
+      },
+      "id": "O13",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.13149382753978797,
+          "sharpe": -0.08958502761682773,
+          "totalReturn": 0.4468373058335917
+        },
+        "summary": {
+          "cagr": 0.01489023207201945,
+          "end": "2025-12-31",
+          "excessKurtosis": 10.480685179108788,
+          "firstHalf": {
+            "cagr": 0.009833305072096232,
+            "sharpe": 0.21601400912615262
+          },
+          "maxDrawdown": -0.131493827539788,
+          "meanReturn": 0.0000629850139626117,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.01997694987769605,
+            "sharpe": 0.5153584871004262
+          },
+          "sharpe": 0.34412537496198287,
+          "skew": 0.012254829457265302,
+          "start": "2001-01-03",
+          "stdReturn": 0.002902555080918239,
+          "totalReturn": 0.4468373058335948,
+          "volatility": 0.04602993987095211
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.13658420025414025,
+          "sharpe": -0.15838986288442408,
+          "totalReturn": 0.3371035791879864
+        },
+        "summary": {
+          "cagr": 0.011692193531265271,
+          "end": "2025-12-31",
+          "excessKurtosis": 10.475415000334387,
+          "firstHalf": {
+            "cagr": 0.006551794346389528,
+            "sharpe": 0.15277013950289675
+          },
+          "maxDrawdown": -0.1365842002541403,
+          "meanReturn": 0.0000504279784797824,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.01686338614525651,
+            "sharpe": 0.43920371986309786
+          },
+          "sharpe": 0.27574242489995504,
+          "skew": 0.011768253650705798,
+          "start": "2001-01-03",
+          "stdReturn": 0.0029001997177640682,
+          "totalReturn": 0.3371035791879864,
+          "volatility": 0.04599258753091436
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.001105598065179338,
+        "pass": false,
+        "qValue": 0.13557120923398455
+      },
+      "id": "O14",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": null,
+      "adapterVertexCost": null,
+      "benchmark": null,
+      "dsl": null,
+      "flags": [],
+      "gate": null,
+      "id": "O15",
+      "note": "Yahoo serves 5-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-06-10 to 2026-07-11 is outside it, and Vertex stores no intraday history.",
+      "primary": null,
+      "status": "no-data"
+    },
+    {
+      "adapter": null,
+      "adapterVertexCost": null,
+      "benchmark": null,
+      "dsl": null,
+      "flags": [],
+      "gate": null,
+      "id": "O16",
+      "note": "Yahoo serves 30-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-05-18 to 2026-07-10 is outside it, and Vertex stores no intraday history.",
+      "primary": null,
+      "status": "no-data"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.2823710125942879,
+          "sharpe": 0.5287552705575211,
+          "totalReturn": 3.8050937910619913
+        },
+        "summary": {
+          "cagr": 0.0861586597248758,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.6945818999708537,
+          "firstHalf": {
+            "cagr": 0.10005262868805254,
+            "sharpe": 0.7371870607709254
+          },
+          "maxDrawdown": -0.2823710125942879,
+          "meanReturn": 0.00036548877341022944,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.07245981186003236,
+            "sharpe": 0.6076551291877571
+          },
+          "sharpe": 0.6749202167350623,
+          "skew": -0.4710927944738543,
+          "start": "2007-01-03",
+          "stdReturn": 0.00859012303951212,
+          "totalReturn": 3.805093791061994,
+          "volatility": 0.13626275480106698
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.29111603890143123,
+          "sharpe": 0.4995482493200888,
+          "totalReturn": 3.461238348735751
+        },
+        "summary": {
+          "cagr": 0.08192066272205611,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.689294275996721,
+          "firstHalf": {
+            "cagr": 0.09564277360389628,
+            "sharpe": 0.7084326790330931
+          },
+          "maxDrawdown": -0.29111603890143123,
+          "meanReturn": 0.0003500467445997041,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.06838980773729819,
+            "sharpe": 0.5774995486239287
+          },
+          "sharpe": 0.6455385089071827,
+          "skew": -0.469633443050473,
+          "start": "2007-01-03",
+          "stdReturn": 0.008601648048816662,
+          "totalReturn": 3.4612383487357725,
+          "volatility": 0.1364455728479938
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.14773871243566955,
+        "pass": false,
+        "qValue": 0.015387290810826154
+      },
+      "id": "O17",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.16256533862084982,
+          "sharpe": 0.22243955109550018,
+          "totalReturn": 1.2980961350843199
+        },
+        "summary": {
+          "cagr": 0.033855575625823864,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.011404682448726,
+          "firstHalf": {
+            "cagr": 0.027639428588594583,
+            "sharpe": 0.4011296031670869
+          },
+          "maxDrawdown": -0.16256533862084976,
+          "meanReturn": 0.00014259554243994667,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.04011482377568232,
+            "sharpe": 0.6127557581789251
+          },
+          "sharpe": 0.5011309945765379,
+          "skew": -0.5321457127106536,
+          "start": "2001-01-03",
+          "stdReturn": 0.004512473067554285,
+          "totalReturn": 1.2980961350843288,
+          "volatility": 0.07156069675794222
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.1654074827714038,
+          "sharpe": 0.19556258604980117,
+          "totalReturn": 1.190577890062313
+        },
+        "summary": {
+          "cagr": 0.03187525563438798,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.02181299363299,
+          "firstHalf": {
+            "cagr": 0.02564440644928312,
+            "sharpe": 0.37511787664360385
+          },
+          "maxDrawdown": -0.16540748277140382,
+          "meanReturn": 0.00013497973179667856,
+          "periods": 6285,
+          "periodsPerYear": 251.48951029798422,
+          "secondHalf": {
+            "cagr": 0.03814947071644759,
+            "sharpe": 0.5846253182399651
+          },
+          "sharpe": 0.4741598450016181,
+          "skew": -0.5323926189149508,
+          "start": "2001-01-03",
+          "stdReturn": 0.004514438346029071,
+          "totalReturn": 1.1905778900623094,
+          "volatility": 0.0715918629709863
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08641327580834979,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.937592508456872,
+        "firstHalf": {
+          "cagr": 0.034564540039152325,
+          "sharpe": 0.2666798890820537
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0004025339345529434,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.14090940544067698,
+          "sharpe": 0.857419464031442
+        },
+        "sharpe": 0.5287171555679322,
+        "skew": 0.01681476908165508,
+        "start": "2001-01-03",
+        "stdReturn": 0.012073662550102034,
+        "totalReturn": 6.9351714543958884,
+        "volatility": 0.1914692213274204
+      },
+      "dsl": {
+        "cagr": 0.05538957863597771,
+        "end": "2025-12-31",
+        "excessKurtosis": 5.146992891938002,
+        "firstHalf": {
+          "cagr": 0.042569160850712606,
+          "sharpe": 0.37380938579291484
+        },
+        "maxDrawdown": -0.2883883247823229,
+        "meanReturn": 0.0002482813090101711,
+        "periods": 6285,
+        "periodsPerYear": 251.48951029798422,
+        "secondHalf": {
+          "cagr": 0.06837909744247672,
+          "sharpe": 0.5956517196937801
+        },
+        "sharpe": 0.47884544503115894,
+        "skew": -0.5134880208977016,
+        "start": "2001-01-03",
+        "stdReturn": 0.008222589388987457,
+        "totalReturn": 2.846907191800651,
+        "volatility": 0.13039728260346592
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.021236126871390208,
+        "pass": false,
+        "qValue": 0.03138431932247221
+      },
+      "id": "O18",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.15247952209113178,
+          "sharpe": -0.7128716118389149,
+          "totalReturn": -0.14197879804566838
+        },
+        "summary": {
+          "cagr": -0.009531246349041012,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.998926462745466,
+          "firstHalf": {
+            "cagr": -0.007218692661529413,
+            "sharpe": -0.16023459533923434
+          },
+          "maxDrawdown": -0.1524795220911318,
+          "meanReturn": -0.000033608982383624576,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.011836835376143995,
+            "sharpe": -0.2697419761468685
+          },
+          "sharpe": -0.21559154215755771,
+          "skew": -0.05951998436881327,
+          "start": "2010-01-04",
+          "stdReturn": 0.002515751226649764,
+          "totalReturn": -0.1419787980456656,
+          "volatility": 0.040598664001163826
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.29721747656936576,
+          "sharpe": -0.9421064307934678,
+          "totalReturn": -0.2934956692115045
+        },
+        "summary": {
+          "cagr": -0.021494620412227494,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.5205461518460908,
+          "firstHalf": {
+            "cagr": -0.01817806109345621,
+            "sharpe": -0.42772813946566246
+          },
+          "maxDrawdown": -0.2972174765693658,
+          "meanReturn": -0.00007983440344214038,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.024797717169159683,
+            "sharpe": -0.5286727989773914
+          },
+          "sharpe": -0.4802774310260792,
+          "skew": -0.046788325158182126,
+          "start": "2010-01-04",
+          "stdReturn": 0.0026825137368179865,
+          "totalReturn": -0.29349566921150727,
+          "volatility": 0.04328984230472225
+        }
+      },
+      "benchmark": {
+        "cagr": 0.014942922330330122,
+        "end": "2025-12-31",
+        "excessKurtosis": 1.5196264618614732,
+        "firstHalf": {
+          "cagr": 0.02142733060652824,
+          "sharpe": 0.3207434467013437
+        },
+        "maxDrawdown": -0.17500001078817085,
+        "meanReturn": 0.00006893405155862628,
+        "periods": 4024,
+        "periodsPerYear": 251.6722602739726,
+        "secondHalf": {
+          "cagr": 0.00849967953838382,
+          "sharpe": 0.16001970084361108
+        },
+        "sharpe": 0.24453791515238738,
+        "skew": -0.008327471392520054,
+        "start": "2010-01-04",
+        "stdReturn": 0.004472035827087514,
+        "totalReturn": 0.2676383377622462,
+        "volatility": 0.07094518882599817
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 2.2276401184862796e-8,
+        "pass": false,
+        "qValue": 1
+      },
+      "id": "O19",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.16555850684893425,
+          "sharpe": 0.30670993921941436,
+          "totalReturn": 0.36549822841222035
+        },
+        "summary": {
+          "cagr": 0.04791742662041898,
+          "end": "2025-12-31",
+          "excessKurtosis": 18.969326104602565,
+          "firstHalf": {
+            "cagr": 0.06714219151307677,
+            "sharpe": 0.6300769597741509
+          },
+          "maxDrawdown": -0.16555850684893425,
+          "meanReturn": 0.0002077361158301464,
+          "periods": 1677,
+          "periodsPerYear": 251.96390374331548,
+          "secondHalf": {
+            "cagr": 0.02908511554524318,
+            "sharpe": 0.34364294191048717
+          },
+          "sharpe": 0.4962970606926876,
+          "skew": 1.0812353144766111,
+          "start": "2019-05-06",
+          "stdReturn": 0.006644150604859206,
+          "totalReturn": 0.365498228412223,
+          "volatility": 0.1054650668693925
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.16796650025502946,
+          "sharpe": 0.25544637337652093,
+          "totalReturn": 0.3169328923331771
+        },
+        "summary": {
+          "cagr": 0.0422311676448337,
+          "end": "2025-12-31",
+          "excessKurtosis": 19.401908860885648,
+          "firstHalf": {
+            "cagr": 0.06071646448190515,
+            "sharpe": 0.5774500367381098
+          },
+          "maxDrawdown": -0.16796650025502946,
+          "meanReturn": 0.00018603665358954988,
+          "periods": 1677,
+          "periodsPerYear": 251.96390374331548,
+          "secondHalf": {
+            "cagr": 0.024112399524456984,
+            "sharpe": 0.2944184546123651
+          },
+          "sharpe": 0.4454699873488882,
+          "skew": 1.1037253017743094,
+          "start": "2019-05-06",
+          "stdReturn": 0.006629018536310594,
+          "totalReturn": 0.31693289233317823,
+          "volatility": 0.10522486993282931
+        }
+      },
+      "benchmark": {
+        "cagr": 0.15291412467874888,
+        "end": "2025-12-31",
+        "excessKurtosis": 13.462589494763996,
+        "firstHalf": {
+          "cagr": 0.1149101742922749,
+          "sharpe": 0.5868515362225851
+        },
+        "maxDrawdown": -0.33717270361192986,
+        "meanReturn": 0.0006462111114444838,
+        "periods": 1674,
+        "periodsPerYear": 251.51316330728093,
+        "secondHalf": {
+          "cagr": 0.19198406147374603,
+          "sharpe": 1.1462804722411877
+        },
+        "sharpe": 0.8096640303364304,
+        "skew": -0.28713081874934865,
+        "start": "2019-05-06",
+        "stdReturn": 0.012657558260802546,
+        "totalReturn": 1.5781190570901895,
+        "volatility": 0.20073832443338444
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.12355516467884997,
+        "pass": false,
+        "qValue": 0.19383549461123775
+      },
+      "id": "O20",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.34683031388131713,
+          "sharpe": 0.4528261221416669,
+          "totalReturn": 5.369554717058211
+        },
+        "summary": {
+          "cagr": 0.0738297109039634,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.238169243307514,
+          "firstHalf": {
+            "cagr": 0.04653836723802418,
+            "sharpe": 0.42648088254688415
+          },
+          "maxDrawdown": -0.34683031388131713,
+          "meanReturn": 0.00031848884572496615,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10184470413040025,
+            "sharpe": 0.7613272646956173
+          },
+          "sharpe": 0.6025535405917634,
+          "skew": -0.5695149577394587,
+          "start": "2000-01-03",
+          "stdReturn": 0.00838284702341591,
+          "totalReturn": 5.36955471705822,
+          "volatility": 0.13294882323452328
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.35120909952841806,
+          "sharpe": 0.4240371177394017,
+          "totalReturn": 4.766381056461424
+        },
+        "summary": {
+          "cagr": 0.06972764473865345,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.210153745513306,
+          "firstHalf": {
+            "cagr": 0.042542095079044495,
+            "sharpe": 0.39586921843408457
+          },
+          "maxDrawdown": -0.35120909952841806,
+          "meanReturn": 0.0003032622733967548,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.09763399752004842,
+            "sharpe": 0.734186320597309
+          },
+          "sharpe": 0.5738075994127539,
+          "skew": -0.5750528032315371,
+          "start": "2000-01-03",
+          "stdReturn": 0.008381949643621146,
+          "totalReturn": 4.766381056461351,
+          "volatility": 0.13293459112610292
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": {
+        "cagr": 0.058919982117739966,
+        "end": "2025-12-31",
+        "excessKurtosis": 15.985174788221716,
+        "firstHalf": {
+          "cagr": 0.041728538700623874,
+          "sharpe": 0.42615573388694583
+        },
+        "maxDrawdown": -0.3011670431420689,
+        "meanReturn": 0.0002539496662869377,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.0764025571993665,
+          "sharpe": 0.6778086904871701
+        },
+        "sharpe": 0.556465842083472,
+        "skew": -0.964540585662151,
+        "start": "2000-01-03",
+        "stdReturn": 0.007237725239799983,
+        "totalReturn": 3.4286520063689636,
+        "volatility": 0.11478761938973227
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.04858348132555207,
+        "pass": false,
+        "qValue": 0.015387290810826154
+      },
+      "id": "W01",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.19363523395466295,
+          "sharpe": 0.31065468278035807,
+          "totalReturn": 1.3765749741910471
+        },
+        "summary": {
+          "cagr": 0.04663382500320057,
+          "end": "2025-12-31",
+          "excessKurtosis": 7.455199557819638,
+          "firstHalf": {
+            "cagr": 0.04081163144864197,
+            "sharpe": 0.44407956545103977
+          },
+          "maxDrawdown": -0.19363523395466298,
+          "meanReturn": 0.00020028164196759116,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.05248012997399942,
+            "sharpe": 0.5904858532749041
+          },
+          "sharpe": 0.514174773028985,
+          "skew": -0.5326143792243077,
+          "start": "2007-01-03",
+          "stdReturn": 0.006178857202571952,
+          "totalReturn": 1.376574974191052,
+          "volatility": 0.09801350924452966
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.19790122512777042,
+          "sharpe": 0.2776631287274899,
+          "totalReturn": 1.2351693173656786
+        },
+        "summary": {
+          "cagr": 0.04325877785673726,
+          "end": "2025-12-31",
+          "excessKurtosis": 7.423161661036005,
+          "firstHalf": {
+            "cagr": 0.03750344274973538,
+            "sharpe": 0.41262700797526536
+          },
+          "maxDrawdown": -0.19790122512777042,
+          "meanReturn": 0.00018744579935779795,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.049037679853194405,
+            "sharpe": 0.5559108659930444
+          },
+          "sharpe": 0.4811973269563029,
+          "skew": -0.5357040125117191,
+          "start": "2007-01-03",
+          "stdReturn": 0.006179172033363964,
+          "totalReturn": 1.2351693173656586,
+          "volatility": 0.09801850331863295
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.03942734815157403,
+        "pass": false,
+        "qValue": 0.0409538351745274
+      },
+      "id": "W02",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.4919916951771269,
+          "sharpe": 0.3361955214705819,
+          "totalReturn": 3.72510743570437
+        },
+        "summary": {
+          "cagr": 0.06156292251475515,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.64961757109166,
+          "firstHalf": {
+            "cagr": 0.023532990189513603,
+            "sharpe": 0.2216108543983446
+          },
+          "maxDrawdown": -0.49199169517712693,
+          "meanReturn": 0.0002844552870078333,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10102280465806435,
+            "sharpe": 0.7835163625561492
+          },
+          "sharpe": 0.4658581476823665,
+          "skew": 0.042384968778980986,
+          "start": "2000-01-03",
+          "stdReturn": 0.009683966342867526,
+          "totalReturn": 3.725107435704345,
+          "volatility": 0.15358408974071175
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.49746850328155734,
+          "sharpe": 0.2862921806050662,
+          "totalReturn": 2.8725226799160324
+        },
+        "summary": {
+          "cagr": 0.05346741718314374,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.644536946482003,
+          "firstHalf": {
+            "cagr": 0.016115266888885094,
+            "sharpe": 0.1789760248781745
+          },
+          "maxDrawdown": -0.49746850328155734,
+          "meanReturn": 0.0002540165296294488,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.09220923899816613,
+            "sharpe": 0.7239146878881217
+          },
+          "sharpe": 0.4159986822615559,
+          "skew": 0.043992742204657306,
+          "start": "2000-01-03",
+          "stdReturn": 0.009684182834606652,
+          "totalReturn": 2.8725226799160453,
+          "volatility": 0.15358752321884592
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": {
+        "cagr": 0.0392616710827991,
+        "end": "2025-12-31",
+        "excessKurtosis": 42.285112275580914,
+        "firstHalf": {
+          "cagr": 0.020053372370693268,
+          "sharpe": 0.21257299381317168
+        },
+        "maxDrawdown": -0.3722764028898785,
+        "meanReturn": 0.00018438445349089282,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.05883999926686645,
+          "sharpe": 0.5727903571433666
+        },
+        "sharpe": 0.37003181977104027,
+        "skew": -0.03679755949196354,
+        "start": "2000-01-03",
+        "stdReturn": 0.007902748947868398,
+        "totalReturn": 1.7210291526923274,
+        "volatility": 0.12533464704797137
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.004238255980465615,
+        "pass": false,
+        "qValue": 0.0550025478013445
+      },
+      "id": "W03",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.42746647437543184,
+          "sharpe": 0.1173600408423815,
+          "totalReturn": 0.646163927768693
+        },
+        "summary": {
+          "cagr": 0.02659190795273836,
+          "end": "2025-12-31",
+          "excessKurtosis": 19.22951044609289,
+          "firstHalf": {
+            "cagr": 0.010580269817054733,
+            "sharpe": 0.14520540922926342
+          },
+          "maxDrawdown": -0.42746647437543184,
+          "meanReturn": 0.00014924407326419902,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.04283361985899026,
+            "sharpe": 0.3563456635821658
+          },
+          "sharpe": 0.25046567238586875,
+          "skew": -0.8484502859637187,
+          "start": "2007-01-03",
+          "stdReturn": 0.009452064181169176,
+          "totalReturn": 0.646163927768689,
+          "volatility": 0.14993548962667172
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.42851415602250775,
+          "sharpe": 0.09932434017374804,
+          "totalReturn": 0.5638036183218922
+        },
+        "summary": {
+          "cagr": 0.02382131760646855,
+          "end": "2025-12-31",
+          "excessKurtosis": 19.225638818124345,
+          "firstHalf": {
+            "cagr": 0.00789543978702767,
+            "sharpe": 0.1275337239413886
+          },
+          "maxDrawdown": -0.42851415602250775,
+          "meanReturn": 0.00013850866589793136,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.03997535542435782,
+            "sharpe": 0.3379567428499858
+          },
+          "sharpe": 0.23243551545735175,
+          "skew": -0.8480922856229325,
+          "start": "2007-01-03",
+          "stdReturn": 0.00945262085828856,
+          "totalReturn": 0.56380361832189,
+          "volatility": 0.1499443200424263
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.0022677828570684916,
+        "pass": false,
+        "qValue": 0.22877171118913667
+      },
+      "id": "W04",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.20417153695730342,
+          "sharpe": 0.4490081168553574,
+          "totalReturn": 1.741526278910269
+        },
+        "summary": {
+          "cagr": 0.05453590378664952,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.909451437616935,
+          "firstHalf": {
+            "cagr": 0.056191253779452444,
+            "sharpe": 0.7005415028116073
+          },
+          "maxDrawdown": -0.2041715369573034,
+          "meanReturn": 0.00022416120345548714,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.05288552713691286,
+            "sharpe": 0.6885912522142803
+          },
+          "sharpe": 0.6946006967539928,
+          "skew": -0.21251352431158432,
+          "start": "2007-01-03",
+          "stdReturn": 0.005119210821830322,
+          "totalReturn": 1.7415262789102575,
+          "volatility": 0.08120463068822954
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.20440636875250964,
+          "sharpe": 0.4390663103412566,
+          "totalReturn": 1.699902466757179
+        },
+        "summary": {
+          "cagr": 0.053686777344325476,
+          "end": "2025-12-31",
+          "excessKurtosis": 5.906916250234644,
+          "firstHalf": {
+            "cagr": 0.05531761051914019,
+            "sharpe": 0.6905913655462868
+          },
+          "maxDrawdown": -0.20440636875250962,
+          "meanReturn": 0.00022096014899412566,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.052060808160250716,
+            "sharpe": 0.6786513461490808
+          },
+          "sharpe": 0.6846576222334515,
+          "skew": -0.21209730232019774,
+          "start": "2007-01-03",
+          "stdReturn": 0.0051193908385295354,
+          "totalReturn": 1.6999024667571838,
+          "volatility": 0.08120748624352628
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.18909179316773667,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "W05",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.24571637003086322,
+          "sharpe": 0.2597057936410825,
+          "totalReturn": 1.3220891985865002
+        },
+        "summary": {
+          "cagr": 0.0453564854991555,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.052343800359824,
+          "firstHalf": {
+            "cagr": 0.0171332177980843,
+            "sharpe": 0.19383055809280464
+          },
+          "maxDrawdown": -0.24571637003086322,
+          "meanReturn": 0.0002065718718865093,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.07432053090210289,
+            "sharpe": 0.6979114017333125
+          },
+          "sharpe": 0.42142474326911655,
+          "skew": -0.314527101727002,
+          "start": "2007-01-03",
+          "stdReturn": 0.0077755108972660325,
+          "totalReturn": 1.3220891985865033,
+          "volatility": 0.12334078685179822
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.261086559107473,
+          "sharpe": 0.18476163101289167,
+          "totalReturn": 0.9487061501817176
+        },
+        "summary": {
+          "cagr": 0.03575217416207588,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.037390732313356,
+          "firstHalf": {
+            "cagr": 0.007192346231206015,
+            "sharpe": 0.12055717320389782
+          },
+          "maxDrawdown": -0.261086559107473,
+          "meanReturn": 0.00016993345765700925,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.06507894063361586,
+            "sharpe": 0.6205392600434567
+          },
+          "sharpe": 0.34641094085502605,
+          "skew": -0.3208987636121574,
+          "start": "2007-01-03",
+          "stdReturn": 0.007781531402160489,
+          "totalReturn": 0.9487061501817173,
+          "volatility": 0.12343628846201249
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.009339077285351638,
+        "pass": false,
+        "qValue": 0.10932791471327012
+      },
+      "id": "W06",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": null,
+      "adapterVertexCost": null,
+      "benchmark": null,
+      "dsl": null,
+      "flags": [],
+      "gate": null,
+      "id": "W07",
+      "note": "Yahoo serves 15-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-06-19 to 2026-07-11 is outside it, and Vertex stores no intraday history.",
+      "primary": null,
+      "status": "no-data"
+    },
+    {
+      "adapter": null,
+      "adapterVertexCost": null,
+      "benchmark": null,
+      "dsl": null,
+      "flags": [],
+      "gate": null,
+      "id": "W08",
+      "note": "Yahoo serves 1-minute bars only for the last 30 days (checked 2026-10-31); the published window 2026-07-05 to 2026-07-11 is outside it, and Vertex stores no intraday history.",
+      "primary": null,
+      "status": "no-data"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.02473729669037628,
+          "sharpe": 0.21340355439265166,
+          "totalReturn": 0.005302242510213384
+        },
+        "summary": {
+          "cagr": 0.03271590325136664,
+          "end": "2026-07-10",
+          "excessKurtosis": 19.18188450552184,
+          "firstHalf": {
+            "cagr": 0.07588068527584024,
+            "sharpe": 1.347680501462505
+          },
+          "maxDrawdown": -0.024737296690376276,
+          "meanReturn": 0.000019256074936177963,
+          "periods": 293,
+          "periodsPerYear": 1783.6375,
+          "secondHalf": {
+            "cagr": -0.00871708970697771,
+            "sharpe": -0.07962078864446058
+          },
+          "sharpe": 0.5218510981904043,
+          "skew": 2.2438308547769026,
+          "start": "2026-05-11",
+          "stdReturn": 0.001558383936366535,
+          "totalReturn": 0.005302242510214272,
+          "volatility": 0.06581543562536603
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.02723590310879551,
+          "sharpe": -0.43633927159833885,
+          "totalReturn": -0.0017681245452246808
+        },
+        "summary": {
+          "cagr": -0.010715164185556847,
+          "end": "2026-07-10",
+          "excessKurtosis": 19.32350144584411,
+          "firstHalf": {
+            "cagr": 0.037411464792904914,
+            "sharpe": 0.6892777656936535
+          },
+          "maxDrawdown": -0.027235903108795534,
+          "meanReturn": -0.0000048350961236418105,
+          "periods": 293,
+          "periodsPerYear": 1783.6375,
+          "secondHalf": {
+            "cagr": -0.05660914729934885,
+            "sharpe": -0.7422252620275659
+          },
+          "sharpe": -0.13117279895512673,
+          "skew": 2.2634353771265383,
+          "start": "2026-05-11",
+          "stdReturn": 0.0015567347648887501,
+          "totalReturn": -0.0017681245452235705,
+          "volatility": 0.06574578594745392
+        }
+      },
+      "benchmark": {
+        "cagr": 0.12635179905320926,
+        "end": "2026-07-09",
+        "excessKurtosis": 0.626466368088411,
+        "firstHalf": {
+          "cagr": -0.03766204863356959,
+          "sharpe": -0.23748248066507616
+        },
+        "maxDrawdown": -0.044946523481130374,
+        "meanReturn": 0.0005207207796527946,
+        "periods": 40,
+        "periodsPerYear": 247.6271186440678,
+        "secondHalf": {
+          "cagr": 0.3114214597754794,
+          "sharpe": 1.794636234274576
+        },
+        "sharpe": 0.904519362578556,
+        "skew": -0.49002992503666915,
+        "start": "2026-05-11",
+        "stdReturn": 0.009059122720448596,
+        "totalReturn": 0.019405742239706925,
+        "volatility": 0.14255591601259437
+      },
+      "dsl": {
+        "cagr": -0.04097168943806839,
+        "end": "2026-07-09T19:30:00+00:00",
+        "excessKurtosis": 19.387105819030573,
+        "firstHalf": {
+          "cagr": 0.0908513926479162,
+          "sharpe": 1.1561907671995977
+        },
+        "maxDrawdown": -0.039893727079839625,
+        "meanReturn": -0.0000213011236284377,
+        "periods": 286,
+        "periodsPerYear": 1763.0632911392406,
+        "secondHalf": {
+          "cagr": -0.15325234849348834,
+          "sharpe": -1.5241001137407901
+        },
+        "sharpe": -0.4045833927251915,
+        "skew": 2.2932318695179363,
+        "start": "2026-05-11T13:30:00+00:00",
+        "stdReturn": 0.002210692880135117,
+        "totalReturn": -0.006763349348540282,
+        "volatility": 0.09282444560156763
+      },
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.3036281972863534,
+        "pass": false,
+        "qValue": 0.7429786374019102
+      },
+      "id": "W09",
+      "note": null,
+      "primary": "dsl",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.1057747326656987,
+          "sharpe": -0.44951192123800554,
+          "totalReturn": 0.14190469353597535
+        },
+        "summary": {
+          "cagr": 0.0070113206343371814,
+          "end": "2025-12-31",
+          "excessKurtosis": 59.37335114458943,
+          "firstHalf": {
+            "cagr": 0.004330723666598146,
+            "sharpe": 0.14851117027943833
+          },
+          "maxDrawdown": -0.1057747326656987,
+          "meanReturn": 0.000029327371735312223,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.009695195337532825,
+            "sharpe": 0.4412903046554247
+          },
+          "sharpe": 0.2632658107104279,
+          "skew": 0.4912551249325141,
+          "start": "2007-01-03",
+          "stdReturn": 0.0017670810180008254,
+          "totalReturn": 0.1419046935359738,
+          "volatility": 0.028030719276302924
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.400996974464974,
+          "sharpe": -1.5729278392070722,
+          "totalReturn": -0.3753759828166191
+        },
+        "summary": {
+          "cagr": -0.024474055618077473,
+          "end": "2025-12-31",
+          "excessKurtosis": 57.63748174711302,
+          "firstHalf": {
+            "cagr": -0.02584702573036346,
+            "sharpe": -0.7801436571525495
+          },
+          "maxDrawdown": -0.40099697446497395,
+          "meanReturn": -0.00009688550623916192,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": -0.023101132396894375,
+            "sharpe": -1.0210670527590404
+          },
+          "sharpe": -0.8640016128805298,
+          "skew": -0.6691329408374532,
+          "start": "2007-01-03",
+          "stdReturn": 0.0017787791899215692,
+          "totalReturn": -0.37537598281661955,
+          "volatility": 0.028216284154096292
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 1.4163800635862535e-14,
+        "pass": false,
+        "qValue": 1
+      },
+      "id": "W10",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.2546782122435891,
+          "sharpe": 0.44352485046873724,
+          "totalReturn": 2.6604092587932255
+        },
+        "summary": {
+          "cagr": 0.07070840717821647,
+          "end": "2025-12-31",
+          "excessKurtosis": 8.925596414828636,
+          "firstHalf": {
+            "cagr": 0.04605951566204114,
+            "sharpe": 0.41135154322804296
+          },
+          "maxDrawdown": -0.2546782122435891,
+          "meanReturn": 0.00030392487607390294,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.09590134663223471,
+            "sharpe": 0.7959071341219194
+          },
+          "sharpe": 0.5998321090939396,
+          "skew": -0.44343380569980073,
+          "start": "2007-01-03",
+          "stdReturn": 0.008037376610490287,
+          "totalReturn": 2.6604092587932002,
+          "volatility": 0.12749469050460432
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.2546782122435891,
+          "sharpe": 0.42653516465043545,
+          "totalReturn": 2.5136981228332353
+        },
+        "summary": {
+          "cagr": 0.06840480282096117,
+          "end": "2025-12-31",
+          "excessKurtosis": 8.916469285697085,
+          "firstHalf": {
+            "cagr": 0.04385561406099847,
+            "sharpe": 0.395057384695384
+          },
+          "maxDrawdown": -0.2546782122435891,
+          "meanReturn": 0.000295380545170331,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.09349471787237973,
+            "sharpe": 0.7781288721057363
+          },
+          "sharpe": 0.5828132182328909,
+          "skew": -0.4427268331764309,
+          "start": "2007-01-03",
+          "stdReturn": 0.00803952287028237,
+          "totalReturn": 2.5136981228332207,
+          "volatility": 0.12752873603229267
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.09381830443860956,
+        "pass": false,
+        "qValue": 0.025270853968677554
+      },
+      "id": "W11",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.3674684309446327,
+          "sharpe": 0.2984535771311561,
+          "totalReturn": 2.689003120063428
+        },
+        "summary": {
+          "cagr": 0.05150159246209274,
+          "end": "2025-12-31",
+          "excessKurtosis": 4.352606830971982,
+          "firstHalf": {
+            "cagr": 0.027612126939647208,
+            "sharpe": 0.26788475511905124
+          },
+          "maxDrawdown": -0.3674684309446328,
+          "meanReturn": 0.00023329596472611365,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.0759568496673273,
+            "sharpe": 0.657838181953125
+          },
+          "sharpe": 0.4519089416199257,
+          "skew": -0.5856532138608072,
+          "start": "2000-01-03",
+          "stdReturn": 0.008187461092047453,
+          "totalReturn": 2.6890031200634117,
+          "volatility": 0.1298500753294908
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.38762399395661884,
+          "sharpe": 0.22510494836208195,
+          "totalReturn": 1.8807812663385026
+        },
+        "summary": {
+          "cagr": 0.041545210850453484,
+          "end": "2025-12-31",
+          "excessKurtosis": 4.360473992614473,
+          "firstHalf": {
+            "cagr": 0.016398599803570946,
+            "sharpe": 0.1875083391958786
+          },
+          "maxDrawdown": -0.38762399395661884,
+          "meanReturn": 0.00019546882076895976,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.06732496400498933,
+            "sharpe": 0.5922216592138387
+          },
+          "sharpe": 0.3786247558562645,
+          "skew": -0.5896638399290038,
+          "start": "2000-01-03",
+          "stdReturn": 0.008187690984332852,
+          "totalReturn": 1.8807812663385053,
+          "volatility": 0.12985372133528444
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.00496193404490717,
+        "pass": false,
+        "qValue": 0.05454213943599395
+      },
+      "id": "W12",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.23574174816296084,
+          "sharpe": -0.05016164844981803,
+          "totalReturn": 0.4883297972924656
+        },
+        "summary": {
+          "cagr": 0.015416053213335612,
+          "end": "2025-12-31",
+          "excessKurtosis": 28.22538608925314,
+          "firstHalf": {
+            "cagr": 0.03935240385628025,
+            "sharpe": 0.6069224639476841
+          },
+          "maxDrawdown": -0.2357417481629609,
+          "meanReturn": 0.00006766258025839983,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": -0.007978782031042075,
+            "sharpe": -0.1404070783049628
+          },
+          "sharpe": 0.28975732597717596,
+          "skew": 1.123669134991203,
+          "start": "2000-01-03",
+          "stdReturn": 0.0037034551269027687,
+          "totalReturn": 0.48832979729246984,
+          "volatility": 0.0587354152650337
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.30778950045941883,
+          "sharpe": -0.1927743265750291,
+          "totalReturn": 0.19693523324142426
+        },
+        "summary": {
+          "cagr": 0.006939802436657594,
+          "end": "2025-12-31",
+          "excessKurtosis": 28.051151377974183,
+          "firstHalf": {
+            "cagr": 0.03038953069632222,
+            "sharpe": 0.4781278735680593
+          },
+          "maxDrawdown": -0.3077895004594188,
+          "meanReturn": 0.00003434813614731956,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": -0.015985800321766552,
+            "sharpe": -0.3062492538133868
+          },
+          "sharpe": 0.1469498187934087,
+          "skew": 1.1045370586330667,
+          "start": "2000-01-03",
+          "stdReturn": 0.0037070383381829775,
+          "totalReturn": 0.19693523324142537,
+          "volatility": 0.058792243657794986
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.00007321860749042618,
+        "pass": false,
+        "qValue": 0.3241162917727658
+      },
+      "id": "W13",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.14266720455199286,
+          "sharpe": -0.3021977907838241,
+          "totalReturn": 0.1235719538974438
+        },
+        "summary": {
+          "cagr": 0.004492504857165569,
+          "end": "2025-12-31",
+          "excessKurtosis": 22.865014756183097,
+          "firstHalf": {
+            "cagr": -0.005305762207582276,
+            "sharpe": -0.06550840802369125
+          },
+          "maxDrawdown": -0.1426672045519929,
+          "meanReturn": 0.000022307989130438687,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.0143914802770031,
+            "sharpe": 0.4136043480069902
+          },
+          "sharpe": 0.11804151523823404,
+          "skew": 0.49303324621574257,
+          "start": "2000-01-03",
+          "stdReturn": 0.0029972198850751397,
+          "totalReturn": 0.12357195389744269,
+          "volatility": 0.04753478807173536
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.19184660063396522,
+          "sharpe": -0.4259560682296158,
+          "totalReturn": -0.03668595457683532
+        },
+        "summary": {
+          "cagr": -0.0014368763475347546,
+          "end": "2025-12-31",
+          "excessKurtosis": 22.958600230331975,
+          "firstHalf": {
+            "cagr": -0.011294648779808791,
+            "sharpe": -0.17174807994244584
+          },
+          "maxDrawdown": -0.1918466006339652,
+          "meanReturn": -0.0000012121539415397969,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.008523398278357908,
+            "sharpe": 0.2522051248519403
+          },
+          "sharpe": -0.006401812094123558,
+          "skew": 0.4591413961118947,
+          "start": "2000-01-03",
+          "stdReturn": 0.0030029480018774275,
+          "totalReturn": -0.0366859545768391,
+          "volatility": 0.0476256338650663
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.000002555964856198018,
+        "pass": false,
+        "qValue": 0.7125251873221883
+      },
+      "id": "W14",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.25382672022811636,
+          "sharpe": -0.2384948015635485,
+          "totalReturn": 0.013361622819425989
+        },
+        "summary": {
+          "cagr": 0.0005107703509419359,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.247377947660194,
+          "firstHalf": {
+            "cagr": -0.001471713204487024,
+            "sharpe": 0.018121095605047627
+          },
+          "maxDrawdown": -0.25382672022811636,
+          "meanReturn": 0.000012074563683472659,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.002498027863031105,
+            "sharpe": 0.0707916191435212
+          },
+          "sharpe": 0.042755224721774794,
+          "skew": -0.49178417185034523,
+          "start": "2000-01-03",
+          "stdReturn": 0.00447893963942978,
+          "totalReturn": 0.013361622819426655,
+          "volatility": 0.07103431003062757
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.2935147104064787,
+          "sharpe": -0.30317077674486625,
+          "totalReturn": -0.10079254215913813
+        },
+        "summary": {
+          "cagr": -0.004078946176318321,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.227599047370221,
+          "firstHalf": {
+            "cagr": -0.006213549263821561,
+            "sharpe": -0.045089577242429436
+          },
+          "maxDrawdown": -0.2935147104064787,
+          "meanReturn": -0.000006199217512344045,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": -0.001938855631442804,
+            "sharpe": 0.00415754103808752
+          },
+          "sharpe": -0.02194443035193514,
+          "skew": -0.4875794750470387,
+          "start": "2000-01-03",
+          "stdReturn": 0.004480283747815323,
+          "totalReturn": -0.1007925421591338,
+          "volatility": 0.0710556270876678
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.0000017306324893319855,
+        "pass": false,
+        "qValue": 0.7358637074914333
+      },
+      "id": "W15",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.33727728912446064,
+          "sharpe": -0.24208421805615557,
+          "totalReturn": -0.01693500833834738
+        },
+        "summary": {
+          "cagr": -0.0006568819655363711,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.734895841700531,
+          "firstHalf": {
+            "cagr": -0.002965020953596076,
+            "sharpe": 0.005212262983488627
+          },
+          "maxDrawdown": -0.33727728912446064,
+          "meanReturn": 0.00000825372095044228,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.0016575764181383512,
+            "sharpe": 0.05790303402460716
+          },
+          "sharpe": 0.02807178125602305,
+          "skew": 0.15827846125462072,
+          "start": "2000-01-03",
+          "stdReturn": 0.0046630789384246845,
+          "totalReturn": -0.01693500833834105,
+          "volatility": 0.07395469054624705
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.6358103488775442,
+          "sharpe": -0.6337699447612286,
+          "totalReturn": -0.5380189704246345
+        },
+        "summary": {
+          "cagr": -0.02927205548335121,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.699672658116064,
+          "firstHalf": {
+            "cagr": -0.031302631499085964,
+            "sharpe": -0.3435333113002374
+          },
+          "maxDrawdown": -0.6358103488775442,
+          "meanReturn": -0.00010719467816487575,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": -0.027236364597537532,
+            "sharpe": -0.3960680692567809
+          },
+          "sharpe": -0.36381414661768563,
+          "skew": 0.17435717475578077,
+          "start": "2000-01-03",
+          "stdReturn": 0.00467290120483131,
+          "totalReturn": -0.5380189704246376,
+          "volatility": 0.0741104680233511
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 9.68305065826343e-11,
+        "pass": false,
+        "qValue": 1
+      },
+      "id": "W16",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.28865639291869666,
+          "sharpe": 0.3595945456907886,
+          "totalReturn": 1.6899549727735832
+        },
+        "summary": {
+          "cagr": 0.053482012802546386,
+          "end": "2025-12-31",
+          "excessKurtosis": 23.239227482943043,
+          "firstHalf": {
+            "cagr": 0.039669076974600426,
+            "sharpe": 0.46243154247682605
+          },
+          "maxDrawdown": -0.2886563929186966,
+          "meanReturn": 0.00022903199783190162,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.06745817072497062,
+            "sharpe": 0.626120567220118
+          },
+          "sharpe": 0.5498711701863802,
+          "skew": -1.2853775008567132,
+          "start": "2007-01-03",
+          "stdReturn": 0.00660713212425241,
+          "totalReturn": 1.6899549727735819,
+          "volatility": 0.10480711631767176
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.2886975519360494,
+          "sharpe": 0.3274010081927512,
+          "totalReturn": 1.5233267880230827
+        },
+        "summary": {
+          "cagr": 0.04994097994005453,
+          "end": "2025-12-31",
+          "excessKurtosis": 23.21074133218426,
+          "firstHalf": {
+            "cagr": 0.03628916949560845,
+            "sharpe": 0.42773441398357287
+          },
+          "maxDrawdown": -0.2886975519360494,
+          "meanReturn": 0.00021565651039195824,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.06375258079241819,
+            "sharpe": 0.5956252153602282
+          },
+          "sharpe": 0.5176682678162624,
+          "skew": -1.284338420038894,
+          "start": "2007-01-03",
+          "stdReturn": 0.006608285679693568,
+          "totalReturn": 1.5233267880230827,
+          "volatility": 0.10482541484977717
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.05743493016213558,
+        "pass": false,
+        "qValue": 0.031840238353173976
+      },
+      "id": "W17",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.41184108038238904,
+          "sharpe": 0.5674558477789875,
+          "totalReturn": 6.212369532658992
+        },
+        "summary": {
+          "cagr": 0.10963437405624754,
+          "end": "2025-12-31",
+          "excessKurtosis": 33.87750982816323,
+          "firstHalf": {
+            "cagr": 0.11869960308903371,
+            "sharpe": 0.8266219259463797
+          },
+          "maxDrawdown": -0.4118410803823891,
+          "meanReturn": 0.0004754381461880526,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.10065550402693058,
+            "sharpe": 0.5831651921999482
+          },
+          "sharpe": 0.6806569738008658,
+          "skew": -0.9579269026063452,
+          "start": "2007-01-03",
+          "stdReturn": 0.01108009555202317,
+          "totalReturn": 6.212369532659025,
+          "volatility": 0.1757605026648694
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.4265033319780544,
+          "sharpe": 0.5201438065309063,
+          "totalReturn": 5.162925006038362
+        },
+        "summary": {
+          "cagr": 0.10048520735249644,
+          "end": "2025-12-31",
+          "excessKurtosis": 33.81143124432081,
+          "firstHalf": {
+            "cagr": 0.10989110337518548,
+            "sharpe": 0.7733413116983568
+          },
+          "maxDrawdown": -0.42650333197805435,
+          "meanReturn": 0.0004425786831152218,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.09117240007497696,
+            "sharpe": 0.5394707452544418
+          },
+          "sharpe": 0.6333289312630053,
+          "skew": -0.956351510070525,
+          "start": "2007-01-03",
+          "stdReturn": 0.011085082889606619,
+          "totalReturn": 5.162925006038336,
+          "volatility": 0.1758396154267143
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.13950935141987397,
+        "pass": false,
+        "qValue": 0.01611371393739964
+      },
+      "id": "W18",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.3332660165214148,
+          "sharpe": 0.43618809718663953,
+          "totalReturn": 2.3342806160472187
+        },
+        "summary": {
+          "cagr": 0.06546046887282841,
+          "end": "2025-12-31",
+          "excessKurtosis": 17.404317693608988,
+          "firstHalf": {
+            "cagr": 0.07789663204869735,
+            "sharpe": 0.660032071238828
+          },
+          "maxDrawdown": -0.33326601652141474,
+          "meanReturn": 0.0002783157464936118,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.0531853924271557,
+            "sharpe": 0.5549827483028085
+          },
+          "sharpe": 0.6097386134904671,
+          "skew": -0.6371948043430262,
+          "start": "2007-01-03",
+          "stdReturn": 0.007240555051192886,
+          "totalReturn": 2.334280616047219,
+          "volatility": 0.11485492967052524
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.3361308538734087,
+          "sharpe": 0.3631975992121856,
+          "totalReturn": 1.8446303550675411
+        },
+        "summary": {
+          "cagr": 0.05658774672525846,
+          "end": "2025-12-31",
+          "excessKurtosis": 17.352945772367683,
+          "firstHalf": {
+            "cagr": 0.0686004809398788,
+            "sharpe": 0.5911495590320073
+          },
+          "maxDrawdown": -0.3361308538734087,
+          "meanReturn": 0.00024509822710388015,
+          "periods": 4779,
+          "periodsPerYear": 251.6260271010523,
+          "secondHalf": {
+            "cagr": 0.04472706786310887,
+            "sharpe": 0.476167644505442
+          },
+          "sharpe": 0.5367243144562215,
+          "skew": -0.6332938933227619,
+          "start": "2007-01-03",
+          "stdReturn": 0.007243803822512963,
+          "totalReturn": 1.844630355067535,
+          "volatility": 0.11490646403478942
+        }
+      },
+      "benchmark": {
+        "cagr": 0.10671776618929929,
+        "end": "2025-12-31",
+        "excessKurtosis": 14.521306878273862,
+        "firstHalf": {
+          "cagr": 0.06419750686275116,
+          "sharpe": 0.3986783885252332
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.000480576301913004,
+        "periods": 4779,
+        "periodsPerYear": 251.6260271010523,
+        "secondHalf": {
+          "cagr": 0.15087198027836424,
+          "sharpe": 0.8679659318049695
+        },
+        "sharpe": 0.6124161371380235,
+        "skew": -0.0006808096581087645,
+        "start": "2007-01-03",
+        "stdReturn": 0.012447825904712693,
+        "totalReturn": 5.860712107536178,
+        "volatility": 0.19745643237684873
+      },
+      "dsl": null,
+      "flags": ["total return", "Sharpe"],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.06535911178668075,
+        "pass": false,
+        "qValue": 0.03138431932247221
+      },
+      "id": "W19",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.47940870403365954,
+          "sharpe": 0.4502822555143038,
+          "totalReturn": 6.808575141120762
+        },
+        "summary": {
+          "cagr": 0.08227773533778171,
+          "end": "2025-12-31",
+          "excessKurtosis": 12.606515275891448,
+          "firstHalf": {
+            "cagr": 0.049153485218648596,
+            "sharpe": 0.36495136160545194
+          },
+          "maxDrawdown": -0.47940870403365954,
+          "meanReturn": 0.0003652900311805781,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.11646242073576518,
+            "sharpe": 0.8249038309652611
+          },
+          "sharpe": 0.574729226894648,
+          "skew": -0.21276611975909718,
+          "start": "2000-01-03",
+          "stdReturn": 0.010080161590217176,
+          "totalReturn": 6.808575141120744,
+          "volatility": 0.15986759840538292
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.479855497658672,
+          "sharpe": 0.44610664953416507,
+          "totalReturn": 6.674664588286899
+        },
+        "summary": {
+          "cagr": 0.08155774111479275,
+          "end": "2025-12-31",
+          "excessKurtosis": 12.60483751967484,
+          "firstHalf": {
+            "cagr": 0.04840055168279567,
+            "sharpe": 0.36077138745897686
+          },
+          "maxDrawdown": -0.4798554976586721,
+          "meanReturn": 0.00036264627063424873,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.11577821506405206,
+            "sharpe": 0.8207128194792956
+          },
+          "sharpe": 0.5705541369340543,
+          "skew": -0.21251346068542684,
+          "start": "2000-01-03",
+          "stdReturn": 0.010080435931403156,
+          "totalReturn": 6.6746645882868325,
+          "volatility": 0.15987194935414042
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.05377050030005376,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "W20",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.3524374074277384,
+          "sharpe": 0.4214156989964066,
+          "totalReturn": 4.903158104888118
+        },
+        "summary": {
+          "cagr": 0.07069284955217214,
+          "end": "2025-12-31",
+          "excessKurtosis": 31.798727899992528,
+          "firstHalf": {
+            "cagr": 0.034109197619119236,
+            "sharpe": 0.2983752095790757
+          },
+          "maxDrawdown": -0.3524374074277383,
+          "meanReturn": 0.00030906949137496625,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10858696151833991,
+            "sharpe": 0.900560913007563
+          },
+          "sharpe": 0.5664873251658354,
+          "skew": -0.006314189812075775,
+          "start": "2000-01-03",
+          "stdReturn": 0.008652844457571583,
+          "totalReturn": 4.903158104888101,
+          "volatility": 0.13723088171024986
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.37713736763168426,
+          "sharpe": 0.29691765383094415,
+          "totalReturn": 2.7867779832364583
+        },
+        "summary": {
+          "cagr": 0.0525603460282833,
+          "end": "2025-12-31",
+          "excessKurtosis": 31.879146316646164,
+          "firstHalf": {
+            "cagr": 0.017858246382783438,
+            "sharpe": 0.1929369063521729
+          },
+          "maxDrawdown": -0.37713736763168426,
+          "meanReturn": 0.0002411046359534179,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.08846093047604375,
+            "sharpe": 0.751793670396288
+          },
+          "sharpe": 0.44219926813456695,
+          "skew": -0.020571901365779653,
+          "start": "2000-01-03",
+          "stdReturn": 0.008647299445621873,
+          "totalReturn": 2.786777983236452,
+          "volatility": 0.13714293989150067
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.011740325223136299,
+        "pass": false,
+        "qValue": 0.031840238353173976
+      },
+      "id": "W21",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.35591253655463273,
+          "sharpe": 0.2247958723223085,
+          "totalReturn": 1.8626436443302508
+        },
+        "summary": {
+          "cagr": 0.04129216035056671,
+          "end": "2025-12-31",
+          "excessKurtosis": 12.114143019878016,
+          "firstHalf": {
+            "cagr": -0.007933323546927995,
+            "sharpe": 0.01805599012134521
+          },
+          "maxDrawdown": -0.35591253655463273,
+          "meanReturn": 0.0001932893526879617,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.09298247483982824,
+            "sharpe": 0.8863463955443965
+          },
+          "sharpe": 0.3810418555828759,
+          "skew": -0.2552939806180737,
+          "start": "2000-01-03",
+          "stdReturn": 0.008045039948258477,
+          "totalReturn": 1.8626436443302463,
+          "volatility": 0.12759132917587873
+        }
+      },
+      "adapterVertexCost": null,
+      "benchmark": null,
+      "dsl": null,
+      "flags": [],
+      "gate": null,
+      "id": "W22",
+      "note": "The Vertex-cost run failed in the QuantJourney engine: ValueError: weight-mode NAV became non-positive; check leverage, returns, and costs.",
+      "primary": null,
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.20938455727467573,
+          "sharpe": -0.4560078002874607,
+          "totalReturn": -0.1569166502846686
+        },
+        "summary": {
+          "cagr": -0.01061861790268015,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.467439127455896,
+          "firstHalf": {
+            "cagr": -0.006263999831588651,
+            "sharpe": -0.07045194389430066
+          },
+          "maxDrawdown": -0.20938455727467575,
+          "meanReturn": -0.000033298378619519314,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.014951191724879687,
+            "sharpe": -0.2008043783249669
+          },
+          "sharpe": -0.13701119701040618,
+          "skew": -0.12719879993776795,
+          "start": "2010-01-04",
+          "stdReturn": 0.0039220314847761275,
+          "totalReturn": -0.15691665028466784,
+          "volatility": 0.06329291893636792
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.2221629670030905,
+          "sharpe": -0.5185094982800897,
+          "totalReturn": -0.2096635385748491
+        },
+        "summary": {
+          "cagr": -0.014608352689155835,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.455976970937119,
+          "firstHalf": {
+            "cagr": -0.010266704178138575,
+            "sharpe": -0.13551087086068833
+          },
+          "maxDrawdown": -0.22216296700309046,
+          "meanReturn": -0.00004880540724195327,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.018928002577624614,
+            "sharpe": -0.26321861790625456
+          },
+          "sharpe": -0.20071526492552663,
+          "skew": -0.12252477520975552,
+          "start": "2010-01-04",
+          "stdReturn": 0.003924023387480886,
+          "totalReturn": -0.2096635385748511,
+          "volatility": 0.06332506384313646
+        }
+      },
+      "benchmark": {
+        "cagr": 0.014942922330330122,
+        "end": "2025-12-31",
+        "excessKurtosis": 1.5196264618614732,
+        "firstHalf": {
+          "cagr": 0.02142733060652824,
+          "sharpe": 0.3207434467013437
+        },
+        "maxDrawdown": -0.17500001078817085,
+        "meanReturn": 0.00006893405155862628,
+        "periods": 4024,
+        "periodsPerYear": 251.6722602739726,
+        "secondHalf": {
+          "cagr": 0.00849967953838382,
+          "sharpe": 0.16001970084361108
+        },
+        "sharpe": 0.24453791515238738,
+        "skew": -0.008327471392520054,
+        "start": "2010-01-04",
+        "stdReturn": 0.004472035827087514,
+        "totalReturn": 0.2676383377622462,
+        "volatility": 0.07094518882599817
+      },
+      "dsl": null,
+      "flags": ["total return", "max drawdown"],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.000006609513760090001,
+        "pass": false,
+        "qValue": 0.9620367473245602
+      },
+      "id": "W23",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.4260734308551428,
+          "sharpe": -1.0454786467921395,
+          "totalReturn": -0.3599370560898557
+        },
+        "summary": {
+          "cagr": -0.027520125102468818,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.504335022479447,
+          "firstHalf": {
+            "cagr": -0.030653120767776043,
+            "sharpe": -0.5832542272103088
+          },
+          "maxDrawdown": -0.4260734308551428,
+          "meanReturn": -0.00010329900625814324,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.024379158937876455,
+            "sharpe": -0.6424321786585754
+          },
+          "sharpe": -0.6010379882833617,
+          "skew": -0.44935660727013466,
+          "start": "2010-01-04",
+          "stdReturn": 0.002773564503712761,
+          "totalReturn": -0.3599370560898555,
+          "volatility": 0.04475920042449625
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.5030458631876442,
+          "sharpe": -1.2556438851277263,
+          "totalReturn": -0.452977932629806
+        },
+        "summary": {
+          "cagr": -0.037027051245284937,
+          "end": "2025-12-31",
+          "excessKurtosis": 6.365114520380645,
+          "firstHalf": {
+            "cagr": -0.039993488082634476,
+            "sharpe": -0.7709758414401785
+          },
+          "maxDrawdown": -0.5030458631876442,
+          "meanReturn": -0.00014098297958152706,
+          "periods": 4164,
+          "periodsPerYear": 260.42825342465756,
+          "secondHalf": {
+            "cagr": -0.0340534885954783,
+            "sharpe": -0.9009584481821878
+          },
+          "sharpe": -0.8167097127758453,
+          "skew": -0.4375431320311561,
+          "start": "2010-01-04",
+          "stdReturn": 0.0027857556083549276,
+          "totalReturn": -0.45297793262980646,
+          "volatility": 0.044955937906297844
+        }
+      },
+      "benchmark": {
+        "cagr": 0.014942922330330122,
+        "end": "2025-12-31",
+        "excessKurtosis": 1.5196264618614732,
+        "firstHalf": {
+          "cagr": 0.02142733060652824,
+          "sharpe": 0.3207434467013437
+        },
+        "maxDrawdown": -0.17500001078817085,
+        "meanReturn": 0.00006893405155862628,
+        "periods": 4024,
+        "periodsPerYear": 251.6722602739726,
+        "secondHalf": {
+          "cagr": 0.00849967953838382,
+          "sharpe": 0.16001970084361108
+        },
+        "sharpe": 0.24453791515238738,
+        "skew": -0.008327471392520054,
+        "start": "2010-01-04",
+        "stdReturn": 0.004472035827087514,
+        "totalReturn": 0.2676383377622462,
+        "volatility": 0.07094518882599817
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 3.113211759061309e-12,
+        "pass": false,
+        "qValue": 1
+      },
+      "id": "W24",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.09925726724879616,
+          "sharpe": 0.5939979037102967,
+          "totalReturn": 0.44321618071440794
+        },
+        "summary": {
+          "cagr": 0.05666916251883869,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.6764921441307647,
+          "firstHalf": {
+            "cagr": 0.05350766262265316,
+            "sharpe": 0.9535900347856375
+          },
+          "maxDrawdown": -0.09925726724879613,
+          "meanReturn": 0.00022652238942022612,
+          "periods": 1677,
+          "periodsPerYear": 251.96390374331548,
+          "secondHalf": {
+            "cagr": 0.0598323214269576,
+            "sharpe": 0.8886540338946071
+          },
+          "sharpe": 0.9142881680715781,
+          "skew": -0.15171178476268984,
+          "start": "2019-05-06",
+          "stdReturn": 0.003932757778226403,
+          "totalReturn": 0.4432161807144064,
+          "volatility": 0.06242612287542514
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.09975128384763071,
+          "sharpe": 0.5621153875456147,
+          "totalReturn": 0.4243149456986366
+        },
+        "summary": {
+          "cagr": 0.054578265764560596,
+          "end": "2025-12-31",
+          "excessKurtosis": 3.6618333906540386,
+          "firstHalf": {
+            "cagr": 0.05171692021846219,
+            "sharpe": 0.9231783723208801
+          },
+          "maxDrawdown": -0.09975128384763066,
+          "meanReturn": 0.0002186641884440313,
+          "periods": 1677,
+          "periodsPerYear": 251.96390374331548,
+          "secondHalf": {
+            "cagr": 0.057440313789764996,
+            "sharpe": 0.8551593909672728
+          },
+          "sharpe": 0.8823150589014616,
+          "skew": -0.15554164438534065,
+          "start": "2019-05-06",
+          "stdReturn": 0.003933898362949819,
+          "totalReturn": 0.42431494569863504,
+          "volatility": 0.06244422779978332
+        }
+      },
+      "benchmark": {
+        "cagr": 0.15291412467874888,
+        "end": "2025-12-31",
+        "excessKurtosis": 13.462589494763996,
+        "firstHalf": {
+          "cagr": 0.1149101742922749,
+          "sharpe": 0.5868515362225851
+        },
+        "maxDrawdown": -0.33717270361192986,
+        "meanReturn": 0.0006462111114444838,
+        "periods": 1674,
+        "periodsPerYear": 251.51316330728093,
+        "secondHalf": {
+          "cagr": 0.19198406147374603,
+          "sharpe": 1.1462804722411877
+        },
+        "sharpe": 0.8096640303364304,
+        "skew": -0.28713081874934865,
+        "start": "2019-05-06",
+        "stdReturn": 0.012657558260802546,
+        "totalReturn": 1.5781190570901895,
+        "volatility": 0.20073832443338444
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.4939996160934513,
+        "pass": false,
+        "qValue": 0.031840238353173976
+      },
+      "id": "W25",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.3857519967751743,
+          "sharpe": 0.4604921538121468,
+          "totalReturn": 5.709239208817733
+        },
+        "summary": {
+          "cagr": 0.07597826466576674,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.28404515939205,
+          "firstHalf": {
+            "cagr": 0.04539288685227483,
+            "sharpe": 0.40818431771388036
+          },
+          "maxDrawdown": -0.38575199677517436,
+          "meanReturn": 0.0003280269756243232,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10747194646781488,
+            "sharpe": 0.7888452965839982
+          },
+          "sharpe": 0.6068973480326345,
+          "skew": -0.4552397168393314,
+          "start": "2000-01-03",
+          "stdReturn": 0.008572100947996875,
+          "totalReturn": 5.709239208817734,
+          "volatility": 0.13595031980189135
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.3885369774762207,
+          "sharpe": 0.44224797981337666,
+          "totalReturn": 5.2905555615016215
+        },
+        "summary": {
+          "cagr": 0.07331425353741117,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.28448815808968,
+          "firstHalf": {
+            "cagr": 0.04267227173917987,
+            "sharpe": 0.38808753821465625
+          },
+          "maxDrawdown": -0.38853697747622074,
+          "meanReturn": 0.00031816591577458434,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10487022556509662,
+            "sharpe": 0.772230507735625
+          },
+          "sharpe": 0.5886760315900537,
+          "skew": -0.4549053544978742,
+          "start": "2000-01-03",
+          "stdReturn": 0.008571765003160195,
+          "totalReturn": 5.29055556150161,
+          "volatility": 0.1359449918422395
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.06555476836860485,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "WF01",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.3857519967751743,
+          "sharpe": 0.4604921538121468,
+          "totalReturn": 5.709239208817733
+        },
+        "summary": {
+          "cagr": 0.07597826466576674,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.28404515939205,
+          "firstHalf": {
+            "cagr": 0.04539288685227483,
+            "sharpe": 0.40818431771388036
+          },
+          "maxDrawdown": -0.38575199677517436,
+          "meanReturn": 0.0003280269756243232,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10747194646781488,
+            "sharpe": 0.7888452965839982
+          },
+          "sharpe": 0.6068973480326345,
+          "skew": -0.4552397168393314,
+          "start": "2000-01-03",
+          "stdReturn": 0.008572100947996875,
+          "totalReturn": 5.709239208817734,
+          "volatility": 0.13595031980189135
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.3885369774762207,
+          "sharpe": 0.44224797981337666,
+          "totalReturn": 5.2905555615016215
+        },
+        "summary": {
+          "cagr": 0.07331425353741117,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.28448815808968,
+          "firstHalf": {
+            "cagr": 0.04267227173917987,
+            "sharpe": 0.38808753821465625
+          },
+          "maxDrawdown": -0.38853697747622074,
+          "meanReturn": 0.00031816591577458434,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10487022556509662,
+            "sharpe": 0.772230507735625
+          },
+          "sharpe": 0.5886760315900537,
+          "skew": -0.4549053544978742,
+          "start": "2000-01-03",
+          "stdReturn": 0.008571765003160195,
+          "totalReturn": 5.29055556150161,
+          "volatility": 0.1359449918422395
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.06555476836860485,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "WF02",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.4919916951771269,
+          "sharpe": 0.3361955214705819,
+          "totalReturn": 3.72510743570437
+        },
+        "summary": {
+          "cagr": 0.06156292251475515,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.64961757109166,
+          "firstHalf": {
+            "cagr": 0.023532990189513603,
+            "sharpe": 0.2216108543983446
+          },
+          "maxDrawdown": -0.49199169517712693,
+          "meanReturn": 0.0002844552870078333,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10102280465806435,
+            "sharpe": 0.7835163625561492
+          },
+          "sharpe": 0.4658581476823665,
+          "skew": 0.042384968778980986,
+          "start": "2000-01-03",
+          "stdReturn": 0.009683966342867526,
+          "totalReturn": 3.725107435704345,
+          "volatility": 0.15358408974071175
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.49746850328155734,
+          "sharpe": 0.2862921806050662,
+          "totalReturn": 2.8725226799160324
+        },
+        "summary": {
+          "cagr": 0.05346741718314374,
+          "end": "2025-12-31",
+          "excessKurtosis": 21.644536946482003,
+          "firstHalf": {
+            "cagr": 0.016115266888885094,
+            "sharpe": 0.1789760248781745
+          },
+          "maxDrawdown": -0.49746850328155734,
+          "meanReturn": 0.0002540165296294488,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.09220923899816613,
+            "sharpe": 0.7239146878881217
+          },
+          "sharpe": 0.4159986822615559,
+          "skew": 0.043992742204657306,
+          "start": "2000-01-03",
+          "stdReturn": 0.009684182834606652,
+          "totalReturn": 2.8725226799160453,
+          "volatility": 0.15358752321884592
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.008115326459858425,
+        "pass": false,
+        "qValue": 0.040437191867708014
+      },
+      "id": "WF03",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.38353827082646763,
+          "sharpe": 0.44748759823914247,
+          "totalReturn": 5.484857041642464
+        },
+        "summary": {
+          "cagr": 0.07457111297347563,
+          "end": "2025-12-31",
+          "excessKurtosis": 14.812365265510127,
+          "firstHalf": {
+            "cagr": 0.042685021490879604,
+            "sharpe": 0.3841694172553222
+          },
+          "maxDrawdown": -0.38353827082646763,
+          "meanReturn": 0.0003236312683815917,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10744636275089903,
+            "sharpe": 0.7842529388359507
+          },
+          "sharpe": 0.5923260168612114,
+          "skew": -0.46519560513081004,
+          "start": "2000-01-03",
+          "stdReturn": 0.008665280455354401,
+          "totalReturn": 5.484857041642466,
+          "volatility": 0.13742811199088775
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.38650955553553745,
+          "sharpe": 0.43131477612436586,
+          "totalReturn": 5.12155617842717
+        },
+        "summary": {
+          "cagr": 0.07219033020688781,
+          "end": "2025-12-31",
+          "excessKurtosis": 14.808449970853676,
+          "firstHalf": {
+            "cagr": 0.040207404194744,
+            "sharpe": 0.3660572522331854
+          },
+          "maxDrawdown": -0.38650955553553745,
+          "meanReturn": 0.0003148144727956039,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10517072881491729,
+            "sharpe": 0.7698176524375623
+          },
+          "sharpe": 0.5761613700548049,
+          "skew": -0.4649076472166497,
+          "start": "2000-01-03",
+          "stdReturn": 0.008665697200856649,
+          "totalReturn": 5.1215561784271175,
+          "volatility": 0.13743472141892066
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.057843909103049485,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "WF04",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    },
+    {
+      "adapter": {
+        "qj": {
+          "maxDrawdown": -0.33009266810664994,
+          "sharpe": 0.513455164612092,
+          "totalReturn": 6.707478899036977
+        },
+        "summary": {
+          "cagr": 0.0817352840654888,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.150300927022933,
+          "firstHalf": {
+            "cagr": 0.06373833590706801,
+            "sharpe": 0.5628389418519503
+          },
+          "maxDrawdown": -0.33009266810664994,
+          "meanReturn": 0.00034666201285021256,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.10004449239708069,
+            "sharpe": 0.7586512649924455
+          },
+          "sharpe": 0.6652846311823508,
+          "skew": -0.5587079143933655,
+          "start": "2000-01-03",
+          "stdReturn": 0.008264026862942735,
+          "totalReturn": 6.707478899036906,
+          "volatility": 0.13106437986256148
+        }
+      },
+      "adapterVertexCost": {
+        "qj": {
+          "maxDrawdown": -0.32613434762723953,
+          "sharpe": 0.5093807156664196,
+          "totalReturn": 6.5686377084696606
+        },
+        "summary": {
+          "cagr": 0.08097904786847132,
+          "end": "2025-12-31",
+          "excessKurtosis": 15.330681264896722,
+          "firstHalf": {
+            "cagr": 0.06168749588403499,
+            "sharpe": 0.5470299847654312
+          },
+          "maxDrawdown": -0.3261343476272396,
+          "meanReturn": 0.0003436507427309998,
+          "periods": 6538,
+          "periodsPerYear": 251.5277543711818,
+          "secondHalf": {
+            "cagr": 0.1006294920009565,
+            "sharpe": 0.7664734927838329
+          },
+          "sharpe": 0.6617270190985775,
+          "skew": -0.5573227002831472,
+          "start": "2000-01-03",
+          "stdReturn": 0.008236285185211483,
+          "totalReturn": 6.5686377084696295,
+          "volatility": 0.13062440721381588
+        }
+      },
+      "benchmark": {
+        "cagr": 0.08028401927024587,
+        "end": "2025-12-31",
+        "excessKurtosis": 12.036226471325044,
+        "firstHalf": {
+          "cagr": 0.01872894639167222,
+          "sharpe": 0.19369894241075897
+        },
+        "maxDrawdown": -0.5518945833155695,
+        "meanReturn": 0.0003817005013913935,
+        "periods": 6538,
+        "periodsPerYear": 251.5277543711818,
+        "secondHalf": {
+          "cagr": 0.1455867815938885,
+          "sharpe": 0.8886978891087958
+        },
+        "sharpe": 0.4955356844694197,
+        "skew": 0.04170171953580634,
+        "start": "2000-01-03",
+        "stdReturn": 0.01221632991635672,
+        "totalReturn": 6.443157114585114,
+        "volatility": 0.19374643031032046
+      },
+      "dsl": null,
+      "flags": [],
+      "gate": {
+        "beatsBenchmarkBothHalves": false,
+        "deflatedSharpeProbability": 0.12774900333337325,
+        "pass": false,
+        "qValue": 0.01516433223166247
+      },
+      "id": "WF05",
+      "note": null,
+      "primary": "adapter",
+      "status": "run"
+    }
+  ],
+  "trials": 50,
+  "vertexCostBps": 10
+}

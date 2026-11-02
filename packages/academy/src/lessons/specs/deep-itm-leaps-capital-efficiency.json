@@ -1,0 +1,155 @@
+{
+  "slug": "deep-itm-leaps-capital-efficiency",
+  "sourceId": "DZnVmW7xqI9",
+  "title": "Deep in-the-money LEAPS instead of shares for core holdings",
+  "summary": "For core holdings the speaker buys deep in-the-money LEAPS instead of shares. On Broadcom near $400 he chose the $200 strike for a 96 delta, at just over $200: about half the capital. The unused cash earns interest and is dry powder. Costs: a small time premium (a financing cost), no dividends, and an expiration to manage.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps", "synthetics"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["capital efficiency", "LEAPS", "dry powder", "delta"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "100 shares",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        }
+      ]
+    },
+    "b": {
+      "label": "Deep ITM LEAPS call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AVGO price",
+      "default": 400,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "LEAPS strike",
+      "default": 200,
+      "min": 5,
+      "max": 2000,
+      "step": 5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "LEAPS days to expiry",
+      "default": 450,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Broadcom trades near $400. 100 shares cost about $40,000."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Shares: full upside, full downside, all capital tied up."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "The $200 strike LEAPS has about a 96 delta and costs just over $200: about half the capital."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The lines track closely above the strike. The small gap is the time premium, a financing cost."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the strike plus the premium, slightly above today's price."
+    },
+    {
+      "element": "axes",
+      "color": "gold",
+      "caption": "The other half of the capital stays in cash, earns interest and acts as dry powder."
+    }
+  ],
+  "formulas": ["delta", "extrinsic", "positionSize"],
+  "takeaways": [
+    "A deep ITM LEAPS gives stock-like exposure for about half the capital.",
+    "Cash not used earns interest and is dry powder for selloffs; options are not margined.",
+    "The time premium is a financing cost that the interest roughly offsets.",
+    "Calls pay no dividends and expire, so they need management."
+  ],
+  "caveats": [
+    "The speaker says this is not a trade recommendation. AVGO is not in the backtest universe, so the preset uses other large caps.",
+    "Holding a single name with LEAPS can exceed the owner's LEAPS cap; size by exposure.",
+    "Tax treatment depends on your situation."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["NVDA", "MSFT", "AAPL"],
+    "scenario": {
+      "label": "2016-2025 incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2016-01-01",
+      "end": "2025-12-31"
+    },
+    "rules": {
+      "coreDte": 450,
+      "coreDelta": 0.95,
+      "coreExitDte": 90,
+      "riskPct": 10
+    },
+    "note": "About 95 delta LEAPS, 15 months out, rolled with about 3 months left, as a stock replacement."
+  }
+}

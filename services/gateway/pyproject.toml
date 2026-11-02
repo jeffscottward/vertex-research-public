@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-native-gateway"
+version = "0.1.0"
+description = "Internal native gateway readiness and human-authorized recovery boundaries"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vertex_gateway", "vertex_gateway.*"]
+exclude = ["tests", "tests.*", "*.tests", "*.tests.*", "private", "private.*"]
+namespaces = false

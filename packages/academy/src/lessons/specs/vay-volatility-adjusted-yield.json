@@ -1,0 +1,120 @@
+{
+  "slug": "vay-volatility-adjusted-yield",
+  "sourceId": "DVwSixMiaFK",
+  "title": "Normalize option income by volatility (the speaker's VAY metric)",
+  "summary": "For cash-secured puts and covered calls, premium alone is misleading. The highest-yielding names can be the worst trades because their volatility overwhelms the income. The speaker says you need to scale income by the underlying's volatility, and introduces his own metric for this, Volatility Adjusted Yield (VAY).",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "volatility"
+    ],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["VAY", "yield", "volatility", "income"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 45,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 5,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 80,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A high-yield stock: its premium looks attractive.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "red",
+      "caption": "But realized volatility is high. Large moves can wipe out the income."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility sets the premium you collect."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "What matters is income relative to volatility, not the raw yield. The speaker calls his version VAY."
+    }
+  ],
+  "formulas": ["annualizedYield", "realizedVol", "vrp"],
+  "takeaways": [
+    "Do not choose income trades on premium alone; consider the underlying's volatility.",
+    "High-yield names can be poor trades when their volatility overwhelms the income.",
+    "Normalize income by volatility before you compare names."
+  ],
+  "caveats": [
+    "VAY (Volatility Adjusted Yield) is the speaker's own proprietary metric. Its formula is not given and its results are unverified.",
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here.",
+    "The transcript repeats a speech-to-text glitch and never states the metric's name in the audio."
+  ]
+}

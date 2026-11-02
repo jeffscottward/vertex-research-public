@@ -1,0 +1,86 @@
+{
+  "format": "vertex-host-dependency-proposal-v1",
+  "status": "authored-unverified-not-approved",
+  "activation": "blocked-until-exact-artifacts-and-human-release-approval",
+  "platform": "linux-x86_64",
+  "orchestration": {
+    "bun": "1.3.14",
+    "nodeCompatibility": "22.13.1",
+    "pnpm": "11.16.0",
+    "@danielx/civet": "0.11.15",
+    "zod": "4.1.12",
+    "vitest": "4.1.11",
+    "@types/node": "22.20.1"
+  },
+  "native": {
+    "python": "3.12.11",
+    "pythonAbi": "cp312",
+    "setuptools": "82.0.1",
+    "cryptography": "46.0.3",
+    "kernelTransport": "ctypes-c-abi-v1",
+    "pyo3": null,
+    "maturin": null,
+    "rustMinimumDeclaredByKernel": "1.85",
+    "rustExactCompiler": "1.88.0",
+    "rustTargetTriple": "x86_64-unknown-linux-gnu",
+    "serde": "1.0.228",
+    "serde_json": "1.0.145",
+    "sha2BuildOnly": "0.10.9",
+    "nautilusInstalledByRelease": false,
+    "brokerSdkInstalledByRelease": false
+  },
+  "system": {
+    "systemdMinimumForDelegateSubgroup": 254,
+    "systemdExactBuild": null,
+    "systemctlSha256": null,
+    "linuxKernelExactBuild": null,
+    "unifiedCgroupV2Required": true,
+    "delegatedControllers": ["cpu", "memory", "pids"],
+    "sandboxBubblewrapExactBuild": null,
+    "sandboxBubblewrapSha256": null,
+    "sandboxSetuidAllowed": false,
+    "sandboxBubblewrapStaticElf64X86_64Required": true,
+    "sandboxRootfsReadOnlyHostMountRequired": true,
+    "sandboxUserNamespacesRequired": true
+  },
+  "requiredReleaseInputs": [
+    "Exact reviewed native compiler version, target triple, Cargo.lock digest and complete dependency artifact hashes",
+    "Exact Python runtime and installed site-packages inventory including native ABI and shared-library closure",
+    "Exact systemd/systemctl build digest with DelegateSubgroup support and reviewed host kernel",
+    "Exact non-setuid static ELF64 x86_64 bubblewrap artifact without PT_INTERP/PT_DYNAMIC",
+    "Exact root-owned sandbox rootfs inventory already installed on a read-only host mount; child read-only bind alone is insufficient",
+    "Exact contract authority bundle and journal.py source SHA-256, unchanged across this rollback path",
+    "Exact release-manifest.json file inventory, sizes, immutable modes and SHA-256 digests",
+    "Separate signed human release approval and console-verified host trust receipts",
+    "Locally resolved service identity, public verification-key and credential references",
+    "Reviewed explicit control egress IPs, durable state mount and cgroup delegation"
+  ],
+  "launch": {
+    "argv": [
+      "<approved-absolute-python-path>",
+      "-I",
+      "-B",
+      "-m",
+      "vertex_host",
+      "--config",
+      "<approved-config-path>"
+    ],
+    "suggestedConfigPath": "/etc/vertex/host.json",
+    "suggestedStateRoot": "/var/lib/vertex",
+    "machinePathsCreatedByThisProposal": false,
+    "allowedEnvironments": ["research", "paper"],
+    "liveExecution": false,
+    "automaticRestart": false,
+    "automaticRollback": false,
+    "journalMigrationOrDowngrade": false
+  },
+  "verification": {
+    "tests": "authored-not-run",
+    "typecheck": "not-run",
+    "build": "not-run",
+    "installation": "not-run",
+    "network": "not-used",
+    "systemd": "not-invoked",
+    "ssh": "not-used"
+  }
+}

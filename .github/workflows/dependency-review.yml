@@ -1,0 +1,25 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    # Public repositories always review. Private repositories opt in with the
+    # DF_DEPENDENCY_REVIEW_ENABLED repository variable; an opted-in review that cannot run fails.
+    if: ${{ !github.event.repository.private || vars.DF_DEPENDENCY_REVIEW_ENABLED == 'true' }}
+    # Public repository: GitHub-hosted runners only.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high

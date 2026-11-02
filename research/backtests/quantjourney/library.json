@@ -1,0 +1,2783 @@
+{
+  "source": {
+    "name": "QuantJourney Backtester example strategies",
+    "repository": "https://github.com/QuantJourneyOrg/quantjourney-bt",
+    "commit": "4f403d853833e1daa6de01c5b6c6cb3983dc0044",
+    "license": "Apache-2.0 (LICENSE in the repository; the repository has no NOTICE file)",
+    "site": "https://quants.md",
+    "siteSnapshot": "quants.md-lib-data-2026-10-31.json",
+    "siteSnapshotSha256": "48ff547fbe774050a46f904a0fe035202634b83668c53a6060c0fcfe0725d769",
+    "dashboards": "https://backtester.quantjourney.cloud/strategies",
+    "fetched": "2026-10-31",
+    "framing": "The X post that linked quants.md called it a leaked Jane Street library. That is false: it is QuantJourney's public Apache-2.0 example collection."
+  },
+  "count": 50,
+  "strategies": [
+    {
+      "id": "O01",
+      "slug": "quantjourney-o01-market-sma-cross",
+      "name": "Market SMA Crossover",
+      "shortName": "Market SMA Cross",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Market orders",
+      "orderType": "Market",
+      "strategyType": null,
+      "summary": "Buy SMA(20) crossing above SMA(50), sell on reverse",
+      "rules": "Per ETF: buy about 18% of equity at market when SMA 20 moves above SMA 50; sell all at market when it moves back below.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_01_market_sma_cross.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_01_market_sma_cross.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-01-market-sma-cross",
+      "published": {
+        "totalReturnPct": 126.66,
+        "cagrPct": 3.33,
+        "sharpe": 0.21,
+        "maxDrawdownPct": -16.35,
+        "volatilityPct": 6.4,
+        "sortino": 0.29,
+        "calmar": 0.2,
+        "winRatePct": 51.85,
+        "profitFactor": 2.18,
+        "profitFactorInfinite": false,
+        "trades": 381,
+        "beta": 0.23,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O01 SMA 20/50 cross",
+        "description": "SMA 20 above SMA 50 = long.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "<",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O02",
+      "slug": "quantjourney-o02-market-rsi-reversion",
+      "name": "Market RSI Reversion",
+      "shortName": "Market RSI Reversion",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Market orders, fill at open",
+      "orderType": "Market",
+      "strategyType": null,
+      "summary": "Buy RSI(14) < 35, sell RSI > 60",
+      "rules": "Per ETF: buy about 12% of equity at market while RSI 14 is below 35; sell all when RSI 14 rises above 60.",
+      "costs": "5.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_02_market_rsi_reversion.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_02_market_rsi_reversion.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-02-market-rsi-reversion",
+      "published": {
+        "totalReturnPct": 29.08,
+        "cagrPct": 1.03,
+        "sharpe": -0.17,
+        "maxDrawdownPct": -16.01,
+        "volatilityPct": 5.57,
+        "sortino": -0.24,
+        "calmar": 0.06,
+        "winRatePct": 71.63,
+        "profitFactor": 1.81,
+        "profitFactorInfinite": false,
+        "trades": 282,
+        "beta": 0.21,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O02 RSI reversion 35/60",
+        "description": "Long while RSI 14 < 35 until RSI 14 > 60.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": "<",
+              "right": {
+                "type": "const",
+                "value": 35
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 60
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O03",
+      "slug": "quantjourney-o03-limit-rsi-dip",
+      "name": "Limit RSI Dip Buyer",
+      "shortName": "Limit RSI Dip",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Passive limit below the close",
+      "orderType": "Limit",
+      "strategyType": null,
+      "summary": "Passive buy-limit below the close on weak RSI",
+      "rules": "Per ETF: when RSI 14 is below 40, place a buy limit 1.5% under the close (valid 3 bars); once long, place a sell limit 3% over the average entry (valid 3 bars).",
+      "costs": "3.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_03_limit_rsi_dip.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_03_limit_rsi_dip.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-03-limit-rsi-dip",
+      "published": {
+        "totalReturnPct": 94.66,
+        "cagrPct": 2.7,
+        "sharpe": 0.14,
+        "maxDrawdownPct": -19.09,
+        "volatilityPct": 7.13,
+        "sortino": 0.19,
+        "calmar": 0.14,
+        "winRatePct": 100,
+        "profitFactor": null,
+        "profitFactorInfinite": true,
+        "trades": 300,
+        "beta": 0.29,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O04",
+      "slug": "quantjourney-o04-limit-trend-pullback",
+      "name": "Limit Trend Pullback",
+      "shortName": "Limit Trend Pullback",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Limit on 1% pullback, fill at open",
+      "orderType": "Limit",
+      "strategyType": null,
+      "summary": "In an uptrend, wait for a 1% pullback to enter",
+      "rules": "Per ETF: when the close is above SMA 50, place a buy limit 1% under the close (valid 2 bars); take profit with a sell limit 4% over entry; sell at market if the close falls under SMA 50.",
+      "costs": "3.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_04_limit_trend_pullback.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_04_limit_trend_pullback.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-04-limit-trend-pullback",
+      "published": {
+        "totalReturnPct": 56.83,
+        "cagrPct": 1.82,
+        "sharpe": -0.04,
+        "maxDrawdownPct": -6.85,
+        "volatilityPct": 3.31,
+        "sortino": -0.05,
+        "calmar": 0.27,
+        "winRatePct": 48.22,
+        "profitFactor": 1.36,
+        "profitFactorInfinite": false,
+        "trades": 1851,
+        "beta": 0.1,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O05",
+      "slug": "quantjourney-o05-stop-breakout-entry",
+      "name": "Stop Breakout Entry",
+      "shortName": "Stop Breakout Entry",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["breakout"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Buy-stop above 20-day high",
+      "orderType": "Stop",
+      "strategyType": null,
+      "summary": "Buy-stop above the recent 20-day high",
+      "rules": "Per ETF: place a buy stop 0.2% over the highest close of the prior 20 bars (valid 5 bars); sell at market 10 bars after the fill.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_05_stop_breakout_entry.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_05_stop_breakout_entry.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-05-stop-breakout-entry",
+      "published": {
+        "totalReturnPct": 41.44,
+        "cagrPct": 1.4,
+        "sharpe": -0.19,
+        "maxDrawdownPct": -10.48,
+        "volatilityPct": 2.8,
+        "sortino": -0.26,
+        "calmar": 0.13,
+        "winRatePct": 61.92,
+        "profitFactor": 1.45,
+        "profitFactorInfinite": false,
+        "trades": 1671,
+        "beta": 0.08,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O06",
+      "slug": "quantjourney-o06-stop-loss-protection",
+      "name": "Protective Stop Loss",
+      "shortName": "Protective Stop Loss",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Market entry, 5% stop",
+      "orderType": "Market + Stop",
+      "strategyType": null,
+      "summary": "Trend entry with a 5% protective stop",
+      "rules": "Per ETF: buy about 15% of equity at market when SMA 20 moves above SMA 50; attach a stop 5% under entry; sell at market when SMA 20 moves back below SMA 50.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_06_stop_loss_protection.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_06_stop_loss_protection.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-06-stop-loss-protection",
+      "published": {
+        "totalReturnPct": 60.13,
+        "cagrPct": 1.9,
+        "sharpe": 0,
+        "maxDrawdownPct": -16.22,
+        "volatilityPct": 5.35,
+        "sortino": 0.01,
+        "calmar": 0.12,
+        "winRatePct": 44.68,
+        "profitFactor": 1.7,
+        "profitFactorInfinite": false,
+        "trades": 379,
+        "beta": 0.15,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O06 SMA cross with 5% stop",
+        "description": "Up-cross entry, down-cross or 5% stop exit.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesAbove",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesBelow",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "stopLoss": {
+          "kind": "pct",
+          "pct": 5
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O07",
+      "slug": "quantjourney-o07-stop-limit-breakout",
+      "name": "Stop-Limit Breakout",
+      "shortName": "Stop Limit Breakout",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["breakout"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Stop-limit breakout",
+      "orderType": "Stop-Limit",
+      "strategyType": null,
+      "summary": "Enter breakouts but cap the maximum fill price",
+      "rules": "Per ETF: buy stop 0.2% over the prior 20-bar high with a limit 0.4% over the stop (valid 5 bars), so a gap can leave it unfilled; sell at market 12 bars after the fill.",
+      "costs": "4.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_07_stop_limit_breakout.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_07_stop_limit_breakout.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-07-stop-limit-breakout",
+      "published": {
+        "totalReturnPct": 56.21,
+        "cagrPct": 1.8,
+        "sharpe": -0.05,
+        "maxDrawdownPct": -6.37,
+        "volatilityPct": 2.97,
+        "sortino": -0.08,
+        "calmar": 0.28,
+        "winRatePct": 62.95,
+        "profitFactor": 1.63,
+        "profitFactorInfinite": false,
+        "trades": 1453,
+        "beta": 0.09,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O08",
+      "slug": "quantjourney-o08-stop-limit-protection",
+      "name": "Stop-Limit Protection",
+      "shortName": "Stop Limit Protection",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Market entry, stop-limit sell",
+      "orderType": "Market + Stop-Limit",
+      "strategyType": null,
+      "summary": "Trend entry, downside protected by a stop-limit sell",
+      "rules": "As O06, but the protective exit is a stop-limit (stop 4% under entry, limit 4.5% under entry), which can stay unfilled after a gap.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_08_stop_limit_protection.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_08_stop_limit_protection.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-08-stop-limit-protection",
+      "published": {
+        "totalReturnPct": 63.64,
+        "cagrPct": 1.99,
+        "sharpe": 0.02,
+        "maxDrawdownPct": -14.18,
+        "volatilityPct": 3.99,
+        "sortino": 0.03,
+        "calmar": 0.14,
+        "winRatePct": 43.09,
+        "profitFactor": 1.81,
+        "profitFactorInfinite": false,
+        "trades": 379,
+        "beta": 0.13,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O09",
+      "slug": "quantjourney-o09-trailing-stop-trend",
+      "name": "Trailing Stop Trend",
+      "shortName": "Trailing Stop Trend",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "4% trailing stop exit",
+      "orderType": "Trailing Stop",
+      "strategyType": null,
+      "summary": "Trend entry, 4% trailing stop manages the exit",
+      "rules": "Per ETF: SMA 20/50 trend entry at market; exit with a 4% trailing stop or at market on the reverse cross.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_09_trailing_stop_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_09_trailing_stop_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-09-trailing-stop-trend",
+      "published": {
+        "totalReturnPct": 30.04,
+        "cagrPct": 1.06,
+        "sharpe": -0.33,
+        "maxDrawdownPct": -7.02,
+        "volatilityPct": 2.41,
+        "sortino": -0.46,
+        "calmar": 0.15,
+        "winRatePct": 47.62,
+        "profitFactor": 1.71,
+        "profitFactorInfinite": false,
+        "trades": 380,
+        "beta": 0.05,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O10",
+      "slug": "quantjourney-o10-trailing-stop-rsi",
+      "name": "RSI + Trailing Stop",
+      "shortName": "Trailing Stop RSI",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "5% trailing stop exit",
+      "orderType": "Trailing Stop",
+      "strategyType": null,
+      "summary": "Oversold RSI entry, 5% trailing stop for risk",
+      "rules": "Per ETF: buy at market when RSI 14 is below 38; exit with a 5% trailing stop or at market when RSI 14 is above 65.",
+      "costs": "5.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_10_trailing_stop_rsi.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_10_trailing_stop_rsi.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-10-trailing-stop-rsi",
+      "published": {
+        "totalReturnPct": -12.16,
+        "cagrPct": -0.52,
+        "sharpe": -0.41,
+        "maxDrawdownPct": -38.99,
+        "volatilityPct": 5.2,
+        "sortino": -0.55,
+        "calmar": -0.01,
+        "winRatePct": 39.75,
+        "profitFactor": 0.91,
+        "profitFactorInfinite": false,
+        "trades": 1104,
+        "beta": 0.21,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O11",
+      "slug": "quantjourney-o11-trailing-stop-limit",
+      "name": "Trailing Stop-Limit",
+      "shortName": "Trailing Stop Limit",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Trailing stop that converts to a limit",
+      "orderType": "Trailing Stop-Limit",
+      "strategyType": null,
+      "summary": "Trailing stop that converts to a limit on trigger",
+      "rules": "As O09, but the trailing exit is a trailing stop-limit (trail 4% of the close, limit 0.5% under the stop).",
+      "costs": "5.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_11_trailing_stop_limit.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_11_trailing_stop_limit.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-11-trailing-stop-limit",
+      "published": {
+        "totalReturnPct": 28.1,
+        "cagrPct": 1,
+        "sharpe": -0.38,
+        "maxDrawdownPct": -6.15,
+        "volatilityPct": 2.25,
+        "sortino": -0.52,
+        "calmar": 0.16,
+        "winRatePct": 47.62,
+        "profitFactor": 1.69,
+        "profitFactorInfinite": false,
+        "trades": 380,
+        "beta": 0.05,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O12",
+      "slug": "quantjourney-o12-bracket-trend",
+      "name": "Bracket Trend",
+      "shortName": "Bracket Trend",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Bracket +6% / −3%",
+      "orderType": "Bracket",
+      "strategyType": null,
+      "summary": "Trend entry with a +6% / −3% bracket",
+      "rules": "Per ETF: on the SMA 20/50 up-cross, buy at market with a bracket: take profit 6% and stop 3% from the signal close; sell at market on the reverse cross.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_12_bracket_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_12_bracket_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-12-bracket-trend",
+      "published": {
+        "totalReturnPct": 29.39,
+        "cagrPct": 1.04,
+        "sharpe": -0.38,
+        "maxDrawdownPct": -6.82,
+        "volatilityPct": 1.76,
+        "sortino": -0.53,
+        "calmar": 0.15,
+        "winRatePct": 45.79,
+        "profitFactor": 1.58,
+        "profitFactorInfinite": false,
+        "trades": 382,
+        "beta": 0.04,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O12 SMA cross bracket 6/3",
+        "description": "Up-cross entry; 6% target, 3% stop, down-cross exit.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesAbove",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesBelow",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "stopLoss": {
+          "kind": "pct",
+          "pct": 3
+        },
+        "takeProfit": {
+          "kind": "pct",
+          "pct": 6
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O13",
+      "slug": "quantjourney-o13-bracket-rsi-reversion",
+      "name": "Bracket RSI Reversion",
+      "shortName": "Bracket RSI Reversion",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Bracket +4% / −2%",
+      "orderType": "Bracket",
+      "strategyType": null,
+      "summary": "RSI dip with a +4% / −2% bracket",
+      "rules": "Per ETF: buy when RSI 14 is below 35 with a bracket: take profit 4% and stop 2% from the signal close; sell at market when RSI 14 is above 70.",
+      "costs": "5.0 bp slippage; 1.0 bp commission",
+      "file": "example_orders_13_bracket_rsi_reversion.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_13_bracket_rsi_reversion.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-13-bracket-rsi-reversion",
+      "published": {
+        "totalReturnPct": 8.51,
+        "cagrPct": 0.33,
+        "sharpe": -0.43,
+        "maxDrawdownPct": -11.61,
+        "volatilityPct": 4.12,
+        "sortino": -0.59,
+        "calmar": 0.03,
+        "winRatePct": 45.83,
+        "profitFactor": 1.07,
+        "profitFactorInfinite": false,
+        "trades": 1030,
+        "beta": 0.1,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O13 RSI bracket 4/2",
+        "description": "RSI 14 < 35 entry; 4% target, 2% stop, RSI 14 > 70 exit.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": "<",
+              "right": {
+                "type": "const",
+                "value": 35
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 70
+              }
+            }
+          ]
+        },
+        "stopLoss": {
+          "kind": "pct",
+          "pct": 2
+        },
+        "takeProfit": {
+          "kind": "pct",
+          "pct": 4
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O14",
+      "slug": "quantjourney-o14-oco-dip-or-breakout",
+      "name": "OCO Dip or Breakout",
+      "shortName": "OCO Dip Or Breakout",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["breakout", "meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "OCO buy-limit / buy-stop",
+      "orderType": "OCO",
+      "strategyType": null,
+      "summary": "Competing buy-limit (dip) and buy-stop (breakout)",
+      "rules": "Per ETF, every 5th bar while flat: a one-cancels-other pair of a buy limit 2% under and a buy stop 2% over the close (valid 5 bars); sell at market 10 bars after the fill.",
+      "costs": "5.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_14_oco_dip_or_breakout.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_14_oco_dip_or_breakout.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-14-oco-dip-or-breakout",
+      "published": {
+        "totalReturnPct": 45.53,
+        "cagrPct": 1.51,
+        "sharpe": -0.08,
+        "maxDrawdownPct": -13.15,
+        "volatilityPct": 3.95,
+        "sortino": -0.12,
+        "calmar": 0.12,
+        "winRatePct": 58.02,
+        "profitFactor": 1.27,
+        "profitFactorInfinite": false,
+        "trades": 1983,
+        "beta": 0.21,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O15",
+      "slug": "quantjourney-o15-intraday-5m-bracket-reversion",
+      "name": "Intraday 5m Bracket Reversion",
+      "shortName": "Intraday Bracket Reversion 5m",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "5m",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2026-06-10",
+        "end": "2026-07-11"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Bracket +0.6% / −0.4%",
+      "orderType": "Bracket",
+      "strategyType": "Intraday Mean Reversion",
+      "summary": "Oversold-RSI dips with a tight +0.6% / −0.4% bracket; 5-min bars",
+      "rules": "5-minute bars: buy when RSI 14 is below 30 with a bracket of +0.6% take profit and -0.4% stop.",
+      "costs": "2.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_15_intraday_5m_bracket_reversion.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_15_intraday_5m_bracket_reversion.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-15-intraday-5m-bracket-reversion",
+      "published": {
+        "totalReturnPct": 1.12,
+        "cagrPct": null,
+        "sharpe": null,
+        "maxDrawdownPct": -1.28,
+        "volatilityPct": null,
+        "sortino": null,
+        "calmar": null,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": null,
+        "beta": null,
+        "benchmarkReturnPct": null
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "no-data",
+        "reason": "Yahoo serves 5-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-06-10 to 2026-07-11 is outside it, and Vertex stores no intraday history."
+      }
+    },
+    {
+      "id": "O16",
+      "slug": "quantjourney-o16-intraday-30m-stop-breakout",
+      "name": "Intraday 30m Stop Breakout",
+      "shortName": "Intraday Stop Breakout 30m",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "30m",
+      "assetClass": "Equity ETFs",
+      "styles": ["breakout"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2026-05-18",
+        "end": "2026-07-10"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Buy-stop, fixed-bar hold",
+      "orderType": "Stop",
+      "strategyType": "Intraday Breakout",
+      "summary": "Buy-stop above the 12-bar high, fixed holding period; 30-min bars",
+      "rules": "30-minute bars: buy stop over the prior 12-bar high (valid 3 bars); sell at market after a fixed number of bars.",
+      "costs": "2.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_16_intraday_30m_stop_breakout.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_16_intraday_30m_stop_breakout.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-16-intraday-30m-stop-breakout",
+      "published": {
+        "totalReturnPct": -13.95,
+        "cagrPct": null,
+        "sharpe": null,
+        "maxDrawdownPct": -14.85,
+        "volatilityPct": null,
+        "sortino": null,
+        "calmar": null,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": null,
+        "beta": null,
+        "benchmarkReturnPct": null
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "no-data",
+        "reason": "Yahoo serves 30-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-05-18 to 2026-07-10 is outside it, and Vertex stores no intraday history."
+      }
+    },
+    {
+      "id": "O17",
+      "slug": "quantjourney-o17-monthly-rotation-orders",
+      "name": "Monthly Rotation (orders)",
+      "shortName": "Monthly Rotation Orders",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["momentum"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Monthly, market orders",
+      "orderType": "Market",
+      "strategyType": "Momentum Rotation",
+      "summary": "Event-driven monthly momentum rotation, executed with orders",
+      "rules": "On the first bar of each month, rank 8 multi-asset ETFs by 6-month return; sell names that left the top set and buy new entrants at market, equal value per name.",
+      "costs": "3.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_17_monthly_rotation_orders.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_17_monthly_rotation_orders.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-17-monthly-rotation-orders",
+      "published": {
+        "totalReturnPct": 380.52,
+        "cagrPct": 8.62,
+        "sharpe": 0.53,
+        "maxDrawdownPct": -28.23,
+        "volatilityPct": 12.77,
+        "sortino": 0.73,
+        "calmar": 0.31,
+        "winRatePct": 52.15,
+        "profitFactor": 1.78,
+        "profitFactorInfinite": false,
+        "trades": 329,
+        "beta": 0.28,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O18",
+      "slug": "quantjourney-o18-signal-change-rotation-orders",
+      "name": "Signal-Change Rotation (orders)",
+      "shortName": "Signal Change Rotation Orders",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2001-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "On signal change, no calendar",
+      "orderType": "Market",
+      "strategyType": "Long / Cash",
+      "summary": "Trade only on SMA trend-signal flips (no calendar)",
+      "rules": "Per ETF: trade only on SMA 20/50 signal changes: buy at market on a flat-to-long change, sell on a long-to-flat change; no calendar rebalance.",
+      "costs": "3.0 bp slippage; $0.005/share commission (min $1.0)",
+      "file": "example_orders_18_signal_change_rotation_orders.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_18_signal_change_rotation_orders.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-18-signal-change-rotation-orders",
+      "published": {
+        "totalReturnPct": 129.76,
+        "cagrPct": 3.38,
+        "sharpe": 0.22,
+        "maxDrawdownPct": -16.27,
+        "volatilityPct": 6.4,
+        "sortino": 0.3,
+        "calmar": 0.21,
+        "winRatePct": 52.38,
+        "profitFactor": 2.21,
+        "profitFactorInfinite": false,
+        "trades": 381,
+        "beta": 0.23,
+        "benchmarkReturnPct": 693.52
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ O18 SMA 20/50 signal change",
+        "description": "Long on the SMA 20/50 up-cross, flat on the down-cross.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesAbove",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20
+              },
+              "op": "crossesBelow",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O19",
+      "slug": "quantjourney-o19-fx-momentum-lots",
+      "name": "FX Momentum with Standard Lots",
+      "shortName": "FX Momentum Lots",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "FX",
+      "styles": ["momentum"],
+      "universe": ["EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X"],
+      "period": {
+        "start": "2010-01-04",
+        "end": "2026-01-01"
+      },
+      "benchmark": "DX-Y.NYB",
+      "rebalance": "Market orders, whole lots",
+      "orderType": "Market",
+      "strategyType": "Long / Short FX",
+      "summary": "Contract-aware whole-lot momentum on USD-quoted spot pairs",
+      "rules": "Four USD-quoted FX pairs: long or short in the direction of the 126-bar return, in whole 100,000-unit lots sized by 0.5% equity risk per ATR 20 and a 20% notional cap per pair.",
+      "costs": "0.5 bp slippage; 0.1 bp commission",
+      "file": "example_orders_19_fx_momentum_lots.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_19_fx_momentum_lots.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-19-fx-momentum-lots",
+      "published": {
+        "totalReturnPct": -14.2,
+        "cagrPct": -0.95,
+        "sharpe": -0.71,
+        "maxDrawdownPct": -15.25,
+        "volatilityPct": 4.07,
+        "sortino": -0.97,
+        "calmar": -0.06,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": 735,
+        "beta": null,
+        "benchmarkReturnPct": 18.48
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "O20",
+      "slug": "quantjourney-o20-futures-donchian-contracts",
+      "name": "Futures Donchian Contracts",
+      "shortName": "Futures Donchian Contracts",
+      "category": "orders",
+      "mode": "orders",
+      "section": "QuantJourney orders",
+      "granularity": "1d",
+      "assetClass": "Futures",
+      "styles": ["breakout", "trend"],
+      "universe": ["MES=F", "MNQ=F", "CL=F", "GC=F"],
+      "period": {
+        "start": "2019-05-06",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Market orders, whole contracts",
+      "orderType": "Market",
+      "strategyType": "Long / Short Futures",
+      "summary": "Whole-contract ATR sizing on provider continuous futures",
+      "rules": "Four continuous futures: long above the prior 55-bar high, short below the prior 55-bar low, otherwise keep the side; whole contracts sized by 0.5% equity risk per ATR 20 and a 25% notional cap.",
+      "costs": "1.0 bp slippage",
+      "file": "example_orders_20_futures_donchian_contracts.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_orders_20_futures_donchian_contracts.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-orders-20-futures-donchian-contracts",
+      "published": {
+        "totalReturnPct": 35.5,
+        "cagrPct": 4.67,
+        "sharpe": 0.3,
+        "maxDrawdownPct": -16.7,
+        "volatilityPct": 11.13,
+        "sortino": 0.43,
+        "calmar": 0.28,
+        "winRatePct": 48,
+        "profitFactor": 1.34,
+        "profitFactorInfinite": false,
+        "trades": 978,
+        "beta": -0.04,
+        "benchmarkReturnPct": 157.81
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W01",
+      "slug": "quantjourney-w01-sma-daily",
+      "name": "Daily SMA Trend",
+      "shortName": "Daily SMA Trend",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Hold each sector ETF while SMA(50) > SMA(200); daily rebalance",
+      "rules": "Daily: hold each sector ETF while SMA 50 is above SMA 200, equal weight across the active names, at most 25% each; otherwise cash.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_01_sma_daily.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_01_sma_daily.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-01-sma-daily",
+      "published": {
+        "totalReturnPct": 536.96,
+        "cagrPct": 7.38,
+        "sharpe": 0.45,
+        "maxDrawdownPct": -34.68,
+        "volatilityPct": 14.75,
+        "sortino": 0.62,
+        "calmar": 0.21,
+        "winRatePct": 72.6,
+        "profitFactor": 2.48,
+        "profitFactorInfinite": false,
+        "trades": 41183,
+        "beta": 0.52,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ W01 SMA 50/200 trend",
+        "description": "Long while SMA 50 > SMA 200.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 200
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50
+              },
+              "op": "<",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 200
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W02",
+      "slug": "quantjourney-w02-monthly-drift-etf",
+      "name": "Monthly ETF Trend + Drift",
+      "shortName": "Monthly Drift ETF",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["trend"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end + 5% drift band",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "SMA(50/200) trend on ETFs; month-end + 5% drift band",
+      "rules": "Hold each multi-asset ETF while SMA 50 is above SMA 200 (at most 30% each); rebalance at month end or when a weight drifts more than 5 percentage points.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_02_monthly_drift_etf.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_02_monthly_drift_etf.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-02-monthly-drift-etf",
+      "published": {
+        "totalReturnPct": 137.66,
+        "cagrPct": 4.66,
+        "sharpe": 0.31,
+        "maxDrawdownPct": -19.36,
+        "volatilityPct": 10.55,
+        "sortino": 0.43,
+        "calmar": 0.24,
+        "winRatePct": 63.49,
+        "profitFactor": 1.73,
+        "profitFactorInfinite": false,
+        "trades": 2151,
+        "beta": 0.23,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W03",
+      "slug": "quantjourney-w03-weekly-rsi-reversion",
+      "name": "Weekly RSI Reversion",
+      "shortName": "Weekly RSI Reversion",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Weekly",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Enter RSI(14) < 35, exit RSI > 60; weekly (Fri)",
+      "rules": "Per sector ETF: become long when RSI 14 is below 35 and stay long until RSI 14 is above 60; equal weight across long names (at most 25%); rebalance on Fridays.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_03_weekly_rsi_reversion.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_03_weekly_rsi_reversion.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-03-weekly-rsi-reversion",
+      "published": {
+        "totalReturnPct": 372.51,
+        "cagrPct": 6.16,
+        "sharpe": 0.34,
+        "maxDrawdownPct": -49.2,
+        "volatilityPct": 16.06,
+        "sortino": 0.48,
+        "calmar": 0.13,
+        "winRatePct": 62.09,
+        "profitFactor": 2.15,
+        "profitFactorInfinite": false,
+        "trades": 4034,
+        "beta": 0.66,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ W03 RSI reversion 35/60",
+        "description": "Long from RSI 14 < 35 until RSI 14 > 60 (daily, not weekly).",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": "<",
+              "right": {
+                "type": "const",
+                "value": 35
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "rsi",
+                "length": 14
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 60
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W04",
+      "slug": "quantjourney-w04-quarterly-dual-momentum",
+      "name": "Quarterly Dual Momentum",
+      "shortName": "Quarterly Dual Momentum",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["momentum"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Quarter-end",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Rank ETFs by 12-month return, hold top 2 if positive; quarter-end",
+      "rules": "At each quarter end, rank 8 multi-asset ETFs by 252-bar return and hold the top 2 that have a positive return, equal weight; otherwise cash.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_04_quarterly_dual_momentum.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_04_quarterly_dual_momentum.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-04-quarterly-dual-momentum",
+      "published": {
+        "totalReturnPct": 64.62,
+        "cagrPct": 2.66,
+        "sharpe": 0.12,
+        "maxDrawdownPct": -42.75,
+        "volatilityPct": 13.56,
+        "sortino": 0.16,
+        "calmar": 0.06,
+        "winRatePct": 59.46,
+        "profitFactor": 1.21,
+        "profitFactorInfinite": false,
+        "trades": 199,
+        "beta": 0.35,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W05",
+      "slug": "quantjourney-w05-monthly-inverse-vol",
+      "name": "Monthly Inverse Volatility",
+      "shortName": "Monthly Inverse Vol",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["risk"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long Only",
+      "summary": "Size each ETF by inverse 63-day volatility; month-end",
+      "rules": "At each month end, weight 8 multi-asset ETFs by the inverse of their 63-bar volatility (at most 35% each).",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_05_monthly_inverse_vol.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_05_monthly_inverse_vol.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-05-monthly-inverse-vol",
+      "published": {
+        "totalReturnPct": 174.15,
+        "cagrPct": 5.45,
+        "sharpe": 0.45,
+        "maxDrawdownPct": -20.42,
+        "volatilityPct": 7.94,
+        "sortino": 0.63,
+        "calmar": 0.27,
+        "winRatePct": 73.18,
+        "profitFactor": 3.59,
+        "profitFactorInfinite": false,
+        "trades": 1800,
+        "beta": 0.3,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W06",
+      "slug": "quantjourney-w06-signal-change-defensive",
+      "name": "Signal-Change Defensive Rotation",
+      "shortName": "Signal Change Defensive",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["trend"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "On signal change",
+      "orderType": null,
+      "strategyType": "Risk On / Risk Off",
+      "summary": "SPY > SMA(200) → risk-on ETFs, else defensive; on signal change",
+      "rules": "When SPY closes above its SMA 200 hold the risk ETFs, otherwise the defensive ETFs; trade only when the regime changes.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_06_signal_change_defensive.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_06_signal_change_defensive.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-06-signal-change-defensive",
+      "published": {
+        "totalReturnPct": 132.21,
+        "cagrPct": 4.54,
+        "sharpe": 0.26,
+        "maxDrawdownPct": -24.57,
+        "volatilityPct": 9.12,
+        "sortino": 0.36,
+        "calmar": 0.18,
+        "winRatePct": 41.14,
+        "profitFactor": 1.64,
+        "profitFactorInfinite": false,
+        "trades": 821,
+        "beta": 0.21,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W07",
+      "slug": "quantjourney-w07-intraday-rsi-15m",
+      "name": "Intraday RSI 15m",
+      "shortName": "Intraday RSI 15m",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "15m",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2026-06-19",
+        "end": "2026-07-11"
+      },
+      "benchmark": "SPY",
+      "rebalance": "On signal change",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Equal-weight basket when RSI oversold; 15-minute bars",
+      "rules": "15-minute bars: equal weight in names whose RSI 14 is below 35 until RSI 14 is above 55; trade on signal changes.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_07_intraday_rsi_15m.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_07_intraday_rsi_15m.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-07-intraday-rsi-15m",
+      "published": {
+        "totalReturnPct": 2.64,
+        "cagrPct": null,
+        "sharpe": null,
+        "maxDrawdownPct": -1.07,
+        "volatilityPct": null,
+        "sortino": null,
+        "calmar": null,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": null,
+        "beta": null,
+        "benchmarkReturnPct": null
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "no-data",
+        "reason": "Yahoo serves 15-minute bars only for the last 60 days (checked 2026-10-31); the published window 2026-06-19 to 2026-07-11 is outside it, and Vertex stores no intraday history."
+      }
+    },
+    {
+      "id": "W08",
+      "slug": "quantjourney-w08-intraday-1m-ema-scalp",
+      "name": "Intraday EMA Scalp 1m",
+      "shortName": "Intraday EMA Scalp 1m",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1m",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2026-07-05",
+        "end": "2026-07-11"
+      },
+      "benchmark": "SPY",
+      "rebalance": "On signal change",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "EMA(9/21) trend/cash; 1-minute bars",
+      "rules": "1-minute bars: hold each name while EMA 9 is above EMA 21; trade on signal changes.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_08_intraday_1m_ema_scalp.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_08_intraday_1m_ema_scalp.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-08-intraday-1m-ema-scalp",
+      "published": {
+        "totalReturnPct": -0.23,
+        "cagrPct": null,
+        "sharpe": null,
+        "maxDrawdownPct": -0.24,
+        "volatilityPct": null,
+        "sortino": null,
+        "calmar": null,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": null,
+        "beta": null,
+        "benchmarkReturnPct": null
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "no-data",
+        "reason": "Yahoo serves 1-minute bars only for the last 30 days (checked 2026-10-31); the published window 2026-07-05 to 2026-07-11 is outside it, and Vertex stores no intraday history."
+      }
+    },
+    {
+      "id": "W09",
+      "slug": "quantjourney-w09-intraday-1h-sma-trend",
+      "name": "Intraday SMA Trend 1h",
+      "shortName": "Intraday SMA Trend 1h",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1h",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": ["SPY", "QQQ", "IWM"],
+      "period": {
+        "start": "2026-05-11",
+        "end": "2026-07-10"
+      },
+      "benchmark": "SPY",
+      "rebalance": "On signal change",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "SMA(10/30) trend/cash; hourly bars",
+      "rules": "Hourly bars: hold each name while SMA 10 is above SMA 30, equal weight across active names (at most 25%); trade on signal changes.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_09_intraday_1h_sma_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_09_intraday_1h_sma_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-09-intraday-1h-sma-trend",
+      "published": {
+        "totalReturnPct": 1.5,
+        "cagrPct": null,
+        "sharpe": null,
+        "maxDrawdownPct": -3.49,
+        "volatilityPct": null,
+        "sortino": null,
+        "calmar": null,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": null,
+        "beta": null,
+        "benchmarkReturnPct": null
+      },
+      "dsl": {
+        "version": 1,
+        "name": "QJ W09 hourly SMA 10/30 trend",
+        "description": "Long while SMA 10 > SMA 30 on hourly bars.",
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 10
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 30
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 10
+              },
+              "op": "<",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 30
+              }
+            }
+          ]
+        }
+      },
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W10",
+      "slug": "quantjourney-w10-monthly-circuit-breaker",
+      "name": "Monthly + Circuit Breaker",
+      "shortName": "Monthly Circuit Breaker",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["trend", "risk"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end, 15% drawdown breaker",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Monthly ETF trend; flatten on a 15% drawdown + cooldown",
+      "rules": "Monthly SMA 50/200 trend on 8 multi-asset ETFs; if the portfolio draws down 15% go to cash for a 10-day cooldown.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_10_monthly_circuit_breaker.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_10_monthly_circuit_breaker.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-10-monthly-circuit-breaker",
+      "published": {
+        "totalReturnPct": 14.19,
+        "cagrPct": 0.7,
+        "sharpe": -0.45,
+        "maxDrawdownPct": -10.58,
+        "volatilityPct": 2.35,
+        "sortino": -0.65,
+        "calmar": 0.07,
+        "winRatePct": 53.31,
+        "profitFactor": 1.11,
+        "profitFactorInfinite": false,
+        "trades": 3924,
+        "beta": 0.02,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W11",
+      "slug": "quantjourney-w11-quarterly-te-cost-gate",
+      "name": "Quarterly TE + Cost Gate",
+      "shortName": "Quarterly TE Cost Gate",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["momentum"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Quarter-end, 6% TE trigger, 4× turnover cap",
+      "orderType": null,
+      "strategyType": "Long Only",
+      "summary": "Momentum with tracking-error trigger and turnover budget",
+      "rules": "Quarterly momentum rotation on 8 multi-asset ETFs; rebalance early when the 63-day tracking error to SPY exceeds 6%; skip trades once a rolling 252-day turnover budget of 4x is spent.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_11_quarterly_te_cost_gate.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_11_quarterly_te_cost_gate.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-11-quarterly-te-cost-gate",
+      "published": {
+        "totalReturnPct": 266.04,
+        "cagrPct": 7.07,
+        "sharpe": 0.44,
+        "maxDrawdownPct": -25.47,
+        "volatilityPct": 12.95,
+        "sortino": 0.62,
+        "calmar": 0.28,
+        "winRatePct": 66.39,
+        "profitFactor": 2.67,
+        "profitFactorInfinite": false,
+        "trades": 255,
+        "beta": 0.26,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W12",
+      "slug": "quantjourney-w12-daily-partial-drift",
+      "name": "Daily Partial Drift",
+      "shortName": "Daily Partial Drift",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["momentum"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily, 10% partial drift band",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Momentum tilt; trade only names past a 10% drift band",
+      "rules": "Daily momentum tilt across the sector ETFs; trade only the names whose weight drifted more than 10% from target (partial rebalance).",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_12_daily_partial_drift.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_12_daily_partial_drift.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-12-daily-partial-drift",
+      "published": {
+        "totalReturnPct": 268.9,
+        "cagrPct": 5.15,
+        "sharpe": 0.3,
+        "maxDrawdownPct": -36.75,
+        "volatilityPct": 12.36,
+        "sortino": 0.41,
+        "calmar": 0.14,
+        "winRatePct": 68.15,
+        "profitFactor": 1.62,
+        "profitFactorInfinite": false,
+        "trades": 47888,
+        "beta": 0.54,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W13",
+      "slug": "quantjourney-w13-pairs-ratio-zscore",
+      "name": "Pairs Trading (Ratio Z-Score)",
+      "shortName": "Pairs Ratio Z Score",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Stocks",
+      "styles": ["meanrev", "neutral"],
+      "universe": ["KO", "PEP"],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily",
+      "orderType": null,
+      "strategyType": "Market Neutral",
+      "summary": "Market-neutral KO/PEP on a log-ratio z-score",
+      "rules": "KO/PEP pair: z-score of log(KO) - log(PEP) over 60 bars; short the rich leg and long the cheap leg at |z| > 2 (0.5 each); flat at |z| < 0.5.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_13_pairs_ratio_zscore.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_13_pairs_ratio_zscore.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-13-pairs-ratio-zscore",
+      "published": {
+        "totalReturnPct": 48.83,
+        "cagrPct": 1.54,
+        "sharpe": -0.05,
+        "maxDrawdownPct": -23.57,
+        "volatilityPct": 7.84,
+        "sortino": -0.08,
+        "calmar": 0.07,
+        "winRatePct": 49.11,
+        "profitFactor": 1.14,
+        "profitFactorInfinite": false,
+        "trades": 5974,
+        "beta": 0,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W14",
+      "slug": "quantjourney-w14-pairs-hedge-ratio",
+      "name": "Pairs Trading (Hedge Ratio)",
+      "shortName": "Pairs Hedge Ratio",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev", "neutral"],
+      "universe": ["EWA", "EWC"],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily",
+      "orderType": null,
+      "strategyType": "Market Neutral",
+      "summary": "Market-neutral EWA/EWC on a rolling OLS hedge-ratio spread",
+      "rules": "EWA/EWC pair: spread from a rolling hedge ratio (covariance over variance of the logs); same z-score entry 2 and exit 0.5; legs 0.5 each.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_14_pairs_hedge_ratio.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_14_pairs_hedge_ratio.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-14-pairs-hedge-ratio",
+      "published": {
+        "totalReturnPct": 12.36,
+        "cagrPct": 0.45,
+        "sharpe": -0.3,
+        "maxDrawdownPct": -14.27,
+        "volatilityPct": 3.39,
+        "sortino": -0.43,
+        "calmar": 0.03,
+        "winRatePct": 50.18,
+        "profitFactor": 1.06,
+        "profitFactorInfinite": false,
+        "trades": 5102,
+        "beta": 0.01,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W15",
+      "slug": "quantjourney-w15-cross-sectional-momentum",
+      "name": "Cross-Sectional Momentum (L/S)",
+      "shortName": "Cross Sectional Momentum",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["momentum", "neutral"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Market Neutral",
+      "summary": "Long top-3 / short bottom-3 by 12-month return; monthly",
+      "rules": "Month end: rank sector ETFs by 252-bar return; long the top 3 (+0.5 total) and short the bottom 3 (-0.5 total).",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_15_cross_sectional_momentum.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_15_cross_sectional_momentum.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-15-cross-sectional-momentum",
+      "published": {
+        "totalReturnPct": 1.34,
+        "cagrPct": 0.05,
+        "sharpe": -0.24,
+        "maxDrawdownPct": -25.38,
+        "volatilityPct": 6.06,
+        "sortino": -0.32,
+        "calmar": 0,
+        "winRatePct": 49.44,
+        "profitFactor": 1,
+        "profitFactorInfinite": false,
+        "trades": 2151,
+        "beta": -0.07,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W16",
+      "slug": "quantjourney-w16-cross-sectional-reversal",
+      "name": "Cross-Sectional Reversal (L/S)",
+      "shortName": "Cross Sectional Reversal",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev", "neutral"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Weekly",
+      "orderType": null,
+      "strategyType": "Market Neutral",
+      "summary": "Long losers / short winners by 1-month return; weekly",
+      "rules": "Fridays: rank sector ETFs by 21-bar return; long the 3 biggest losers and short the 3 biggest winners (0.5 gross each side).",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_16_cross_sectional_reversal.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_16_cross_sectional_reversal.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-16-cross-sectional-reversal",
+      "published": {
+        "totalReturnPct": -1.69,
+        "cagrPct": -0.07,
+        "sharpe": -0.24,
+        "maxDrawdownPct": -33.73,
+        "volatilityPct": 6.52,
+        "sortino": -0.35,
+        "calmar": 0,
+        "winRatePct": 47.55,
+        "profitFactor": 1,
+        "profitFactorInfinite": false,
+        "trades": 10090,
+        "beta": 0.08,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W17",
+      "slug": "quantjourney-w17-vol-target-trend",
+      "name": "Vol-Targeted Trend",
+      "shortName": "Vol Target Trend",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["trend", "risk"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "SMA trend basket scaled to a 10% volatility target",
+      "rules": "SMA 50/200 trend basket on 8 multi-asset ETFs, scaled to 10% annual volatility (63-bar estimate, at most 1.5x); month-end rebalance.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_17_vol_target_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_17_vol_target_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-17-vol-target-trend",
+      "published": {
+        "totalReturnPct": 169,
+        "cagrPct": 5.35,
+        "sharpe": 0.36,
+        "maxDrawdownPct": -28.87,
+        "volatilityPct": 12.71,
+        "sortino": 0.48,
+        "calmar": 0.19,
+        "winRatePct": 63.78,
+        "profitFactor": 1.93,
+        "profitFactorInfinite": false,
+        "trades": 1212,
+        "beta": 0.27,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W18",
+      "slug": "quantjourney-w18-vol-target-momentum",
+      "name": "Vol-Targeted Momentum",
+      "shortName": "Vol Target Momentum",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["momentum", "risk"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Momentum basket scaled to a 15% volatility target",
+      "rules": "Top names by 126-bar return among 8 multi-asset ETFs, scaled to 15% annual volatility (42-bar estimate, at most 2x); month-end rebalance.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_18_vol_target_momentum.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_18_vol_target_momentum.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-18-vol-target-momentum",
+      "published": {
+        "totalReturnPct": 621.23,
+        "cagrPct": 10.96,
+        "sharpe": 0.57,
+        "maxDrawdownPct": -41.18,
+        "volatilityPct": 19.5,
+        "sortino": 0.78,
+        "calmar": 0.27,
+        "winRatePct": 64.58,
+        "profitFactor": 2.05,
+        "profitFactorInfinite": false,
+        "trades": 781,
+        "beta": 0.42,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W19",
+      "slug": "quantjourney-w19-risk-parity-multiasset",
+      "name": "Risk Parity (Multi-Asset ERC)",
+      "shortName": "Risk Parity Multi Asset",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Multi-asset",
+      "styles": ["risk"],
+      "universe": ["SPY", "EFA", "EEM", "TLT", "IEF", "GLD", "DBC", "VNQ"],
+      "period": {
+        "start": "2007-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long Only",
+      "summary": "Equal risk contribution across a multi-asset basket",
+      "rules": "All 8 multi-asset ETFs with equal risk contribution from a 63-bar covariance; month-end rebalance.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_19_risk_parity_multiasset.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_19_risk_parity_multiasset.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-19-risk-parity-multiasset",
+      "published": {
+        "totalReturnPct": 84.5,
+        "cagrPct": 3.28,
+        "sharpe": 0.16,
+        "maxDrawdownPct": -35.62,
+        "volatilityPct": 9.16,
+        "sortino": 0.23,
+        "calmar": 0.09,
+        "winRatePct": 60.88,
+        "profitFactor": 1.34,
+        "profitFactorInfinite": false,
+        "trades": 1800,
+        "beta": 0.44,
+        "benchmarkReturnPct": 586.07
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W20",
+      "slug": "quantjourney-w20-risk-parity-capped",
+      "name": "Risk Parity + Position Cap",
+      "shortName": "Risk Parity Capped",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["risk"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long Only",
+      "summary": "Sector ERC chained with a 25% per-position cap",
+      "rules": "Equal risk contribution across the sector ETFs from a 126-bar covariance, then each weight capped at 25% and renormalized; month-end rebalance.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_20_risk_parity_capped.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_20_risk_parity_capped.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-20-risk-parity-capped",
+      "published": {
+        "totalReturnPct": 677.16,
+        "cagrPct": 8.21,
+        "sharpe": 0.45,
+        "maxDrawdownPct": -47.94,
+        "volatilityPct": 13.88,
+        "sortino": 0.63,
+        "calmar": 0.17,
+        "winRatePct": 82,
+        "profitFactor": 11.14,
+        "profitFactorInfinite": false,
+        "trades": 2754,
+        "beta": 0.77,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W21",
+      "slug": "quantjourney-w21-bollinger-reversion",
+      "name": "Bollinger Band Reversion",
+      "shortName": "Bollinger Reversion",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["meanrev"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Buy below the lower band, exit at the midline",
+      "rules": "Per sector ETF: buy when the close is under the lower Bollinger band (SMA 20 - 2 standard deviations); exit when the close is over SMA 20; equal weight, at most 25%.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_21_bollinger_reversion.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_21_bollinger_reversion.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-21-bollinger-reversion",
+      "published": {
+        "totalReturnPct": 486.52,
+        "cagrPct": 7.04,
+        "sharpe": 0.42,
+        "maxDrawdownPct": -35.24,
+        "volatilityPct": 11.67,
+        "sortino": 0.61,
+        "calmar": 0.2,
+        "winRatePct": 59.75,
+        "profitFactor": 1.96,
+        "profitFactorInfinite": false,
+        "trades": 12779,
+        "beta": 0.54,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W22",
+      "slug": "quantjourney-w22-macd-trend",
+      "name": "MACD Trend",
+      "shortName": "MACD Trend",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["trend"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Daily",
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Long while MACD is above its signal line",
+      "rules": "Per sector ETF: hold while the MACD line (EMA 12 - EMA 26) is above its EMA 9 signal line; equal weight, at most 25%.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_22_macd_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_22_macd_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-22-macd-trend",
+      "published": {
+        "totalReturnPct": 186.27,
+        "cagrPct": 4.13,
+        "sharpe": 0.22,
+        "maxDrawdownPct": -35.59,
+        "volatilityPct": 11.94,
+        "sortino": 0.31,
+        "calmar": 0.12,
+        "winRatePct": 63.49,
+        "profitFactor": 1.24,
+        "profitFactorInfinite": false,
+        "trades": 32233,
+        "beta": 0.47,
+        "benchmarkReturnPct": 644.32
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W23",
+      "slug": "quantjourney-w23-fx-time-series-momentum",
+      "name": "FX Time-Series Momentum",
+      "shortName": "FX Time Series Momentum",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "FX",
+      "styles": ["momentum"],
+      "universe": ["EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X"],
+      "period": {
+        "start": "2010-01-04",
+        "end": "2026-01-01"
+      },
+      "benchmark": "DX-Y.NYB",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long / Short FX Proxy",
+      "summary": "Six-month trend across USD-quoted spot pairs; inverse-vol weights",
+      "rules": "Four USD-quoted FX pairs: long or short in the direction of the 126-bar return, weighted by inverse 63-bar volatility; month-end rebalance; price return only.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_23_fx_time_series_momentum.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_23_fx_time_series_momentum.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-23-fx-time-series-momentum",
+      "published": {
+        "totalReturnPct": -27.28,
+        "cagrPct": -1.97,
+        "sharpe": -0.59,
+        "maxDrawdownPct": -29.36,
+        "volatilityPct": 6.7,
+        "sortino": -0.8,
+        "calmar": -0.07,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": 738,
+        "beta": null,
+        "benchmarkReturnPct": 18.48
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W24",
+      "slug": "quantjourney-w24-fx-cross-sectional-momentum",
+      "name": "FX Cross-Sectional Momentum",
+      "shortName": "FX Cross Sectional Momentum",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "FX",
+      "styles": ["momentum", "neutral"],
+      "universe": ["EURUSD=X", "GBPUSD=X", "AUDUSD=X", "NZDUSD=X"],
+      "period": {
+        "start": "2010-01-04",
+        "end": "2026-01-01"
+      },
+      "benchmark": "DX-Y.NYB",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Market Neutral FX Proxy",
+      "summary": "Long strongest / short weakest XXX/USD pair; monthly",
+      "rules": "Month end: rank four USD-quoted FX pairs by 63-bar return; long the strongest and short the weakest (gross 1, net 0); price return only.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_24_fx_cross_sectional_momentum.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_24_fx_cross_sectional_momentum.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-24-fx-cross-sectional-momentum",
+      "published": {
+        "totalReturnPct": -34.12,
+        "cagrPct": -2.58,
+        "sharpe": -1,
+        "maxDrawdownPct": -41.35,
+        "volatilityPct": 4.07,
+        "sortino": -1.32,
+        "calmar": -0.06,
+        "winRatePct": null,
+        "profitFactor": null,
+        "profitFactorInfinite": false,
+        "trades": 527,
+        "beta": null,
+        "benchmarkReturnPct": 18.48
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "W25",
+      "slug": "quantjourney-w25-continuous-futures-trend",
+      "name": "Continuous Futures Trend Proxy",
+      "shortName": "Continuous Futures Trend",
+      "category": "weights",
+      "mode": "weights",
+      "section": "QuantJourney weights",
+      "granularity": "1d",
+      "assetClass": "Futures",
+      "styles": ["trend"],
+      "universe": ["MES=F", "MNQ=F", "ZN=F", "CL=F", "GC=F", "ZC=F"],
+      "period": {
+        "start": "2019-05-06",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": "Month-end",
+      "orderType": null,
+      "strategyType": "Long / Short Futures Proxy",
+      "summary": "Diversified long/short trend on provider continuous series",
+      "rules": "Six continuous futures: long or short by trend direction with inverse-volatility weights; month-end rebalance; price-return proxy, no multipliers or roll costs.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_weights_25_continuous_futures_trend.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_weights_25_continuous_futures_trend.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-weights-25-continuous-futures-trend",
+      "published": {
+        "totalReturnPct": 46.28,
+        "cagrPct": 5.88,
+        "sharpe": 0.62,
+        "maxDrawdownPct": -9.69,
+        "volatilityPct": 6.32,
+        "sortino": 0.88,
+        "calmar": 0.61,
+        "winRatePct": 50,
+        "profitFactor": 5.85,
+        "profitFactorInfinite": false,
+        "trades": 370,
+        "beta": 0.04,
+        "benchmarkReturnPct": 157.81
+      },
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "WF01",
+      "slug": "quantjourney-wf01-rolling-walkforward",
+      "name": "Rolling Walk-Forward",
+      "shortName": "Rolling Walk-Forward Validation",
+      "category": "walk-forward",
+      "mode": "wf",
+      "section": "QuantJourney walk-forward",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["validation"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": null,
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Sliding fixed-length train/test windows with a pre-OOS purge",
+      "rules": "Validation of the W01-style SMA 50/200 sector trend (month-end rebalance) with a rolling walk-forward: fixed-length train and test windows and a purge gap before each test window.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_wf_01_rolling_walkforward.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_wf_01_rolling_walkforward.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-wf-01-rolling-walkforward",
+      "published": null,
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "WF02",
+      "slug": "quantjourney-wf02-expanding-walkforward",
+      "name": "Expanding Walk-Forward",
+      "shortName": "Expanding Walk-Forward Validation",
+      "category": "walk-forward",
+      "mode": "wf",
+      "section": "QuantJourney walk-forward",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["validation"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": null,
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Ever-growing training window vs sliding test window",
+      "rules": "The same SMA 50/200 sector trend validated with an expanding walk-forward: the train window grows from a fixed start.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_wf_02_expanding_walkforward.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_wf_02_expanding_walkforward.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-wf-02-expanding-walkforward",
+      "published": null,
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "WF03",
+      "slug": "quantjourney-wf03-anchored-purge-embargo",
+      "name": "Anchored + Pre-OOS Purging",
+      "shortName": "Anchored Walk-Forward With Pre-OOS Purging",
+      "category": "walk-forward",
+      "mode": "wf",
+      "section": "QuantJourney walk-forward",
+      "granularity": "1d",
+      "assetClass": "Equity ETFs",
+      "styles": ["validation"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": null,
+      "orderType": null,
+      "strategyType": "Long / Cash",
+      "summary": "Fixed and percentage-based exclusions before each test window",
+      "rules": "Weekly RSI sector reversion validated with an anchored walk-forward and a fixed plus percentage purge before each test window.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_wf_03_anchored_purge_embargo.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_wf_03_anchored_purge_embargo.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-wf-03-anchored-purge-embargo",
+      "published": null,
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "WF04",
+      "slug": "quantjourney-wf04-grid-search-optimization",
+      "name": "Grid Search",
+      "shortName": "Grid Search Parameter Optimization",
+      "category": "walk-forward",
+      "mode": "wf",
+      "section": "QuantJourney walk-forward",
+      "granularity": "workflow",
+      "assetClass": "Equity ETFs",
+      "styles": ["validation"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": null,
+      "orderType": null,
+      "strategyType": null,
+      "summary": "Exhaustive SMA fast/slow tuning scored by real backtests",
+      "rules": "Grid search of SMA fast/slow windows (3 x 3 = 9 candidates) for the sector trend, each scored by its backtest Sharpe.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_wf_04_grid_search_optimization.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_wf_04_grid_search_optimization.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-wf-04-grid-search-optimization",
+      "published": null,
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    },
+    {
+      "id": "WF05",
+      "slug": "quantjourney-wf05-optuna-tpe-optimization",
+      "name": "Optuna TPE + Walk-Forward",
+      "shortName": "Optuna TPE Optimization + Walk-Forward",
+      "category": "walk-forward",
+      "mode": "wf",
+      "section": "QuantJourney walk-forward",
+      "granularity": "workflow",
+      "assetClass": "Equity ETFs",
+      "styles": ["validation"],
+      "universe": [
+        "XLB",
+        "XLE",
+        "XLF",
+        "XLI",
+        "XLK",
+        "XLP",
+        "XLU",
+        "XLV",
+        "XLY"
+      ],
+      "period": {
+        "start": "2000-01-03",
+        "end": "2026-01-01"
+      },
+      "benchmark": "SPY",
+      "rebalance": null,
+      "orderType": null,
+      "strategyType": null,
+      "summary": "Bayesian parameter search, then out-of-sample validation",
+      "rules": "Optuna TPE search of SMA fast/slow windows (fast < slow), then a rolling walk-forward of the best pair.",
+      "costs": "engine default 1 bp per traded notional",
+      "file": "example_wf_05_optuna_tpe_optimization.py",
+      "github": "https://github.com/QuantJourneyOrg/quantjourney-bt/blob/4f403d853833e1daa6de01c5b6c6cb3983dc0044/strategies/example_wf_05_optuna_tpe_optimization.py",
+      "dashboard": "https://backtester.quantjourney.cloud/strategies/example-wf-05-optuna-tpe-optimization",
+      "published": null,
+      "dsl": null,
+      "rerun": {
+        "status": "run",
+        "reason": null
+      }
+    }
+  ]
+}

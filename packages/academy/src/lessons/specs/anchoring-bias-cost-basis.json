@@ -1,0 +1,125 @@
+{
+  "slug": "anchoring-bias-cost-basis",
+  "sourceId": "DV6QRHXjqI8",
+  "title": "Anchoring bias: your cost basis is irrelevant to the next decision",
+  "summary": "The speaker says many wheel traders refuse to sell calls below their cost basis, or close trades because they locked in 50%. Both decisions anchor on the past. If a trade has a 99% chance to earn its last 50%, closing it gives that away. Judge each open trade on its odds from today.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["cash-secured-puts", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["anchoring bias", "behavior", "probability", "wheel"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 85,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 10,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Today's price. Decisions start here, not at your old cost basis.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "gray",
+      "caption": "The range of possible prices at expiry, from implied volatility."
+    },
+    {
+      "element": "band1",
+      "color": "blue",
+      "caption": "The one-standard-deviation range: about two-thirds of outcomes."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The short put is far out of the money; little can still go wrong."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "If the chance to keep the last 50% is very high, closing early gives it away."
+    },
+    {
+      "element": "ev",
+      "color": "gold",
+      "caption": "Judge the trade on its expected value from today, not on what you already earned."
+    }
+  ],
+  "formulas": ["probabilityOfProfit", "expectedValue"],
+  "takeaways": [
+    "Your cost basis does not change the odds of the trade from here.",
+    "Do not close a high-probability trade only because you have locked in a gain.",
+    "Ask what the remaining trade pays and risks today."
+  ],
+  "caveats": [
+    "The 99% figure is the speaker's illustration. Real probabilities depend on price, volatility and time left."
+  ]
+}

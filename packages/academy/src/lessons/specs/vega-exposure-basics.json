@@ -1,0 +1,124 @@
+{
+  "slug": "vega-exposure-basics",
+  "sourceId": "DcturE5NybD",
+  "title": "Vega: how implied volatility moves your option price",
+  "summary": "Vega is an option's price sensitivity to implied volatility, in dollars per one point of IV. It is highest near the money and larger for longer-dated options. Vega does not matter at expiration, but it sets the entry price. Put on long-vega trades when IV is low and short-vega trades when IV is high. You can be right on direction and still lose to vega.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "low-vol", "high-vol"],
+    "instruments": ["single-stock", "leaps", "volatility"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["vega", "implied volatility", "time"]
+  },
+  "scene": {
+    "type": "greeks",
+    "greek": "vega",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 365,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock and a one-year at-the-money call."
+    },
+    {
+      "element": "vega",
+      "color": "violet",
+      "caption": "Vega peaks near the money: the dollar change per one point of IV."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "Move the strike away from the price: vega falls."
+    },
+    {
+      "element": "vega",
+      "color": "gold",
+      "caption": "Cut days to expiry from 365 to 7: vega shrinks. Long-dated options carry far more vega.",
+      "time": [0, 1]
+    },
+    {
+      "element": "delta",
+      "color": "blue",
+      "caption": "Delta shows direction. A good directional call can still lose if IV falls."
+    },
+    {
+      "element": "theta",
+      "color": "red",
+      "caption": "Theta is the daily cost of holding the long option."
+    }
+  ],
+  "formulas": ["vega", "blackScholes", "theta"],
+  "takeaways": [
+    "Vega is the option price change per one point of implied volatility.",
+    "Vega is highest near the money and larger for long-dated options.",
+    "Buy vega when IV is low; sell vega when IV is high.",
+    "Second-order Greeks such as vanna and volga matter less than vega for most traders."
+  ],
+  "caveats": []
+}

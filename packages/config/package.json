@@ -1,0 +1,66 @@
+{
+  "name": "@darkfactory/config",
+  "brick": "product",
+  "description": "Zod-validated environment, database profiles and the capabilities.yaml loader.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.js",
+    "./src/server/capabilities-unsupported.js",
+    "./src/database/unsupported.js"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./server": {
+      "workerd": "./src/server.ts",
+      "worker": "./src/server.ts",
+      "browser": "./src/server/unsupported.js",
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./server/capabilities": {
+      "workerd": "./src/server/capabilities.ts",
+      "worker": "./src/server/capabilities.ts",
+      "browser": "./src/server/capabilities-unsupported.js",
+      "import": "./src/server/capabilities.ts",
+      "default": "./src/server/capabilities.ts"
+    },
+    "./database": {
+      "workerd": "./src/database.ts",
+      "worker": "./src/database.ts",
+      "browser": "./src/database/unsupported.js",
+      "import": "./src/database.ts",
+      "default": "./src/database.ts"
+    },
+    "./vertex": {
+      "import": "./src/vertex/index.ts",
+      "default": "./src/vertex/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "dependencies": {
+    "@darkfactory/ai": "workspace:*",
+    "@darkfactory/analytics": "workspace:*",
+    "@darkfactory/email": "workspace:*",
+    "yaml": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

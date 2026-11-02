@@ -1,0 +1,86 @@
+{
+  "name": "@darkfactory/db",
+  "version": "0.3.1",
+  "private": true,
+  "description": "Drizzle schema, migrations, seeds and repositories for Postgres.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "license": "MIT",
+  "sideEffects": [
+    "./src/server/unsupported.ts"
+  ],
+  "type": "module",
+  "exports": {
+    "./schema": {
+      "import": "./src/schema/index.ts",
+      "default": "./src/schema/index.ts"
+    },
+    "./server": {
+      "workerd": "./src/server/index.ts",
+      "worker": "./src/server/index.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
+    },
+    "./server/migration": {
+      "import": "./src/server/migration.ts",
+      "default": "./src/server/migration.ts"
+    },
+    "./server/vertex": {
+      "workerd": "./src/server/vertex.ts",
+      "worker": "./src/server/vertex.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/vertex.ts",
+      "default": "./src/server/vertex.ts"
+    },
+    "./server/vertex-research-chat-runtime": {
+      "workerd": "./src/server/vertex-research-chat-runtime.ts",
+      "worker": "./src/server/vertex-research-chat-runtime.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/vertex-research-chat-runtime.ts",
+      "default": "./src/server/vertex-research-chat-runtime.ts"
+    },
+    "./server/vertex-worker": {
+      "workerd": "./src/server/vertex-worker-store.ts",
+      "worker": "./src/server/vertex-worker-store.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/vertex-worker-store.ts",
+      "default": "./src/server/vertex-worker-store.ts"
+    },
+    "./server/vertex-epoch": {
+      "workerd": "./src/server/vertex-epoch.ts",
+      "worker": "./src/server/vertex-epoch.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/vertex-epoch.ts",
+      "default": "./src/server/vertex-epoch.ts"
+    }
+  },
+  "scripts": {
+    "db:check": "bunx --bun --no-install drizzle-kit check --config drizzle.config.ts",
+    "db:generate": "bunx --bun --no-install drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "bunx --bun --no-install drizzle-kit migrate --config drizzle.config.ts",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@darkfactory/config": "workspace:*",
+    "@darkfactory/notifications": "workspace:*",
+    "@darkfactory/shared": "workspace:*",
+    "@darkfactory/storage": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "drizzle-kit": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "brick": "product"
+}

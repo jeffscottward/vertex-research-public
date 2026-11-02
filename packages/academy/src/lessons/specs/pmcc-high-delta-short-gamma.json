@@ -1,0 +1,143 @@
+{
+  "slug": "pmcc-high-delta-short-gamma",
+  "sourceId": "DVOmVnFERyn",
+  "title": "PMCC with a 70-80 delta long call behaves like a short straddle",
+  "summary": "A poor man's covered call with a 70 or 80 delta long call and a 30 delta short call can lose on both sides. If the stock rallies, the short call goes in the money near expiry and its delta nears 100, while the long call's delta stays lower. Net delta turns negative, so the trade loses if the stock falls and if it rises a lot.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["range"],
+    "instruments": ["single-stock", "spreads", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["short gamma", "delta", "diagonal"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "longStrike",
+        "dte": "longDte",
+        "label": "Long 70-delta call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "shortStrike",
+        "dte": "shortDte",
+        "label": "Short 30-delta call"
+      }
+    ],
+    "view": "2d"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 90,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longDte",
+      "label": "Long call days",
+      "default": 120,
+      "min": 30,
+      "max": 720,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortDte",
+      "label": "Short call days",
+      "default": 21,
+      "min": 1,
+      "max": 60,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "legs",
+      "color": "blue",
+      "caption": "Buy a 70 delta call at $90 and sell a 30 delta call at $105."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The short strike at $105 is the key level."
+    },
+    {
+      "element": "now",
+      "color": "violet",
+      "caption": "As expiry nears, the short call delta near the strike rises toward 100.",
+      "time": [0, 0.9]
+    },
+    {
+      "element": "expiry",
+      "color": "red",
+      "caption": "Above $105 the short call's delta exceeds the long call's: the trade is net short and loses as the stock rises."
+    },
+    {
+      "element": "zones",
+      "color": "green",
+      "caption": "The trade makes money only in a small range near the short strike, like a short straddle."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Below the long strike it loses too. Short gamma risk on both sides."
+    }
+  ],
+  "formulas": ["delta", "gamma", "theta"],
+  "takeaways": [
+    "A 70-80 delta long call has less delta than an in-the-money short call near expiry.",
+    "Net delta can turn negative in a strong rally.",
+    "This PMCC version wins only in a narrow range, like a short straddle."
+  ],
+  "caveats": [
+    "Part of the transcript is missing; the speaker's exact fix is not stated in the text."
+  ]
+}

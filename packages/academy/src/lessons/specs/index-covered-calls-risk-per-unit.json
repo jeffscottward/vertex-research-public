@@ -1,0 +1,113 @@
+{
+  "slug": "index-covered-calls-risk-per-unit",
+  "sourceId": "DWMc1kejiKc",
+  "title": "Consider covered calls on major indices",
+  "summary": "Covered calls on major indices such as the S&P 500 and Nasdaq can pay more per unit of risk than covered calls on single stocks, especially when the VIX is in the mid-20s. The index also removes idiosyncratic single-stock risk.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol"],
+    "instruments": ["index-options", "etf", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["index", "VIX", "idiosyncratic risk"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 600,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 17,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 8,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 50,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "An index like the S&P 500: no single company can gap it on its own news.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "blue",
+      "caption": "Realized volatility of the index is lower than for most single stocks."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "With the VIX in the mid-20s, index implied volatility is elevated."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap is large: you get paid more per unit of risk than on many single names."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "annualizedYield"],
+  "takeaways": [
+    "Index covered calls can pay more per unit of risk than single-stock covered calls.",
+    "A VIX in the mid-20s makes index premium richer.",
+    "An index removes idiosyncratic single-stock risk."
+  ],
+  "caveats": [
+    "A short clip with no numbers beyond the VIX level; the chart uses illustrative values."
+  ]
+}

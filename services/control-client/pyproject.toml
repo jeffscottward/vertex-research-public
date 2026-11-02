@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-control-client"
+version = "0.1.0"
+description = "Scoped native client for the Vertex Research control plane."
+requires-python = ">=3.12,<3.13"
+dependencies = ["vertex-gamma-research==0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vertex_control*"]
+exclude = ["tests*"]

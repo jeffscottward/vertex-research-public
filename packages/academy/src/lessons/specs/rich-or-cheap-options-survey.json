@@ -1,0 +1,104 @@
+{
+  "slug": "rich-or-cheap-options-survey",
+  "sourceId": "DWjwE20CSKC",
+  "title": "How do you decide if options are rich or cheap?",
+  "summary": "A 14-second survey video. The speaker asks option buyers and sellers which metrics they use to judge whether options are rich or cheap, and points to his website for his own answer. One common answer is to compare implied volatility with realized volatility.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["volatility"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["rich or cheap", "implied volatility", "survey"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied minus realized",
+      "default": 3,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "gray",
+      "caption": "The stock price path over the period.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much the stock actually moved."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility: how much the options market prices in."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "When implied sits above realized, options look rich. When it sits below, they look cheap."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol"],
+  "takeaways": [
+    "Buyers and sellers both need a way to judge whether options are rich or cheap.",
+    "Comparing implied volatility with realized volatility is one common measure."
+  ],
+  "caveats": [
+    "The transcript has almost no teaching content: it is a survey request. The chart illustrates one common answer, not the speaker's.",
+    "The video promotes the speaker's website."
+  ]
+}

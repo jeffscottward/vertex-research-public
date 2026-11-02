@@ -1,0 +1,125 @@
+{
+  "slug": "covered-calls-not-rent",
+  "sourceId": "DXcjLOPiUA6",
+  "title": "Selling covered calls is not like renting out an apartment",
+  "summary": "If your apartment building doubles in value, you still benefit while you collect rent. If your stock doubles while you have sold covered calls, you do not. The speaker says option premium is a distribution from your future returns: you pay yourself today out of future profits. Sometimes the price is worth it and sometimes it is not.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "income", "upside"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Stock only",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "Stock only: if the stock doubles, you keep the gain, like an owner whose building rises in value."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Covered call: the gain stops at the $105 strike, whatever the stock does."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The gap above the strike is the future return you gave up for today's premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "On the downside the premium helps only a little."
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Sell only when the premium pays enough for the upside you sell."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield"],
+  "takeaways": [
+    "Covered call premium is paid from your future upside.",
+    "Rent does not cap the value of a building; a short call caps the value of the stock to you.",
+    "Sell calls when the premium is high relative to the risk."
+  ],
+  "caveats": ["Promotional: the speaker mentions his tools and link in bio."]
+}

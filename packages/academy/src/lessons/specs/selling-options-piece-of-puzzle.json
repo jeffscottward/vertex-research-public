@@ -1,0 +1,121 @@
+{
+  "slug": "selling-options-piece-of-puzzle",
+  "sourceId": "DVRRSFrjpZf",
+  "title": "Selling options sells your future upside",
+  "summary": "Selling options is not free money. When you sell an option you sell potential future upside, which can be worth more than the income you collect today. Option selling can be one piece of a portfolio, but not the whole portfolio.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "upside cap", "income"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1,
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "view": "2d"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We own 100 shares and sell a 30-day $105 call for income."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "Dashed lines: the shares rise without limit; the short call loses as the stock rises above $105."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "Together at expiry: the gain stops at $105 plus the premium. This is the income trade."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "Maximum profit is the premium plus $5 of stock gain. Everything above that goes to the call buyer."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The downside is almost the same as owning the shares. The premium only cushions it a little."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "caption": "Before expiry, the curve shows the trade today. Time decay pays you while upside stays capped.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["breakevenCall", "extrinsic", "annualizedYield"],
+  "takeaways": [
+    "Option premium is payment for future upside you give away.",
+    "That upside can be worth more than the income received.",
+    "Use option selling as one piece of total portfolio construction, not the whole plan."
+  ],
+  "caveats": ["The transcript is short and promotional; it gives no numbers."]
+}

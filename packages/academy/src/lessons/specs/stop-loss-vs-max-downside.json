@@ -1,0 +1,81 @@
+{
+  "slug": "stop-loss-vs-max-downside",
+  "sourceId": "DY7sBEXtmdm",
+  "title": "A stop-loss order is not your maximum downside",
+  "summary": "A stop-loss works in calm markets. In a crash you can be filled anywhere. The speaker says to plan with the worst case: an option position can lose 100% of its premium and a stock can go to zero. Ask whether the portfolio can absorb that loss, and avoid concentration in one name.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "bearish"],
+    "instruments": ["portfolio", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["risk first", "max loss", "concentration", "stop loss"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Equity positions",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Option overlay",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Overlay leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "core",
+      "color": "blue",
+      "caption": "Equity positions: in the worst case one name can go bankrupt and go to zero."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "Option overlay: the worst case is losing 100% of the premium paid."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Cash is the buffer that absorbs a loss."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Maximum downside is the full loss. A stop order does not limit it when prices gap."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "Size each name so its worst case does not take you out: risk first, invest second, option overlays third."
+    }
+  ],
+  "formulas": ["positionSize", "recovery"],
+  "takeaways": [
+    "Stop-loss orders can fill far from the stop in a fast market.",
+    "Plan for the full loss: 100% of option premium, or a stock going to zero.",
+    "Limit concentration so one worst case is survivable."
+  ],
+  "caveats": []
+}

@@ -1,0 +1,111 @@
+{
+  "slug": "theta-is-the-price-of-gamma",
+  "sourceId": "DWFDAoGCe_m",
+  "title": "Quiz: what is the price of theta? (hint: another Greek)",
+  "summary": "A short quiz. The speaker asks what the price of theta is, hints that the answer is another one of the Greeks, and says knowing it puts you ahead of 90-95% of option traders. He leaves the answer to the comments. The chart puts theta next to the other Greeks of an at-the-money call so you can work out the answer yourself.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["theta", "greeks", "quiz"]
+  },
+  "scene": {
+    "type": "greeks",
+    "greek": "gamma",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 14,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The clip's question: what is the price of theta? Here, an at-the-money call two weeks from expiry."
+    },
+    {
+      "element": "theta",
+      "color": "red",
+      "caption": "Theta: the value the option loses each day. The hint says its price is another Greek."
+    },
+    {
+      "element": "delta",
+      "color": "green",
+      "caption": "Candidate one: delta, how much the option moves per $1 in the stock."
+    },
+    {
+      "element": "vega",
+      "color": "blue",
+      "caption": "Candidate two: vega, how much the option moves per point of implied volatility."
+    },
+    {
+      "element": "gamma",
+      "color": "violet",
+      "caption": "Candidate three: gamma, how fast delta changes. Note it peaks at the strike, where theta is largest."
+    }
+  ],
+  "formulas": ["theta", "gamma", "delta", "vega"],
+  "takeaways": [
+    "The speaker asks: what is the price of theta?",
+    "His hint is that the answer is another one of the Greeks.",
+    "He says knowing the answer puts you ahead of 90-95% of option traders, but leaves the answer to the comments."
+  ],
+  "caveats": [
+    "The clip only asks the question and never states the answer.",
+    "Added context, not from the clip: the usual answer is gamma (option buyers pay theta to hold gamma; sellers collect theta for being short gamma)."
+  ]
+}

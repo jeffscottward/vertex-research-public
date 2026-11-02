@@ -1,0 +1,85 @@
+{
+  "slug": "treasury-issuance-fed-charter",
+  "sourceId": "DTJPXEuicnk",
+  "title": "Why the US Treasury issues bonds: the speaker's view on a self-imposed rule",
+  "summary": "The speaker argues that the US government issues Treasuries only because of a self-imposed rule: the Treasury may not overdraw its account at the Fed. When spending pushes the account negative, the Treasury sells bonds to refill it. He compares the Treasury and the Fed to a married couple filing taxes jointly, and says the government could end the bond market if it wanted to.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "treasuries", "fed", "cash yield"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "This is a reference chart. The lesson is a macro opinion, not a trade structure."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Core holdings carry the market exposure of the portfolio."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Cash earns interest, usually in Treasury bills: the bond market the speaker discusses."
+    },
+    {
+      "element": "options",
+      "color": "blue",
+      "caption": "The options sleeve is the small part of the account that takes option risk."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "Key idea: the speaker says Treasury issuance exists to keep the Treasury account at the Fed from going negative."
+    }
+  ],
+  "formulas": ["positionSize"],
+  "takeaways": [
+    "The speaker says the Treasury sells bonds to keep its Fed account from going negative, a rule he dates to the Fed's 1913 charter.",
+    "He views the Treasury and the Fed as parts of one government, like spouses who file taxes jointly.",
+    "He claims the government created the bond market and could remove it."
+  ],
+  "caveats": [
+    "This is the speaker's macro opinion, closer to Modern Monetary Theory. It is contested and not verified here.",
+    "Legal details (the 1913 charter, overdraft rules) are stated loosely in the transcript. Check primary sources.",
+    "The chart is a generic allocation reference; the transcript gives no portfolio numbers."
+  ]
+}

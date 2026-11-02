@@ -1,0 +1,141 @@
+{
+  "slug": "deep-itm-call-sizing-leverage",
+  "sourceId": "DU6VUHKCTgU",
+  "title": "Size deep in-the-money calls by exposure, not by share count",
+  "summary": "Size deep in-the-money calls by the exposure you want, not like stock. Pick the dollar exposure, for example $100,000. Compute option leverage: delta x stock price / option price (about 1.35 in the example). Buy only enough contracts to match it. Dollar P&L then matches the stock, percent P&L differs, and you avoid more than 100% exposure by accident.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps", "synthetics", "portfolio"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["leverage", "sizing", "stock replacement", "delta"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "1,000 shares ($100k)",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "shareLots"
+        }
+      ]
+    },
+    "b": {
+      "label": "10 deep ITM calls",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 40,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 365,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "shareLots",
+      "label": "Lots of 100 shares",
+      "default": 10,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "contracts",
+      "label": "Call contracts",
+      "default": 10,
+      "min": 1,
+      "max": 100,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "We want $100,000 of exposure to a $100 stock: 1,000 shares."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Owning 1,000 shares costs $100,000."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Ten deep ITM calls with delta near 1 give about the same exposure for much less capital."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The dollar P&L of the two lines is close. The percent P&L differs because the calls use less capital."
+    },
+    {
+      "element": "axes",
+      "color": "red",
+      "caption": "Sizing the calls like stock (spending $100,000 on calls) would give many times the intended exposure."
+    }
+  ],
+  "formulas": ["delta", "positionSize"],
+  "takeaways": [
+    "Decide your dollar exposure first, then size the option to it.",
+    "Option leverage = delta x stock price / option price.",
+    "Matched exposure gives the same dollar P&L as stock but a different percent P&L.",
+    "Sizing deep ITM calls like stock can push you above 100% portfolio exposure without noticing."
+  ],
+  "caveats": [
+    "The transcript's numeric example is partly garbled (about 1.35 leverage with a $70 option); the chart uses round illustrative numbers."
+  ]
+}

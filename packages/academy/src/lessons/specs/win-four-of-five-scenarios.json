@@ -1,0 +1,165 @@
+{
+  "slug": "win-four-of-five-scenarios",
+  "sourceId": "DbLp5m9u1AO",
+  "title": "Build trades that win in four of five price scenarios",
+  "summary": "A stock can sell off big, sell off a little, stay flat, rally a little or rally big. The speaker's core trades win in four of the five: covered calls when his VAY score is high, and OTM put credit spreads, which equal ITM debit call spreads. He avoids iron condors, butterflies and calendars, which win in about three. He sizes every trade for the one losing case.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish", "range"],
+    "instruments": ["spreads", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["scenarios", "credit put spread", "sizing", "edge"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long put strike",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Five scenarios: big sell-off, small sell-off, flat, small rally, big rally."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "Sell the 95 put and buy the 90 put, both below the market."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At expiry the spread keeps the credit in four of the five cases."
+    },
+    {
+      "element": "zones",
+      "color": "green",
+      "caption": "Small sell-off, flat, small rally and big rally all win."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the short strike minus the credit."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Only the big sell-off loses. Size each trade so that loss does not take you out."
+    }
+  ],
+  "formulas": [
+    "breakevenPut",
+    "verticalMaxProfit",
+    "positionSize",
+    "probabilityOfProfit"
+  ],
+  "takeaways": [
+    "Choose structures that win in most price scenarios.",
+    "An OTM put credit spread has the same payoff as an ITM debit call spread.",
+    "Size for the one losing scenario."
+  ],
+  "caveats": [
+    "VAY is the speaker's own metric; it is not verified here.",
+    "The 80% figure is scenario counting, not a measured win rate. Reward:risk is below 1:1; check the owner's X09 rule."
+  ],
+  "backtest": {
+    "structure": "put_credit_spread",
+    "tickers": ["SPY", "QQQ", "IWM"],
+    "scenario": {
+      "label": "2015-2024 decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": -0.3,
+      "longDelta": -0.15,
+      "exitDte": 5,
+      "profitTakePct": 50,
+      "stopLossPct": 200,
+      "riskPct": 3
+    },
+    "note": "One-month OTM put credit spread, 30/15 delta; take half the credit or cut at twice the credit."
+  }
+}

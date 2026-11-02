@@ -1,0 +1,2658 @@
+{
+  "formatVersion": 1,
+  "status": "source-assembled; no database execution, tests, or runtime validation performed",
+  "canonical": {
+    "migration": {
+      "path": "packages/db/migrations/0008_vertex_buildout.sql",
+      "sha256": "c1bf1e48acf300a4a1e24be5fb6983d3ee21f156e3585efef489ceaf0b613570"
+    },
+    "snapshot": {
+      "path": "packages/db/migrations/meta/0008_snapshot.json",
+      "sha256": "6b3b8746217534ed5cab1e7cda4336677894399c889db31f5e1fdfd2cbe97db4",
+      "disposition": "genuine-generator-output-copied-without-edits"
+    },
+    "journal": {
+      "path": "packages/db/migrations/meta/_journal.json",
+      "sha256": "b30661981e5b293ab42ac9ada681b0288cd75358488a2829ce5985eae159d567",
+      "disposition": "genuine-generator-output-copied-without-edits; prior-eight-entries-preserved"
+    },
+    "rollback": {
+      "path": "packages/db/rollback/0008_vertex_buildout.down.sql",
+      "sha256": "3267d596560ecabcb332ef4c2b6b087983f0c020ebee7002a1479de150fda262"
+    }
+  },
+  "generation": {
+    "tool": "drizzle-kit",
+    "version": "0.31.10",
+    "sourceDirectory": "private/verification/foundation/migration-assembly-v2",
+    "raw": {
+      "sql": {
+        "path": "packages/db/migration-sources/0008_vertex_buildout/generated/0008_vertex_buildout.sql",
+        "sha256": "3c520e190662cf317ef0529af07e8a065080232530fc7f724bf3906a6d16211e"
+      },
+      "snapshot": {
+        "path": "packages/db/migration-sources/0008_vertex_buildout/generated/0008_snapshot.json",
+        "sha256": "6b3b8746217534ed5cab1e7cda4336677894399c889db31f5e1fdfd2cbe97db4"
+      },
+      "journal": {
+        "path": "packages/db/migration-sources/0008_vertex_buildout/generated/_journal.json",
+        "sha256": "b30661981e5b293ab42ac9ada681b0288cd75358488a2829ce5985eae159d567"
+      }
+    }
+  },
+  "preservedHistory": [
+    {
+      "path": "packages/db/migrations/0000_misty_lockheed.sql",
+      "sha256": "f9951ea97072a5aaab2ab23bd88ad67211a32ba651af495bf85e6c2034f0122b",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0001_bounded_admin_directory.sql",
+      "sha256": "7ca3378927fadbe394aa00cee2906d3928a82e84e3765538dd372509b7c5ab43",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0002_contact_rate_limits.sql",
+      "sha256": "c9bc07000d3fab3607ef55aaf9a8da28b63165c05f68afc9b4d68b01bc7ad5ac",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0003_groovy_klaw.sql",
+      "sha256": "9236e9e6f959d66f67ad106a0803e2f4bfd5cc0f020ddad46b8d77b81315836c",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0004_amused_hitman.sql",
+      "sha256": "1d5353c95ceca1db851ce6ef263da25191da4aaf66e663de09f5d8c5545d569c",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0005_workflow_durability.sql",
+      "sha256": "4e29fc34cf1970ff183b06261e60a2149650757b1573e715d9fd3c45b16934fc",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+      "sha256": "3bc44313b0f343d190068ecc33c81e9c14440348a2aab09717b3a68026541834",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/0007_workflow_submission_admission.sql",
+      "sha256": "e22af008e56ca8abb197a3bf534f165859fe9295b8b69487d7e3e6737b05ae61",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/meta/0000_snapshot.json",
+      "sha256": "69f98fd7fdfda3fe7ad84baedb3a3c1c516c7825854f57e7aab7d6b7dfa61a49",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/meta/0003_snapshot.json",
+      "sha256": "6244b14edc734a4027166ed0e370d1d97f92e1581a821832ed1756a737887f85",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    },
+    {
+      "path": "packages/db/migrations/meta/0004_snapshot.json",
+      "sha256": "e46e803de59aece00bc75898acb758a97ac9f3375ab4446464dce50e1ca224d7",
+      "disposition": "retained-byte-for-byte-in-canonical-history"
+    }
+  ],
+  "priorJournal": {
+    "originalPath": "packages/db/migrations/meta/_journal.json",
+    "path": "packages/db/migration-sources/0008_vertex_buildout/prior-meta/_journal.json",
+    "sha256": "90c18a0f91d4831084457fb76e7a070e052e61606fd34ac04d079828ca3d2977",
+    "disposition": "original-bytes-preserved; canonical-journal-appends-genuine-entry-8"
+  },
+  "sourceOnlyFiles": [
+    {
+      "originalPath": "packages/db/migrations/0008_vertex_substrate.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0008_vertex_substrate.sql",
+      "sha256": "3a98d0c9a08f3150872a4084e69998806cadd21387a02db95b4ebe67552af8b8",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0009_notification_admission.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0009_notification_admission.sql",
+      "sha256": "ecca2ef12f621aa1c146683b99b6db97ed3647a4ef611254a127c7de2a32c8b7",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0010_vertex_object_metadata.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0010_vertex_object_metadata.sql",
+      "sha256": "a8c0b33cff01ef1c1e3a5e75df4b0360b0ea51177a6f81c4a585efc7b96bde9a",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0011_vertex_authorization.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0011_vertex_authorization.sql",
+      "sha256": "4ae2292e8c2f35ba4c7fa61acb221e322f49bb2c3ffb2bacd86f4c9f63f9ae4e",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0012_vertex_commands.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0012_vertex_commands.sql",
+      "sha256": "90477336f1a8beeb0dbb8bc8c972c4a490f4f886edfeec55775c425d6b6dc287",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0013_vertex_native_facts.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0013_vertex_native_facts.sql",
+      "sha256": "28cc5490a4edb5b8808b2e13a64c1bafae98304b71a956eb34c7b57515069f5b",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0014_vertex_policy.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0014_vertex_policy.sql",
+      "sha256": "4c5f66a045799509e398571968bc2dd8f20dca6320a97b5fcef0a000f652daa5",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0015_vertex_worker.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0015_vertex_worker.sql",
+      "sha256": "8222a31ab27d3bfb96e86722f9af7d262f0cddab0a113aea0aaa8104ca339269",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0016_notification_grants.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0016_notification_grants.sql",
+      "sha256": "bdf1d33a1e9f18831aab6f55595d1e6d43b7f621735c9ac164ace888bfe369d0",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0017_vertex_model_use.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0017_vertex_model_use.sql",
+      "sha256": "27deed0e17f3cb68fb8fbfbfc3aa15111907ba5b8da3b5bfda4ffdc9c24349a2",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0018_vertex_epoch_transitions.sql",
+      "sha256": "07068368230d80d8902a3b07b63d76fff2c847d0e723ed57341d3b6950526cbe",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/forward/0019_vertex_native_approval_audit.sql",
+      "sha256": "dc5c88f708a5b4321976ed6b7b11a18bb488dce607f58280bf1649c4415e41fc",
+      "disposition": "unregistered-hand-forward-source-only; superseded-by-canonical-generated-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0008_vertex_substrate.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0008_vertex_substrate.down.sql",
+      "sha256": "d1cdff5d6038373ed2e713fec7d61f72476f4125ee75ee09cb4101bf180b113a",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0009_notification_admission.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0009_notification_admission.down.sql",
+      "sha256": "2fb96fff4ee261376ab1c295f54588c60d888aab0f63d8438cdd27e996bd0333",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0010_vertex_object_metadata.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0010_vertex_object_metadata.down.sql",
+      "sha256": "ccf25a0f1aacc597899dbf426ba32c82fe5eac0c150efe7d2338a5d6ebba9f42",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0011_vertex_authorization.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0011_vertex_authorization.down.sql",
+      "sha256": "e3a000b68ce56cdc4ebfe3b7c80fdc7ae2cedc5553db90ac07269f312d1021fe",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0012_vertex_commands.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0012_vertex_commands.down.sql",
+      "sha256": "1dbc696efc5764740053ea04b9a4a0dd1a1f4f0f1d3383f9d214e20416a9098f",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0013_vertex_native_facts.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0013_vertex_native_facts.down.sql",
+      "sha256": "014b5eecb9b53960455348d00f9a40ab4804ba748c0566ee96193dec8fd21381",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0018_vertex_epoch_transitions.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0018_vertex_epoch_transitions.down.sql",
+      "sha256": "34caa64c5c0c2e958ea875d7aca1948bcc30e33fc901ef12488f472490ae6044",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    },
+    {
+      "originalPath": "packages/db/rollback/0019_vertex_native_approval_audit.down.sql",
+      "path": "packages/db/migration-sources/0008_vertex_buildout/rollback/0019_vertex_native_approval_audit.down.sql",
+      "sha256": "cac0537c836551ada9e7d5da0665259d51dce51e493f6d4bb26d3076be5160eb",
+      "disposition": "hand-reversal-source-only; do-not-run-against-canonical-0008"
+    }
+  ],
+  "statementReferenceConvention": "One-based semicolon-delimited statements ignoring comments and respecting dollar-quoted bodies; generated statements use Drizzle statement-breakpoints. Original source paths resolve via sourceOnlyFiles after relocation.",
+  "retainedGeneratedStatements": [
+    8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+    27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+    46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64,
+    65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83,
+    84, 85, 86, 87, 88, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121,
+    122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136,
+    137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151,
+    152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166,
+    167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 195, 196,
+    197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211,
+    212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226,
+    227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241,
+    242, 243, 244
+  ],
+  "inheritedTableComparison": [
+    {
+      "table": "workflow_runs",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 21
+      },
+      "generatedStatement": 6,
+      "columns": 9,
+      "checkAndPrimaryKeyConstraints": 4,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_journal",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 22
+      },
+      "generatedStatement": 3,
+      "columns": 10,
+      "checkAndPrimaryKeyConstraints": 8,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_snapshots",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 23
+      },
+      "generatedStatement": 7,
+      "columns": 10,
+      "checkAndPrimaryKeyConstraints": 7,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_approvals",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      },
+      "generatedStatement": 1,
+      "columns": 15,
+      "checkAndPrimaryKeyConstraints": 7,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_evidence",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 25
+      },
+      "generatedStatement": 2,
+      "columns": 7,
+      "checkAndPrimaryKeyConstraints": 4,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_messages",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      },
+      "generatedStatement": 4,
+      "columns": 7,
+      "checkAndPrimaryKeyConstraints": 3,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    },
+    {
+      "table": "workflow_omp_resources",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      },
+      "generatedStatement": 5,
+      "columns": 12,
+      "checkAndPrimaryKeyConstraints": 4,
+      "timestampPrecision": "unchanged; timestamp(3) with time zone where declared"
+    }
+  ],
+  "suppressedGeneratedOperations": [
+    {
+      "generatedStatement": 6,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 21
+      }
+    },
+    {
+      "generatedStatement": 108,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 21
+      }
+    },
+    {
+      "generatedStatement": 3,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 22
+      }
+    },
+    {
+      "generatedStatement": 102,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 22
+      }
+    },
+    {
+      "generatedStatement": 7,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 23
+      }
+    },
+    {
+      "generatedStatement": 109,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 23
+      }
+    },
+    {
+      "generatedStatement": 110,
+      "disposition": "omit-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 23
+      }
+    },
+    {
+      "generatedStatement": 1,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      }
+    },
+    {
+      "generatedStatement": 99,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      }
+    },
+    {
+      "generatedStatement": 100,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      }
+    },
+    {
+      "generatedStatement": 2,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 25
+      }
+    },
+    {
+      "generatedStatement": 101,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 25
+      }
+    },
+    {
+      "generatedStatement": 4,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      }
+    },
+    {
+      "generatedStatement": 103,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      }
+    },
+    {
+      "generatedStatement": 104,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      }
+    },
+    {
+      "generatedStatement": 5,
+      "disposition": "omit-existing-equal-table-columns-checks-primary-key",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 105,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 106,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 107,
+      "disposition": "rename-existing-equal-foreign-key",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 89,
+      "disposition": "omit-stale-payload-drop; 0005-already-installed-generated-final-check",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 11
+      }
+    },
+    {
+      "generatedStatement": 90,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 91,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 2
+      }
+    },
+    {
+      "generatedStatement": 92,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 3
+      }
+    },
+    {
+      "generatedStatement": 93,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 4
+      }
+    },
+    {
+      "generatedStatement": 94,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 5
+      }
+    },
+    {
+      "generatedStatement": 95,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 6
+      }
+    },
+    {
+      "generatedStatement": 96,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 7
+      }
+    },
+    {
+      "generatedStatement": 97,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 8
+      }
+    },
+    {
+      "generatedStatement": 98,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 9
+      }
+    },
+    {
+      "generatedStatement": 180,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 32
+      }
+    },
+    {
+      "generatedStatement": 181,
+      "disposition": "recreate-nonunique-index-to-exact-generated-DESC-NULLS-LAST",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 33
+      }
+    },
+    {
+      "generatedStatement": 182,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 34
+      }
+    },
+    {
+      "generatedStatement": 183,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 35
+      }
+    },
+    {
+      "generatedStatement": 184,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 30
+      }
+    },
+    {
+      "generatedStatement": 185,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 31
+      }
+    },
+    {
+      "generatedStatement": 186,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 37
+      }
+    },
+    {
+      "generatedStatement": 187,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 36
+      }
+    },
+    {
+      "generatedStatement": 188,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 38
+      }
+    },
+    {
+      "generatedStatement": 189,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 2
+      }
+    },
+    {
+      "generatedStatement": 190,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 3
+      }
+    },
+    {
+      "generatedStatement": 191,
+      "disposition": "recreate-nonunique-index-to-exact-generated-DESC-NULLS-LAST",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 27
+      }
+    },
+    {
+      "generatedStatement": 192,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0007_workflow_submission_admission.sql",
+        "statement": 1
+      }
+    },
+    {
+      "generatedStatement": 193,
+      "disposition": "recreate-nonunique-index-to-exact-generated-DESC-NULLS-LAST",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 28
+      }
+    },
+    {
+      "generatedStatement": 194,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 29
+      }
+    },
+    {
+      "generatedStatement": 245,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 18
+      }
+    },
+    {
+      "generatedStatement": 246,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 19
+      }
+    },
+    {
+      "generatedStatement": 247,
+      "disposition": "omit-existing-equal-index",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 20
+      }
+    },
+    {
+      "generatedStatement": 248,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 12
+      }
+    },
+    {
+      "generatedStatement": 249,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 13
+      }
+    },
+    {
+      "generatedStatement": 250,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 14
+      }
+    },
+    {
+      "generatedStatement": 251,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 15
+      }
+    },
+    {
+      "generatedStatement": 252,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 16
+      }
+    },
+    {
+      "generatedStatement": 253,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 17
+      }
+    },
+    {
+      "generatedStatement": 254,
+      "disposition": "omit-existing-equal-outbox-definition",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 11
+      }
+    }
+  ],
+  "inheritedForeignKeyRenames": [
+    {
+      "table": "workflow_runs",
+      "oldName": "workflow_runs_owner_id_fkey",
+      "newName": "workflow_runs_owner_id_user_id_fk",
+      "shape": {
+        "table": "workflow_runs",
+        "columns": ["owner_id"],
+        "target": "user",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 21
+      },
+      "generatedStatement": 108
+    },
+    {
+      "table": "workflow_journal",
+      "oldName": "workflow_journal_run_id_fkey",
+      "newName": "workflow_journal_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_journal",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 22
+      },
+      "generatedStatement": 102
+    },
+    {
+      "table": "workflow_snapshots",
+      "oldName": "workflow_snapshots_run_id_fkey",
+      "newName": "workflow_snapshots_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_snapshots",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 23
+      },
+      "generatedStatement": 109
+    },
+    {
+      "table": "workflow_approvals",
+      "oldName": "workflow_approvals_run_id_fkey",
+      "newName": "workflow_approvals_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_approvals",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      },
+      "generatedStatement": 99
+    },
+    {
+      "table": "workflow_approvals",
+      "oldName": "workflow_approvals_decided_by_fkey",
+      "newName": "workflow_approvals_decided_by_user_id_fk",
+      "shape": {
+        "table": "workflow_approvals",
+        "columns": ["decided_by"],
+        "target": "user",
+        "targetColumns": ["id"],
+        "deletion": "no action",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 24
+      },
+      "generatedStatement": 100
+    },
+    {
+      "table": "workflow_evidence",
+      "oldName": "workflow_evidence_run_id_fkey",
+      "newName": "workflow_evidence_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_evidence",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 25
+      },
+      "generatedStatement": 101
+    },
+    {
+      "table": "workflow_messages",
+      "oldName": "workflow_messages_run_id_fkey",
+      "newName": "workflow_messages_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_messages",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "cascade",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      },
+      "generatedStatement": 103
+    },
+    {
+      "table": "workflow_messages",
+      "oldName": "workflow_messages_author_id_fkey",
+      "newName": "workflow_messages_author_id_user_id_fk",
+      "shape": {
+        "table": "workflow_messages",
+        "columns": ["author_id"],
+        "target": "user",
+        "targetColumns": ["id"],
+        "deletion": "set null",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 26
+      },
+      "generatedStatement": 104
+    },
+    {
+      "table": "workflow_omp_resources",
+      "oldName": "workflow_omp_resources_run_id_fkey",
+      "newName": "workflow_omp_resources_run_id_workflow_runs_id_fk",
+      "shape": {
+        "table": "workflow_omp_resources",
+        "columns": ["run_id"],
+        "target": "workflow_runs",
+        "targetColumns": ["id"],
+        "deletion": "restrict",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      },
+      "generatedStatement": 105
+    },
+    {
+      "table": "workflow_omp_resources",
+      "oldName": "workflow_omp_resources_owner_id_fkey",
+      "newName": "workflow_omp_resources_owner_id_user_id_fk",
+      "shape": {
+        "table": "workflow_omp_resources",
+        "columns": ["owner_id"],
+        "target": "user",
+        "targetColumns": ["id"],
+        "deletion": "restrict",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      },
+      "generatedStatement": 106
+    },
+    {
+      "table": "workflow_omp_resources",
+      "oldName": "workflow_omp_resources_evidence_id_fkey",
+      "newName": "workflow_omp_resources_evidence_id_workflow_evidence_id_fk",
+      "shape": {
+        "table": "workflow_omp_resources",
+        "columns": ["evidence_id"],
+        "target": "workflow_evidence",
+        "targetColumns": ["id"],
+        "deletion": "restrict",
+        "update": "no action"
+      },
+      "source": {
+        "path": "packages/db/migrations/0006_workflow_omp_resources.sql",
+        "statement": 1
+      },
+      "generatedStatement": 107
+    }
+  ],
+  "inheritedIndexReconciliations": [
+    {
+      "name": "workflow_approvals_run_created_idx",
+      "table": "workflow_approvals",
+      "columns": ["run_id", "created_at"],
+      "options": "0 1",
+      "oldSql": "CREATE INDEX \"workflow_approvals_run_created_idx\" ON \"workflow_approvals\" (\"run_id\",\"created_at\" DESC)",
+      "newSql": "CREATE INDEX \"workflow_approvals_run_created_idx\" ON \"workflow_approvals\" USING btree (\"run_id\",\"created_at\" DESC NULLS LAST)",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 33
+      },
+      "generatedStatement": 181,
+      "reason": "0005 DESC defaults to NULLS FIRST; generated requires NULLS LAST. All changed sort columns are NOT NULL; no uniqueness or authority changes. Recreate only these three nonunique indexes."
+    },
+    {
+      "name": "workflow_runs_owner_updated_idx",
+      "table": "workflow_runs",
+      "columns": ["owner_id", "updated_at", "id"],
+      "options": "0 1 1",
+      "oldSql": "CREATE INDEX \"workflow_runs_owner_updated_idx\" ON \"workflow_runs\" (\"owner_id\",\"updated_at\" DESC,\"id\" DESC)",
+      "newSql": "CREATE INDEX \"workflow_runs_owner_updated_idx\" ON \"workflow_runs\" USING btree (\"owner_id\",\"updated_at\" DESC NULLS LAST,\"id\" DESC NULLS LAST)",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 27
+      },
+      "generatedStatement": 191,
+      "reason": "0005 DESC defaults to NULLS FIRST; generated requires NULLS LAST. All changed sort columns are NOT NULL; no uniqueness or authority changes. Recreate only these three nonunique indexes."
+    },
+    {
+      "name": "workflow_runs_owner_state_updated_idx",
+      "table": "workflow_runs",
+      "columns": ["owner_id", "state", "updated_at", "id"],
+      "options": "0 0 1 1",
+      "oldSql": "CREATE INDEX \"workflow_runs_owner_state_updated_idx\" ON \"workflow_runs\" (\"owner_id\",\"state\",\"updated_at\" DESC,\"id\" DESC)",
+      "newSql": "CREATE INDEX \"workflow_runs_owner_state_updated_idx\" ON \"workflow_runs\" USING btree (\"owner_id\",\"state\",\"updated_at\" DESC NULLS LAST,\"id\" DESC NULLS LAST)",
+      "source": {
+        "path": "packages/db/migrations/0005_workflow_durability.sql",
+        "statement": 28
+      },
+      "generatedStatement": 193,
+      "reason": "0005 DESC defaults to NULLS FIRST; generated requires NULLS LAST. All changed sort columns are NOT NULL; no uniqueness or authority changes. Recreate only these three nonunique indexes."
+    }
+  ],
+  "customSql": {
+    "copiedStatements": [
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 6
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 7
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 8
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 4
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 5
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 6
+        },
+        "disposition": "retain-SQL-only-immutable-function-or-trigger"
+      }
+    ],
+    "deferredReplayForeignKey": {
+      "name": "vertex_epoch_transition_replay_authorization_fk",
+      "source": {
+        "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+        "statement": 8
+      },
+      "generatedStatement": 179,
+      "disposition": "amend-exact-generated-statement-once-with-DEFERRABLE-INITIALLY-DEFERRED; never-append-hand-ADD",
+      "referencedUniqueness": "vertex_native_approval_exact_request is an ordinary nondeferrable UNIQUE index on (signer_key_sha256,approval_id,request_sha256)"
+    }
+  },
+  "sourceSemanticComparison": {
+    "normalizations": [
+      "identifier quoting and same-table qualification",
+      "whitespace and keyword case, preserving string literal case",
+      "redundant outer CHECK parentheses",
+      "PRIMARY KEY implies NOT NULL",
+      "NOT NULL/default clause ordering",
+      "numeric zero default literal coercion",
+      "PostgreSQL E escaped newline equals literal newline",
+      "omitted FK actions mean NO ACTION; omitted index method means btree"
+    ],
+    "statements": [
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 1
+        },
+        "generatedStatement": 9,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 2
+        },
+        "generatedStatement": 8,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 3
+        },
+        "generatedStatement": 24,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 4
+        },
+        "generatedStatement": 41,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 5
+        },
+        "generatedStatement": 209,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 6
+        },
+        "generatedStatement": 12,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 7
+        },
+        "generatedStatement": 195,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 8
+        },
+        "generatedStatement": 196,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 9
+        },
+        "generatedStatement": 11,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 10
+        },
+        "generatedStatement": 18,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 11
+        },
+        "generatedStatement": 16,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 12
+        },
+        "generatedStatement": 197,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 13
+        },
+        "generatedStatement": 17,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 14
+        },
+        "generatedStatement": 198,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 15
+        },
+        "generatedStatement": 43,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 16
+        },
+        "generatedStatement": 45,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 17
+        },
+        "generatedStatement": 21,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 18
+        },
+        "generatedStatement": 38,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 19
+        },
+        "generatedStatement": 206,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 20
+        },
+        "generatedStatement": 35,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 21
+        },
+        "generatedStatement": 37,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 22
+        },
+        "generatedStatement": 20,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 23
+        },
+        "generatedStatement": 19,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 24
+        },
+        "generatedStatement": 22,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 25
+        },
+        "generatedStatement": 14,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 26
+        },
+        "generatedStatement": 15,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 27
+        },
+        "generatedStatement": 40,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 28
+        },
+        "generatedStatement": 207,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 29
+        },
+        "generatedStatement": 208,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 30
+        },
+        "generatedStatement": 28,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 31
+        },
+        "generatedStatement": 203,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 32
+        },
+        "generatedStatement": 32,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 33
+        },
+        "generatedStatement": 23,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 34
+        },
+        "generatedStatement": 199,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 35
+        },
+        "generatedStatement": 200,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 36
+        },
+        "generatedStatement": 34,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 37
+        },
+        "generatedStatement": 33,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 38
+        },
+        "generatedStatement": 31,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 39
+        },
+        "generatedStatement": 204,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 40
+        },
+        "generatedStatement": 205,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 41
+        },
+        "generatedStatement": 30,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 42
+        },
+        "generatedStatement": 29,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 43
+        },
+        "generatedStatement": 39,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 44
+        },
+        "generatedStatement": 42,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 45
+        },
+        "generatedStatement": 27,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 46
+        },
+        "generatedStatement": 201,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 47
+        },
+        "generatedStatement": 202,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 48
+        },
+        "generatedStatement": 44,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 49
+        },
+        "generatedStatement": 13,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 50
+        },
+        "generatedStatement": 10,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 51
+        },
+        "generatedStatement": 26,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 52
+        },
+        "generatedStatement": 25,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0008_vertex_substrate.sql",
+          "statement": 53
+        },
+        "generatedStatement": 36,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0009_notification_admission.sql",
+          "statement": 1
+        },
+        "generatedStatement": 46,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0009_notification_admission.sql",
+          "statement": 2
+        },
+        "generatedStatement": 210,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0009_notification_admission.sql",
+          "statement": 3
+        },
+        "generatedStatement": 47,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0010_vertex_object_metadata.sql",
+          "statement": 1
+        },
+        "generatedStatement": 48,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 1
+        },
+        "generatedStatement": 50,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 2
+        },
+        "generatedStatement": 211,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 3
+        },
+        "generatedStatement": 212,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 4
+        },
+        "generatedStatement": 52,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 5
+        },
+        "generatedStatement": 213,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 6
+        },
+        "generatedStatement": 49,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0011_vertex_authorization.sql",
+          "statement": 7
+        },
+        "generatedStatement": 51,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 1
+        },
+        "generatedStatement": 53,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 2
+        },
+        "generatedStatement": 56,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 3
+        },
+        "generatedStatement": 215,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 4
+        },
+        "generatedStatement": 55,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 5
+        },
+        "generatedStatement": 54,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0012_vertex_commands.sql",
+          "statement": 6
+        },
+        "generatedStatement": 214,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 1
+        },
+        "generatedStatement": 60,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 2
+        },
+        "generatedStatement": 220,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 3
+        },
+        "generatedStatement": 221,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 4
+        },
+        "generatedStatement": 59,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 5
+        },
+        "generatedStatement": 216,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 6
+        },
+        "generatedStatement": 217,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 7
+        },
+        "generatedStatement": 218,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 8
+        },
+        "generatedStatement": 219,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 9
+        },
+        "generatedStatement": 57,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 10
+        },
+        "generatedStatement": 65,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 11
+        },
+        "generatedStatement": 224,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 12
+        },
+        "generatedStatement": 64,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 13
+        },
+        "generatedStatement": 223,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 14
+        },
+        "generatedStatement": 58,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 15
+        },
+        "generatedStatement": 63,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 16
+        },
+        "generatedStatement": 62,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 17
+        },
+        "generatedStatement": 61,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0013_vertex_native_facts.sql",
+          "statement": 18
+        },
+        "generatedStatement": 222,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 1
+        },
+        "generatedStatement": 70,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 2
+        },
+        "generatedStatement": 228,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 3
+        },
+        "generatedStatement": 66,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 4
+        },
+        "generatedStatement": 67,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 5
+        },
+        "generatedStatement": 225,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 6
+        },
+        "generatedStatement": 226,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 7
+        },
+        "generatedStatement": 69,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 8
+        },
+        "generatedStatement": 68,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0014_vertex_policy.sql",
+          "statement": 9
+        },
+        "generatedStatement": 227,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 1
+        },
+        "generatedStatement": 77,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 2
+        },
+        "generatedStatement": 232,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 3
+        },
+        "generatedStatement": 74,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 4
+        },
+        "generatedStatement": 230,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 5
+        },
+        "generatedStatement": 76,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 6
+        },
+        "generatedStatement": 231,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 7
+        },
+        "generatedStatement": 78,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 8
+        },
+        "generatedStatement": 71,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 9
+        },
+        "generatedStatement": 229,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 10
+        },
+        "generatedStatement": 72,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 11
+        },
+        "generatedStatement": 75,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0015_vertex_worker.sql",
+          "statement": 12
+        },
+        "generatedStatement": 73,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0016_notification_grants.sql",
+          "statement": 1
+        },
+        "generatedStatement": 80,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0016_notification_grants.sql",
+          "statement": 2
+        },
+        "generatedStatement": 79,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0016_notification_grants.sql",
+          "statement": 3
+        },
+        "generatedStatement": 233,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 1
+        },
+        "generatedStatement": 85,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 2
+        },
+        "generatedStatement": 236,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 3
+        },
+        "generatedStatement": 237,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 4
+        },
+        "generatedStatement": 84,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 5
+        },
+        "generatedStatement": 86,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 6
+        },
+        "generatedStatement": 82,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 7
+        },
+        "generatedStatement": 234,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 8
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 9
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 10
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 11
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 12
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 13
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 14
+        },
+        "generatedStatement": 82,
+        "disposition": "column-already-in-generated-create; do-not-add-twice"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 15
+        },
+        "generatedStatement": 83,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 16
+        },
+        "generatedStatement": 235,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0017_vertex_model_use.sql",
+          "statement": 17
+        },
+        "generatedStatement": 81,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 1
+        },
+        "generatedStatement": 87,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 2
+        },
+        "generatedStatement": 238,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 3
+        },
+        "generatedStatement": 239,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 4
+        },
+        "generatedStatement": 240,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0018_vertex_epoch_transitions.sql",
+          "statement": 5
+        },
+        "generatedStatement": 241,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 1
+        },
+        "generatedStatement": 88,
+        "disposition": "generated-table-retained; all-source-columns-checks-primary-and-foreign-keys-accounted-for"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 2
+        },
+        "generatedStatement": 242,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 3
+        },
+        "generatedStatement": 244,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 7
+        },
+        "generatedStatement": 243,
+        "disposition": "generated-index-retained"
+      },
+      {
+        "source": {
+          "path": "packages/db/migrations/0019_vertex_native_approval_audit.sql",
+          "statement": 8
+        },
+        "generatedStatement": 179,
+        "disposition": "amend-single-generated-FK-with-DEFERRABLE-INITIALLY-DEFERRED; never-append-source-ADD"
+      }
+    ]
+  },
+  "generatedOrdering": "Keep new table declarations, emit new unique indexes before FKs that reference them, then remaining generated operations; reconcile inherited names/indexes; append SQL-only functions/triggers.",
+  "rollbackPolicy": {
+    "emptyNewTables": [
+      "notification_admissions",
+      "notification_authority_current",
+      "notification_authority_versions",
+      "notification_cooldowns",
+      "vertex_account_aliases",
+      "vertex_accounts",
+      "vertex_agent_versions",
+      "vertex_artifact_lineage",
+      "vertex_artifacts",
+      "vertex_backtest_versions",
+      "vertex_claim_evidence",
+      "vertex_collection_datasets",
+      "vertex_collection_generations",
+      "vertex_collection_shards",
+      "vertex_collections",
+      "vertex_command_receipts",
+      "vertex_dataset_sources",
+      "vertex_datasets",
+      "vertex_duplicate_mappings",
+      "vertex_evidence",
+      "vertex_execution_projections",
+      "vertex_grant_actions",
+      "vertex_grant_bindings",
+      "vertex_grant_current",
+      "vertex_grant_versions",
+      "vertex_instruments",
+      "vertex_model_use_attempt_identities",
+      "vertex_model_use_budget_reservations",
+      "vertex_model_use_budget_windows",
+      "vertex_model_use_grant_current",
+      "vertex_model_use_grant_versions",
+      "vertex_model_use_proof_audits",
+      "vertex_module_capabilities",
+      "vertex_module_versions",
+      "vertex_native_approval_audit",
+      "vertex_native_checkpoints",
+      "vertex_native_corporate_actions",
+      "vertex_native_fact_projections",
+      "vertex_native_journal_proofs",
+      "vertex_native_kill_reasons",
+      "vertex_native_kill_states",
+      "vertex_native_reconciliations",
+      "vertex_native_settlement_sources",
+      "vertex_native_settlements",
+      "vertex_object_metadata",
+      "vertex_outbox",
+      "vertex_paper_jobs",
+      "vertex_policy_heads",
+      "vertex_policy_history",
+      "vertex_policy_ownership_pins",
+      "vertex_policy_revocations",
+      "vertex_policy_selections",
+      "vertex_portfolio_epoch_transitions",
+      "vertex_portfolio_lots",
+      "vertex_portfolio_positions",
+      "vertex_portfolio_snapshots",
+      "vertex_projection_heads",
+      "vertex_receipt_fills",
+      "vertex_receipt_orders",
+      "vertex_record_idempotency",
+      "vertex_record_instruments",
+      "vertex_record_relationships",
+      "vertex_records",
+      "vertex_research_proposal_evidence",
+      "vertex_research_proposals",
+      "vertex_reservation_observations",
+      "vertex_reviewed_artifact_links",
+      "vertex_reviews",
+      "vertex_rights_versions",
+      "vertex_sleeve_observations",
+      "vertex_source_identities",
+      "vertex_strategy_versions",
+      "vertex_unavailable_sources",
+      "vertex_worker_agent_publications",
+      "vertex_worker_collection_activations",
+      "vertex_worker_collection_snapshots",
+      "vertex_worker_jobs",
+      "vertex_worker_readiness",
+      "vertex_worker_run_admissions",
+      "vertex_worker_service_grants",
+      "vertex_worker_stages"
+    ],
+    "locks": "ACCESS EXCLUSIVE on all new tables and inherited workflow tables before emptiness/catalog guards",
+    "refusal": "Any populated new table, filtered RLS, inherited FK/index drift, missing object, or outside dependency fails rather than deleting history or using CASCADE.",
+    "inheritedPreserved": "All pre-0008 tables/data/checks/triggers/functions/unique indexes; restore eleven old FK names and three exact old nonunique index definitions.",
+    "ledger": "No Drizzle database migration-ledger mutation. Operator must reconcile bookkeeping separately before any re-application."
+  },
+  "configurationPrerequisite": "A user-approved PostgreSQL DATABASE_URL and available database, with public schema and a transactional migration runner; database application remains unexecuted.",
+  "constraintNamingSource": {
+    "scope": "Only explicit constraint-name property insertions; no columns/types/relationships/checks changed.",
+    "files": [
+      {
+        "path": "packages/db/src/schema/vertex.civet",
+        "beforeSha256": "8fcfeb9c566ab5cf9fc23d5793cb31821b2c8c94ae0b7880e28b8cf7960df80e",
+        "afterSha256": "5bd4360f44871790c6d42b0bdf6a250605b69eb4d89c6ae36297d338a2037792"
+      },
+      {
+        "path": "packages/db/src/schema/vertex-native-facts.civet",
+        "beforeSha256": "dd9876401b15deea6c7b4ba3d221e825379f706a0fe8828e01b50ec9ce09ae76",
+        "afterSha256": "c8f6ae2c27bb3b0c43afe11d05903c2249f234fe5192d6223a675282f53ec357"
+      },
+      {
+        "path": "packages/db/src/schema/vertex-policy.civet",
+        "beforeSha256": "2396d1705969b0448e2bceedb6d8c50c5a932ab9c6387c18edf05222a4c7f7c5",
+        "afterSha256": "c1e24131818890f846227eb9d8c31eccc706312b4026581939f98a94ba5ee178"
+      },
+      {
+        "path": "packages/db/src/schema/vertex-model-use.civet",
+        "beforeSha256": "f0a610721de7903ca57612a7cbc68138783377f0c071cd7b59b11846776c09dd",
+        "afterSha256": "5bcd6340ab61130c99f3bc8c5b7cf2f632891e0514a9cea364cd225cedbb9d85"
+      }
+    ],
+    "changes": [
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 38,
+        "table": "vertex_collection_generations",
+        "kind": "primaryKey",
+        "name": "vertex_collection_generations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 38,
+        "table": "vertex_collection_generations",
+        "kind": "foreignKey",
+        "name": "vertex_collection_generations_collection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 41,
+        "table": "vertex_collection_shards",
+        "kind": "primaryKey",
+        "name": "vertex_collection_shards_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 41,
+        "table": "vertex_collection_shards",
+        "kind": "foreignKey",
+        "name": "vertex_collection_shards_generation_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 44,
+        "table": "vertex_source_identities",
+        "kind": "primaryKey",
+        "name": "vertex_source_identities_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 44,
+        "table": "vertex_source_identities",
+        "kind": "foreignKey",
+        "name": "vertex_source_identities_generation_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 47,
+        "table": "vertex_unavailable_sources",
+        "kind": "primaryKey",
+        "name": "vertex_unavailable_sources_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 47,
+        "table": "vertex_unavailable_sources",
+        "kind": "foreignKey",
+        "name": "vertex_unavailable_sources_generation_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 50,
+        "table": "vertex_duplicate_mappings",
+        "kind": "primaryKey",
+        "name": "vertex_duplicate_mappings_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 50,
+        "table": "vertex_duplicate_mappings",
+        "kind": "foreignKey",
+        "name": "vertex_duplicate_mappings_source_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 50,
+        "table": "vertex_duplicate_mappings",
+        "kind": "foreignKey",
+        "name": "vertex_duplicate_mappings_canonical_source_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 60,
+        "table": "vertex_record_relationships",
+        "kind": "primaryKey",
+        "name": "vertex_record_relationships_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 60,
+        "table": "vertex_record_relationships",
+        "kind": "foreignKey",
+        "name": "vertex_record_relationships_artifact_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 64,
+        "table": "vertex_strategy_versions",
+        "kind": "primaryKey",
+        "name": "vertex_strategy_versions_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 64,
+        "table": "vertex_strategy_versions",
+        "kind": "foreignKey",
+        "name": "vertex_strategy_versions_record_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 67,
+        "table": "vertex_backtest_versions",
+        "kind": "primaryKey",
+        "name": "vertex_backtest_versions_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 67,
+        "table": "vertex_backtest_versions",
+        "kind": "foreignKey",
+        "name": "vertex_backtest_versions_record_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 76,
+        "table": "vertex_module_capabilities",
+        "kind": "primaryKey",
+        "name": "vertex_module_capabilities_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 76,
+        "table": "vertex_module_capabilities",
+        "kind": "foreignKey",
+        "name": "vertex_module_capabilities_module_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 79,
+        "table": "vertex_record_instruments",
+        "kind": "primaryKey",
+        "name": "vertex_record_instruments_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 79,
+        "table": "vertex_record_instruments",
+        "kind": "foreignKey",
+        "name": "vertex_record_instruments_record_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 93,
+        "table": "vertex_claim_evidence",
+        "kind": "primaryKey",
+        "name": "vertex_claim_evidence_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 93,
+        "table": "vertex_claim_evidence",
+        "kind": "foreignKey",
+        "name": "vertex_claim_evidence_source_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 96,
+        "table": "vertex_collection_datasets",
+        "kind": "primaryKey",
+        "name": "vertex_collection_datasets_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 96,
+        "table": "vertex_collection_datasets",
+        "kind": "foreignKey",
+        "name": "vertex_collection_datasets_generation_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 123,
+        "table": "vertex_portfolio_positions",
+        "kind": "primaryKey",
+        "name": "vertex_portfolio_positions_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 123,
+        "table": "vertex_portfolio_positions",
+        "kind": "foreignKey",
+        "name": "vertex_portfolio_positions_snapshot_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 129,
+        "table": "vertex_reservation_observations",
+        "kind": "primaryKey",
+        "name": "vertex_reservation_observations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 129,
+        "table": "vertex_reservation_observations",
+        "kind": "foreignKey",
+        "name": "vertex_reservation_observations_snapshot_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 132,
+        "table": "vertex_sleeve_observations",
+        "kind": "primaryKey",
+        "name": "vertex_sleeve_observations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex.civet",
+        "line": 132,
+        "table": "vertex_sleeve_observations",
+        "kind": "foreignKey",
+        "name": "vertex_sleeve_observations_snapshot_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 24,
+        "table": "vertex_native_checkpoints",
+        "kind": "primaryKey",
+        "name": "vertex_native_checkpoints_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 24,
+        "table": "vertex_native_checkpoints",
+        "kind": "foreignKey",
+        "name": "vertex_native_checkpoints_projection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 27,
+        "table": "vertex_native_settlements",
+        "kind": "primaryKey",
+        "name": "vertex_native_settlements_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 27,
+        "table": "vertex_native_settlements",
+        "kind": "foreignKey",
+        "name": "vertex_native_settlements_projection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 30,
+        "table": "vertex_native_settlement_sources",
+        "kind": "primaryKey",
+        "name": "vertex_native_settlement_sources_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 30,
+        "table": "vertex_native_settlement_sources",
+        "kind": "foreignKey",
+        "name": "vertex_native_settlement_sources_settlement_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 33,
+        "table": "vertex_native_corporate_actions",
+        "kind": "primaryKey",
+        "name": "vertex_native_corporate_actions_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 33,
+        "table": "vertex_native_corporate_actions",
+        "kind": "foreignKey",
+        "name": "vertex_native_corporate_actions_projection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 36,
+        "table": "vertex_native_reconciliations",
+        "kind": "primaryKey",
+        "name": "vertex_native_reconciliations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 36,
+        "table": "vertex_native_reconciliations",
+        "kind": "foreignKey",
+        "name": "vertex_native_reconciliations_projection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 39,
+        "table": "vertex_native_kill_states",
+        "kind": "primaryKey",
+        "name": "vertex_native_kill_states_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 39,
+        "table": "vertex_native_kill_states",
+        "kind": "foreignKey",
+        "name": "vertex_native_kill_states_projection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 42,
+        "table": "vertex_native_kill_reasons",
+        "kind": "primaryKey",
+        "name": "vertex_native_kill_reasons_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-native-facts.civet",
+        "line": 42,
+        "table": "vertex_native_kill_reasons",
+        "kind": "foreignKey",
+        "name": "vertex_native_kill_reasons_state_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-policy.civet",
+        "line": 21,
+        "table": "vertex_policy_revocations",
+        "kind": "primaryKey",
+        "name": "vertex_policy_revocations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-policy.civet",
+        "line": 21,
+        "table": "vertex_policy_revocations",
+        "kind": "foreignKey",
+        "name": "vertex_policy_revocations_selection_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-model-use.civet",
+        "line": 14,
+        "table": "vertex_model_use_grant_current",
+        "kind": "primaryKey",
+        "name": "vertex_model_use_grant_current_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-model-use.civet",
+        "line": 14,
+        "table": "vertex_model_use_grant_current",
+        "kind": "foreignKey",
+        "name": "vertex_model_use_grant_current_grant_version_fk"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-model-use.civet",
+        "line": 27,
+        "table": "vertex_model_use_budget_reservations",
+        "kind": "primaryKey",
+        "name": "vertex_model_use_budget_reservations_pkey"
+      },
+      {
+        "file": "packages/db/src/schema/vertex-model-use.civet",
+        "line": 27,
+        "table": "vertex_model_use_budget_reservations",
+        "kind": "foreignKey",
+        "name": "vertex_model_use_budget_reservations_selection_fk"
+      }
+    ]
+  }
+}

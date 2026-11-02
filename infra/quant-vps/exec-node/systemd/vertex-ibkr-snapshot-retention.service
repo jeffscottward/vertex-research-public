@@ -1,0 +1,9 @@
+[Unit]
+Description=Vertex: prune old IBKR account snapshot JSON (keep 30 days + newest per older day)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vertex-exec-node
+ExecStart=/usr/bin/python3 /opt/vertex-exec-node/scripts/prune_ibkr_snapshots.py --reports-dir /opt/vertex-exec-node/data/nautilus/reports --keep-days 30 --apply
+Nice=10
+IOSchedulingClass=idle

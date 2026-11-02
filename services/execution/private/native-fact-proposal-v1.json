@@ -1,0 +1,99 @@
+{
+  "status": "proposed-source-shape-awaiting-Main-State-approval",
+  "name": "NativeFactProjection",
+  "version": "1.0.0",
+  "common": {
+    "schemaVersion": "SchemaVersionSchema",
+    "projectionId": "IdentifierSchema",
+    "accountAlias": "IdentifierSchema",
+    "environment": "literal paper",
+    "streamId": "IdentifierSchema",
+    "ownerEpoch": "PositiveSequenceSchema",
+    "sequence": "PositiveSequenceSchema",
+    "previousEventHash": "DigestSchema|null; sequence1 iff null",
+    "eventHash": "DigestSchema; canonical entire fact excluding ONLY eventHash",
+    "occurredAt": "TimestampSchema",
+    "receivedAt": "TimestampSchema; stable first durable write; >=occurredAt",
+    "actorId": "IdentifierSchema; authenticated native emitter, not human reviewer",
+    "policyVersion": "VersionSchema",
+    "expiresAt": "TimestampSchema; observation TTL only, >occurredAt, NOT admission validity",
+    "idempotencyKey": "IdentifierSchema",
+    "sourceKind": "literal paper-simulation",
+    "proof": {
+      "artifactId": "IdentifierSchema",
+      "sha256": "DigestSchema",
+      "sourceEventId": "IdentifierSchema"
+    },
+    "fact": "strict discriminated union below",
+    "authoritative": "literal false",
+    "reservationAuthority": "literal native-owner-only",
+    "executionAuthorized": "literal false"
+  },
+  "facts": {
+    "checkpoint": {
+      "kind": "literal checkpoint",
+      "snapshotId": "IdentifierSchema",
+      "snapshotSha256": "DigestSchema",
+      "journalSequence": "PositiveSequenceSchema",
+      "journalHeadHash": "DigestSchema"
+    },
+    "cash-settlement": {
+      "kind": "literal cash-settlement",
+      "settlementId": "IdentifierSchema",
+      "currency": "ISO currency",
+      "cashDelta": "DecimalStringSchema",
+      "fillEventIds": "unique IdentifierSchema[] 1..512"
+    },
+    "assignment": {
+      "kind": "literal assignment",
+      "settlementId": "IdentifierSchema",
+      "instrumentId": "IdentifierSchema",
+      "underlyingId": "IdentifierSchema",
+      "settlementKind": "cash|physical",
+      "quantity": "PositiveDecimalSchema",
+      "currency": "ISO currency",
+      "cashDelta": "DecimalStringSchema",
+      "shareDelta": "DecimalStringSchema",
+      "dueAt": "TimestampSchema",
+      "fillEventIds": "unique IdentifierSchema[] 1..512"
+    },
+    "exercise": "same exact fields as assignment except kind literal exercise",
+    "option-expiry": "same exact fields as assignment except kind literal option-expiry; cashDelta=0/shareDelta=0",
+    "corporate-action": {
+      "kind": "literal corporate-action",
+      "actionId": "IdentifierSchema",
+      "oldInstrumentId": "IdentifierSchema",
+      "newInstrumentId": "IdentifierSchema",
+      "quantityNumerator": "PositiveSequenceSchema",
+      "quantityDenominator": "PositiveSequenceSchema",
+      "previousQuantity": "DecimalStringSchema",
+      "newQuantity": "DecimalStringSchema",
+      "cashDelta": "DecimalStringSchema",
+      "currency": "ISO currency",
+      "previousQualificationSha256": "DigestSchema",
+      "replacementQualificationSha256": "DigestSchema"
+    },
+    "reconciliation": {
+      "kind": "literal reconciliation",
+      "reconciliationId": "IdentifierSchema",
+      "observedSnapshotId": "IdentifierSchema",
+      "unknownCount": "safe integer 0..10000",
+      "reconciled": "boolean"
+    },
+    "kill-state": {
+      "kind": "literal kill-state",
+      "action": "pause-new-risk|reset-new-risk|reconcile-required",
+      "reasonCodes": "unique IdentifierSchema[] 1..64",
+      "grantId": "IdentifierSchema|null; reset requires nonnull"
+    }
+  },
+  "invariants": [
+    "Facts are observation-only and never cash/permission authority.",
+    "Order ExecutionProjection schema is unchanged; both event kinds advance ONE native owner's stream sequence and hash predecessor.",
+    "Genesis PortfolioGenesis remains sequence1 initial checkpoint; next native/order fact is sequence2.",
+    "Proof artifact is an immutable native journal event evidence envelope, stored atomically with fact and independently hash-bound; external model claims are never accepted.",
+    "Assignment/exercise dueAt <= occurredAt; currency and source fill lineage exact. Facts may arrive after original admission expiry, no new risk implied.",
+    "One local transition may carry multiple native facts; journal transaction must atomically append ordered fact list and resulting outbox rows.",
+    "Publication retains original receivedAt on retry. No source field means unknown/reject, not fabricated default."
+  ]
+}

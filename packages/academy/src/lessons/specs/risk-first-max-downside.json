@@ -1,0 +1,67 @@
+{
+  "slug": "risk-first-max-downside",
+  "sourceId": "DUY43_QCW6Z",
+  "title": "Risk first, returns second: start every trade with the max loss",
+  "summary": "When markets rise, people talk about gains; when they fall, they go quiet or panic. The speaker starts each decision from the maximum downside: how much can I lose, before how much can I gain. That builds a solid base for decisions, and good decisions compound alongside returns.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["risk first", "max loss", "decision making", "drawdown"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "recovery"
+  },
+  "params": [
+    {
+      "id": "lossPct",
+      "label": "Loss",
+      "default": 30,
+      "min": 1,
+      "max": 95,
+      "step": 1,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The gain you need to recover from a loss."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "The curve rises faster than the loss: deep losses need very large gains to recover.",
+      "time": [0, 1]
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "A 30% loss needs about a 43% gain just to get back to even."
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Drag the loss slider: a 50% loss needs a 100% gain."
+    },
+    {
+      "element": "curve",
+      "color": "red",
+      "caption": "That is why the speaker asks first: what is my maximum downside?"
+    }
+  ],
+  "formulas": ["recovery", "positionSize"],
+  "takeaways": [
+    "Ask how much you can lose before you ask how much you can gain.",
+    "Knowing the max downside makes decisions calmer when markets fall.",
+    "Good decision making compounds alongside returns."
+  ],
+  "caveats": [
+    "The recovery chart is added to illustrate the idea; the clip gives no numbers.",
+    "The clip ends with a follow and link-in-bio request."
+  ]
+}

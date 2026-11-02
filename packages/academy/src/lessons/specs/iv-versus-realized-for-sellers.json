@@ -1,0 +1,127 @@
+{
+  "slug": "iv-versus-realized-for-sellers",
+  "sourceId": "DZssU-MtqqR",
+  "title": "Option sellers need two numbers: implied and realized volatility",
+  "summary": "For the wheel, covered calls or cash-secured puts, watch implied volatility and realized volatility. When IV is above realized, sellers have an edge. Usually IV trades above realized, but sometimes it does not; then it is a bad time to sell and buying options can be better.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "volatility"
+    ],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["implied volatility", "realized volatility", "seller edge"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV minus RV (premium)",
+      "default": 2,
+      "min": -20,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 90,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 42,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock path over a year. Option sellers trade against how much it moves.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "blue",
+      "caption": "Implied volatility: the market's forecast of the move, priced into the options.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much the stock actually moved recently.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vrp",
+      "color": "green",
+      "caption": "When IV is above realized, the gap is positive: an edge for option sellers.",
+      "time": [0, 0.6]
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "When IV falls below realized, sellers are underpaid. Buying options can be the better side.",
+      "time": [0.6, 1]
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "blackScholes"],
+  "takeaways": [
+    "Track both implied and realized volatility for every name you sell.",
+    "IV above realized gives sellers an edge; IV below realized favors buyers.",
+    "IV usually trades above realized, but not always."
+  ],
+  "caveats": [
+    "The speaker's metric and free Chrome extension are promotional and not verified here."
+  ]
+}

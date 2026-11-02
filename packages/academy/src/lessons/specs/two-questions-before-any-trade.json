@@ -1,0 +1,105 @@
+{
+  "slug": "two-questions-before-any-trade",
+  "sourceId": "DY2TWPVuPGi",
+  "title": "Two questions before any trade: max loss, and can you absorb it",
+  "summary": "At a $14 billion hedge fund, no trade was pitched before two questions were answered. First: what is the maximum possible loss, not the likely loss or the probability of loss? It was written into the trade notes. Second: could the fund absorb that loss and move on? Retail traders tend to think reward first; think risk first instead.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["max loss", "risk first", "position sizing"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "equity"
+  },
+  "params": [
+    {
+      "id": "capital",
+      "label": "Starting capital",
+      "default": 100000,
+      "min": 1000,
+      "max": 10000000,
+      "step": 1000,
+      "unit": "$"
+    },
+    {
+      "id": "riskPct",
+      "label": "Max loss per trade",
+      "default": 2,
+      "min": 0.25,
+      "max": 50,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "winRate",
+      "label": "Win rate",
+      "default": 50,
+      "min": 1,
+      "max": 99,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "payoffRatio",
+      "label": "Win / loss ratio",
+      "default": 1.5,
+      "min": 0.1,
+      "max": 10,
+      "step": 0.1,
+      "unit": "x"
+    },
+    {
+      "id": "trades",
+      "label": "Trades",
+      "default": 100,
+      "min": 10,
+      "max": 500,
+      "step": 10,
+      "unit": "trades"
+    },
+    {
+      "id": "seed",
+      "label": "Random sequence",
+      "default": 11,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Each trade risks a fixed share of capital: its maximum possible loss, decided before entry."
+    },
+    {
+      "element": "paths",
+      "color": "blue",
+      "caption": "Many possible sequences of wins and losses with the same edge.",
+      "time": [0, 1]
+    },
+    {
+      "element": "median",
+      "color": "gold",
+      "caption": "The median path shows the typical outcome."
+    },
+    {
+      "element": "drawdown",
+      "color": "red",
+      "caption": "The drawdown is question two: can you absorb the worst run of losses and move on? Raise the max loss and watch it grow."
+    }
+  ],
+  "formulas": ["positionSize", "kelly", "recovery"],
+  "takeaways": [
+    "Question one: what is the maximum possible loss on this trade? Write it down.",
+    "Question two: can the account absorb that loss and move on?",
+    "Think risk first, then reward. The size of the account does not change the questions."
+  ],
+  "caveats": [
+    "The hedge fund background is the speaker's own claim and is not verified. The chart's win rate and payoff are example values."
+  ]
+}

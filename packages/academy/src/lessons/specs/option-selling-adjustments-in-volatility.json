@@ -1,0 +1,158 @@
+{
+  "slug": "option-selling-adjustments-in-volatility",
+  "sourceId": "DUtiHtxiSWv",
+  "title": "Four ways to adjust an option selling program in a volatile market",
+  "summary": "If covered calls or cash-secured puts have hurt you lately, the speaker lists four changes: sell monthlies instead of weeklies to cut gamma and smooth P&L, move strikes further out of the money, trade smaller, and avoid a position that can lose a multiple of the premium in one day when the stock bounces hard.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol"],
+    "instruments": ["single-stock", "covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["gamma", "weeklies", "sizing", "strike distance"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Weekly put, near strike",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "weeklyStrike",
+          "dte": "weeklyDte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Monthly put, wider strike",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "monthlyStrike",
+          "dte": "monthlyDte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "weeklyStrike",
+      "label": "Weekly put strike",
+      "default": 97,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "weeklyDte",
+      "label": "Weekly days to expiry",
+      "default": 7,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "monthlyStrike",
+      "label": "Monthly put strike",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "monthlyDte",
+      "label": "Monthly days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 45,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Puts sold",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100 in a volatile market, with implied volatility near 45%."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "A weekly put close to the money has high gamma: its P&L swings hard with each move in the stock."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "A monthly put further out of the money has less gamma, so its P&L curve is smoother."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference shows the gamma you remove by going further out in time and wider on the strike."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The wider strike also moves the breakeven down, so the stock has more room to fall."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "Fewer contracts shrink both curves. Size so one bad day does not cost a multiple of the premium.",
+      "time": [0, 0.5]
+    }
+  ],
+  "formulas": ["gamma", "theta", "positionSize", "breakevenPut"],
+  "takeaways": [
+    "Selling monthlies instead of weeklies reduces gamma and smooths the P&L.",
+    "Strikes further out of the money give the stock more room before you lose.",
+    "Smaller size limits the damage from a sharp move against the position.",
+    "A short option can lose a multiple of its premium in one day if the stock jumps."
+  ],
+  "caveats": [
+    "The fourth item is partly garbled in the transcript. Strikes and volatility in the chart are example values."
+  ]
+}

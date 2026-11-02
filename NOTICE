@@ -1,0 +1,82 @@
+Vertex Research
+Copyright Jeff Scott Ward and contributors. Licensed under the MIT License (see LICENSE).
+
+This product includes software adapted from third-party sources:
+
+------------------------------------------------------------------------------
+Glassbench
+https://github.com/davidalmeida90/glassbench
+Commit 255414b3f38b5def667d3b75faf1dfd7c0d25c9b
+License: Apache License, Version 2.0 (see licenses/glassbench-APACHE-2.0.txt)
+
+packages/api/src/agent-rating-placebo.ts adapts the rating replay and the
+shuffled-rating placebo method of backend/deskapp/simulate.py (functions
+simulate in rating mode, metrics, ma_decisions, placebo and band).
+
+Changes: translated from Python to TypeScript; rating mode only (the
+trader-levels mode is not included); typed-array replay; placebo bands are
+computed only at the charted points; random draws use a seeded mulberry32
+stream; the agents percentile counts ties as half; placebo work is bounded
+by bars times simulations.
+
+packages/api/src/agent-model-benchmark.ts adapts the rating agreement
+measures of results/local-models/README.md (ratings that match a baseline
+run; distance to the closest baseline rating on the five-step scale) and the
+exact two-sided sign test of backend/deskapp/paired.py.
+
+Changes: written in TypeScript; an arm's modal rating stands for its reruns;
+the sign test sums in log space; the paired test scores directional hits on a
+5-day forward return instead of valuation statements.
+
+services/vibe-trading/driver/vt_driver.py adapts backend/drivers/vt_driver.py
+(the Vibe-Trading driver: environment set before Vibe-Trading loads, the
+read-only tool allowlist with a tap on each tool object, the LLM callback,
+the committee hooks around Vibe-Trading's swarm runtime and the prompts).
+
+Changes: Vertex JSON-line event protocol with a 2000-character body preview
+and a closing result line; a denylist guard on the allowlist and a check on
+every tool call; the raw registry and each agent's granted tools are
+reported for the adapter to check; only the endpoint's API key survives,
+and git runs with a minimal environment; a clone with agent/.env is
+refused; no tool output files; testable functions for the environment and
+the committee member settings.
+
+services/research/adapters/vibe_trading_framework.py adapts
+backend/deskapp/vibe.py (the closing-block parse, the action mapping, the
+"(omitted)" rule, the child environment and the not-point-in-time flag).
+
+Changes: Vertex ports and types; an allowlisted child environment instead of
+dropping known keys; a timeout and cancellation watch; its own filter of
+the driver's raw tool registry and a check of each agent's granted tools;
+the full-width omitted marker; price parsing; token
+totals that also read the swarm's own count.
+
+packages/api/src/agent-frameworks.ts adapts facts of the Vibe-Trading
+reference sheet in backend/deskapp/frameworks.py.
+
+Changes: rewritten as a typed TypeScript catalog with the Vertex wiring and
+tool lists.
+
+The Glassbench NOTICE file reads:
+
+  Glassbench
+  Copyright 2026 David Arias
+
+  Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+  Glassbench runs on top of the TradingAgents engine (TauricResearch, Apache License 2.0), which is not
+  included in this repository: it is cloned separately as described in the README.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+Vibe-Trading
+https://github.com/HKUDS/Vibe-Trading
+Tag v0.1.18, commit 66eb57634f16344b326d85fd1fe10029c7f348bb
+License: MIT License, Copyright (c) 2026 Vibe-Trading Contributors
+
+No Vibe-Trading code is included in this repository.
+scripts/vibe-trading-setup.sh clones the tag above outside the repository,
+where its own LICENSE and NOTICE files apply. services/vibe-trading/driver/
+vt_driver.py imports Vibe-Trading's modules at run time inside that clone's
+virtual environment.
+------------------------------------------------------------------------------

@@ -1,0 +1,84 @@
+{
+  "name": "@darkfactory/api",
+  "brick": "product",
+  "description": "oRPC contracts, services and router; the source of the typed client and OpenAPI.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.ts"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./server": {
+      "workerd": "./src/server/index.ts",
+      "worker": "./src/server/index.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server/index.ts",
+      "default": "./src/server/index.ts"
+    },
+    "./client": {
+      "import": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./vertex": {
+      "import": "./src/vertex.ts",
+      "default": "./src/vertex.ts"
+    },
+    "./vertex-worker": {
+      "import": "./src/contracts/vertex-worker.ts",
+      "default": "./src/contracts/vertex-worker.ts"
+    },
+    "./vertex-policy": {
+      "import": "./src/contracts/vertex-policy.ts",
+      "default": "./src/contracts/vertex-policy.ts"
+    },
+    "./vertex-model-use": {
+      "import": "./src/contracts/vertex-model-use.ts",
+      "default": "./src/contracts/vertex-model-use.ts"
+    },
+    "./vertex-chart-read": {
+      "import": "./src/vertex-chart-read.ts",
+      "default": "./src/vertex-chart-read.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit .",
+    "openapi:generate": "bun scripts/openapi.ts --write",
+    "openapi:check": "bun scripts/openapi.ts"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "dependencies": {
+    "@darkfactory/academy": "workspace:*",
+    "@darkfactory/auth": "workspace:*",
+    "@darkfactory/config": "workspace:*",
+    "@darkfactory/db": "workspace:*",
+    "@darkfactory/notifications": "workspace:*",
+    "@darkfactory/observability": "workspace:*",
+    "@darkfactory/shared": "workspace:*",
+    "@darkfactory/storage": "workspace:*",
+    "@orpc/client": "catalog:",
+    "@orpc/contract": "catalog:",
+    "@orpc/openapi": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/zod": "catalog:",
+    "drizzle-orm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

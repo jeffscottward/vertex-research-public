@@ -1,0 +1,195 @@
+{
+  "slug": "smci-debit-call-spreads-after-selloff",
+  "sourceId": "DZc3hspO2Q5",
+  "title": "Two debit call spreads for a beaten-down stock with high IV",
+  "summary": "After a sharp SMCI drop, the speaker shows two one-month debit call spreads. The $20/$25 in-the-money spread costs about $4.50 for $5: 11.1% in a month. A more aggressive out-of-the-money spread capped at $50 can return about 300%. High IV makes spreads efficient because the short strike pays well.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["high-vol", "bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["support", "vertical spread", "high IV"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ITM $20/$25 spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "itmLong",
+          "dte": "dte",
+          "label": "Long $20 call"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "itmShort",
+          "dte": "dte",
+          "label": "Short $25 call"
+        }
+      ]
+    },
+    "b": {
+      "label": "OTM $40/$50 spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "otmLong",
+          "dte": "dte",
+          "label": "Long $40 call"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "otmShort",
+          "dte": "dte",
+          "label": "Short $50 call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "SMCI price",
+      "default": 30,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "itmLong",
+      "label": "ITM long strike",
+      "default": 20,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "itmShort",
+      "label": "ITM short strike",
+      "default": 25,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "otmLong",
+      "label": "OTM long strike",
+      "default": 40,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "otmShort",
+      "label": "OTM short strike",
+      "default": 50,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 80,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "SMCI sits near support after a sharp fall. Implied volatility is still high."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Idea 1: buy $20, sell $25, one month. Pay about $4.50 to get back $5: 11.1% if SMCI holds above $25."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Idea 2: further out of the money with a $50 cap. A cheaper debit gives about 300% if SMCI ends above $50."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Idea 1 breaks even near $24.50, below the price. Idea 2 needs a large rally to break even."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "High IV makes the short strike pay a lot, so spreads cost less than single calls."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "Risk for both: the whole debit if SMCI ends below the long strike.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "annualizedYield"],
+  "takeaways": [
+    "When IV is high, debit spreads are efficient because the short strike pays a lot.",
+    "An in-the-money spread gives a small, likely return; an out-of-the-money spread gives a large, unlikely one.",
+    "Both have a known maximum loss equal to the debit."
+  ],
+  "caveats": [
+    "Strikes for idea 2 and the SMCI price are inferred from a garbled transcript.",
+    "Simple annualization of 11.1% a month overstates achievable returns. SMCI is not in the backtest universe; similar names are used."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["AMD", "TSLA", "NVDA"],
+    "scenario": {
+      "label": "2022 selloff and 2023 rebound",
+      "start": "2022-01-01",
+      "end": "2024-06-30"
+    },
+    "rules": {
+      "dte": 30,
+      "longDelta": 0.8,
+      "shortDelta": 0.65,
+      "exitDte": 3,
+      "profitTakePct": 10,
+      "stopLossPct": 60,
+      "riskPct": 2
+    },
+    "note": "In-the-money one-month call spread on volatile tech names after drawdowns."
+  }
+}

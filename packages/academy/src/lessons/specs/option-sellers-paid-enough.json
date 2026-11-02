@@ -1,0 +1,118 @@
+{
+  "slug": "option-sellers-paid-enough",
+  "sourceId": "DWzVGWUiSwo",
+  "title": "Are option sellers paid enough for the risk?",
+  "summary": "Many sellers annualize weekly or monthly premium and assume a high yield. But options are priced on implied volatility, while your P&L depends on realized volatility, what the stock actually does. The real question is whether the premium pays enough for the risk you take.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "volatility"
+    ],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["yield", "IV vs RV", "risk premium"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 35,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 0,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 80,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 13,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock path drives your actual P&L.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Premium is priced from implied volatility. Annualized, it can look like a large yield."
+    },
+    {
+      "element": "rv",
+      "color": "red",
+      "caption": "Realized volatility is what the stock delivers. Here it often runs above implied."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "When the gap is zero or negative, the seller is not paid for the risk, whatever the yield looks like."
+    }
+  ],
+  "formulas": ["annualizedYield", "vrp", "realizedVol"],
+  "takeaways": [
+    "Annualized premium yield does not measure whether you are paid enough.",
+    "Options are priced on implied volatility, but P&L follows realized volatility.",
+    "Ask whether IV exceeds what the stock is likely to deliver."
+  ],
+  "caveats": [
+    "The 'something I built' in the bio link is promotional and not verified here."
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "slug": "exposures-before-structure",
+  "sourceId": "DYsc7OXN6Pm",
+  "title": "Pick the exposures first, then the option structure",
+  "summary": "Retail traders often start with a structure: today I sell a put or an iron condor. The speaker reverses it. First decide the exposures: bullish or bearish, time frame, conviction. Then pick the structure. Put-call parity gives many ways to get the same view; if you are bullish and volatility is high, a call spread or a short put spread may fit.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["spreads", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["process", "put-call parity", "exposures"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Call debit spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "longCall",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "shortCall",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Put credit spread",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "shortPut",
+          "dte": "dte"
+        },
+        {
+          "kind": "put",
+          "side": "long",
+          "qty": 1,
+          "strike": "longPut",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longCall",
+      "label": "Call spread long strike",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortCall",
+      "label": "Call spread short strike",
+      "default": 110,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortPut",
+      "label": "Put spread short strike",
+      "default": 100,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longPut",
+      "label": "Put spread long strike",
+      "default": 90,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 40,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Start with the view: bullish, 30 days, moderate conviction, high volatility."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "One way to express it: buy a call spread."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Another way: sell a put spread. Same bullish direction, different volatility exposure."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Put-call parity links them. The difference is mostly about volatility and financing."
+    },
+    {
+      "element": "breakeven",
+      "color": "gold",
+      "caption": "The exposures choose the structure, not the other way around."
+    }
+  ],
+  "formulas": ["putCallParity", "verticalMaxProfit", "delta"],
+  "takeaways": [
+    "Start with direction, time frame and conviction.",
+    "Then choose the structure that delivers those exposures.",
+    "Put-call parity means many structures can express the same view."
+  ],
+  "caveats": [
+    "The strikes and volatility are illustrative; the speaker gives none."
+  ]
+}

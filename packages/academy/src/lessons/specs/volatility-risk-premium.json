@@ -1,0 +1,118 @@
+{
+  "slug": "volatility-risk-premium",
+  "sourceId": "DWmGlQZjmIw",
+  "title": "The volatility risk premium: implied versus realized volatility",
+  "summary": "Investors earn risk premiums for extra risk: equities over cash, credit over risk-free, long maturities over short. Option sellers earn the volatility risk premium: the gap between implied volatility and the realized volatility the stock actually delivers. That gap is the measuring stick for whether a stock is a good candidate for selling options.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["VRP", "risk premium", "option selling"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied minus realized",
+      "default": 4,
+      "min": -20,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "gray",
+      "caption": "A stock price path. Option sellers are paid to carry the risk of its moves.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility measures how much the stock actually moved."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility is what option prices assume the stock will move."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The volatility risk premium is implied minus realized. A wide, steady gap makes a better candidate for selling options."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "When realized rises above implied, the premium turns negative and the seller loses."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "blackScholes"],
+  "takeaways": [
+    "A risk premium is extra pay for taking extra risk, as with equities, credit and longer maturities.",
+    "The volatility risk premium is implied volatility minus realized volatility.",
+    "Use it to judge whether a stock is a good candidate for selling options."
+  ],
+  "caveats": [
+    "The speaker mentions his own VAY metric and website; these are promotional and not verified."
+  ]
+}

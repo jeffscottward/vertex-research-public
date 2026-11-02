@@ -1,0 +1,125 @@
+{
+  "slug": "learn-options-with-pnl-calculator",
+  "sourceId": "Db54uVxOxk0",
+  "title": "Learn options by playing with a P&L calculator",
+  "summary": "Reading books and memorizing Greeks is not the best way to learn options. Use a P&L calculator. Move the price left and right to feel delta, watch the curve to see gamma, move time to see decay, and move volatility to see vega. You can then compare strategies on the same footing.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["P&L calculator", "greeks", "learning"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "3d",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 45,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock and one at-the-money call, 45 days out."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The expiry payoff: the shape you see in most books."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "caption": "Today's P&L line. Moving the price left and right along it shows delta."
+    },
+    {
+      "element": "now",
+      "color": "violet",
+      "caption": "The curvature of the line is gamma. Change the IV parameter to see vega shift it."
+    },
+    {
+      "element": "surface",
+      "color": "green",
+      "caption": "Move time forward: the line sinks toward the expiry payoff. That is time decay.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Change the strike or the strategy and compare the breakevens side by side."
+    }
+  ],
+  "formulas": ["blackScholes", "delta", "gamma", "theta", "vega"],
+  "takeaways": [
+    "A P&L calculator teaches options faster than definitions.",
+    "Price moves show delta, curvature shows gamma, time shows theta, volatility shows vega.",
+    "Use it to compare strategies on the same footing."
+  ],
+  "caveats": [
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here."
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "slug": "itm-covered-call-otm-put",
+  "sourceId": "DXPlZyQCYY7",
+  "title": "An ITM covered call is an OTM cash-secured put",
+  "summary": "Selling an in-the-money call against stock that ran too far gives downside protection: you cap the upside to collect the intrinsic value plus a little extrinsic premium. At expiry this is the same payoff as selling an out-of-the-money cash-secured put at the same strike. Small differences are dividends and interest on collateral.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["range", "bearish"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "synthetics"
+    ],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["put-call parity", "downside protection"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ITM covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "lots",
+          "label": "Long 100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "lots",
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short ITM call"
+        }
+      ]
+    },
+    "b": {
+      "label": "OTM cash-secured put",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "lots",
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short OTM put"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike (both trades)",
+      "default": 95,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 2,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 32,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "lots",
+      "label": "Lots (100 shares / 1 contract)",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock ran to $100 and looks rich. We do not want to sell shares outright."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "Sell the $95 call against the shares: collect $5 of intrinsic value plus a little extrinsic premium. Upside is capped."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Now sell the $95 put for cash instead. The blue line lands on top of the gold one at expiry."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "time": [0, 1],
+      "caption": "The violet difference stays near zero through time. Only interest on collateral and dividends separate the two."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Both break even at the strike minus the extrinsic premium: the protection is the premium, nothing more."
+    }
+  ],
+  "formulas": ["putCallParity", "extrinsic", "breakevenPut"],
+  "takeaways": [
+    "Stock + short call = short put + cash at the same strike and expiry (put-call parity).",
+    "An ITM call gives more downside cushion than an OTM call but caps upside at a lower price.",
+    "Choose the version with the better collateral, dividend and tax treatment for you."
+  ],
+  "caveats": [
+    "Owning new shares conflicts with the owner's options-only rule; the deploy gate flags it."
+  ],
+  "backtest": {
+    "structure": "covered_call",
+    "tickers": ["AAPL", "KO", "SPY"],
+    "scenario": {
+      "label": "2018-2024 full cycle",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": 0.7,
+      "exitDte": 0,
+      "profitTakePct": 1000
+    },
+    "note": "Monthly 70-delta (in the money) calls sold against 100 shares, held to expiry."
+  }
+}

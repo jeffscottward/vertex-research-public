@@ -1,0 +1,180 @@
+{
+  "slug": "would-you-buy-it-today",
+  "sourceId": "DUTuj6nCf4v",
+  "title": "In a selloff, ask: would you put the trade on today?",
+  "summary": "When the market falls hard, judge each position from a clean sheet. If you still like the fundamentals and the entry point, keep it. Do not sell because of how much you have lost. Volatility is not risk; risk is loss of purchasing power and permanent loss of capital. Good decisions look forward, not back.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bearish", "regime-change"],
+    "instruments": ["single-stock"],
+    "timeframe": "months",
+    "risk": "stock-like",
+    "topics": ["decision making", "sunk cost", "selloff"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1
+      }
+    ],
+    "events": [
+      {
+        "day": 20,
+        "label": "Selloff",
+        "color": "red"
+      },
+      {
+        "day": 45,
+        "label": "Clean-sheet review",
+        "color": "amber"
+      },
+      {
+        "day": 110,
+        "label": "Rebound",
+        "color": "green"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 10,
+        "movePct": 2
+      },
+      {
+        "day": 20,
+        "movePct": -8
+      },
+      {
+        "day": 30,
+        "movePct": -20
+      },
+      {
+        "day": 45,
+        "movePct": -24
+      },
+      {
+        "day": 70,
+        "movePct": -15
+      },
+      {
+        "day": 110,
+        "movePct": 3
+      },
+      {
+        "day": 130,
+        "movePct": 6
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 40,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 5,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 130,
+      "min": 30,
+      "max": 365,
+      "step": 5,
+      "unit": "days"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock you own trades along a volatile path.",
+      "time": [0, 0.15]
+    },
+    {
+      "element": "events",
+      "color": "red",
+      "caption": "The market sells off and good stocks fall with bad ones.",
+      "time": [0.15, 0.35]
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "The position shows a loss. That loss is in the past and does not decide the next move."
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "The question: with a clean sheet, would you buy it today? If yes, hold."
+    },
+    {
+      "element": "price",
+      "color": "green",
+      "caption": "Selling in panic takes away the chance to recover when the stock rebounds.",
+      "time": [0.35, 1]
+    },
+    {
+      "element": "spot",
+      "color": "gold",
+      "caption": "Volatility is opportunity. Risk is inflation and permanent loss of capital."
+    }
+  ],
+  "formulas": ["realizedVol", "recovery"],
+  "takeaways": [
+    "Ask whether you would put the trade on today, from a clean sheet.",
+    "Volatility is not risk; risk is loss of purchasing power and permanent loss of capital.",
+    "Base decisions on the future, not on what you already lost."
+  ],
+  "caveats": [
+    "Part of the transcript is garbled speech-to-text.",
+    "The clip ends with a promotion link."
+  ]
+}

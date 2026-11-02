@@ -1,0 +1,208 @@
+{
+  "schema_version": "1.0.0",
+  "state": "source-authored-and-hash-inspected-not-compiled-or-runtime-qualified",
+  "protocol": {
+    "encoding": "UTF-8 JSON; schema_version exactly 1.0.0; unknown request fields rejected; immutable bytes and SHA256",
+    "python_port": "HistoryOwnerPort.acquire(request_json: bytes, *, cancellation: CancellationSignal) -> await bytes",
+    "python_request": "HistoricalRequest(data: bytes); decode returns a fresh object; sha256 covers exact caller bytes",
+    "python_capture": "HistoricalCapture.bind(data, request) -> frozen Content(data,digest,media_type); application/vnd.vertex.ibkr-history-capture.v1+json",
+    "host_field": "HostPorts.ibkr_history / HostContext.ibkr_history optional, default None; real owner/binding NOT mounted",
+    "native_entry": "HistoryAdapter::from_existing_owner(Arc<Client>, OwnerIdentity, HashMap<String,QualifiedEquity>, Arc<SharedHistoryBudget>, Arc<dyn OwnerAdmission>, Capabilities); acquire_json(&[u8], CancellationToken) -> Result<Capture, static error>",
+    "request": {
+      "schema_version": "1.0.0",
+      "request_id": "ASCII nonempty identifier <=128 chars",
+      "contract_ref": "owner allowlist identifier <=128 chars",
+      "kind": {
+        "bars": {
+          "type": "bars",
+          "what_to_show": ["TRADES", "ADJUSTED_LAST"],
+          "bar_size": ["1 min", "1 day"],
+          "duration_days": "integer 1 for minute, 1..365 for daily",
+          "end_unix_seconds": "REQUIRED nullable field: TRADES integer 946684800..4102444800, not future; ADJUSTED_LAST explicit null only",
+          "use_rth": "explicit boolean"
+        },
+        "bid_ask_ticks": {
+          "type": "bid_ask_ticks",
+          "anchor": ["start", "end"],
+          "anchor_unix_seconds": "integer within requested [session_start,session_end)",
+          "number_of_ticks": "integer 1..1000",
+          "use_rth": "explicit boolean",
+          "ignore_size": "must be false",
+          "session_start_unix_seconds": "integer 946684800..4102444800",
+          "session_end_unix_seconds": "same range, >start, span <=86400 seconds, not future; these are bounds, not automatic calendar qualification"
+        }
+      },
+      "limits": {
+        "timeout_ms": "1000..60000; includes 250ms bounded cancellation-send interval",
+        "max_rows": "1..5000",
+        "max_bytes": "32768..4194304",
+        "max_events": "1..256"
+      }
+    },
+    "capture_fields": {
+      "schema_version": "1.0.0",
+      "request": "decoded request intent",
+      "request_sha256": "SHA256 of original request bytes",
+      "effective_request": "actual SDK argument semantics: what_to_show/bar_size/duration/end/use_rth/format_date=2/keep_up_to_date=false; or BID_ASK anchor/count/use_rth/ignore_size=false/pages=1",
+      "owner": "generation, endpoint_ref, build_ref: opaque identities only",
+      "sdk": "version=ibapi=3.3.0, extension=vertex-history-strict-v1, upstream_archive_sha256, negotiated_server_version",
+      "qualified_contract": "decoded_contract: SDK Contract; semantics: details_sha256,price_magnifier,price_precision,size_unit=shares,volume_unit=shares|lots|unqualified,timezone,calendar_ref",
+      "acquisition": "started_unix_ns, finished_unix_ns, elapsed_monotonic_ns: decimal strings; actual acquisition, not historical arrival",
+      "attempts": "logical_calls 0|1; internal_count 0|1|null; upper_bound 0|1; reserved_history_weight 0|1|2; reserved_api_messages 0|2; dispatch_outcome and sdk_request_id when available",
+      "status": "explicit terminal/rejection/error/bound/deadline/cancellation reason",
+      "source_response_complete": "true only after strict terminal, no error/loss/bound/deadline; not market coverage or raw-wire certification",
+      "capture_complete": "true only when bounded capture retained terminal response without truncation/error",
+      "data_valid": "basic decoded timestamp/numeric/OHLC/session checks only; requires capture_complete; NOT rights/calendar/coverage/PIT qualification",
+      "market_coverage": "unqualified",
+      "point_in_time_adjustments": false,
+      "admissible": "false HERE means acquisition cannot grant research/dataset admission. A subsequent separately reviewed authority may admit a qualified capture.",
+      "cancel_status": "not-requested | send-completed-not-broker-acknowledged | send-failed | send-outcome-unknown-deadline | no-handle-dispatch-outcome-unknown",
+      "owner_slot_quarantined": "true for dispatched request without strict terminal; cancellation send receipt does not resolve uncertainty",
+      "provider_window": "null or decoded bar end-frame {start,end}, each {unix_ns:decimal string,offset_seconds:integer}",
+      "records": "bounded ordered rows below",
+      "events": "bounded [{ordinal,kind,detail,acquired_unix_ns}]; request notices/errors, bar data/end or tick done events; exceeding event/byte bounds is explicitly incomplete",
+      "limitations": "SDK fidelity, adjustment, clocks, cancellation and bounds limitations"
+    },
+    "bar_row": "type=bar; provider_timestamp={kind:date,sdk_decoded_label:YYYY-MM-DD} OR {kind:datetime,value:{unix_ns,offset_seconds}}; open_f64_bits,high_f64_bits,low_f64_bits,close_f64_bits,volume_f64_bits,wap_f64_bits exactly16 lowercase hex IEEE754 bits; trade_count i32; decoded_receive_ordinal integer; acquired_unix_ns decimal string",
+    "tick_row": "type=bid_ask_tick; provider_timestamp={unix_ns,offset_seconds}; provider_timestamp_precision=seconds; bid_f64_bits,ask_f64_bits exactly16 lowercase hex; bid_size_i32,ask_size_i32 signed SDK i32; bid_past_low,ask_past_high booleans; decoded_receive_ordinal; acquired_unix_ns",
+    "ordering": "No sorting, deduplication, OHLC correction, magnification, rounding, negative-volume zeroing or re-timestamping. Receive ordinal is provenance, not exchange tie order. Original numeric spelling/presence and tick batch boundaries are unavailable.",
+    "adjustment": "TRADES split-adjusted, not dividend-adjusted. ADJUSTED_LAST split/dividend-adjusted with real no-end/provider-now semantics; neither is PIT corporate-action evidence. BID_ASK ticks are not BID_ASK aggregate bars."
+  },
+  "strict_extension": {
+    "bar_terminal": "Existing codecs show HistoricalData contains decoded rows but start/end are epoch placeholders. Strict source completion requires HistoricalData followed by genuine HistoricalDataEnd carrying decoded start/end. Unexpected/duplicate/missing terminal, request error, and channel lag fail closed. Zero rows with a valid terminal is a complete empty response, not coverage proof.",
+    "tick_terminal": "Opt-in strict mode must precede first poll. Completion requires SDK batch done=true, all buffered rows drained, no error/lag/premature close/cancellation. Batch boundaries remain SDK-private.",
+    "retry": "Strict bar path sends once using existing encoder/request builder; ticks send once. No hidden retry. A pre-handle failed/interrupted dispatch has unknown internal_count with upper_bound1, not a fabricated send receipt.",
+    "cancellation": "Checked per-request cancellation returns local send result only, not imaginary broker acknowledgment. No shared-client disconnect. Drop is best effort; unresolved dispatch quarantines the shared owner history slot.",
+    "default_behavior": "Original fetch/stream/cancel/default tick behavior and all wire codecs/transports remain unchanged. Exactly two vendored source files changed."
+  },
+  "pacing": {
+    "owner_history_budget": "One outstanding request; conservative chosen owner policy60 weighted units/600s, maximum5 per contract/2s, identical cooldown15s reserved through the whole possible send interval. NOT a claim that official small-bar numeric rules apply universally to minute/daily bars or ticks.",
+    "weight": "bars1, BID_ASK2; strict requests have no internal retry",
+    "global_api": "OwnerAdmission must atomically fence expected generation and reserve2 possible API messages through deadline across ALL connection users. This concrete owner implementation remains a prerequisite, not the old HTTP cost1 gate.",
+    "quarantine": "RAII reservation quarantines unresolved dispatch, timeout, external future drop or error. Worker has no reset/disconnect/reconnect. Genuine terminal releases the slot independently of later dataset validity/coverage qualification."
+  },
+  "remaining_source_work": [
+    "Implement real existing-client owner and opt-in same-image binding, likely inside reviewed Nautilus rc5 native-owner composition. Link Nautilus and this adapter against the SAME patched ibapi crate identity. An opaque stock Python wheel/separately linked registry cannot provide this Arc.",
+    "Mount shared global API admission and this shared history budget for every same-owner user; qualify equity details/units/calendars; provide generation fencing and cancellation-token bridging on the actual owner runtime.",
+    "Owner must retain/join bounded acquisition futures and durably preserve dispatch intent/returned incomplete evidence through crashes. Externally dropping a future quarantines locally but cannot return a fabricated capture.",
+    "Dataset/recipe/admission/rights/immutable provenance mounting remains subsequent work; no market-data normalizer, chart or live-quote pipeline was widened."
+  ],
+  "remaining_runtime_qualification": [
+    "Compiler/type/runtime verification explicitly deferred; source hashes are not runtime proof.",
+    "Actual broker entitlement, gateway/API version, calendar qualification, availability and storage/derived rights unverified.",
+    "Output row/byte/event caps do NOT bound SDK predecode protobuf/frame/vector allocations; owner resource containment separately required.",
+    "Cancellation protocol has no claimed broker acknowledgment; local send receipt only."
+  ],
+  "verification": {
+    "performed": [
+      "static source inspection",
+      "official archive SHA256 verification",
+      "complete upstream file-set/hash comparison",
+      "two-file unified patch capture"
+    ],
+    "not_performed": [
+      "tests",
+      "test authoring",
+      "application imports",
+      "compiler",
+      "build",
+      "lint",
+      "format",
+      "generation",
+      "runtime",
+      "broker calls",
+      "gateway/session actions",
+      "deployment"
+    ]
+  },
+  "untouched": "Normal live/paper Nautilus dependency, execution-kernel, kernel-bridge, dataset/control/API/lab files unchanged by this assignment.",
+  "recorded_at": "2026-09-23T20:38:52.995Z",
+  "source_files": [
+    {
+      "path": "services/ibkr-history/Cargo.toml",
+      "sha256": "f80c177e3eced63b6eafcbc823e38b0a1117ccc93da62835b343b2f429e14972",
+      "bytes": 756
+    },
+    {
+      "path": "services/ibkr-history/src/lib.rs",
+      "sha256": "a679319b2907bca8a954ae5d6ecd44b296059eb2740fc971e1e44ac4dc6209a4",
+      "bytes": 1540
+    },
+    {
+      "path": "services/ibkr-history/src/contracts.rs",
+      "sha256": "54badd15a0d2c2245da776bdce2d0eff0c049b94d4ee6bb925dfd97b7b33fd8d",
+      "bytes": 5856
+    },
+    {
+      "path": "services/ibkr-history/src/adapter.rs",
+      "sha256": "63f91507bf560822e10d217a9a33313c9f1d2416532d2c2fdf4a94f6c5dcc4b7",
+      "bytes": 26798
+    },
+    {
+      "path": "services/ibkr-history/src/pacing.rs",
+      "sha256": "9a8fef78e158794910a8137f278d77298a2e4c3dd624289d4a2549612537550e",
+      "bytes": 4347
+    },
+    {
+      "path": "services/research/providers/ibkr_history.py",
+      "sha256": "7efc63c5fbe9180e4c8543c8766d2574b94e9ed92455cd4d2e182021b151d3f7",
+      "bytes": 9630
+    },
+    {
+      "path": "services/host/vertex_host/context.py",
+      "sha256": "078a45ed39a56cb360dc76ac198b4d9109ae083da151711b5da1d201150cad22",
+      "bytes": 1338
+    },
+    {
+      "path": "services/host/vertex_host/lifecycle.py",
+      "sha256": "b2b699733ee1c0a52d2a5392266d2b02eafa3b601678b27584ddcc23dc8081e6",
+      "bytes": 51030
+    },
+    {
+      "path": "services/ibkr-history/provenance.json",
+      "sha256": "a7d5a205504f623e8a7885f8755425f5f872431a8cf21aca6288b3bb0b8094be",
+      "bytes": 2297
+    },
+    {
+      "path": "services/ibkr-history/ibapi-3.3.0-vertex-strict.patch",
+      "sha256": "f84b9ee3dd04d1bb790a83678f70f84bdb5775e99babf025592eaafdbf6656c3",
+      "bytes": 11250
+    }
+  ],
+  "vendor": {
+    "schema_version": "1.0.0",
+    "recorded_at": "2026-09-23T20:36:38.958Z",
+    "package": "ibapi",
+    "version": "3.3.0",
+    "source": "https://static.crates.io/crates/ibapi/ibapi-3.3.0.crate",
+    "repository": "https://github.com/wboayue/rust-ibapi/",
+    "upstream_archive_sha256": "fc5651f11bacdf138a1a910dc075c21e425912ff767e7f3e237b9fe14d9f3f76",
+    "upstream_archive_bytes": 702145,
+    "upstream_file_count": 466,
+    "upstream_tree_manifest_sha256": "b9491169e4e284d11efb7df4b2ad6b182e9753bad46c7607ddfbc9852c61a65c",
+    "license": "MIT",
+    "license_path": "vendor/ibapi-3.3.0/LICENSE",
+    "license_sha256": "a871ee487f4cc317c9312ed0ee91fb3718fe8bf8436259e5d8a9d54ce71a5bbf",
+    "intended_nautilus": "2.0.0rc5",
+    "extension": "vertex-history-strict-v1",
+    "patch_path": "ibapi-3.3.0-vertex-strict.patch",
+    "patch_sha256": "f84b9ee3dd04d1bb790a83678f70f84bdb5775e99babf025592eaafdbf6656c3",
+    "modified_files": [
+      {
+        "path": "src/market_data/historical/async.rs",
+        "upstream_sha256": "1423d7b42708a4bccec7baeed342231b91e64fecf5bd9b7adb384a73acd7cc46",
+        "patched_sha256": "79a66210545c6a19b7dec19d3a053031745b42fad4f2bb834eea5a4ba0babd97"
+      },
+      {
+        "path": "src/market_data/historical/builder/data.rs",
+        "upstream_sha256": "9f32ad71c843a8b174fa16279b7fe3e5311ebc8fd4e99eb782f3968c958be958",
+        "patched_sha256": "e13156ef383d42f5828cd5252070a168fa94248bce6757f075d6f59866084de5"
+      }
+    ],
+    "scope": "Opt-in strict historical data subscription and strict historical tick handling only; existing API defaults, wire codecs, transport, connection registry and all other upstream files unchanged.",
+    "dependency_scope": "This isolated library path dependency only; no root/global patch and no normal Nautilus/live/paper/risk dependency changes.",
+    "source_status": "Source/hash inspection only. No compiler/import/build/test/runtime verification.",
+    "owner_continuation": "A reviewed same-image Nautilus/native-owner binding must link the exact patched ibapi crate identity and borrow its existing Arc<Client>; no Arc from an opaque Python wheel or separately linked registry. No owner/binding is mounted.",
+    "allocation_limit": "Adapter output bounds do not constrain upstream protobuf frame/vector allocations; owner resource containment is separately required."
+  }
+}

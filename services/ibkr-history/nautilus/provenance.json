@@ -1,0 +1,187 @@
+{
+  "recorded_at": "2026-09-23T22:52:47.225Z",
+  "status": "source-pins-for-opt-in-build-not-installed-or-runtime-qualified",
+  "upstream": {
+    "repository": "https://github.com/nautechsystems/nautilus_trader",
+    "tag": "v2.0.0rc5",
+    "tag_object": "34de0d6f886a9fe8359f9d6590f43f53c86b1d32",
+    "commit": "1b0a49d2792a9432a3aca3fcb617ce7a630d905e",
+    "cargo_lock_sha256": "214c3842cdccad8fa8c880e79379e897b04ba53f714df25c0ef97f848b93f783",
+    "license": "LGPL-3.0-only",
+    "license_path": "LICENSE",
+    "license_sha256": "ee907919ec88c9c017b1f8b608db20960b6598aefcc4fe58820bde955d65ed3c"
+  },
+  "patch": {
+    "path": "nautilus-2.0.0rc5-vertex-history.patch",
+    "sha256": "b1ff889820a08ef59e81f830fa3aafdad6535138830fac9a8dfcd0b53bf77f88",
+    "modified_files": [
+      {
+        "path": "Cargo.toml",
+        "upstream_sha256": "e5338bb3f4f918147dbc92cfbffeaa8b3f8586bcbf8af2e3785ec4ce6f806130",
+        "patched_sha256": "241f59df325f4cb782d5b4820acf8bcf229e2cfb5b64d4ecaa15953b18b08891",
+        "bytes": 23816
+      },
+      {
+        "path": "crates/adapters/interactive_brokers/Cargo.toml",
+        "upstream_sha256": "03452f44b39e40e0cb4aa3848079989e75d6b3223ab6fcd42e6e71f70f7b0c71",
+        "patched_sha256": "deaa3bceae694829a1a974f1ed72b2d75eb780170b5eaa1e599d514a279f7550",
+        "bytes": 4113
+      },
+      {
+        "path": "crates/pyo3/Cargo.toml",
+        "upstream_sha256": "c1a93707b6630b9a23f8564328c4a6bc757e54cd464ea29f1e9776c4816077af",
+        "patched_sha256": "c465a10d1a7f73b6a08524ddb954ac872ca153869738af278f8a7309e8a6b5f9",
+        "bytes": 6691
+      },
+      {
+        "path": "crates/adapters/interactive_brokers/src/python/mod.rs",
+        "upstream_sha256": "5bff0466315c5caa539f840ac7791b625add356ba3a1c97f4451b78ffadcf42c",
+        "patched_sha256": "e77486702253575a5193385a89b7ba7b01734d767960627d36159d614d844d09",
+        "bytes": 8194
+      },
+      {
+        "path": "crates/adapters/interactive_brokers/src/common/shared_client.rs",
+        "upstream_sha256": "7c02c98bd39a7a3eba42c36deb72d450c66d8dc0983eb31129d02e51dbf6944c",
+        "patched_sha256": "db63a27b841a15571fbdc7ee03ac9c56debdb1a6abfe9222ffaf9a16eff6ba69",
+        "bytes": 7860
+      }
+    ]
+  },
+  "binding": {
+    "source": "vertex_history.rs",
+    "sha256": "11e77c8452756125ba78405299273b88926b1f3e5609d8c05c7d97b0907d5dca",
+    "install_path": "crates/adapters/interactive_brokers/src/python/vertex_history.rs"
+  },
+  "same_image_build": {
+    "opt_in_feature": "nautilus-pyo3/vertex-history",
+    "native_module": "nautilus_trader._libnautilus.interactive_brokers.VertexHistoryOwner",
+    "copy_library_from": "services/ibkr-history/{Cargo.toml,src/**,vendor/ibapi-3.3.0/**}",
+    "copy_library_to": "vertex/ibkr-history/{Cargo.toml,src/**,vendor/ibapi-3.3.0/**}",
+    "crate_identity": "Root patch.crates-io ibapi path vertex/ibkr-history/vendor/ibapi-3.3.0 is the SAME canonical path as vertex-ibkr-history Cargo.toml relative vendor/ibapi-3.3.0. Arc<Client> crosses direct Rust function call, never FFI/capsule/raw-pointer/second registry.",
+    "lock_status": "Original lock retained only as provenance; future authorized build must resolve the path patch, inspect exact resulting lock/dependency graph and compiled image. No lock/build/install generated here.",
+    "feature_effect": "vertex-history forwards ibapi/vertex-exclusive-history-owner; ordinary feature-off SDK/wheel behavior unchanged. This opt-in image is exclusive research, never native-paper/live multiplex.",
+    "qualification": "Full actually observed ibapi-serde ContractDetails bytes are embedded base64/hash/observation clock in every capture before its hash/byte accounting. Reviewed stable projection excludes rolling trading_hours/liquid_hours; no historical calendar synthesized."
+  },
+  "sdk_delta": [
+    {
+      "path": "Cargo.toml",
+      "upstream_sha256": "f303cfbe1a73ab19bef6280d94a86adaff706eec808919a59a272b80b654ff31",
+      "patched_sha256": "c3d2d2e8b6fe9e4b59a1745d69b877caedd19f74c9e720e2020ddc379378937b",
+      "bytes": 18741
+    },
+    {
+      "path": "src/connection/async.rs",
+      "upstream_sha256": "81cd8690bcd3d3c5593efbfafc7e146083726cc20989fda3145c5c3b4e0e04a0",
+      "patched_sha256": "a6ceec94beb762156bba7d103c91392f67119e91674f778a0819cc0f76cee779",
+      "bytes": 11654
+    },
+    {
+      "path": "src/connection/async_tests.rs",
+      "upstream_sha256": "b7b5fe65f2bb508be0beadc01c95f24d5ce16de9b62c3c4970cb54af990cd2fb",
+      "patched_sha256": "5862111f1b9284530c5d65177d64b5e5b6e4ce83771bd660fd92e254c8594f4c",
+      "bytes": 13121
+    },
+    {
+      "path": "src/market_data/historical/async.rs",
+      "upstream_sha256": "1423d7b42708a4bccec7baeed342231b91e64fecf5bd9b7adb384a73acd7cc46",
+      "patched_sha256": "79a66210545c6a19b7dec19d3a053031745b42fad4f2bb834eea5a4ba0babd97",
+      "bytes": 29446
+    },
+    {
+      "path": "src/market_data/historical/async_tests.rs",
+      "upstream_sha256": "47d560b65c4f4480683d35aa37688c05beb37cde8f4750694601ba6f1b6b0509",
+      "patched_sha256": "d50d9707964cd546479364540f6781b729ad9b6e9e235e587f38b5886ab29720",
+      "bytes": 49135
+    },
+    {
+      "path": "src/market_data/historical/builder/data.rs",
+      "upstream_sha256": "9f32ad71c843a8b174fa16279b7fe3e5311ebc8fd4e99eb782f3968c958be958",
+      "patched_sha256": "e13156ef383d42f5828cd5252070a168fa94248bce6757f075d6f59866084de5",
+      "bytes": 11035
+    },
+    {
+      "path": "src/transport/async.rs",
+      "upstream_sha256": "8a765ff3cc3f6e9b86054461261286532985f8f117668daedf77b4dfbe8ab040",
+      "patched_sha256": "e36044ae0d1bf4ee11df04fa57bca647ab726bf2fb0cad2688d5b52635f7c09c",
+      "bytes": 34845
+    },
+    {
+      "path": "src/transport/async/io.rs",
+      "upstream_sha256": "81c0bcffdfc01cbe6855614c84cc270c5b89d140e59555e7837dcbc2a2cb91e7",
+      "patched_sha256": "1a60283abad57a46b093618c8c5c76dd688daab75ee8114fb82b0dec9f5db462",
+      "bytes": 3721
+    },
+    {
+      "path": "src/transport/async_tests.rs",
+      "upstream_sha256": "f228fa457f0122ba16b3442d532e863c1ba51d03039088551b74d95464518486",
+      "patched_sha256": "adac6804b16f333fa0f502fdfbb8cbeea8b84b573ae6981ad9192cd26edcfdfb",
+      "bytes": 39905
+    },
+    {
+      "path": "src/transport/common.rs",
+      "upstream_sha256": "8f92d9e57e442bba113283635e726c3cb09c12baf7c75daf9c9c43c0238736d8",
+      "patched_sha256": "cb29973d3d0b079007035d2a6d101040c945e0205abe18dcca2c2da3d877cb7f",
+      "bytes": 3411
+    }
+  ],
+  "verification": {
+    "immutable_commit_sources_matched": 8,
+    "sdk_upstream_files_compared": 466,
+    "sdk_modified_files": 10,
+    "patch_contexts_and_hunk_lengths": "Historical five Nautilus/four SDK text reconstruction predates cfg and synthetic regression follow-ups; current ten-file SDK patch authored from pristine source diff. Parent post-follow-up validation pending.",
+    "not_performed": [
+      "tests",
+      "compiler",
+      "imports",
+      "build",
+      "lint",
+      "format",
+      "generation",
+      "runtime",
+      "broker",
+      "gateway",
+      "sessions",
+      "grants",
+      "deployments"
+    ],
+    "cfg_repair": "Source-only precise cfg repair; see private/basic-assembly/ibkr-sdk-exclusive-cfg-source-handoff.json. Worker ran no compiler/build/test/import/lint/format commands.",
+    "synthetic_regressions": {
+      "state": "authored-not-executed",
+      "test_count": 5,
+      "source_modules": [
+        "src/connection/async_tests.rs",
+        "src/market_data/historical/async_tests.rs",
+        "src/transport/async_tests.rs"
+      ],
+      "filter": "vertex_",
+      "test_only_constructor": "connection::async test module, exclusive feature only; MessageRecorder::new(false, empty String), no environment access"
+    }
+  },
+  "library_sources": [
+    {
+      "path": "services/ibkr-history/Cargo.toml",
+      "sha256": "d0c8ae720098df76c52d61d72185c608a1754f748826a1499e160e057ea56534",
+      "bytes": 785
+    },
+    {
+      "path": "services/ibkr-history/src/lib.rs",
+      "sha256": "8a24bfd213e9db3e56685ef672a664e6105cf4e4feb634a2a10e1225cffeb04c",
+      "bytes": 1636
+    },
+    {
+      "path": "services/ibkr-history/src/adapter.rs",
+      "sha256": "c32a1d3854de7028b7a1448594b24c266172eaba8c5b370a83d1f7078b37bce0",
+      "bytes": 28528
+    },
+    {
+      "path": "services/ibkr-history/src/contracts.rs",
+      "sha256": "54badd15a0d2c2245da776bdce2d0eff0c049b94d4ee6bb925dfd97b7b33fd8d",
+      "bytes": 5856
+    },
+    {
+      "path": "services/ibkr-history/src/pacing.rs",
+      "sha256": "9a8fef78e158794910a8137f278d77298a2e4c3dd624289d4a2549612537550e",
+      "bytes": 4347
+    }
+  ]
+}

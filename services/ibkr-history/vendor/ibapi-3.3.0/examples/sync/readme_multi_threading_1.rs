@@ -1,0 +1,48 @@
+//! Readme Multi Threading 1 example
+//!
+//! # Usage
+//!
+//! ```bash
+//! cargo run --features sync --example readme_multi_threading_1
+//! ```
+
+use ibapi::client::blocking::Client;
+use std::sync::Arc;
+use std::thread;
+
+use ibapi::prelude::*;
+
+fn main() {
+    env_logger::init();
+
+    let connection_url = "127.0.0.1:4002";
+    let client = Arc::new(Client::connect(connection_url, 100).expect("connection to TWS failed!"));
+
+    let symbols = vec!["AAPL", "NVDA"];
+    let mut handles = vec![];
+
+    for symbol in symbols {
+        let client = Arc::clone(&client);
+        let handle = thread::spawn(move || {
+            let contract = Contract::stock(symbol).build();
+            let subscription = client
+                .realtime_bars(&contract)
+                .trading_hours(TradingHours::Extended)
+                .subscribe()
+                .expect("realtime bars request failed!");
+
+            for bar in subscription.iter_data() {
+                match bar {
+                    Ok(bar) => println!("bar: {bar:?}"),
+                    Err(e) => {
+                        eprintln!("error: {e:?}");
+                        break;
+                    }
+                }
+            }
+        });
+        handles.push(handle);
+    }
+
+    handles.into_iter().for_each(|handle| handle.join().unwrap());
+}

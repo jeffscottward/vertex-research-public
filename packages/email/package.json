@@ -1,0 +1,54 @@
+{
+  "name": "@darkfactory/email",
+  "brick": "capability",
+  "description": "Email port and renderers, with a Resend adapter and local preview files.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "./src/server/unsupported.ts"
+  ],
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./adapters": {
+      "import": "./src/adapters.ts",
+      "default": "./src/adapters.ts"
+    },
+    "./server": {
+      "workerd": "./src/server.ts",
+      "worker": "./src/server.ts",
+      "browser": "./src/server/unsupported.ts",
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./recipient": {
+      "types": "./src/recipient.ts",
+      "import": "./src/recipient.ts",
+      "default": "./src/recipient.ts"
+    },
+    "./test": {
+      "import": "./src/test.ts",
+      "default": "./src/test.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "resend": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

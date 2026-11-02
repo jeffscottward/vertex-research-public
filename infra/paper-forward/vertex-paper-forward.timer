@@ -1,0 +1,12 @@
+# Runs the paper forward tick every 15 minutes. A tick without new stored bars records nothing.
+[Unit]
+Description=Vertex paper forward tick timer (paper only)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

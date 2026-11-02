@@ -1,0 +1,72 @@
+"use client";
+
+import { cn } from "@darkfactory/ui";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+import {
+  isNavigationItemActive,
+  type NavigationItem,
+} from "../lib/navigation.ts";
+
+export interface NavigationLinksProps {
+  readonly items: readonly NavigationItem[];
+  readonly currentPath?: string;
+  readonly orientation?: "horizontal" | "vertical";
+  readonly className?: string;
+  readonly linkClassName?: string;
+  readonly showIcons?: boolean;
+  readonly onNavigate?: (() => void) | undefined;
+  readonly prefetch?: boolean;
+}
+
+export const NavigationLinks = ({
+  className,
+  currentPath,
+  items,
+  linkClassName,
+  onNavigate,
+  prefetch,
+  orientation = "horizontal",
+  showIcons = false,
+}: NavigationLinksProps) => {
+  const frameworkPath = usePathname();
+  const pathname = currentPath ?? frameworkPath ?? "";
+
+  return (
+    <ul
+      className={cn(
+        "flex list-none p-0",
+        orientation === "horizontal" ? "items-center gap-1" : "flex-col gap-1",
+        className
+      )}
+    >
+      {items.map((item) => {
+        const active = isNavigationItemActive(pathname, item);
+        const Icon = item.icon;
+        return (
+          <li key={item.href}>
+            <Link
+              {...(onNavigate === undefined ? {} : { onClick: onNavigate })}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex min-h-11 min-w-11 items-center gap-2 rounded-md px-2 font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                orientation === "vertical" && "w-full",
+                active && "text-foreground",
+                linkClassName
+              )}
+              {...(prefetch === undefined ? {} : { prefetch })}
+              href={item.href}
+            >
+              {showIcons ? (
+                <Icon aria-hidden="true" className="size-4 shrink-0" />
+              ) : null}
+              <span>{item.label}</span>
+              {active ? <span className="sr-only">, current page</span> : null}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};

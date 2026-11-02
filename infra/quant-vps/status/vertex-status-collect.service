@@ -1,0 +1,8 @@
+[Unit]
+Description=Vertex read-only deployment status collector
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/vertex-status/collect.py
+Environment=VERTEX_STATUS_V2=0
+Nice=10
+TimeoutStartSec=25

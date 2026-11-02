@@ -1,0 +1,84 @@
+{
+  "slug": "risk-invest-overlay-hierarchy",
+  "sourceId": "DUdcAOkjgn1",
+  "title": "The professional hierarchy: risk, then investments, then options",
+  "summary": "Options are not the engine of a portfolio's growth. Professionals use a hierarchy: risk is the foundation, the underlying investments are the engine of growth, and options are the fine-tuning that shapes payoff profiles.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["hierarchy", "payoff shaping", "risk first"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 70,
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 5,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Foundation: risk. Set the maximum loss first."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Engine: the underlying investments create the growth."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "Fine-tuning: options shape the payoff profile of the core."
+    },
+    {
+      "element": "cash",
+      "color": "gray",
+      "caption": "Cash keeps flexibility."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "This order separates investors from gamblers, in the speaker's words."
+    }
+  ],
+  "formulas": ["positionSize"],
+  "takeaways": [
+    "Risk is the foundation of the portfolio.",
+    "Underlying investments drive growth.",
+    "Options shape payoffs; they are not the growth engine."
+  ],
+  "caveats": [
+    "The clip ends with a promotion for tools the speaker is building.",
+    "Allocation numbers are illustrative."
+  ]
+}

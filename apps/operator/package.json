@@ -1,0 +1,51 @@
+{
+  "name": "@darkfactory/operator-app",
+  "brick": "agent-sdlc",
+  "description": "Opt-in console to plan, run and watch agent workflows.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.dev.vars ./node_modules/vinext/dist/cli.js dev",
+    "build": "node --env-file-if-exists=.dev.vars ./node_modules/vinext/dist/cli.js build",
+    "start": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@darkfactory/auth": "workspace:*",
+    "@darkfactory/config": "workspace:*",
+    "@darkfactory/db": "workspace:*",
+    "@darkfactory/email": "workspace:*",
+    "@darkfactory/jobs": "workspace:*",
+    "@darkfactory/operator": "workspace:*",
+    "@darkfactory/ui": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-server-dom-webpack": "catalog:",
+    "vinext": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@vitejs/plugin-rsc": "catalog:",
+    "esbuild": "catalog:",
+    "jsdom": "^30.1.1",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

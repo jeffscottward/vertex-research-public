@@ -1,0 +1,67 @@
+# vertex-status-tailnet: serves the v2 session snapshot and the read-only IBKR history service ONLY on the
+# VPS tailnet address, ONLY to the rig.
+# Container: caddy:2-alpine, --network host, read-only, caps dropped; mounts this file, the non-public
+# /opt/vertex-status/private-v2 (as /srv) and tailscaled.sock (TLS certificate for the *.ts.net name).
+# Placeholders substituted at install: __TS_HOST__ (MagicDNS name), __TS_IP__ (tailnet IPv4), __RIG_IP__.
+# Admin API only on a unix socket in the container's tmpfs, for graceful reloads via docker exec.
+{
+  admin unix//tmp/caddy-admin.sock
+  auto_https disable_redirects
+  default_bind __TS_IP__
+}
+https://__TS_HOST__:8443 {
+  bind __TS_IP__
+  tls {
+    get_certificate tailscale
+  }
+  header Cache-Control "no-store"
+  @rig_authorized {
+    remote_ip __RIG_IP__
+    header Authorization "Bearer {$VERTEX_STATUS_TOKEN}"
+  }
+  # IBKR recovery service (vertex-ibkr-recovery, 127.0.0.1:8793): the rig and this VPS's own tailnet
+  # addresses only. No Caddy token check here: the service checks its own token (VERTEX_RECOVERY_TOKEN).
+  # This handle comes before @not_rig, so the VPS-self check reaches the service; other sources get 403.
+  @recovery_caller {
+    remote_ip __RIG_IP__ __TS_IP__
+    path /vertex-ibkr-recovery/v1/*
+  }
+  handle @recovery_caller {
+    reverse_proxy 127.0.0.1:8793 {
+      transport http {
+        response_header_timeout 15s
+      }
+    }
+  }
+  @not_rig not remote_ip __RIG_IP__
+  handle @not_rig {
+    respond "forbidden" 403
+  }
+  handle @rig_authorized {
+    root * /srv
+    handle /vertex-status/v2 {
+      rewrite * /status-v2.json
+      file_server
+    }
+    handle /vertex-history/v1/* {
+      reverse_proxy 127.0.0.1:8791 {
+        transport http {
+          response_header_timeout 45s
+        }
+      }
+    }
+    handle /vertex-portfolio/v1/* {
+      reverse_proxy 127.0.0.1:8792 {
+        transport http {
+          response_header_timeout 15s
+        }
+      }
+    }
+    handle {
+      respond "not found" 404
+    }
+  }
+  handle {
+    respond "unauthorized" 401
+  }
+}

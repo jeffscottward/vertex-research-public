@@ -1,0 +1,163 @@
+{
+  "slug": "expected-move-vs-delta",
+  "sourceId": "Daf7FSjx_d9",
+  "title": "When to use expected move and when delta is enough",
+  "summary": "For covered call strikes or directional bets, delta is enough: a 1-standard-deviation strike on a $100 stock is near $110, about a 16 delta. Use expected move in two cases: earnings trades, where the ATM straddle price gives the move, and range trades like iron condors, where it helps set strikes. Never sell naked options or a naked straddle.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["range", "event"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "days",
+    "risk": "defined",
+    "topics": ["expected move", "delta", "iron condor", "earnings"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "long",
+        "qty": 1,
+        "strike": "putLong",
+        "dte": "dte"
+      },
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "putShort",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "callShort",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "callLong",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "putLong",
+      "label": "Long put strike",
+      "default": 85,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "putShort",
+      "label": "Short put strike",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "callShort",
+      "label": "Short call strike",
+      "default": 110,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "callLong",
+      "label": "Long call strike",
+      "default": 115,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "gray",
+      "caption": "The distribution of prices at expiry from implied volatility."
+    },
+    {
+      "element": "band1",
+      "color": "blue",
+      "caption": "About two-thirds of outcomes fall between $90 and $110. About 16% end above $110: that is the 15-20 delta strike."
+    },
+    {
+      "element": "band2",
+      "color": "violet",
+      "caption": "Two standard deviations cover about 95% of outcomes."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "For an iron condor, set the short strikes near the expected move: $90 and $110 here."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "The share of outcomes between the breakevens is the probability of profit."
+    }
+  ],
+  "formulas": ["expectedMove", "delta", "probabilityOfProfit"],
+  "takeaways": [
+    "For directional trades and covered calls, delta is enough to pick strikes.",
+    "For earnings, the ATM put plus ATM call price gives the expected move.",
+    "For range trades like iron condors, use expected move to set strikes. Keep risk defined."
+  ],
+  "caveats": [
+    "The transcript is partly cut. Iron condor strikes here are illustrative."
+  ]
+}

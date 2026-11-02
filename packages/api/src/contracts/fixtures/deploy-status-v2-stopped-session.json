@@ -1,0 +1,454 @@
+{
+  "schema": "vertex-deploy-status-v2",
+  "host": "quantvps",
+  "generatedAt": "2026-10-03T11:18:30+00:00",
+  "readOnly": true,
+  "services": [
+    {
+      "service": "nautilus-trader",
+      "present": true,
+      "status": "created",
+      "running": false,
+      "health": null,
+      "startedAt": "0001-01-01T00:00:00Z",
+      "finishedAt": "0001-01-01T00:00:00Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "ibkr-nautilus-exec-node-nautilus:phase01"
+    },
+    {
+      "service": "ib-gateway",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": "healthy",
+      "startedAt": "2026-09-29T23:45:02.407636734Z",
+      "finishedAt": "2026-09-29T23:45:02.224642046Z",
+      "exitCode": 0,
+      "restartCount": 1,
+      "oomKilled": false,
+      "image": "gnzsnz/ib-gateway",
+      "log": {
+        "lastLineAt": "2026-10-03T11:18:23.016256831Z",
+        "lines": 5,
+        "errorLines": 0,
+        "warnLines": 1
+      }
+    },
+    {
+      "service": "watchdog",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": "healthy",
+      "startedAt": "2026-09-25T16:39:03.519916392Z",
+      "finishedAt": "2026-09-25T16:38:52.50152156Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "ibkr-nautilus-exec-node-watchdog:phase01"
+    },
+    {
+      "service": "portfolio-ui",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": "healthy",
+      "startedAt": "2026-09-25T16:39:03.549489872Z",
+      "finishedAt": "2026-09-25T16:39:01.863982963Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "ibkr-nautilus-exec-node-portfolio-ui:phase01"
+    },
+    {
+      "service": "postgres",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": "healthy",
+      "startedAt": "2026-09-25T16:40:50.270031888Z",
+      "finishedAt": "0001-01-01T00:00:00Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "postgres:16-alpine"
+    },
+    {
+      "service": "redis",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": "healthy",
+      "startedAt": "2026-09-25T16:40:50.408305855Z",
+      "finishedAt": "0001-01-01T00:00:00Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "redis:7-alpine"
+    },
+    {
+      "service": "caddy",
+      "present": true,
+      "status": "running",
+      "running": true,
+      "health": null,
+      "startedAt": "2026-09-25T16:39:03.536850945Z",
+      "finishedAt": "2026-09-25T16:38:51.864318514Z",
+      "exitCode": 0,
+      "restartCount": 0,
+      "oomKilled": false,
+      "image": "caddy:2-alpine"
+    }
+  ],
+  "session": {
+    "available": true,
+    "source": "docker inspect nautilus-trader + data/nautilus/health.json + redis heartbeat + prototype-runner.log + postgres.strategy_events",
+    "as_of": "2026-10-03T11:18:30Z",
+    "state": "stopped",
+    "raw_state": {
+      "container_status": "created",
+      "container_health": null,
+      "container_exit_code": 0,
+      "health_file_status": "ok",
+      "last_runner_event": "runner_stopped",
+      "last_runner_event_at": "2026-09-25T16:38:44Z",
+      "heartbeat_age_seconds": 671991
+    },
+    "trading_mode": "live",
+    "safe_mode": true,
+    "strategies": [
+      {
+        "id": "example_strategy",
+        "name": "example_strategy",
+        "started_at": "2026-09-18T16:24:08Z",
+        "symbols": ["AAPL"],
+        "observation_only": true,
+        "trading_mode": "live"
+      }
+    ],
+    "symbols": ["AAPL"],
+    "account_masked": "****0042",
+    "started_at": "2026-09-18T16:24:08Z",
+    "stopped_at": "2026-09-25T16:38:44Z",
+    "last_heartbeat_at": "2026-09-25T16:38:38Z",
+    "ibkr_adapter": {
+      "ok": true,
+      "detail": "connected",
+      "checked_at": "2026-09-25T16:38:38Z"
+    }
+  },
+  "positions": {
+    "available": true,
+    "source": "ibkr_tws_api via ibkr-account-snapshot-20260918T201550Z.json (written by portfolio-ui snapshot refresh)",
+    "as_of": "2026-09-18T20:15:50Z",
+    "age_seconds": 1263759,
+    "stale": true,
+    "count": 2,
+    "items": [
+      {
+        "symbol": "ORCL",
+        "sec_type": "STK",
+        "qty": 100,
+        "avg_px": 100.5,
+        "avg_cost": 100.5,
+        "multiplier": null,
+        "market_price": 101,
+        "market_value": 10100,
+        "unrealized_pnl": 50,
+        "realized_pnl": 0,
+        "currency": "USD"
+      },
+      {
+        "symbol": "AAPL",
+        "sec_type": "OPT",
+        "qty": 2,
+        "avg_px": 2.5,
+        "avg_cost": 250,
+        "multiplier": 100,
+        "market_price": 3.1,
+        "market_value": 620,
+        "unrealized_pnl": 120,
+        "realized_pnl": 12.5,
+        "currency": "USD",
+        "right": "C",
+        "strike": 150,
+        "expiry": "20261120"
+      }
+    ],
+    "truncated": false
+  },
+  "orders": {
+    "available": true,
+    "source": "ibkr_tws_api open orders via data/nautilus/reports/ibkr-open-orders.json (read from disk; no API call)",
+    "as_of": "2026-09-29T02:48:26Z",
+    "age_seconds": 376203,
+    "stale": true,
+    "count": 2,
+    "items": [
+      {
+        "order_id_masked": "0",
+        "client_id": 0,
+        "symbol": "ORCL",
+        "sec_type": "STK",
+        "side": "sell",
+        "type": "STP",
+        "qty": 100,
+        "filled": 0,
+        "remaining": 100,
+        "price": null,
+        "stop": 95,
+        "aux_price": null,
+        "tif": "GTC",
+        "status": "PreSubmitted",
+        "currency": "USD"
+      },
+      {
+        "order_id_masked": "****4567",
+        "client_id": 31,
+        "symbol": "AMZN",
+        "sec_type": "STK",
+        "side": "buy",
+        "type": "LMT",
+        "qty": 5,
+        "filled": 0,
+        "remaining": 5,
+        "price": 200.25,
+        "stop": null,
+        "aux_price": null,
+        "tif": "DAY",
+        "status": "Submitted",
+        "currency": "USD",
+        "warning": "Order held for account ****4321"
+      }
+    ],
+    "truncated": false
+  },
+  "fills": {
+    "available": true,
+    "source": "ibkr_tws_api executions via data/nautilus/reports/ibkr-fills.json (written by scripts/ibkr_fill_check.py)",
+    "as_of": "2026-09-11T23:44:57Z",
+    "age_seconds": 1856012,
+    "stale": true,
+    "count": 2,
+    "items": [
+      {
+        "time": "2026-09-11T19:45:00Z",
+        "symbol": "AMZN",
+        "side": "sell",
+        "qty": 3,
+        "price": 210,
+        "order_id_masked": "****4501",
+        "exec_id_masked": "****1.01"
+      },
+      {
+        "time": "2026-09-11T19:30:01Z",
+        "symbol": "ORCL",
+        "side": "buy",
+        "qty": 100,
+        "price": 100.5,
+        "order_id_masked": "****4500",
+        "exec_id_masked": "****1.01"
+      }
+    ],
+    "truncated": false
+  },
+  "equity": {
+    "available": true,
+    "source": "ibkr_tws_api account summary via ibkr-account-snapshot-20260918T201550Z.json",
+    "as_of": "2026-09-18T20:15:50Z",
+    "age_seconds": 1263759,
+    "stale": true,
+    "currency": "USD",
+    "net_liq": 150000.25,
+    "cash": 90000,
+    "available_funds": 120000.5,
+    "buying_power": 480002,
+    "unrealized": 170,
+    "realized": 12.5
+  },
+  "risk": {
+    "available": true,
+    "source": "kill-switch file stat + watchdog.log status + nautilus-trader container env (allow-listed keys) + postgres.risk_events",
+    "as_of": "2026-10-03T11:18:30Z",
+    "kill_switch": "clear",
+    "kill_switch_indicators": [
+      {
+        "source": "file data/KILL_SWITCH",
+        "engaged": false,
+        "as_of": "2026-10-03T11:18:30Z"
+      },
+      {
+        "source": "file portfolio-ui/data/KILL_SWITCH",
+        "engaged": false,
+        "as_of": "2026-10-03T11:18:30Z"
+      },
+      {
+        "source": "watchdog live_flags",
+        "engaged": false,
+        "as_of": "2026-10-03T11:18:26Z"
+      },
+      {
+        "source": "nautilus health.json (last written by the runner)",
+        "engaged": false,
+        "as_of": "2026-09-25T16:38:38Z"
+      }
+    ],
+    "limits": {
+      "available": true,
+      "source": "docker inspect nautilus-trader Config.Env (allow-listed non-secret keys)",
+      "as_of": "2026-10-03T11:18:30Z",
+      "trading_mode": "live",
+      "enable_live_trading": true,
+      "nautilus_risk_orders_enabled": true,
+      "nautilus_risk_dry_run": false,
+      "nautilus_risk_max_order_quantity": 1000,
+      "nautilus_risk_max_position_notional_usd": 3000,
+      "nautilus_risk_max_daily_loss_usd": 1000,
+      "nautilus_risk_allowed_instruments": ["*"],
+      "risk_denied_instruments": [],
+      "charan_live_transmit_enabled": true,
+      "synthetic_stop_mode": "disabled"
+    },
+    "last_risk_check": {
+      "time": "2026-07-10T19:36:40Z",
+      "event": "risk_order_approved",
+      "allowed": true,
+      "dry_run": false,
+      "max_daily_loss_usd": 1000,
+      "max_order_quantity": 1000,
+      "max_position_notional_usd": 3000,
+      "requested_quantity": 2,
+      "reason": "risk_limits_satisfied",
+      "strategy": "charan_trade_intent",
+      "requested_symbol": "AAPL",
+      "allowed_instruments": ["*"]
+    },
+    "watchdog": {
+      "as_of": "2026-10-03T11:18:26Z",
+      "status": "degraded",
+      "safe_mode": true,
+      "orders_enabled": false,
+      "nautilus_orders_enabled": false,
+      "required_failures": ["ib_gateway", "nautilus_health"],
+      "kill_switch_created_at": null,
+      "kill_switch_reason": null,
+      "live_flags": {
+        "charan_live_transmit_enabled": true,
+        "enable_live_trading": true,
+        "kill_switch_active": false,
+        "nautilus_risk_dry_run": false,
+        "trading_mode": "live"
+      },
+      "checks": {
+        "ib_gateway": {
+          "ok": false,
+          "required": true,
+          "consecutive_failures": 9111,
+          "detail": "RuntimeError: ibapi handshake timeout",
+          "checked_at": "2026-10-03T11:18:26Z"
+        },
+        "nautilus_health": {
+          "ok": false,
+          "required": true,
+          "consecutive_failures": 18222,
+          "detail": "ConnectionError: HTTPConnectionPool(host='nautilus-trader', port=8080): Max retries exceeded with url: /health",
+          "checked_at": "2026-10-03T11:18:26Z"
+        },
+        "uptime_kuma": {
+          "ok": true,
+          "required": false,
+          "consecutive_failures": 0,
+          "detail": "push_url_not_configured",
+          "checked_at": "2026-10-03T11:18:26Z"
+        },
+        "postgres": {
+          "ok": true,
+          "required": true,
+          "consecutive_failures": 0,
+          "detail": "select_1_ok",
+          "checked_at": "2026-10-03T11:18:26Z"
+        }
+      }
+    }
+  },
+  "logs": {
+    "available": true,
+    "source": "watchdog.log + prototype-runner.log tails (128 KiB) + docker logs --tail 300; WARNING/ERROR only, scrubbed, deduplicated",
+    "as_of": "2026-10-03T11:18:30Z",
+    "count": 9,
+    "items": [
+      {
+        "time": "2026-10-03T11:18:26Z",
+        "level": "ERROR",
+        "source": "watchdog",
+        "message": "check ib_gateway failed: RuntimeError: ibapi handshake timeout",
+        "count": 3
+      },
+      {
+        "time": "2026-10-03T11:18:26Z",
+        "level": "ERROR",
+        "source": "watchdog",
+        "message": "check nautilus_health failed: ConnectionError: HTTPConnectionPool(host='nautilus-trader', port=8080): Max retries exceeded with url: /health",
+        "count": 3
+      },
+      {
+        "time": "2026-10-03T11:18:23Z",
+        "level": "ERROR",
+        "source": "ib-gateway",
+        "message": "socat[128506] E connect(5, AF=2 127.0.0.1:4001, 16): Connection refused",
+        "count": 3
+      },
+      {
+        "time": "2026-10-03T11:18:01Z",
+        "level": "WARNING",
+        "source": "ib-gateway",
+        "message": "WARN login dialog for account ****4567 password=[redacted] still open",
+        "count": 1
+      },
+      {
+        "time": "2026-10-02T14:05:00Z",
+        "level": "ERROR",
+        "source": "portfolio-ui",
+        "message": "ERROR snapshot refresh failed url=https://[redacted]@ib.example/x token=[redacted] contact [email]",
+        "count": 1
+      },
+      {
+        "time": "2026-10-02T14:00:00Z",
+        "level": "ERROR",
+        "source": "portfolio-ui",
+        "message": "IBKR cancel order failed: Error 201 account ****4321 Authorization: [redacted] [redacted] rejected",
+        "count": 1
+      },
+      {
+        "time": "2026-09-25T16:38:44Z",
+        "level": "WARNING",
+        "source": "nautilus-trader",
+        "message": "runner_stopped",
+        "count": 1
+      },
+      {
+        "time": "2026-09-18T16:24:06Z",
+        "level": "WARNING",
+        "source": "nautilus-trader",
+        "message": "ibkr_adapter_disconnected",
+        "count": 1
+      },
+      {
+        "time": "2026-09-18T16:20:00Z",
+        "level": "ERROR",
+        "source": "nautilus-trader",
+        "message": "charan_live_order_submit_failed account ****4321 rejected order api_key=[redacted]",
+        "count": 1
+      }
+    ],
+    "max_items": 50
+  },
+  "collector": {
+    "version": "2.1.0",
+    "duration_ms": 9,
+    "soft_max_bytes": 61440,
+    "hard_max_bytes": 262144
+  }
+}

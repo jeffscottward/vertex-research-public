@@ -1,0 +1,235 @@
+{
+  "slug": "call-spread-buy-back-short-leg",
+  "sourceId": "DZ-MqcMOrbD",
+  "title": "Manage a losing call spread by buying back the short call",
+  "summary": "You buy a call spread and the stock falls. First, size it so a total loss is acceptable. Second, if one or two months remain and you have room in your risk budget, buy back the short call at a profit. That adds money to the trade but leaves an uncapped long call, so a rebound can recover more.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["call spread", "adjustment", "risk budget"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ],
+    "events": [
+      {
+        "day": 15,
+        "label": "Stock falls: spread down",
+        "color": "red"
+      },
+      {
+        "day": 20,
+        "label": "Buy back short call",
+        "color": "amber"
+      },
+      {
+        "day": 45,
+        "label": "Rebound: long call uncapped",
+        "color": "green"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 5,
+        "movePct": -4
+      },
+      {
+        "day": 15,
+        "movePct": -12
+      },
+      {
+        "day": 20,
+        "movePct": -13
+      },
+      {
+        "day": 30,
+        "movePct": -8
+      },
+      {
+        "day": 45,
+        "movePct": 6
+      },
+      {
+        "day": 55,
+        "movePct": 13
+      },
+      {
+        "day": 60,
+        "movePct": 16
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 110,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 60,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -20,
+      "min": -80,
+      "max": 80,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A 60-day 100/110 call spread on a stock you like. Right after entry the stock falls.",
+      "time": [0, 0.3]
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "The long strike at $100 and the short strike at $110 sit above the falling price."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "The spread loses value. Size it so that a loss of the full debit is acceptable.",
+      "time": [0, 0.35]
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "With time left and room in the risk budget, buy back the short call at a profit. This costs extra money."
+    },
+    {
+      "element": "pnl",
+      "color": "gold",
+      "caption": "Now you hold an outright long call. If the stock rebounds, the gain is no longer capped at $110.",
+      "time": [0.35, 1]
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Without enough time to expiry, the rebound may not come in time. Do this only with a month or more left."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "positionSize", "theta"],
+  "takeaways": [
+    "Size a call spread so that losing the full debit is acceptable.",
+    "With a month or more left, buying back the cheap short call leaves an uncapped long call.",
+    "Buying back the short leg adds money to the trade, so check your risk budget first."
+  ],
+  "caveats": [
+    "The backtest models a plain call debit spread with a stop; it does not model buying back the short leg.",
+    "The added cost increases the total risk of the position beyond the original debit."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["AAPL", "MSFT", "NVDA", "AMZN"],
+    "scenario": {
+      "label": "2016-2024 incl. 2018, 2020 and 2022 selloffs",
+      "start": "2016-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 60,
+      "longDelta": 0.55,
+      "shortDelta": 0.3,
+      "exitDte": 10,
+      "profitTakePct": 60,
+      "stopLossPct": 70,
+      "riskPct": 3
+    },
+    "note": "Two-month bullish call spread on single stocks; exit 10 days before expiry, at 60% gain or 70% loss of the debit."
+  }
+}

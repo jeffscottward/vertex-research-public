@@ -1,0 +1,402 @@
+{
+  "format": "vertex-host-build-handoff-v1",
+  "phase": "source-authored-source-reviewed-validation-deferred",
+  "root": "/home/jeffscottward/Github/trading/vertex-research-platform",
+  "owner": "VertexNativeHostBuild",
+  "timestamp": "2026-09-22T20:06:05.178Z",
+  "entrypoints": {
+    "process": "python -m vertex_host --config ABSOLUTE_REVIEWED_CONFIG",
+    "console": "vertex-host",
+    "manifest": "services/host/pyproject.toml",
+    "release": "infra/quant-vps/index.civet",
+    "unit": "infra/quant-vps/systemd/vertex-host.service.in"
+  },
+  "authoritativeReplayContract": {
+    "path": "packages/api/src/contracts/vertex-worker-epoch.civet",
+    "sha256": "a1856de8f2bc393dd07ce6054f8206481ce642197ce14fdcf6aedabd619228f0",
+    "freeze": "private/verification/foundation/VertexPortfolioEpochTransitionFreeze-v4.json"
+  },
+  "components": {
+    "host": [
+      "Explicit initialization/restore, one lease dispatcher, one native Journal owner, atomic multi-leg owner also handles single legs, cancellation/join, callback drain, durable projection publication, readiness and nonce-bound drain receipts",
+      "Actual provider/ingestion handlers and isolated backtest runner composed from exact selected immutable modules and artifact digests",
+      "Read-only current rights plus latest exact-hash review/admission; no old acceptance fallback and no caller qualification flags"
+    ],
+    "kernel": [
+      "Pinned Rust C ABI around existing evaluate_json; bounded caller-owned buffers; Python sealed-memfd loader verifies reviewed library/build/source/contract/bundle identities",
+      "No remote RPC in locked native risk path"
+    ],
+    "isolation": [
+      "Fixed whole research worker, immutable event decoder, namespace/seccomp/no-new-privs/cgroup enforced supervisor and observed attestation",
+      "Readonly complete pinned rootfs inventory with fatal traversal errors, bounded protocol frames and aggregate budgets, joined cancellation/quarantine"
+    ],
+    "approval": [
+      "Independent enrolled Ed25519 signed capital/observation/mutation/epoch/replay authority, current signed revocation status and protected once-only SQLite audit",
+      "No issued credentials, chosen capital, automatic seed/reset/rearm, broker transport or live-order route",
+      "Cancel transport consumes exact already-consumed signed authorization only after verifying matching original durable cancellation marker"
+    ],
+    "recovery": [
+      "Actual prior projected epoch derived from persisted native history, including empty intermediate owner claims",
+      "Old original outbox bytes require independently fresh signed bounded replay grant; immutable retry receipt in same native Journal, not another work queue",
+      "Retained original signed epoch-transition sidecar bound by current replay grant SHA, exact original genesis/predecessor, null pair for ordinary replay, no row rewrite or resign",
+      "Whole-batch applied/duplicate terminal sequence+hash only advances existing native outbox ACK; explicit manual exact retry, no automatic uncertain-effect replay",
+      "Signed new epoch transition preserves owned balances and reservations; original proof staging and signed receipt precede native genesis"
+    ],
+    "nautilus": [
+      "Genuine version-pinned 1.231.0 offline BacktestEngine factory, full reviewed distribution inventory, CASH/NETTING/L1 equity quote capture only",
+      "Dedicated bounded thread-affine lane for engine create/process/dispose, finite capture through existing callback buffer, no TradingNode/plugins/live routing"
+    ],
+    "gateway": [
+      "Exact sealed original observation/trust evidence to actual GatewayObservationService assessment",
+      "Recovery execution intentionally disabled with durable once-only claim observation; no login/SSH/broker action fallback"
+    ],
+    "release": [
+      "Civet explicit reviewed local release orchestration, independent human approval, machine/artifact bindings, owner drain receipt and state-preserving release/rollback boundaries",
+      "No installation, activation, service restart, SSH, deployment or actual release command executed"
+    ]
+  },
+  "sourceReview": {
+    "isolation": "Final source-only reviewer clean after correcting cancellation double-consumption, incomplete inventory traversal and frame delimiter boundary",
+    "recovery": "Final focused current-source review clean: cloud epoch1 -> retained local epoch2 -> restart epoch3; exact already-cloud2 lost-ACK; expired historical signature only under fresh current replay approval and current nonrevocation; concrete Runtime and same-transaction DB consumers traced",
+    "testExecution": false,
+    "buildExecution": false,
+    "typecheckExecution": false,
+    "lintExecution": false,
+    "formatterExecution": false,
+    "runtimeImportsOrProbes": false,
+    "providerModelBrokerDatabaseActions": false,
+    "installsGenerationDeployment": false
+  },
+  "authoredRegressions": {
+    "pythonTestMethodDeclarations": 230,
+    "execution": "NONE; declaration count from source text only, not acceptance"
+  },
+  "activationRequirements": [
+    "Reviewed compiled ContractAuthority and kernel artifacts with exact released identities; source bundle assembly and binary provenance remain Main-owned and deferred",
+    "Explicit current immutable selection, complete reviewed modules/dependency closures, control origin and scoped service credential reference; none invented or issued",
+    "Independent approval enrollment, current status and native approval ledger configuration; signed seed/observation and separate reset required for actual paper risk",
+    "Explicit approved rootfs/static launcher and delegation needed for enforced sandbox; genuine reviewed Nautilus distribution needed for optional quote replay",
+    "Configured provider/model/rights/review capabilities remain unavailable if absent; no broad default vendor/model/account/risk-budget values"
+  ],
+  "dependencyProposals": {
+    "python": "3.12.11",
+    "rust": "1.88.0",
+    "nautilus": "1.231.0",
+    "cryptography": "46.0.3 optional native-approval; imported only during explicit authority open, no reviewed binary/hash claim"
+  },
+  "integrationReferences": [
+    "private/verification/foundation/VertexRuntimeCompositionBuild-v3.json",
+    "private/verification/foundation/VertexStateSubstrateResume-v4.json",
+    "private/verification/foundation/VertexRetainedEpochRecovery-v1.json",
+    "private/verification/foundation/VertexNativeReplayStore-v2.json",
+    "private/verification/foundation/VertexLocalNativeAssemblyRecipe-v2.json"
+  ],
+  "ownedSourceFileCount": 61,
+  "files": [
+    {
+      "path": "infra/quant-vps/authority.civet",
+      "bytes": 3326,
+      "sha256": "492d33e335070c7b43b10a7bc0f0abbe43fc19411194c26a94a411813bc628e2"
+    },
+    {
+      "path": "infra/quant-vps/authority.test.civet",
+      "bytes": 4877,
+      "sha256": "be7393fdfd0d59488a4b658328ad02736f4fcbf3e31aeb574ab8fa1ae7786a45"
+    },
+    {
+      "path": "infra/quant-vps/contract.civet",
+      "bytes": 6278,
+      "sha256": "b821ea795016f72d532162f3fcf355057bf0cb29803456d119f6fd352ac4c0f0"
+    },
+    {
+      "path": "infra/quant-vps/dependency-proposal.json",
+      "bytes": 3188,
+      "sha256": "eb3479d498a893c33bb8e0b344e75a9a60403c36b38dc7e51a7177b89b56e028"
+    },
+    {
+      "path": "infra/quant-vps/filesystem.civet",
+      "bytes": 7026,
+      "sha256": "07877d64fe572c26fcd2230aeb3c1b0981fae9bc3c89ef586ab83520de1b3162"
+    },
+    {
+      "path": "infra/quant-vps/index.civet",
+      "bytes": 563,
+      "sha256": "f2f264fb7b495e32953930392327466377114a73c3854bc49fcc32ba4d2a420e"
+    },
+    {
+      "path": "infra/quant-vps/local.civet",
+      "bytes": 18443,
+      "sha256": "2c62f09524496a42954b42e8777f3da901fd6e7fdbf1a537cba9358d44f6ae7c"
+    },
+    {
+      "path": "infra/quant-vps/release.civet",
+      "bytes": 10409,
+      "sha256": "af718a3c44532bccceea12d6577dc59cd1e4bc78208449307363acc83d03d006"
+    },
+    {
+      "path": "infra/quant-vps/release.test.civet",
+      "bytes": 9960,
+      "sha256": "e238f2f04bd34008875ddceadbd99761cf0f0300669ec21650c4a9f956883585"
+    },
+    {
+      "path": "infra/quant-vps/service.civet",
+      "bytes": 9276,
+      "sha256": "bd172e5cdf743db97cecdcb5a8780124b29d6a9ef45098f76f8fd5ac421a32b2"
+    },
+    {
+      "path": "infra/quant-vps/service.test.civet",
+      "bytes": 4598,
+      "sha256": "43644049c0e19b7f8daa1c7722726eb41429d44ce913fbfd3c45494c7e64261a"
+    },
+    {
+      "path": "infra/quant-vps/systemd/vertex-host.service.in",
+      "bytes": 1639,
+      "sha256": "6df28580e6e54024487a401a0e9e246ed577f5f5ae46906c5468f954bdcfb00f"
+    },
+    {
+      "path": "services/host/native-approval-provenance.json",
+      "bytes": 13831,
+      "sha256": "4b26a5a477d0d900663232ac4dfe6b25ba527a26752133b8bcf63aaae6e1a0fc"
+    },
+    {
+      "path": "services/host/pyproject.toml",
+      "bytes": 1452,
+      "sha256": "421696a8aac9a4173f5fec17318404e071c16470d9fd3dacae1d9820903a08dc"
+    },
+    {
+      "path": "services/host/tests/test_epoch_store.py",
+      "bytes": 13250,
+      "sha256": "6c19a9337ffbcebf97e4d363ed9830045e5d8a66de3689fe19b48897776378f5"
+    },
+    {
+      "path": "services/host/tests/test_epoch_transition.py",
+      "bytes": 18624,
+      "sha256": "269c0b92e9c0cd026917fc1cfaae1e5965be752bd46221d319e121cd316589ef"
+    },
+    {
+      "path": "services/host/tests/test_evidence.py",
+      "bytes": 40948,
+      "sha256": "e15bbea07c8730ece943aa91c7042b849fc89ceacface43beac701ae0aab726f"
+    },
+    {
+      "path": "services/host/tests/test_gateway.py",
+      "bytes": 43766,
+      "sha256": "4d1d69eeed307dcd2dee005cee62b6ec176fc4a0e6b9a9edb0e833638b9f09f6"
+    },
+    {
+      "path": "services/host/tests/test_host.py",
+      "bytes": 11836,
+      "sha256": "5a65a0c7afe062650e1139e15d60301f4e8c059009bc2d9f6d30fb4d8b70661d"
+    },
+    {
+      "path": "services/host/tests/test_native_approval_transport.py",
+      "bytes": 6223,
+      "sha256": "3ff78b2abad805eb99df712c31a4ef4e22ae9609146a8b66b723a604e95e4b2a"
+    },
+    {
+      "path": "services/host/tests/test_native_approval.py",
+      "bytes": 28623,
+      "sha256": "525741a14437d6ee6ed423e09c13a25ca9cc07e3220b09336b4c655670a62057"
+    },
+    {
+      "path": "services/host/tests/test_nautilus.py",
+      "bytes": 24825,
+      "sha256": "3eb48b9fc02c202d2ee9cbcdb8ba2928f495af5c8254dd7290b8264f59d791c4"
+    },
+    {
+      "path": "services/host/tests/test_replay.py",
+      "bytes": 29160,
+      "sha256": "dc1c92f99652161fa15dfcbbda053e5ea599fdb8feb102dc6d43c6b1b606ad87"
+    },
+    {
+      "path": "services/host/tests/test_sandbox.py",
+      "bytes": 23947,
+      "sha256": "18618cbe960fae16ae520b4246ce61eb34a26f11be638b20f0bdd88933cf1df3"
+    },
+    {
+      "path": "services/host/vertex_host/__init__.py",
+      "bytes": 105,
+      "sha256": "a214435e267b907b39c541ccb989f59926d452705df5662ef169b0246c4e7203"
+    },
+    {
+      "path": "services/host/vertex_host/__main__.py",
+      "bytes": 3746,
+      "sha256": "bd92c5a93d1c6982329157039e34ee608cb1990e436e0b91a3ee20c27aab5c04"
+    },
+    {
+      "path": "services/host/vertex_host/authority.py",
+      "bytes": 5505,
+      "sha256": "cbf6e5794881042eae1c89a754bfd7b779699b1198bae57922babc1182fecc39"
+    },
+    {
+      "path": "services/host/vertex_host/cache.py",
+      "bytes": 5927,
+      "sha256": "4056205920251d54621cc3c9d7c40ba3d58d140dd36a56fa6a11f242751430bc"
+    },
+    {
+      "path": "services/host/vertex_host/commands.py",
+      "bytes": 9113,
+      "sha256": "beaedc86580ad15de0ce4046e81aacbf733bbfff12ac83943f28fbdcae910862"
+    },
+    {
+      "path": "services/host/vertex_host/config.py",
+      "bytes": 7673,
+      "sha256": "27ea6e2befd14c5cb5f21973f2efb2f746be04e91cc900cbfa22c494b108eecf"
+    },
+    {
+      "path": "services/host/vertex_host/context.py",
+      "bytes": 1228,
+      "sha256": "6762994cccb92b75514494065ad76baa9e9c7c346802a17659d93b9efc5383e2"
+    },
+    {
+      "path": "services/host/vertex_host/dispatcher.py",
+      "bytes": 9109,
+      "sha256": "72ba8ee340c085fe5e300ccf55dd4df9ceb6aa1a61fc8f674b1aa37431f183cb"
+    },
+    {
+      "path": "services/host/vertex_host/epoch_store.py",
+      "bytes": 13313,
+      "sha256": "c5bdb14f81600f4e536cb3c9e377054a7a5f563a9a5622516de07283ada08aa1"
+    },
+    {
+      "path": "services/host/vertex_host/epoch_transition.py",
+      "bytes": 41792,
+      "sha256": "a53f80946a6612078fd5afb68c0d4daa87c37a9af5c6e9cdda151ecfb328407d"
+    },
+    {
+      "path": "services/host/vertex_host/evidence.py",
+      "bytes": 50782,
+      "sha256": "046f568cf659de66c8f17f28e61ba2a435a3f2d53440900b4166a5b794d3143c"
+    },
+    {
+      "path": "services/host/vertex_host/gateway_composition.py",
+      "bytes": 14341,
+      "sha256": "b8fb19d513ecb4ef86b029ae49dd3107c9898d638c61f9130193f68234a6a165"
+    },
+    {
+      "path": "services/host/vertex_host/gateway.py",
+      "bytes": 28651,
+      "sha256": "6eb3f7421c36b5b8d0d2aaf67276649627c7f2f99943083a65618cdf6befa288"
+    },
+    {
+      "path": "services/host/vertex_host/guards.py",
+      "bytes": 2058,
+      "sha256": "6386fae879400f62154c808b1d3081487dddcdcc4087675ebfa1ee186bdbf8f2"
+    },
+    {
+      "path": "services/host/vertex_host/lifecycle.py",
+      "bytes": 50873,
+      "sha256": "db0b8651a0edfcd2adb2788e3f7144cdf2d2c18e214a26096890c3baabae5b17"
+    },
+    {
+      "path": "services/host/vertex_host/local_state.py",
+      "bytes": 2646,
+      "sha256": "ef5f3f1a9a7f61c8a6ea39eac5332ee74810eb31b2f7917e0708d0d111e52b6f"
+    },
+    {
+      "path": "services/host/vertex_host/native_admin.py",
+      "bytes": 13228,
+      "sha256": "4c99d7a8129dbfe97f3c25269d50a9f680ea58fc9027cc635b91322cb3f7ebc4"
+    },
+    {
+      "path": "services/host/vertex_host/native_approval_transport.py",
+      "bytes": 5101,
+      "sha256": "94726f6867740aca0b60d36e893da8fc05be1d77566cd0de5809673adf4d4582"
+    },
+    {
+      "path": "services/host/vertex_host/native_approval.py",
+      "bytes": 46129,
+      "sha256": "13568815efe141f30affc74ce1db692b54928fabbec9d14a91479f0b0395cf46"
+    },
+    {
+      "path": "services/host/vertex_host/nautilus.py",
+      "bytes": 30063,
+      "sha256": "19ed38139128f9b5500013b7b57fef658224389ebb6409f199ba9379727554b3"
+    },
+    {
+      "path": "services/host/vertex_host/publication.py",
+      "bytes": 4471,
+      "sha256": "5fb8a0bd5a3736f8175d830527513fde60ac867a33a1c4931b61fd72496f5075"
+    },
+    {
+      "path": "services/host/vertex_host/replay.py",
+      "bytes": 27529,
+      "sha256": "766abde687513289a6bb6386868173a096c2fa21c7fcd7e877fff2fb0e549d71"
+    },
+    {
+      "path": "services/host/vertex_host/research_engine.py",
+      "bytes": 35728,
+      "sha256": "2eaa7228ab771926ccd381f1f263a4d72c8997a4ce2c64e658abea357b649f17"
+    },
+    {
+      "path": "services/host/vertex_host/sandbox_worker.py",
+      "bytes": 25297,
+      "sha256": "bde4f241fd94dbcae21f4506a2c9bf0c7d2b0b808fe986410269ba9a5d9007c0"
+    },
+    {
+      "path": "services/host/vertex_host/sandbox.py",
+      "bytes": 47757,
+      "sha256": "c83dd1a28fc1b538799b21a6d9b21a2e45a82d36433e540b2450ed644927ab8a"
+    },
+    {
+      "path": "services/host/vertex_host/selection.py",
+      "bytes": 5704,
+      "sha256": "ba0fd12d055f9754e8e69958faee1273dcad62d0841b09871d257ec1b2f433c9"
+    },
+    {
+      "path": "services/kernel-bridge/build.rs",
+      "bytes": 3411,
+      "sha256": "398c3227e911efc786a3bfaf70fee8cd4b969c03e704395213d42f1c671cbc54"
+    },
+    {
+      "path": "services/kernel-bridge/Cargo.toml",
+      "bytes": 656,
+      "sha256": "f3ddb61f93223bf2133a272879ce16bacc2fcb8d6e94d6e203ff7376fdb4d611"
+    },
+    {
+      "path": "services/kernel-bridge/include/vertex_kernel_bridge.h",
+      "bytes": 2687,
+      "sha256": "1fef60a314e13fd8968d850919d2b78aad87874a7f1ee7faec2bb2e413ea3488"
+    },
+    {
+      "path": "services/kernel-bridge/provenance.json",
+      "bytes": 5412,
+      "sha256": "b185ae76a91ccc4c848761acafc7f0e9b71e08de1aed7377c847fb13aa6b1c65"
+    },
+    {
+      "path": "services/kernel-bridge/pyproject.toml",
+      "bytes": 538,
+      "sha256": "41c5016500414eb2971562212f4755ce85ddde7982a961142a433eb7a553e77a"
+    },
+    {
+      "path": "services/kernel-bridge/python/vertex_kernel_bridge/__init__.py",
+      "bytes": 306,
+      "sha256": "3905c1c7ac3524830f5a6034693029d3c1bdcfe0f9b5b1136fdc38318296df29"
+    },
+    {
+      "path": "services/kernel-bridge/python/vertex_kernel_bridge/bridge.py",
+      "bytes": 13687,
+      "sha256": "f08aa7dc07d6c8d218b2442a8e2bead43dde5a2d876b6a41ac812636054ac159"
+    },
+    {
+      "path": "services/kernel-bridge/rust-toolchain.toml",
+      "bytes": 252,
+      "sha256": "c487824c8faa755808deb47ec5ff36aba4971ea08eb82223b3bc2beef41ba3f0"
+    },
+    {
+      "path": "services/kernel-bridge/src/lib.rs",
+      "bytes": 8940,
+      "sha256": "bc6ce3c3decd623d4128c01690bd0470ae03d1fbb36f00d7cc492b36879d9a10"
+    },
+    {
+      "path": "services/kernel-bridge/tests/ffi_regressions.rs",
+      "bytes": 5622,
+      "sha256": "53c5c3d8885a162a65eda6dda7771cbe0f9599e151c7e16d1498f106ed0f0db0"
+    },
+    {
+      "path": "services/kernel-bridge/tests/test_bridge.py",
+      "bytes": 8045,
+      "sha256": "066e6ade28cbae77d726811a452ae0c93fccb04f429626d60fd975a2febe2cb2"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@darkfactory/state",
+  "brick": "product",
+  "description": "UI-free state: XState lifecycles and Zustand stores.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./client": {
+      "import": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./flow": {
+      "import": "./src/setup-flow.ts",
+      "default": "./src/setup-flow.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "xstate": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  }
+}

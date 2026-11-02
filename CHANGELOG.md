@@ -1,0 +1,218 @@
+# Changelog
+
+Notable changes to DarkFactory will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and published releases will use [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Vibe-Trading as a third agent framework (Vertex, research only): the bench command `python -m agents.framework_bench` registers `vibe_trading`. `scripts/vibe-trading-setup.sh` clones Vibe-Trading (MIT) v0.1.18 at commit `66eb57634f16344b326d85fd1fe10029c7f348bb` outside the repository and installs its hash-locked requirements into the clone's own virtual environment (`VERTEX_VT_DIR`). The driver `services/vibe-trading/driver/vt_driver.py` (adapted from Glassbench, Apache-2.0) runs Vibe-Trading's investment committee or one research agent with read-only data tools plus `quantlib_call` and `options_payoff` only (no shell, files, backtests, broker, trading, swarm or scheduler tools), strips every key but the endpoint's own and tracing settings, and streams JSON-line events. The adapter `services/research/adapters/vibe_trading_framework.py` maps the closing JSON block to the five ratings (action mapped when the rating is missing, no rating otherwise) and flags `not_point_in_time`, `worker_timeout`, `numbers_withheld` and `no_rating`. The new oRPC procedure `agentModelRuns.frameworks` (read keys allowed) and the Frameworks section of `/agents/benchmark` show reference sheets for TradingAgents (Vertex desks), the AI Hedge Fund event study and Vibe-Trading. See `docs/agent-benchmark.md#vibe-trading`.
+- Model and framework benchmark (Vertex, research only): `agentModelRuns.benchmark` (MCP `model_runs_benchmark`) and the page `/agents/benchmark` group up to 5000 filtered runs into arms (model, served model, provider and model, framework or variant) and compare them on shared (ticker, decision date) cells: per-arm runs, coverage, rating mix, rerun agreement, extremity, cost (local arms say local), tokens, calls and median time; agreement with a baseline arm (Glassbench match rate and mean closest distance); a pairwise agreement matrix; and a paired comparison of directional hits on the 5-day forward return from the imported daily bars with an exact two-sided sign test. The run list facets gain `batch`. The Python command `python -m agents.framework_bench` (services/research) runs a plan of arms, tickers, dates and reruns against frameworks behind the new `AgentFrameworkPort`, records each run through `agentModelRuns.*` with an agent API key (`VERTEX_API_URL`, `VERTEX_AGENT_API_KEY`), reuses finished identical runs, retries a failed run once, stops at a hard USD budget and has a dry run. See `docs/agent-benchmark.md`.
+- Live view and replay of agent model runs (Vertex, research only): agents append run events with `agentModelRuns.appendEvents` (up to 200 per call, 5000 per run, idempotent by `seq`; kinds llm_call, tool_call, tool_result, reasoning, message, decision, status, flag; a flag event adds its slug to the run's flags; text with secrets is refused; a finished run closes to new events after 10 minutes). `agentModelRuns.events` pages events after a seq for polling, `agentModelRuns.get` returns the first page, and `agentModelRuns.search` runs a Postgres full-text search over event text (up to 50 runs, 3 highlighted snippets each). `/agents/runs/<id>` shows per-agent cards (Reading data, Writing, Thinking, Done), a timeline with expandable plain-text bodies, a live mode that polls every 2 seconds and follows new events, and a replay with play, pause, steps, a position slider and 1x/2x/4x speed. The Model runs section gets a search box. MCP tools `model_runs_append_events` and `model_runs_search`. New table `agent_model_run_events` with a generated `tsvector` column and GIN index (migration `0038_agent_model_run_events`, guarded rollback). See `docs/vertex-rebuild/agent-model-runs.md`.
+- Agent model runs (Vertex, research only): agents record each framework run (for example TradingAgents) on one ticker and decision date with `agentModelRuns.record` (idempotent by `runKey`) and report status, research rating, entry/stop/target levels, horizon, usage, cost, flags and the served model with `agentModelRuns.update`; a terminal status is final. `agentModelRuns.list` returns runs with facet counts (each facet counted over the other active filters), `agentModelRuns.breakdown` groups them (runs, rated, hold share, failed, cost) and `agentModelRuns.exportCsv` exports up to 5000 runs (RFC 4180, formula cells guarded). The **Model runs** section on `/agents` shows facet checkboxes, a date range, the breakdown, a CSV download and a run table; each run opens `/agents/runs/<id>`. MCP tools `model_runs_list`, `model_runs_get`, `model_runs_record`, `model_runs_update`. New table `agent_model_runs` (migration `0037_agent_model_runs`, guarded rollback). Ratings never place orders. See `docs/vertex-rebuild/agent-model-runs.md`.
+- Shuffled-rating placebo for agent ratings (Vertex, research only): a backtest record may carry an optional `ratingSeries` (2 to 520 dated ratings on the five-tier scale buy, overweight, hold, underweight, sell, or `null` for a failed run). `agentOps.backtests.record` and `.get` replay it on the stored daily bars of the symbol and return `ratingEvaluation`: the rating-only strategy against buy and hold, a 50/200-day moving-average rule and the same ratings shuffled across the same dates (5th to 95th percentile band and the agents percentile), plus hit rates by rating. The Backtests page shows it on a Placebo tab. Ratings never place orders. New nullable column `backtest_results.rating_series` (migration `0036_backtest_rating_series`, guarded rollback). Adapted from Glassbench (Apache License 2.0); see `NOTICE` and `docs/backtest-statistics.md`.
+- Autopilot (Vertex, research only): the portal page `/autopilot` (Backtest lab) and the oRPC procedures `autopilot.campaigns.create`, `.list`, `.get`, `.setStatus`, `.tick` and `autopilot.candidates.get`, `.sendToPaper` run breeding campaigns over strategy definitions on one stored series: random generation from fixed building blocks, tournament selection, crossover and mutation, fitness on the first 60% of the bars only, and a fixed gate (out-of-sample Sharpe, 3 forward folds, Monte Carlo trade bootstrap, deflated Sharpe ratio and Benjamini-Hochberg over every trial of the series, minimum trades, 2x cost stress, parameter neighbourhood). Every candidate, including refine neighbours, is a stored trial (tables `autopilot_campaigns` and `autopilot_candidates`, migration `0034_autopilot`, guarded rollback). A verified candidate can go to the existing PAPER deployment-request flow (operator session only; nothing is armed); live is never requested. API keys may call only `autopilot.campaigns.tick` (scheduler `bun run vertex:autopilot:tick`, user units in `infra/autopilot/`). See `docs/vertex-rebuild/autopilot.md`.
+- AI strategy builder tools and assistant confirm cards (Vertex, research only): saved strategy definition revisions (`backtestRuns.definitions.validate`, `.save`, `.list`, `.get`; table `strategy_definition_revisions`), the MCP and assistant tools `strategy_definition_validate`, `strategy_definitions_list`, `strategy_definitions_get`, `strategy_definition_save`, `drift_status` and `drift_monitor_get`, and confirm cards on `/assistant`: in Act mode, saving a definition, running a backtest and running a parameter sweep (at most 100 cells) become cards that run only after the operator selects Approve (`assistant.actions.decide`; table `assistant_actions`, migration `0029_ai_builder`, guarded rollback). A guard test checks that the tool registry imports no order, broker or deployment module. See `docs/vertex-rebuild/ai-strategy-builder.md`.
+- Paper forward runner (Vertex, paper only, no broker calls): the oRPC procedures `backtestRuns.drift.paperSet` and `backtestRuns.drift.paperTick` run a drift monitor's baseline strategy on stored bars after the backtest end date, simulate fills with the run's cost settings and record the settled paper equity points and closed trades on the monitor, so drift checks and alerts update automatically. Replaying bars one at a time gives the same trades as a backtest over the same bars. New runner columns on `forward_drift_monitors` (migration `0028_paper_forward_runner`, guarded rollback), the scheduler client `bun run vertex:paper:tick`, user systemd units in `infra/paper-forward/` and a start/stop section on `/forward-drift`. See `docs/vertex-rebuild/paper-forward.md`.
+- Forward drift (Vertex, paper only): the portal page `/forward-drift` and the oRPC procedures `backtestRuns.drift.create`, `.record`, `.get`, `.list` and `.acknowledge` pin a finished backtest run as the baseline of a strategy revision, record paper equity points and closed paper trades, and evaluate five checks (maximal drawdown, losing streak, rolling profit factor, Sharpe, rolling win rate) against warn and alert thresholds. A check that reaches a more severe level raises an in-app alert that the operator acknowledges. New tables `forward_drift_monitors` and `forward_drift_alerts` (migration `0027_forward_drift`, guarded rollback). External delivery (ntfy, email) is not wired. See `docs/vertex-rebuild/forward-drift.md`.
+- Strategy definitions and the strategy builder (Vertex, research only): a declarative strategy format (version 1: entry and exit conditions over price, SMA, EMA, RSI, ATR and prior highest/lowest, crosses, risk-percent sizing, percent or ATR stops and targets, UTC sessions) compiled to the backtest engine, the backtest run rule `{ kind: "dsl", definition }` with a content revision, four templates and the portal page `/strategy-builder` (visual and JSON editors with live validation and "Run backtest"). See `docs/vertex-rebuild/strategy-definitions.md`.
+- Research lenses (Vertex, research only): the portal pages `/rotation-matrix` (sector, industry and cap-bucket returns for 1D/1M/3M/6M, standouts and our names in leading or lagging industries) and `/deep-value` (TRUE SLAP scorecard: 8 criteria scored 0–2 with evidence, risk flags, stored ranking and on-demand scoring of any ticker; all cutoffs are ours, not the reel's). New operator-only oRPC procedures `researchLenses.rotationMatrix`, `researchLenses.deepValue` and `researchLenses.deepValueScore`, the setting `VERTEX_RESEARCH_LENSES_URL` and the rig → QuantVPS data push in `infra/quant-vps/research-lenses/`. See `docs/vertex-rebuild/research-lenses.md`.
+- Parameter sweeps (Vertex, research only): the portal page `/backtest-sweeps` and the MCP tool `backtest_runs_sweep` run the instant backtest engine for every cell of a grid over 1 to 4 numeric parameters and rank each cell by the worst metric value in its neighbourhood (the cell and the cells one step away in one parameter). Cells whose neighbours average below 50% of their positive value are flagged as isolated spikes. The page shows a heatmap of two chosen parameters with a metric selector, re-ranks in the browser and queues a full backtest run for a selected cell (`/backtest-runs?run=<id>` opens it). New operator-only oRPC procedure `backtestRuns.sweep`; nothing is stored. See `docs/vertex-rebuild/backtest-sweeps.md`.
+- Portfolio combos (Vertex, research only): the portal page `/portfolio-combos` and the operator-only oRPC procedure `backtestRuns.combine` combine up to 10 finished, revision-pinned backtest runs on one shared deposit with weights and show the combined equity curve, CAGR, Sharpe, maximal drawdown, drawdown overlap, the return correlation matrix, a diversification check and a robust/degrading verdict per slot (recent 25% window against the full period). Nothing is stored. See `docs/vertex-rebuild/portfolio-combos.md`.
+- Backtest runs (Vertex, research only): the portal page `/backtest-runs` and the MCP tools `backtest_runs_submit`, `backtest_runs_get` and `backtest_runs_list` queue a backtest of a rule over a date range of stored bars, follow it to completion and show a report with account-currency metrics (net profit, profit factor, expected payoff, absolute and maximal drawdown, Sharpe, Sortino, win rate, consecutive losses), equity and drawdown charts, the trade list and a trade-by-trade replay. A run linked to a strategy stores a SHA-256 revision of the strategy snapshot. New operator-only oRPC procedures `backtestRuns.submit`, `backtestRuns.get` and `backtestRuns.list` and the table `backtest_runs` (migration `0026_backtest_runs`, guarded rollback). See `docs/vertex-rebuild/backtest-runs.md`.
+- Instant backtest (Vertex, research only): the portal page `/instant-backtest` re-runs a moving-average or breakout rule on stored bars each time a parameter changes and updates the equity curve and statistics without a page reload. New oRPC procedures `instantBacktest.series` and `instantBacktest.run` (operator-only), tables `market_bar_series` and `market_bars` (migration `0025_market_bars`, guarded rollback), the bar importer `bun run vertex:bars:import` and the latency benchmark `bun run vertex:instant-backtest:bench`. See `docs/vertex-rebuild/instant-backtest.md`.
+- Linux support for the operator plane. OMP and git run in a bubblewrap sandbox with the same filesystem scope as the macOS `sandbox-exec` profile: scopes read-only, writable only in implementation runs. The worker checks `bwrap` and user namespaces before each run and fails closed. See `docs/operator.md`.
+- On Linux the agent and git cannot start other processes, as on macOS. bubblewrap loads a seccomp filter under which `fork`, `vfork` and any `clone` that is not a thread fail with `EPERM`; threads still work. `git worktree add`, which runs git itself, is the one exception. Before each run the worker checks that the filter stops a test process from starting, and fails closed; the filter supports x86_64 and arm64. See `docs/operator.md#platform-support`.
+- On Linux the agent has no network and holds no credentials. Each run reaches exactly one model through a relay to a local `omp auth-gateway`, which gets credentials from `omp auth-broker`. DarkFactory pins no model: `WORKFLOW_OMP_MODEL` names yours, and planning, implementation and review all use it. Configure it with `WORKFLOW_OMP_GATEWAY_URL` and `WORKFLOW_OMP_GATEWAY_TOKEN_FILE`; the worker refuses to start with a gateway but no model. Before each run the worker checks the gateway, the model and `nsenter`, and fails closed. See `docs/operator.md#models-and-credentials`.
+- The Docker verifier reaches rootless Docker, or any local daemon, through `DOCKER_HOST`. Only local unix sockets are accepted.
+
+### Changed
+
+- Design system: DarkFactory now looks and behaves like shadcn/ui (new-york-v4). Themes use shadcn's exact CSS variables (`background` … `sidebar-ring`, `--radius`) through Tailwind v4 `@theme inline`; `success`, `warning`, `info` and `destructive-foreground` are documented extensions, and the older names (`surface`, `primary-subtle`, …) are derived from them. Fonts are Geist Sans and Geist Mono (bundled; Manrope and Public Sans are removed). Defaults equal shadcn: radius `0.625rem`, `--spacing` `0.25rem`, Tailwind type scale, `text-sm` UI text. Button, Input, Textarea, Label, Card (new `CardAction`), Badge, Separator, Skeleton, Avatar, Tabs (new `line` variant), DropdownMenu (new `DropdownMenuShortcut`, destructive items) and Dialog use shadcn class strings; a new `@darkfactory/ui/client/sidebar` ports the shadcn Sidebar. Controls keep the 44px touch-target box around shadcn-sized chrome; inputs are 44px tall. See `design-system/darkfactory/MASTER.md` sections 3 and 7.
+- Portal shell: shadcn sidebar-07 / dashboard-01 anatomy. An inset sidebar (16rem) collapses to icons (3rem) with the trigger, the rail or Ctrl/⌘+B. Below 768px it is a drawer styled like the shadcn sheet, built on the native popover API so it works before hydration. Sign-in, sign-up, password and verification pages use the shadcn login card. The site header has the trigger, a separator, the page title and the user menu.
+- Appearance: System plus eleven themes, each a shadcn variable set: Default Light and Default Dark (shadcn Neutral), Graphite (#333 gray), Dracula, Monokai, Tokyo Night, One Dark, Night Owl, Synthwave '84, GitHub Dark and GitHub Light, with official accents. Users also set font size (Small, Default, Large), density (Compact, Default, Comfortable) and roundness (None, Small, Medium, Large; Medium is the new default). All four apply live, render on the server without a flash and persist in the `darkfactory-theme` cookie, localStorage (`darkfactory.anonymous-ui.v2`) and `user_preferences`. Migration `0009_appearance_preferences` replaced `mode` and `color_scheme`; migration `0010_shadcn_themes` moves retired theme names (Catppuccin, Gruvbox, Nord, Everforest, Rosé Pine, Kanagawa) to System and makes Medium the default radius. A retired name in a cookie or API payload also reads as System. To add a theme, see "Add a theme" in the Master.
+- Portal navigation: the sidebar shows Overview (the `/dashboard` page) and a Features group with Feature items and generated features. The user menu has only Settings and Sign out. Settings is one page with link tabs: Account (`/settings/account/profile`, `address`, `preferences`, `security`), Administration (`/settings/administration`, admins only) and Appearance (`/settings/appearance`, with theme, font size, density and roundness as radio groups instead of user-menu submenus). Old URLs redirect: `/account` and `/account/*` to the matching Account section, `/admin` and `/admin/users` to Administration. Spacing and type scale with the density and font size settings; touch targets stay 44px.
+- `PageHeader` accepts `description` and `eyebrow` only with `variant="public"`; `SectionHeader` has no `description`.
+- Portal pages have no filler text: page headers show the title and actions only, explanatory paragraphs are gone, and empty results show one compact row (`InlineNotice`) instead of a large empty-state block. Error messages and safety notices stay. Public pages keep their content with tighter spacing.
+- Implementation artifacts record file modes as git does (0644, or 0755 when executable), whatever the host umask.
+- vinext and `@vinext/cloudflare` 1.0.0 (stable), up from 1.0.0-beta.13 and beta.11. `bun run doctor` expects the new versions, and an invariant test keeps its expected versions equal to the pnpm catalog. (#51)
+- Bun 1.4.2, up from 1.3.14. Under Bun 1.3.14 the worker could miss a child process's exit after it had run children with extra pipes (fd 3 and up), as its bubblewrap sandbox does, and the model relay's cleanup then waited forever; not reproduced on 1.4.2. Run `mise install`. The verifier image now builds on `oven/bun:1.4.2`: rebuild it and pin its new digest; see [Rebuild the verifier image](docs/operator.md#rebuild-the-verifier-image).
+
+### Fixed
+
+- The Frameworks section of `/agents/benchmark` fits a phone (the page was 432 px wide at 375 px): framework sheets are one column below `xl` and may shrink, their text wraps anywhere, and code paths break between any characters.
+- Vibe-Trading (research only): the setup script refuses a clone with local changes or untracked files, rebuilds the venv when the pinned commit changes and installs the package without build isolation using a hash-pinned setuptools. The driver reports its raw tool registry and each agent's granted tools, and the adapter filters and checks them itself (a grant outside the read-only list stops the run with the flag `tool_policy`). git runs without the provider key, a driver line that is not JSON is a setup error, and the bench refuses a hosted provider the driver does not wire.
+- Framework bench (research only): a recorder error no longer stops the bench or holds budget; the run counts as failed and the estimate is released. The run recorder refuses HTTP redirects, which would carry the API key to another address. Reuse tells runs without a variant and runs on another base URL apart (flag `base_url_<hash>`; the arm name ends in `:u<hash>`). An https base URL may name its key variable (`#KEY_ENV`), and a provider that the framework does not support is refused before the bench starts. The paired comparison lists tickers past the 50-ticker bar cap in `tickersOverCap` instead of as tickers without bars.
+- The framework bench sends recorded event batches in seq order when several agents emit at once, and retries a batch up to 2 times after a 5xx or transport error (never after a 4xx); before, two threads could send batches out of order and the server rejected one with `SEQ_CONFLICT`.
+- Model run search snippets keep text that looks like HTML (`<b>quokka</b>`, `<br/>`): Postgres `ts_headline` parsed the event text as HTML and replaced tags with spaces, so a snippet could differ from the stored text. The query now escapes `&` and `<` around `ts_headline`.
+- A model run page (`/agents/runs/<id>`) no longer widens to the longest word on a phone (1576 px at 375 px for a 5000-character tool result): agent cards are one column below `sm` and may shrink, and event titles, bodies, card lines and the error text wrap anywhere.
+- The Model runs CSV note reads "Exported 1 run." for a single row (it said "1 runs").
+- Model runs on `/agents` wait until filter changes pause (300 ms) before they query, so typing a date sends one request instead of one per completed year digit. When a load for new filters fails, the page shows the error and Retry instead of the previous filters' rows.
+- The Agent runs page (`/agents`) fits a phone again (629 px wide at 375 px): the Model runs and Agent tasks tables now scroll inside positioned boxes that also contain their visually hidden labels. Model runs cells have horizontal padding, so neighbouring columns no longer touch.
+- The Placebo tab's Time in market no longer exceeds 100% (Buy and hold showed 100.1% with costs): a full buy pays its commission from cash, so the raw position weight was just above 1. Each bar's weight is now capped at 1.
+- The Backtests detail tabs work from the keyboard: Left and Right arrows move between Overview, Trades, Risk, Periods, Regimes, Validation and Placebo (wrapping at the ends), Home and End jump to the first and last tab. The tabs used a roving tab stop without arrow keys, so only the selected tab was reachable.
+- The Backtests page no longer widens the page on a phone once results load: the visually hidden "Actions" column label escaped the results table's scroll box (838 px wide at 375 px). The scroll box now clips it.
+- Browser journeys no longer fail with `503 DATABASE_CAPACITY` on portal pages. Missing Academy media files (absent in E2E builds) rendered the not-found page, and its theme read opened one request DB scope per thumbnail; one gallery load filled the 8-scope cap. Such files now get a bare 404 from `apps/web/src/app/academy-media/[...path]/route.ts`. The portal session check runs once per request (vinext rendered each layout twice), and every portal `next/link` sets `prefetch={false}`, checked by `apps/web/src/portal-link-prefetch.test.ts`. The sidebar heading journey went from 32-37 capacity rejections per run to none.
+- The operator worker starts with the optional `WORKFLOW_*` keys left empty, as `.env.example` ships them; it used to exit, and its CLI printed nothing. It now prints configuration errors (the key, never its value) and only the type of any other startup error.
+- Dev page loads were slow: `lucide-react` was excluded from client dependency pre-bundling, so each cold load fetched about 1,900 icon modules (12.6 MB). It is pre-bundled again: requests per page fell from 2,083 to 216 and time to network idle from 2.4 s to 0.5 s. Production was not affected (31 requests, first contentful paint about 0.1 s). Font files are no longer inlined as base64 in the stylesheet.
+- `bun run dev` and `bun run operator:dev` start again: vinext 1.0 takes Vite's `--host`, not `--hostname`. A test now checks the forwarded flags against the installed CLI. (#51 regression)
+- On Linux, the verifier container (uid 65532) can read its workspace. The checkout followed the worker's umask, so under a restrictive umask such as 077 it could read nothing.
+- The Docker verifier passes on a real workspace; before, every run failed. Its checks now find `node`, the workspace copy gets the image's dependencies and its own git repository, `/tmp` allows executables, and a passing check prints only its ID, so a build no longer overflows the 32 KiB result. The task limit, which counts threads, rises from 256 to 512. `scripts/ci/test-invariants.test.ts` started about 20 `vitest list` processes at once; it now runs at most four (two under the verifier's 2-CPU quota), and a failing list no longer leaves others running. Rebuild the image and pin its new digest; see [Rebuild the verifier image](docs/operator.md#rebuild-the-verifier-image).
+- The model relay's cleanup waits at most 5 s for its helper process to exit, so a lost exit can no longer hang the operator worker.
+
+## [0.3.1] - 2026-09-29
+
+Security fix release. Covers [#40](https://github.com/jeffscottward/darkfactory/pull/40), [#43](https://github.com/jeffscottward/darkfactory/pull/43), [#46](https://github.com/jeffscottward/darkfactory/pull/46), [#47](https://github.com/jeffscottward/darkfactory/pull/47) and [#48](https://github.com/jeffscottward/darkfactory/pull/48). If you built the operator verifier image with 0.3.0 or earlier, follow the rebuild steps under Security.
+
+### Changed
+
+- Pre-push takes about 37 s instead of about 80 s. The init clone acceptance test (clone, init, install) moved to its own `acceptance` Vitest project, which the CI coverage lane runs with coverage; run it locally with `bun run test:acceptance`. (#48)
+- Test tooling: jsdom 30 and `@testing-library/react` 16.3.3. (#43, #40)
+
+### Fixed
+
+- The pre-push hook accepts Git's empty input, which Git sends for "Everything up-to-date" and for pushes it already rejected (stale lease, non-fast-forward). It used to fail with "expected four fields" and hide Git's own message. (#47)
+- The verifier's `build-web` check points at `apps/web`'s `vinext` binary, and the image makes its dependencies readable for the runtime user regardless of the builder's umask. (#47)
+- Two load-dependent test flakes (#46): an isolated RSC build test now runs the plugin hook that initializes `es-module-lexer`, and an operator test waits for run details to load.
+
+### Security
+
+- The operator verifier image leaked local secrets. Its `Dockerfile.dockerignore` re-included whole `apps/` and `packages/` subtrees, so each app's `.dev.vars` (which holds every non-empty value from `.env`), other `.env*` files and host `node_modules` were copied into the image. `.dev.vars` stayed root-only in the image, so code under verification (uid 65532, no network) could not read it; anyone with access to the image can. World-readable `.env*` files there were readable in the container, with `/output` as the only way out. The allowlist now names files only, and an invariant test rejects directory re-includes. (#47)
+- The verifier image fetches pnpm as a checksum-pinned registry tarball instead of an unpinned `npm install --global`, and its Bun base defaults to a digest-pinned `oven/bun:1.3.14`. `DARKFACTORY_VERIFIER_BASE_IMAGE` is now an optional override, which must still be digest-pinned. (#47)
+
+To remove the exposure, rebuilding is not enough: the worker keeps running the image pinned in `.env`.
+
+1. Run `pnpm --filter @darkfactory/jobs verifier:image:setup`, set the printed digest as `WORKFLOW_VERIFIER_IMAGE_DIGEST` in `.env`, then restart `worker:pilot`.
+2. Delete every other verifier image. A rebuild untags the old one, so list them by label: `docker image ls --filter label=org.darkfactory.verifier.identity`, then `docker image rm` each ID except the new digest. Remove old images from any registry too.
+3. Rotate the credentials from `.env` if an old image was exported, pushed or shared, and any real secrets in other `.env*` files under `apps/` or `packages/`.
+
+## [0.3.0] - 2026-09-29
+
+Covers [#36](https://github.com/jeffscottward/darkfactory/pull/36), [#37](https://github.com/jeffscottward/darkfactory/pull/37), [#38](https://github.com/jeffscottward/darkfactory/pull/38), [#39](https://github.com/jeffscottward/darkfactory/pull/39), [#42](https://github.com/jeffscottward/darkfactory/pull/42) and [#44](https://github.com/jeffscottward/darkfactory/pull/44).
+
+### Added
+
+- `bun run setup`: one idempotent bootstrap that checks the toolchain, installs dependencies, writes `.env` with generated secrets, starts Postgres, migrates, seeds and writes the Worker `.dev.vars`. The toolchain is pinned once in `mise.toml`. (#38)
+- `bun run check` (format check, lint, typecheck) and a foreground `bun run dev` over portless HTTPS. (#38)
+- Fail-closed `DATABASE_PROVIDER` profiles for `postgres`, `planetscale` and `hyperdrive`, with the Cloudflare Hyperdrive binding passed to request database composition. (#38)
+- One request scope for the auth, strict sign-out and oRPC routes (`withRequestScope`, built on `openRequestScope`), with one `503 DATABASE_CAPACITY` response. (#38)
+- `x-request-id` on every scoped response, resolved from a well-formed `cf-ray` or a fresh UUID and shared by events, spans and audit records. (#38)
+- Private Worker source maps uploaded to Cloudflare. (#38)
+- Shared VS Code settings, extension recommendations and launch configs. (#38)
+- A Playwright-native browser lane: `webServer`, `globalSetup`, `e2e` and `a11y` projects, SPKI-pinned portless CA trust and per-file database resets. (#37)
+- A `brick` role in every workspace `package.json`, and a live package graph (`docs/generated/package-graph.md`) that `docs:generate` derives from them. `docs:check` fails when the graph is stale, a role is missing or a dependency breaks the role rules.
+- Role skills for pm, architect, backend, frontend, qa, security, scalability and release in `.agents/skills/`, also exposed to Claude Code through `.claude/skills`.
+- Guides: getting started, testing, capabilities (add or swap a provider), deploy, debugging and the operator plane.
+- `bun run init`: renames the template (scope, slug, domain, repository URLs, env prefixes, database names, LICENSE holder), drops instance-only history and removes itself; a renamed copy passes check and tests.
+- Weekly grouped Dependabot updates for npm packages with a release-age cooldown, alongside the existing GitHub Actions group.
+
+- `init --fresh-history` (also for shallow or detached clones) and `init --without-operator`, which removes every `agent-sdlc` brick; the quickstart now starts from `gh repo create --template`. (#44)
+- A reference dashboard view-model (`apps/web/src/features/dashboard/view-model.ts`) for headless data-to-presentation mapping, and pointer headers (`What / Used by / See`) on central modules. (#44)
+- `docs:check` verifies real imports against declared bricks, requires a one-line purpose per package, and resolves backticked repository paths and `path#symbol` references in Markdown. `knip` gates dead code and unused dependencies. (#44)
+
+### Changed
+
+- All sources are strict TypeScript; packages export TypeScript source, each package typechecks with `tsc`, and Biome lints all code. The runtime is Node 24 LTS. (#37)
+- CI runs four required lanes (core, coverage, integration, browser) on pull requests and manual dispatch only, and the pre-push hook runs `verify:prepush` with the same unit set as CI. (#36)
+- The capability manifest is truthful and registry-driven: provider enums come from each brick's adapter registry, one loader parses `capabilities.yaml`, and `doctor` derives its probes from it. (#38)
+- `packages/jobs` owns the operator workflow schema and repository; the operator plane is an opt-in brick and uses the shared request scope. (#38)
+- Biome is configured in `biome.jsonc` with a rationale per rule; `doctor` parses `wrangler.jsonc` with `jsonc-parser`. (#38)
+- The trusted theme load retries a database-capacity 503 under one deadline instead of rendering an indeterminate theme. (#38)
+- Project the safe active-session identity and owner-scoped dashboard summary from one authenticated oRPC context, and reuse identical portal and administration session checks within one server request.
+- Toolchain and dependencies: native TypeScript 7 for typechecks (the compiler API stays pinned as `typescript-api` for tooling), Vitest 5, Biome 2.5 with Ultracite 7, better-auth 1.7, React 19.3, Vite 8.3, Playwright 1.63, portless 0.15, wrangler 4.142 and current patch releases across the catalog.
+- README, AGENTS, ARCHITECTURE, CONVENTIONS, CONTRIBUTING and the security guide are rewritten to match the code. `CLAUDE.md` is a symlink to `AGENTS.md`. Historical specs, evidence and assessments moved to `docs/archive/`.
+
+- Coverage runs in parallel and CI builds once, in the browser lane. `bun run test` runs the database suites against the test database on a normal developer `.env`. (#44)
+- Operator workflow state moved from `@darkfactory/state` to `@darkfactory/jobs`; vinext moved to 1.0.0-beta.13, and the E2E fixture gate now reads Worker bindings instead of a leaked host `NODE_ENV`. (#44)
+
+### Removed
+
+- Speculative capabilities that were never installed (Celery/Flower, Mintlify, Uptime Kuma, GlitchTip, R2, Memori, Postgres extensions, TanStack devtools) from the manifest, environment schema and API projection; they are listed as roadmap candidates in `docs/capabilities.md`. (#44)
+- PM2, Varlock, Corepack and the prerequisite installer, replaced by `mise` and `bun run setup`. (#38)
+- The orphan `packages/shared` and `packages/storage` packages and the `capability:add` scaffolder. (#38)
+- The custom E2E harness (about 26,800 lines), replaced by Playwright built-ins. (#37)
+- Committed coverage and graph artifacts, the hosted security preflight, change-detector tests and copied CI shell scripts. (#36)
+- `docs/generated/architecture-inventory.json`, replaced by the package graph, and the superseded testing, local-development, capabilities-and-deployment and Hyperdrive guides.
+- Root scripts `ci`, `types`, `types:check`, `coverage:check`, `coverage:generate`, `coverage:update`, `test:coverage`, `typecheck:database-integration`, `verify:graph`, `capability:add`, `dev:https`, `dev:logs`, `dev:status` and `dev:stop`; `api:openapi:check` and `api:openapi:generate` are now `openapi:check` and `openapi:generate`. (#36, #38, #44)
+
+### Fixed
+
+- A request connection-slot leak behind a recurring browser-test flake. (#37)
+- The feature generator's migration, now covered by a real-Postgres test. (#36)
+- The Drizzle snapshot, realigned with an empty custom migration. (#38)
+- Handlers that assembled their own database and auth returned inconsistent errors on capacity exhaustion; the shared scope maps it once. (#38)
+
+### Security
+
+- A client-supplied `x-request-id` is never trusted. (#38)
+- All open Dependabot alerts patched. (#36)
+- Remove request-supplied cookies from dashboard transport when no trusted session cookie is available.
+- `fflate` raised to 0.7.5 for GHSA-px8p-9vwx-vf98 (an infinite loop on malformed ZIP64 archives). (#44)
+
+### Upgrading an existing 0.2.x checkout
+
+1. Stop the old PM2 processes, which hold the `darkfactory.localhost` route: `pm2 delete darkfactory-web-dev darkfactory-operator-dev`.
+2. Copy anything you still need from `.env.schema` into `.env`, then run `mise install && bun run setup`.
+3. Delete generated Civet leftovers: `find . -name '*.civet.d.ts' -not -path '*/node_modules/*' -delete`.
+4. Copy ignored local files that an older commit tracked (for example `.omp-status.md`) out of the repository before checking out a pre-0.3.0 commit; Git overwrites them.
+
+## [0.2.1] - 2026-07-28
+
+### Changed
+
+- Aligned every workspace package manifest and the capability, OpenAPI, declaration, architecture, and graph metadata to version `0.2.1`.
+- Persist complete Cloudflare Worker invocation logs without traces and enforce a 500 ms paid-runtime CPU ceiling as a fail-safe.
+
+### Fixed
+
+- Prevent speculative Next.js prefetches for authenticated portal, account, and administration links so hidden navigation trees do not spend Worker CPU before user intent.
+- Resolve exact `GET /api/auth/get-session` status gating and response-token sanitization in one pass, while preserving fail-closed handling for inactive or malformed present sessions.
+- Prevent staging Worker deployments from inheriting and temporarily reassigning the production custom domain.
+
+## [0.2.0] - 2026-07-27
+
+### Added
+
+- Added Bun 1.3.14 as the primary script and TypeScript runtime while retaining supported Node.js and pnpm workspace paths.
+- Added deterministic prerequisite installation for supported macOS and Debian/Ubuntu hosts, including pinned development, browser, graph, environment, and local database tooling.
+- Added an exact four-metric V8 coverage gate and expanded contract, integration, browser, accessibility, lifecycle, generator, and operations coverage.
+
+### Changed
+
+- Aligned local development, CI, documentation, repository adapters, and Graphify lifecycle commands around the Bun-first toolchain.
+- Refreshed repository-health and OpenSSF Best Practices evidence without treating optional score optimization as a release prerequisite.
+
+### Fixed
+
+- Secured same-Worker request-local dispatch for authentication, oRPC, theme, portal, administration, and dashboard requests while preserving request identity, trusted cookies and origins, abort deadlines, Cloudflare cleanup ownership, and client-IP rate limiting.
+- Added PlanetScale Postgres compatibility for system certificate roots and bounded database query execution.
+- Hardened portable CI startup and teardown across Corepack, pnpm selection, Linux browser readiness, Miniflare isolation, Cloudflare Worker preview, and Portless execution.
+
+### Security
+
+- Added bounded staging and release security gates, credential-safe evidence handling, and stricter redaction of secrets from reports, previews, and failure artifacts.
+- Hardened database, authentication, email, process-lifecycle, filesystem, and generated-feature boundaries against unsafe overrides, path escapes, leaked credentials, and incomplete cleanup.
+
+## [0.1.0]
+
+### Added
+
+- Domain-neutral public, authentication, portal, account, and administration surfaces.
+- Contract-first oRPC API, generated OpenAPI, Better Auth integration, and PostgreSQL/Drizzle persistence.
+- Provider ports for AI, email, analytics, observability, jobs, state, and storage capabilities.
+- Reproducible local development, feature generation, Graphify lifecycle, and agent-specific repository adapters.
+- Unit, contract, operations, integration, browser, accessibility, and deterministic coverage verification lanes.
+- Contribution, support, vulnerability-reporting, release, and repository-health policies.
+
+### Security
+
+- Added secret-safe environment boundaries, isolated test infrastructure, private vulnerability reporting, secret scanning and push protection, dependency review, CodeQL for JavaScript/TypeScript and Actions, and OpenSSF Scorecard analysis.
+- Updated direct and transitive build dependencies to resolve eight published advisories: [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99), [GHSA-g7r4-m6w7-qqqr](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr), [GHSA-r5fr-rjxr-66jc](https://github.com/advisories/GHSA-r5fr-rjxr-66jc) / CVE-2026-4800, [GHSA-f23m-r3pf-42rh](https://github.com/advisories/GHSA-f23m-r3pf-42rh) / CVE-2026-2950, [GHSA-xxjr-mmjv-4gpg](https://github.com/advisories/GHSA-xxjr-mmjv-4gpg) / CVE-2025-13465, [GHSA-f88m-g3jw-g9cj](https://github.com/advisories/GHSA-f88m-g3jw-g9cj) / CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, and CVE-2026-35591, [GHSA-pm4m-ph32-ghv5](https://github.com/advisories/GHSA-pm4m-ph32-ghv5), and [GHSA-mh99-v99m-4gvg](https://github.com/advisories/GHSA-mh99-v99m-4gvg). A current `pnpm audit` reports zero known vulnerabilities.
+- No published DarkFactory-specific security advisory or NVD CVE record matching the project name or repository was identified when this first release was prepared. This bounded statement is not a claim that the software is vulnerability-free.
+
+[Unreleased]: https://github.com/jeffscottward/darkfactory/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/jeffscottward/darkfactory/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/jeffscottward/darkfactory/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/jeffscottward/darkfactory/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/jeffscottward/darkfactory/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/jeffscottward/darkfactory/releases/tag/v0.1.0

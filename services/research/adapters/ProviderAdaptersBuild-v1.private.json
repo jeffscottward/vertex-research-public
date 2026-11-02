@@ -1,0 +1,199 @@
+{
+  "schemaVersion": "1.0.0",
+  "handoffVersion": "ProviderAdaptersBuild-v1",
+  "state": "source-authored-unexecuted",
+  "owner": "VertexProviderAdaptersBuild",
+  "scope": "NEW services/research/adapters/** only",
+  "changedExistingDomainFiles": false,
+  "entrypoints": {
+    "hostRegistry": "adapters.create_handlers(host_context) -> dict[kind, async handler(payload, lease)]",
+    "configuration": "adapters.load_configuration(selection, artifacts_by_selected_id, ContractAuthority)",
+    "admission": "adapters.create_host_admission(config, clock, owner_fence) ONCE per singleton Host lifecycle",
+    "decoderWorker": "python -m adapters.decode_worker; one bounded stdin envelope, no poller",
+    "decoderOpcodes": [
+      "adapters.decode-csv",
+      "adapters.decode-arrow",
+      "adapters.decode-pdf"
+    ]
+  },
+  "files": [
+    "__init__.py",
+    "ports.py",
+    "configuration.py",
+    "http.py",
+    "admission.py",
+    "decoders.py",
+    "decode_worker.py",
+    "historical.py",
+    "model_policy.py",
+    "model_use.py",
+    "agno.py",
+    "review.py",
+    "handlers.py",
+    "tests/test_effect_boundaries.py",
+    "tests/test_model_and_review.py",
+    "tests/test_host_and_model_use.py"
+  ],
+  "hostContext": [
+    "selection",
+    "adapter_config",
+    "contracts",
+    "control",
+    "control_bridge",
+    "clock",
+    "cancellation",
+    "supervisor",
+    "admission",
+    "secret_resolver",
+    "chat_events"
+  ],
+  "privateJobProfiles": {
+    "vertex-research-run-v1": "handlers._research; exact RunRequest dataclass fields, every *_ns field canonical decimal string; immutable selected model/task/budget/tools; actor/account/environment exact lease; optional existing thread ID",
+    "vertex-dataset-ingest-v1": "handlers._dataset; provider+operation+documented request args+exact SourceContext fields+DatasetPlanner publication fields",
+    "vertex-historical-input-v1": "handlers._historical; authorized artifact reference+QuantPad metadata+explicit historical session cutoff/universe/adjustments",
+    "vertex-knowledge-import-v1": "handlers._knowledge; collection/snapshot/CAS/rights/capture metadata; explicit artifact references only, never local paths or corpus traversal"
+  },
+  "publicContractAuthority": {
+    "source": "packages/api/src/contracts/{vertex,vertex-worker,vertex-policy,vertex-model-use}.civet",
+    "native": "vertex_contracts.ContractAuthority",
+    "clonedPublicSchemas": false,
+    "actualOutputs": [
+      "DatasetManifest",
+      "Candle",
+      "ResearchEvidence",
+      "KnowledgeImport",
+      "AgentRun"
+    ],
+    "internalOnly": "Private config/input envelopes and Agno output JSON-schema are not alternate public contracts. All public records pass ContractAuthority."
+  },
+  "implemented": [
+    "Concrete HTTPSConnection TLS transport; explicit selected origin/path/method/query keys/credential ref/public IP routing; system trust+hostname SNI verification; no redirects/DNS/proxies/fallback URL; bounded body/response and per-call cancel/deadline watchdog",
+    "Single-owned Host rate/model budget with fence/PID/clock checks, bounded receipts, atomic shared lock, full-window restart quarantine, no per-worker WindowBudget reset; separate durable ControlLink run admission",
+    "Agno 1.7.12 OpenAIChat.invoke with custom HTTPX BaseTransport, pinned dependencies, no Agent/tools/history/SDK retries, controlled role map, no ambient endpoint/account/auth transport fallback",
+    "Exact vLLM0.9.2 chat tokenization using actual complete final messages and identical template options; no universal count; count/IDs/context equality; prompt/output raw usage totals, no double counting cache/reasoning; selected prices in exact 1e-18 USD units",
+    "Independent ModelUseRequest actual wire bytes/count/hash/model/tokenizer/endpoint/job/selection/evidence/review/rights/budget/privacy proof via currentModelUse; first dispatch requires externalDispatchAllowed, after reuses exact request; original four storage allowedUses unchanged",
+    "CSV exact strings, strict duplicate/ragged/field/row bounds; Arrow IPC file/stream restricted scalar schema and no inferred binary-float economics; pypdf supplied-byte PDF parsing under mandatory network-denied CPU/RSS/wall/output-limited Host sandbox",
+    "Existing FinancialDatasets/QuantData planners and MarketNormalizer/DatasetPlanner/ProviderObservationPlanner composed into dataset ingestion; normalized content published under DatasetManifest.storageRef with original content lineage preserved",
+    "Existing QuantPadInputBoundary composed into historical-only dataset publication; no synthetic quotes/current-session claims",
+    "Existing CollectionAdapters/SSRNAdapter/KnowledgeService composed into collection CAS publication; explicit bounded supplied artifact reads; no download or vault traversal; aggregate16MB source budget before eager planning",
+    "Existing ResearchOrchestrator retrieval/current review/admission/publication composed; immutable original evidence cached only as bytes, never authorization; fresh exact-hash latest review/current rights before each model disclosure and publication",
+    "ExistingChatAdapter projected into supplied authenticated existing-chat delivery port; optional unavailable chat cannot erase durable research output or trigger duplicate compute"
+  ],
+  "modelEligibilityRequirements": [
+    "No default model is selected. Unknown backend, unavailable pricing, missing capability/grant, missing exact tokenizer/deployment pins or unsupported schema is unavailable.",
+    "Only explicit vllm-0.9.2 deployment profile is supported by exact preflight meter. Groq existing adapter is not a substitute for unknown exact input tokenization.",
+    "Trusted selected serving manifest pins exact model revision, tokenizer artifact, deterministic pure template, full runtime image digest, immutable identical replicas, text-only decoder model, no LoRA/prompt adapters/tools/documents/truncation.",
+    "Both root /tokenize and /v1/chat/completions require authenticated reverse-proxy policy; vLLM native /v1-only middleware does not protect root tokenize.",
+    "Model-use grant IDs/versions and service/model/tokenizer/endpoint identity must be independently current server-authorized; private config identifiers never grant permission."
+  ],
+  "dependencyProposals": [
+    {
+      "package": "agno",
+      "version": "1.7.12",
+      "license": "MPL-2.0",
+      "metadata": "https://pypi.org/pypi/agno/1.7.12/json",
+      "status": "optional-proposal-not-installed-not-locked"
+    },
+    {
+      "package": "openai",
+      "version": "1.93.0",
+      "license": "Apache-2.0",
+      "metadata": "https://pypi.org/pypi/openai/1.93.0/json",
+      "status": "optional-proposal-not-installed-not-locked"
+    },
+    {
+      "package": "httpx",
+      "version": "0.28.1",
+      "license": "BSD-3-Clause",
+      "metadata": "https://pypi.org/pypi/httpx/0.28.1/json",
+      "status": "optional-proposal-not-installed-not-locked"
+    },
+    {
+      "package": "pyarrow",
+      "version": "19.0.1",
+      "license": "Apache-2.0-with-bundled-third-party-notices",
+      "metadata": "https://raw.githubusercontent.com/apache/arrow/apache-arrow-19.0.1/LICENSE.txt",
+      "status": "optional-proposal-not-installed-not-locked"
+    },
+    {
+      "package": "pypdf",
+      "version": "5.7.0",
+      "license": "BSD-3-Clause",
+      "metadata": "https://raw.githubusercontent.com/py-pdf/pypdf/5.7.0/LICENSE",
+      "status": "optional-proposal-not-installed-not-locked"
+    }
+  ],
+  "remoteBackendProposal": {
+    "backend": "vllm",
+    "version": "0.9.2",
+    "installedDependency": false,
+    "modelVersionChosen": false,
+    "modelRevisionChosen": false,
+    "runtimeImageChosen": false
+  },
+  "sourceEvidence": [
+    "https://raw.githubusercontent.com/agno-agi/agno/v1.7.12/libs/agno/agno/models/openai/chat.py",
+    "https://raw.githubusercontent.com/agno-agi/agno/v1.7.12/libs/agno/agno/models/base.py",
+    "https://raw.githubusercontent.com/openai/openai-python/v1.93.0/src/openai/resources/chat/completions/completions.py",
+    "https://raw.githubusercontent.com/openai/openai-python/v1.93.0/src/openai/types/completion_usage.py",
+    "https://raw.githubusercontent.com/encode/httpx/0.28.1/httpx/_transports/base.py",
+    "https://raw.githubusercontent.com/vllm-project/vllm/v0.9.2/vllm/entrypoints/openai/protocol.py",
+    "https://raw.githubusercontent.com/vllm-project/vllm/v0.9.2/vllm/entrypoints/openai/serving_tokenization.py",
+    "https://raw.githubusercontent.com/vllm-project/vllm/v0.9.2/vllm/entrypoints/openai/serving_chat.py",
+    "https://raw.githubusercontent.com/vllm-project/vllm/v0.9.2/vllm/entrypoints/openai/serving_engine.py",
+    "https://raw.githubusercontent.com/vllm-project/vllm/v0.9.2/vllm/entrypoints/openai/api_server.py",
+    "https://raw.githubusercontent.com/huggingface/transformers/v4.51.1/src/transformers/utils/chat_template_utils.py",
+    "https://github.com/apache/arrow/blob/apache-arrow-19.0.1/python/pyarrow/ipc.py",
+    "https://github.com/apache/arrow/blob/apache-arrow-19.0.1/python/pyarrow/ipc.pxi",
+    "https://github.com/apache/arrow/blob/apache-arrow-19.0.1/cpp/src/arrow/ipc/reader.cc",
+    "https://github.com/py-pdf/pypdf/blob/5.7.0/pypdf/_reader.py",
+    "https://github.com/py-pdf/pypdf/blob/5.7.0/pypdf/_page.py",
+    "https://github.com/py-pdf/pypdf/blob/5.7.0/pypdf/filters.py",
+    "gamma-forge:forge/src/options_alpha/adapters/quantdata_adapter.py",
+    "gamma-forge:app/backend/gamma_terminal/market/service.py"
+  ],
+  "explicitUnavailable": [
+    "QuantData news/dark-pool/dealer-analytics: no implemented source-backed endpoint semantics found; no invented path or live quote substitution",
+    "User-selected macro links/vintages and Define Your Risk identity: no inferred source/corpus",
+    "CurrentSession QuantPad equivalence, OPRA, export/model-use/retention/plan entitlements: not inferred",
+    "ControlLink artifacts >1MiB or publication lineage >64: rejected; no implicit source truncation or hidden batching",
+    "Image-only PDF/OCR, encrypted PDFs, nested/extension/dictionary/binary-float Arrow interpretation: unavailable",
+    "Actual credentials, immutable deployment/endpoint addresses, model/corpus consent/grants and dependency wheel hash closure: activation prerequisites not issued/read/applied here"
+  ],
+  "review": {
+    "mode": "source-only",
+    "findingsCorrected": [
+      "completion outputArtifactIds",
+      "effective per-run deadline",
+      "stopped-run outcome not success",
+      "attempt-bounded HTTP and rights operation",
+      "post-connect response timeout",
+      "optional chat error isolation",
+      "pre-planner aggregate input byte cap"
+    ],
+    "additionalHardening": [
+      "each-disclosure original current review",
+      "independent one-shot model dispatch proof",
+      "exact endpoint capability pin",
+      "canonical private nanosecond fields",
+      "Arrow random-access file cursor handling",
+      "source metadata/package versions only"
+    ],
+    "testsExecuted": false,
+    "formattersExecuted": false,
+    "lintersExecuted": false,
+    "buildsExecuted": false,
+    "runtimeImportsExecuted": false,
+    "providerOrModelCallsExecuted": false,
+    "corpusOperationsExecuted": false,
+    "installsExecuted": false,
+    "runtimeAcceptanceClaimed": false
+  },
+  "integrationOwners": {
+    "Main": "root manifests/exports and final whole-product source composition; final acceptance after complete buildout",
+    "VertexNativeHostBuild": "selected raw artifact cache, adapter_config loading, one singleton admission/fence, decoder sandbox and same dispatcher",
+    "VertexControlLinkBuild": "current authenticated rights/review/model-use, artifacts/collections/publication/admission wire and concrete native adapters",
+    "VertexRuntimeCompositionBuild": "actual admitted-command to immutable private job recipe profiles and existing chat delivery binding",
+    "VertexNativePackagingBuild": "final package discovery adapters/adapters.*, dependency proposal metadata/license obligations and byte-frozen provenance hash inventory"
+  }
+}

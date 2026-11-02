@@ -1,0 +1,82 @@
+{
+  "status": "source-authored-unvalidated",
+  "date": "2026-09-22",
+  "owner": "VertexExecutionBuild",
+  "resumeRoot": "/home/jeffscottward/Github/trading/vertex-research-platform",
+  "scope": ["services/execution/**", "services/execution-kernel/**"],
+  "sourceAuthority": {
+    "workPackage": "WP6 / Slice B",
+    "userRequirements": ["U04", "U34", "U36"],
+    "focusedReportIds": [
+      "S-4d528ee59657e7",
+      "S-3f567782d606b8",
+      "S-43582091b455be",
+      "S-8f6ac1b7c8b133",
+      "S-1e835628ec2c4e",
+      "S-2d162152c0cf1e",
+      "S-93f24acd01869d",
+      "S-9d6f9c314c023b"
+    ],
+    "kernelProvenance": "services/execution-kernel/private/source-provenance-v1.json",
+    "failureMatrix": "services/execution/tests/failure-matrix.json",
+    "adapterProvenance": "services/execution/vertex_execution/adapters/provenance.json",
+    "publicContracts": [
+      "packages/api/src/contracts/vertex.civet",
+      "packages/api/src/contracts/vertex-control.civet",
+      "packages/api/src/contracts/vertex-native-facts.civet"
+    ],
+    "nativeFactFreeze": "private/verification/foundation/VertexNativeFactPortFreeze-v2.json",
+    "supersededProposal": "services/execution/private/native-fact-proposal-v1.json is proposal history only; actual public schema and freeze above supersede its proof shape and sequence semantics"
+  },
+  "implementation": {
+    "kernel": "Pure Rust checked i128 decimal, exact nanosecond clocks, pinned exchange-local date/DST/holiday/early-close calendars, full qualification and quote/entitlement/Greek provenance, explicit fee/slippage/latency inputs, all-sleeve cash/settled-cover/Greek/exposure limits and independent adverse partial-leg settlement reservation. No borrowed public schema definitions.",
+    "owner": "One private local SQLite FULL/WAL journal with lifetime fcntl lock, persisted epoch CAS, fork/poison rejection, replay hash chain and checkpoints, atomic reserve+outbox before dispatch, account/environment-qualified idempotency+payload hash, irreversible dispatch marker UNKNOWN before simulator effects, no unknown resubmit, cumulative fill/cancel reconciliation, pinned immutable StrategySpec artifact IDs.",
+    "batch": "AtomicBatchOwner independently validates 1..8 immutable reviewed intent/admission/review pairs, exact common scope/actor/policy/epoch/current native review checkpoint, ordered artifact digest set, per-leg native limits and full qualification/settlement evidence, aggregate worst-case reservation, all-or-none journal append and cross-single/batch qualified key contention. Every dispatch rechecks rights/expiry/native risk.",
+    "simulation": "Pure bounded exact Decimal simulator with explicit symbol/session models, consumed shared depth, participation/liquidity limits, adverse costs and latency, multileg imbalance/partial fills, unknown acceptance, cancellation latency/finality, complete checkpoint/restore. DurablePaperTransport canonical allowlisted checkpoint persistence before effects, verified fill economics and per-leg caps, poisoned uncertain commits, no default models or live transport.",
+    "settlement": "Qualified cash/physical assignment, exercise, expiry, AM/PM fixing, early/ex-dividend/pin scenarios. Pending obligations are journaled without increasing spendable cash/shares. Unsettled sale credits and acquired cover remain unavailable until explicit trusted exact-calendar maturity. Covered obligations retain collateral until full final settlement; corporate actions require exact reviewed ratio/lineage and no affected open/unsettled holds.",
+    "safety": "Independent local_pause metadata latch commits before public fact generation; it blocks new risk even if public validation/publication fails. Cancel, liquidation request and reset require separate exact action grants. Liquidation is a durable request, not hidden order dispatch. Reset requires current reconciliation and clears latch atomically. Gateway guard holds local transaction/fence through authorized recovery context; paper-only vacuous protection continuity, no unresolved positions/orders/reservations/unsettled credits; never rearms on exit.",
+    "publication": "Approved native paper capital policy seeds local journal only. PortfolioGenesis sequence1 derives from owned state, never cloud balances; order/native facts share one ordered stream starting at sequence2. NativeFactProjection + exact NativeJournalProof bytes persist atomically and replay binds proof to owned journal event. Native actor is injected authenticated emitter, not human reviewer. Stable receivedAt/hash bytes preserved on retry; admission expiry does not prevent later facts.",
+    "nativeFactIdentityRefinement": "Required projection proofJournalSequence/proofJournalHeadHash/factOrdinal0..63 bind actual owned journal event identity and proof top-level journalSequence/journalHeadHash/factOrdinal. Never equate local journal and global projection sequence. Up to64 facts per transition use contiguous ordinals and advancing global sequence; atomic native_fact_identities primary key prevents duplicate source ordinal; replay checks both independent sequences. Required ContractAuthority.validate_native_journal_proof is authoritative for public pair/hash/schema semantics; execution adds actual local event/head/epoch/time binding. Refinement source-only, all gates still unexecuted.",
+    "adapters": "Bounded synchronous callback buffer with sticky overflow gap and separate async drain; injected Rust byte transport only; lazy offline Nautilus1.231.0 exact-pin factory; incompatible2.0.0rc5 quarantined and activation prohibited; research SimulationEngine adapter requires independently verified actual supervisor start/finish attestations, never fabricated sandbox claims."
+  },
+  "ports": {
+    "rust": "vertex_execution_kernel::evaluate_json(&vertex_contracts::ContractAuthority,&[u8])->Result<Vec<u8>,KernelError>; complete wire services/execution-kernel/private/kernel-wire-v1.json",
+    "nativeProofAuthority": "ContractAuthority.validate_native_journal_proof(projection,proof_bytes,schema_version='1.0.0')->literalTrue required; no permissive fallback or handwritten duplicate public semantics. Native fact build helpers require fact_ordinal:int0..63.",
+    "ownerConstructor": "PaperExecutionOwner(journal,authority,artifacts,risk,admission_authority,observation_authority,mutation_authority,stream_id,native_emitter_actor_id,native_policy_version,projection_ttl_ns,now_ns,transport=None), keyword-only",
+    "ownerAdmission": "admit(intent_artifact_id,admission_artifact_id,*,now_ns)->submission_key; AtomicBatchOwner.admit_batch(batch_idempotency_key,legs:tuple[(intentArtifactId,admissionArtifactId)],*,now_ns)->submission_key",
+    "asyncService": "AsyncExecutionService serialized worker methods admit/admit_batch/dispatch_once/reconcile_order/observe/ingest/pause_new_risk/cancel_simulation/request_liquidation/reset_new_risk. No startup scheduling.",
+    "risk": "NativeRiskPort(authority,evaluate:Callable[[bytes],bytes],evidence:QualifiedEvidencePort,journal_id); assess and assess_batch are pure current-ledger evaluations, explicit trusted qualified-input resolver/command encoder required",
+    "bootstrap": "seed_simulation(owner,SimulationCapitalPolicy,authority,observation_id,evidence_sha256,now_ns); explicit approved SIMULATION amount/account/currency only; no default quantity. First PortfolioObservation requires seed_policy_artifact_id/seed_policy_sha256. finish_reconciliation then record_genesis(snapshot_id,max_age_ms,now_ns), separately authorized reset.",
+    "portfolio": "record_portfolio_checkpoint(snapshot_id,max_age_ms,now_ns) links current native chain head and exact owned economics; checkpoint(now_ns) emits typed audit fact and local checkpoint",
+    "transport": "DurablePaperTransport(journal,models,provenance_id,decoder,mutation_authority,bounds); explicit initialize() or restore(); submit/cancel/reconcile; advance(market_events,now_ns) off callback. QualifiedCommandDecoder decode + exact encode inverse required.",
+    "projectionPort": "async publish(canonical_projection,*,event_hash), publish_portfolio_genesis(canonical_snapshot,*,source_hash), publish_portfolio_snapshot(canonical_snapshot,*,source_hash), publish_native_fact(canonical_projection,proof_bytes,*,event_hash), all return exact acknowledged hash",
+    "gateway": "FencedExecutionSafetyPort(owner,clock_ns,verifier,maximum_lease_ns).hold(RecoveryBinding)->ContextManager[SafetyLease]; lease_valid must remain true at effect time. GatewayBindingVerifier.verify_binding privately resolves opaque account_ref and current status/session generation under exact owner epoch/journal fence.",
+    "settlement": "SettlementController(owner,SettlementEvidencePort).record_option_obligations / settle_trades / settle_options / restore_qualification; CorporateActionController(owner,CorporateActionAuthority).apply; all explicit evidence and exact current owned journal checks",
+    "research": "AttestedResearchSimulationEngine implements backtesting.planner.SimulationEngine.describe/simulate with injected loader, pure runner, enforcing supervisor and independent attestation verifier; exact interfaces-v1.json under adapters"
+  },
+  "dependencyProposals": {
+    "python": "services/execution/pyproject.toml: Python>=3.12,<3.13; setuptools82.0.1 aligned with Main's existing research verified pin; vertex-contracts1.0.0 local sibling dependency; no installation or Nautilus auto-install",
+    "rust": "services/execution-kernel/Cargo.toml: serde=1.0.228 derive, serde_json=1.0.145 without arbitrary_precision, vertex-contracts path ../contracts/rust, edition2021, rust-version1.85",
+    "nautilus": "1.231.0 offline adapter only;2.0.0rc5 separate fail-closed quarantine",
+    "mainOwned": "Root package/export maps, root manifests/lockfiles/toolchain, native bundle generation, API/control/store wiring, actual dependency resolution and supervisor/runtime composition remain Main-owned"
+  },
+  "regressionSources": {
+    "failureMatrix": "All F01..F14 have source mappings with unexecuted status. F11 only execution boundary containment here; research prompt-injection acceptance remains research owner's gate.",
+    "pythonMethodsAtSourceInventory": 382,
+    "rustTestFunctionsAtSourceInventory": 26,
+    "coverage": "Kernel decimals/calendar/wire/risk and0DTE; pure simulator/settlement; journal+all14failures; batch/crosssleeve; durable simulator bridge; corporateaction; gateway fence; native risk; stable native facts/proofs; portfolio genesis/checkpoints; adapter/research sandbox boundaries",
+    "ordinalRefinement": "Eight NativeFactIdentityTests methods author two-facts/one-event independent counters, exact required native helper, contiguous0..63 ordinal and65 rejection, whole-transition rollback, source ownership and rehashed/rechained duplicate/reordered replay corruption. Native fact helper adds required-ordinal/bounds/hash regressions; batch/failure nonconformance doubles implement the exact pair port. None executed.",
+    "executed": false
+  },
+  "remainingActivationBlockers": [
+    "All tests/compiler/build/lint/format/typecheck/coverage/conformance/runtime/security review gates remain not_run by explicit user sequencing; authored source is not acceptance.",
+    "Generated source-bound native bundle and cross-runtime canonical/schema/hash/time parity are unavailable until Main's deferred generation/verification phase.",
+    "Concrete trusted immutable artifact/admission/revocation/observation/settlement/qualification/capital-policy caches and compiled native callback composition must be wired by Main; no default trust or fabricated evidence.",
+    "Calibrated real option metadata, exchange calendars/tzdb, entitlement/Greeks/data freshness, fee/slippage/liquidity/latency models and reviewed0DTE replay/rapid-exit/expiry evidence are not established by source code.",
+    "Actual offline Nautilus engine compatibility, OS-enforced research sandbox supervision and native package/toolchain resolution require deferred verification.",
+    "No broker/live transport implementation, startup connection, existing-order operation, credential use, VPS trust change, provider request, deployment or publication has occurred. Live capability is deliberately absent, not implicitly enabled by paper admission.",
+    "Gateway safety guard cannot stand in for an actual live execution owner and only permits paper quiescence without unresolved protection obligations.",
+    "Hash chains/checkpoints depend on trusted private local filesystem/SQLite durability; same-user adversarial replacement of both journal and checkpoint is outside this local integrity model."
+  ],
+  "verification": "Bounded text/source inspection only. No tests/imports/runtime probes/builds/compilers/formatters/linters/typechecks/installs/generation/benchmarks/network/provider/broker actions executed. No original repository, public schema, root manifest or shared checkpoint edited by this owner."
+}

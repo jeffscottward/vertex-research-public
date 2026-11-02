@@ -1,0 +1,136 @@
+{
+  "slug": "option-premium-is-not-income",
+  "sourceId": "DaWLfPxpy20",
+  "title": "Option premium is not income",
+  "summary": "Calling covered call or cash-secured put premium income is misleading. You are not a landlord renting out shares. The premium is closer to a distribution from your own future returns: you take cash now and give up upside later. The word income gives a false sense of security, so understand the risks.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["income", "upside cap", "framing"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Shares only",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Compare owning shares with selling a $105 call against them."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Shares alone: the full gain or loss of the stock."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "The covered call: a small premium now, no gain above $105, and almost the full loss below."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The premium is paid out of your own future upside. That is a trade-off, not rent."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium lowers the breakeven only by its own size. The share risk stays."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield", "breakevenCall"],
+  "takeaways": [
+    "Selling covered calls or cash-secured puts does not create income like rent.",
+    "The premium is closer to a distribution from your own future returns.",
+    "Calling it income gives a false sense of security about the risk."
+  ],
+  "caveats": [
+    "This is the speaker's framing. Prices and strikes in the chart are example values."
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "slug": "deep-itm-call-delta-elasticity",
+  "sourceId": "DTa1Nu0Do5Y",
+  "title": "Deep in-the-money calls rebalance themselves through delta",
+  "summary": "The speaker buys deep in-the-money calls as stock replacement and never rolls the strike. After a rally, the option's leverage falls, which works like selling into strength. After a drop, delta falls so dollar losses slow, while leverage on the remaining capital rises, which works like buying the dip.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps"],
+    "timeframe": "years",
+    "risk": "defined",
+    "topics": ["delta", "leverage", "stock replacement", "no rolling"]
+  },
+  "scene": {
+    "type": "greeks",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Deep ITM call"
+      }
+    ],
+    "greek": "delta"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 75,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 365,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We own a one-year $75 call, deep in the money, as a stock replacement."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The $75 strike is fixed. The speaker never rolls it, whatever the stock does."
+    },
+    {
+      "element": "delta",
+      "color": "green",
+      "caption": "Delta is near 0.90 at $100. If the stock rallies, delta moves toward 1.0 while the call's leverage shrinks: like trimming into strength."
+    },
+    {
+      "element": "delta",
+      "color": "red",
+      "caption": "If the stock falls toward the strike, delta drops. Each further dollar down costs less: like a built-in brake."
+    },
+    {
+      "element": "gamma",
+      "color": "violet",
+      "caption": "Gamma shows how fast delta changes. It peaks near the strike, where the elasticity is largest."
+    },
+    {
+      "element": "theta",
+      "color": "gray",
+      "caption": "Theta is small for a deep in-the-money LEAPS call, so the carrying cost is low.",
+      "time": [0, 0.6]
+    }
+  ],
+  "formulas": ["delta", "gamma", "extrinsic"],
+  "takeaways": [
+    "Do not roll deep in-the-money call strikes after a rally; the falling leverage acts like selling into strength.",
+    "After a drop, the lower delta slows dollar losses and the leverage on remaining capital rises, like adding on weakness.",
+    "The speaker calls this delta elasticity and lets it work instead of trading."
+  ],
+  "caveats": [
+    "The 'buy the dip, sell the rip' effect is a change in exposure, not actual trades. Total loss of the premium is still possible.",
+    "The transcript is cut off before the speaker's bottom line."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["AAPL", "MSFT", "SPY"],
+    "scenario": {
+      "label": "2018-2024: two bear markets and two rallies",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 365,
+      "coreDelta": 0.9,
+      "coreExitDte": 90
+    },
+    "note": "One-year 90-delta call held without strike rolls; replaced 90 days before expiry."
+  }
+}

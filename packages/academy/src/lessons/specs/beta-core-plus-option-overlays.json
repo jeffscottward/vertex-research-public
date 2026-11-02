@@ -1,0 +1,89 @@
+{
+  "slug": "beta-core-plus-option-overlays",
+  "sourceId": "Da-lRucOQWK",
+  "title": "Risk first, invest second, option overlays third",
+  "summary": "At his former hedge fund, clients chose a benchmark for beta exposure and the fund added relative-value derivative trades for alpha. Individuals can do the same: hold core beta with shares, ETFs or, his preference, 95-delta calls, and add option overlays on top.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["etf", "portfolio", "leaps"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["beta", "alpha", "overlays", "portfolio construction"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core beta exposure",
+      "default": 85,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Option overlays",
+      "default": 10,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Leverage",
+      "default": 1,
+      "min": 0.5,
+      "max": 3,
+      "step": 0.1,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The bar is the portfolio. The order is risk first, invest second, overlays third."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Step 1, risk: decide the most you can lose before choosing positions."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Step 2, core beta: shares, ETFs or 95-delta calls that track a chosen benchmark."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "Step 3, overlays: option trades on top of the core aim to add alpha."
+    },
+    {
+      "element": "cash",
+      "color": "cyan",
+      "caption": "Cash holds the rest and funds the overlays."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "Same structure as the hedge fund: a benchmark for beta plus relative-value trades for alpha."
+    }
+  ],
+  "formulas": ["positionSize", "delta"],
+  "takeaways": [
+    "Separate beta (the core benchmark exposure) from alpha (overlay trades).",
+    "The speaker uses shares, ETFs or 95-delta calls for the core.",
+    "Define risk first, invest second, add option overlays third."
+  ],
+  "caveats": [
+    "The allocation split is illustrative; the speaker gives no percentages.",
+    "Hedge-fund background is the speaker's own claim."
+  ]
+}

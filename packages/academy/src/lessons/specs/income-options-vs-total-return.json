@@ -1,0 +1,134 @@
+{
+  "slug": "income-options-vs-total-return",
+  "sourceId": "DTyDSvsCffX",
+  "title": "Covered calls and cash-secured puts trade upside for stability",
+  "summary": "Cash-secured puts and covered calls work well when implied volatility is rich relative to realized volatility, and when you want to give up upside for a steadier portfolio. They are not the right trades if your goal is to maximize total return, because the short call or put caps the gain.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["range", "high-vol"],
+    "instruments": ["single-stock", "covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["total return", "capped upside", "IV vs RV"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Long stock",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Long stock keeps all the upside and all the downside."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "The covered call collects premium but caps the gain at the $105 strike."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: a small cushion below, a large give-up above the strike. That is upside traded for stability."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium lowers the breakeven a little. It does not remove the downside."
+    }
+  ],
+  "formulas": ["vrp", "annualizedYield"],
+  "takeaways": [
+    "Covered calls and cash-secured puts fit when IV is rich relative to RV.",
+    "They trade upside for stability; they are not tools to maximize total return.",
+    "In strong rallies a buy-and-hold position beats the covered call."
+  ],
+  "caveats": ["The clip is a short opinion with no data or backtest."]
+}

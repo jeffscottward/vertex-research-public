@@ -1,0 +1,164 @@
+{
+  "slug": "synthetic-long-skip-the-put",
+  "sourceId": "DU_ILLPDhvQ",
+  "title": "Replicating stock with a 95-delta call and no short put",
+  "summary": "A textbook synthetic long is a long call plus a short put at the same strike. The speaker instead buys a deep in-the-money call of 95 delta or more and does not sell the put, because a deep put pays very little. Without the put, delta falls from 95 toward 70 as the stock drops, which cuts exposure.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "synthetics", "leaps"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["synthetic stock", "deep ITM call", "delta"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ATM synthetic (call + short put)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte",
+          "label": "Long ATM call"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte",
+          "label": "Short ATM put"
+        }
+      ]
+    },
+    "b": {
+      "label": "95-delta call only",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "deepStrike",
+          "dte": "dte",
+          "label": "Deep ITM call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "atmStrike",
+      "label": "At-the-money strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "deepStrike",
+      "label": "Deep ITM call strike",
+      "default": 75,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 90,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Two ways to get long stock exposure for 90 days."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "A: buy the $100 call and sell the $100 put. The put pays a lot at the money, so selling it makes sense here."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "B: buy a $75 call of about 95 delta. A matching deep put would pay almost nothing, so the speaker skips it."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Above $100 the lines are close. Below, B loses less as its delta drops from 95 to 90, 80, 70."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "B costs more up front, so its breakeven is a little higher, but its loss stops at the premium."
+    },
+    {
+      "element": "b",
+      "color": "red",
+      "caption": "Risk of B: the full call premium if the stock falls below $75 at expiry.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["putCallParity", "delta", "extrinsic"],
+  "takeaways": [
+    "A long call plus a short put at the same strike replicates stock.",
+    "For a deep in-the-money call, the matching put pays little and adds a lot of downside, so do not sell it.",
+    "Without the put, falling delta reduces exposure as the stock drops."
+  ],
+  "caveats": [
+    "Speech-to-text drops part of the transcript; the 95-to-70 delta path is illustrative."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["SPY", "QQQ", "MSFT"],
+    "scenario": {
+      "label": "2018-2024: two bear markets and two rallies",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 180,
+      "coreDelta": 0.95,
+      "coreExitDte": 30
+    },
+    "note": "95-delta call as stock replacement with no short put; replaced 30 days before expiry."
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "slug": "opportunistic-covered-call-etf",
+  "sourceId": "DUROMujiRei",
+  "title": "Opportunistic covered calls beat writing calls every month",
+  "summary": "The speaker tracks covered-call ETFs against their benchmarks. One fund with a current-income goal that writes calls only opportunistically, for example near resistance, outperformed almost all funds that sell calls systematically. A covered-call program needs a rule for when to stop.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["range", "any"],
+    "instruments": ["etf", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "on-off switch", "resistance", "ETF"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1,
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "events": [
+      {
+        "day": 5,
+        "label": "Near resistance: sell call",
+        "color": "amber"
+      },
+      {
+        "day": 30,
+        "label": "Expiry: calls off",
+        "color": "gray"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 5,
+        "movePct": 4
+      },
+      {
+        "day": 12,
+        "movePct": 2
+      },
+      {
+        "day": 18,
+        "movePct": 3.5
+      },
+      {
+        "day": 24,
+        "movePct": 2.5
+      },
+      {
+        "day": 30,
+        "movePct": 3.5
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 20,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 18,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 8,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A dividend stock path over one month. It stalls near resistance below $105. The fund holds the shares all the time.",
+      "time": [0, 1]
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "The fund sells calls only at chosen moments, for example when the price hits resistance."
+    },
+    {
+      "element": "strikes",
+      "color": "gold",
+      "caption": "The $105 call caps the gain only while it is open."
+    },
+    {
+      "element": "pnl",
+      "color": "green",
+      "caption": "The call expires worthless. With calls off after expiry, the shares would keep all upside if the price later breaks out.",
+      "time": [0, 1]
+    },
+    {
+      "element": "spot",
+      "color": "blue",
+      "caption": "The speaker found such an opportunistic fund beat almost all systematic covered-call funds."
+    }
+  ],
+  "formulas": ["annualizedYield", "extrinsic"],
+  "takeaways": [
+    "Compare covered-call funds with their underlying benchmark, not only with their yield.",
+    "The fund the speaker found sells calls opportunistically, such as near resistance, and suspends them at other times.",
+    "That fund outperformed almost all the funds that write calls systematically."
+  ],
+  "caveats": [
+    "The speaker names the fund only in the caption (DIVO); performance claims are not verified here.",
+    "The transcript promotes the speaker's upcoming Discord."
+  ]
+}

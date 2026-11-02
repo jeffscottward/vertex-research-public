@@ -1,0 +1,27 @@
+[package]
+name = "vertex-kernel-bridge"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "vertex_kernel_bridge"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde_json = "=1.0.145"
+vertex-contracts = { path = "../contracts/rust", version = "=0.1.0" }
+vertex-execution-kernel = { path = "../execution-kernel", version = "=0.1.0" }
+
+[build-dependencies]
+sha2 = "=0.10.9"
+
+[profile.release]
+panic = "unwind"
+overflow-checks = true
+
+# Exact direct pins are a source proposal, not a resolved dependency lock.
+# No build or dependency resolution has been performed for this bridge.

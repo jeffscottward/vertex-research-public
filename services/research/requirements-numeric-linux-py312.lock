@@ -1,0 +1,11 @@
+# Additive source plan for the optional numeric extra; base lock remains unchanged.
+# Target: CPython 3.12.11, Linux x86_64, glibc >= 2.27.
+# Main approved these exact pins and official target-wheel metadata hashes.
+# No wheel download, local artifact-hash verification, install or runtime qualification.
+# NumPy identity also matches original Gamma forge/uv.lock; SciPy is a new PyPI selection.
+# Full release/dependency/license evidence: provenance/numeric-backend.json.
+# Runtime Python closure: SciPy requires numpy>=2.0.0,<2.8; NumPy declares none.
+# SciPy test/doc/dev extras are excluded. Native bundled-library notices still apply.
+-r requirements-linux-py312.lock
+numpy==2.4.6 --hash=sha256:90f9849678c75fe7afa2d348ac842c168b0a4d3d61919687216dfc547976d853
+scipy==1.18.1 --hash=sha256:f55fa87b6c612ecd6b058f167c53231b1d14e412efe361d3d6e38b3631c73218

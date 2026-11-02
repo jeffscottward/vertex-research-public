@@ -1,0 +1,675 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -41,6 +41,8 @@
+ all-features = true
+ 
+ [features]
++# Exclusive reviewed Vertex owner image only. Default SDK behavior is unchanged.
++vertex-exclusive-history-owner = []
+ async = [
+     "dep:tokio",
+     "dep:tokio-stream",
+--- a/src/connection/async.rs
++++ b/src/connection/async.rs
+@@ -3,7 +3,9 @@
+ use std::sync::atomic::{AtomicI32, Ordering};
+ use std::sync::Arc;
+ 
+-use log::{debug, info};
++use log::debug;
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
++use log::info;
+ use tokio::sync::{broadcast, Mutex};
+ 
+ use super::common::{
+@@ -14,6 +16,7 @@
+ use crate::errors::Error;
+ use crate::messages::{encode_raw_length, Notice, ResponseMessage};
+ use crate::trace;
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+ use crate::transport::common::{FibonacciBackoff, MAX_RECONNECT_ATTEMPTS};
+ use crate::transport::r#async::{AsyncStream, AsyncTcpSocket};
+ use crate::transport::recorder::MessageRecorder;
+@@ -129,6 +132,7 @@
+ 
+     /// Reconnect to TWS with fibonacci backoff. Replays the handshake and
+     /// re-fires the persisted startup / notice callbacks.
++    #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+     pub async fn reconnect(&self) -> Result<(), Error> {
+         let mut backoff = FibonacciBackoff::new(30);
+ 
+@@ -154,6 +158,7 @@
+         Err(Error::ConnectionFailed)
+     }
+ 
++    #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+     async fn reset_connection_metadata(&self) {
+         self.server_version_cache.store(0, Ordering::Release);
+ 
+--- a/src/connection/async_tests.rs
++++ b/src/connection/async_tests.rs
+@@ -285,3 +285,26 @@
+     assert_eq!(metadata.managed_accounts, "DU1234567");
+     assert_eq!(metadata.time_zone, Some(timezones::db::EST));
+ }
++
++// This module is already cfg(test). Unlike the upstream stubbed constructor,
++// this exclusive regression seam never reads recorder environment configuration.
++#[cfg(feature = "vertex-exclusive-history-owner")]
++impl<S: AsyncStream> AsyncConnection<S> {
++    pub(crate) fn vertex_stubbed_without_recording(socket: S, client_id: i32) -> Self {
++        let (notice_sender, _) = broadcast::channel(crate::transport::r#async::BROADCAST_CHANNEL_CAPACITY);
++        Self {
++            client_id,
++            socket,
++            connection_metadata: tokio::sync::Mutex::new(ConnectionMetadata {
++                client_id,
++                server_version: SERVER_VERSION,
++                ..Default::default()
++            }),
++            server_version_cache: AtomicI32::new(SERVER_VERSION),
++            recorder: MessageRecorder::new(false, String::new()),
++            connection_handler: ConnectionHandler::default(),
++            startup_callback: None,
++            notice_sender,
++        }
++    }
++}
+--- a/src/market_data/historical/async.rs
++++ b/src/market_data/historical/async.rs
+@@ -347,6 +347,126 @@
+     builder.send::<HistoricalBarUpdate>(request).await
+ }
+ 
++// Vertex opt-in extension. Existing fetch/stream and tick defaults are unchanged.
++// This consumes only the SDK's existing request-scoped routed envelopes/codecs.
++#[allow(clippy::too_many_arguments)]
++pub(crate) async fn historical_data_strict(
++    client: &Client,
++    contract: &Contract,
++    end_date: Option<OffsetDateTime>,
++    duration: Duration,
++    bar_size: BarSize,
++    what_to_show: WhatToShow,
++    trading_hours: TradingHours,
++) -> Result<StrictHistoricalDataSubscription, Error> {
++    common::validate_historical_data(client.server_version(), contract, end_date, Some(what_to_show))?;
++    let builder = client.request();
++    let request_id = builder.request_id();
++    let request = encoders::encode_request_historical_data(
++        request_id, contract, end_date, duration, bar_size, Some(what_to_show),
++        trading_hours.use_rth(), false, &Vec::<crate::contracts::TagValue>::default(),
++    )?;
++    let messages = builder.send_raw(request).await?;
++    Ok(StrictHistoricalDataSubscription {
++        messages, request_id, message_bus: Arc::clone(&client.message_bus),
++        data_seen: false, end_seen: false, failed: false, cancelled: AtomicBool::new(false),
++    })
++}
++
++/// One request, no retry, keepUpToDate=false. Completion requires a decoded
++/// HistoricalData payload followed by the separate HistoricalDataEnd payload.
++/// Completion certifies that response only, not market coverage or raw fidelity.
++#[must_use = "poll this subscription to observe data and the genuine terminal event"]
++pub struct StrictHistoricalDataSubscription {
++    messages: AsyncInternalSubscription,
++    request_id: i32,
++    message_bus: Arc<dyn AsyncMessageBus>,
++    data_seen: bool,
++    end_seen: bool,
++    failed: bool,
++    cancelled: AtomicBool,
++}
++
++impl StrictHistoricalDataSubscription {
++    pub fn request_id(&self) -> i32 { self.request_id }
++
++    pub fn source_response_complete(&self) -> bool {
++        self.data_seen && self.end_seen && !self.failed && !self.cancelled.load(Ordering::Relaxed)
++    }
++
++    /// Successful return is a local send receipt, NOT a broker acknowledgment.
++    /// Cancellation of this future after dispatch leaves its send outcome unknown.
++    pub async fn cancel_checked(&self) -> Result<(), Error> {
++        if self.source_response_complete() { return Ok(()); }
++        if self.cancelled.swap(true, Ordering::Relaxed) {
++            return Err(Error::Simple("historical cancellation already attempted".into()));
++        }
++        let message = encoders::encode_cancel_historical_data(self.request_id)?;
++        self.message_bus.cancel_subscription(self.request_id, message).await
++    }
++}
++
++impl Stream for StrictHistoricalDataSubscription {
++    type Item = Result<SubscriptionItem<HistoricalBarUpdate>, Error>;
++
++    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
++        use crate::subscriptions::common::RoutedItem;
++        let this = self.get_mut();
++        if this.failed || this.end_seen || this.cancelled.load(Ordering::Relaxed) {
++            return Poll::Ready(None);
++        }
++        let routed = match Pin::new(&mut this.messages.stream).poll_next(cx) {
++            Poll::Ready(Some(Ok(item))) => item,
++            Poll::Ready(Some(Err(lag))) => {
++                this.failed = true;
++                return Poll::Ready(Some(Err(Error::Simple(format!("strict historical channel lag: {lag}")))));
++            }
++            Poll::Ready(None) => {
++                this.failed = true;
++                return Poll::Ready(Some(Err(Error::UnexpectedEndOfStream)));
++            }
++            Poll::Pending => return Poll::Pending,
++        };
++        let result = match routed {
++            RoutedItem::Notice(notice) => return Poll::Ready(Some(Ok(SubscriptionItem::Notice(notice)))),
++            RoutedItem::Error(error) => Err(error),
++            RoutedItem::Response(message) => match message.message_type() {
++                IncomingMessages::HistoricalData if !this.data_seen => {
++                    decoders::decode_historical_data(&message).map(|data| {
++                        this.data_seen = true;
++                        HistoricalBarUpdate::Historical(data)
++                    })
++                }
++                IncomingMessages::HistoricalDataEnd if this.data_seen => {
++                    decoders::decode_historical_data_end(&message).map(|(start, end)| {
++                        this.end_seen = true;
++                        HistoricalBarUpdate::End { start, end }
++                    })
++                }
++                IncomingMessages::Error => Err(Error::from(message)),
++                _ => Err(Error::unexpected_response(&message)),
++            },
++        };
++        if result.is_err() { this.failed = true; }
++        Poll::Ready(Some(result.map(SubscriptionItem::Data)))
++    }
++}
++
++impl Drop for StrictHistoricalDataSubscription {
++    fn drop(&mut self) {
++        if self.end_seen || self.cancelled.swap(true, Ordering::Relaxed) { return; }
++        let request_id = self.request_id;
++        let message_bus = Arc::clone(&self.message_bus);
++        if let Ok(message) = encoders::encode_cancel_historical_data(request_id) {
++            tokio::spawn(async move {
++                if let Err(error) = message_bus.cancel_subscription(request_id, message).await {
++                    warn!("error cancelling strict historical data on drop: {error}");
++                }
++            });
++        }
++    }
++}
++
+ // pub(crate) internal plumbing called from `HistoricalTicksBuilder`; the
+ // public API is already a builder, so flat args here are the deliberate
+ // seam between the typed builder and the wire encoder (rule 19 canary
+@@ -437,6 +557,8 @@
+ pub struct TickSubscription<T: TickDecoder<T> + Send> {
+     done: bool,
+     stream_ended: bool,
++    strict: bool,
++    polled: bool,
+     messages: AsyncInternalSubscription,
+     buffer: VecDeque<T>,
+     request_id: i32,
+@@ -449,6 +571,8 @@
+         Self {
+             done: false,
+             stream_ended: false,
++            strict: false,
++            polled: false,
+             messages,
+             buffer: VecDeque::new(),
+             request_id,
+@@ -457,6 +581,33 @@
+         }
+     }
+ 
++    /// Enable fail-closed loss/terminal handling before the first poll.
++    /// Default subscriptions retain the original SDK behavior.
++    pub fn strict(mut self) -> Result<Self, Error> {
++        if self.polled {
++            return Err(Error::InvalidArgument("strict mode must precede the first poll".into()));
++        }
++        self.strict = true;
++        Ok(self)
++    }
++
++    pub fn request_id(&self) -> i32 { self.request_id }
++
++    pub fn source_response_complete(&self) -> bool {
++        self.strict && self.done && self.buffer.is_empty() && !self.stream_ended
++            && !self.cancelled.load(Ordering::Relaxed)
++    }
++
++    /// Local cancellation send receipt only; no broker acknowledgment is implied.
++    pub async fn cancel_checked(&self) -> Result<(), Error> {
++        if self.source_response_complete() { return Ok(()); }
++        if self.cancelled.swap(true, Ordering::Relaxed) {
++            return Err(Error::Simple("historical cancellation already attempted".into()));
++        }
++        let message = encoders::encode_cancel_historical_ticks(self.request_id)?;
++        self.message_bus.cancel_subscription(self.request_id, message).await
++    }
++
+     /// Cancel the historical-ticks request. Safe to call after completion (no-op).
+     /// Also fired automatically on `Drop` for unfinished subscriptions; explicit calls are idempotent.
+     ///
+@@ -497,6 +648,11 @@
+         // Unpin — the only `T`-bearing field is `VecDeque<T>` — so we can project
+         // to `&mut Self`. Every other field (BroadcastStream, bool, Arc) is Unpin.
+         let this = self.get_mut();
++        this.polled = true;
++        if this.strict && this.cancelled.load(Ordering::Relaxed) {
++            this.stream_ended = true;
++            return Poll::Ready(None);
++        }
+ 
+         loop {
+             if let Some(tick) = this.buffer.pop_front() {
+@@ -512,8 +668,20 @@
+ 
+             let routed = match Pin::new(&mut this.messages.stream).poll_next(cx) {
+                 Poll::Ready(Some(Ok(item))) => item,
+-                Poll::Ready(Some(Err(_lagged))) => continue, // skip BroadcastStream lag
+-                Poll::Ready(None) => return Poll::Ready(None),
++                Poll::Ready(Some(Err(lag))) => {
++                    if this.strict {
++                        this.stream_ended = true;
++                        return Poll::Ready(Some(Err(Error::Simple(format!("strict historical channel lag: {lag}")))));
++                    }
++                    continue;
++                }
++                Poll::Ready(None) => {
++                    if this.strict {
++                        this.stream_ended = true;
++                        return Poll::Ready(Some(Err(Error::UnexpectedEndOfStream)));
++                    }
++                    return Poll::Ready(None);
++                }
+                 Poll::Pending => return Poll::Pending,
+             };
+ 
+@@ -522,10 +690,18 @@
+                     this.buffer.extend(ticks);
+                     this.done = done;
+                 }
+-                TickAction::Skip => {}
++                TickAction::Skip => {
++                    if this.strict {
++                        this.stream_ended = true;
++                        return Poll::Ready(Some(Err(Error::Simple("unexpected strict historical tick message".into()))));
++                    }
++                }
+                 TickAction::Notice(notice) => return Poll::Ready(Some(Ok(SubscriptionItem::Notice(notice)))),
+                 TickAction::EndOfStream => {
+                     this.stream_ended = true;
++                    if this.strict {
++                        return Poll::Ready(Some(Err(Error::UnexpectedEndOfStream)));
++                    }
+                     return Poll::Ready(None);
+                 }
+                 TickAction::Error(e) => {
+--- a/src/market_data/historical/async_tests.rs
++++ b/src/market_data/historical/async_tests.rs
+@@ -1139,3 +1139,123 @@
+ 
+     assert!(subscription.next().await.is_none(), "closed channel yields None");
+ }
++
++// Synthetic protocol fixtures only: these tests certify strict response-state
++// transitions, not market coverage, capture admission, or broker acknowledgments.
++fn vertex_bar_payload() -> crate::messages::ResponseMessage {
++    proto_response(
++        IncomingMessages::HistoricalData,
++        historical_data_response()
++            .bar(historical_data_bar(1_678_886_400).ohlc(-0.0, 1.0, -1.0, 0.0).volume(1.0).wap(0.0).count(1))
++            .bar(historical_data_daily_bar("20230315").ohlc(1.0, 2.0, 0.0, 1.0).volume(2.0).wap(1.0).count(2))
++            .encode_proto(),
++    )
++}
++
++fn vertex_bar_terminal() -> crate::messages::ResponseMessage {
++    proto_response(
++        IncomingMessages::HistoricalDataEnd,
++        historical_data_end_response()
++            .start_date_str("20230315 09:30:00 UTC")
++            .end_date_str("20230315 10:30:00 UTC")
++            .encode_proto(),
++    )
++}
++
++async fn vertex_bar_fixture(
++    responses: Vec<crate::messages::ResponseMessage>,
++) -> (Arc<MessageBusStub>, StrictHistoricalDataSubscription) {
++    let message_bus = Arc::new(MessageBusStub::with_ordered_responses(responses));
++    let client = Client::stubbed(message_bus.clone(), server_versions::PROTOBUF_REST_MESSAGES_3);
++    let contract = test_contract();
++    let subscription = tokio::time::timeout(
++        std::time::Duration::from_secs(1),
++        client
++            .historical_data(&contract, BarSize::Min30)
++            .what_to_show(WhatToShow::Trades)
++            .duration(Duration::seconds(3600))
++            .ending(datetime!(2023-03-15 16:00:00 UTC))
++            .fetch_strict(),
++    )
++    .await
++    .expect("synthetic strict request timed out")
++    .expect("synthetic strict request failed");
++    (message_bus, subscription)
++}
++
++async fn vertex_bar_next(
++    subscription: &mut StrictHistoricalDataSubscription,
++) -> Option<Result<SubscriptionItem<HistoricalBarUpdate>, Error>> {
++    tokio::time::timeout(std::time::Duration::from_secs(1), subscription.next())
++        .await
++        .expect("synthetic strict poll timed out")
++}
++
++#[tokio::test]
++async fn vertex_strict_bars_complete_only_after_payload_and_terminal() {
++    let (message_bus, mut subscription) = vertex_bar_fixture(vec![vertex_bar_payload(), vertex_bar_terminal()]).await;
++    assert_eq!(subscription.request_id(), TEST_REQ_ID_FIRST);
++    assert!(!subscription.source_response_complete());
++
++    let HistoricalBarUpdate::Historical(data) = expect_data(vertex_bar_next(&mut subscription).await) else {
++        panic!("expected the historical payload");
++    };
++    assert_eq!(data.bars.len(), 2);
++    assert_eq!(data.bars[0].date, BarTimestamp::DateTime(datetime!(2023-03-15 13:20:00 UTC)));
++    assert_eq!(data.bars[1].date, BarTimestamp::Date(date!(2023-03-15)));
++    assert_eq!(data.bars[0].open.to_bits(), (-0.0_f64).to_bits());
++    assert!(!subscription.source_response_complete(), "payload alone is not completion");
++
++    assert!(matches!(expect_data(vertex_bar_next(&mut subscription).await), HistoricalBarUpdate::End { .. }));
++    assert!(subscription.source_response_complete());
++    assert!(vertex_bar_next(&mut subscription).await.is_none());
++    assert!(subscription.source_response_complete());
++    assert_eq!(request_message_count(&message_bus), 1, "strict acquisition must not retry");
++}
++
++#[tokio::test]
++async fn vertex_strict_bars_missing_terminal_is_incomplete() {
++    let (message_bus, mut subscription) = vertex_bar_fixture(vec![vertex_bar_payload()]).await;
++    assert!(matches!(
++        expect_data(vertex_bar_next(&mut subscription).await),
++        HistoricalBarUpdate::Historical(_)
++    ));
++    assert!(!subscription.source_response_complete());
++    assert!(matches!(vertex_bar_next(&mut subscription).await, Some(Err(Error::UnexpectedEndOfStream))));
++    assert!(vertex_bar_next(&mut subscription).await.is_none());
++    assert!(!subscription.source_response_complete(), "channel closure must not fabricate an End");
++    assert_eq!(request_message_count(&message_bus), 1, "missing terminal must not retry");
++    subscription.cancel_checked().await.expect("synthetic cancellation write failed");
++}
++
++#[tokio::test]
++async fn vertex_strict_bars_error_cannot_be_repaired_by_queued_terminal() {
++    let (message_bus, mut subscription) = vertex_bar_fixture(vec![
++        vertex_bar_payload(),
++        proto_error_response(TEST_REQ_ID_FIRST, 162, "vertex synthetic historical rejection"),
++        vertex_bar_terminal(),
++    ])
++    .await;
++    assert!(matches!(
++        expect_data(vertex_bar_next(&mut subscription).await),
++        HistoricalBarUpdate::Historical(_)
++    ));
++    let Some(Err(error)) = vertex_bar_next(&mut subscription).await else {
++        panic!("expected the synthetic request error");
++    };
++    assert!(error.to_string().contains("vertex synthetic historical rejection"));
++    assert!(vertex_bar_next(&mut subscription).await.is_none(), "failure must remain terminal");
++    assert!(!subscription.source_response_complete());
++    assert_eq!(request_message_count(&message_bus), 1, "request error must not retry");
++    subscription.cancel_checked().await.expect("synthetic cancellation write failed");
++}
++
++#[tokio::test]
++async fn vertex_strict_bars_terminal_without_payload_is_incomplete() {
++    let (message_bus, mut subscription) = vertex_bar_fixture(vec![vertex_bar_terminal()]).await;
++    assert!(matches!(vertex_bar_next(&mut subscription).await, Some(Err(Error::UnexpectedResponse(_)))));
++    assert!(vertex_bar_next(&mut subscription).await.is_none());
++    assert!(!subscription.source_response_complete());
++    assert_eq!(request_message_count(&message_bus), 1);
++    subscription.cancel_checked().await.expect("synthetic cancellation write failed");
++}
+--- a/src/market_data/historical/builder/data.rs
++++ b/src/market_data/historical/builder/data.rs
+@@ -239,6 +239,19 @@
+         .await
+     }
+ 
++    /// Opt-in one-shot acquisition with no retry and explicit response terminal,
++    /// request errors, notices and channel-loss visibility. Unlike `stream`,
++    /// keepUpToDate is false. Poll through End; dropping is not completion.
++    pub async fn fetch_strict(
++        self,
++    ) -> Result<crate::market_data::historical::r#async::StrictHistoricalDataSubscription, Error> {
++        let (end_date, duration) = self.resolve_date_spec()?;
++        crate::market_data::historical::r#async::historical_data_strict(
++            self.client, self.contract, end_date, duration, self.bar_size,
++            self.what_to_show, self.trading_hours,
++        ).await
++    }
++
+     /// Submit a streaming request (`keep_up_to_date = true`) and return a
+     /// [`Subscription`](crate::subscriptions::Subscription) of [`HistoricalBarUpdate`].
+     ///
+--- a/src/transport/async.rs
++++ b/src/transport/async.rs
+@@ -9,7 +9,9 @@
+ 
+ use async_trait::async_trait;
+ use futures::StreamExt;
+-use log::{debug, error, info, warn};
++use log::{debug, error, warn};
++#[cfg(not(feature = "vertex-exclusive-history-owner"))]
++use log::info;
+ use tokio::sync::{broadcast, mpsc, Notify, RwLock};
+ use tokio::task;
+ use tokio::time::Duration;
+@@ -331,6 +333,18 @@
+                                 continue;
+                             }
+                             Err(ref err) if is_connection_error(err) => {
++                                #[cfg(feature = "vertex-exclusive-history-owner")]
++                                {
++                                    // Reusing the Arc after an automatic reconnect would
++                                    // fabricate continuity of the authoritative generation.
++                                    // Existing shutdown closes every routed channel, so
++                                    // strict readers observe incomplete termination.
++                                    error!("Exclusive history connection lost; reconnect disabled");
++                                    message_bus.request_shutdown().await;
++                                    break;
++                                }
++                                #[cfg(not(feature = "vertex-exclusive-history-owner"))]
++                                {
+                                 error!("Connection error detected, attempting to reconnect: {err:?}");
+                                 message_bus.connected.store(false, Ordering::Relaxed);
+ 
+@@ -347,6 +361,7 @@
+                                     }
+                                 }
+                                 continue;
++                                }
+                             }
+                             Err(Error::Shutdown) => {
+                                 error!("Received shutdown signal, stopping message processing.");
+@@ -393,6 +408,7 @@
+     }
+ 
+     /// Reset all channels after reconnection
++    #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+     async fn reset_channels(&self) {
+         debug!("resetting message bus channels");
+ 
+--- a/src/transport/async/io.rs
++++ b/src/transport/async/io.rs
+@@ -4,6 +4,7 @@
+ //! method-async via `#[async_trait]`. Frame-level: `read_message` returns the
+ //! already-unframed body so callers don't repeat the length-prefix dance.
+ 
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+ use std::time::Duration;
+ 
+ use async_trait::async_trait;
+@@ -20,14 +21,19 @@
+     async fn write_all(&self, buf: &[u8]) -> Result<(), Error>;
+ }
+ 
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+ #[async_trait]
+ pub(crate) trait AsyncReconnect {
+     async fn reconnect(&self) -> Result<(), Error>;
+     async fn sleep(&self, duration: Duration);
+ }
+ 
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+ pub(crate) trait AsyncStream: AsyncIo + AsyncReconnect + Send + Sync + 'static + std::fmt::Debug {}
+ 
++#[cfg(all(not(test), feature = "vertex-exclusive-history-owner"))]
++pub(crate) trait AsyncStream: AsyncIo + Send + Sync + 'static + std::fmt::Debug {}
++
+ /// Production async stream over `tokio::net::TcpStream`. Holds the split halves
+ /// behind `Mutex` so reads and writes can run concurrently from the dispatcher
+ /// task and the request senders.
+@@ -35,7 +41,9 @@
+ pub(crate) struct AsyncTcpSocket {
+     reader: Mutex<OwnedReadHalf>,
+     writer: Mutex<OwnedWriteHalf>,
++    #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+     connection_url: String,
++    #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+     tcp_no_delay: bool,
+ }
+ 
+@@ -47,7 +55,9 @@
+         Ok(Self {
+             reader: Mutex::new(read_half),
+             writer: Mutex::new(write_half),
++            #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+             connection_url: address.to_string(),
++            #[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+             tcp_no_delay,
+         })
+     }
+@@ -73,6 +83,7 @@
+     }
+ }
+ 
++#[cfg(any(test, not(feature = "vertex-exclusive-history-owner")))]
+ #[async_trait]
+ impl AsyncReconnect for AsyncTcpSocket {
+     async fn reconnect(&self) -> Result<(), Error> {
+--- a/src/transport/async_tests.rs
++++ b/src/transport/async_tests.rs
+@@ -922,3 +922,77 @@
+         other => panic!("expected Error::InvalidArgument, got {:?}", other.err()),
+     }
+ }
++
++#[cfg(feature = "vertex-exclusive-history-owner")]
++#[tokio::test]
++async fn vertex_exclusive_connection_loss_closes_subscription_without_reconnect() {
++    use super::io::{AsyncIo, AsyncReconnect};
++    use std::sync::atomic::AtomicUsize;
++
++    #[derive(Clone, Debug, Default)]
++    struct VertexDisconnectedStream {
++        reads: Arc<AtomicUsize>,
++        reconnects: Arc<AtomicUsize>,
++        sleeps: Arc<AtomicUsize>,
++    }
++
++    #[async_trait]
++    impl AsyncIo for VertexDisconnectedStream {
++        async fn read_message(&self) -> Result<Vec<u8>, Error> {
++            self.reads.fetch_add(1, Ordering::SeqCst);
++            Err(Error::ConnectionReset)
++        }
++
++        async fn write_all(&self, _bytes: &[u8]) -> Result<(), Error> {
++            Ok(())
++        }
++    }
++
++    #[async_trait]
++    impl AsyncReconnect for VertexDisconnectedStream {
++        async fn reconnect(&self) -> Result<(), Error> {
++            self.reconnects.fetch_add(1, Ordering::SeqCst);
++            Err(Error::ConnectionFailed)
++        }
++
++        async fn sleep(&self, _duration: Duration) {
++            self.sleeps.fetch_add(1, Ordering::SeqCst);
++        }
++    }
++
++    impl AsyncStream for VertexDisconnectedStream {}
++
++    let stream = VertexDisconnectedStream::default();
++    let connection = AsyncConnection::vertex_stubbed_without_recording(stream.clone(), 28);
++    let bus = Arc::new(AsyncTcpMessageBus::new(connection).expect("synthetic bus"));
++    let mut subscription = bus.send_request(9800, vec![]).await.expect("synthetic subscription");
++    bus.clone().process_messages(0, Duration::ZERO).expect("synthetic dispatcher");
++
++    // Observe and join the task itself, without calling ensure_shutdown first:
++    // shutdown must be caused by the fake connection error, not test cleanup.
++    let dispatcher = tokio::time::timeout(Duration::from_secs(1), async {
++        loop {
++            if let Some(handle) = bus.process_task.write().await.take() {
++                break handle;
++            }
++            tokio::task::yield_now().await;
++        }
++    })
++    .await
++    .expect("dispatcher handle was not installed");
++    tokio::time::timeout(Duration::from_secs(1), dispatcher)
++        .await
++        .expect("dispatcher did not terminate after connection loss")
++        .expect("dispatcher panicked");
++
++    assert_eq!(stream.reads.load(Ordering::SeqCst), 1);
++    assert_eq!(stream.reconnects.load(Ordering::SeqCst), 0, "exclusive generation must not reconnect");
++    assert_eq!(stream.sleeps.load(Ordering::SeqCst), 0, "exclusive generation must not enter reconnect backoff");
++    assert!(!bus.is_connected());
++    assert!(bus.shutdown_requested.load(Ordering::Relaxed));
++    assert!(bus.request_channels.read().await.is_empty());
++    assert!(tokio::time::timeout(Duration::from_secs(1), subscription.next_routed())
++        .await
++        .expect("subscription did not close")
++        .is_none(), "local shutdown must close the route, not synthesize a response terminal or ACK");
++}
+--- a/src/transport/common.rs
++++ b/src/transport/common.rs
+@@ -1,5 +1,6 @@
+ //! Common utilities shared between sync and async transport implementations
+ 
++#[cfg(any(test, feature = "sync", not(feature = "vertex-exclusive-history-owner")))]
+ use std::time::Duration;
+ 
+ use log::{error, info, warn};
+@@ -48,15 +49,18 @@
+ }
+ 
+ /// Maximum number of reconnection attempts
++#[cfg(any(test, feature = "sync", not(feature = "vertex-exclusive-history-owner")))]
+ pub(crate) const MAX_RECONNECT_ATTEMPTS: i32 = 20;
+ 
+ /// Fibonacci backoff for reconnection attempts
++#[cfg(any(test, feature = "sync", not(feature = "vertex-exclusive-history-owner")))]
+ pub(crate) struct FibonacciBackoff {
+     previous: u64,
+     current: u64,
+     max: u64,
+ }
+ 
++#[cfg(any(test, feature = "sync", not(feature = "vertex-exclusive-history-owner")))]
+ impl FibonacciBackoff {
+     pub(crate) fn new(max: u64) -> Self {
+         FibonacciBackoff {

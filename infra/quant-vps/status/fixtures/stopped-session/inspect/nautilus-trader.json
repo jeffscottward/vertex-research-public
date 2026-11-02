@@ -1,0 +1,31 @@
+{
+  "State": {
+    "Status": "created",
+    "Running": false,
+    "StartedAt": "0001-01-01T00:00:00Z",
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "ExitCode": 0,
+    "OOMKilled": false
+  },
+  "RestartCount": 0,
+  "Config": {
+    "Image": "ibkr-nautilus-exec-node-nautilus:phase01",
+    "Env": [
+      "TRADING_MODE=live",
+      "ENABLE_LIVE_TRADING=true",
+      "NAUTILUS_RISK_ORDERS_ENABLED=true",
+      "NAUTILUS_RISK_DRY_RUN=false",
+      "NAUTILUS_RISK_MAX_ORDER_QUANTITY=1000",
+      "NAUTILUS_RISK_MAX_POSITION_NOTIONAL_USD=3000",
+      "NAUTILUS_RISK_MAX_DAILY_LOSS_USD=1000",
+      "NAUTILUS_RISK_ALLOWED_INSTRUMENTS=*",
+      "RISK_DENIED_INSTRUMENTS=",
+      "CHARAN_LIVE_TRANSMIT_ENABLED=true",
+      "SYNTHETIC_STOP_MODE=disabled",
+      "IBKR_ACCOUNT_ID=U7654321",
+      "TWS_PASSWORD=fixture-not-a-real-password",
+      "POSTGRES_URL=postgresql://vq:fixturepw@postgres:5432/vq",
+      "CHARAN_API_TOKEN=FixtureTok3nAbCdEfGhIjKlMnOpQrStUvWxYz0123"
+    ]
+  }
+}

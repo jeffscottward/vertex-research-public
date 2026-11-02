@@ -1,0 +1,10 @@
+@import "@darkfactory/ui/styles.css";
+
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+@source "../**/*.{ts,tsx}";
+
+@layer base {
+  a {
+    text-decoration-thickness: from-font;
+  }
+}

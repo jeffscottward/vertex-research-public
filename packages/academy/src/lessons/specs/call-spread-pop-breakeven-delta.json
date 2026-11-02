@@ -1,0 +1,177 @@
+{
+  "slug": "call-spread-pop-breakeven-delta",
+  "sourceId": "DaNryZfuI-n",
+  "title": "Estimate a call spread's probability of profit from the breakeven delta",
+  "summary": "Quick estimate of probability of profit (POP) for a vertical call spread: find the breakeven, then read the delta of a call struck at the breakeven. The Apple example: 280/310 call spread, 39 days, $10 debit, risk $10 to make $20. Breakeven is $290, and the 290 call delta is about 0.42, so POP is about 42%. The estimate gets worse with higher IV or longer expiries.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["probability of profit", "delta", "breakeven"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AAPL price",
+      "default": 280,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 280,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 310,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 39,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Apple trades near $280. We buy the 280 call and sell the 310 call, 39 days out, for $10."
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "Implied volatility turns into a price distribution at expiry.",
+      "time": [0.05, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the long strike plus the debit: 280 + 10 = $290."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "The chance of finishing above $290 is the probability of profit, about 42%."
+    },
+    {
+      "element": "band1",
+      "color": "blue",
+      "caption": "Shortcut: the delta of a 290 call (about 0.42) approximates that same probability."
+    },
+    {
+      "element": "ev",
+      "color": "gold",
+      "caption": "Risk $10 to make $20. With a 42% POP the expected value is near zero before costs."
+    }
+  ],
+  "formulas": [
+    "breakevenCall",
+    "delta",
+    "probabilityOfProfit",
+    "verticalMaxProfit",
+    "expectedValue"
+  ],
+  "takeaways": [
+    "Breakeven of a call debit spread = long strike + debit.",
+    "The delta of a call struck at the breakeven approximates the probability of profit.",
+    "Apple 280/310 for $10: breakeven $290, POP about 42%.",
+    "The approximation is less accurate with high IV or long expiries."
+  ],
+  "caveats": [
+    "The transcript says 'risking $10 to make $30' and '3-1'; a 30-wide spread for $10 makes $20 at most, 2:1. The numbers here use the correct math.",
+    "The speaker says this is educational, not a trade recommendation."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["AAPL", "MSFT", "QQQ"],
+    "scenario": {
+      "label": "2016-2025 incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2016-01-01",
+      "end": "2025-12-31"
+    },
+    "rules": {
+      "dte": 39,
+      "longDelta": 0.5,
+      "shortDelta": 0.2,
+      "exitDte": 5,
+      "profitTakePct": 100,
+      "stopLossPct": 60,
+      "riskPct": 2
+    },
+    "note": "About 39-day call spread, long near the money, short about 10% higher; target 2:1 reward to risk."
+  }
+}

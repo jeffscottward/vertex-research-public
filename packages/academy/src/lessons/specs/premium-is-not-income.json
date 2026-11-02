@@ -1,0 +1,118 @@
+{
+  "slug": "premium-is-not-income",
+  "sourceId": "DaX6TnEuBQk",
+  "title": "Sold option premium is a distribution from your future self, not income",
+  "summary": "Selling covered calls and cash-secured puts does not create income from nothing. The speaker compares it with a fund's distribution yield, which mixes income with returned capital gains; SEC yield is the more honest number. Premium is paid out of your future returns. He still sells calls, but only when paid enough.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["premium", "income", "distribution yield"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Own 100 shares at $100 and sell a $105 call, one month out."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "The legs: long stock and a short call."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The covered call at expiry: premium added, gains capped at the strike."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The cap: above $105 every further gain belongs to the call buyer."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium lowers breakeven a little. That is the 'income'."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Below breakeven you carry almost all the stock's downside."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield", "breakevenCall"],
+  "takeaways": [
+    "Premium is a payment from your future upside, not free income.",
+    "Like distribution yield versus SEC yield, the headline number can mislead.",
+    "Sell premium when it pays enough for the tradeoff."
+  ],
+  "caveats": ["The transcript is partly cut. Promotional: link in bio."]
+}

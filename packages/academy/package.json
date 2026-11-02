@@ -1,0 +1,45 @@
+{
+  "name": "@darkfactory/academy",
+  "brick": "product",
+  "description": "Academy lessons: specs, options math, scenes, modeled backtest, deploy gates",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./chart": {
+      "import": "./src/chart/index.ts",
+      "default": "./src/chart/index.ts"
+    },
+    "./lessons": {
+      "import": "./src/lessons/index.ts",
+      "default": "./src/lessons/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  }
+}

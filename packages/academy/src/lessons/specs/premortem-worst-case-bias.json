@@ -1,0 +1,160 @@
+{
+  "slug": "premortem-worst-case-bias",
+  "sourceId": "DU1bHvPCeK5",
+  "title": "Write a pre-mortem: fight the bias that ignores downside",
+  "summary": "People overestimate upside and underestimate or ignore downside. This bias leads to concentration risk and event risk, and to adding to losing trades out of conviction. The speaker's fix: before every trade, write down the worst-case scenario. This pre-mortem makes you aware of the risk before it happens.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "bearish"],
+    "instruments": ["single-stock", "portfolio"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["bias", "pre-mortem", "risk management", "psychology"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Entry: write worst case",
+        "color": "amber"
+      },
+      {
+        "day": 12,
+        "label": "Adds on conviction",
+        "color": "red"
+      },
+      {
+        "day": 25,
+        "label": "Loss grows",
+        "color": "red"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 5,
+        "movePct": -3
+      },
+      {
+        "day": 12,
+        "movePct": -8
+      },
+      {
+        "day": 18,
+        "movePct": -12
+      },
+      {
+        "day": 25,
+        "movePct": -18
+      },
+      {
+        "day": 30,
+        "movePct": -20
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 45,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -60,
+      "min": -200,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "contracts",
+      "label": "Lots of 100 shares",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A stock you feel strongly about. The path drifts down after entry.",
+      "time": [0, 1]
+    },
+    {
+      "element": "events",
+      "color": "amber",
+      "caption": "At entry, write down the worst-case scenario. This is the pre-mortem."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "Without a plan, conviction leads to adding to the loser. Concentration turns a small loss into a large one.",
+      "time": [0, 1]
+    },
+    {
+      "element": "spot",
+      "color": "gray",
+      "caption": "The written worst case gives you a level to act on instead of a hope for a rebound."
+    }
+  ],
+  "formulas": ["positionSize", "recovery"],
+  "takeaways": [
+    "Humans tend to overestimate upside and ignore downside.",
+    "This bias causes concentration risk, event risk and adding to losing trades.",
+    "Write down the worst case before every trade: a pre-mortem."
+  ],
+  "caveats": [
+    "The price path is simulated to show the behavior; it is not from the transcript."
+  ]
+}

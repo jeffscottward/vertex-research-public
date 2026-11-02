@@ -1,0 +1,161 @@
+{
+  "slug": "replicate-stock-three-ways",
+  "sourceId": "DbG6MX6pMCL",
+  "title": "Three ways to replicate stock: 95-delta call, synthetic, ZEBRA",
+  "summary": "There are three ways to get stock-like exposure with options: a 95 delta call, a synthetic long (buy a call and sell a put at the same at-the-money strike), and a ZEBRA (two 70 delta calls against one short at-the-money call). All rise about the same on the upside but differ on the downside. The speaker prefers the 95 delta call: one option and no early assignment risk.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "synthetics", "leaps"],
+    "timeframe": "months",
+    "risk": "stock-like",
+    "topics": ["stock replacement", "synthetic", "ZEBRA"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "95-delta call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "deepStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Synthetic long",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "deepStrike",
+      "label": "95-delta call strike",
+      "default": 75,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "atmStrike",
+      "label": "Synthetic strike",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 120,
+      "min": 30,
+      "max": 730,
+      "step": 5,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock. We compare two ways to get the same exposure."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "A 95 delta call: one option, almost all intrinsic value, limited loss."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "A synthetic long: buy the $100 call, sell the $100 put. It moves like the stock both ways."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "On the upside they match. On the downside the call's loss is capped; the synthetic keeps falling."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The ZEBRA (two 70 delta calls, one short ATM call) lands in between, and its Greeks change over time."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "The speaker's choice: the 95 delta call. One leg, no early assignment risk."
+    }
+  ],
+  "formulas": ["putCallParity", "delta", "extrinsic"],
+  "takeaways": [
+    "A 95 delta call, a synthetic and a ZEBRA all replicate stock on the upside.",
+    "They differ on the downside and in how their Greeks change over time.",
+    "The 95 delta call is the simplest: one option, no early assignment."
+  ],
+  "caveats": [
+    "The backtest models the deep in-the-money call only, not the synthetic or ZEBRA.",
+    "Days to expiry are not given in the video; 120 days is illustrative."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["AAPL", "MSFT", "SPY"],
+    "scenario": {
+      "label": "2018-2024: two bear markets and two rallies",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 180,
+      "coreDelta": 0.95,
+      "coreExitDte": 60
+    },
+    "note": "Hold a 95-delta call as stock replacement, roll at 60 days left."
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "slug": "avoid-70-delta-calls",
+  "sourceId": "DYAX4wcxfBQ",
+  "title": "Why 70-delta long calls are the least efficient: use 40 or 95 delta",
+  "summary": "The speaker does not buy 70-delta options. For a leveraged bet he buys about 40 delta, where gamma is high, and sells or rolls when it reaches 60 to 70 delta. For stock-like exposure he goes to 95 delta, which has little extrinsic value. The 70 delta has neither high convexity nor low cost.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["delta", "gamma", "convexity", "strike choice"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "40-delta calls",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "otmQty",
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "70-delta call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "itmQty",
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "40-delta strike",
+      "default": 103,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "70-delta strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "otmQty",
+      "label": "40-delta contracts",
+      "default": 2,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "itmQty",
+      "label": "70-delta contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Stock at $100, one month to expiry. Both positions cost about the same dollars."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "40-delta calls: high gamma between 40 and 60 delta, so gains grow fast if the stock rises."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "70-delta call: more costly per contract and less convex. It moves slower than the 40s on a rally."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference shows the convexity the 40-delta calls add for the same money."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "When a 40-delta call reaches 60 to 70 delta, the speaker sells or rolls it, or moves to a 95-delta call."
+    }
+  ],
+  "formulas": ["delta", "gamma", "extrinsic"],
+  "takeaways": [
+    "Between 40 and 60 delta, gamma is highest: good for a leveraged bet.",
+    "95-delta calls cost little extrinsic value and leave cash as dry powder.",
+    "70 delta is the worst of both: less convexity and more cost. Roll when you get there."
+  ],
+  "caveats": [
+    "The strikes and equal-dollar sizing are illustrative; the transcript shows a chart without numbers."
+  ],
+  "backtest": {
+    "structure": "long_call",
+    "tickers": ["SPY", "QQQ", "AAPL", "MSFT", "NVDA"],
+    "scenario": {
+      "label": "2015-2024 decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "longDelta": 0.4,
+      "exitDte": 5,
+      "profitTakePct": 75,
+      "stopLossPct": 50,
+      "riskPct": 1
+    },
+    "note": "Buy one-month 40-delta calls; take profit near the 70-delta zone (about +75%) or cut at -50%."
+  }
+}

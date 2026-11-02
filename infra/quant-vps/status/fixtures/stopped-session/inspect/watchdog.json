@@ -1,0 +1,18 @@
+{
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-09-25T16:39:03.519916392Z",
+    "FinishedAt": "2026-09-25T16:38:52.50152156Z",
+    "ExitCode": 0,
+    "OOMKilled": false,
+    "Health": {
+      "Status": "healthy"
+    }
+  },
+  "RestartCount": 0,
+  "Config": {
+    "Image": "ibkr-nautilus-exec-node-watchdog:phase01",
+    "Env": []
+  }
+}

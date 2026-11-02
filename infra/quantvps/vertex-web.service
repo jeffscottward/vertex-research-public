@@ -1,0 +1,14 @@
+[Unit]
+Description=Vertex Research web app, production build (127.0.0.1:3450; tailnet https://quant-vps-host.example-tailnet.ts.net:3451 via vertex-web-tailnet)
+Requires=docker.service
+After=docker.service
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+WorkingDirectory=/home/jeffscottward/Github/trading/vertex-research-platform/private/basic-app-named
+ExecStartPre=/bin/sh -c "for i in $(seq 60); do docker exec vertex-postgres pg_isready -U postgres -q && exit 0; sleep 2; done; exit 1"
+ExecStart=/home/jeffscottward/.local/share/mise/installs/node/24.21.0/bin/node /home/jeffscottward/Github/trading/vertex-research-platform/infra/quantvps/run-preview.mjs
+Restart=on-failure
+RestartSec=10s
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,110 @@
+{
+  "version": "vertex.execution-adapter-interfaces.v1",
+  "status": "source-authored-not-executed",
+  "owner": "VertexExecutionBuild.ExecutionEngineAdapters",
+  "changedScope": [
+    "services/execution/vertex_execution/adapters/**",
+    "services/host/vertex_host/nautilus.py"
+  ],
+  "tickBoundary": {
+    "module": "vertex_execution.adapters.callbacks",
+    "value": "TickEvent(instrument_id: str, event_id: str, event_ns: int, bid: Decimal | None = None, ask: Decimal | None = None, last: Decimal | None = None)",
+    "buffer": "BoundedTickBuffer(capacity: int = 1024)",
+    "callback": "on_tick(tick: TickEvent) -> bool",
+    "state": "state() -> TickBufferState(capacity, pending, dropped, continuity_lost, closed)",
+    "close": "close() -> None",
+    "drain": "AsyncTickDrain(buffer: BoundedTickBuffer, sink: Callable[[TickEvent], Awaitable[None]]).drain(max_items: int = 256) -> int [async]",
+    "requirements": [
+      "Single owning event-loop thread; external cross-thread marshaling is caller-owned.",
+      "Callbacks never invoke sink, engine, control plane, filesystem, network, backtesting or LLM.",
+      "Overflow rejects new tick and latches a continuity gap; drain refuses further work until independently reconciled replacement buffer.",
+      "Sink failure/cancellation retains head; downstream must deduplicate event IDs for at-least-once retry.",
+      "This is nonauthoritative market fan-out, never a durable admission/command queue."
+    ]
+  },
+  "kernel": {
+    "module": "vertex_execution.adapters.kernel",
+    "constructor": "RustKernelCommandAdapter(*, authority: ContractAuthority, transport: KernelCommandTransport | None = None, maximum_bytes: int = 2000000)",
+    "purePreparation": "prepare(request: Mapping[str, Any]) -> PreparedKernelCommand(canonical_bytes: bytes, sha256: str)",
+    "ioBoundary": "evaluate(command: PreparedKernelCommand) -> KernelEvaluation [async]",
+    "transport": "KernelCommandTransport.evaluate(command: bytes, *, maximum_response_bytes: int) -> bytes [async]",
+    "result": "KernelEvaluation(request_sha256: str, canonical_response: bytes, status: str, reasons: tuple[str, ...], plan_bytes: bytes | None)",
+    "nativeTarget": "vertex_execution_kernel::evaluate_json(authority: &vertex_contracts::ContractAuthority, input: &[u8]) -> Result<Vec<u8>, KernelError>",
+    "wireAuthority": "services/execution-kernel/private/kernel-wire-v1.json and services/execution-kernel/src/model.rs",
+    "requirements": [
+      "Only request_version=vertex.execution-kernel.v1, operation=evaluate, mode=PAPER-SIMULATION.",
+      "Public StrategySpec and every TradeIntent validated by injected frozen native authority; authority.encode supplies all request canonical bytes.",
+      "No subprocess, IPC endpoint, network implementation, automatic native load or retry exists.",
+      "Admitted plan scope is correlated to request/account/exact immutable strategy digest/policy models/journal identity/revision/epoch/head/clock and both external-authority flags remain false.",
+      "Admitted status is only a risk computation, not admission or spendable authority.",
+      "Transport IO belongs outside callback and journal lock. Parent rechecks current fenced journal before mutation and owns internal plan conversion."
+    ]
+  },
+  "nautilus": {
+    "module": "vertex_execution.adapters.nautilus_200rc5",
+    "constructor": "Nautilus200rc5Adapter(*, mode: Literal['research','paper'], buffer: BoundedTickBuffer, load_module: Callable[[], object] | None = None, factory: OfflineEngineFactory | None = None)",
+    "loaderContract": "Returns explicitly injected module whose __version__ is exactly 2.0.0rc5; invoked only by explicit activate().",
+    "factory": "OfflineEngineFactory(module: object, scope: OfflineEngineScope) -> OfflineEngine",
+    "engine": [
+      "process_tick(tick: TickEvent) -> None [async]",
+      "close() -> None [async]"
+    ],
+    "adapter": [
+      "activate() -> None",
+      "on_tick(tick: TickEvent) -> bool",
+      "process_tick(tick: TickEvent) -> None [async]",
+      "close() -> None [async]"
+    ],
+    "hostFactory": "vertex_host.nautilus.NativeOfflineEngineFactory constructs nautilus_trader.backtest.BacktestEngine on its sole owner thread; typed rc5 model/LoggerConfig API, full measured distribution, bounded captured quotes only.",
+    "pinManifest": "services/execution/vertex_execution/adapters/provenance.json",
+    "requirements": [
+      "No module/factory calls at import, construction or tick callback; defaults unavailable.",
+      "Failed explicit activation is latched without automatic retry.",
+      "No submit/cancel/connect/start or broker/live adapter methods are exposed.",
+      "No v1 module, quarantine placeholder or version fallback is selected; the canonical optional dependency is nautilus-trader==2.0.0rc5.",
+      "Host config format is vertex-host-nautilus-v2; distribution name is nautilus-trader and instruments use tick_scheme, not v1 tick_scheme_name. Existing vertex-host-nautilus-quotes-v1 capture schema is unchanged.",
+      "Engine construction, ingestion, run, disposal and final PyO3 unsendable-engine release remain on one native lane.",
+      "No strategies or custom paper/research economics are routed through this replay sink.",
+      "Injected Python dependencies are trusted composition, not a sandbox or proof of engine/native ABI qualification."
+    ]
+  },
+  "research": {
+    "module": "vertex_execution.adapters.research",
+    "constructor": "AttestedResearchSimulationEngine(*, descriptor=None, authority=None, loader=None, runner=None, supervisor=None, verifier=None)",
+    "frozenPort": [
+      "describe() -> backtesting.planner.EngineDescriptor",
+      "simulate(request: backtesting.planner.SimulationRequest) -> backtesting.planner.SimulationOutput"
+    ],
+    "loader": "load(request: SimulationRequest, *, maximum_events: int, maximum_bytes: int) -> Iterable[CapturedMarketEvent]",
+    "event": "CapturedMarketEvent(dataset_content_digest: str, event_id: str, event_ns: int, available_ns: int, payload_bytes: bytes)",
+    "runner": [
+      "describe() -> EngineDescriptor",
+      "run(request: SimulationRequest, events: tuple[CapturedMarketEvent, ...]) -> SimulationOutput"
+    ],
+    "supervisor": "execute(binding: ResearchRunBinding, operation: Callable[[SandboxSession], SimulationOutput]) -> SupervisedResult",
+    "verifier": [
+      "verify_start(session: SandboxSession, binding: ResearchRunBinding) -> literal True",
+      "verify_finish(result: SupervisedResult, binding: ResearchRunBinding) -> literal True"
+    ],
+    "binding": "ResearchRunBinding(request_digest, lineage_digest, strategy_digest, run_digest, engine_digest, policy_digest, budget, input_bytes)",
+    "session": "SandboxSession(supervisor_id, session_id, policy_digest, start_attestation: bytes)",
+    "result": "SupervisedResult(session: SandboxSession, output: SimulationOutput, finish_attestation: bytes)",
+    "requirements": [
+      "No default loader/runner/supervisor/verifier; describe is metadata only and simulate is explicit synchronous orchestration outside callbacks.",
+      "Start proof authenticates enforced supervisor/policy/exact input/session before loader or runner is invoked; finish proof authenticates measured complete result.",
+      "Verifier must use host-pinned independent trust roots; no self-approved booleans or locally fabricated isolation receipt can qualify.",
+      "Supervisor may replace only output.sandbox with the final measured SandboxReceipt after workload termination, not economics, lineage or evidence.",
+      "Adapter never synthesizes limits_enforced/network/execution flags or claims OS isolation; actual host implementation remains separately required.",
+      "Native public input validation, canonical artifact equality, dataset content hashes, event lineage/order/deduplication/byte and declared-event bounds remain checked.",
+      "Research planner retains public evidence validation, causal/scientific qualification and acceptance; source-defined adapter is not proof of economic realism.",
+      "Integration owner supplies services/research package path; no research-owned source was edited."
+    ]
+  },
+  "regressions": {
+    "path": "services/execution/tests/test_adapters.py",
+    "authoredTestMethods": 42,
+    "executed": false,
+    "sourceInspection": "Tagged rc5 API and local source inspection only; existing legacy-adapter regressions were not migrated or run. No builds, lint, formatting, typechecks, generation, installs, runtime probes or provider/broker calls.",
+    "fixtureTrust": "StubAuthority and synthetic supervisor verifier exercise port wiring only; not native schema or OS-isolation acceptance."
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "slug": "vay-premium-in-context",
+  "sourceId": "DWCf5sHiZXd",
+  "title": "Is the premium you are paid worth the risk? Put option premium in context",
+  "summary": "If you sell options for income, how do you know the price you are paid is fair? The speaker says you must put the premium in context: does it justify the risk you take on? He announces a metric of his own (VAY) for this, a free Chrome extension that shows it on a broker watch list, and a waitlist. He does not explain how the metric works.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["premium", "risk", "VAY", "option income"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short put"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Illustration: you sell a 30-day put at $95 on a $100 stock for income.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The risk you take on: the range of prices the stock could reach by expiry."
+    },
+    {
+      "element": "band1",
+      "color": "violet",
+      "caption": "About two in three outcomes fall inside this band at the implied volatility."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium you are paid moves the breakeven below the strike."
+    },
+    {
+      "element": "pop",
+      "color": "gold",
+      "caption": "Payoff at expiry: small fixed premium on the right, losses below the breakeven. Is the premium worth that risk?"
+    }
+  ],
+  "formulas": [
+    "expectedMove",
+    "probabilityOfProfit",
+    "breakevenPut",
+    "expectedValue"
+  ],
+  "takeaways": [
+    "The premium alone does not tell you whether you are getting a good price.",
+    "Put the premium in context: does it justify the amount of risk you are about to take on?",
+    "The speaker introduces his own metric (VAY) to show whether you are paid fairly, but does not say how it is calculated."
+  ],
+  "caveats": [
+    "VAY is the speaker's own metric; the clip gives no formula or track record. The transcript garbles its name as 'context' and 'VE'.",
+    "Promotional: the Chrome extension, website and waitlist are the speaker's product.",
+    "The short put example and the chart are added illustration; the speaker shows no specific trade."
+  ]
+}

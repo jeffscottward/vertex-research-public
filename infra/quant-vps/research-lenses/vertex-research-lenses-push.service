@@ -1,0 +1,10 @@
+# Rig user unit: push the research-lens JSON documents to QuantVPS after a data job writes them.
+# Install: copy push-research-lenses.sh to ~/.local/share/vertex-research-lenses/ and both units to ~/.config/systemd/user/ (see README.md).
+[Unit]
+Description=Push Vertex research-lens documents (rotation matrix, deep value) to QuantVPS (read-only data)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/vertex-research-lenses/push-research-lenses.sh
+TimeoutStartSec=300

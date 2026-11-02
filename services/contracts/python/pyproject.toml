@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-contracts"
+version = "1.0.0"
+description = "Fail-closed source-bound Vertex canonical contract authority"
+requires-python = ">=3.12"
+dependencies = ["ada-url==4.0.0"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

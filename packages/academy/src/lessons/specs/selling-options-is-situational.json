@@ -1,0 +1,127 @@
+{
+  "slug": "selling-options-is-situational",
+  "sourceId": "DUgs5lXCRHV",
+  "title": "Selling options trades away upside: it fits some situations and not others",
+  "summary": "When you sell an option you sell part of your potential upside. The speaker says this can fit a retiree who wants stability and cash flow with markets at all-time highs. It may not fit someone in their 20s with time on their side, especially after a market drop.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "single-stock"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "upside", "tradeoff"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Stock only",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        }
+      ]
+    },
+    "b": {
+      "label": "Stock + short call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 180,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "Stock only: you keep all of the upside and all of the downside."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Stock plus a short call: you collect premium, but gains stop at the strike."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is the upside you sold. Above $105 it grows with every dollar."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium only lowers your breakeven a little. The downside stays almost the same."
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Young investor after a drop: upside matters more. Retiree near highs: cash flow and stability matter more."
+    }
+  ],
+  "formulas": ["extrinsic", "annualizedYield"],
+  "takeaways": [
+    "Selling options sells part of your upside.",
+    "It suits investors who want stability and cash flow more than growth.",
+    "It may not suit a young investor when markets are off their highs."
+  ],
+  "caveats": [
+    "This is general guidance, not personal advice. The clip ends with a follow request."
+  ]
+}

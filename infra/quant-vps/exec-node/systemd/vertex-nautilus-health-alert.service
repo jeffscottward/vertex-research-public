@@ -1,0 +1,10 @@
+[Unit]
+Description=Vertex Nautilus down alert (3 failed checks, once per incident, plus recovery) to #omp-alerts
+Documentation=file:///opt/vertex-exec-node/docs/NAUTILUS_ARMING.md
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/vertex-exec-node/scripts/nautilus_health_alert.py
+StateDirectory=vertex-nautilus-health-alert
+TimeoutStartSec=60

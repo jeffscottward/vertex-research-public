@@ -1,0 +1,8 @@
+@@NOW 1000
+@@ACTIVE active
+@@LAST 900
+0      0      127.0.0.1:3450 127.0.0.1:42318
+	 cubic wscale:7,7 rto:204 rtt:0.05/0.01 mss:32768 bytes_sent:52340 bytes_received:3138 send 54613333333bps lastsnd:40120 lastrcv:40122 lastack:40120 app_limited
+0      0      127.0.0.1:3450 127.0.0.1:42364
+	 cubic wscale:7,7 rto:204 rtt:0.05/0.01 mss:32768 send 54613333333bps lastsnd:95000 lastrcv:95010 lastack:95000
+@@END

@@ -1,0 +1,10 @@
+[Unit]
+Description=Vertex Quant 8AM IBKR/Charan trading gate
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vertex-exec-node
+ExecStart=/opt/vertex-exec-node/scripts/open_ibkr_trading_gate_8am.sh
+TimeoutStartSec=900

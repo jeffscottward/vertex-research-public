@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-market-data"
+version = "0.1.0"
+description = "Internal native market-data normalization and immutable dataset planning"
+requires-python = ">=3.12,<3.13"
+# Same-repository distribution; composition must supply the locally built research package.
+dependencies = ["vertex-gamma-research==0.1.0"]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vertex_market_data", "vertex_market_data.*"]
+exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
+namespaces = false

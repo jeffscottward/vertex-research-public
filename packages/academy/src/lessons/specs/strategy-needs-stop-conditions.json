@@ -1,0 +1,172 @@
+{
+  "slug": "strategy-needs-stop-conditions",
+  "sourceId": "DV_w7RzibDv",
+  "title": "A strategy must say when not to use it",
+  "summary": "If your investment strategy has no conditions under which you would stop it or alter it, it is a habit, not a strategy. If you say it works in all environments, you do not understand when it fails. A true strategy tells you what to do and also when not to do it. The speaker asks viewers to share their strategy and when it should not be used.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "regime-change"],
+    "instruments": ["covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["process", "regime", "discipline"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Entry (illustrative)",
+        "color": "green"
+      },
+      {
+        "day": 18,
+        "label": "Example stop condition",
+        "color": "red"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 6,
+        "movePct": 1
+      },
+      {
+        "day": 12,
+        "movePct": -2
+      },
+      {
+        "day": 18,
+        "movePct": -6
+      },
+      {
+        "day": 24,
+        "movePct": -11
+      },
+      {
+        "day": 30,
+        "movePct": -13
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 45,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -20,
+      "min": -80,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "Illustration: a strategy that sells a put when its entry conditions are met.",
+      "time": [0, 0.2]
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The short put strike: the level this example strategy depends on."
+    },
+    {
+      "element": "events",
+      "color": "red",
+      "caption": "The environment changes. An example stop condition (not from the clip): stop or alter the strategy here."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "With no condition to stop or alter it, you keep running it as the environment turns against it.",
+      "time": [0.2, 1]
+    },
+    {
+      "element": "spot",
+      "color": "gold",
+      "caption": "Speaker's point: a true strategy tells you what to do and also when not to do it."
+    }
+  ],
+  "formulas": ["realizedVol", "vrp"],
+  "takeaways": [
+    "A strategy with no conditions under which you would stop or alter it is a habit, not a strategy.",
+    "If you say your strategy works in all environments, you do not understand when it fails.",
+    "A true strategy says what to do and also when not to do it."
+  ],
+  "caveats": [
+    "The transcript ends with garbled speech.",
+    "The short put example, price path and stop condition are added illustration; the speaker gives no trade or condition."
+  ]
+}

@@ -1,0 +1,365 @@
+{
+  "schemaVersion": "1.0.0",
+  "asOf": "2026-09-21",
+  "status": "source-evidence-only; not runtime verification",
+  "root": "/home/jeffscottward/Github/trading/vertex-research-platform",
+  "branch": "vertex/rebuild-darkfactory-20260921",
+  "base": {
+    "repository": "https://github.com/jeffscottward/darkfactory",
+    "ref": "main",
+    "commit": "c7f3c36f69fff40444a556ef2b478328744f55ea"
+  },
+  "scope": {
+    "reportDate": "2026-09-11",
+    "zeroDteDate": "2026-09-21",
+    "zeroDteInspectedAt": "2026-09-21T18:28:58.373Z",
+    "sourceAuthority": "Gamma Forge trading domain; DarkFactory engineering foundation; current user instruction supersedes historical Next.js choice",
+    "sourceRootsModified": false,
+    "graphFreshness": "stale/unverified; no Graphify run",
+    "runtimeVerified": false
+  },
+  "reportSources": [
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/architecture-contract.json",
+      "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936",
+      "bytes": 11299,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/builder-handoff.md",
+      "sha256": "f63413c01b6e0d70a67e4feda8d4059c39b1aa22f2ae86f8d1a97131c428ac47",
+      "bytes": 62002,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/configuration-registry-plan.json",
+      "sha256": "b41c2b94b74468e36b4c30676a0e0bf3e4207e9f2c8032879c2919d649647254",
+      "bytes": 3821,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/decisions.json",
+      "sha256": "9658ec21b959627e9633be740222bdb3f3222791242a074f0600935cb6e9ac5e",
+      "bytes": 6075,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/environment-name-inventory.json",
+      "sha256": "bfafe545a5d372130a81988f4f9b32a113677c90fa898688bbac82b510c92497",
+      "bytes": 190963,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-fincept.json",
+      "sha256": "f8e31fbd089861315d81e95c8ba028e4474f341b8f031d66464f7dee64b52870",
+      "bytes": 36671,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-foundations.json",
+      "sha256": "834a9f2ffd32aa98a10ec5254bc562aea3b430d280e951b6b73fc44d51ac3b06",
+      "bytes": 40078,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-gamma-forge.json",
+      "sha256": "ebe29a039a0a13ca889fcd7bad26227475d087322ed87dfaea1c385314453275",
+      "bytes": 17172,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-research-agents.json",
+      "sha256": "94e8a1c9e471bda85c1bacb53f8b346b5ec57dc0ae0f526c37c2c741b567120b",
+      "bytes": 42259,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-research-fund.json",
+      "sha256": "d19b888577e51f61986ca8cca1770f4e50d8286ec176f97e29311b5e6fa313a5",
+      "bytes": 54168,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-satellites.json",
+      "sha256": "6ffc043e29f417cf2ad9d535700682345e74fe704665bc98b3e5478ac188b60f",
+      "bytes": 46366,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-vendors.json",
+      "sha256": "78997411756bafa8b24f5c141d31942fb2e0e8b68556beac26f2512c34a8c861",
+      "bytes": 44242,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-vertex-quant.json",
+      "sha256": "8d5cf22978b5cb067d987f29ff21633edd719ab51102193475caa934be381880",
+      "bytes": 40680,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/public-source-ledger.json",
+      "sha256": "5a815cc0bbb881d45bbcf1d059e6e502e62f71024edbf14d91813d9bf01be24a",
+      "bytes": 7613,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/report-model.json",
+      "sha256": "7cd685720b7b13b9d181d059ae757410c672d1ccb4a2d06a131a6c2f531d3fcc",
+      "bytes": 330924,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/repository-snapshot.json",
+      "sha256": "77c0cf7b73d26617dfddd89c0dcaafc674f3204b345568e5d0aefc48169913ca",
+      "bytes": 5804,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/user-brain-dump.txt",
+      "sha256": "e2c1c8d6f455939d5dd78eef896646872ca250a7a25481e6a25f7b20d3342bb0",
+      "bytes": 4932,
+      "role": "original user request retained at source; do not copy raw history"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/worktree-environment-delta.json",
+      "sha256": "e68e1eb5524e3f819c308e0392a9f18bbf0ccc44b43d3089021fb5241f2fd84d",
+      "bytes": 6169,
+      "role": "audited source record"
+    },
+    {
+      "path": "../vertex-research/plans/platform-consolidation-2026-09-11/evidence-0dte.json",
+      "sha256": "e033e3a3dc87684a828baa5b9a7faedccb7aa7bdb456ad6d0ae35cd2fa5dc91b",
+      "bytes": 30312,
+      "role": "audited source record"
+    }
+  ],
+  "policyBaseline": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "8a3ed33e6152b8eed4c6c9134efb7aefed28ce012feb28c6172d893e7cbb153e",
+      "preservation": "Inherited bytes retained; specialization inserted only; final parity check parent-owned"
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "8a3ed33e6152b8eed4c6c9134efb7aefed28ce012feb28c6172d893e7cbb153e",
+      "preservation": "Inherited bytes retained; specialization inserted only; final parity check parent-owned"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "sha256": "b3de52815e2a8711cedbb2376ae9b1e8dcfdc04dc01898203766f98d3ffe5515",
+      "preservation": "Inherited bytes retained; specialization inserted only; final parity check parent-owned"
+    },
+    {
+      "path": "CONVENTIONS.md",
+      "sha256": "ed2a6dc05fb768844906d5b6614ffa677ed47065c8c8b93c6fbc74d2ff610897",
+      "preservation": "Inherited bytes retained; specialization inserted only; final parity check parent-owned"
+    }
+  ],
+  "externalAuditReferences": [
+    {
+      "path": "/tmp/vertex-factory-audit.json",
+      "sha256": "5a4d5e1e03e57ec658dde1dd5675ebd9eca4e8d8c1c539bb202fbed3ea837211",
+      "durability": "temporary source; durable decisions summarized here; no private payload copied"
+    },
+    {
+      "path": "/tmp/vertex-stack-audit.json",
+      "sha256": "68537d8ea0c8a2b292b67ca42489064d4a110c3bc4aedbd9112f47d25813c89d",
+      "durability": "temporary source; durable decisions summarized here; no private payload copied"
+    },
+    {
+      "path": "/tmp/vertex-broker-audit.json",
+      "sha256": "b9711e03c40798851651ec3b5608b3cf41fb44fe899e1cac2126856aec4d0212",
+      "durability": "temporary source; durable decisions summarized here; no private payload copied"
+    }
+  ],
+  "zeroDteSourceHashes": [
+    {
+      "path": "gamma-forge/app/backend/gamma_terminal/live_options/provider.py",
+      "sha256": "3963a82069fa6c87da6cb3ccc1ed49a020688345e439926cda485f21fece97f5"
+    },
+    {
+      "path": "gamma-forge/app/backend/gamma_terminal/live_options/guidance.py",
+      "sha256": "f967671d785eb8732bef86b9554c2c9c42d1ecf68774746048c75232f41a7a4c"
+    },
+    {
+      "path": "gamma-forge/forge/src/options_alpha/schemas/execution.py",
+      "sha256": "a21ab01da17b1656ad9f195975be1d3d0fa2a7df950d5c0184f4d9a0faa77dfb"
+    },
+    {
+      "path": "gamma-forge/app/backend/tests/test_live_options.py",
+      "sha256": "f85ab697ba8b4a0ad009973cb9753a63bab473c076256c1a156b853a40bdb713"
+    },
+    {
+      "path": "vertex-quant/src/signal-event-parser.ts",
+      "sha256": "77d703cc85d7e1a36dade8ceff41803643eb2a17acc62266eecb3c1f1e514cb6"
+    },
+    {
+      "path": "vertex-quant/src/trade-intents.ts",
+      "sha256": "0d97170deec06c9610c093776de5ac16f6eb282005b5929ae3bd8f22d58f229f"
+    },
+    {
+      "path": "vertex-quant/nautilus/charan.py",
+      "sha256": "68e5dbd7cb7f8b408ff415a75475055b4333fb66ee7f2bc0b1d3f719cb1fe08a"
+    },
+    {
+      "path": "vertex-quant/tests/test_charan_trade_intents.py",
+      "sha256": "e0fb0fc70b42401efff881474b2157b53e58e68b3271d24cdeed2fc35c58131a"
+    },
+    {
+      "path": "vertex-quant-trail-capability/src/signal-event-parser.ts",
+      "sha256": "77d703cc85d7e1a36dade8ceff41803643eb2a17acc62266eecb3c1f1e514cb6"
+    },
+    {
+      "path": "vertex-quant-trail-capability/nautilus/charan.py",
+      "sha256": "89e1b2157facca988ffec81ca0b2f7242f6416da2118a0c8ba881c171f66f6bf"
+    },
+    {
+      "path": "vertex-quant-trail-capability/nautilus/execution/models.py",
+      "sha256": "6c8058dc97ba213a6443ef0dc2e9644e368824e90b19d9d6685687172d293ece"
+    },
+    {
+      "path": "vertex-quant-trail-capability/nautilus/execution/validation.py",
+      "sha256": "7575d1115a1dfffad64d26c4724b1ee0a7e51a1fd2a0a0ea9e8c1f6843d81ae4"
+    },
+    {
+      "path": "vertex-research/scripts/reporting/collect-broker.remote.py",
+      "sha256": "1933df9013aa9786eb9aa3ff76fdf0abc7e00f4f30c1067c1f1ca528b62156c7"
+    },
+    {
+      "path": "vertex-research/scripts/analyze-options.mjs",
+      "sha256": "9459be812cf4361d1625cb3957ff2e9fa5a627d41437689c50a3f782fa522d52"
+    },
+    {
+      "path": "vertex-research/scripts/reporting/broker-orders.py",
+      "sha256": "570e38f4bd35251d58b1cc274ae263e088141e94f207436c69fa3d977318fd8c"
+    },
+    {
+      "path": "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/client.py",
+      "sha256": "9843d2e4c26a778360bd1f5a765a7554c9f235e03c89d3704990e3fee271d1e8"
+    },
+    {
+      "path": "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/smoke.py",
+      "sha256": "b4f2ff16f11f53004c80b2a46578dbaac03227bb5479021f0c7c12a98b1deca7"
+    },
+    {
+      "path": "ibkr-vertex-ai-fund/tests/test_config.py",
+      "sha256": "4162d123bcf0e58779daad50928ba54da6928288517607c9e01fcf8e1addca90"
+    },
+    {
+      "path": "ai-hedge-fund/src/agents/portfolio_manager.py",
+      "sha256": "40943a1e4ec33b0de73d20ccb874c0d4fbbe35dc142fc1f463fe8b0da022f2e0"
+    },
+    {
+      "path": "ai-hedge-fund/src/backtesting/engine.py",
+      "sha256": "3d94063bf5568cf0a064961e27488347463906e983b43543f97ea0e13c816df4"
+    },
+    {
+      "path": "ai-hedge-fund/src/agents/risk_manager.py",
+      "sha256": "604a839833ca7ff10268db1bf4c9c3ae882178c26fb2cb63248fe15e4e3b8ace"
+    },
+    {
+      "path": "TradingAgents/tradingagents/dataflows/yfin_utils.py",
+      "sha256": "95cd6590da98bcf38077c29aee80a1baff8576da6708594895aae7043576be6d"
+    },
+    {
+      "path": "TradingAgents/tradingagents/graph/trading_graph.py",
+      "sha256": "3277eb45acd8deeffed392fd6c8f0a556a0b556535d31f5dc49e07ada078c6c5"
+    },
+    {
+      "path": "TradingAgents/tradingagents/graph/signal_processing.py",
+      "sha256": "563df40af1bcffb29623f35c36f4d2f5950863ae78809581bcb7d7eef47591c2"
+    },
+    {
+      "path": "TradingAgents/tradingagents/agents/managers/risk_manager.py",
+      "sha256": "bf7d237844aeda54f102b0413ae97de5ac626629b1c6817dccc0f0904761905f"
+    },
+    {
+      "path": "optical-photonics-reports/src/optical_photonics_reports/generator.py",
+      "sha256": "4aef84e9831a372bbbcd8cd9a0c289308dacb41af07532b895d7e31853eb138b"
+    },
+    {
+      "path": "charan-discord-bot/src/signal-event-parser.ts",
+      "sha256": "e31c9cd77f478971516096aed54f7677b006f3d7e984aa95a7b1384cc88cec15"
+    },
+    {
+      "path": "charan-discord-bot/src/signal-event-parser.test.ts",
+      "sha256": "fd67e3d5cee6a160e58fddada16412003a8d42e58579ff85537ccdd6d24cae6a"
+    },
+    {
+      "path": "charan-discord-bot/src/trade-intents.ts",
+      "sha256": "ac1d530a0e152f475b73b7f53ec0d65d1c126b9121ea90c0d53118e80116c004"
+    },
+    {
+      "path": "AI-Cornell-bots/roth-bot/apps/python-trader/src/roth_bot/data/options.py",
+      "sha256": "ff345bcf3ed317ffc3a5e2afcaedfc72a981e5c283e3a11bcbaed82ecf0c51df"
+    },
+    {
+      "path": "AI-Cornell-bots/roth-bot/apps/python-trader/src/roth_bot/agents/options_trader.py",
+      "sha256": "b3e6d65478b05dfe3d2d933f738eded653386dfd028767c50e0af738960ea7f7"
+    },
+    {
+      "path": "AI-Cornell-bots/roth-bot/apps/python-trader/tests/test_options_trader.py",
+      "sha256": "f1817440dcce8cc81184801385473c7a7dc71e6a6de5e9b700c0485f1b95247c"
+    },
+    {
+      "path": "trade-calculator/backend/automation/trade_executor.py",
+      "sha256": "465164e838494a5a1502c9b12c6f7a9f4f00bfe852dbb04ee1d627cd250d62c3"
+    },
+    {
+      "path": "trade-calculator/backend/automation/utils/options_analysis.py",
+      "sha256": "a1231c27735609c7ac51e3a8bf5a700a786c5550ee34e34c5bbad738c688bcf9"
+    },
+    {
+      "path": "trade-calculator/backend/tests/automation/test_trade_flow.py",
+      "sha256": "ccb3e49be776257b035a44a43978a0310cc985e2b2b03e487e294ccfc2a875b6"
+    },
+    {
+      "path": "asts-stock-watcher/src/yahoo.ts",
+      "sha256": "b7ca5d7e3346f3188d919df7a1cb2cbcf20553f8cac75df2f1c24ac277bcf4d0"
+    },
+    {
+      "path": "asts-stock-watcher/src/analysis.ts",
+      "sha256": "c2c76839535e329e51b4ac970fd45c14f3e4028bb5aa03da1fa130a811758d2e"
+    },
+    {
+      "path": "asts-stock-watcher/src/watcher.ts",
+      "sha256": "e9c4b0fbf462132a44d263bc4bcfe68cf0c6c1c81cd334a1f1615cfaf27f272d"
+    },
+    {
+      "path": "full-port/src/full_port/providers/ibkr_options/selection.py",
+      "sha256": "56d63b9db0a385ee2b525bc2ffcc7183c30d637fc879850cbd4882d8d9c993ab"
+    },
+    {
+      "path": "full-port/scripts/capture/phase02_ibkr_options.py",
+      "sha256": "7e7b7f970a78ae818f6e759053c34d03707a6c2e4ac934c372f9c920a28e7062"
+    },
+    {
+      "path": "full-port/src/full_port/contracts/base.py",
+      "sha256": "e510581d8beac1589824a46314b487c0488dd38bc64e1949fbeb3dcb605b14e6"
+    },
+    {
+      "path": "youtube-knowledge-bases/trading-verrillo-aleks/sources/aleks-0dte-gamma-strategy-ultimate-edge-no-one-knows-about.md",
+      "sha256": "0004d103b350ed81e5d67a11b3370f87c2840abfe870d9371169f85937ab9490"
+    },
+    {
+      "path": "youtube-knowledge-bases/trading-verrillo-aleks/sources/verrillo-2-tips-for-ibkr-options-traders-tsla-0dte-scalps.md",
+      "sha256": "34965e32f709392f77d6e1b0dd304423a2fc4637245ed4e1c6cfd0974c01e8a8"
+    }
+  ],
+  "limitations": [
+    "Working-tree hashes, not commit names alone, identify dirty inspected source.",
+    "Report implemented labels mean source exists, not correctness, authorization or production readiness.",
+    "Inherited .omp-status.md is historical DarkFactory evidence and does not certify Vertex.",
+    "No runtime tests, gates, builds, Graphify, provider calls, accounts, credentials or deployments were exercised by this documentation task."
+  ],
+  "integrationContext": {
+    "source": "Parent Main current task update; not a deployment receipt",
+    "originRepository": "jeffscottward/vertex-research (existing private repository)",
+    "templateRemote": "darkfactory-upstream",
+    "isolatedToolchain": "Parent installed isolated Bun 1.3.14 and pnpm 11.16.0/dependencies; no global selection changes.",
+    "charanRenderer": "User-confirmed KLineCharts 9.8.12; compatibility not yet verified",
+    "vpsHostTrust": "Provider-console fingerprint pending; no default known_hosts entry on rig or verified Mac",
+    "worksheet": "Preserve privately as historical/unconfirmed with no quantities"
+  }
+}

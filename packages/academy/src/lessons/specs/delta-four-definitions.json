@@ -1,0 +1,126 @@
+{
+  "slug": "delta-four-definitions",
+  "sourceId": "DcjPFMvRnHF",
+  "title": "Four uses of delta: sensitivity, probability, share equivalent, hedge ratio",
+  "summary": "Delta has four uses. One: price sensitivity, a 50 delta option moves 50 cents per $1 move in the stock. Two: a rough probability of finishing in the money, so a 20 delta call has about a 20% chance. Three: share equivalent, one 60 delta call acts like 60 shares. Four: hedge ratio, sell 60 shares against that call to be delta neutral, for example before earnings.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "event"],
+    "instruments": ["single-stock", "hedging"],
+    "timeframe": "intraday",
+    "risk": "hedged",
+    "topics": ["delta", "hedge ratio", "probability"]
+  },
+  "scene": {
+    "type": "greeks",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "greek": "delta"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 97,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Calls",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We hold one call with the $97 strike, about 60 delta."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "The strike. At the money, delta is near 50."
+    },
+    {
+      "element": "delta",
+      "color": "gold",
+      "caption": "Use one: price sensitivity. A 50 delta option moves about 50 cents for each $1 in the stock."
+    },
+    {
+      "element": "delta",
+      "color": "green",
+      "caption": "Use two: rough probability. A 20 delta call has about a 20% chance of finishing in the money."
+    },
+    {
+      "element": "delta",
+      "color": "blue",
+      "caption": "Use three: share equivalent. One 60 delta call acts like 60 shares, since one contract is 100 shares."
+    },
+    {
+      "element": "gamma",
+      "color": "violet",
+      "caption": "Use four: hedge ratio. Sell 60 shares to be delta neutral; gamma shows how fast that hedge drifts."
+    }
+  ],
+  "formulas": ["delta", "gamma", "probabilityOfProfit"],
+  "takeaways": [
+    "Delta measures how much the option price moves for a $1 move in the stock.",
+    "Delta is a rough estimate of the chance of finishing in the money.",
+    "Delta times 100 gives the share-equivalent exposure of one contract.",
+    "Delta is the hedge ratio: sell that many shares to be delta neutral, for example over earnings."
+  ],
+  "caveats": [
+    "Delta as probability is an approximation, not an exact figure.",
+    "The speaker's example strike is not given; $97 is an example value near 60 delta."
+  ]
+}

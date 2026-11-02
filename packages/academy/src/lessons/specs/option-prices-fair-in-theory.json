@@ -1,0 +1,121 @@
+{
+  "slug": "option-prices-fair-in-theory",
+  "sourceId": "DWZgWX_iRgz",
+  "title": "Option prices are fair in theory, not always in practice",
+  "summary": "Option chains have no easy arbitrage: prices are fair relative to implied probability. In practice, value depends on how much the stock actually moves. The speaker compares implied volatility with realized volatility and calls this better than IV rank or IV percentile.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "days",
+    "risk": "none",
+    "topics": ["implied volatility", "realized volatility", "rich or cheap"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV minus RV (premium)",
+      "default": 3,
+      "min": -20,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 21,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A one-year stock path. The option market prices each day from implied volatility.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility: how much the stock actually moved, measured over 20 days.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "blue",
+      "caption": "Implied volatility: the market's forecast. Option prices are fair relative to this number.",
+      "time": [0, 1]
+    },
+    {
+      "element": "vrp",
+      "color": "violet",
+      "caption": "The gap between IV and RV tells you if an option was rich (IV above RV) or cheap (IV below RV).",
+      "time": [0, 1]
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "The speaker prefers this comparison to IV rank or IV percentile, which only compare IV with itself."
+    }
+  ],
+  "formulas": ["realizedVol", "vrp", "blackScholes"],
+  "takeaways": [
+    "Option prices are fair in theory: no arbitrage on the chain.",
+    "Whether a price is good in practice depends on realized movement of the stock.",
+    "Compare implied with realized volatility to judge cheap, fair or rich."
+  ],
+  "caveats": [
+    "The speaker's own metric and Chrome extension are promotional and not verified here."
+  ]
+}

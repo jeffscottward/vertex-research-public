@@ -1,0 +1,136 @@
+{
+  "slug": "atm-option-price-rule-of-thumb",
+  "sourceId": "DZuwsfROcYT",
+  "title": "Price an at-the-money option with four numbers, then use realized vol",
+  "summary": "An at-the-money option is worth about 0.4 x stock price x volatility x the square root of days over 360. With a $100 stock, 25% IV and 30 days, that is about $2.87. Put realized volatility, say 10%, in place of IV and the fair value is about $1.15, so the market pays about $1.72 of volatility premium. If realized is above implied, it is a poor sell.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "high-vol"],
+    "instruments": ["single-stock", "volatility"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["option pricing", "rule of thumb", "fair value", "vrp"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "ATM strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock is $100 and we price the $100 call, 30 days out.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The market's distribution at 25% implied volatility."
+    },
+    {
+      "element": "band1",
+      "color": "gray",
+      "caption": "The one-sigma move: about 0.25 x sqrt(30/360) of the price, close to $7."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Rule of thumb: 0.4 x 100 x 0.25 x sqrt(30/360) gives about $2.87 for the option."
+    },
+    {
+      "element": "ev",
+      "color": "red",
+      "caption": "Priced with 10% realized vol it is worth about $1.15. The $1.72 gap is the premium the seller collects."
+    },
+    {
+      "element": "band2",
+      "color": "gray",
+      "caption": "Set IV to 10% to see the narrower distribution that realized volatility implies."
+    }
+  ],
+  "formulas": ["blackScholes", "expectedMove", "vrp"],
+  "takeaways": [
+    "An ATM option is worth about 0.4 x price x vol x sqrt(days/360).",
+    "The rule only works near the money.",
+    "Price the option with realized vol to estimate fair value.",
+    "Sell when implied is well above realized; avoid selling when realized is above implied."
+  ],
+  "caveats": [
+    "The speaker's VAY Chrome extension and screener are promotional and not verified here.",
+    "He uses 360 days in the formula; the exact convention changes the answer slightly."
+  ]
+}

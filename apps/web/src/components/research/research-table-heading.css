@@ -1,0 +1,56 @@
+@layer components {
+  .vx-research-table-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .vx-research-table-heading > h2[id] {
+    margin: 0;
+    min-width: 0;
+    font-family: var(--font-heading);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .vx-research-table-help {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    box-sizing: border-box;
+    width: min(32rem, calc(100vw - var(--space-4) * 2));
+    max-height: calc(100dvh - var(--space-4) * 2);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    padding: var(--space-4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface-raised);
+    color: var(--foreground);
+    box-shadow: var(--shadow-md);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    line-height: 1.65;
+  }
+
+  .vx-research-table-help > :first-child {
+    margin-top: 0;
+  }
+
+  .vx-research-table-help > :last-child {
+    margin-bottom: 0;
+  }
+
+  @supports (position-area: bottom) {
+    .vx-research-table-help {
+      inset: auto;
+      margin: var(--space-2);
+      position-area: bottom span-right;
+      position-try-fallbacks: flip-block, flip-inline;
+    }
+  }
+}

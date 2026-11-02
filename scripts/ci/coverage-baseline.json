@@ -1,0 +1,1721 @@
+{
+  "_comment": "Coverage ratchet (user decision, 2026-10-11). Each file listed here was below 100% when Vertex moved to TypeScript; its numbers are minimums that may only rise. Every file not listed must stay at 100%. Raise a file's numbers when its tests improve, and remove it when it reaches 100%.",
+  "files": {
+    "apps/web/src/app/(portal)/agents/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/assistant/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/assistant/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/assistant/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/audit/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/backtests/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/backtests/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/backtests/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/charts/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/charts/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/charts/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/connections/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/deployments/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/deployments/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/deployments/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/library/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/library/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/library/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/optimizations/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/optimizations/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/optimizations/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/papers/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/papers/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/papers/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/settings/workspace/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/strategies/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/today/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/watchlist/error.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/watchlist/loading.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/(portal)/watchlist/page.tsx": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/api/mcp/route.ts": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/app/api/orpc/[...rest]/route.ts": {
+      "lines": 79.04,
+      "branches": 78.12,
+      "functions": 78.26,
+      "statements": 79.81
+    },
+    "apps/web/src/components/command-palette.tsx": {
+      "lines": 81.53,
+      "branches": 80.95,
+      "functions": 68.0,
+      "statements": 77.33
+    },
+    "apps/web/src/components/portal-shell.tsx": {
+      "lines": 94.73,
+      "branches": 92.1,
+      "functions": 90.32,
+      "statements": 92.53
+    },
+    "apps/web/src/components/portal/agent-api-keys-section.tsx": {
+      "lines": 83.33,
+      "branches": 76.78,
+      "functions": 68.18,
+      "statements": 81.33
+    },
+    "apps/web/src/components/portal/agent-ops-client.tsx": {
+      "lines": 46.01,
+      "branches": 64.61,
+      "functions": 16.32,
+      "statements": 46.02
+    },
+    "apps/web/src/components/portal/agent-runs-workspace.tsx": {
+      "lines": 74.03,
+      "branches": 59.09,
+      "functions": 68.56,
+      "statements": 72.72
+    },
+    "apps/web/src/components/portal/assistant-client.ts": {
+      "lines": 59.52,
+      "branches": 55.0,
+      "functions": 38.88,
+      "statements": 58.13
+    },
+    "apps/web/src/components/portal/assistant-workspace.tsx": {
+      "lines": 84.25,
+      "branches": 77.67,
+      "functions": 79.16,
+      "statements": 82.3
+    },
+    "apps/web/src/components/portal/backtest-analytics-panels.tsx": {
+      "lines": 93.45,
+      "branches": 69.73,
+      "functions": 97.95,
+      "statements": 90.51
+    },
+    "apps/web/src/components/portal/backtests-workspace.tsx": {
+      "lines": 92.23,
+      "branches": 76.34,
+      "functions": 80.55,
+      "statements": 87.71
+    },
+    "apps/web/src/components/portal/charts-analysis-panels.tsx": {
+      "lines": 100.0,
+      "branches": 58.82,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "apps/web/src/components/portal/charts-workspace.tsx": {
+      "lines": 88.63,
+      "branches": 65.38,
+      "functions": 85.41,
+      "statements": 88.65
+    },
+    "apps/web/src/components/portal/deployment-requests-model.ts": {
+      "lines": 100.0,
+      "branches": 94.73,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "apps/web/src/components/portal/deployment-requests-workspace.tsx": {
+      "lines": 87.67,
+      "branches": 80.0,
+      "functions": 90.76,
+      "statements": 85.77
+    },
+    "apps/web/src/components/portal/deployments-snapshot.tsx": {
+      "lines": 97.69,
+      "branches": 73.89,
+      "functions": 97.87,
+      "statements": 95.03
+    },
+    "apps/web/src/components/portal/deployments-view.tsx": {
+      "lines": 77.77,
+      "branches": 54.05,
+      "functions": 90.0,
+      "statements": 74.34
+    },
+    "apps/web/src/components/portal/deployments-workspace.tsx": {
+      "lines": 90.97,
+      "branches": 72.13,
+      "functions": 90.9,
+      "statements": 85.9
+    },
+    "apps/web/src/components/portal/market-data-client.ts": {
+      "lines": 58.33,
+      "branches": 64.7,
+      "functions": 36.36,
+      "statements": 57.69
+    },
+    "apps/web/src/components/portal/mission-control.tsx": {
+      "lines": 92.68,
+      "branches": 80.76,
+      "functions": 80.0,
+      "statements": 92.85
+    },
+    "apps/web/src/components/portal/optimizations-detail.tsx": {
+      "lines": 96.82,
+      "branches": 54.02,
+      "functions": 96.55,
+      "statements": 95.45
+    },
+    "apps/web/src/components/portal/optimizations-model.ts": {
+      "lines": 95.94,
+      "branches": 82.95,
+      "functions": 94.73,
+      "statements": 91.01
+    },
+    "apps/web/src/components/portal/optimizations-workspace.tsx": {
+      "lines": 95.08,
+      "branches": 79.41,
+      "functions": 86.66,
+      "statements": 90.76
+    },
+    "apps/web/src/components/portal/papers-workspace.tsx": {
+      "lines": 90.21,
+      "branches": 86.36,
+      "functions": 87.09,
+      "statements": 89.36
+    },
+    "apps/web/src/components/portal/strategy-library-detail.tsx": {
+      "lines": 90.2,
+      "branches": 74.59,
+      "functions": 87.17,
+      "statements": 89.72
+    },
+    "apps/web/src/components/portal/strategy-library-model.ts": {
+      "lines": 100.0,
+      "branches": 91.83,
+      "functions": 100.0,
+      "statements": 97.29
+    },
+    "apps/web/src/components/portal/strategy-library-workspace.tsx": {
+      "lines": 85.71,
+      "branches": 72.91,
+      "functions": 84.61,
+      "statements": 84.14
+    },
+    "apps/web/src/components/portal/strategy-param-field.tsx": {
+      "lines": 100.0,
+      "branches": 58.82,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "apps/web/src/components/portal/watchlist-client.ts": {
+      "lines": 38.22,
+      "branches": 28.0,
+      "functions": 25.0,
+      "statements": 36.84
+    },
+    "apps/web/src/components/portal/watchlist-workspace.tsx": {
+      "lines": 90.81,
+      "branches": 82.19,
+      "functions": 96.29,
+      "statements": 87.5
+    },
+    "apps/web/src/components/research/read-resource.ts": {
+      "lines": 100.0,
+      "branches": 96.0,
+      "functions": 100.0,
+      "statements": 98.24
+    },
+    "apps/web/src/components/research/research-views.tsx": {
+      "lines": 65.0,
+      "branches": 67.84,
+      "functions": 92.3,
+      "statements": 65.0
+    },
+    "apps/web/src/components/research/research-workspace.tsx": {
+      "lines": 65.0,
+      "branches": 57.14,
+      "functions": 69.69,
+      "statements": 63.8
+    },
+    "apps/web/src/components/research/vertex-client.ts": {
+      "lines": 96.22,
+      "branches": 100.0,
+      "functions": 84.61,
+      "statements": 96.77
+    },
+    "apps/web/src/features/charts/backtest-series.tsx": {
+      "lines": 0.0,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/features/charts/bar-analysis.ts": {
+      "lines": 100.0,
+      "branches": 88.88,
+      "functions": 100.0,
+      "statements": 97.02
+    },
+    "apps/web/src/features/charts/data-binding.tsx": {
+      "lines": 28.82,
+      "branches": 29.16,
+      "functions": 22.85,
+      "statements": 27.73
+    },
+    "apps/web/src/features/charts/indicators.ts": {
+      "lines": 97.24,
+      "branches": 95.07,
+      "functions": 85.71,
+      "statements": 97.38
+    },
+    "apps/web/src/features/charts/kline-adapter.ts": {
+      "lines": 89.38,
+      "branches": 92.85,
+      "functions": 100.0,
+      "statements": 88.09
+    },
+    "apps/web/src/features/charts/market-bars.ts": {
+      "lines": 100.0,
+      "branches": 97.91,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "apps/web/src/features/charts/market-chart.tsx": {
+      "lines": 0.0,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "apps/web/src/features/charts/renderer-host.tsx": {
+      "lines": 72.38,
+      "branches": 68.75,
+      "functions": 84.61,
+      "statements": 72.22
+    },
+    "apps/web/src/features/charts/transport.ts": {
+      "lines": 84.32,
+      "branches": 82.96,
+      "functions": 78.04,
+      "statements": 84.65
+    },
+    "apps/web/src/features/experience/browser-provider.tsx": {
+      "lines": 74.31,
+      "branches": 78.56,
+      "functions": 66.66,
+      "statements": 72.15
+    },
+    "apps/web/src/features/experience/guards.ts": {
+      "lines": 67.53,
+      "branches": 64.34,
+      "functions": 54.9,
+      "statements": 64.91
+    },
+    "apps/web/src/features/experience/portfolio.tsx": {
+      "lines": 79.31,
+      "branches": 100.0,
+      "functions": 71.69,
+      "statements": 78.65
+    },
+    "apps/web/src/features/experience/research-chat-client.ts": {
+      "lines": 89.68,
+      "branches": 85.46,
+      "functions": 92.1,
+      "statements": 90.08
+    },
+    "apps/web/src/features/experience/research-chat-conversation.ts": {
+      "lines": 93.1,
+      "branches": 80.31,
+      "functions": 100.0,
+      "statements": 91.66
+    },
+    "apps/web/src/features/experience/research-chat-debate.ts": {
+      "lines": 73.33,
+      "branches": 80.3,
+      "functions": 100.0,
+      "statements": 73.91
+    },
+    "apps/web/src/features/experience/research-chat-room.tsx": {
+      "lines": 89.71,
+      "branches": 88.64,
+      "functions": 90.81,
+      "statements": 87.97
+    },
+    "apps/web/src/features/experience/research-chat-view.tsx": {
+      "lines": 95.06,
+      "branches": 95.0,
+      "functions": 97.1,
+      "statements": 94.79
+    },
+    "apps/web/src/features/experience/research.tsx": {
+      "lines": 88.0,
+      "branches": 84.21,
+      "functions": 66.66,
+      "statements": 86.53
+    },
+    "apps/web/src/features/experience/review-model.ts": {
+      "lines": 96.06,
+      "branches": 96.8,
+      "functions": 100.0,
+      "statements": 95.48
+    },
+    "apps/web/src/features/experience/shared.tsx": {
+      "lines": 88.23,
+      "branches": 76.66,
+      "functions": 88.23,
+      "statements": 87.5
+    },
+    "apps/web/src/features/experience/strategies.tsx": {
+      "lines": 30.89,
+      "branches": 24.24,
+      "functions": 23.88,
+      "statements": 30.43
+    },
+    "apps/web/src/features/experience/today.tsx": {
+      "lines": 85.13,
+      "branches": 96.0,
+      "functions": 73.06,
+      "statements": 84.0
+    },
+    "apps/web/src/features/experience/transport.ts": {
+      "lines": 98.6,
+      "branches": 89.33,
+      "functions": 97.22,
+      "statements": 96.98
+    },
+    "apps/web/src/features/experience/utilities.tsx": {
+      "lines": 96.31,
+      "branches": 91.55,
+      "functions": 90.9,
+      "statements": 95.2
+    },
+    "apps/web/src/lib/email-preview-options.ts": {
+      "lines": 50.0,
+      "branches": 14.28,
+      "functions": 100.0,
+      "statements": 50.0
+    },
+    "apps/web/src/proxy.ts": {
+      "lines": 0.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 0.0
+    },
+    "packages/api/src/backtest-analytics.ts": {
+      "lines": 99.45,
+      "branches": 88.76,
+      "functions": 98.3,
+      "statements": 97.83
+    },
+    "packages/api/src/contracts/agent-ops.ts": {
+      "lines": 97.47,
+      "branches": 87.5,
+      "functions": 82.35,
+      "statements": 95.65
+    },
+    "packages/api/src/contracts/market-data.ts": {
+      "lines": 100.0,
+      "branches": 90.0,
+      "functions": 100.0,
+      "statements": 95.0
+    },
+    "packages/api/src/contracts/strategy-library.ts": {
+      "lines": 100.0,
+      "branches": 50.0,
+      "functions": 100.0,
+      "statements": 97.95
+    },
+    "packages/api/src/contracts/vertex-control.ts": {
+      "lines": 98.73,
+      "branches": 100.0,
+      "functions": 92.85,
+      "statements": 98.75
+    },
+    "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts": {
+      "lines": 95.23,
+      "branches": 50.0,
+      "functions": 75.0,
+      "statements": 95.23
+    },
+    "packages/api/src/contracts/vertex-model-use.test-support.ts": {
+      "lines": 100.0,
+      "branches": 50.0,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/api/src/contracts/vertex-native-facts.ts": {
+      "lines": 98.68,
+      "branches": 100.0,
+      "functions": 100.0,
+      "statements": 98.7
+    },
+    "packages/api/src/contracts/vertex-policy.test-support.ts": {
+      "lines": 96.96,
+      "branches": 83.33,
+      "functions": 100.0,
+      "statements": 97.14
+    },
+    "packages/api/src/contracts/vertex-research-chat-conversation.ts": {
+      "lines": 88.88,
+      "branches": 87.03,
+      "functions": 96.77,
+      "statements": 89.56
+    },
+    "packages/api/src/contracts/vertex-research-chat-debate.ts": {
+      "lines": 93.22,
+      "branches": 94.73,
+      "functions": 100.0,
+      "statements": 93.65
+    },
+    "packages/api/src/contracts/vertex-research-chat-execution.ts": {
+      "lines": 93.75,
+      "branches": 70.0,
+      "functions": 72.72,
+      "statements": 94.0
+    },
+    "packages/api/src/contracts/vertex-research-chat-native-evidence.ts": {
+      "lines": 68.75,
+      "branches": 50.0,
+      "functions": 54.54,
+      "statements": 68.56
+    },
+    "packages/api/src/contracts/vertex-research-chat-response-rpc.ts": {
+      "lines": 62.5,
+      "branches": 100.0,
+      "functions": 18.18,
+      "statements": 62.5
+    },
+    "packages/api/src/contracts/vertex-research-chat.ts": {
+      "lines": 99.05,
+      "branches": 98.63,
+      "functions": 100.0,
+      "statements": 99.07
+    },
+    "packages/api/src/contracts/vertex-worker-epoch.ts": {
+      "lines": 96.36,
+      "branches": 97.11,
+      "functions": 100.0,
+      "statements": 96.46
+    },
+    "packages/api/src/contracts/vertex-worker-experiment.ts": {
+      "lines": 21.21,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 18.42
+    },
+    "packages/api/src/contracts/vertex.ts": {
+      "lines": 97.96,
+      "branches": 92.0,
+      "functions": 100.0,
+      "statements": 97.61
+    },
+    "packages/api/src/contracts/watchlist.ts": {
+      "lines": 100.0,
+      "branches": 96.55,
+      "functions": 100.0,
+      "statements": 98.33
+    },
+    "packages/api/src/openapi.ts": {
+      "lines": 96.0,
+      "branches": 94.73,
+      "functions": 100.0,
+      "statements": 96.15
+    },
+    "packages/api/src/optimization-analytics.ts": {
+      "lines": 99.13,
+      "branches": 73.01,
+      "functions": 100.0,
+      "statements": 98.54
+    },
+    "packages/api/src/server/agent-api-keys.ts": {
+      "lines": 80.0,
+      "branches": 50.0,
+      "functions": 87.5,
+      "statements": 77.5
+    },
+    "packages/api/src/server/agent-ops.ts": {
+      "lines": 83.33,
+      "branches": 72.86,
+      "functions": 91.89,
+      "statements": 83.08
+    },
+    "packages/api/src/server/arxiv.ts": {
+      "lines": 90.39,
+      "branches": 75.0,
+      "functions": 90.9,
+      "statements": 87.5
+    },
+    "packages/api/src/server/assistant-runtime.ts": {
+      "lines": 93.56,
+      "branches": 79.22,
+      "functions": 93.33,
+      "statements": 91.9
+    },
+    "packages/api/src/server/assistant.ts": {
+      "lines": 91.0,
+      "branches": 64.58,
+      "functions": 89.47,
+      "statements": 87.61
+    },
+    "packages/api/src/server/context.ts": {
+      "lines": 100.0,
+      "branches": 94.54,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/api/src/server/deploy-status.ts": {
+      "lines": 96.11,
+      "branches": 85.07,
+      "functions": 76.47,
+      "statements": 92.03
+    },
+    "packages/api/src/server/deployment-requests.ts": {
+      "lines": 92.75,
+      "branches": 70.58,
+      "functions": 100.0,
+      "statements": 92.95
+    },
+    "packages/api/src/server/handler.ts": {
+      "lines": 97.72,
+      "branches": 87.5,
+      "functions": 100.0,
+      "statements": 97.77
+    },
+    "packages/api/src/server/market-data.ts": {
+      "lines": 91.22,
+      "branches": 67.31,
+      "functions": 81.25,
+      "statements": 88.42
+    },
+    "packages/api/src/server/mcp.ts": {
+      "lines": 95.62,
+      "branches": 84.66,
+      "functions": 100.0,
+      "statements": 93.1
+    },
+    "packages/api/src/server/native-evidence.test-support.ts": {
+      "lines": 4.25,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 4.18
+    },
+    "packages/api/src/server/optimizations.ts": {
+      "lines": 87.09,
+      "branches": 65.27,
+      "functions": 100.0,
+      "statements": 83.82
+    },
+    "packages/api/src/server/present.ts": {
+      "lines": 75.0,
+      "branches": 75.0,
+      "functions": 100.0,
+      "statements": 75.0
+    },
+    "packages/api/src/server/research-python.test-support.ts": {
+      "lines": 100.0,
+      "branches": 83.33,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/api/src/server/router.ts": {
+      "lines": 78.01,
+      "branches": 83.76,
+      "functions": 64.7,
+      "statements": 77.77
+    },
+    "packages/api/src/server/strategy-library.ts": {
+      "lines": 85.88,
+      "branches": 69.13,
+      "functions": 89.47,
+      "statements": 85.22
+    },
+    "packages/api/src/server/vertex-backtest-intent.test-support.ts": {
+      "lines": 97.61,
+      "branches": 81.25,
+      "functions": 94.28,
+      "statements": 96.32
+    },
+    "packages/api/src/server/vertex-chart-service.ts": {
+      "lines": 96.44,
+      "branches": 93.12,
+      "functions": 90.0,
+      "statements": 95.79
+    },
+    "packages/api/src/server/vertex-dispatch/binding-resolver.ts": {
+      "lines": 91.42,
+      "branches": 77.27,
+      "functions": 100.0,
+      "statements": 87.17
+    },
+    "packages/api/src/server/vertex-dispatch/dispatcher.ts": {
+      "lines": 83.54,
+      "branches": 77.09,
+      "functions": 100.0,
+      "statements": 81.81
+    },
+    "packages/api/src/server/vertex-experience-adapter.ts": {
+      "lines": 83.54,
+      "branches": 80.7,
+      "functions": 85.18,
+      "statements": 79.06
+    },
+    "packages/api/src/server/vertex-experience-commands.ts": {
+      "lines": 94.55,
+      "branches": 91.57,
+      "functions": 100.0,
+      "statements": 93.86
+    },
+    "packages/api/src/server/vertex-experience-core.ts": {
+      "lines": 94.69,
+      "branches": 93.93,
+      "functions": 100.0,
+      "statements": 94.48
+    },
+    "packages/api/src/server/vertex-experience-reads.ts": {
+      "lines": 94.0,
+      "branches": 84.84,
+      "functions": 100.0,
+      "statements": 93.97
+    },
+    "packages/api/src/server/vertex-local-setup.ts": {
+      "lines": 7.81,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 7.14
+    },
+    "packages/api/src/server/vertex-notification-read-service.ts": {
+      "lines": 100.0,
+      "branches": 96.0,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/api/src/server/vertex-research-chat-conversation-runtime-suite.test-support.ts": {
+      "lines": 96.15,
+      "branches": 85.71,
+      "functions": 100.0,
+      "statements": 96.29
+    },
+    "packages/api/src/server/vertex-research-chat-conversation-runtime.test-support.ts": {
+      "lines": 97.87,
+      "branches": 71.42,
+      "functions": 100.0,
+      "statements": 94.0
+    },
+    "packages/api/src/server/vertex-research-chat-conversation-runtime.ts": {
+      "lines": 91.99,
+      "branches": 77.73,
+      "functions": 96.07,
+      "statements": 88.65
+    },
+    "packages/api/src/server/vertex-research-chat-copy-cleanup-service.ts": {
+      "lines": 95.16,
+      "branches": 75.0,
+      "functions": 100.0,
+      "statements": 95.16
+    },
+    "packages/api/src/server/vertex-research-chat-copy-retention.ts": {
+      "lines": 61.9,
+      "branches": 50.0,
+      "functions": 66.66,
+      "statements": 63.63
+    },
+    "packages/api/src/server/vertex-research-chat-debate.test-support.ts": {
+      "lines": 49.8,
+      "branches": 30.43,
+      "functions": 63.26,
+      "statements": 46.57
+    },
+    "packages/api/src/server/vertex-research-chat-derived.ts": {
+      "lines": 100.0,
+      "branches": 95.45,
+      "functions": 100.0,
+      "statements": 97.36
+    },
+    "packages/api/src/server/vertex-research-chat-execution-runtime.test-support.ts": {
+      "lines": 96.32,
+      "branches": 86.33,
+      "functions": 95.65,
+      "statements": 95.2
+    },
+    "packages/api/src/server/vertex-research-chat-execution-runtime.ts": {
+      "lines": 88.06,
+      "branches": 72.61,
+      "functions": 100.0,
+      "statements": 85.09
+    },
+    "packages/api/src/server/vertex-research-chat-inputs.ts": {
+      "lines": 96.15,
+      "branches": 88.93,
+      "functions": 95.23,
+      "statements": 95.34
+    },
+    "packages/api/src/server/vertex-research-chat-model-privacy.ts": {
+      "lines": 91.04,
+      "branches": 81.73,
+      "functions": 93.22,
+      "statements": 88.33
+    },
+    "packages/api/src/server/vertex-research-chat-native-inputs.ts": {
+      "lines": 8.16,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 8.05
+    },
+    "packages/api/src/server/vertex-research-chat-output-parser.ts": {
+      "lines": 69.77,
+      "branches": 63.02,
+      "functions": 89.58,
+      "statements": 70.25
+    },
+    "packages/api/src/server/vertex-research-chat-output-runtime.test-support.ts": {
+      "lines": 96.0,
+      "branches": 75.0,
+      "functions": 100.0,
+      "statements": 96.12
+    },
+    "packages/api/src/server/vertex-research-chat-output-runtime.ts": {
+      "lines": 72.23,
+      "branches": 70.42,
+      "functions": 78.68,
+      "statements": 68.61
+    },
+    "packages/api/src/server/vertex-research-chat-worker-runtime.test-support.ts": {
+      "lines": 92.42,
+      "branches": 80.58,
+      "functions": 88.63,
+      "statements": 91.7
+    },
+    "packages/api/src/server/vertex-research-chat-worker-runtime.ts": {
+      "lines": 55.72,
+      "branches": 57.44,
+      "functions": 80.0,
+      "statements": 51.83
+    },
+    "packages/api/src/server/vertex-research-chat-worker-sql.test-support.ts": {
+      "lines": 83.68,
+      "branches": 66.76,
+      "functions": 75.59,
+      "statements": 80.83
+    },
+    "packages/api/src/server/vertex-research-chat.ts": {
+      "lines": 78.78,
+      "branches": 71.84,
+      "functions": 84.41,
+      "statements": 79.34
+    },
+    "packages/api/src/server/vertex-runtime-bootstrap.ts": {
+      "lines": 29.03,
+      "branches": 6.89,
+      "functions": 60.0,
+      "statements": 29.41
+    },
+    "packages/api/src/server/vertex-runtime-config-notifications-schema.ts": {
+      "lines": 86.2,
+      "branches": 79.54,
+      "functions": 100.0,
+      "statements": 84.74
+    },
+    "packages/api/src/server/vertex-runtime-config-notifications.ts": {
+      "lines": 89.8,
+      "branches": 81.81,
+      "functions": 94.87,
+      "statements": 87.28
+    },
+    "packages/api/src/server/vertex-runtime-config-schema.ts": {
+      "lines": 91.3,
+      "branches": 79.36,
+      "functions": 78.37,
+      "statements": 91.0
+    },
+    "packages/api/src/server/vertex-runtime-config.ts": {
+      "lines": 88.52,
+      "branches": 84.33,
+      "functions": 92.3,
+      "statements": 87.5
+    },
+    "packages/api/src/server/vertex-runtime-epoch-approval.ts": {
+      "lines": 99.17,
+      "branches": 98.87,
+      "functions": 100.0,
+      "statements": 99.18
+    },
+    "packages/api/src/server/vertex-runtime-epoch-bytes.ts": {
+      "lines": 98.41,
+      "branches": 100.0,
+      "functions": 100.0,
+      "statements": 98.5
+    },
+    "packages/api/src/server/vertex-runtime-epoch-evidence.ts": {
+      "lines": 72.77,
+      "branches": 63.63,
+      "functions": 81.81,
+      "statements": 73.17
+    },
+    "packages/api/src/server/vertex-runtime-epoch-execution.ts": {
+      "lines": 93.93,
+      "branches": 73.17,
+      "functions": 100.0,
+      "statements": 91.17
+    },
+    "packages/api/src/server/vertex-runtime-epoch-historical.ts": {
+      "lines": 2.63,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 2.63
+    },
+    "packages/api/src/server/vertex-runtime-epoch-replay.ts": {
+      "lines": 20.75,
+      "branches": 12.92,
+      "functions": 27.77,
+      "statements": 20.56
+    },
+    "packages/api/src/server/vertex-runtime-epoch-snapshot.ts": {
+      "lines": 54.54,
+      "branches": 40.27,
+      "functions": 22.22,
+      "statements": 55.22
+    },
+    "packages/api/src/server/vertex-runtime-epoch.ts": {
+      "lines": 7.79,
+      "branches": 0.0,
+      "functions": 16.66,
+      "statements": 7.69
+    },
+    "packages/api/src/server/vertex-runtime-gateway.ts": {
+      "lines": 29.62,
+      "branches": 19.23,
+      "functions": 55.55,
+      "statements": 28.57
+    },
+    "packages/api/src/server/vertex-runtime-model-evidence.ts": {
+      "lines": 97.7,
+      "branches": 95.57,
+      "functions": 93.33,
+      "statements": 97.72
+    },
+    "packages/api/src/server/vertex-runtime-model-use.ts": {
+      "lines": 96.0,
+      "branches": 94.68,
+      "functions": 91.3,
+      "statements": 95.42
+    },
+    "packages/api/src/server/vertex-runtime-native.ts": {
+      "lines": 50.49,
+      "branches": 40.26,
+      "functions": 45.45,
+      "statements": 50.89
+    },
+    "packages/api/src/server/vertex-runtime-notifications.ts": {
+      "lines": 66.66,
+      "branches": 75.0,
+      "functions": 33.33,
+      "statements": 66.66
+    },
+    "packages/api/src/server/vertex-runtime-objects.ts": {
+      "lines": 85.71,
+      "branches": 67.44,
+      "functions": 100.0,
+      "statements": 75.43
+    },
+    "packages/api/src/server/vertex-runtime-policy-artifacts.ts": {
+      "lines": 94.54,
+      "branches": 89.47,
+      "functions": 100.0,
+      "statements": 89.83
+    },
+    "packages/api/src/server/vertex-runtime-policy.ts": {
+      "lines": 90.83,
+      "branches": 84.44,
+      "functions": 80.45,
+      "statements": 86.41
+    },
+    "packages/api/src/server/vertex-runtime-recipe-build.ts": {
+      "lines": 45.19,
+      "branches": 37.72,
+      "functions": 39.58,
+      "statements": 44.06
+    },
+    "packages/api/src/server/vertex-runtime-recipe-profiles.ts": {
+      "lines": 61.11,
+      "branches": 16.07,
+      "functions": 35.0,
+      "statements": 57.46
+    },
+    "packages/api/src/server/vertex-runtime-recipes.ts": {
+      "lines": 74.54,
+      "branches": 68.95,
+      "functions": 82.35,
+      "statements": 70.33
+    },
+    "packages/api/src/server/vertex-runtime-replay.ts": {
+      "lines": 85.71,
+      "branches": 84.0,
+      "functions": 88.88,
+      "statements": 85.71
+    },
+    "packages/api/src/server/vertex-runtime.ts": {
+      "lines": 84.72,
+      "branches": 67.16,
+      "functions": 46.15,
+      "statements": 82.89
+    },
+    "packages/api/src/server/vertex-worker-auth.ts": {
+      "lines": 94.44,
+      "branches": 90.24,
+      "functions": 100.0,
+      "statements": 93.0
+    },
+    "packages/api/src/server/vertex-worker-service.ts": {
+      "lines": 55.39,
+      "branches": 40.74,
+      "functions": 100.0,
+      "statements": 53.79
+    },
+    "packages/api/src/server/watchlist.ts": {
+      "lines": 79.23,
+      "branches": 67.84,
+      "functions": 90.0,
+      "statements": 77.04
+    },
+    "packages/api/src/strategy-library.ts": {
+      "lines": 100.0,
+      "branches": 87.5,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/auth/src/server.ts": {
+      "lines": 98.64,
+      "branches": 95.92,
+      "functions": 100.0,
+      "statements": 98.22
+    },
+    "packages/auth/src/types.ts": {
+      "lines": 85.71,
+      "branches": 76.92,
+      "functions": 100.0,
+      "statements": 84.37
+    },
+    "packages/config/src/server.ts": {
+      "lines": 100.0,
+      "branches": 97.61,
+      "functions": 100.0,
+      "statements": 99.34
+    },
+    "packages/config/src/vertex/capability.ts": {
+      "lines": 82.41,
+      "branches": 56.79,
+      "functions": 94.11,
+      "statements": 76.76
+    },
+    "packages/config/src/vertex/configuration.ts": {
+      "lines": 93.33,
+      "branches": 87.5,
+      "functions": 100.0,
+      "statements": 93.33
+    },
+    "packages/config/src/vertex/lifecycle.ts": {
+      "lines": 83.33,
+      "branches": 79.01,
+      "functions": 100.0,
+      "statements": 80.3
+    },
+    "packages/config/src/vertex/model-use.ts": {
+      "lines": 92.42,
+      "branches": 95.04,
+      "functions": 100.0,
+      "statements": 91.17
+    },
+    "packages/config/src/vertex/policy.ts": {
+      "lines": 81.55,
+      "branches": 80.0,
+      "functions": 100.0,
+      "statements": 79.62
+    },
+    "packages/config/src/vertex/registry.ts": {
+      "lines": 92.08,
+      "branches": 86.27,
+      "functions": 100.0,
+      "statements": 91.15
+    },
+    "packages/db/src/schema/index.ts": {
+      "lines": 81.65,
+      "branches": 100.0,
+      "functions": 62.96,
+      "statements": 81.65
+    },
+    "packages/db/src/schema/notification-grants.ts": {
+      "lines": 60.0,
+      "branches": 100.0,
+      "functions": 33.33,
+      "statements": 66.66
+    },
+    "packages/db/src/schema/vertex-epoch-transitions.ts": {
+      "lines": 66.66,
+      "branches": 100.0,
+      "functions": 50.0,
+      "statements": 75.0
+    },
+    "packages/db/src/schema/vertex-model-use.ts": {
+      "lines": 62.5,
+      "branches": 100.0,
+      "functions": 33.33,
+      "statements": 66.66
+    },
+    "packages/db/src/schema/vertex-native-approval-audit.ts": {
+      "lines": 50.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 50.0
+    },
+    "packages/db/src/schema/vertex-policy.ts": {
+      "lines": 64.28,
+      "branches": 100.0,
+      "functions": 37.5,
+      "statements": 68.75
+    },
+    "packages/db/src/schema/vertex-research-chat-advisory.ts": {
+      "lines": 50.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 50.0
+    },
+    "packages/db/src/schema/vertex-research-chat-copies.ts": {
+      "lines": 62.5,
+      "branches": 100.0,
+      "functions": 33.33,
+      "statements": 66.66
+    },
+    "packages/db/src/schema/vertex-research-chat-debate.ts": {
+      "lines": 62.5,
+      "branches": 100.0,
+      "functions": 40.0,
+      "statements": 70.0
+    },
+    "packages/db/src/schema/vertex-research-chat-execution.ts": {
+      "lines": 62.5,
+      "branches": 100.0,
+      "functions": 33.33,
+      "statements": 66.66
+    },
+    "packages/db/src/schema/vertex-research-chat-model-privacy.ts": {
+      "lines": 70.0,
+      "branches": 100.0,
+      "functions": 50.0,
+      "statements": 75.0
+    },
+    "packages/db/src/schema/vertex-research-chat-native-evidence.ts": {
+      "lines": 66.66,
+      "branches": 100.0,
+      "functions": 44.44,
+      "statements": 72.22
+    },
+    "packages/db/src/schema/vertex-research-chat-worker.ts": {
+      "lines": 50.0,
+      "branches": 100.0,
+      "functions": 0.0,
+      "statements": 50.0
+    },
+    "packages/db/src/schema/vertex-research-chat.ts": {
+      "lines": 77.77,
+      "branches": 100.0,
+      "functions": 60.0,
+      "statements": 80.0
+    },
+    "packages/db/src/schema/vertex-worker.ts": {
+      "lines": 59.09,
+      "branches": 100.0,
+      "functions": 25.0,
+      "statements": 62.5
+    },
+    "packages/db/src/schema/vertex.ts": {
+      "lines": 98.76,
+      "branches": 100.0,
+      "functions": 97.61,
+      "statements": 98.8
+    },
+    "packages/db/src/server/assistant-records.ts": {
+      "lines": 93.44,
+      "branches": 79.68,
+      "functions": 100.0,
+      "statements": 85.5
+    },
+    "packages/db/src/server/backtest-results.ts": {
+      "lines": 93.96,
+      "branches": 78.68,
+      "functions": 100.0,
+      "statements": 86.49
+    },
+    "packages/db/src/server/deployment-requests.ts": {
+      "lines": 94.5,
+      "branches": 80.0,
+      "functions": 94.44,
+      "statements": 90.0
+    },
+    "packages/db/src/server/notification-grant-store.ts": {
+      "lines": 81.25,
+      "branches": 75.0,
+      "functions": 89.47,
+      "statements": 77.56
+    },
+    "packages/db/src/server/notification-store.ts": {
+      "lines": 92.08,
+      "branches": 89.56,
+      "functions": 100.0,
+      "statements": 92.25
+    },
+    "packages/db/src/server/optimization-runs.ts": {
+      "lines": 94.84,
+      "branches": 80.48,
+      "functions": 100.0,
+      "statements": 89.54
+    },
+    "packages/db/src/server/repositories.ts": {
+      "lines": 90.66,
+      "branches": 83.93,
+      "functions": 94.25,
+      "statements": 90.76
+    },
+    "packages/db/src/server/strategy-library.ts": {
+      "lines": 92.23,
+      "branches": 84.39,
+      "functions": 96.42,
+      "statements": 89.65
+    },
+    "packages/db/src/server/vertex-authorization.ts": {
+      "lines": 93.96,
+      "branches": 84.58,
+      "functions": 100.0,
+      "statements": 92.28
+    },
+    "packages/db/src/server/vertex-command-input.ts": {
+      "lines": 92.64,
+      "branches": 88.05,
+      "functions": 100.0,
+      "statements": 90.14
+    },
+    "packages/db/src/server/vertex-command-store.ts": {
+      "lines": 86.53,
+      "branches": 78.67,
+      "functions": 97.36,
+      "statements": 82.73
+    },
+    "packages/db/src/server/vertex-epoch-store.ts": {
+      "lines": 84.12,
+      "branches": 80.06,
+      "functions": 100.0,
+      "statements": 81.78
+    },
+    "packages/db/src/server/vertex-historical-bar-proof.ts": {
+      "lines": 89.86,
+      "branches": 89.18,
+      "functions": 100.0,
+      "statements": 87.78
+    },
+    "packages/db/src/server/vertex-model-use-budget.ts": {
+      "lines": 87.69,
+      "branches": 86.07,
+      "functions": 100.0,
+      "statements": 84.05
+    },
+    "packages/db/src/server/vertex-model-use-store.ts": {
+      "lines": 77.33,
+      "branches": 61.98,
+      "functions": 89.28,
+      "statements": 75.3
+    },
+    "packages/db/src/server/vertex-native-approval-audit.ts": {
+      "lines": 93.13,
+      "branches": 88.88,
+      "functions": 100.0,
+      "statements": 91.81
+    },
+    "packages/db/src/server/vertex-native-fact-store.ts": {
+      "lines": 93.67,
+      "branches": 92.7,
+      "functions": 100.0,
+      "statements": 90.58
+    },
+    "packages/db/src/server/vertex-native-replay-store.ts": {
+      "lines": 85.99,
+      "branches": 84.24,
+      "functions": 100.0,
+      "statements": 82.97
+    },
+    "packages/db/src/server/vertex-object-metadata.ts": {
+      "lines": 93.45,
+      "branches": 86.6,
+      "functions": 100.0,
+      "statements": 92.72
+    },
+    "packages/db/src/server/vertex-outbox-store.ts": {
+      "lines": 90.41,
+      "branches": 70.37,
+      "functions": 100.0,
+      "statements": 84.61
+    },
+    "packages/db/src/server/vertex-persistence-core.ts": {
+      "lines": 89.05,
+      "branches": 86.55,
+      "functions": 100.0,
+      "statements": 86.97
+    },
+    "packages/db/src/server/vertex-policy-store.ts": {
+      "lines": 64.73,
+      "branches": 57.54,
+      "functions": 81.25,
+      "statements": 63.74
+    },
+    "packages/db/src/server/vertex-projection-ingestion.ts": {
+      "lines": 96.42,
+      "branches": 86.44,
+      "functions": 100.0,
+      "statements": 92.47
+    },
+    "packages/db/src/server/vertex-projection-store.ts": {
+      "lines": 88.09,
+      "branches": 76.56,
+      "functions": 92.3,
+      "statements": 84.44
+    },
+    "packages/db/src/server/vertex-query-store.ts": {
+      "lines": 85.27,
+      "branches": 72.92,
+      "functions": 96.42,
+      "statements": 80.81
+    },
+    "packages/db/src/server/vertex-repository.ts": {
+      "lines": 62.96,
+      "branches": 6.25,
+      "functions": 100.0,
+      "statements": 62.96
+    },
+    "packages/db/src/server/vertex-research-chat-copy-cleanup-service.ts": {
+      "lines": 96.0,
+      "branches": 86.2,
+      "functions": 100.0,
+      "statements": 90.74
+    },
+    "packages/db/src/server/vertex-research-chat-copy-lifecycle.test-support.ts": {
+      "lines": 97.84,
+      "branches": 93.87,
+      "functions": 100.0,
+      "statements": 96.87
+    },
+    "packages/db/src/server/vertex-research-chat-copy-lifecycle.ts": {
+      "lines": 76.94,
+      "branches": 69.41,
+      "functions": 87.61,
+      "statements": 72.64
+    },
+    "packages/db/src/server/vertex-research-chat-copy-store.ts": {
+      "lines": 89.26,
+      "branches": 80.55,
+      "functions": 96.62,
+      "statements": 88.03
+    },
+    "packages/db/src/server/vertex-research-chat-debate-store.ts": {
+      "lines": 86.35,
+      "branches": 76.54,
+      "functions": 100.0,
+      "statements": 81.18
+    },
+    "packages/db/src/server/vertex-research-chat-execution-store.ts": {
+      "lines": 83.49,
+      "branches": 73.52,
+      "functions": 97.36,
+      "statements": 79.77
+    },
+    "packages/db/src/server/vertex-research-chat-native-phase-store.ts": {
+      "lines": 17.85,
+      "branches": 0.0,
+      "functions": 15.38,
+      "statements": 16.48
+    },
+    "packages/db/src/server/vertex-research-chat-storage-review.ts": {
+      "lines": 86.51,
+      "branches": 83.88,
+      "functions": 100.0,
+      "statements": 82.29
+    },
+    "packages/db/src/server/vertex-research-chat-store.ts": {
+      "lines": 90.1,
+      "branches": 83.33,
+      "functions": 92.72,
+      "statements": 88.0
+    },
+    "packages/db/src/server/vertex-research-chat-timing.test-support.ts": {
+      "lines": 95.77,
+      "branches": 78.66,
+      "functions": 85.71,
+      "statements": 94.22
+    },
+    "packages/db/src/server/vertex-research-chat-worker-store.ts": {
+      "lines": 87.89,
+      "branches": 74.02,
+      "functions": 100.0,
+      "statements": 81.14
+    },
+    "packages/db/src/server/vertex-research-proposal-read.ts": {
+      "lines": 86.04,
+      "branches": 82.69,
+      "functions": 100.0,
+      "statements": 83.33
+    },
+    "packages/db/src/server/vertex-research-store.ts": {
+      "lines": 73.42,
+      "branches": 62.61,
+      "functions": 76.92,
+      "statements": 69.84
+    },
+    "packages/db/src/server/vertex-review-store.ts": {
+      "lines": 67.28,
+      "branches": 53.67,
+      "functions": 100.0,
+      "statements": 64.03
+    },
+    "packages/db/src/server/vertex-worker-credentials.ts": {
+      "lines": 91.57,
+      "branches": 83.75,
+      "functions": 100.0,
+      "statements": 89.1
+    },
+    "packages/db/src/server/vertex-worker-store.ts": {
+      "lines": 35.58,
+      "branches": 32.18,
+      "functions": 37.81,
+      "statements": 34.35
+    },
+    "packages/email/src/server/notification.ts": {
+      "lines": 95.57,
+      "branches": 93.13,
+      "functions": 73.68,
+      "statements": 90.9
+    },
+    "packages/email/src/server/remote-preview.ts": {
+      "lines": 97.91,
+      "branches": 97.61,
+      "functions": 100.0,
+      "statements": 97.91
+    },
+    "packages/notifications/src/server/dispatch/composition.ts": {
+      "lines": 86.02,
+      "branches": 78.0,
+      "functions": 93.75,
+      "statements": 83.0
+    },
+    "packages/notifications/src/server/dispatch/configuration.ts": {
+      "lines": 73.25,
+      "branches": 71.15,
+      "functions": 90.0,
+      "statements": 73.33
+    },
+    "packages/notifications/src/server/dispatch/validation.ts": {
+      "lines": 92.3,
+      "branches": 77.55,
+      "functions": 100.0,
+      "statements": 89.55
+    },
+    "packages/notifications/src/server/email.ts": {
+      "lines": 96.66,
+      "branches": 85.71,
+      "functions": 100.0,
+      "statements": 89.18
+    },
+    "packages/notifications/src/server/ntfy.ts": {
+      "lines": 96.42,
+      "branches": 93.24,
+      "functions": 77.77,
+      "statements": 89.23
+    },
+    "packages/notifications/src/server/safety.ts": {
+      "lines": 97.56,
+      "branches": 92.18,
+      "functions": 77.77,
+      "statements": 91.57
+    },
+    "packages/notifications/src/server/service.ts": {
+      "lines": 89.28,
+      "branches": 84.34,
+      "functions": 100.0,
+      "statements": 85.49
+    },
+    "packages/notifications/src/validation.ts": {
+      "lines": 100.0,
+      "branches": 98.68,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/shared/src/vertex/index.ts": {
+      "lines": 100.0,
+      "branches": 95.9,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "packages/storage/src/chat-copies.ts": {
+      "lines": 100.0,
+      "branches": 97.43,
+      "functions": 100.0,
+      "statements": 98.33
+    },
+    "packages/storage/src/r2-chat-copies.ts": {
+      "lines": 95.58,
+      "branches": 91.51,
+      "functions": 96.36,
+      "statements": 93.52
+    },
+    "packages/storage/src/r2.ts": {
+      "lines": 93.11,
+      "branches": 93.36,
+      "functions": 97.77,
+      "statements": 91.91
+    },
+    "packages/storage/src/test.ts": {
+      "lines": 97.77,
+      "branches": 93.33,
+      "functions": 100.0,
+      "statements": 97.95
+    },
+    "packages/storage/src/vertex.ts": {
+      "lines": 92.78,
+      "branches": 87.4,
+      "functions": 97.82,
+      "statements": 88.99
+    },
+    "scripts/deployment/approved-inputs.ts": {
+      "lines": 93.82,
+      "branches": 90.68,
+      "functions": 100.0,
+      "statements": 91.33
+    },
+    "scripts/deployment/runner-runtime.ts": {
+      "lines": 96.24,
+      "branches": 88.69,
+      "functions": 100.0,
+      "statements": 93.75
+    },
+    "scripts/deployment/runner.ts": {
+      "lines": 100.0,
+      "branches": 98.52,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "scripts/deployment/runtime.ts": {
+      "lines": 95.52,
+      "branches": 86.04,
+      "functions": 100.0,
+      "statements": 95.58
+    },
+    "scripts/deployment/test-fixtures.ts": {
+      "lines": 100.0,
+      "branches": 94.73,
+      "functions": 100.0,
+      "statements": 97.22
+    },
+    "scripts/init/plan.ts": {
+      "lines": 100.0,
+      "branches": 99.34,
+      "functions": 100.0,
+      "statements": 100.0
+    },
+    "scripts/vertex-config/inspection.ts": {
+      "lines": 98.87,
+      "branches": 97.38,
+      "functions": 100.0,
+      "statements": 98.91
+    },
+    "scripts/vertex-config/registry.test-support.ts": {
+      "lines": 90.0,
+      "branches": 75.0,
+      "functions": 100.0,
+      "statements": 90.9
+    },
+    "scripts/vertex-config/reviewed-apply.ts": {
+      "lines": 94.62,
+      "branches": 89.62,
+      "functions": 100.0,
+      "statements": 91.6
+    },
+    "scripts/vertex-native-contracts/export-fixtures.ts": {
+      "lines": 13.33,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 13.33
+    },
+    "scripts/vertex-native-contracts/export-proof-fixtures.ts": {
+      "lines": 14.28,
+      "branches": 0.0,
+      "functions": 0.0,
+      "statements": 14.28
+    },
+    "scripts/vertex-native-contracts/generate.ts": {
+      "lines": 81.41,
+      "branches": 69.56,
+      "functions": 83.33,
+      "statements": 81.56
+    },
+    "scripts/vertex-native-contracts/model-epoch-fixtures.ts": {
+      "lines": 100.0,
+      "branches": 96.29,
+      "functions": 100.0,
+      "statements": 99.61
+    },
+    "scripts/vertex-native-contracts/portable.ts": {
+      "lines": 92.18,
+      "branches": 87.73,
+      "functions": 100.0,
+      "statements": 89.59
+    },
+    "scripts/vertex-native-contracts/reference-fixture.ts": {
+      "lines": 94.33,
+      "branches": 91.66,
+      "functions": 95.65,
+      "statements": 93.03
+    },
+    "scripts/vertex-native-contracts/worker-fixtures.ts": {
+      "lines": 100.0,
+      "branches": 90.9,
+      "functions": 100.0,
+      "statements": 99.28
+    }
+  }
+}

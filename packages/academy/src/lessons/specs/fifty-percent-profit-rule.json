@@ -1,0 +1,152 @@
+{
+  "slug": "fifty-percent-profit-rule",
+  "sourceId": "DZDOlsjxtA9",
+  "title": "Rethink the take-profit-at-50% rule: would you open this trade today?",
+  "summary": "A common rule says close a trade at 50% of max profit. The speaker calls it one of the worst rules because it uses the past to decide. Treat the open trade as a new one and ask: would I put it on today? If it can still make 50% with an 80% probability, keeping it may be a good trade. Weigh asymmetry, probability and other opportunities.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["spreads", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["take profit", "management", "probability", "opportunity cost"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "put",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long put strike",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days left",
+      "default": 21,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A put credit spread already at 50% of max profit, with 21 days left.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The future distribution of prices from today, not from the entry day."
+    },
+    {
+      "element": "band1",
+      "color": "gray",
+      "caption": "The one-standard-deviation expected move over the remaining days."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The breakeven of the trade as it stands now."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "Probability of profit from here. If it is about 80% for the rest, it may be worth keeping."
+    },
+    {
+      "element": "ev",
+      "color": "gold",
+      "caption": "Expected value from here decides it: would you open this trade today at this price?"
+    }
+  ],
+  "formulas": ["probabilityOfProfit", "expectedValue", "expectedMove"],
+  "takeaways": [
+    "Closing at 50% of max profit is a decision based on the past.",
+    "Look at the open trade as if it were new: would you put it on today?",
+    "If it can still make 50% with about 80% probability, it may be a good trade to keep.",
+    "Also weigh asymmetry and the other trades available to you."
+  ],
+  "caveats": [
+    "The spread and its numbers are illustrative; the clip names no position.",
+    "The speaker says taking profits at 50% is not always wrong."
+  ]
+}

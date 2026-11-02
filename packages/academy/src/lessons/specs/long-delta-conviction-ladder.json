@@ -1,0 +1,170 @@
+{
+  "slug": "long-delta-conviction-ladder",
+  "sourceId": "DaS5RG3uHfk",
+  "title": "Choose long delta exposure by conviction and implied volatility",
+  "summary": "For long exposure the speaker weighs conviction and implied volatility. Low conviction: a deep-in-the-money call as stock replacement. Higher conviction: the choice depends on implied volatility. Very high conviction: 10 to 20 delta calls. He does not buy shares, because deep calls are more capital efficient, and he does not sell cash-secured puts, to avoid catching falling knives.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["conviction", "stock replacement", "leverage"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Deep ITM call (low conviction)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "deepStrike",
+          "dte": "deepDte"
+        }
+      ]
+    },
+    "b": {
+      "label": "20 delta calls (high conviction)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "otmContracts",
+          "strike": "otmStrike",
+          "dte": "otmDte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "deepStrike",
+      "label": "Deep ITM call strike",
+      "default": 75,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "deepDte",
+      "label": "Deep call days to expiry",
+      "default": 180,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "otmStrike",
+      "label": "20 delta call strike",
+      "default": 115,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "otmDte",
+      "label": "OTM call days to expiry",
+      "default": 60,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "otmContracts",
+      "label": "20 delta contracts",
+      "default": 5,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. The choice of structure follows your conviction."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "Low conviction: a deep in-the-money call moves almost like 100 shares for a fraction of the cash."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Very high conviction: 10 to 20 delta calls. Small cost, big payoff if the stock rallies hard."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference shows the leverage you add as conviction rises, and the risk of losing the premium.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Low delta calls need a much bigger move to break even. Conviction must justify that."
+    }
+  ],
+  "formulas": ["delta", "breakevenCall", "extrinsic", "blackScholes"],
+  "takeaways": [
+    "Pick long delta structures by conviction and the level of implied volatility.",
+    "Low conviction: deep in-the-money calls as stock replacement, which saves capital.",
+    "Very high conviction: 10 to 20 delta calls for maximum leverage.",
+    "The speaker avoids buying shares and avoids cash-secured puts."
+  ],
+  "caveats": [
+    "The middle tier, which depends on implied volatility, is missing from the transcript.",
+    "The backtest models only the low-conviction deep in-the-money call."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["AAPL", "MSFT", "GOOGL", "META"],
+    "scenario": {
+      "label": "2016-2024 incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2016-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 180,
+      "coreDelta": 0.9,
+      "coreExitDte": 60,
+      "riskPct": 10
+    },
+    "note": "Low-conviction tier: 90 delta call about six months out as stock replacement, rolled with 60 days left."
+  }
+}

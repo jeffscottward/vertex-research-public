@@ -1,0 +1,160 @@
+{
+  "slug": "itm-call-spread-positive-theta",
+  "sourceId": "DUJWsxnCTQH",
+  "title": "Buying an in-the-money call spread can give positive theta",
+  "summary": "Long options usually lose value with time. An in-the-money call spread is different: the short leg has more theta than the long leg, so the net position earns time decay. The example is a Microsoft 350/380 call spread expiring in April, priced below the intrinsic value of the two legs.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish", "range"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["theta", "positive carry", "call spread"]
+  },
+  "scene": {
+    "type": "greeks",
+    "greek": "theta",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "MSFT price",
+      "default": 430,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 350,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 380,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 77,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 28,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Microsoft trades above both strikes, so the 350/380 call spread is in the money."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "Long 350 call, short 380 call, expiring in April."
+    },
+    {
+      "element": "theta",
+      "color": "green",
+      "caption": "Net theta is positive here: the short 380 call decays faster than the long 350 call."
+    },
+    {
+      "element": "delta",
+      "color": "blue",
+      "caption": "Delta is still positive: the trade keeps a bullish tilt."
+    },
+    {
+      "element": "gamma",
+      "color": "violet",
+      "caption": "Gamma is negative near the money: a sharp drop toward the strikes hurts."
+    },
+    {
+      "element": "vega",
+      "color": "violet",
+      "caption": "Vega is small and negative: a rise in implied volatility costs a little."
+    }
+  ],
+  "formulas": ["theta", "verticalMaxProfit", "extrinsic", "breakevenCall"],
+  "takeaways": [
+    "An ITM call spread can cost less than the intrinsic value of its legs.",
+    "The short leg carries more theta, so the spread has positive carry.",
+    "You still need the stock to stay above the strikes; the loss is the full debit below the long strike."
+  ],
+  "caveats": [
+    "The spot price and implied volatility are estimates; the transcript gives only the strikes and the April expiry.",
+    "Not a trade recommendation (the speaker says this too). Reward:risk is low; check the owner's X09 rule."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["MSFT", "AAPL", "SPY"],
+    "scenario": {
+      "label": "2015-2024 decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 75,
+      "longDelta": 0.85,
+      "shortDelta": 0.7,
+      "exitDte": 7,
+      "profitTakePct": 20,
+      "stopLossPct": 60,
+      "riskPct": 3
+    },
+    "note": "Two-to-three-month call spread with both strikes in the money; exit near 20% gain on the debit or 60% loss."
+  }
+}

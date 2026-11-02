@@ -1,0 +1,172 @@
+{
+  "slug": "on-semi-bull-call-spread",
+  "sourceId": "DaLTqmpO-Xi",
+  "title": "Bull call spread after a sell-off: ON Semiconductor 100/110",
+  "summary": "For a beaten-down stock you still like, the speaker buys a bull call spread to add convexity. The ON Semiconductor 100/110 call spread costs about $3.50 for a $10 width and expires in six months. If the stock rises roughly 25%, it makes about 186%. Breakeven is $103.50 and the probability of profit is about 29%. Take it only if you think the odds are higher.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": [
+      "bull call spread",
+      "convexity",
+      "probability of profit",
+      "rebound"
+    ]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "ON price",
+      "default": 88,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 110,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 180,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 50,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "ON trades near $88 after a sharp drop. The spread sits above the market."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "Buy the $100 call and sell the $110 call, six months out."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The payoff: risk about $3.50 for a $10 wide spread."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Below $100 at expiry you lose the full $3.50 debit."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is $103.50. The market gives about a 29% chance of finishing above it."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "Above $110, a rise of about 25%, the spread makes $6.50: about 186% on the debit."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "caption": "Before expiry the value moves slowly. Most of the gain comes late if the stock recovers.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "probabilityOfProfit"],
+  "takeaways": [
+    "A bull call spread adds defined-risk upside to a stock that has fallen.",
+    "ON 100/110 for about $3.50: about 186% profit potential with a $103.50 breakeven.",
+    "The market implies about a 29% probability of profit.",
+    "Take the trade only if you believe the real probability is higher than 29%."
+  ],
+  "caveats": [
+    "The speaker says this is education, not a recommendation; prices are from the clip date and the stock price here is estimated.",
+    "His 2.9:1 figure compares the $10 width with the debit; reward to risk on the $6.50 net gain is about 1.9:1, below the owner's 2:1 X09 rule."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["ON", "AMD", "NVDA"],
+    "scenario": {
+      "label": "2022 semiconductor sell-off and 2023 rebound",
+      "start": "2022-01-01",
+      "end": "2024-06-30"
+    },
+    "rules": {
+      "dte": 180,
+      "longDelta": 0.35,
+      "shortDelta": 0.22,
+      "exitDte": 10,
+      "profitTakePct": 150,
+      "stopLossPct": 80,
+      "riskPct": 2
+    },
+    "note": "Six-month out-of-the-money bull call spread on beaten-down chip names; take profit near 150% of the debit."
+  }
+}

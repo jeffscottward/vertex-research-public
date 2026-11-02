@@ -1,0 +1,118 @@
+{
+  "slug": "realized-vol-backward-looking",
+  "sourceId": "DcQxUKBRGmG",
+  "title": "Realized volatility looks back, but it is still useful: the golf handicap reply",
+  "summary": "Critics say comparing backward-looking realized volatility with forward-looking implied volatility mixes apples and oranges. The speaker agrees in part, then compares it with golf handicaps: they also look back, but you would still bet on the scratch golfer over a 12 handicap. He uses his VAY metric daily for covered calls and cash-secured puts.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["realized volatility", "VAY", "volatility risk premium"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized volatility",
+      "default": 25,
+      "min": 5,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "Implied over realized",
+      "default": 3,
+      "min": -10,
+      "max": 20,
+      "step": 0.5,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Volatility of volatility",
+      "default": 90,
+      "min": 10,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 30,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock path."
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility is measured on past moves: it looks back.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility is priced on the future: it looks forward."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap is still a useful guide, like a handicap: past form predicts future form often enough to bet on."
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Realized volatility can jump. Treat the gap as one input, not a certainty."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol"],
+  "takeaways": [
+    "Realized volatility is backward-looking; implied is forward-looking.",
+    "Past volatility is still informative, like a golf handicap.",
+    "Use the implied-realized gap as part of a daily process."
+  ],
+  "caveats": [
+    "VAY is the speaker's own metric; its predictive value is not verified here. Promotional link in bio."
+  ]
+}

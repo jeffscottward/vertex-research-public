@@ -1,0 +1,134 @@
+{
+  "slug": "ratio-call-spread-naked-risk",
+  "sourceId": "Da8HivBObCq",
+  "title": "Why a 1x2 call ratio spread is not a must-know strategy",
+  "summary": "The speaker disagrees with a list of must-know strategies. A call ratio spread is a call spread plus a naked short call. Example: buy one call for $4.50 and sell two for $2.50 each, a $50 credit and about $500 maximum gain. The risk is unlimited if the stock goes parabolic. Never sell naked calls.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["ratio spread", "naked call", "tail risk"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "longStrike",
+        "dte": "dte",
+        "label": "Long call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 2,
+        "strike": "shortStrike",
+        "dte": "dte",
+        "label": "Two short calls"
+      }
+    ],
+    "view": "2d"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Buy one $100 call for $4.50, sell two $105 calls for $2.50 each."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "Dashed lines: one long call, two short calls. One short call is covered, the other is naked."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "Net credit of $0.50, or $50. At expiry the payoff peaks at the $105 strike."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "Maximum gain is about $550 at $105: the $5 width plus the credit."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Above about $110.50 the trade starts to lose money."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Above that, losses grow without limit. A parabolic move can wipe out the account."
+    }
+  ],
+  "formulas": ["breakevenCall", "verticalMaxProfit", "delta"],
+  "takeaways": [
+    "A call ratio spread is a vertical call spread plus a naked short call.",
+    "A small credit and a $500 upside hide unlimited tail risk.",
+    "If you trade put ratio spreads, make sure the extra short put is cash secured and sized correctly."
+  ],
+  "caveats": [
+    "Unlimited risk conflicts with the owner's defined-risk rule; no backtest is offered.",
+    "The speaker also says iron condors beat butterflies; that part is unclear in the transcript."
+  ]
+}

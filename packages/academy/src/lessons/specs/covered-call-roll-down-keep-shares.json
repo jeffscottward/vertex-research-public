@@ -1,0 +1,227 @@
+{
+  "slug": "covered-call-roll-down-keep-shares",
+  "sourceId": "Dco3MmMNL2D",
+  "title": "Roll a covered call down without losing your shares",
+  "summary": "The stock falls from about $100 to $95 and the sold call is at 80% of its maximum. You can close it as a win, or roll down to a $97 call for $0.90, so the two calls can earn about $2.10 in total. If the stock rallies back to $100, close the short call before assignment. Losing your shares is something you let happen, not something that happens to you.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["range"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["rolling", "assignment", "extrinsic"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "events": [
+      {
+        "day": 8,
+        "label": "First call at 80% of max",
+        "color": "green"
+      },
+      {
+        "day": 9,
+        "label": "Roll down to 97 call",
+        "color": "amber"
+      },
+      {
+        "day": 22,
+        "label": "Back to 100: close call",
+        "color": "red"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 4,
+        "movePct": -3
+      },
+      {
+        "day": 8,
+        "movePct": -5
+      },
+      {
+        "day": 9,
+        "movePct": -5
+      },
+      {
+        "day": 14,
+        "movePct": -4.5
+      },
+      {
+        "day": 18,
+        "movePct": -2
+      },
+      {
+        "day": 22,
+        "movePct": 0
+      },
+      {
+        "day": 26,
+        "movePct": 0.5
+      },
+      {
+        "day": 30,
+        "movePct": 0.5
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Rolled call strike",
+      "default": 97,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 0,
+      "min": -80,
+      "max": 80,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 99,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Covered calls",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock drops from about $100 to $95. The first sold call is now at 80% of its maximum.",
+      "time": [0, 0.3]
+    },
+    {
+      "element": "events",
+      "color": "green",
+      "caption": "Ahead of the theta schedule: close the first call and keep about $1.20 of profit."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "Roll down: sell the $97 call for $0.90; the two calls can earn about $2.10. The chart holds one $97 call sold at entry, not this roll."
+    },
+    {
+      "element": "pnl",
+      "color": "gold",
+      "caption": "The shares still carry the loss from $100 to $95. The calls capture extrinsic value along the way.",
+      "time": [0.3, 0.7]
+    },
+    {
+      "element": "price",
+      "color": "red",
+      "caption": "The stock rallies back to $100, above the $97 strike. Now the shares are at risk of being called away.",
+      "time": [0.7, 1]
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Close the short call before its extrinsic value runs out. You keep the shares; you lose the upside, not the stock."
+    }
+  ],
+  "formulas": ["extrinsic", "theta", "breakevenCall", "annualizedYield"],
+  "takeaways": [
+    "Rolling a covered call down captures more extrinsic value after a drop.",
+    "A lower strike lowers the cap on your upside if the stock recovers.",
+    "Assignment happens when you let it: close the short call before extrinsic value runs out."
+  ],
+  "caveats": [
+    "Several numbers in the transcript are garbled; the $1.20 first-call profit and $2.10 total follow the speaker's example.",
+    "Rolling down locks in the share loss below the new strike if the stock recovers.",
+    "The chart and tables model one $97 call sold at entry (stock $100, about $5.29), not the roll ($97 call for $0.90 at $95). Their max profit, breakeven and EV belong to that single call."
+  ],
+  "backtest": {
+    "structure": "covered_call",
+    "tickers": ["AAPL", "MSFT", "KO", "JPM"],
+    "scenario": {
+      "label": "2015-2024 incl. 2018, 2020 and 2022 selloffs",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": 0.3,
+      "profitTakePct": 80,
+      "exitDte": 5,
+      "riskPct": 20
+    },
+    "note": "Monthly 30 delta covered call closed at 80% of max profit and resold; the roll-down step itself is not modeled."
+  }
+}

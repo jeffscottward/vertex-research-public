@@ -1,0 +1,184 @@
+{
+  "slug": "poor-mans-covered-put",
+  "sourceId": "DbEFBzbRrUy",
+  "title": "The poor man's covered put as a mirror of the poor man's covered call",
+  "summary": "The speaker's poor man's covered call is a 95 delta call with shorter-dated calls sold against it. The mirror is a poor man's covered put: a deep in-the-money long put with shorter-dated puts sold against it, for a stock that looks priced for perfection. Never use a regular covered put, because shorting stock has unlimited risk. In his 120-day model the two payoffs mirror each other.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bearish"],
+    "instruments": ["single-stock", "leaps", "hedging", "spreads"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["poor man's covered put", "PMCC", "diversifier"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Poor man's covered call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "callCore",
+          "dte": "coreDte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "callShort",
+          "dte": "shortDte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Poor man's covered put",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "putCore",
+          "dte": "coreDte"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "putShort",
+          "dte": "shortDte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "callCore",
+      "label": "Deep ITM long call",
+      "default": 75,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "callShort",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "putCore",
+      "label": "Deep ITM long put",
+      "default": 125,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "putShort",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "coreDte",
+      "label": "Core days to expiry",
+      "default": 120,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "shortDte",
+      "label": "Short option days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. It has run up and may be priced for perfection."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "The poor man's covered call: a deep in-the-money 120-day call with a shorter call sold against it."
+    },
+    {
+      "element": "b",
+      "color": "red",
+      "caption": "The poor man's covered put: a deep in-the-money 120-day put with a shorter put sold against it."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The two payoffs are mirror images. Holding the put version can diversify a long-biased book."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The long put defines the risk. A regular covered put needs short stock, which has unlimited risk."
+    }
+  ],
+  "formulas": ["delta", "extrinsic", "putCallParity", "theta"],
+  "takeaways": [
+    "A poor man's covered put mirrors a poor man's covered call.",
+    "Use a deep in-the-money long put and sell shorter-dated puts against it.",
+    "Never short stock for a regular covered put: the risk is unlimited.",
+    "It can diversify a portfolio that is mostly long."
+  ],
+  "caveats": [
+    "No backtest structure exists for this trade, so the lesson is a concept. Strikes are example values; the speaker gives only 120 DTE."
+  ]
+}

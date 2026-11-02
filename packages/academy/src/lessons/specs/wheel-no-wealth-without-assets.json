@@ -1,0 +1,84 @@
+{
+  "slug": "wheel-no-wealth-without-assets",
+  "sourceId": "DTijVMpjlL_",
+  "title": "Option trading alone does not build wealth; owning assets does",
+  "summary": "The speaker says the wheel strategy and option trading in a vacuum do not build real wealth. Wealth comes from owning real or financial assets. He still trades options, but as part of a portfolio built around a core of assets. The clip is short and ends in a waitlist pitch.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "covered-calls", "cash-secured-puts"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["wealth", "asset ownership", "wheel", "portfolio"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core assets",
+      "default": 80,
+      "min": 0,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 5,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 3,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "How a portfolio responds to market moves for a given mix of assets and options."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "The core: owned assets. This part compounds and builds wealth over years."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "The options sleeve: a tool on top of the core, not a substitute for it."
+    },
+    {
+      "element": "cash",
+      "color": "blue",
+      "caption": "Cash: dry powder and the reserve behind cash-secured puts."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The sleeve's worst case. Trading it alone, without the core, leaves only this risk and income."
+    }
+  ],
+  "formulas": ["positionSize"],
+  "takeaways": [
+    "Real wealth comes from owning real or financial assets.",
+    "The wheel or options trading on their own are not a wealth plan.",
+    "Use options as tools around a core of owned assets."
+  ],
+  "caveats": [
+    "The clip is about 30 seconds and ends with a waitlist promotion.",
+    "The allocation numbers are illustrative; the speaker gives none."
+  ]
+}

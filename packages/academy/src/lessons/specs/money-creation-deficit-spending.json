@@ -1,0 +1,133 @@
+{
+  "slug": "money-creation-deficit-spending",
+  "sourceId": "DTOI8ZaiSu4",
+  "title": "How money is created: bank credit versus government deficit spending",
+  "summary": "The speaker says bank loans create credit, not net money: the new deposit and the new loan net to zero in the private sector. Government deficit spending creates net new private-sector assets, because the liability sits with the government, which issues the currency.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": [],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "money creation", "deficits", "credit"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Bank loan (nets to zero)",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "New deposit (asset)"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "New loan (liability)"
+        }
+      ]
+    },
+    "b": {
+      "label": "Deficit spending (net asset)",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "Net new private asset"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Reference value",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Reference level",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 20,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "This chart is an analogy. Each line shows the net position of the private sector, not a trade."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "Bank loan: a new asset (the deposit) and a new liability (the loan). They offset, so the net line is flat at zero."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "Deficit spending: the government spends more than it taxes. The private sector gets a new asset with no matching private liability."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is the net new money. The speaker calls bank lending credit creation and deficit spending money creation."
+    },
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Both drive economic activity. Only the second adds net financial assets to the private sector."
+    }
+  ],
+  "formulas": ["putCallParity"],
+  "takeaways": [
+    "Bank lending creates a matching asset and liability in the private sector; the speaker calls it credit creation.",
+    "Government deficit spending adds private-sector assets while the liability stays with the government.",
+    "A currency-issuing government can always create the liabilities it needs."
+  ],
+  "caveats": [
+    "This is a macro opinion lesson with no options trade. The chart uses offsetting positions only as a visual analogy.",
+    "The views follow one school of macroeconomics and are not settled consensus."
+  ]
+}

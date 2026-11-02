@@ -1,0 +1,134 @@
+{
+  "slug": "put-call-parity-synthetic-stock",
+  "sourceId": "DU8-wAVCfFo",
+  "title": "Put-call parity: a long call plus a short put equals long stock",
+  "summary": "Buying a call and selling a put at the same strike and expiration gives the same payoff at expiration as owning the stock. Between trade date and expiration there are differences, including capital requirements. This is how to build synthetic stock exposure with options.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["put-call parity", "synthetic stock", "capital"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Long 100 shares",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "100 shares"
+        }
+      ]
+    },
+    "b": {
+      "label": "Long call + short put",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Long call"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short put"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Shared strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We compare 100 shares with a call bought and a put sold at the same $100 strike."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Line A: long stock. Profit and loss move one for one with price."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Line B: long call plus short put, same strike and expiration. At expiry it tracks line A exactly.",
+      "time": [0, 1]
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The small gap before expiry is carry: interest and dividends. It goes to zero at expiration.",
+      "time": [0, 1]
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The breakeven of the synthetic sits near the strike plus the net premium paid."
+    }
+  ],
+  "formulas": ["putCallParity", "blackScholes", "delta"],
+  "takeaways": [
+    "A long call and a short put at the same strike and expiry replicate long stock at expiration.",
+    "Before expiration the positions differ in carry and capital requirements.",
+    "Synthetic stock still carries full downside risk through the short put."
+  ],
+  "caveats": [
+    "The short put makes this an undefined-risk position, which conflicts with the owner's defined-risk rule."
+  ]
+}

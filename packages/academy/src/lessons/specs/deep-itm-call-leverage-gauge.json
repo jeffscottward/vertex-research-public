@@ -1,0 +1,155 @@
+{
+  "slug": "deep-itm-call-leverage-gauge",
+  "sourceId": "DTTgiSbiftR",
+  "title": "Strike as a leverage gauge: deep in-the-money calls for core stock exposure",
+  "summary": "A stock is like a call option struck at zero. The strike sets your leverage: out-of-the-money calls give a lot, deep in-the-money calls give a little with better capital efficiency. Leverage equals delta divided by the option price over the stock price; his example is about 1.72x. He uses deep ITM calls for core equity exposure.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "leaps", "synthetics"],
+    "timeframe": "months",
+    "risk": "defined",
+    "topics": ["leverage", "deep itm", "stock replacement", "delta"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "100 shares",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        }
+      ]
+    },
+    "b": {
+      "label": "Deep ITM call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 200,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 130,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 365,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 28,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $200. Owning it is like a call struck at zero."
+    },
+    {
+      "element": "a",
+      "color": "gray",
+      "caption": "Line A: 100 shares. Full capital, full downside, leverage 1x."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "Line B: a deep ITM one-year call. It costs much less than the stock and still moves almost one for one."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Leverage = delta / (option price / stock price). Deep in the money it is low, about 1.7x in his example."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the strike plus the premium: you pay a small extrinsic cost for the efficiency."
+    },
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Move the strike up and leverage rises fast. Out-of-the-money calls are the high-leverage end of the gauge."
+    }
+  ],
+  "formulas": ["delta", "extrinsic", "breakevenCall"],
+  "takeaways": [
+    "A stock is like a call option struck at zero.",
+    "Strike choice sets leverage: deep ITM is low leverage, OTM is high leverage.",
+    "Leverage is delta divided by option price over stock price; his example gives about 1.72x.",
+    "Deep ITM calls can be a capital-efficient core holding, not only a speculation."
+  ],
+  "caveats": [
+    "The 1.72x figure comes from an example the clip does not fully show; the strike and price here are illustrative.",
+    "The call can still lose its full premium. The waitlist mention is promotional."
+  ],
+  "backtest": {
+    "structure": "deep_itm_call",
+    "tickers": ["SPY", "QQQ", "AAPL", "MSFT"],
+    "scenario": {
+      "label": "2015-2024 incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "coreDte": 365,
+      "coreDelta": 0.85,
+      "coreExitDte": 120,
+      "riskPct": 25
+    },
+    "note": "One-year deep ITM call as stock replacement, rolled with about four months left."
+  }
+}

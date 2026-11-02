@@ -1,0 +1,99 @@
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -388,6 +388,8 @@
+ walkdir = "2.5.0"
+ 
+ [patch.crates-io]
++# Reviewed opt-in source build only; same canonical path as vertex adapter dependency.
++ibapi = { path = "vertex/ibkr-history/vendor/ibapi-3.3.0" }
+ # HyperSync 1.4 requires Arrow 57, whose Parquet release depends on the external thrift crate.
+ arrow = { path = "patches/arrow-compat" }
+ parquet = { path = "patches/parquet-compat" }
+--- a/crates/adapters/interactive_brokers/Cargo.toml
++++ b/crates/adapters/interactive_brokers/Cargo.toml
+@@ -20,6 +20,7 @@
+ crate-type = ["rlib"]
+ 
+ [features]
++vertex-history = ["python", "dep:vertex-ibkr-history", "dep:sha2", "ibapi/vertex-exclusive-history-owner"]
+ default = ["execution"]
+ execution = ["dep:nautilus-execution", "dep:nautilus-network"]
+ examples = ["nautilus-live/node", "nautilus-trading/examples"]
+@@ -62,6 +63,8 @@
+ rustdoc-args = ["--cfg", "docsrs"]
+ 
+ [dependencies]
++vertex-ibkr-history = { path = "../../../vertex/ibkr-history", optional = true }
++sha2 = { version = "0.10", optional = true }
+ nautilus-common = { workspace = true }
+ nautilus-core = { workspace = true }
+ nautilus-live = { workspace = true }
+--- a/crates/pyo3/Cargo.toml
++++ b/crates/pyo3/Cargo.toml
+@@ -21,6 +21,7 @@
+ crate-type = ["rlib", "cdylib"]
+ 
+ [features]
++vertex-history = ["nautilus-interactive-brokers/vertex-history"]
+ default = []
+ arrow = [
+   "nautilus-deribit/arrow",
+--- a/crates/adapters/interactive_brokers/src/python/mod.rs
++++ b/crates/adapters/interactive_brokers/src/python/mod.rs
+@@ -31,6 +31,8 @@
+ pub mod enums;
+ pub mod factories;
+ pub mod historical;
++#[cfg(feature = "vertex-history")]
++mod vertex_history;
+ pub mod providers;
+ 
+ #[cfg(feature = "gateway")]
+@@ -143,6 +145,8 @@
+     m.add_class::<crate::factories::InteractiveBrokersDataClientFactory>()?;
+     m.add_class::<crate::factories::InteractiveBrokersExecutionClientFactory>()?;
+     m.add_class::<crate::historical::HistoricalInteractiveBrokersClient>()?;
++    #[cfg(feature = "vertex-history")]
++    m.add_class::<vertex_history::VertexHistoryOwner>()?;
+     m.add_class::<crate::providers::instruments::InteractiveBrokersInstrumentProvider>()?;
+ 
+     #[cfg(feature = "gateway")]
+--- a/crates/adapters/interactive_brokers/src/common/shared_client.rs
++++ b/crates/adapters/interactive_brokers/src/common/shared_client.rs
+@@ -112,6 +112,36 @@
+     client_id: i32,
+     connection_timeout_secs: u64,
+ ) -> anyhow::Result<SharedClientHandle> {
++    #[cfg(feature = "vertex-history")]
++    {
++        use std::sync::atomic::Ordering::SeqCst;
++        // Ordinary use permanently excludes an exclusive history bootstrap.
++        // No reset, transfer of an opaque Arc, or inference from refcounts.
++        if VERTEX_USE.compare_exchange(0, 1, SeqCst, SeqCst).is_err()
++            && VERTEX_USE.load(SeqCst) != 1 {
++            anyhow::bail!("exclusive-history-owner-generation");
++        }
++    }
++    get_or_connect_inner(host, port, client_id, connection_timeout_secs).await
++}
++
++// 0: never used, 1: ordinary registry, 2: exclusive history generation.
++// This latch is process-wide and never clears, including failed bootstrap.
++#[cfg(feature = "vertex-history")]
++static VERTEX_USE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
++
++#[cfg(feature = "vertex-history")]
++pub(crate) async fn vertex_history_connect(host: &str, port: u16, client_id: i32,
++    connection_timeout_secs: u64) -> anyhow::Result<SharedClientHandle> {
++    use std::sync::atomic::Ordering::SeqCst;
++    if VERTEX_USE.compare_exchange(0, 2, SeqCst, SeqCst).is_err() {
++        anyhow::bail!("history-requires-unused-exclusive-owner-generation");
++    }
++    get_or_connect_inner(host, port, client_id, connection_timeout_secs).await
++}
++
++async fn get_or_connect_inner(host: &str, port: u16, client_id: i32,
++    connection_timeout_secs: u64) -> anyhow::Result<SharedClientHandle> {
+     let key = ConnectionKey(host.to_string(), port, client_id);
+     let registry = Arc::clone(&REGISTRY);
+ 

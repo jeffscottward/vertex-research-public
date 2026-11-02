@@ -1,0 +1,64 @@
+{
+  "name": "@darkfactory/web",
+  "brick": "app",
+  "description": "Vertex Research web and control plane.",
+  "version": "0.3.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "dev": "bunx --no-install vinext dev",
+    "build": "bunx --no-install vinext build",
+    "start": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@copilotkit/react-core": "1.73.3",
+    "@darkfactory/academy": "workspace:*",
+    "@darkfactory/analytics": "workspace:*",
+    "@darkfactory/api": "workspace:*",
+    "@darkfactory/auth": "workspace:*",
+    "@darkfactory/config": "workspace:*",
+    "@darkfactory/db": "workspace:*",
+    "@darkfactory/email": "workspace:*",
+    "@darkfactory/observability": "workspace:*",
+    "@darkfactory/shared": "workspace:*",
+    "@darkfactory/state": "workspace:*",
+    "@darkfactory/storage": "workspace:*",
+    "@darkfactory/ui": "workspace:*",
+    "@tanstack/charts": "0.18.0",
+    "@tanstack/react-form": "catalog:",
+    "@vinext/cloudflare": "catalog:",
+    "d3-scale": "4.0.2",
+    "klinecharts": "9.8.12",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-server-dom-webpack": "catalog:",
+    "vinext": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "@vitejs/plugin-rsc": "catalog:",
+    "esbuild": "catalog:",
+    "typescript": "catalog:",
+    "typescript-api": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "catalog:",
+    "@types/d3-scale": "4.0.9"
+  }
+}

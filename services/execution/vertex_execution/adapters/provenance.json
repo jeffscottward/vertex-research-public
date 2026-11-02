@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "vertex.execution-adapters.provenance.v1",
+  "state": "source-authored-not-runtime-verified",
+  "workPackage": "WP6",
+  "deliverables": [
+    "U04",
+    "U34",
+    "U36",
+    "S-4d528ee59657e7",
+    "S-3f567782d606b8",
+    "S-43582091b455be",
+    "S-8f6ac1b7c8b133"
+  ],
+  "engineLines": {
+    "canonical": {
+      "distribution": "nautilus-trader",
+      "requirement": "nautilus-trader==2.0.0rc5",
+      "dependencyExtra": "vertex-execution[nautilus]",
+      "moduleVersion": "2.0.0rc5",
+      "sourceTag": "v2.0.0rc5",
+      "implementation": "Rust/PyO3",
+      "pythonConstraint": ">=3.12,<3.15",
+      "adapterNamespace": "vertex_execution.adapters.nautilus_200rc5",
+      "hostFactory": "vertex_host.nautilus.NativeOfflineEngineFactory",
+      "installation": "not-installed-by-this-work",
+      "activation": "explicit-injected-loader-and-offline-factory-only",
+      "scope": "bounded-captured-equity-quote-replay; no strategies or economic results",
+      "modes": ["research", "paper"],
+      "abiCompatibleWithV1": false,
+      "persistenceCompatibleWithV1": false,
+      "artifactHashes": null,
+      "hashQualification": "deferred-to-approved-offline-dependency-acquisition",
+      "runtimeQualification": "pending; source implementation is not release acceptance"
+    }
+  },
+  "contracts": {
+    "authority": "vertex_contracts.ContractAuthority(bundle: bytes, expected_sha256: str)",
+    "publicSource": [
+      "packages/api/src/contracts/vertex.civet",
+      "packages/api/src/contracts/vertex-control.civet"
+    ],
+    "freeze": "private/verification/foundation/VertexControlPortFreeze-v2.json",
+    "rules": [
+      "Public validation, canonical encoding/digest and exact epoch remain native ContractAuthority-owned.",
+      "TradeIntent is proposalOnly=true and executionAuthorized=false; it is not admission.",
+      "PaperSimulationAdmission is PAPER-SIMULATION only with brokerSubmissionAllowed=false and liveAuthorization=false.",
+      "PortfolioSnapshot is never spendable authority; only the fenced local owner may reserve.",
+      "strategyVersion resolves an exact immutable StrategySpec artifactId, never latest aliases.",
+      "Kernel admitted status is a private risk computation, not public admission or order permission."
+    ]
+  },
+  "safety": {
+    "importTimeStartup": false,
+    "defaultTransport": null,
+    "defaultEngineFactory": null,
+    "defaultSandboxSupervisor": null,
+    "liveImplementation": false,
+    "brokerImplementation": false,
+    "callback": "bounded synchronous in-memory enqueue only; overflow latches a continuity gap",
+    "drain": "explicit asynchronous orchestration with single consumer and retained failed head; sink deduplicates",
+    "researchIsolation": "independent injected verifier authenticates supervisor start and finish proofs; boolean SandboxReceipt claims alone rejected",
+    "authorityBoundary": "injected host capabilities are trusted dependencies, not an in-process Python security sandbox"
+  },
+  "provenance": {
+    "sourceMap": "private/verification/foundation/RebuildNextWaveMap-v1.json",
+    "reportObligations": "docs/vertex-rebuild/deliverables.json",
+    "implementationOrigin": "new source authored from frozen interfaces and inspected report obligations; no original executor copied",
+    "nautilusApiSources": [
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/MIGRATION_V2.md",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/python/pyproject.toml",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/python/nautilus_trader/backtest/__init__.pyi",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/python/nautilus_trader/common/__init__.pyi",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/python/nautilus_trader/model/__init__.pyi",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/crates/backtest/src/python/engine.rs",
+      "https://github.com/nautechsystems/nautilus_trader/blob/v2.0.0rc5/crates/pyo3/src/lib.rs"
+    ],
+    "hazardReferencesNotCopied": [
+      "gamma-forge/app/backend/gamma_terminal/ibkr/order_service.py:150-175 send-before-persistence",
+      "gamma-forge/app/backend/gamma_terminal/bus/datahub.py:58-183 process-local overflow is not durable command admission"
+    ]
+  },
+  "verification": {
+    "regressionSource": "services/execution/tests/test_adapters.py",
+    "executed": false,
+    "tests": "not-run; existing legacy-adapter regressions not migrated in this source-only change",
+    "buildLintFormatTypecheck": "not-run",
+    "networkProvidersBrokers": "not-used",
+    "limitations": [
+      "Exact rc5 native quote replay is implemented but not installed, imported or runtime-verified.",
+      "AtomicBatchOwner/PaperExecutionOwner with DurablePaperTransport and FixedQuoteResearchRunner still own custom economics; quote replay is not their replacement.",
+      "HostNautilusConfiguration now requires vertex-host-nautilus-v2, distribution name nautilus-trader and tick_scheme; no legacy configuration or distribution fallback.",
+      "Actual Rust transport is injected; there is no subprocess or IPC implementation here.",
+      "Actual OS sandbox enforcement and trust-root configuration must be supplied by the host.",
+      "Backtesting package path is wired by the integration owner; no research-owned file is changed.",
+      "No ABI, latency, economic realism, release qualification or acceptance-gate pass is claimed."
+    ]
+  }
+}

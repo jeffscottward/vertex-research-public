@@ -1,0 +1,194 @@
+{
+  "slug": "pin-risk-short-call-spread",
+  "sourceId": "DaxtOpouyOm",
+  "title": "Pin risk: how a defined-risk spread becomes undefined over a weekend",
+  "summary": "Example: a short $100/$105 call spread with the stock at $99.97 late on expiration Friday. It looks like a full win. But holders can exercise until about 5:30 pm Eastern after an after-hours rally. You can then be short the stock all weekend. Close any spread with pin risk before the close.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "event"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "intraday",
+    "risk": "defined",
+    "topics": ["pin risk", "assignment", "expiration"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "shortStrike",
+        "dte": "dte",
+        "label": "Short $100 call"
+      },
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "longStrike",
+        "dte": "dte",
+        "label": "Long $105 call"
+      }
+    ],
+    "events": [
+      {
+        "day": 4,
+        "label": "Friday: stock at $99.97",
+        "color": "amber"
+      },
+      {
+        "day": 5,
+        "label": "After hours: rally, exercise",
+        "color": "red"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 1,
+        "movePct": 0.5
+      },
+      {
+        "day": 2,
+        "movePct": -0.4
+      },
+      {
+        "day": 3,
+        "movePct": 0.2
+      },
+      {
+        "day": 4,
+        "movePct": 0
+      },
+      {
+        "day": 5,
+        "movePct": 1.5
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 99.97,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 5,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 3,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "We sold the $100 call and bought the $105 call. Maximum loss looks capped at $5 wide."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "Expiration Friday: the stock trades at $99.97, just below the short strike.",
+      "time": [0, 0.8]
+    },
+    {
+      "element": "pnl",
+      "color": "green",
+      "caption": "At the close the spread looks like it expires worthless for maximum profit.",
+      "time": [0, 0.8]
+    },
+    {
+      "element": "events",
+      "color": "red",
+      "caption": "After hours the stock rises. The holder exercises until about 5:30 pm Eastern. You are assigned short stock."
+    },
+    {
+      "element": "spot",
+      "color": "red",
+      "caption": "Your $105 call expired worthless. You are now naked short stock until Monday's open: undefined risk."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "Rule: if the price is near a short strike at the close, close the spread before the market closes."
+    }
+  ],
+  "formulas": ["delta", "gamma", "verticalMaxProfit"],
+  "takeaways": [
+    "Pin risk can turn a defined-risk spread into undefined risk.",
+    "Options can be exercised after the close, up to about 5:30 pm Eastern on expiration day.",
+    "If the price is near a short strike, close the whole spread before the market closes."
+  ],
+  "caveats": [
+    "Exercise cutoff times depend on broker and exchange; check yours."
+  ]
+}

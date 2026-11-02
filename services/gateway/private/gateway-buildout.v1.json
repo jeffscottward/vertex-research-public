@@ -1,0 +1,158 @@
+{
+  "schemaVersion": "1.0.0",
+  "kind": "private-native-gateway-source-handoff",
+  "date": "2026-09-22",
+  "owner": "VertexGatewayBuild",
+  "state": "authored-unverified",
+  "scope": "services/gateway only; existing infrastructure_probe.py and test_infrastructure_probe.py preserved",
+  "implementationFiles": [
+    "services/gateway/vertex_gateway/__init__.py",
+    "services/gateway/vertex_gateway/models.py",
+    "services/gateway/vertex_gateway/ports.py",
+    "services/gateway/vertex_gateway/readiness.py",
+    "services/gateway/vertex_gateway/adapters.py",
+    "services/gateway/vertex_gateway/recovery.py",
+    "services/gateway/vertex_gateway/compatibility.py"
+  ],
+  "authoredTestFiles": [
+    "services/gateway/test_gateway_readiness.py",
+    "services/gateway/test_gateway_recovery.py",
+    "services/gateway/test_gateway_compatibility.py"
+  ],
+  "publicContractAuthority": {
+    "package": "@darkfactory/api/vertex",
+    "names": ["BrokerRecoveryStatus", "RecoveryRequest"],
+    "schemaVersion": "1.0.0",
+    "validator": "PublicContractPort.validate(contract_name, payload, schema_version='1.0.0') -> literal True only; every non-True value or exception fails closed",
+    "codec": "CanonicalCodecPort.encode(value) -> canonical JSON UTF-8 bytes; request_digest = raw SHA256 of those exact bytes; original source bytes have separate hashes",
+    "time": "PublicContractPort.epoch_ns(timestamp) -> exact integer epoch nanoseconds with authoritative @darkfactory/shared/vertex Gregorian/offset semantics; no floats or microsecond truncation",
+    "implementationOwner": "Main/native interop integration; no Python duplicate public schema, generated validator, fallback or runtime bridge is shipped here",
+    "projection": "project_public_status returns a frozen original payload only after literal-True authoritative validation. Public fields are unchanged; private detailed readiness dimensions do not become a second public schema. Infrastructure observed/authenticated handshake must not be interpreted as full readiness."
+  },
+  "entrypoints": {
+    "observe": "GatewayObservationService(clock, policy, trust=None, observations=None, enabled=False).observe(GatewayTarget) -> ReadinessAssessment",
+    "assess": "assess_readiness(target, snapshot, trust, policy, now_ns) -> ReadinessAssessment; pure and source-allowlisted",
+    "project": "project_public_status(contracts, assessment, status_id=..., observed_at=..., recovery_phase=..., last_human_request_id=...) -> authoritative-validated immutable mapping",
+    "recover": "RecoveryCoordinator(contracts=..., codec=..., clock=..., status=..., policy=RecoveryPolicy(), trust=None, authorization=None, safety=None, journal=None, audit=None, executor=None, reconciliation=None)",
+    "plan": "coordinator.plan(request, target, operation=HUMAN_HANDOFF) -> nonexecutable RecoveryPlan; no trust transport, audit, authorization consume or executor call",
+    "attempt": "coordinator.attempt(request, target, operation, ServerSession) -> RecoveryResult; disabled by default and no blind retry",
+    "reconcile": "coordinator.reconcile(binding, admission) -> RecoveryResult; only proof-backed completion, no executor/authentication/rearm/kill reset",
+    "compatibility": "vertex_gateway.compatibility.evaluate_compatibility(CompatibilityRequest(RuntimePins, receipts=())) -> CompatibilityAssessment; status UNKNOWN/BLOCKED/EVIDENCE_COMPLETE, runtime_compatibility_proven=False and trading_authorized=False always"
+  },
+  "identityAndReadiness": {
+    "target": "GatewayTarget(gateway_id, account_ref, Environment.PAPER|LIVE, GatewayProtocol.TWS_SOCKET|CLIENT_PORTAL_HTTP); account_ref is an opaque registry-issued acctref-64hex token, never a raw brokerage account or client-derived account hash",
+    "dimensions": [
+      "process-present",
+      "gateway-reachable",
+      "broker-authenticated",
+      "account-identity",
+      "environment-identity",
+      "read-only-probe",
+      "execution-reconciled"
+    ],
+    "evidence": "One adapter-verified broker session generation per snapshot. Each dimension carries source/evidence registry refs and exact observed/received/expiry nanoseconds. Missing, stale, future, delayed, duplicate, untrusted, wrong-target or unidentified evidence cannot upgrade readiness.",
+    "protocol": "Client Portal HTTP and TWS socket identities are explicitly different; process presence, socket success and HTTP success are not authentication or account readiness.",
+    "readOnly": "Requires independently observed process/reachability/authentication/account/environment/read-only probe and current verified host trust. Execution reconciliation remains separate and cannot grant trading authority.",
+    "externalPrerequisites": "HostTrustPort must use provider-console verified host identity, strict pinned-host verification and HTTP TLS verification where applicable. It cannot establish trust on first use or suppress TLS/host warnings. Human login, 2FA and provider safety approval remain outside all adapters."
+  },
+  "authorizationAndExecutionIntegration": {
+    "serverStatus": "GatewayStatusPort.current(target) supplies server-owned current BrokerRecoveryStatus. Request expectedStatusId must match; freshness and identity checked, and status/generation rechecked under local execution fence.",
+    "session": "ServerSession is an opaque authenticated-handler lookup handle, never a credential/bearer token. Construct in the authenticated CSRF-protected Civet handler; authorization port independently resolves current session, human principal, permissions and revocation.",
+    "challenge": "ServerAuthorizationPort.admit_once(session, binding, now_ns, guard_ref) atomically verifies an authenticated fresh interactive human challenge, exact session/actor/request-content/request-id/idempotency/gateway/protocol/opaque-account/environment/operation/expected-status binding, expiry and revocation; consumes the challenge and admits durable UNKNOWN before return. Public confirmation text, validation success, UI labels and model output are not authority.",
+    "exactAction": "Public RecoveryRequest.action=request-human-recovery does not authorize restart-gateway or rescan-read-only. Those operations need their own exact point-of-risk server challenge binding and explicit policy enablement. HUMAN_HANDOFF never dispatches or automates login.",
+    "replayAndCrash": "Durable uniqueness must cover globally consumed challenge, request/idempotency content and unresolved gateway/account attempt. Replay or unresolved attempts cannot be stolen after restart. Admission exception/lost acknowledgement is UNKNOWN and never automatically retried. No in-memory production authority or journal is provided.",
+    "guard": "ExecutionSafetyPort.hold(binding) is a local single-owner fenced context manager, not a cloud boolean. SafetyLease requires known-safe owner fencing, paused new risk, reconciled submission journal, no in-flight mutation, protection continuity and disruption safety. Guard must remain effective through executor action, which independently honors lease loss. Exit never rearms trading or resets the local kill switch.",
+    "audit": "AuditPort.append accepts only AuditEvent(event_code,target_digest,binding_digest,operation,environment,occurred_ns). No raw account, session, actor, challenge, request, endpoint, credential, authentication page, exception body or private route is logged. Durable pre-dispatch acknowledgement required.",
+    "journal": "RecoveryJournalPort.mark_dispatching CAS persists UNKNOWN before executor. mark_outcome records accepted/not-attempted/unknown only and cannot complete/release unresolved claims on timeout. mark_reconciled(binding,admission,proof,now_ns) separately CASes actual post-dispatch broker generation/time and human-reviewed proof. Failure stays uncertain.",
+    "executor": "RecoveryExecutorPort.dispatch_once(binding, admission, lease) is absent and disabled by default. Future implementation must perform at most one bounded attempt, no retry, auto-startup restart/rescan, authentication automation, order placement, cancellation, rearm or kill reset. ACK is reconciliation-required, not completed.",
+    "reconciliation": "ReconciliationPort supplies matching attempt/binding, fresh post-attempt broker facts, explicit human review and independent execution reconciliation. Journal must compare proof against actual stored dispatch time/generation. Completion restores connectivity only; trading remains disabled and kill switch unchanged."
+  },
+  "compatibility": {
+    "baseline": "1.231.0 is the source-observed non-prerelease Beta/legacy-Cython line, not proof of installed compatibility.",
+    "candidate": "2.0.0rc5 is Rust/PyO3 prerelease; tagged Python >=3.12,<3.15 and Rust 1.98.1. Requires isolated research/paper environment and explicit scoped prerelease acceptance.",
+    "pins": "Exact package/source/wheel hashes, tag, Python ABI, Rust/Cargo lock, target platform, isolated environment, Gateway digest, broker config hash, opaque account_ref, client identity/ID and scope. Receipts bind all pins; opaque report-64hex references only.",
+    "gates": "Adapter/lifecycle/ordered events/financial parity/restart reconciliation/pacing/options+multi-leg/latency/rollback. rc5 adds release parity, copied-data migration, corrected/voided fills and legacy event restoration; v1 out-of-tree factories and PostgreSQL cache actor/strategy/heartbeat/synthetic restoration require specific additional evidence.",
+    "limitations": "No installed package/host check or report-content verification. Caller evidence metadata only; EVIDENCE_COMPLETE is not runtime readiness or authority. No deletion of authoritative old event rows."
+  },
+  "sourceEvidence": [
+    {
+      "reference": "docs/vertex-rebuild/implementation-plan.md:66,69,101,116,217,245",
+      "decision": "Gateway identity/readiness and explicit human recovery only; release-line migration and unresolved host/account state"
+    },
+    {
+      "reference": "docs/vertex-rebuild/architecture-decisions.md:49-57,75-83",
+      "reportIds": [
+        "ADR-V06",
+        "ADR-V09",
+        "U32",
+        "U33",
+        "U34",
+        "U46",
+        "G-gateway",
+        "G-nautilus",
+        "G-rollback"
+      ],
+      "decision": "Exact release lines, host trust, human challenge, and separate trading/kill authorities"
+    },
+    {
+      "reference": "packages/api/src/contracts/vertex.civet:499-543",
+      "decision": "Authoritative BrokerRecoveryStatus and RecoveryRequest; confirmation shape is not authenticated human authorization"
+    },
+    {
+      "reference": "vertex-research/scripts/reporting/broker-orders-transport.py:31-40,76,91-99",
+      "reportIds": ["S-0c330db5ba8092", "S-0f1fe3334f5b20"],
+      "decision": "Strict host verification and explicit uncertainty adapted as invariants; no source transport executed or copied into an automatic recovery path"
+    },
+    {
+      "reference": "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/client.py:17-47",
+      "reportIds": ["S-425c47e6b0af59", "S-ee5c8c0701246e", "S-c5a1615f4c6958"],
+      "decision": "Client Portal differs from native TWS; do not inherit TLS verification-off default or mistake read-only smoke scope for trading safety"
+    },
+    {
+      "reference": "ibkr-vertex-ai-fund/src/ibkr_client_portal_docker/remote_login.py:78,96-124",
+      "decision": "Loopback/source authentication automation is evidence only; new native boundary has no login form/page/code/password handling"
+    },
+    {
+      "reference": "vertex-quant-trail-capability/nautilus/execution/recovery.py:19-116,227-274",
+      "reportIds": ["S-c2b650780de4df", "S-a200a83bf169c8"],
+      "decision": "Read-only snapshot/reconciliation and unknown recovery semantics inform ports; execution obligations and trading authority remain with execution owner"
+    },
+    {
+      "reference": "vertex-quant-trail-capability/nautilus/execution/execution_startup_recovery.py:94-152",
+      "decision": "Source mutation/recovery authority is not permission to port an autonomous order executor or rearm into gateway service"
+    }
+  ],
+  "packaging": {
+    "dependencies": "Python standard library only; no broker SDK, SSH library, browser automation, web server or runtime dependency added",
+    "moduleRoot": "services/gateway",
+    "import": "vertex_gateway",
+    "runtime": "Integrate within native gateway service under Main's pinned Python toolchain; web/control remains Civet and existing public API. No second REST/BFF.",
+    "mainOwnedWork": "Root service/package manifests, dependency lockfiles, native authoritative validation/codec/time bridge, server handler and durable challenge/journal adapters, local execution fence adapter, capability/config aggregation, final integration and verification",
+    "futureVerificationCommandOnly": "python -m unittest discover -s services/gateway -p 'test_gateway_*.py'",
+    "commandExecuted": false
+  },
+  "verification": {
+    "state": "deferred-by-build-first-user-instruction",
+    "sourceInspection": "Scoped source and interface inspection only; no test, parser/compiler, formatter, linter, typecheck, build, install, generation, probe or runtime validation run",
+    "fixtures": "Synthetic dependency-injected port recorders; not public validators, production authorization stores or proof of durable crash/concurrency safety",
+    "requiredParentCoverage": [
+      "Authoritative Civet/native validator, exact canonical bytes and nanosecond interop",
+      "Authenticated CSRF/session/challenge freshness, exact operation and account/environment status binding",
+      "Durable atomic challenge consumption and simultaneous/restarted request idempotency",
+      "Execution-owner fencing/protection continuity, lease loss and unknown send outcomes",
+      "Post-dispatch proof-aware reconciliation CAS and audit durability",
+      "Actual target protocol/account/environment readiness only after separately authorized transport integration"
+    ]
+  },
+  "runtimeBlockers": [
+    "Source and authored tests remain unexecuted and unvalidated until full buildout final gate.",
+    "Provider-console VPS fingerprint and strict host trust remain externally unverified; no SSH or host connection attempted.",
+    "No actual Gateway process, protocol endpoint, authenticated session, account/environment, read-only permissions or broker reconciliation observed.",
+    "No authoritative native validator/codec/time implementation or server authenticated challenge/durable admission adapters wired here.",
+    "No local execution safety/protection guard, production recovery journal/audit or post-attempt reconciliation adapter wired here.",
+    "All observation and recovery capabilities default disabled; no side-effecting transport implementation shipped or enabled.",
+    "No installed Nautilus baseline/candidate, exact host ABI/pins, prerelease approval or runtime parity/migration/restoration evidence established.",
+    "Human login/2FA/provider security checks and any future disruptive operation require actual human approvals; neither source changes nor a recovery request grant them.",
+    "Gateway recovery cannot rearm trading or reset the independent local kill switch."
+  ]
+}

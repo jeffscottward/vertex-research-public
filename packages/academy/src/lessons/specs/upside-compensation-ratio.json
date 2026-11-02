@@ -1,0 +1,132 @@
+{
+  "slug": "upside-compensation-ratio",
+  "sourceId": "DUl2Z6hicIM",
+  "title": "Upside compensation ratio: are you paid enough for the upside you sell?",
+  "summary": "When you sell a covered call or cash-secured put, you sell your upside for income today. If the upside you give up is worth $10 and you collect $1, you are not paid enough; if you collect about $7, the trade looks good. The speaker calls this comparison the upside compensation ratio.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["upside compensation", "premium", "capped upside", "metric"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts",
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We sell a call against 100 shares."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "The dashed lines: long stock and the short call."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The covered call payoff: income today, upside capped at the strike."
+    },
+    {
+      "element": "zones",
+      "color": "red",
+      "caption": "The upside you give away is the area above the strike. Value it before you sell it."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The premium is your pay. $1 for $10 of upside is too little; $7 sounds fair."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the stock price minus the premium."
+    }
+  ],
+  "formulas": ["extrinsic", "breakevenPut", "expectedValue"],
+  "takeaways": [
+    "Selling a covered call or a put means selling your upside for current income.",
+    "Compare the premium with the value of the upside you give up.",
+    "The speaker calls this ratio the upside compensation ratio."
+  ],
+  "caveats": [
+    "The metric's formula is not given in the clip and is not verified.",
+    "The waitlist and website mentions are promotional."
+  ]
+}

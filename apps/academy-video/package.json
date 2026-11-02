@@ -1,0 +1,29 @@
+{
+  "name": "@darkfactory/academy-video",
+  "brick": "tooling",
+  "description": "Renders Academy lesson videos, WebVTT captions and thumbnails with Remotion",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "render": "bun src/render.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+  },
+  "dependencies": {
+    "@darkfactory/academy": "workspace:*",
+    "@remotion/bundler": "4.0.535",
+    "@remotion/renderer": "4.0.535",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "remotion": "4.0.535"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.21.0"
+  }
+}

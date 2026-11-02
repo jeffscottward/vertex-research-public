@@ -1,0 +1,49 @@
+{
+  "fixtureKind": "synthetic-no-provider-data",
+  "asOf": "2026-06-08T12:00:00Z",
+  "ticker": "SYNTH",
+  "rows": [
+    {"date":"2026-06-03","open":99,"high":101,"low":99,"close":100,"volume":100,"vwap":100},
+    {"date":"2026-06-04","open":100,"high":102,"low":100,"close":101,"volume":100,"vwap":101},
+    {"date":"2026-06-05","open":104,"high":106,"low":104,"close":105,"volume":150,"vwap":105}
+  ],
+  "benchmarkRows": [
+    {"date":"2026-06-03","close":200},
+    {"date":"2026-06-04","close":202},
+    {"date":"2026-06-05","close":204}
+  ],
+  "optionChain": [
+    {"bid":1,"ask":1.1,"volume":500,"open_interest":2000},
+    {"bid":2,"ask":2.8,"volume":3,"openInterest":50}
+  ],
+  "volatility": {
+    "timestamp":"2026-06-08T12:00:00Z",
+    "ivRank":0.72,"frontMonthIv":0.63,"backMonthIv":0.6,
+    "callSkew":0.21,"putSkew":0.2,"ivChange":0.03,"events":["synthetic-event"]
+  },
+  "fundamental": {
+    "company_facts":{"sector":"Synthetic sector","marketCap":8000000,"employeeCount":250},
+    "financial_metrics":{"revenue_growth":0.12,"gross_margin_delta":-0.03,"ignored":99},
+    "earnings":[{"date":"2026-07-31"},{"date":"2026-04-30","surprise_percent":5},{"date":"2026-01-31","surprise_percent":-5}],
+    "filings":[{"item_1a":"Synthetic risk statement."}],
+    "index_fund_exposure":{"listed_in":["SYNTH-INDEX"]}
+  },
+  "flow": {
+    "ticker":"SYNTH","as_of":"2026-06-08T12:00:00Z",
+    "unusual_call_volume":2.5,"unusual_put_volume":0.4,
+    "notable_contracts":[
+      {"underlying":"SYNTH","expiry":"2026-07-17","strike":50,"right":"call","side":"ask","premium":100,"volume":50,"open_interest":200,"raw":{"condition":"sweep"}},
+      {"underlying":"SYNTH","expiry":"2026-07-17","strike":50,"right":"call","side":"bid","premium":80,"volume":40,"open_interest":100},
+      {"underlying":"SYNTH","expiry":"2026-12-18","strike":45,"right":"put","side":"bid","premium":90,"volume":30,"open_interest":60,"raw":{"type":"block"}}
+    ],
+    "raw":{"fixture":"synthetic","nested":{"labels":["deterministic"]}}
+  },
+  "expected": {
+    "momentum":{"relative_strength_vs_spy":0.03,"relative_strength_vs_qqq":0.03,"twenty_day_breakout":true,"fifty_day_breakout":true,"volume_expansion":true,"gap_and_hold":true,"trend_acceleration":0,"close":105},
+    "marketStructure":{"trend_label":"uptrend","vwap_relation":"above_vwap","value_area_relation":"accepting_above","breakout_status":"breakout","relative_volume":1.5,"support_levels":[99,104],"resistance_levels":[102,106]},
+    "volatility":{"term_structure_label":"flat","skew_label":"balanced","iv_change_label":"expanding","event_risk":["synthetic-event"]},
+    "liquidity":{"option_contract_count":2,"option_total_open_interest":2050,"option_total_volume":503,"minimum_viable_contract_count":1,"passes_minimum_contract_filters":true},
+    "fundamental":{"sector":"Synthetic sector","market_cap":8000000,"employee_count":250,"financial_metric_changes":{"revenue_growth":0.12,"gross_margin_delta":-0.03},"earnings_surprise_flags":["positive_surprise","negative_surprise"]},
+    "flow":{"call_premium":180,"put_premium":90,"call_put_premium_ratio":2,"ask_side_call_premium":100,"bid_side_put_premium":90,"sweep_count":1,"block_count":1,"open_interest_validated":true,"repeated_strikes":[50],"short_dated_premium":180,"long_dated_premium":90,"flow_label":"bullish"}
+  }
+}

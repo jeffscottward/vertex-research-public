@@ -1,0 +1,38 @@
+[Unit]
+Description=Vertex read-only IBKR portfolio monitor (IB client id 78, 127.0.0.1:8792)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+RuntimeDirectory=vertex-portfolio
+ExecStartPre=+/opt/vertex-portfolio/resolve-gateway.sh
+ExecStart=/opt/vertex-portfolio/venv/bin/python -I -W ignore /opt/vertex-portfolio/vertex_portfolio.py
+EnvironmentFile=/opt/vertex-status/token.env
+DynamicUser=yes
+Restart=on-failure
+RestartSec=30
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=127.0.0.0/8 172.16.0.0/12
+MemoryMax=256M
+CPUQuota=50%
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

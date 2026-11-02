@@ -1,0 +1,152 @@
+{
+  "slug": "covered-call-strike-asymmetry",
+  "sourceId": "DXRzW0-jtGD",
+  "title": "Two ways to reduce covered call asymmetry: strike out or in the money",
+  "summary": "Covered calls have negative asymmetry: capped upside, open downside. Strike the calls out of the money to keep more upside if you are bullish. Strike them in the money to get intrinsic value that cushions a fall if you are bearish. At the money fits a flat view. There is no right answer, but you need a view on the stock.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["negative asymmetry", "strike choice", "itm call", "otm call"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "OTM covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "ITM covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "OTM call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "ITM call strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Same shares, two strike choices."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "A: an OTM call at $105 keeps upside to the strike. Use it if you expect the stock to rise."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "B: an ITM call at $95 adds intrinsic value. It protects more if the stock falls."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: A wins in rallies, B wins in declines. ATM sits between them for a flat view."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "B's breakeven is lower: the intrinsic part works as a cushion."
+    }
+  ],
+  "formulas": ["extrinsic", "breakevenPut", "delta"],
+  "takeaways": [
+    "A covered call has capped upside and open downside: negative asymmetry.",
+    "OTM strikes keep more upside; ITM strikes give more downside protection.",
+    "Pick the strike from your view on the stock; there is no single right answer."
+  ],
+  "caveats": ["Strikes are illustrative; the clip gives no numbers."]
+}

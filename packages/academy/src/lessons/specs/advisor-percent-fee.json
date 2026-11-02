@@ -1,0 +1,111 @@
+{
+  "slug": "advisor-percent-fee",
+  "sourceId": "DTlH5tcDoyh",
+  "title": "Why paying an advisor a percent of assets every year is questionable",
+  "summary": "The speaker, who worked on Wall Street for 25 years, says a yearly fee as a percent of assets makes no sense. You do not pay an estate attorney a percent of your estate or a plumber a percent of your house. He says he is building a tool for do-it-yourself option traders.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["fees", "advisors", "compounding", "DIY"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "equity"
+  },
+  "params": [
+    {
+      "id": "capital",
+      "label": "Starting capital",
+      "default": 100000,
+      "min": 1000,
+      "max": 10000000,
+      "step": 1000,
+      "unit": "$"
+    },
+    {
+      "id": "riskPct",
+      "label": "Risk per trade",
+      "default": 1,
+      "min": 0.25,
+      "max": 25,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "winRate",
+      "label": "Win rate",
+      "default": 55,
+      "min": 5,
+      "max": 95,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "payoffRatio",
+      "label": "Average win / average loss",
+      "default": 1.5,
+      "min": 0.2,
+      "max": 10,
+      "step": 0.1,
+      "unit": "x"
+    },
+    {
+      "id": "trades",
+      "label": "Number of trades",
+      "default": 200,
+      "min": 10,
+      "max": 1000,
+      "step": 10,
+      "unit": "trades"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 11,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Many possible paths of a portfolio over time. A fee is charged on the whole value every year, in every path."
+    },
+    {
+      "element": "paths",
+      "color": "blue",
+      "caption": "Each blue path is one possible outcome. A percent fee grows as the portfolio grows, even if the work does not.",
+      "time": [0, 1]
+    },
+    {
+      "element": "median",
+      "color": "gold",
+      "caption": "The median path. A yearly percent fee compounds against you over the same years that returns compound for you."
+    },
+    {
+      "element": "drawdown",
+      "color": "red",
+      "caption": "In a drawdown the fee is still charged. You pay for the service, not for the result."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "The speaker's view: pay for a service at a fixed price, like an attorney or a plumber."
+    }
+  ],
+  "formulas": ["recovery", "positionSize"],
+  "takeaways": [
+    "A fee as a percent of assets is charged every year on the whole portfolio.",
+    "The speaker compares it to paying a plumber a percent of your house value.",
+    "Do-it-yourself investors can avoid the fee if they manage their own risk."
+  ],
+  "caveats": [
+    "The speaker promotes a tool he is building; it is unverified here.",
+    "The chart shows generic portfolio paths, not a fee calculation from the video."
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "slug": "options-as-risk-overlay",
+  "sourceId": "DUCMW3iDmjX",
+  "title": "Options are a risk overlay, not an engine of growth",
+  "summary": "Like hedge funds, options are a tool, not an asset class. They do not create growth by themselves. The speaker's order: define your risk first, invest second, and use option overlays third to fine-tune the risk of the portfolio.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio", "hedging"],
+    "timeframe": "years",
+    "risk": "hedged",
+    "topics": ["overlay", "asset allocation", "risk first"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 80,
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 5,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 3,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Step 1: define your risk. Decide the most the portfolio can lose before you pick any position."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Step 2: invest. Core holdings in asset classes are the engine of growth."
+    },
+    {
+      "element": "options",
+      "color": "violet",
+      "caption": "Step 3: a small options overlay fine-tunes the risk. It shapes the payoff; it is not the source of return."
+    },
+    {
+      "element": "cash",
+      "color": "gray",
+      "caption": "Cash keeps dry powder and limits total exposure."
+    },
+    {
+      "element": "marker",
+      "color": "gold",
+      "caption": "Risk first, invest second, overlay third."
+    }
+  ],
+  "formulas": ["positionSize", "kelly"],
+  "takeaways": [
+    "Hedge funds and options are tools to access asset classes, not asset classes.",
+    "Define risk first, invest second, use option overlays third.",
+    "Options fine-tune portfolio risk; they are not the engine of growth."
+  ],
+  "caveats": [
+    "The clip ends with a website promotion.",
+    "Allocation numbers are illustrative; the speaker gives none."
+  ]
+}

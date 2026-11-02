@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "observedAt": "2026-09-22T11:03:36Z",
+  "platform": "linux/amd64",
+  "evidence": "Official public registry index, child-manifest and config bytes were independently SHA-256 checked; no layers or binaries downloaded or executed.",
+  "node": {
+    "image": "docker.io/library/node:22.13.1-bookworm-slim@sha256:e71b848e62e2c32bf5572b327b032a0da79b6a390bc924cdb827249c81e13a88",
+    "indexSha256": "83fdfa2a4de32d7f8d79829ea259bd6a4821f8b2d123204ac467fbe3966450fc",
+    "configSha256": "2df3087de7bd33a7579b648e8f0620a2074478d94dcc4efde3b33dcab34017d5",
+    "source": "https://raw.githubusercontent.com/nodejs/docker-node/a35f40787c5c4744ad52af7ba0f55034a7fa3481/22/bookworm-slim/Dockerfile",
+    "base": "Debian Bookworm slim"
+  },
+  "bun": {
+    "image": "docker.io/oven/bun:1.3.14-slim@sha256:621f249399228db47cf34611ee662585e77e015250ed29d5d0932b2d3282f0b0",
+    "indexSha256": "d56a2534ffd262e92c12fd3249d3924d296d97086da773f821d7d0477435ea04",
+    "configSha256": "424b596babfe001677cb0b67f0c01c3effaa20c630300858713c28dbd852532c",
+    "source": "https://raw.githubusercontent.com/oven-sh/bun/0d9b296af33f2b851fcbf4df3e9ec89751734ba4/dockerhub/debian-slim/Dockerfile",
+    "base": "Debian Trixie slim",
+    "selection": "Only the Bun executable is copied; the Bun Node-fallback shim is never used. Bookworm compatibility remains an actual preparation gate."
+  },
+  "unverified": [
+    "Actual Node and Bun binary versions and copied-binary compatibility",
+    "Offline pnpm 11.16.0 tool closure and dependency-store completeness",
+    "OS-enforced isolation, native preparation and real-adapter build compatibility",
+    "Image signature, SBOM, license and vulnerability assessment"
+  ]
+}

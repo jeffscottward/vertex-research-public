@@ -1,0 +1,19 @@
+[package]
+name = "vertex-execution-kernel"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "vertex_execution_kernel"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+vertex-contracts = { path = "../contracts/rust" }
+
+# Pure library only. No transport, Python ABI, broker SDK, clock, persistence,
+# runtime, installation hook or executable is selected by this manifest.
+# Dependency resolution/lockfile and all acceptance commands are deferred.

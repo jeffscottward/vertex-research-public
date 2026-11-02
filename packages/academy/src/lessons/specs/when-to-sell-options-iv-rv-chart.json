@@ -1,0 +1,118 @@
+{
+  "slug": "when-to-sell-options-iv-rv-chart",
+  "sourceId": "DZxQfRGOaPx",
+  "title": "Should you sell options right now? Read the IV vs RV chart",
+  "summary": "Option sellers focus on strike, delta and expiration, but forget the first question: should I sell options at all right now? Plot implied volatility against realized volatility. When IV is well above RV, it is a good time to sell. When IV is low or even below RV, as in a trough, it is a bad time to sell and a better time to buy options.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "regime-change"],
+    "instruments": ["volatility", "covered-calls", "cash-secured-puts"],
+    "timeframe": "months",
+    "risk": "none",
+    "topics": ["timing", "IV vs RV", "regime"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 3,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 120,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 500,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 42,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The stock path over about two years.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "The solid line: implied volatility, what you are paid."
+    },
+    {
+      "element": "rv",
+      "color": "blue",
+      "caption": "Realized volatility: the risk you actually take."
+    },
+    {
+      "element": "vrp",
+      "color": "green",
+      "caption": "Where IV is well above RV, it is a good time to be an option seller."
+    },
+    {
+      "element": "vrp",
+      "color": "red",
+      "caption": "In the troughs IV is low or below RV. Then it is a bad time to sell; you would rather buy options."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol"],
+  "takeaways": [
+    "Ask whether to sell options at all before choosing strike or delta.",
+    "Sell when IV is well above realized volatility.",
+    "When IV is at or below RV, consider buying options instead."
+  ],
+  "caveats": [
+    "The speaker's chart and metric behind the bio link are promotional and not verified here."
+  ]
+}

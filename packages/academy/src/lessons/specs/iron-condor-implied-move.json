@@ -1,0 +1,203 @@
+{
+  "slug": "iron-condor-implied-move",
+  "sourceId": "DanfMfvOlNv",
+  "title": "Set iron condor strikes with the market's implied move",
+  "summary": "Do not pick iron condor strikes at random. Use the market's own implied expected move: here Amazon is priced to move about plus or minus $25 over 28 days, so the short strikes sit $25 below and above the market with $25 wide wings. The trade is a bet that implied volatility overstates the move Amazon will actually make.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["range", "high-vol"],
+    "instruments": ["single-stock", "spreads", "volatility"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["expected move", "iron condor", "IV vs RV"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "putLong",
+        "dte": "dte"
+      },
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "putShort",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "callShort",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "callLong",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "AMZN price",
+      "default": 225,
+      "min": 20,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 37,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 28,
+      "min": 2,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "putShort",
+      "label": "Short put strike",
+      "default": 200,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "putLong",
+      "label": "Long put strike",
+      "default": 175,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "callShort",
+      "label": "Short call strike",
+      "default": 250,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "callLong",
+      "label": "Long call strike",
+      "default": 275,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Condors",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "pdf",
+      "color": "violet",
+      "time": [0.05, 1],
+      "caption": "Implied volatility turns into a price distribution. Watch it widen as the days to expiry grow from 1 to 28."
+    },
+    {
+      "element": "band1",
+      "color": "cyan",
+      "caption": "The one standard deviation band is the market's implied move: about plus or minus $25 for Amazon over 28 days."
+    },
+    {
+      "element": "band2",
+      "color": "blue",
+      "caption": "Two standard deviations cover about 95% of outcomes under the model. Tails beyond that still happen."
+    },
+    {
+      "element": "pop",
+      "color": "green",
+      "caption": "Short strikes at the implied move, $25 wings: the green zone between the short strikes keeps the credit."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakevens sit a little outside the short strikes, shifted out by the credit received."
+    },
+    {
+      "element": "ev",
+      "color": "gold",
+      "caption": "At fair implied volatility the expected value is near zero. The edge exists only if realized volatility comes in below implied."
+    }
+  ],
+  "formulas": ["expectedMove", "probabilityOfProfit", "expectedValue", "vrp"],
+  "takeaways": [
+    "Expected move = price x IV x square root of (days / 365). Use it to place the short strikes.",
+    "An iron condor is a short volatility bet: it wins when the stock moves less than the market priced.",
+    "Selling volatility into an earnings release breaks a common rule; the speaker flags this example as an exception."
+  ],
+  "caveats": [
+    "The example straddles an earnings release. The owner's X06 rule says do not pre-position for event moves."
+  ],
+  "backtest": {
+    "structure": "iron_condor",
+    "tickers": ["AMZN", "SPY", "QQQ"],
+    "scenario": {
+      "label": "2016-2024 with the 2020 and 2022 volatility spikes",
+      "start": "2016-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 28,
+      "shortPutDelta": -0.16,
+      "longPutDelta": -0.05,
+      "shortCallDelta": 0.16,
+      "longCallDelta": 0.05,
+      "exitDte": 7,
+      "profitTakePct": 50,
+      "stopLossPct": 200,
+      "riskPct": 5
+    },
+    "note": "Short strikes near 16 delta (about one implied move), wings near 5 delta, 28 days to expiry."
+  }
+}

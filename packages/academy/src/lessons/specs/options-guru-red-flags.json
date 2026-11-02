@@ -1,0 +1,123 @@
+{
+  "slug": "options-guru-red-flags",
+  "sourceId": "DTOErUHCb9R",
+  "title": "Red flags in options marketing: guaranteed income and huge returns",
+  "summary": "The speaker lists claims that should make you run: guaranteed or easy income, quit your nine-to-five, never buy options only sell options, I turned six dollars into millions, or $5,000 a week. Managing money and trading options is hard, part art and part science. The clip also promotes his upcoming Discord and software tools.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["red flags", "marketing", "guaranteed income", "risk"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "Short put"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Illustration: the 'only sell options' trade, a 30-day put sold at $95 on a $100 stock.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The stock can land anywhere in this range by expiry. Nothing about it is guaranteed."
+    },
+    {
+      "element": "band2",
+      "color": "gray",
+      "caption": "Large moves are less likely but real; they are what 'easy income' leaves out."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the breakeven the premium is gone and the trade loses money."
+    },
+    {
+      "element": "pop",
+      "color": "gold",
+      "caption": "Probability of profit is below 100%: option income is not guaranteed."
+    }
+  ],
+  "formulas": ["probabilityOfProfit", "expectedMove", "breakevenPut"],
+  "takeaways": [
+    "Run if someone promises guaranteed or easy income, or says to quit your nine-to-five.",
+    "'Never buy options, only sell options' is a red flag.",
+    "Claims like turning six dollars into millions or $5,000 a week are red flags too.",
+    "Managing money and trading options is hard; it is both an art and a science."
+  ],
+  "caveats": [
+    "The short put example and probability chart are added illustration; the speaker only lists the red flags.",
+    "The clip promotes the speaker's upcoming Discord and software tools, which are not verified here."
+  ]
+}

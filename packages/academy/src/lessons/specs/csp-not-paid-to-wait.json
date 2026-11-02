@@ -1,0 +1,107 @@
+{
+  "slug": "csp-not-paid-to-wait",
+  "sourceId": "DX10-IMuVxl",
+  "title": "A cash-secured put is not 'getting paid to buy a stock you like'",
+  "summary": "The speaker, a former senior PM at a $14 billion hedge fund, rejects the line that a short put pays you to buy a stock at your price. A short put assigns you when the market chooses, often while it is falling. With a risk-first mindset you buy stocks at your price, not where someone puts you into a trade.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bearish"],
+    "instruments": ["single-stock", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["assignment", "falling knife", "risk first"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short put strike",
+      "default": 95,
+      "min": 10,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock. Sell a 30-day put at $95, the 'price you want to pay'."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "If the stock stays above $95, you keep a small premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the breakeven the trade loses money."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "In a crash you are assigned on the way down. You catch a falling knife."
+    },
+    {
+      "element": "zones",
+      "color": "gold",
+      "caption": "You are short volatility. You do not choose the entry; the market does."
+    }
+  ],
+  "formulas": ["breakevenPut", "delta", "expectedValue"],
+  "takeaways": [
+    "A short put is a short volatility trade, not a limit order with a bonus.",
+    "Assignment usually happens when the market is falling hard.",
+    "Buy stocks at your own entry point."
+  ],
+  "caveats": ["Speaker credentials are self-reported."]
+}

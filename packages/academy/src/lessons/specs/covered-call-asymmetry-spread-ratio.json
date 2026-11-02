@@ -1,0 +1,162 @@
+{
+  "slug": "covered-call-asymmetry-spread-ratio",
+  "sourceId": "DUyrNYfCaZ7",
+  "title": "Fix covered call asymmetry: sell call spreads or fewer calls",
+  "summary": "A covered call caps the upside while the downside stays linear, so losses can be much larger than gains. The speaker gives two fixes. Sell a call spread instead of a call, so you keep upside above the higher strike. Or sell fewer calls than you own, for example 4 calls on 500 shares, so part of the stock stays uncapped.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls", "spreads"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["negative asymmetry", "call spread", "ratio", "capped upside"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Covered call, 5 calls",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "shares5",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "shares5",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Call spread overlay",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "shares5",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "shares5",
+          "strike": "strike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "shares5",
+          "strike": "wingStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shares5",
+      "label": "Lots of 100 shares",
+      "default": 5,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "wingStrike",
+      "label": "Bought-back call strike",
+      "default": 115,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "We own 500 shares at $100 and sell monthly calls."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "A: the plain covered call. Upside stops at the strike, downside is linear: negative asymmetry."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "B: also buy a higher call. Above that strike the position rises again with the stock."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: B gives up a little premium to win back upside in a big rally."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Second fix: sell 4 calls on 500 shares. One lot stays uncapped. Set the long strike far away to compare."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "extrinsic", "delta"],
+  "takeaways": [
+    "A covered call has capped upside and linear downside, so losses can exceed gains.",
+    "Selling a call spread instead of a call keeps upside above the higher strike.",
+    "Selling fewer calls than your share count, like 4 calls on 500 shares, also reduces the asymmetry."
+  ],
+  "caveats": [
+    "The clip shows payoff charts that are not in the transcript; strikes here are illustrative.",
+    "Both fixes reduce premium income. The link-in-bio request is promotional."
+  ]
+}

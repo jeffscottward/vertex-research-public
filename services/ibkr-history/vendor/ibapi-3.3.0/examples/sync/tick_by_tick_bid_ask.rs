@@ -1,0 +1,42 @@
+//! Tick By Tick Bid Ask example
+//!
+//! # Usage
+//!
+//! ```bash
+//! cargo run --features sync --example tick_by_tick_bid_ask
+//! ```
+
+use std::time::Duration;
+
+use ibapi::client::blocking::Client;
+use ibapi::contracts::Contract;
+use ibapi::market_data::IgnoreSize;
+
+// This example demonstrates how to stream tick by tick data for the bid and ask price of a contract.
+
+fn main() {
+    env_logger::init();
+
+    let connection_string = "127.0.0.1:4002";
+    println!("connecting to server @ {connection_string}");
+
+    let client = Client::connect(connection_string, 100).expect("connection failed");
+
+    let contract = Contract::stock("NVDA").build();
+    let ticks = client.tick_by_tick(&contract, 0).bid_ask(IgnoreSize::No).expect("failed to get ticks");
+
+    println!(
+        "streaming bid/ask price for security_type: {:?}, symbol: {}",
+        contract.security_type, contract.symbol
+    );
+
+    for (i, bid_ask) in ticks.timeout_iter_data(Duration::from_secs(10)).enumerate() {
+        match bid_ask {
+            Ok(bid_ask) => println!("{}: {i:?} {bid_ask:?}", contract.symbol),
+            Err(error) => {
+                println!("error: {error:?}");
+                break;
+            }
+        }
+    }
+}

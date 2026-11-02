@@ -1,0 +1,79 @@
+{
+  "slug": "money-printing-vs-spending",
+  "sourceId": "DWPcII4iYjG",
+  "title": "Printing money does not cause inflation; spending does",
+  "summary": "The speaker argues that large money measures (M1, M2, bank reserves) do not by themselves cause inflation. After the 2008 crisis reserves rose sharply and many economists warned of hyperinflation, which never came. His analogy: a rich person who does not spend adds no inflation.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["portfolio"],
+    "timeframe": "years",
+    "risk": "none",
+    "topics": ["macro", "inflation", "money supply"]
+  },
+  "scene": {
+    "type": "portfolio",
+    "mode": "allocation"
+  },
+  "params": [
+    {
+      "id": "corePct",
+      "label": "Core holdings",
+      "default": 40,
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "optionsPct",
+      "label": "Options sleeve",
+      "default": 0,
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "leverage",
+      "label": "Options leverage",
+      "default": 1,
+      "min": 1,
+      "max": 20,
+      "step": 0.5,
+      "unit": "x"
+    }
+  ],
+  "steps": [
+    {
+      "element": "cash",
+      "color": "gray",
+      "caption": "Money that sits in an account, like large bank reserves after 2009, is idle."
+    },
+    {
+      "element": "core",
+      "color": "green",
+      "caption": "Money that is spent moves through the economy. In the speaker's view, spending drives inflation."
+    },
+    {
+      "element": "marker",
+      "color": "amber",
+      "caption": "2009-2010: reserves went through the roof, hyperinflation never came."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "Inflation is a risk: loss of purchasing power. Watch spending, not only money totals."
+    }
+  ],
+  "formulas": ["recovery"],
+  "takeaways": [
+    "Large money totals alone do not predict inflation.",
+    "Inflation comes from money that is spent.",
+    "After 2009 reserves rose sharply, but hyperinflation did not follow."
+  ],
+  "caveats": [
+    "This is the speaker's macro opinion; economists disagree on it.",
+    "The chart is a generic metaphor, not data from the video."
+  ]
+}

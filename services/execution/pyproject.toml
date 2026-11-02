@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-execution"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+description = "Fenced deterministic paper-simulation owner; no broker dispatch"
+dependencies = ["vertex-contracts==1.0.0"]
+
+[project.optional-dependencies]
+nautilus = ["nautilus-trader==2.0.0rc5"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vertex_execution*"]
+
+[tool.vertex.execution]
+activation = "disabled-until-final-verification"
+contract-source = "../contracts/python"
+kernel-source = "../execution-kernel"
+nautilus-target = "2.0.0rc5"
+nautilus-implementation = "Rust/PyO3"
+nautilus-integration = "explicit-offline-equity-quote-replay-only"
+nautilus-runtime-verification = "pending"
+nautilus-auto-install = false
+broker-dispatch = false
+live-dispatch = false

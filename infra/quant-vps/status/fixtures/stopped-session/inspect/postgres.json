@@ -1,0 +1,18 @@
+{
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-09-25T16:40:50.270031888Z",
+    "FinishedAt": "0001-01-01T00:00:00Z",
+    "ExitCode": 0,
+    "OOMKilled": false,
+    "Health": {
+      "Status": "healthy"
+    }
+  },
+  "RestartCount": 0,
+  "Config": {
+    "Image": "postgres:16-alpine",
+    "Env": []
+  }
+}

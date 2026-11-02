@@ -1,0 +1,152 @@
+{
+  "slug": "gamma-40-delta-call-efficiency",
+  "sourceId": "DcguSAgRqPM",
+  "title": "Use gamma when buying calls: why a 40 delta beats an 80 delta per dollar",
+  "summary": "Gamma is the rate of change of delta. It peaks at the money and rises as expiration nears. When buying calls, the speaker suggests the 40 to 60 delta range and starting near 40 delta to give the trade room to run. Compared per dollar invested (premium neutral), a 40 delta call has more upside than an 80 delta call, even though one 80 delta contract makes more than one 40 delta contract.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["gamma", "delta", "premium neutral", "efficiency"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "1 x 80 delta call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "itmQty",
+          "strike": "itmStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "3 x 40 delta calls",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "otmQty",
+          "strike": "otmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "80 delta strike",
+      "default": 93,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "otmStrike",
+      "label": "40 delta strike",
+      "default": 103,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "itmQty",
+      "label": "80 delta contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    },
+    {
+      "id": "otmQty",
+      "label": "40 delta contracts",
+      "default": 3,
+      "min": 1,
+      "max": 150,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "A $100 stock, 30 days to expiry."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "One 80 delta call costs about three times a 40 delta call."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "Premium neutral: spend the same dollars on about three 40 delta calls."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "On a rally the 40 delta position gains more per dollar. Gamma raises its delta as the stock moves up."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The trade-off: the 40 delta calls need a larger move to break even."
+    }
+  ],
+  "formulas": ["gamma", "delta"],
+  "takeaways": [
+    "Gamma is the rate of change of delta; it peaks at the money and rises near expiration.",
+    "When buying calls, the speaker prefers 40 to 60 delta, starting near 40.",
+    "Compare calls premium neutral, per dollar invested, not one contract against one contract."
+  ],
+  "caveats": [
+    "The strikes and prices are illustrative; the transcript does not give them.",
+    "More contracts of a cheaper call can all expire worthless; size by premium at risk."
+  ]
+}

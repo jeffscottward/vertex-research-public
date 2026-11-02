@@ -1,0 +1,266 @@
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
+import { createActor } from "xstate";
+
+import {
+  createSetupFlowActor,
+  type SetupFlowContext,
+  type SetupFlowEvent,
+  setupFlowMachine,
+} from "./setup-flow.ts";
+
+const startFlow = () => createActor(setupFlowMachine).start();
+
+describe("createSetupFlowActor", () =>
+  it("owns actor construction and releases subscribers when stopped", () => {
+    const actor = createSetupFlowActor();
+    const completed = vi.fn();
+    const subscription = actor.subscribe({ complete: completed });
+
+    actor.start();
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("preferences");
+
+    actor.stop();
+    subscription.unsubscribe();
+
+    expect(completed).toHaveBeenCalledOnce();
+    return expect(actor.getSnapshot().status).toBe("stopped");
+  }));
+
+describe("setupFlowMachine", () => {
+  it("moves through details, preferences, review, submitting, and success", () => {
+    const actor = startFlow();
+
+    expect(actor.getSnapshot().value).toBe("details");
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("preferences");
+
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("review");
+
+    actor.send({ type: "SUBMIT" });
+    expect(actor.getSnapshot().value).toBe("submitting");
+    expect(actor.getSnapshot().context.submissionAttempts).toBe(1);
+
+    actor.send({ type: "SUCCEED" });
+    expect(actor.getSnapshot().value).toBe("success");
+    expect(actor.getSnapshot().status).toBe("done");
+
+    return actor.stop();
+  });
+
+  it("supports back navigation only where explicitly allowed", () => {
+    const actor = startFlow();
+
+    actor.send({ type: "BACK" });
+    expect(actor.getSnapshot().value).toBe("details");
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "BACK" });
+    expect(actor.getSnapshot().value).toBe("details");
+
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "BACK" });
+    expect(actor.getSnapshot().value).toBe("preferences");
+
+    return actor.stop();
+  });
+
+  it("rejects next until the current step guard passes", () => {
+    const actor = startFlow();
+
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("details");
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("preferences");
+
+    return actor.stop();
+  });
+
+  it("preserves context when the preferences assignment receives another event", () => {
+    const context: SetupFlowContext = {
+      detailsComplete: true,
+      error: null,
+      preferencesComplete: false,
+      submissionAttempts: 0,
+    };
+    const action = setupFlowMachine.implementations.actions[
+      "setPreferencesComplete"
+    ] as unknown as {
+      assignment: (args: {
+        context: SetupFlowContext;
+        event: SetupFlowEvent;
+      }) => SetupFlowContext;
+    };
+
+    const result = action.assignment({
+      context,
+      event: { type: "NEXT" },
+    });
+
+    return expect(result).toBe(context);
+  });
+
+  it.each(["setDetailsComplete", "recordFailure"] as const)(
+    "preserves context when %s receives another event",
+    (name) => {
+      const context: SetupFlowContext = {
+        detailsComplete: true,
+        error: null,
+        preferencesComplete: false,
+        submissionAttempts: 0,
+      };
+      const action = setupFlowMachine.implementations.actions[
+        name
+      ] as unknown as {
+        assignment: (args: {
+          context: SetupFlowContext;
+          event: SetupFlowEvent;
+        }) => SetupFlowContext;
+      };
+
+      const result = action.assignment({
+        context,
+        event: { type: "NEXT" },
+      });
+
+      return expect(result).toBe(context);
+    }
+  );
+
+  it("ignores field updates and failures outside their owning states", () => {
+    const actor = startFlow();
+    const detailsContext = actor.getSnapshot().context;
+
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "FAIL", message: "must not record a details failure" });
+    expect(actor.getSnapshot().value).toBe("details");
+    expect(actor.getSnapshot().context).toBe(detailsContext);
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    const preferencesContext = actor.getSnapshot().context;
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: false });
+    actor.send({
+      type: "FAIL",
+      message: "must not record a preferences failure",
+    });
+    expect(actor.getSnapshot().value).toBe("preferences");
+    expect(actor.getSnapshot().context).toBe(preferencesContext);
+
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    const reviewContext = actor.getSnapshot().context;
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: false });
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: false });
+    actor.send({ type: "FAIL", message: "must not record a review failure" });
+    expect(actor.getSnapshot().value).toBe("review");
+    expect(actor.getSnapshot().context).toBe(reviewContext);
+
+    return actor.stop();
+  });
+
+  it("allows completed fields to be cleared and enforces their guards again", () => {
+    const actor = startFlow();
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    expect(actor.getSnapshot().context.detailsComplete).toBe(true);
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: false });
+    expect(actor.getSnapshot().context.detailsComplete).toBe(false);
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("details");
+
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    expect(actor.getSnapshot().context.preferencesComplete).toBe(true);
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: false });
+    expect(actor.getSnapshot().context.preferencesComplete).toBe(false);
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("preferences");
+    expect(actor.getSnapshot().context.detailsComplete).toBe(true);
+
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    expect(actor.getSnapshot().value).toBe("review");
+    expect(actor.getSnapshot().context).toEqual({
+      detailsComplete: true,
+      preferencesComplete: true,
+      submissionAttempts: 0,
+      error: null,
+    });
+
+    return actor.stop();
+  });
+
+  it("ignores submit outcomes outside the submitting state", () => {
+    const actor = startFlow();
+
+    actor.send({ type: "SUCCEED" });
+    actor.send({ message: "must be ignored", type: "FAIL" });
+
+    expect(actor.getSnapshot().value).toBe("details");
+    expect(actor.getSnapshot().context.error).toBeNull();
+    expect(actor.getSnapshot().context.submissionAttempts).toBe(0);
+
+    return actor.stop();
+  });
+
+  it("captures failure and retries submission with deterministic context", () => {
+    const actor = startFlow();
+    actor.send({ type: "SET_DETAILS_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "SET_PREFERENCES_COMPLETE", value: true });
+    actor.send({ type: "NEXT" });
+    actor.send({ type: "SUBMIT" });
+    actor.send({ message: "Connection interrupted", type: "FAIL" });
+
+    expect(actor.getSnapshot().value).toBe("failure");
+    expect(actor.getSnapshot().context).toEqual({
+      detailsComplete: true,
+      error: "Connection interrupted",
+      preferencesComplete: true,
+      submissionAttempts: 1,
+    });
+
+    actor.send({ type: "RETRY" });
+
+    expect(actor.getSnapshot().value).toBe("submitting");
+    expect(actor.getSnapshot().context.submissionAttempts).toBe(2);
+    expect(actor.getSnapshot().context.error).toBeNull();
+
+    actor.send({ message: "Still unavailable", type: "FAIL" });
+    actor.send({ type: "BACK" });
+    expect(actor.getSnapshot().value).toBe("review");
+    expect(actor.getSnapshot().context.error).toBeNull();
+
+    return actor.stop();
+  });
+
+  return it("exposes typed context and events", () => {
+    expectTypeOf<SetupFlowContext>().toEqualTypeOf<{
+      readonly detailsComplete: boolean;
+      readonly preferencesComplete: boolean;
+      readonly submissionAttempts: number;
+      readonly error: string | null;
+    }>();
+    return expectTypeOf<
+      Extract<SetupFlowEvent, { type: "FAIL" }>
+    >().toEqualTypeOf<{
+      readonly type: "FAIL";
+      readonly message: string;
+    }>();
+  });
+});

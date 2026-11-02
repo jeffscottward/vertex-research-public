@@ -1,0 +1,1522 @@
+{
+  "95-delta-calls-core-holdings": {
+    "video": "/academy-media/95-delta-calls-core-holdings/lesson.mp4",
+    "captions": "/academy-media/95-delta-calls-core-holdings/captions.vtt",
+    "thumbnail": "/academy-media/95-delta-calls-core-holdings/thumb.jpg",
+    "durationSeconds": 38.4,
+    "bytes": 927924,
+    "sha256": "8430f588a6cf7a1d589149460d387c6354b2f3b5b4a946cf7990cf090a397bad",
+    "renderedAt": "2026-10-30T07:23:03.012Z",
+    "specHash": "ae74722603e62ec0"
+  },
+  "advisor-percent-fee": {
+    "video": "/academy-media/advisor-percent-fee/lesson.mp4",
+    "captions": "/academy-media/advisor-percent-fee/captions.vtt",
+    "thumbnail": "/academy-media/advisor-percent-fee/thumb.jpg",
+    "durationSeconds": 41.4,
+    "bytes": 1283839,
+    "sha256": "f1d13d84de1590f96a66330dc9e2097498b9f7ab45b17fdcd3af15bae3d853cd",
+    "renderedAt": "2026-10-30T07:26:55.679Z",
+    "specHash": "42934f6af9f66a29"
+  },
+  "anchoring-bias-cost-basis": {
+    "video": "/academy-media/anchoring-bias-cost-basis/lesson.mp4",
+    "captions": "/academy-media/anchoring-bias-cost-basis/captions.vtt",
+    "thumbnail": "/academy-media/anchoring-bias-cost-basis/thumb.jpg",
+    "durationSeconds": 37.5,
+    "bytes": 1079064,
+    "sha256": "b9a38e693ef31f04f1014d89f31c46cf79049a1765984bff80aba9e3146f90df",
+    "renderedAt": "2026-10-30T07:24:54.549Z",
+    "specHash": "449a29a8592292f1"
+  },
+  "atm-option-price-rule-of-thumb": {
+    "video": "/academy-media/atm-option-price-rule-of-thumb/lesson.mp4",
+    "captions": "/academy-media/atm-option-price-rule-of-thumb/captions.vtt",
+    "thumbnail": "/academy-media/atm-option-price-rule-of-thumb/thumb.jpg",
+    "durationSeconds": 57.2,
+    "bytes": 1683729,
+    "sha256": "479a914d66d1d2371c69f67e5db22e1341303b609f91da5b5614207e4817686a",
+    "renderedAt": "2026-10-30T08:18:23.737Z",
+    "specHash": "46851c1ec9d018d7"
+  },
+  "avoid-70-delta-calls": {
+    "video": "/academy-media/avoid-70-delta-calls/lesson.mp4",
+    "captions": "/academy-media/avoid-70-delta-calls/captions.vtt",
+    "thumbnail": "/academy-media/avoid-70-delta-calls/thumb.jpg",
+    "durationSeconds": 44.1,
+    "bytes": 1088655,
+    "sha256": "d13d141affa7b9673c78a43fa9fe5b90b3c5774f12ecab7b5192883c8807997f",
+    "renderedAt": "2026-10-30T08:50:21.218Z",
+    "specHash": "7c97373d0795f4cb"
+  },
+  "basket-of-options-csp-vs-covered-call": {
+    "video": "/academy-media/basket-of-options-csp-vs-covered-call/lesson.mp4",
+    "captions": "/academy-media/basket-of-options-csp-vs-covered-call/captions.vtt",
+    "thumbnail": "/academy-media/basket-of-options-csp-vs-covered-call/thumb.jpg",
+    "durationSeconds": 41.2,
+    "bytes": 1042305,
+    "sha256": "ed6b7c8c344b8557cb1dfccbff77fff1c6981ae07e20aa2760ae1a9fbba8a467",
+    "renderedAt": "2026-10-30T09:39:20.079Z",
+    "specHash": "c7f993f2602fb952"
+  },
+  "beta-core-plus-option-overlays": {
+    "video": "/academy-media/beta-core-plus-option-overlays/lesson.mp4",
+    "captions": "/academy-media/beta-core-plus-option-overlays/captions.vtt",
+    "thumbnail": "/academy-media/beta-core-plus-option-overlays/thumb.jpg",
+    "durationSeconds": 40.5,
+    "bytes": 974514,
+    "sha256": "ab919046767c52766e214f2d1337d05292d8f6fdca6c75b7143beafc17f132a8",
+    "renderedAt": "2026-10-30T07:48:39.462Z",
+    "specHash": "1dcc8a2596952311"
+  },
+  "call-spread-buy-back-short-leg": {
+    "video": "/academy-media/call-spread-buy-back-short-leg/lesson.mp4",
+    "captions": "/academy-media/call-spread-buy-back-short-leg/captions.vtt",
+    "thumbnail": "/academy-media/call-spread-buy-back-short-leg/thumb.jpg",
+    "durationSeconds": 49,
+    "bytes": 1205773,
+    "sha256": "e6f90530da84b88ffa5c077d9969c6917e67c4f571c6b2d908955145a40b461b",
+    "renderedAt": "2026-10-30T08:11:13.839Z",
+    "specHash": "8409f72aa61ce7a9"
+  },
+  "call-spread-pop-breakeven-delta": {
+    "video": "/academy-media/call-spread-pop-breakeven-delta/lesson.mp4",
+    "captions": "/academy-media/call-spread-pop-breakeven-delta/captions.vtt",
+    "thumbnail": "/academy-media/call-spread-pop-breakeven-delta/thumb.jpg",
+    "durationSeconds": 53.8,
+    "bytes": 1600592,
+    "sha256": "15a3684220b806c50181ebd05a78e07c102bcd674f7688aa7354b660e6957304",
+    "renderedAt": "2026-10-30T08:06:19.486Z",
+    "specHash": "5536f126282f7f0a"
+  },
+  "call-spread-vs-put-spread-fills": {
+    "video": "/academy-media/call-spread-vs-put-spread-fills/lesson.mp4",
+    "captions": "/academy-media/call-spread-vs-put-spread-fills/captions.vtt",
+    "thumbnail": "/academy-media/call-spread-vs-put-spread-fills/thumb.jpg",
+    "durationSeconds": 39.3,
+    "bytes": 963962,
+    "sha256": "9e47eea7faa216c9d22a591455616851b3714ad7cf4cc58e7cd12869daa9243b",
+    "renderedAt": "2026-10-30T08:28:51.213Z",
+    "specHash": "cbb97df55b17b9bf"
+  },
+  "collar-is-a-call-spread": {
+    "video": "/academy-media/collar-is-a-call-spread/lesson.mp4",
+    "captions": "/academy-media/collar-is-a-call-spread/captions.vtt",
+    "thumbnail": "/academy-media/collar-is-a-call-spread/thumb.jpg",
+    "durationSeconds": 34.2,
+    "bytes": 857246,
+    "sha256": "3fb367b1f6e5d0ade97235649b31eb162a7c341a6674e0816089fa6ce9d94d73",
+    "renderedAt": "2026-10-30T08:25:06.855Z",
+    "specHash": "e25f0273e1e75119"
+  },
+  "covered-call-asymmetry-fixes": {
+    "video": "/academy-media/covered-call-asymmetry-fixes/lesson.mp4",
+    "captions": "/academy-media/covered-call-asymmetry-fixes/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-asymmetry-fixes/thumb.jpg",
+    "durationSeconds": 37.1,
+    "bytes": 956010,
+    "sha256": "ee5c2c19adb0449d754145e25930f88d82d125a6d4b06ba55ad7d4062c8b0251",
+    "renderedAt": "2026-10-30T07:29:16.879Z",
+    "specHash": "e58bc0f954f61141"
+  },
+  "covered-call-asymmetry-spread-ratio": {
+    "video": "/academy-media/covered-call-asymmetry-spread-ratio/lesson.mp4",
+    "captions": "/academy-media/covered-call-asymmetry-spread-ratio/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-asymmetry-spread-ratio/thumb.jpg",
+    "durationSeconds": 39,
+    "bytes": 980838,
+    "sha256": "6608b3436142305ba34b9acaf64362571d0c1f8fa18c3457c8ae181574ddcd42",
+    "renderedAt": "2026-10-30T09:15:22.642Z",
+    "specHash": "bea25c7bc3c90e0f"
+  },
+  "covered-call-not-renting": {
+    "video": "/academy-media/covered-call-not-renting/lesson.mp4",
+    "captions": "/academy-media/covered-call-not-renting/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-not-renting/thumb.jpg",
+    "durationSeconds": 39.3,
+    "bytes": 984052,
+    "sha256": "50eb31f1eb8cc893cd3c778e9480fee04b9d97286250e7dd4e2721146bce9d4d",
+    "renderedAt": "2026-10-30T08:39:08.773Z",
+    "specHash": "59057286e7bb9c66"
+  },
+  "covered-call-path-dependency-aapl": {
+    "video": "/academy-media/covered-call-path-dependency-aapl/lesson.mp4",
+    "captions": "/academy-media/covered-call-path-dependency-aapl/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-path-dependency-aapl/thumb.jpg",
+    "durationSeconds": 49.4,
+    "bytes": 1094820,
+    "sha256": "d2d2a325c40c14635943cdb8ebec31c5f5906241fc62ef258e393aafb49a97c2",
+    "renderedAt": "2026-10-30T09:37:20.304Z",
+    "specHash": "2cda1244fee617e4"
+  },
+  "covered-call-plus-otm-call-spread": {
+    "video": "/academy-media/covered-call-plus-otm-call-spread/lesson.mp4",
+    "captions": "/academy-media/covered-call-plus-otm-call-spread/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-plus-otm-call-spread/thumb.jpg",
+    "durationSeconds": 44.4,
+    "bytes": 1323957,
+    "sha256": "be488b9f3467be0720a96dece99a27c484861250c8bbd51cb277e6b0f88a2d15",
+    "renderedAt": "2026-10-30T09:17:28.164Z",
+    "specHash": "449d54f446b506cd"
+  },
+  "covered-call-pnl-both-legs": {
+    "video": "/academy-media/covered-call-pnl-both-legs/lesson.mp4",
+    "captions": "/academy-media/covered-call-pnl-both-legs/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-pnl-both-legs/thumb.jpg",
+    "durationSeconds": 49.5,
+    "bytes": 1152203,
+    "sha256": "3d33a1f1f246092364ddc998dbb22b2d499bc667425ab8e79cb3b17f4fe3020c",
+    "renderedAt": "2026-10-30T09:54:31.583Z",
+    "specHash": "063cdc278c6b55bc"
+  },
+  "covered-call-roll-down-keep-shares": {
+    "video": "/academy-media/covered-call-roll-down-keep-shares/lesson.mp4",
+    "captions": "/academy-media/covered-call-roll-down-keep-shares/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-roll-down-keep-shares/thumb.jpg",
+    "durationSeconds": 59.6,
+    "bytes": 1483587,
+    "sha256": "e5fbded292017d605e0f9b53bd098a6f80c057aabe22cb128ae239ac208a00f3",
+    "renderedAt": "2026-10-30T07:32:06.100Z",
+    "specHash": "ae155b1ae6105b50"
+  },
+  "covered-call-selection-iv-over-rv": {
+    "video": "/academy-media/covered-call-selection-iv-over-rv/lesson.mp4",
+    "captions": "/academy-media/covered-call-selection-iv-over-rv/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-selection-iv-over-rv/thumb.jpg",
+    "durationSeconds": 41.6,
+    "bytes": 1027257,
+    "sha256": "6a83e0a528738e06a9561e05e6f611d3e1c2bec7130e190374f80d431a192114",
+    "renderedAt": "2026-10-30T07:41:39.178Z",
+    "specHash": "163de665b6e9bba1"
+  },
+  "covered-call-strike-asymmetry": {
+    "video": "/academy-media/covered-call-strike-asymmetry/lesson.mp4",
+    "captions": "/academy-media/covered-call-strike-asymmetry/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-strike-asymmetry/thumb.jpg",
+    "durationSeconds": 39.9,
+    "bytes": 995070,
+    "sha256": "0e0f3cfe55e4f80400a2cc04ee4430b5dc07f99ed06d7b1d9ef7a4399cd9df2b",
+    "renderedAt": "2026-10-30T08:55:16.535Z",
+    "specHash": "43d7bdab83e56e92"
+  },
+  "covered-call-strike-by-view": {
+    "video": "/academy-media/covered-call-strike-by-view/lesson.mp4",
+    "captions": "/academy-media/covered-call-strike-by-view/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-strike-by-view/thumb.jpg",
+    "durationSeconds": 36.2,
+    "bytes": 1013868,
+    "sha256": "573da0ba28ddf803211c8108a5c816732336ad0e4681db2e0ace3537c0ef34bf",
+    "renderedAt": "2026-10-30T07:37:51.019Z",
+    "specHash": "5de5fe581682eb84"
+  },
+  "covered-call-two-legs": {
+    "video": "/academy-media/covered-call-two-legs/lesson.mp4",
+    "captions": "/academy-media/covered-call-two-legs/captions.vtt",
+    "thumbnail": "/academy-media/covered-call-two-legs/thumb.jpg",
+    "durationSeconds": 36,
+    "bytes": 879565,
+    "sha256": "5112e3d576e7597d554aa6c1a06bb41020cdf197cc49ed8b99d401c42506065e",
+    "renderedAt": "2026-10-30T09:06:59.307Z",
+    "specHash": "841bc2da9a601345"
+  },
+  "covered-calls-not-rent": {
+    "video": "/academy-media/covered-calls-not-rent/lesson.mp4",
+    "captions": "/academy-media/covered-calls-not-rent/captions.vtt",
+    "thumbnail": "/academy-media/covered-calls-not-rent/thumb.jpg",
+    "durationSeconds": 32.5,
+    "bytes": 806350,
+    "sha256": "67d38625cabae0e264351dc3ab0aa3aba584e4ca3a760eabe98a02fba48b7f9a",
+    "renderedAt": "2026-10-30T08:53:22.834Z",
+    "specHash": "e30d14120b94686e"
+  },
+  "covered-calls-vs-total-return": {
+    "video": "/academy-media/covered-calls-vs-total-return/lesson.mp4",
+    "captions": "/academy-media/covered-calls-vs-total-return/captions.vtt",
+    "thumbnail": "/academy-media/covered-calls-vs-total-return/thumb.jpg",
+    "durationSeconds": 47.6,
+    "bytes": 1096070,
+    "sha256": "ba690267d97cf0b1c7506ad092a43fecacab498f824133105e45b4e5a15d4e4b",
+    "renderedAt": "2026-10-30T09:13:31.456Z",
+    "specHash": "78b401b230d9e60c"
+  },
+  "csp-covered-call-same-greeks": {
+    "video": "/academy-media/csp-covered-call-same-greeks/lesson.mp4",
+    "captions": "/academy-media/csp-covered-call-same-greeks/captions.vtt",
+    "thumbnail": "/academy-media/csp-covered-call-same-greeks/thumb.jpg",
+    "durationSeconds": 34.4,
+    "bytes": 849897,
+    "sha256": "e46fc32fc900ae2325d2da5860e1f32a0a2addaa0065bf7e04bf6e274fe9e0b5",
+    "renderedAt": "2026-10-30T09:00:35.604Z",
+    "specHash": "a266ea86dfeeea13"
+  },
+  "csp-equals-covered-call": {
+    "video": "/academy-media/csp-equals-covered-call/lesson.mp4",
+    "captions": "/academy-media/csp-equals-covered-call/captions.vtt",
+    "thumbnail": "/academy-media/csp-equals-covered-call/thumb.jpg",
+    "durationSeconds": 37,
+    "bytes": 1023004,
+    "sha256": "ac03fda38794096cd2be965581b27bc97f249107739903d9285deefeb4a7f7f3",
+    "renderedAt": "2026-10-30T09:02:21.369Z",
+    "specHash": "82e137cf6ed9e723"
+  },
+  "csp-not-paid-to-wait": {
+    "video": "/academy-media/csp-not-paid-to-wait/lesson.mp4",
+    "captions": "/academy-media/csp-not-paid-to-wait/captions.vtt",
+    "thumbnail": "/academy-media/csp-not-paid-to-wait/thumb.jpg",
+    "durationSeconds": 30.7,
+    "bytes": 762793,
+    "sha256": "68860e047d8861c35cd87c8405f07ce92cc016a8c86b887879308362bb621d1b",
+    "renderedAt": "2026-10-30T08:51:49.942Z",
+    "specHash": "20c8318c7feeb8f3"
+  },
+  "csp-right-to-change-mind": {
+    "video": "/academy-media/csp-right-to-change-mind/lesson.mp4",
+    "captions": "/academy-media/csp-right-to-change-mind/captions.vtt",
+    "thumbnail": "/academy-media/csp-right-to-change-mind/thumb.jpg",
+    "durationSeconds": 34.3,
+    "bytes": 940651,
+    "sha256": "c2c08746d209f7c83180a0c7383b0292509337be918b3524c633f9cf261c0865",
+    "renderedAt": "2026-10-30T08:48:15.084Z",
+    "specHash": "c46a2e2de03692f0"
+  },
+  "csp-vs-buying-stock": {
+    "video": "/academy-media/csp-vs-buying-stock/lesson.mp4",
+    "captions": "/academy-media/csp-vs-buying-stock/captions.vtt",
+    "thumbnail": "/academy-media/csp-vs-buying-stock/thumb.jpg",
+    "durationSeconds": 32.2,
+    "bytes": 827155,
+    "sha256": "9dfe63a675f4dbec890aff7d40357d4aedb7f036676e5770f36b4a6b7981412a",
+    "renderedAt": "2026-10-30T08:37:16.566Z",
+    "specHash": "521a9c69d23b3fe5"
+  },
+  "decision-quality-vs-outcome": {
+    "video": "/academy-media/decision-quality-vs-outcome/lesson.mp4",
+    "captions": "/academy-media/decision-quality-vs-outcome/captions.vtt",
+    "thumbnail": "/academy-media/decision-quality-vs-outcome/thumb.jpg",
+    "durationSeconds": 31.5,
+    "bytes": 1018203,
+    "sha256": "c709b5b2ddd0897eab18910c52e89b633236a387b3813227afe516e31034dbf3",
+    "renderedAt": "2026-10-30T09:43:29.370Z",
+    "specHash": "ab091f3cc62a15f9"
+  },
+  "deep-itm-call-delta-elasticity": {
+    "video": "/academy-media/deep-itm-call-delta-elasticity/lesson.mp4",
+    "captions": "/academy-media/deep-itm-call-delta-elasticity/captions.vtt",
+    "thumbnail": "/academy-media/deep-itm-call-delta-elasticity/thumb.jpg",
+    "durationSeconds": 52.1,
+    "bytes": 1446510,
+    "sha256": "1b0666a1b484b7461821932a798d666b62f38a4aa123c0f889b3162870202234",
+    "renderedAt": "2026-10-30T09:41:56.195Z",
+    "specHash": "17792fd21cf3dd51"
+  },
+  "deep-itm-call-leverage-gauge": {
+    "video": "/academy-media/deep-itm-call-leverage-gauge/lesson.mp4",
+    "captions": "/academy-media/deep-itm-call-leverage-gauge/captions.vtt",
+    "thumbnail": "/academy-media/deep-itm-call-leverage-gauge/thumb.jpg",
+    "durationSeconds": 49.5,
+    "bytes": 1133948,
+    "sha256": "fcfb6dad662ec6b4ff47cc84f590896cad9a6f1450fd497221745559334b8a5f",
+    "renderedAt": "2026-10-30T09:45:52.311Z",
+    "specHash": "987afd6401b5195f"
+  },
+  "deep-itm-call-sizing-leverage": {
+    "video": "/academy-media/deep-itm-call-sizing-leverage/lesson.mp4",
+    "captions": "/academy-media/deep-itm-call-sizing-leverage/captions.vtt",
+    "thumbnail": "/academy-media/deep-itm-call-sizing-leverage/thumb.jpg",
+    "durationSeconds": 39.9,
+    "bytes": 938650,
+    "sha256": "a95af6bcc0a881bbe75ddf8f91f2be3aeef343462061e421dc14efe472b748e0",
+    "renderedAt": "2026-10-30T09:11:16.617Z",
+    "specHash": "7e0215e2a8759477"
+  },
+  "deep-itm-call-stock-replacement": {
+    "video": "/academy-media/deep-itm-call-stock-replacement/lesson.mp4",
+    "captions": "/academy-media/deep-itm-call-stock-replacement/captions.vtt",
+    "thumbnail": "/academy-media/deep-itm-call-stock-replacement/thumb.jpg",
+    "durationSeconds": 50.6,
+    "bytes": 1523348,
+    "sha256": "3359fbd38f191206aa35e0b5aa898c7f59be8aa4d9661af0ee5dfade3b417e99",
+    "renderedAt": "2026-10-30T09:09:23.019Z",
+    "specHash": "7582b40056335008"
+  },
+  "deep-itm-leaps-capital-efficiency": {
+    "video": "/academy-media/deep-itm-leaps-capital-efficiency/lesson.mp4",
+    "captions": "/academy-media/deep-itm-leaps-capital-efficiency/captions.vtt",
+    "thumbnail": "/academy-media/deep-itm-leaps-capital-efficiency/thumb.jpg",
+    "durationSeconds": 43.1,
+    "bytes": 1031449,
+    "sha256": "7972b577caf20a3e06762944c9bcb296295df5e47b1f37c81762d41b7fee8d5a",
+    "renderedAt": "2026-10-30T08:22:09.599Z",
+    "specHash": "007989e4621d351d"
+  },
+  "define-your-risk-no-short-tail": {
+    "video": "/academy-media/define-your-risk-no-short-tail/lesson.mp4",
+    "captions": "/academy-media/define-your-risk-no-short-tail/captions.vtt",
+    "thumbnail": "/academy-media/define-your-risk-no-short-tail/thumb.jpg",
+    "durationSeconds": 35.5,
+    "bytes": 724194,
+    "sha256": "f0cb8abedf7604121e9b781e1b4f850dddc94ef7e3afe1e430df99cdcdc02b99",
+    "renderedAt": "2026-10-30T09:52:05.127Z",
+    "specHash": "3d84975a56e1a221"
+  },
+  "delta-four-definitions": {
+    "video": "/academy-media/delta-four-definitions/lesson.mp4",
+    "captions": "/academy-media/delta-four-definitions/captions.vtt",
+    "thumbnail": "/academy-media/delta-four-definitions/thumb.jpg",
+    "durationSeconds": 49.9,
+    "bytes": 1143735,
+    "sha256": "882e14437a4e7e92f105365aa002acdf89c76cda49f0b945a0e39aed39cb8d2c",
+    "renderedAt": "2026-10-30T07:34:27.198Z",
+    "specHash": "b187d55010a28f3e"
+  },
+  "dont-leg-into-spreads": {
+    "video": "/academy-media/dont-leg-into-spreads/lesson.mp4",
+    "captions": "/academy-media/dont-leg-into-spreads/captions.vtt",
+    "thumbnail": "/academy-media/dont-leg-into-spreads/thumb.jpg",
+    "durationSeconds": 39.2,
+    "bytes": 950066,
+    "sha256": "ad51d102568456d1b28acf5a9c16b3db5f2af4460a1131f9daf91e3afe180b37",
+    "renderedAt": "2026-10-30T08:26:58.767Z",
+    "specHash": "79d06403be9aec28"
+  },
+  "dyr-unusable-audio-clip": {
+    "video": "/academy-media/dyr-unusable-audio-clip/lesson.mp4",
+    "captions": "/academy-media/dyr-unusable-audio-clip/captions.vtt",
+    "thumbnail": "/academy-media/dyr-unusable-audio-clip/thumb.jpg",
+    "durationSeconds": 32.1,
+    "bytes": 744695,
+    "sha256": "3fcd313513aa0c9c8bed7fcee621975ac76f39098606b231c6de56829a0ffd83",
+    "renderedAt": "2026-10-30T08:58:57.343Z",
+    "specHash": "b28c95c0784be1b3"
+  },
+  "earnings-call-diagonal": {
+    "video": "/academy-media/earnings-call-diagonal/lesson.mp4",
+    "captions": "/academy-media/earnings-call-diagonal/captions.vtt",
+    "thumbnail": "/academy-media/earnings-call-diagonal/thumb.jpg",
+    "durationSeconds": 41.9,
+    "bytes": 1902415,
+    "sha256": "a16ee3543a888ea876bbd0fc0af199d2fa9cda9c40e3da8f9840c069a9678aa1",
+    "renderedAt": "2026-10-30T07:43:38.062Z",
+    "specHash": "50b4fdc008e234ac"
+  },
+  "expected-move-cheat-code": {
+    "video": "/academy-media/expected-move-cheat-code/lesson.mp4",
+    "captions": "/academy-media/expected-move-cheat-code/captions.vtt",
+    "thumbnail": "/academy-media/expected-move-cheat-code/thumb.jpg",
+    "durationSeconds": 53,
+    "bytes": 1797855,
+    "sha256": "0f83b02cf0e9082a84829941fd7650387d7a9e16a3f0780839ee15d1d20dc4e0",
+    "renderedAt": "2026-10-30T07:59:48.719Z",
+    "specHash": "c6332f5c598acf0d"
+  },
+  "expected-move-square-root-time": {
+    "video": "/academy-media/expected-move-square-root-time/lesson.mp4",
+    "captions": "/academy-media/expected-move-square-root-time/captions.vtt",
+    "thumbnail": "/academy-media/expected-move-square-root-time/thumb.jpg",
+    "durationSeconds": 42.8,
+    "bytes": 2425278,
+    "sha256": "81abf9b34454a208ed2b6cbb6cf02a851184b0fb463bb026ad23cef51441b92d",
+    "renderedAt": "2026-10-30T07:53:18.434Z",
+    "specHash": "b790688772f35150"
+  },
+  "expected-move-vs-delta": {
+    "video": "/academy-media/expected-move-vs-delta/lesson.mp4",
+    "captions": "/academy-media/expected-move-vs-delta/captions.vtt",
+    "thumbnail": "/academy-media/expected-move-vs-delta/thumb.jpg",
+    "durationSeconds": 42.6,
+    "bytes": 1377663,
+    "sha256": "9494f74f1825ce1bc84a7b2bf3d77da5bf66f8557c8b691ddabd3458a4082aa6",
+    "renderedAt": "2026-10-30T07:57:17.706Z",
+    "specHash": "a43afd382e87c97f"
+  },
+  "exposures-before-structure": {
+    "video": "/academy-media/exposures-before-structure/lesson.mp4",
+    "captions": "/academy-media/exposures-before-structure/captions.vtt",
+    "thumbnail": "/academy-media/exposures-before-structure/thumb.jpg",
+    "durationSeconds": 30.8,
+    "bytes": 797011,
+    "sha256": "d48fb0e070e15efb3e2ece15c7692cfff9ccb0c6212663b4505efdce380a29d3",
+    "renderedAt": "2026-10-30T08:40:37.186Z",
+    "specHash": "a6a366bf05a2debf"
+  },
+  "extrinsic-premium-pnl-attribution": {
+    "video": "/academy-media/extrinsic-premium-pnl-attribution/lesson.mp4",
+    "captions": "/academy-media/extrinsic-premium-pnl-attribution/captions.vtt",
+    "thumbnail": "/academy-media/extrinsic-premium-pnl-attribution/thumb.jpg",
+    "durationSeconds": 47.7,
+    "bytes": 1315624,
+    "sha256": "5f2872316fbd2e36318f49ac7e69770efb705f8f76996ecbb33ac1cfd9c45df2",
+    "renderedAt": "2026-10-30T09:34:59.854Z",
+    "specHash": "11870f49cb338ba8"
+  },
+  "fifty-percent-profit-rule": {
+    "video": "/academy-media/fifty-percent-profit-rule/lesson.mp4",
+    "captions": "/academy-media/fifty-percent-profit-rule/captions.vtt",
+    "thumbnail": "/academy-media/fifty-percent-profit-rule/thumb.jpg",
+    "durationSeconds": 38.3,
+    "bytes": 1186402,
+    "sha256": "a92ddbe1a4851c5d74edf07a0c8b3ba41abf9269234342e441f716e27112c23d",
+    "renderedAt": "2026-10-30T08:35:44.301Z",
+    "specHash": "17559933490b50cb"
+  },
+  "gamma-40-delta-call-efficiency": {
+    "video": "/academy-media/gamma-40-delta-call-efficiency/lesson.mp4",
+    "captions": "/academy-media/gamma-40-delta-call-efficiency/captions.vtt",
+    "thumbnail": "/academy-media/gamma-40-delta-call-efficiency/thumb.jpg",
+    "durationSeconds": 35,
+    "bytes": 908915,
+    "sha256": "d4db18bc6d4576fedaae81d6586781e6327e01fdc48e02d4be74ddb2171ecabf",
+    "renderedAt": "2026-10-30T07:36:07.031Z",
+    "specHash": "216119673b5677f6"
+  },
+  "gamma-per-dollar-delta-choice": {
+    "video": "/academy-media/gamma-per-dollar-delta-choice/lesson.mp4",
+    "captions": "/academy-media/gamma-per-dollar-delta-choice/captions.vtt",
+    "thumbnail": "/academy-media/gamma-per-dollar-delta-choice/thumb.jpg",
+    "durationSeconds": 44.9,
+    "bytes": 1352296,
+    "sha256": "c0b403e9172fd5b775dab9bca22fdb60bf92ee134154b672a1e37f22e10fb3fa",
+    "renderedAt": "2026-10-30T08:44:44.711Z",
+    "specHash": "c17f05e793b54aa3"
+  },
+  "greeks-and-payoff-tradeoffs": {
+    "video": "/academy-media/greeks-and-payoff-tradeoffs/lesson.mp4",
+    "captions": "/academy-media/greeks-and-payoff-tradeoffs/captions.vtt",
+    "thumbnail": "/academy-media/greeks-and-payoff-tradeoffs/thumb.jpg",
+    "durationSeconds": 27.1,
+    "bytes": 841871,
+    "sha256": "610584ba3788a2323a22b2929248c1c30739b9efcfda63a7e71879ac664874d8",
+    "renderedAt": "2026-10-30T08:23:27.410Z",
+    "specHash": "f8cbdc9b71cd7106"
+  },
+  "high-iv-needs-low-hv": {
+    "video": "/academy-media/high-iv-needs-low-hv/lesson.mp4",
+    "captions": "/academy-media/high-iv-needs-low-hv/captions.vtt",
+    "thumbnail": "/academy-media/high-iv-needs-low-hv/thumb.jpg",
+    "durationSeconds": 39.5,
+    "bytes": 1109053,
+    "sha256": "e9839ac25e5bae6d9de16438fa82c05fa13d282ceed60f70b56eae7ccac3ea4a",
+    "renderedAt": "2026-10-30T08:46:36.994Z",
+    "specHash": "6b9a444edfe2306d"
+  },
+  "hold-is-not-a-decision": {
+    "video": "/academy-media/hold-is-not-a-decision/lesson.mp4",
+    "captions": "/academy-media/hold-is-not-a-decision/captions.vtt",
+    "thumbnail": "/academy-media/hold-is-not-a-decision/thumb.jpg",
+    "durationSeconds": 27.9,
+    "bytes": 734608,
+    "sha256": "cd46d69e6bed7aac1d7a5287327a0be88f21a41267814e1b13a662dfcbe014d8",
+    "renderedAt": "2026-10-30T08:33:55.485Z",
+    "specHash": "dab1a8e4e5e4ef27"
+  },
+  "implied-one-day-move-rule-of-16": {
+    "video": "/academy-media/implied-one-day-move-rule-of-16/lesson.mp4",
+    "captions": "/academy-media/implied-one-day-move-rule-of-16/captions.vtt",
+    "thumbnail": "/academy-media/implied-one-day-move-rule-of-16/thumb.jpg",
+    "durationSeconds": 41.6,
+    "bytes": 1086152,
+    "sha256": "230c85aebc58fe1e7be5180663614b9c2637c1f6f57f135d2b692f1fcb7d26e2",
+    "renderedAt": "2026-10-30T07:55:17.429Z",
+    "specHash": "cff2c8b626c6513e"
+  },
+  "implied-volatility-five-components": {
+    "video": "/academy-media/implied-volatility-five-components/lesson.mp4",
+    "captions": "/academy-media/implied-volatility-five-components/captions.vtt",
+    "thumbnail": "/academy-media/implied-volatility-five-components/thumb.jpg",
+    "durationSeconds": 40.5,
+    "bytes": 1049871,
+    "sha256": "c63b6c7b9c5f2d4dcb34566b02f7fa03a423db363044124822779983c8e69b15",
+    "renderedAt": "2026-10-30T07:46:43.650Z",
+    "specHash": "a1caacd434f6b337"
+  },
+  "income-is-not-a-strategy": {
+    "video": "/academy-media/income-is-not-a-strategy/lesson.mp4",
+    "captions": "/academy-media/income-is-not-a-strategy/captions.vtt",
+    "thumbnail": "/academy-media/income-is-not-a-strategy/thumb.jpg",
+    "durationSeconds": 32.9,
+    "bytes": 818642,
+    "sha256": "36941f7d9c512488e314eb0e315ee351b2a01235bba03c80460eecc54256b56a",
+    "renderedAt": "2026-10-30T09:19:01.954Z",
+    "specHash": "4bb53d3f04858af4"
+  },
+  "income-options-vs-total-return": {
+    "video": "/academy-media/income-options-vs-total-return/lesson.mp4",
+    "captions": "/academy-media/income-options-vs-total-return/captions.vtt",
+    "thumbnail": "/academy-media/income-options-vs-total-return/thumb.jpg",
+    "durationSeconds": 32,
+    "bytes": 800011,
+    "sha256": "42e03448fc9ff65b8429bb19268fdbabce865d93c5d69e061f57888f5dc25258",
+    "renderedAt": "2026-10-30T09:32:43.978Z",
+    "specHash": "3fe0a74f4453aada"
+  },
+  "index-covered-calls-risk-per-unit": {
+    "video": "/academy-media/index-covered-calls-risk-per-unit/lesson.mp4",
+    "captions": "/academy-media/index-covered-calls-risk-per-unit/captions.vtt",
+    "thumbnail": "/academy-media/index-covered-calls-risk-per-unit/thumb.jpg",
+    "durationSeconds": 28.8,
+    "bytes": 844933,
+    "sha256": "d40df9c4711a9405543db330ce83527e12e44440a48c0f001ee095d696a16cb5",
+    "renderedAt": "2026-10-30T09:05:15.374Z",
+    "specHash": "e2f0751e5262c6c0"
+  },
+  "institutional-iv-rv-edge": {
+    "video": "/academy-media/institutional-iv-rv-edge/lesson.mp4",
+    "captions": "/academy-media/institutional-iv-rv-edge/captions.vtt",
+    "thumbnail": "/academy-media/institutional-iv-rv-edge/thumb.jpg",
+    "durationSeconds": 24.2,
+    "bytes": 745107,
+    "sha256": "08367ae8d7ac1e11d9c4f839b84358c6cbef1899b4967a60db54ebced0d429c5",
+    "renderedAt": "2026-10-30T07:44:47.784Z",
+    "specHash": "d980b3a580fc684c"
+  },
+  "iron-condor-implied-move": {
+    "video": "/academy-media/iron-condor-implied-move/lesson.mp4",
+    "captions": "/academy-media/iron-condor-implied-move/captions.vtt",
+    "thumbnail": "/academy-media/iron-condor-implied-move/thumb.jpg",
+    "durationSeconds": 55.5,
+    "bytes": 1877348,
+    "sha256": "3d17c60048dfb6c5c25dc44d2665d6c0bf0863fd76e67d2d7e311ac721a02338",
+    "renderedAt": "2026-10-30T07:51:16.930Z",
+    "specHash": "7320aef309c3de4e"
+  },
+  "itm-call-spread-high-iv-selloff": {
+    "video": "/academy-media/itm-call-spread-high-iv-selloff/lesson.mp4",
+    "captions": "/academy-media/itm-call-spread-high-iv-selloff/captions.vtt",
+    "thumbnail": "/academy-media/itm-call-spread-high-iv-selloff/thumb.jpg",
+    "durationSeconds": 50.4,
+    "bytes": 1351071,
+    "sha256": "42ed97a9d84583138c0d3c876c9de2971700544911e79e0d520435e8e88814d4",
+    "renderedAt": "2026-10-30T08:13:37.431Z",
+    "specHash": "7cab4f50d6afb4f2"
+  },
+  "itm-call-spread-positive-theta": {
+    "video": "/academy-media/itm-call-spread-positive-theta/lesson.mp4",
+    "captions": "/academy-media/itm-call-spread-positive-theta/captions.vtt",
+    "thumbnail": "/academy-media/itm-call-spread-positive-theta/thumb.jpg",
+    "durationSeconds": 42.3,
+    "bytes": 1111963,
+    "sha256": "46032987eb16a986217abe92396595dbdbcfb758018f18e788c5b2d295e57e06",
+    "renderedAt": "2026-10-30T09:25:15.550Z",
+    "specHash": "2bab1847921264ed"
+  },
+  "itm-cash-secured-put": {
+    "video": "/academy-media/itm-cash-secured-put/lesson.mp4",
+    "captions": "/academy-media/itm-cash-secured-put/captions.vtt",
+    "thumbnail": "/academy-media/itm-cash-secured-put/thumb.jpg",
+    "durationSeconds": 43.2,
+    "bytes": 1208559,
+    "sha256": "ed2990249a52c9c9505727ad1dbe535bb53d864c9dbbdbe0d90c2e1ecd41011a",
+    "renderedAt": "2026-10-30T09:23:12.867Z",
+    "specHash": "ea001213e8da020b"
+  },
+  "itm-covered-call-downside": {
+    "video": "/academy-media/itm-covered-call-downside/lesson.mp4",
+    "captions": "/academy-media/itm-covered-call-downside/captions.vtt",
+    "thumbnail": "/academy-media/itm-covered-call-downside/thumb.jpg",
+    "durationSeconds": 42.2,
+    "bytes": 1056710,
+    "sha256": "388ea685abeb2e9a8353e19f4180c098e681f71e9a59f2214e0f5ab60fe9e868",
+    "renderedAt": "2026-10-30T08:42:37.437Z",
+    "specHash": "0b69373b4a58c555"
+  },
+  "itm-covered-call-otm-put": {
+    "video": "/academy-media/itm-covered-call-otm-put/lesson.mp4",
+    "captions": "/academy-media/itm-covered-call-otm-put/captions.vtt",
+    "thumbnail": "/academy-media/itm-covered-call-otm-put/thumb.jpg",
+    "durationSeconds": 45.6,
+    "bytes": 1213499,
+    "sha256": "362fe8419b72bab8d27059d75602f2e262441658d6f55a2a77455f60e46a45b0",
+    "renderedAt": "2026-10-30T08:57:25.702Z",
+    "specHash": "f6fb03ac6caf9781"
+  },
+  "itm-debit-call-spread": {
+    "video": "/academy-media/itm-debit-call-spread/lesson.mp4",
+    "captions": "/academy-media/itm-debit-call-spread/captions.vtt",
+    "thumbnail": "/academy-media/itm-debit-call-spread/thumb.jpg",
+    "durationSeconds": 79.6,
+    "bytes": 2169349,
+    "sha256": "2003c252436dbcecc6a02f3ce3a8f8a8430f5cb61fb66e97e60adb1e99aa009f",
+    "renderedAt": "2026-10-30T08:32:35.845Z",
+    "specHash": "5c4ccb86785fceb0"
+  },
+  "iv-needs-context": {
+    "video": "/academy-media/iv-needs-context/lesson.mp4",
+    "captions": "/academy-media/iv-needs-context/captions.vtt",
+    "thumbnail": "/academy-media/iv-needs-context/thumb.jpg",
+    "durationSeconds": 44.1,
+    "bytes": 1065665,
+    "sha256": "eebb474e738de61ec8455be369dbc958f38f8ad0f9917809d696022993f790d8",
+    "renderedAt": "2026-10-30T08:03:47.478Z",
+    "specHash": "88c5f3f0f5dc9902"
+  },
+  "iv-rv-jump-risk-earnings": {
+    "video": "/academy-media/iv-rv-jump-risk-earnings/lesson.mp4",
+    "captions": "/academy-media/iv-rv-jump-risk-earnings/captions.vtt",
+    "thumbnail": "/academy-media/iv-rv-jump-risk-earnings/thumb.jpg",
+    "durationSeconds": 35.9,
+    "bytes": 851247,
+    "sha256": "23915c7a16101ac8c47da216c557ec38d894ca2af12f7a6c804497b84a465400",
+    "renderedAt": "2026-10-30T09:26:59.523Z",
+    "specHash": "4fd0b71a91eebec6"
+  },
+  "iv-term-structure-expiry-choice": {
+    "video": "/academy-media/iv-term-structure-expiry-choice/lesson.mp4",
+    "captions": "/academy-media/iv-term-structure-expiry-choice/captions.vtt",
+    "thumbnail": "/academy-media/iv-term-structure-expiry-choice/thumb.jpg",
+    "durationSeconds": 48.9,
+    "bytes": 1397409,
+    "sha256": "571bb808047f4fb6a2565a9b893c3f16f76a76a2f7cf9387c8e44449e3dc84b8",
+    "renderedAt": "2026-10-30T09:48:11.788Z",
+    "specHash": "4b54b880cf9d81d3"
+  },
+  "iv-versus-realized-for-sellers": {
+    "video": "/academy-media/iv-versus-realized-for-sellers/lesson.mp4",
+    "captions": "/academy-media/iv-versus-realized-for-sellers/captions.vtt",
+    "thumbnail": "/academy-media/iv-versus-realized-for-sellers/thumb.jpg",
+    "durationSeconds": 36.3,
+    "bytes": 960608,
+    "sha256": "b116dc8a5804c57ced0cead0c3394dd98da1197c36cf37edd1acac79e4659e06",
+    "renderedAt": "2026-10-30T08:20:06.837Z",
+    "specHash": "f7b6760ace068d10"
+  },
+  "iv-vs-rv-beats-iv-rank": {
+    "video": "/academy-media/iv-vs-rv-beats-iv-rank/lesson.mp4",
+    "captions": "/academy-media/iv-vs-rv-beats-iv-rank/captions.vtt",
+    "thumbnail": "/academy-media/iv-vs-rv-beats-iv-rank/thumb.jpg",
+    "durationSeconds": 48.2,
+    "bytes": 1240544,
+    "sha256": "d92b353f641a2625b1d9972ef48f54e382e1577ad0a5d2fa0452be1e4a184d3c",
+    "renderedAt": "2026-10-30T09:29:17.020Z",
+    "specHash": "aeeab26cb4639197"
+  },
+  "iv-vs-rv-option-selling-signal": {
+    "video": "/academy-media/iv-vs-rv-option-selling-signal/lesson.mp4",
+    "captions": "/academy-media/iv-vs-rv-option-selling-signal/captions.vtt",
+    "thumbnail": "/academy-media/iv-vs-rv-option-selling-signal/thumb.jpg",
+    "durationSeconds": 40.6,
+    "bytes": 1151721,
+    "sha256": "8df11ad17a0f97c24eaad340a4a67661ce4eeca8850c325a17a2e60ae9293d79",
+    "renderedAt": "2026-10-30T09:31:12.703Z",
+    "specHash": "1de7de73feab7656"
+  },
+  "learn-options-with-pnl-calculator": {
+    "video": "/academy-media/learn-options-with-pnl-calculator/lesson.mp4",
+    "captions": "/academy-media/learn-options-with-pnl-calculator/captions.vtt",
+    "thumbnail": "/academy-media/learn-options-with-pnl-calculator/thumb.jpg",
+    "durationSeconds": 37.8,
+    "bytes": 1433020,
+    "sha256": "e9078bce5e234f27d629cf4b8664c303fb414e546e3ea84485b5f09a2e7cb83c",
+    "renderedAt": "2026-10-30T07:39:40.648Z",
+    "specHash": "551bf5182e387938"
+  },
+  "long-delta-conviction-ladder": {
+    "video": "/academy-media/long-delta-conviction-ladder/lesson.mp4",
+    "captions": "/academy-media/long-delta-conviction-ladder/captions.vtt",
+    "thumbnail": "/academy-media/long-delta-conviction-ladder/thumb.jpg",
+    "durationSeconds": 39.9,
+    "bytes": 1308128,
+    "sha256": "0c7e1a992a40a4197f846f4a458e561471e3b32f395a05863a424c5b6c7a7cba",
+    "renderedAt": "2026-10-30T08:01:42.215Z",
+    "specHash": "5ae30e888060da32"
+  },
+  "macro-why-government-borrows": {
+    "video": "/academy-media/macro-why-government-borrows/lesson.mp4",
+    "captions": "/academy-media/macro-why-government-borrows/captions.vtt",
+    "thumbnail": "/academy-media/macro-why-government-borrows/thumb.jpg",
+    "durationSeconds": 36.3,
+    "bytes": 758796,
+    "sha256": "586c786d851a42d87e3047d98f0f6fd27f65588bff41baa90ab14badca2b17c4",
+    "renderedAt": "2026-10-30T09:56:17.538Z",
+    "specHash": "dbf9c000cf9e0433"
+  },
+  "money-creation-deficit-spending": {
+    "video": "/academy-media/money-creation-deficit-spending/lesson.mp4",
+    "captions": "/academy-media/money-creation-deficit-spending/captions.vtt",
+    "thumbnail": "/academy-media/money-creation-deficit-spending/thumb.jpg",
+    "durationSeconds": 46,
+    "bytes": 1047406,
+    "sha256": "aca6d2b78861ced2a13b12999b4cfa5509cb5014a4a99f36dd94a3056dfa1049",
+    "renderedAt": "2026-10-30T09:50:23.218Z",
+    "specHash": "6841f8b520a1b220"
+  },
+  "money-printing-vs-spending": {
+    "video": "/academy-media/money-printing-vs-spending/lesson.mp4",
+    "captions": "/academy-media/money-printing-vs-spending/captions.vtt",
+    "thumbnail": "/academy-media/money-printing-vs-spending/thumb.jpg",
+    "durationSeconds": 32.1,
+    "bytes": 764424,
+    "sha256": "25b362a0d0df1af8f5c02c12ad58bc87de9f8af19ce4d10a077df4505c9ebdf5",
+    "renderedAt": "2026-10-30T09:03:53.048Z",
+    "specHash": "e441bd5f7e37f629"
+  },
+  "nvda-put-spread-iv-below-rv": {
+    "video": "/academy-media/nvda-put-spread-iv-below-rv/lesson.mp4",
+    "captions": "/academy-media/nvda-put-spread-iv-below-rv/captions.vtt",
+    "thumbnail": "/academy-media/nvda-put-spread-iv-below-rv/thumb.jpg",
+    "durationSeconds": 43.9,
+    "bytes": 1090346,
+    "sha256": "1f728b32670dbfcc15ade81897aa1ca7120ee10f03885579e22a406502920d9c",
+    "renderedAt": "2026-10-30T08:15:42.267Z",
+    "specHash": "59f1210f78447430"
+  },
+  "on-semi-bull-call-spread": {
+    "video": "/academy-media/on-semi-bull-call-spread/lesson.mp4",
+    "captions": "/academy-media/on-semi-bull-call-spread/captions.vtt",
+    "thumbnail": "/academy-media/on-semi-bull-call-spread/thumb.jpg",
+    "durationSeconds": 54.9,
+    "bytes": 1337091,
+    "sha256": "a3c245c518f37d1ce568d34de707d61934921f3fb181470e1d16cf5114f76ae4",
+    "renderedAt": "2026-10-30T08:08:54.830Z",
+    "specHash": "221bf3211287a00e"
+  },
+  "opportunistic-covered-call-etf": {
+    "video": "/academy-media/opportunistic-covered-call-etf/lesson.mp4",
+    "captions": "/academy-media/opportunistic-covered-call-etf/captions.vtt",
+    "thumbnail": "/academy-media/opportunistic-covered-call-etf/thumb.jpg",
+    "durationSeconds": 41.5,
+    "bytes": 1069575,
+    "sha256": "430b34d307247d6de6e8dc49f50ad61c307cb5f1b2763edda7ab3a5f10e131ea",
+    "renderedAt": "2026-10-30T09:21:05.659Z",
+    "specHash": "9f3f6dcbff697164"
+  },
+  "option-fair-value-iv-equals-rv": {
+    "video": "/academy-media/option-fair-value-iv-equals-rv/lesson.mp4",
+    "captions": "/academy-media/option-fair-value-iv-equals-rv/captions.vtt",
+    "thumbnail": "/academy-media/option-fair-value-iv-equals-rv/thumb.jpg",
+    "durationSeconds": 38.9,
+    "bytes": 919344,
+    "sha256": "d323ab6b33918fa24a5f2e603fe446e0ae4096ac5a3c4f9b7efbc1450c0ef6ff",
+    "renderedAt": "2026-10-30T07:44:33.821Z",
+    "specHash": "56aea56f8419c4a2"
+  },
+  "option-leverage-by-strike": {
+    "video": "/academy-media/option-leverage-by-strike/lesson.mp4",
+    "captions": "/academy-media/option-leverage-by-strike/captions.vtt",
+    "thumbnail": "/academy-media/option-leverage-by-strike/thumb.jpg",
+    "durationSeconds": 35.9,
+    "bytes": 909225,
+    "sha256": "e03be13c6360eeb210eb80c456262ffc3279ab282b7d07917a863cf15264cf04",
+    "renderedAt": "2026-10-30T08:29:30.631Z",
+    "specHash": "ae107fb845fd8ebe"
+  },
+  "option-pieces-theta-vs-gamma": {
+    "video": "/academy-media/option-pieces-theta-vs-gamma/lesson.mp4",
+    "captions": "/academy-media/option-pieces-theta-vs-gamma/captions.vtt",
+    "thumbnail": "/academy-media/option-pieces-theta-vs-gamma/thumb.jpg",
+    "durationSeconds": 51.5,
+    "bytes": 1680535,
+    "sha256": "8623195fba74199d74c5021f8711cab25f7574243ad40f209f9411e0669d3e47",
+    "renderedAt": "2026-10-30T07:37:09.823Z",
+    "specHash": "80a116d01290fdc3"
+  },
+  "option-premium-is-not-income": {
+    "video": "/academy-media/option-premium-is-not-income/lesson.mp4",
+    "captions": "/academy-media/option-premium-is-not-income/captions.vtt",
+    "thumbnail": "/academy-media/option-premium-is-not-income/thumb.jpg",
+    "durationSeconds": 35.3,
+    "bytes": 870097,
+    "sha256": "85d93da68ca179ccab41c5221bb680c2a4e089884319de0793e7e8b9ac96526b",
+    "renderedAt": "2026-10-30T08:02:01.130Z",
+    "specHash": "8dc2ef374c4c0f3d"
+  },
+  "option-prices-fair-in-theory": {
+    "video": "/academy-media/option-prices-fair-in-theory/lesson.mp4",
+    "captions": "/academy-media/option-prices-fair-in-theory/captions.vtt",
+    "thumbnail": "/academy-media/option-prices-fair-in-theory/thumb.jpg",
+    "durationSeconds": 43.6,
+    "bytes": 1141839,
+    "sha256": "cdbee079ec759c2c79c545e0107bbf6c68ea86713b9342ec182c1a536a212225",
+    "renderedAt": "2026-10-30T08:39:07.225Z",
+    "specHash": "bfb3e23d7108f6a0"
+  },
+  "option-sellers-paid-enough": {
+    "video": "/academy-media/option-sellers-paid-enough/lesson.mp4",
+    "captions": "/academy-media/option-sellers-paid-enough/captions.vtt",
+    "thumbnail": "/academy-media/option-sellers-paid-enough/thumb.jpg",
+    "durationSeconds": 28.1,
+    "bytes": 817677,
+    "sha256": "95078f56d067cdc6a73e78c7ff6653952cb4ffbab15745d751c36abb788f8c2b",
+    "renderedAt": "2026-10-30T08:32:23.021Z",
+    "specHash": "0e99e6f90fa84bd2"
+  },
+  "option-selling-adjustments-in-volatility": {
+    "video": "/academy-media/option-selling-adjustments-in-volatility/lesson.mp4",
+    "captions": "/academy-media/option-selling-adjustments-in-volatility/captions.vtt",
+    "thumbnail": "/academy-media/option-selling-adjustments-in-volatility/thumb.jpg",
+    "durationSeconds": 45.7,
+    "bytes": 1304045,
+    "sha256": "6d4a303bd4487aeb316e137d020a07f0606a56f2327b9f84a16a7da333d2e20c",
+    "renderedAt": "2026-10-30T09:02:03.917Z",
+    "specHash": "73b821c7acb98ab8"
+  },
+  "options-are-tradeoffs": {
+    "video": "/academy-media/options-are-tradeoffs/lesson.mp4",
+    "captions": "/academy-media/options-are-tradeoffs/captions.vtt",
+    "thumbnail": "/academy-media/options-are-tradeoffs/thumb.jpg",
+    "durationSeconds": 33.7,
+    "bytes": 883200,
+    "sha256": "f4d13f60f99bbaa6140aeec6d048dac4429e7efd799ed9e9cc31ac602e84a6c6",
+    "renderedAt": "2026-10-30T08:22:22.947Z",
+    "specHash": "b302cf023b25b5e7"
+  },
+  "options-as-risk-overlay": {
+    "video": "/academy-media/options-as-risk-overlay/lesson.mp4",
+    "captions": "/academy-media/options-as-risk-overlay/captions.vtt",
+    "thumbnail": "/academy-media/options-as-risk-overlay/thumb.jpg",
+    "durationSeconds": 33.6,
+    "bytes": 888249,
+    "sha256": "2453e7be06aea6808d1177161e17c923d5771e21042bbb973e4d116625a36d52",
+    "renderedAt": "2026-10-30T09:19:43.327Z",
+    "specHash": "7f1321ab7cb17c94"
+  },
+  "options-guru-red-flags": {
+    "video": "/academy-media/options-guru-red-flags/lesson.mp4",
+    "captions": "/academy-media/options-guru-red-flags/captions.vtt",
+    "thumbnail": "/academy-media/options-guru-red-flags/thumb.jpg",
+    "durationSeconds": 37.7,
+    "bytes": 1352424,
+    "sha256": "9e3da0cd1dbe4bacba026dd7b7de521f5915b949a54d0bfb87d153049cf8fcfd",
+    "renderedAt": "2026-10-30T09:35:29.721Z",
+    "specHash": "0ad40b7b95a1c865"
+  },
+  "otm-call-spread-leverage": {
+    "video": "/academy-media/otm-call-spread-leverage/lesson.mp4",
+    "captions": "/academy-media/otm-call-spread-leverage/captions.vtt",
+    "thumbnail": "/academy-media/otm-call-spread-leverage/thumb.jpg",
+    "durationSeconds": 48.4,
+    "bytes": 1154611,
+    "sha256": "1b2a75a3ea4442a3c93ae44ca4bc86303b0dc7b602ea1869f9e3bcf315e3a655",
+    "renderedAt": "2026-10-30T09:24:39.194Z",
+    "specHash": "03134712c62ef9e5"
+  },
+  "pin-risk-short-call-spread": {
+    "video": "/academy-media/pin-risk-short-call-spread/lesson.mp4",
+    "captions": "/academy-media/pin-risk-short-call-spread/captions.vtt",
+    "thumbnail": "/academy-media/pin-risk-short-call-spread/thumb.jpg",
+    "durationSeconds": 51.3,
+    "bytes": 1249025,
+    "sha256": "55b40ab66c50f53cba35f8cce32b9d1b298b414678765d1eba217a2a45c45888",
+    "renderedAt": "2026-10-30T07:57:11.676Z",
+    "specHash": "ac95e26bd285b85d"
+  },
+  "pmcc-95-delta-vs-70-delta": {
+    "video": "/academy-media/pmcc-95-delta-vs-70-delta/lesson.mp4",
+    "captions": "/academy-media/pmcc-95-delta-vs-70-delta/captions.vtt",
+    "thumbnail": "/academy-media/pmcc-95-delta-vs-70-delta/thumb.jpg",
+    "durationSeconds": 42.8,
+    "bytes": 1059341,
+    "sha256": "62ece3140d5aa7f87c77ffa027a875de80ee3cb31a6f248802e0b8eb00cc8d1b",
+    "renderedAt": "2026-10-30T08:24:24.859Z",
+    "specHash": "df71410ae7f1b1ab"
+  },
+  "pmcc-high-delta-short-gamma": {
+    "video": "/academy-media/pmcc-high-delta-short-gamma/lesson.mp4",
+    "captions": "/academy-media/pmcc-high-delta-short-gamma/captions.vtt",
+    "thumbnail": "/academy-media/pmcc-high-delta-short-gamma/thumb.jpg",
+    "durationSeconds": 44.7,
+    "bytes": 1212314,
+    "sha256": "660f02455da8b449762b91abf07c662faccad3a3c0fbfcf070025b3435a25edf",
+    "renderedAt": "2026-10-30T08:54:04.074Z",
+    "specHash": "2ed6ea016c13af6c"
+  },
+  "pmcc-negative-delta-trap": {
+    "video": "/academy-media/pmcc-negative-delta-trap/lesson.mp4",
+    "captions": "/academy-media/pmcc-negative-delta-trap/captions.vtt",
+    "thumbnail": "/academy-media/pmcc-negative-delta-trap/thumb.jpg",
+    "durationSeconds": 55.6,
+    "bytes": 1349555,
+    "sha256": "bfc7727fd4da97df09b8df4ff835ee042d0206f57d8e9d3d5e25397fc08f4026",
+    "renderedAt": "2026-10-30T09:04:41.249Z",
+    "specHash": "3294f220c06ea0b4"
+  },
+  "poor-mans-covered-put": {
+    "video": "/academy-media/poor-mans-covered-put/lesson.mp4",
+    "captions": "/academy-media/poor-mans-covered-put/captions.vtt",
+    "thumbnail": "/academy-media/poor-mans-covered-put/thumb.jpg",
+    "durationSeconds": 41.4,
+    "bytes": 1019835,
+    "sha256": "c88fa8087a337e30388a1e62ae318377f200aaee1d290987a35c420b8d21721f",
+    "renderedAt": "2026-10-30T07:50:26.575Z",
+    "specHash": "22d06c619c5d8c25"
+  },
+  "premium-is-not-income": {
+    "video": "/academy-media/premium-is-not-income/lesson.mp4",
+    "captions": "/academy-media/premium-is-not-income/captions.vtt",
+    "thumbnail": "/academy-media/premium-is-not-income/thumb.jpg",
+    "durationSeconds": 36.7,
+    "bytes": 913275,
+    "sha256": "c48ab76132365e77294d1b0373e2744b971e80f62e13b5c7a733eef4c9424ae7",
+    "renderedAt": "2026-10-30T08:00:21.117Z",
+    "specHash": "f71452b38805aa30"
+  },
+  "premortem-worst-case-bias": {
+    "video": "/academy-media/premortem-worst-case-bias/lesson.mp4",
+    "captions": "/academy-media/premortem-worst-case-bias/captions.vtt",
+    "thumbnail": "/academy-media/premortem-worst-case-bias/thumb.jpg",
+    "durationSeconds": 29,
+    "bytes": 803161,
+    "sha256": "a60f3c8ffabdfd91b76764408c28ec5dba7056b1b93220e0a2367edf3cb59517",
+    "renderedAt": "2026-10-30T08:59:53.996Z",
+    "specHash": "4dde8e776a28bab5"
+  },
+  "put-call-parity-synthetic-stock": {
+    "video": "/academy-media/put-call-parity-synthetic-stock/lesson.mp4",
+    "captions": "/academy-media/put-call-parity-synthetic-stock/captions.vtt",
+    "thumbnail": "/academy-media/put-call-parity-synthetic-stock/thumb.jpg",
+    "durationSeconds": 41.5,
+    "bytes": 1035940,
+    "sha256": "62ec5291eb0739854ea523df04dd2a604c5b08ca265c61796e56427252b80f28",
+    "renderedAt": "2026-10-30T08:58:31.427Z",
+    "specHash": "c3ecb542af97536f"
+  },
+  "qe-is-not-money-printing": {
+    "video": "/academy-media/qe-is-not-money-printing/lesson.mp4",
+    "captions": "/academy-media/qe-is-not-money-printing/captions.vtt",
+    "thumbnail": "/academy-media/qe-is-not-money-printing/thumb.jpg",
+    "durationSeconds": 31.6,
+    "bytes": 843242,
+    "sha256": "864527b26ca9f5c23094a7e25e763d38dd87b8940358b17b31bb6a98a5127e17",
+    "renderedAt": "2026-10-30T09:33:41.918Z",
+    "specHash": "e565f4585dbf41a5"
+  },
+  "quilt-chart-asset-class-rebalance": {
+    "video": "/academy-media/quilt-chart-asset-class-rebalance/lesson.mp4",
+    "captions": "/academy-media/quilt-chart-asset-class-rebalance/captions.vtt",
+    "thumbnail": "/academy-media/quilt-chart-asset-class-rebalance/thumb.jpg",
+    "durationSeconds": 31.2,
+    "bytes": 803028,
+    "sha256": "2215181e3922caca3b67ca882a695579ceedb63960e9f968111a4aa2d3fe2545",
+    "renderedAt": "2026-10-30T09:40:23.477Z",
+    "specHash": "88045db1a5d7790e"
+  },
+  "ratio-call-spread-naked-risk": {
+    "video": "/academy-media/ratio-call-spread-naked-risk/lesson.mp4",
+    "captions": "/academy-media/ratio-call-spread-naked-risk/captions.vtt",
+    "thumbnail": "/academy-media/ratio-call-spread-naked-risk/thumb.jpg",
+    "durationSeconds": 52.7,
+    "bytes": 1164523,
+    "sha256": "de434b1a714d237d37a62875157b644c49afef1ffb63174df37f252bf39477cf",
+    "renderedAt": "2026-10-30T07:52:55.521Z",
+    "specHash": "c05e0189890a70dd"
+  },
+  "ratio-spreads-two-trades": {
+    "video": "/academy-media/ratio-spreads-two-trades/lesson.mp4",
+    "captions": "/academy-media/ratio-spreads-two-trades/captions.vtt",
+    "thumbnail": "/academy-media/ratio-spreads-two-trades/thumb.jpg",
+    "durationSeconds": 37.3,
+    "bytes": 988487,
+    "sha256": "0a8e408abb776fe40590746d565e465775254f5a40c6397fa559a25809ec30f0",
+    "renderedAt": "2026-10-30T08:37:03.745Z",
+    "specHash": "fc0fefb333374dd1"
+  },
+  "realized-vol-backward-looking": {
+    "video": "/academy-media/realized-vol-backward-looking/lesson.mp4",
+    "captions": "/academy-media/realized-vol-backward-looking/captions.vtt",
+    "thumbnail": "/academy-media/realized-vol-backward-looking/thumb.jpg",
+    "durationSeconds": 32.3,
+    "bytes": 827736,
+    "sha256": "7d16e25a4def1859af21103e8a8af73bf97e61e11da330e3eea1e599bd8b78ed",
+    "renderedAt": "2026-10-30T07:33:10.912Z",
+    "specHash": "7522a74d7e2cc8ba"
+  },
+  "replicate-stock-three-ways": {
+    "video": "/academy-media/replicate-stock-three-ways/lesson.mp4",
+    "captions": "/academy-media/replicate-stock-three-ways/captions.vtt",
+    "thumbnail": "/academy-media/replicate-stock-three-ways/thumb.jpg",
+    "durationSeconds": 47.3,
+    "bytes": 1146966,
+    "sha256": "25f3b2e954a3ce270565f43f3c0f9e6dccd144bada61ba3f2ee9b5a89827c9d8",
+    "renderedAt": "2026-10-30T07:48:27.913Z",
+    "specHash": "d4ad747efe940946"
+  },
+  "rich-or-cheap-options-survey": {
+    "video": "/academy-media/rich-or-cheap-options-survey/lesson.mp4",
+    "captions": "/academy-media/rich-or-cheap-options-survey/captions.vtt",
+    "thumbnail": "/academy-media/rich-or-cheap-options-survey/thumb.jpg",
+    "durationSeconds": 23.9,
+    "bytes": 698565,
+    "sha256": "00c3546e6a0a25fe0a55d74148acd73575fce97a0748b0b18acc66f7b4e112da",
+    "renderedAt": "2026-10-30T08:35:17.501Z",
+    "specHash": "abee7092cd5ac38e"
+  },
+  "risk-first-max-downside": {
+    "video": "/academy-media/risk-first-max-downside/lesson.mp4",
+    "captions": "/academy-media/risk-first-max-downside/captions.vtt",
+    "thumbnail": "/academy-media/risk-first-max-downside/thumb.jpg",
+    "durationSeconds": 32.2,
+    "bytes": 675004,
+    "sha256": "d2b45848efffeba8b5eb3c95bcf19b41761a74a97c6849c743de6c81e496ef24",
+    "renderedAt": "2026-10-30T09:14:51.033Z",
+    "specHash": "0a60206091a5c3b1"
+  },
+  "risk-invest-overlay-hierarchy": {
+    "video": "/academy-media/risk-invest-overlay-hierarchy/lesson.mp4",
+    "captions": "/academy-media/risk-invest-overlay-hierarchy/captions.vtt",
+    "thumbnail": "/academy-media/risk-invest-overlay-hierarchy/thumb.jpg",
+    "durationSeconds": 26.2,
+    "bytes": 710734,
+    "sha256": "2c9b3316208a9cbd20bfaca58ff92f30d5cc47c0872f15ac0fee826e4a4bfb60",
+    "renderedAt": "2026-10-30T09:09:30.286Z",
+    "specHash": "c7d4996c857a9e9b"
+  },
+  "selling-options-is-situational": {
+    "video": "/academy-media/selling-options-is-situational/lesson.mp4",
+    "captions": "/academy-media/selling-options-is-situational/captions.vtt",
+    "thumbnail": "/academy-media/selling-options-is-situational/thumb.jpg",
+    "durationSeconds": 37.2,
+    "bytes": 920231,
+    "sha256": "18fb5d7a16554be3bba08aedec07c6014b9da82c44d02937ff0e80cf76649134",
+    "renderedAt": "2026-10-30T09:08:14.768Z",
+    "specHash": "1ed9d88664859769"
+  },
+  "selling-options-piece-of-puzzle": {
+    "video": "/academy-media/selling-options-piece-of-puzzle/lesson.mp4",
+    "captions": "/academy-media/selling-options-piece-of-puzzle/captions.vtt",
+    "thumbnail": "/academy-media/selling-options-piece-of-puzzle/thumb.jpg",
+    "durationSeconds": 49.4,
+    "bytes": 1201643,
+    "sha256": "e73f25175ab5c24b004c9cf24e779afe94317ad84b2fff51f9e3048f82285e44",
+    "renderedAt": "2026-10-30T08:51:57.559Z",
+    "specHash": "d71c8ad00af68983"
+  },
+  "selling-volatility-second-order": {
+    "video": "/academy-media/selling-volatility-second-order/lesson.mp4",
+    "captions": "/academy-media/selling-volatility-second-order/captions.vtt",
+    "thumbnail": "/academy-media/selling-volatility-second-order/thumb.jpg",
+    "durationSeconds": 39.2,
+    "bytes": 990119,
+    "sha256": "3131f530a46945dea0d01cdd69a9fa0711ba60c643b4da5db47212d79ace86eb",
+    "renderedAt": "2026-10-30T09:28:07.624Z",
+    "specHash": "b1005a562da577e9"
+  },
+  "short-premium-iv-vs-rv-bet": {
+    "video": "/academy-media/short-premium-iv-vs-rv-bet/lesson.mp4",
+    "captions": "/academy-media/short-premium-iv-vs-rv-bet/captions.vtt",
+    "thumbnail": "/academy-media/short-premium-iv-vs-rv-bet/thumb.jpg",
+    "durationSeconds": 29.7,
+    "bytes": 883985,
+    "sha256": "e1913e85ad763cf315ecb98d19c7c941f78b162c22525ff8b29dd21758bebab5",
+    "renderedAt": "2026-10-30T07:58:36.194Z",
+    "specHash": "38852d80455bd72f"
+  },
+  "smci-debit-call-spreads-after-selloff": {
+    "video": "/academy-media/smci-debit-call-spreads-after-selloff/lesson.mp4",
+    "captions": "/academy-media/smci-debit-call-spreads-after-selloff/captions.vtt",
+    "thumbnail": "/academy-media/smci-debit-call-spreads-after-selloff/thumb.jpg",
+    "durationSeconds": 56.5,
+    "bytes": 1571205,
+    "sha256": "75562c1d6fe088dee4caadcbea207e882659ed6e2c83e4990f47edf4f7e470f1",
+    "renderedAt": "2026-10-30T08:09:56.812Z",
+    "specHash": "0ad61f7ed682a1b4"
+  },
+  "sofi-call-spread-vs-put-spread": {
+    "video": "/academy-media/sofi-call-spread-vs-put-spread/lesson.mp4",
+    "captions": "/academy-media/sofi-call-spread-vs-put-spread/captions.vtt",
+    "thumbnail": "/academy-media/sofi-call-spread-vs-put-spread/thumb.jpg",
+    "durationSeconds": 36.1,
+    "bytes": 885151,
+    "sha256": "71c3f5ccd8cf8b75dc61628d79920597423d993f29959156eef450c0dcabf9b7",
+    "renderedAt": "2026-10-30T09:11:12.794Z",
+    "specHash": "00d47a8b8134fd80"
+  },
+  "sold-option-return-on-max-loss": {
+    "video": "/academy-media/sold-option-return-on-max-loss/lesson.mp4",
+    "captions": "/academy-media/sold-option-return-on-max-loss/captions.vtt",
+    "thumbnail": "/academy-media/sold-option-return-on-max-loss/thumb.jpg",
+    "durationSeconds": 44.6,
+    "bytes": 1056005,
+    "sha256": "61f7aa6dd1bcb187bfbdfcef5a4b93af34d4219057b379584aaf72724079bb4c",
+    "renderedAt": "2026-10-30T09:13:19.308Z",
+    "specHash": "16cdccce997b4ab7"
+  },
+  "stock-replacement-three-ways": {
+    "video": "/academy-media/stock-replacement-three-ways/lesson.mp4",
+    "captions": "/academy-media/stock-replacement-three-ways/captions.vtt",
+    "thumbnail": "/academy-media/stock-replacement-three-ways/thumb.jpg",
+    "durationSeconds": 43.1,
+    "bytes": 1381178,
+    "sha256": "fc415b82bb3c098625ca1f2ae0d854f139c08990fc2fd33ac6317c5991c954c3",
+    "renderedAt": "2026-10-30T07:42:42.678Z",
+    "specHash": "ad6a965c4b310866"
+  },
+  "stop-loss-vs-max-downside": {
+    "video": "/academy-media/stop-loss-vs-max-downside/lesson.mp4",
+    "captions": "/academy-media/stop-loss-vs-max-downside/captions.vtt",
+    "thumbnail": "/academy-media/stop-loss-vs-max-downside/thumb.jpg",
+    "durationSeconds": 34.6,
+    "bytes": 922535,
+    "sha256": "d0fc4015b36dc61197bf4d9c94e46e53f93b58e385fabc6e07db11beaa4b41ff",
+    "renderedAt": "2026-10-30T08:15:06.443Z",
+    "specHash": "a39ec6187ab1f472"
+  },
+  "stop-selling-calls-after-crash": {
+    "video": "/academy-media/stop-selling-calls-after-crash/lesson.mp4",
+    "captions": "/academy-media/stop-selling-calls-after-crash/captions.vtt",
+    "thumbnail": "/academy-media/stop-selling-calls-after-crash/thumb.jpg",
+    "durationSeconds": 39.1,
+    "bytes": 930616,
+    "sha256": "959b18fe99ba92b8db8a50c89a15b1af96909d556cb6c926dfbc76aa610aa56c",
+    "renderedAt": "2026-10-30T08:11:48.156Z",
+    "specHash": "b58f54d72903d69e"
+  },
+  "strategy-needs-off-switch": {
+    "video": "/academy-media/strategy-needs-off-switch/lesson.mp4",
+    "captions": "/academy-media/strategy-needs-off-switch/captions.vtt",
+    "thumbnail": "/academy-media/strategy-needs-off-switch/thumb.jpg",
+    "durationSeconds": 35,
+    "bytes": 905524,
+    "sha256": "1c29641821c2ca06fa132440ef0c5d30c722d4133151e690bbfec002ad6c981a",
+    "renderedAt": "2026-10-30T08:03:40.523Z",
+    "specHash": "d5c239b93c1d7567"
+  },
+  "strategy-needs-stop-conditions": {
+    "video": "/academy-media/strategy-needs-stop-conditions/lesson.mp4",
+    "captions": "/academy-media/strategy-needs-stop-conditions/captions.vtt",
+    "thumbnail": "/academy-media/strategy-needs-stop-conditions/thumb.jpg",
+    "durationSeconds": 35.3,
+    "bytes": 888039,
+    "sha256": "5e129e9645ab71d36f2f38a52ae83ddb4f8205430a143a9245e264562f60bb72",
+    "renderedAt": "2026-10-30T08:46:11.521Z",
+    "specHash": "2a1999dbc29ef2a4"
+  },
+  "synthetic-long-skip-the-put": {
+    "video": "/academy-media/synthetic-long-skip-the-put/lesson.mp4",
+    "captions": "/academy-media/synthetic-long-skip-the-put/captions.vtt",
+    "thumbnail": "/academy-media/synthetic-long-skip-the-put/thumb.jpg",
+    "durationSeconds": 52.7,
+    "bytes": 1431266,
+    "sha256": "a56c55456bc11c8a71a6135fbe5adeaa56b0a136117e54eeff3c1e909a3060f8",
+    "renderedAt": "2026-10-30T08:56:33.164Z",
+    "specHash": "1eed6bdf2437dc5d"
+  },
+  "ten-wide-call-spread-math": {
+    "video": "/academy-media/ten-wide-call-spread-math/lesson.mp4",
+    "captions": "/academy-media/ten-wide-call-spread-math/captions.vtt",
+    "thumbnail": "/academy-media/ten-wide-call-spread-math/thumb.jpg",
+    "durationSeconds": 48.4,
+    "bytes": 1090386,
+    "sha256": "53dcba15df6a1dc32768537d55c1d22532a37bf66432b51498bf6ca9c90cc71d",
+    "renderedAt": "2026-10-30T08:20:46.499Z",
+    "specHash": "878c380011528a38"
+  },
+  "theta-decay-schedule-roll": {
+    "video": "/academy-media/theta-decay-schedule-roll/lesson.mp4",
+    "captions": "/academy-media/theta-decay-schedule-roll/captions.vtt",
+    "thumbnail": "/academy-media/theta-decay-schedule-roll/thumb.jpg",
+    "durationSeconds": 49.8,
+    "bytes": 1379437,
+    "sha256": "b9cbd62cc979a74357d243295ae03243c488fde486a2521028e55cc52bb5f143",
+    "renderedAt": "2026-10-30T07:31:38.169Z",
+    "specHash": "1b9d1fd66ccf6e4d"
+  },
+  "theta-is-the-price-of-gamma": {
+    "video": "/academy-media/theta-is-the-price-of-gamma/lesson.mp4",
+    "captions": "/academy-media/theta-is-the-price-of-gamma/captions.vtt",
+    "thumbnail": "/academy-media/theta-is-the-price-of-gamma/thumb.jpg",
+    "durationSeconds": 38.2,
+    "bytes": 912177,
+    "sha256": "252b1311d930c04b8cd126e691eedef99ffeac4c7252a1e0bbc1bb872370fcd8",
+    "renderedAt": "2026-10-30T08:42:41.316Z",
+    "specHash": "0985bcd10f81820c"
+  },
+  "three-rules-define-size-dry-powder": {
+    "video": "/academy-media/three-rules-define-size-dry-powder/lesson.mp4",
+    "captions": "/academy-media/three-rules-define-size-dry-powder/captions.vtt",
+    "thumbnail": "/academy-media/three-rules-define-size-dry-powder/thumb.jpg",
+    "durationSeconds": 39.1,
+    "bytes": 1013552,
+    "sha256": "a065638ad26614fa3551665c9783c6b58665b3e6ebbee352f8001fa95d7dbce0",
+    "renderedAt": "2026-10-30T07:54:46.665Z",
+    "specHash": "c72d4dd366e552ea"
+  },
+  "three-trading-biases": {
+    "video": "/academy-media/three-trading-biases/lesson.mp4",
+    "captions": "/academy-media/three-trading-biases/captions.vtt",
+    "thumbnail": "/academy-media/three-trading-biases/thumb.jpg",
+    "durationSeconds": 35.3,
+    "bytes": 1198169,
+    "sha256": "5fb68eb73cbb703b52118c7cd31921a10424c303a60b47f5a131c91b388f2f5a",
+    "renderedAt": "2026-10-30T08:13:28.247Z",
+    "specHash": "cd1737b68296bdba"
+  },
+  "trade-deficits-and-treasuries": {
+    "video": "/academy-media/trade-deficits-and-treasuries/lesson.mp4",
+    "captions": "/academy-media/trade-deficits-and-treasuries/captions.vtt",
+    "thumbnail": "/academy-media/trade-deficits-and-treasuries/thumb.jpg",
+    "durationSeconds": 25.4,
+    "bytes": 656045,
+    "sha256": "32018d6cc5f79a2f8915ac984297992b1b34cb268ad1358351e118d5636de892",
+    "renderedAt": "2026-10-30T09:32:10.883Z",
+    "specHash": "a26089408e8ef7ce"
+  },
+  "treasury-issuance-fed-charter": {
+    "video": "/academy-media/treasury-issuance-fed-charter/lesson.mp4",
+    "captions": "/academy-media/treasury-issuance-fed-charter/captions.vtt",
+    "thumbnail": "/academy-media/treasury-issuance-fed-charter/thumb.jpg",
+    "durationSeconds": 36.3,
+    "bytes": 934083,
+    "sha256": "1c4be0fbb9f14d8683421198ab52fca25baf11cab8a929e51c2866cd4793703f",
+    "renderedAt": "2026-10-30T09:37:13.333Z",
+    "specHash": "c0935f214d097e55"
+  },
+  "two-questions-before-any-trade": {
+    "video": "/academy-media/two-questions-before-any-trade/lesson.mp4",
+    "captions": "/academy-media/two-questions-before-any-trade/captions.vtt",
+    "thumbnail": "/academy-media/two-questions-before-any-trade/thumb.jpg",
+    "durationSeconds": 29.9,
+    "bytes": 1034915,
+    "sha256": "e588c1039662c2367c0b7ba2ee2c3c9c33404b487d6d0123a04e332f25157f0f",
+    "renderedAt": "2026-10-30T08:16:32.180Z",
+    "specHash": "71238c0b1d922141"
+  },
+  "underappreciated-market-risk-2026": {
+    "video": "/academy-media/underappreciated-market-risk-2026/lesson.mp4",
+    "captions": "/academy-media/underappreciated-market-risk-2026/captions.vtt",
+    "thumbnail": "/academy-media/underappreciated-market-risk-2026/thumb.jpg",
+    "durationSeconds": 28.3,
+    "bytes": 617982,
+    "sha256": "f46bfa21d81583a0b79b1c5d424b2487d3c5a8e1626a2e51b717ff5e7edc81b5",
+    "renderedAt": "2026-10-30T09:30:57.047Z",
+    "specHash": "15a5d4798ce596e8"
+  },
+  "upside-compensation-ratio": {
+    "video": "/academy-media/upside-compensation-ratio/lesson.mp4",
+    "captions": "/academy-media/upside-compensation-ratio/captions.vtt",
+    "thumbnail": "/academy-media/upside-compensation-ratio/thumb.jpg",
+    "durationSeconds": 37,
+    "bytes": 982858,
+    "sha256": "47e951e68df72d6d8dd03d55f90cc5027f7cb01b90516891d8509752432cacb0",
+    "renderedAt": "2026-10-30T09:06:26.850Z",
+    "specHash": "a320579df24cd2c8"
+  },
+  "vay-premium-in-context": {
+    "video": "/academy-media/vay-premium-in-context/lesson.mp4",
+    "captions": "/academy-media/vay-premium-in-context/captions.vtt",
+    "thumbnail": "/academy-media/vay-premium-in-context/thumb.jpg",
+    "durationSeconds": 38.2,
+    "bytes": 1297660,
+    "sha256": "38005da5c9c532d84195f3440ed9f04a185bb0f15e8b141435fe7e728aed2b19",
+    "renderedAt": "2026-10-30T08:44:30.527Z",
+    "specHash": "c25c6d7fa430c0d2"
+  },
+  "vay-premium-sharpe-ratio": {
+    "video": "/academy-media/vay-premium-sharpe-ratio/lesson.mp4",
+    "captions": "/academy-media/vay-premium-sharpe-ratio/captions.vtt",
+    "thumbnail": "/academy-media/vay-premium-sharpe-ratio/thumb.jpg",
+    "durationSeconds": 34.2,
+    "bytes": 901279,
+    "sha256": "c7eb15ee6e0bc3250ba8021b1d47cff4fa9ce28eadfb406f5be1620ca3036b4b",
+    "renderedAt": "2026-10-30T09:38:53.162Z",
+    "specHash": "874bc8d95ba6cdd5"
+  },
+  "vay-score-yield-per-risk": {
+    "video": "/academy-media/vay-score-yield-per-risk/lesson.mp4",
+    "captions": "/academy-media/vay-score-yield-per-risk/captions.vtt",
+    "thumbnail": "/academy-media/vay-score-yield-per-risk/thumb.jpg",
+    "durationSeconds": 35.9,
+    "bytes": 900919,
+    "sha256": "5838795167a6dc8ef8fa507a6e3605ae074f7283722cbd36caf6c894516503cd",
+    "renderedAt": "2026-10-30T08:26:07.084Z",
+    "specHash": "34f44295d30a9af4"
+  },
+  "vay-volatility-adjusted-yield": {
+    "video": "/academy-media/vay-volatility-adjusted-yield/lesson.mp4",
+    "captions": "/academy-media/vay-volatility-adjusted-yield/captions.vtt",
+    "thumbnail": "/academy-media/vay-volatility-adjusted-yield/thumb.jpg",
+    "durationSeconds": 28.4,
+    "bytes": 850371,
+    "sha256": "d9b3408c67e9e2631e336e76a639077b962ada6264d7f30c5993a104b44b5c7e",
+    "renderedAt": "2026-10-30T08:47:32.604Z",
+    "specHash": "1736dcd13270ffba"
+  },
+  "vay-weekly-yield-quality": {
+    "video": "/academy-media/vay-weekly-yield-quality/lesson.mp4",
+    "captions": "/academy-media/vay-weekly-yield-quality/captions.vtt",
+    "thumbnail": "/academy-media/vay-weekly-yield-quality/thumb.jpg",
+    "durationSeconds": 44.2,
+    "bytes": 1059722,
+    "sha256": "385b93b2c93789d4f2e644c9b82d624f598dbf0f5d138ff64e8673b5f718839c",
+    "renderedAt": "2026-10-30T09:42:38.538Z",
+    "specHash": "6c415f31303c81f8"
+  },
+  "vay-yield-vs-risk-taken": {
+    "video": "/academy-media/vay-yield-vs-risk-taken/lesson.mp4",
+    "captions": "/academy-media/vay-yield-vs-risk-taken/captions.vtt",
+    "thumbnail": "/academy-media/vay-yield-vs-risk-taken/thumb.jpg",
+    "durationSeconds": 45,
+    "bytes": 1289015,
+    "sha256": "66aa13cad3d0ae70f4a377ff5abecf9b5a7039dadfe56076d4442d87aa9fb05c",
+    "renderedAt": "2026-10-30T08:07:17.749Z",
+    "specHash": "7aa0e2a7314f096d"
+  },
+  "vega-exposure-basics": {
+    "video": "/academy-media/vega-exposure-basics/lesson.mp4",
+    "captions": "/academy-media/vega-exposure-basics/captions.vtt",
+    "thumbnail": "/academy-media/vega-exposure-basics/thumb.jpg",
+    "durationSeconds": 37.2,
+    "bytes": 1117927,
+    "sha256": "878f50eb1c10be4907dd8a6b98273a26c20875350006fd8f05f04c5c00d13a26",
+    "renderedAt": "2026-10-30T07:29:16.744Z",
+    "specHash": "cf0ed18dcba28ae1"
+  },
+  "vertical-spread-ev-zero": {
+    "video": "/academy-media/vertical-spread-ev-zero/lesson.mp4",
+    "captions": "/academy-media/vertical-spread-ev-zero/captions.vtt",
+    "thumbnail": "/academy-media/vertical-spread-ev-zero/thumb.jpg",
+    "durationSeconds": 42.5,
+    "bytes": 1374469,
+    "sha256": "50ea6590d3acd18b72c31fd97c76d935c0fd772b05d6912f9607568e8e319a27",
+    "renderedAt": "2026-10-30T07:39:11.215Z",
+    "specHash": "187ea4302021e65b"
+  },
+  "virtual-trading-desk-overlay": {
+    "video": "/academy-media/virtual-trading-desk-overlay/lesson.mp4",
+    "captions": "/academy-media/virtual-trading-desk-overlay/captions.vtt",
+    "thumbnail": "/academy-media/virtual-trading-desk-overlay/thumb.jpg",
+    "durationSeconds": 30.4,
+    "bytes": 811946,
+    "sha256": "ea513733410ce4cad48520e72663f8c111e0020e31b8a780c42bb3762d2f1304",
+    "renderedAt": "2026-10-30T09:29:35.351Z",
+    "specHash": "bdf87d5ddcff3d72"
+  },
+  "volatility-adjusted-yield": {
+    "video": "/academy-media/volatility-adjusted-yield/lesson.mp4",
+    "captions": "/academy-media/volatility-adjusted-yield/captions.vtt",
+    "thumbnail": "/academy-media/volatility-adjusted-yield/thumb.jpg",
+    "durationSeconds": 43.9,
+    "bytes": 1322810,
+    "sha256": "d3c0643ec769abd31469ccc3aa0fde747bc0ac1373ae35833d0f59af1ca2f565",
+    "renderedAt": "2026-10-30T08:49:37.479Z",
+    "specHash": "25e07895f7d4f136"
+  },
+  "volatility-as-an-asset": {
+    "video": "/academy-media/volatility-as-an-asset/lesson.mp4",
+    "captions": "/academy-media/volatility-as-an-asset/captions.vtt",
+    "thumbnail": "/academy-media/volatility-as-an-asset/thumb.jpg",
+    "durationSeconds": 37.2,
+    "bytes": 996613,
+    "sha256": "5ff60d98bf448cfe60aa619b0a3c34a01baa4a43caef8bedf6224239ff4d50e7",
+    "renderedAt": "2026-10-30T08:40:53.233Z",
+    "specHash": "cc5c6f0452792ab3"
+  },
+  "volatility-risk-premium": {
+    "video": "/academy-media/volatility-risk-premium/lesson.mp4",
+    "captions": "/academy-media/volatility-risk-premium/captions.vtt",
+    "thumbnail": "/academy-media/volatility-risk-premium/thumb.jpg",
+    "durationSeconds": 37.5,
+    "bytes": 1013604,
+    "sha256": "23e8a6fe36c5dd1fdca880eafdaff4e486bd57d4badb360c9898976b6051312f",
+    "renderedAt": "2026-10-30T08:34:09.268Z",
+    "specHash": "0ec2b0ee95f8dd57"
+  },
+  "volatility-risk-premium-rich-cheap": {
+    "video": "/academy-media/volatility-risk-premium-rich-cheap/lesson.mp4",
+    "captions": "/academy-media/volatility-risk-premium-rich-cheap/captions.vtt",
+    "thumbnail": "/academy-media/volatility-risk-premium-rich-cheap/thumb.jpg",
+    "durationSeconds": 30.5,
+    "bytes": 809779,
+    "sha256": "f433366218c99323d57ac0a6b527d709e18e0751b7cb97993220e713e0daacad",
+    "renderedAt": "2026-10-30T07:40:39.095Z",
+    "specHash": "7527abde2d6addd4"
+  },
+  "vrp-cheap-fair-rich": {
+    "video": "/academy-media/vrp-cheap-fair-rich/lesson.mp4",
+    "captions": "/academy-media/vrp-cheap-fair-rich/captions.vtt",
+    "thumbnail": "/academy-media/vrp-cheap-fair-rich/thumb.jpg",
+    "durationSeconds": 32.8,
+    "bytes": 922229,
+    "sha256": "d93b691fc56650c946fd5251b94386d634a2c3cff7cc695db1e313a9031d3f3d",
+    "renderedAt": "2026-10-30T07:34:44.211Z",
+    "specHash": "37ecb9125c8967fa"
+  },
+  "wealth-ownership-convexity": {
+    "video": "/academy-media/wealth-ownership-convexity/lesson.mp4",
+    "captions": "/academy-media/wealth-ownership-convexity/captions.vtt",
+    "thumbnail": "/academy-media/wealth-ownership-convexity/thumb.jpg",
+    "durationSeconds": 53.7,
+    "bytes": 1629916,
+    "sha256": "5b5b4ca1705aaa3844f4bed65e849e23d3c76b119a728689e3008866b40fe102",
+    "renderedAt": "2026-10-30T09:22:19.973Z",
+    "specHash": "d2f6111472eaf2b2"
+  },
+  "wheel-autopilot-short-vol": {
+    "video": "/academy-media/wheel-autopilot-short-vol/lesson.mp4",
+    "captions": "/academy-media/wheel-autopilot-short-vol/captions.vtt",
+    "thumbnail": "/academy-media/wheel-autopilot-short-vol/thumb.jpg",
+    "durationSeconds": 35.5,
+    "bytes": 977416,
+    "sha256": "45f31d7b25f9f31b804a2191316978d10a1fa7cce8c32bd1d8f4324aaecf9d01",
+    "renderedAt": "2026-10-30T08:27:48.668Z",
+    "specHash": "c8ec2af17bfdce1b"
+  },
+  "wheel-csp-equals-covered-call": {
+    "video": "/academy-media/wheel-csp-equals-covered-call/lesson.mp4",
+    "captions": "/academy-media/wheel-csp-equals-covered-call/captions.vtt",
+    "thumbnail": "/academy-media/wheel-csp-equals-covered-call/thumb.jpg",
+    "durationSeconds": 41.2,
+    "bytes": 1108565,
+    "sha256": "a92e32c495786740b08b536f622956d8e51076a13c80800e50a5666eec4b9773",
+    "renderedAt": "2026-10-30T08:18:29.557Z",
+    "specHash": "25a15d076a7c99c7"
+  },
+  "wheel-inception-to-date-pnl": {
+    "video": "/academy-media/wheel-inception-to-date-pnl/lesson.mp4",
+    "captions": "/academy-media/wheel-inception-to-date-pnl/captions.vtt",
+    "thumbnail": "/academy-media/wheel-inception-to-date-pnl/thumb.jpg",
+    "durationSeconds": 32.6,
+    "bytes": 774754,
+    "sha256": "c68a71adcba514958c62b5a92e44a9da40f1060a52565ced77601a43b25718bb",
+    "renderedAt": "2026-10-30T09:18:03.466Z",
+    "specHash": "7a579cbb3c6b9e35"
+  },
+  "wheel-no-wealth-without-assets": {
+    "video": "/academy-media/wheel-no-wealth-without-assets/lesson.mp4",
+    "captions": "/academy-media/wheel-no-wealth-without-assets/captions.vtt",
+    "thumbnail": "/academy-media/wheel-no-wealth-without-assets/thumb.jpg",
+    "durationSeconds": 33.6,
+    "bytes": 872325,
+    "sha256": "26da2e60c2383e38db6b047c9b532fa44848c3eea5282de84ada17ec5567fbdc",
+    "renderedAt": "2026-10-30T09:26:15.655Z",
+    "specHash": "1654227d7afde8b9"
+  },
+  "when-to-sell-options-iv-rv-chart": {
+    "video": "/academy-media/when-to-sell-options-iv-rv-chart/lesson.mp4",
+    "captions": "/academy-media/when-to-sell-options-iv-rv-chart/captions.vtt",
+    "thumbnail": "/academy-media/when-to-sell-options-iv-rv-chart/thumb.jpg",
+    "durationSeconds": 31.4,
+    "bytes": 850646,
+    "sha256": "5fd94229e2b57bd1cccc55515167876540652d1eb49fa91543efcd9375672ba1",
+    "renderedAt": "2026-10-30T08:05:10.189Z",
+    "specHash": "96ac884956c29a80"
+  },
+  "win-four-of-five-scenarios": {
+    "video": "/academy-media/win-four-of-five-scenarios/lesson.mp4",
+    "captions": "/academy-media/win-four-of-five-scenarios/captions.vtt",
+    "thumbnail": "/academy-media/win-four-of-five-scenarios/thumb.jpg",
+    "durationSeconds": 35.1,
+    "bytes": 866290,
+    "sha256": "2adff311a958939a506dfa38588a5317644e532341d7009c6b8b30e4a1298427",
+    "renderedAt": "2026-10-30T07:46:14.085Z",
+    "specHash": "4d1afbfed8be415f"
+  },
+  "worst-case-each-position": {
+    "video": "/academy-media/worst-case-each-position/lesson.mp4",
+    "captions": "/academy-media/worst-case-each-position/captions.vtt",
+    "thumbnail": "/academy-media/worst-case-each-position/thumb.jpg",
+    "durationSeconds": 32,
+    "bytes": 877465,
+    "sha256": "54481ed0edf027e467f7ea27286dcb79a58124348fecf0bd76ecf8718e81fa09",
+    "renderedAt": "2026-10-30T08:31:02.210Z",
+    "specHash": "1e3188917228ad52"
+  },
+  "would-you-buy-it-today": {
+    "video": "/academy-media/would-you-buy-it-today/lesson.mp4",
+    "captions": "/academy-media/would-you-buy-it-today/captions.vtt",
+    "thumbnail": "/academy-media/would-you-buy-it-today/thumb.jpg",
+    "durationSeconds": 34.6,
+    "bytes": 920076,
+    "sha256": "3739e995b05640d7c2030d943c061088f813ff7026092fe7338bf6e070b1d5df",
+    "renderedAt": "2026-10-30T09:16:29.950Z",
+    "specHash": "523a5ffef08cba5b"
+  }
+}

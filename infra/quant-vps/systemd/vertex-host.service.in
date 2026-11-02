@@ -1,0 +1,58 @@
+[Unit]
+Description=Vertex research and paper host (live execution disabled)
+After=local-fs.target
+RequiresMountsFor=@STATE_ROOT@
+ConditionPathIsRegular=@HOST_CONFIG@
+ConditionPathIsRegular=@PYTHON@
+
+[Service]
+Type=exec
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+WorkingDirectory=@RELEASE_ROOT@
+ExecStart=@PYTHON@ -I -B -m vertex_host --config @HOST_CONFIG@
+Environment=VERTEX_LIVE_EXECUTION=disabled
+Environment=PYTHONNOUSERSITE=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+UnsetEnvironment=PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONINSPECT LD_PRELOAD LD_LIBRARY_PATH BUN_OPTIONS NODE_OPTIONS IBKR_USERNAME IBKR_PASSWORD
+Restart=no
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=infinity
+SendSIGKILL=no
+FinalKillSignal=SIGTERM
+UMask=0077
+StandardInput=null
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=no
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+@CONTROL_EGRESS@
+ProtectKernelLogs=yes
+ProtectControlGroups=no
+Delegate=cpu memory pids
+DelegateSubgroup=host
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=user mnt pid net ipc uts cgroup
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+KeyringMode=private
+SystemCallArchitectures=native
+ReadOnlyPaths=@RELEASE_ROOT@ @HOST_CONFIG@
+ReadWritePaths=@STATE_ROOT@ @SANDBOX_CGROUP@
+
+# Intentionally no Install section: release approval starts the exact unit;
+# boot, package hooks, and service restart policies cannot rearm it implicitly.

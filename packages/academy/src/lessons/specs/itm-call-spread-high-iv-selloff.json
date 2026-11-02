@@ -1,0 +1,179 @@
+{
+  "slug": "itm-call-spread-high-iv-selloff",
+  "sourceId": "DZ8DMtClxOi",
+  "title": "In-the-money call spreads on a sold-off stock with high implied volatility",
+  "summary": "When a stock is getting crushed and implied volatility rises, the speaker buys an in-the-money call spread, which he says is economically the same as selling an out-of-the-money put spread. His Netflix example: at support, RSI low, below moving averages. A one-month spread gives long delta, positive carry if nothing happens, and short vega while IV is high.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["high-vol", "bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["vega", "positive carry", "support", "put-call parity"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ITM call spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "longStrike",
+          "dte": "dte",
+          "label": "Long call"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "shortStrike",
+          "dte": "dte",
+          "label": "Short call"
+        }
+      ]
+    },
+    "b": {
+      "label": "OTM put spread (credit)",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "long",
+          "qty": 1,
+          "strike": "longStrike",
+          "dte": "dte",
+          "label": "Long put"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "shortStrike",
+          "dte": "dte",
+          "label": "Short put"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "NFLX price",
+      "default": 90,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Lower strike",
+      "default": 80,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Upper strike",
+      "default": 85,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 45,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Netflix after a selloff, at support and below its moving averages. The $90 price and strikes are illustrative."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "A: buy the $80 call, sell the $85 call, one month out. Both strikes are in the money: you get long delta."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "B: sell the $85 put, buy the $80 put. The speaker says the two trades are economically the same."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven sits below the current price: positive carry, you make money if nothing happens."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "As time passes with the price unchanged, the spread moves toward its maximum.",
+      "time": [0, 1]
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Short vega: with IV high, a fall in implied volatility acts as a tailwind."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "putCallParity", "vega", "theta"],
+  "takeaways": [
+    "When a stock is getting crushed and IV is rising, an in-the-money call spread is one of the speaker's favorite structures.",
+    "He says buying the ITM call spread and selling the OTM put spread are economically the same; he prefers the call spread.",
+    "The structure is long delta, positive carry, and short vega when implied volatility is high.",
+    "His rule of thumb: be short vega when IV is high and long vega when IV is low."
+  ],
+  "caveats": [
+    "The speaker says it is not a trade recommendation. Netflix's price and the strikes here are illustrative; he gives none.",
+    "Earnings were a couple of weeks away, which he says affects his VAY score. VAY is the speaker's promotional metric.",
+    "Added context: if the stock ends below the lower strike at expiry, the full debit is lost."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["NFLX", "META", "AMD"],
+    "scenario": {
+      "label": "2018-2024 incl. 2022 drawdown",
+      "start": "2018-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "longDelta": 0.8,
+      "shortDelta": 0.65,
+      "exitDte": 3,
+      "profitTakePct": 20,
+      "stopLossPct": 60,
+      "riskPct": 2
+    },
+    "note": "One-month call spread with both strikes in the money. Deltas, profit take and stop are assumptions; the speaker gives no exit rules."
+  }
+}

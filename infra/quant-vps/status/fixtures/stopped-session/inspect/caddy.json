@@ -1,0 +1,15 @@
+{
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-09-25T16:39:03.536850945Z",
+    "FinishedAt": "2026-09-25T16:38:51.864318514Z",
+    "ExitCode": 0,
+    "OOMKilled": false
+  },
+  "RestartCount": 0,
+  "Config": {
+    "Image": "caddy:2-alpine",
+    "Env": []
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "account_masked": "U***0042",
+  "captured_at_epoch": 1790650106.42,
+  "generated_at": "2026-09-29T02:48:26.425234+00:00",
+  "open_orders": 2,
+  "schemaVersion": "ibkr-open-orders/v1",
+  "source": "ibkr_tws_api",
+  "orders": [
+    {
+      "account_masked": "U***0042",
+      "action": "SELL",
+      "aux_price": 95.0,
+      "avg_fill_price": 0.0,
+      "client_id": 0,
+      "contract": {
+        "currency": "USD",
+        "exchange": "SMART",
+        "sec_type": "STK",
+        "symbol": "ORCL"
+      },
+      "currency": "USD",
+      "exchange": "SMART",
+      "filled": 0.0,
+      "limit_price": 0.0,
+      "order_id": 0,
+      "order_type": "STP",
+      "remaining": 100.0,
+      "sec_type": "STK",
+      "status": "PreSubmitted",
+      "symbol": "ORCL",
+      "tif": "GTC",
+      "total_quantity": 100.0,
+      "warning_text": ""
+    },
+    {
+      "account_masked": "U***0042",
+      "action": "BUY",
+      "aux_price": 0.0,
+      "avg_fill_price": 0.0,
+      "client_id": 31,
+      "contract": {
+        "currency": "USD",
+        "exchange": "SMART",
+        "sec_type": "STK",
+        "symbol": "AMZN"
+      },
+      "currency": "USD",
+      "exchange": "SMART",
+      "filled": 0.0,
+      "limit_price": 200.25,
+      "order_id": 1234567,
+      "order_type": "LMT",
+      "remaining": 5.0,
+      "sec_type": "STK",
+      "status": "Submitted",
+      "symbol": "AMZN",
+      "tif": "DAY",
+      "total_quantity": 5.0,
+      "warning_text": "Order held for account U7654321"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-09-11T23:44:57.932341+00:00",
+  "source": "ibkr_tws_api",
+  "executions": [
+    {
+      "exec_id": "0000e0d5.65f1a2b3.01.01",
+      "time": "20260911 15:30:01 US/Eastern",
+      "account_masked": "U***0042",
+      "symbol": "ORCL",
+      "side": "BOT",
+      "shares": 100.0,
+      "price": 100.5,
+      "order_id": 1234500
+    },
+    {
+      "exec_id": "0000e0d5.65f1a2b4.01.01",
+      "time": "2026-09-11T19:45:00+00:00",
+      "account_masked": "U***0042",
+      "symbol": "AMZN",
+      "side": "SLD",
+      "shares": 3.0,
+      "price": 210.0,
+      "order_id": 1234501
+    }
+  ]
+}

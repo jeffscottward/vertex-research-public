@@ -1,0 +1,875 @@
+{
+  "schemaVersion": "1.0.0",
+  "purpose": "Authored F01-F14 execution failure source map; not a verification receipt",
+  "executionStatus": "not_run",
+  "nativeConformanceStatus": "not_run_native_bundle_not_generated",
+  "sourceOnly": true,
+  "validationCommandsExecuted": [],
+  "brokerActions": [],
+  "fixtureAuthority": {
+    "path": "services/execution/tests/test_failure_matrix.py",
+    "symbol": "TestAuthority",
+    "conformance": false,
+    "productionFallback": false,
+    "description": "Stdlib-only minimal owner fixtures; no public schema copies and no production codec replacement. Production uses vertex_contracts.ContractAuthority."
+  },
+  "acceptancePolicy": "All scenarios remain pending; authored sources, crossreferences, local fake decisions and static review are never interpreted as passing acceptance.",
+  "implementationSources": [
+    "services/execution/vertex_execution/journal.py",
+    "services/execution/vertex_execution/owner.py",
+    "services/execution/vertex_execution/ports.py",
+    "services/execution/vertex_execution/projection.py",
+    "services/execution/vertex_execution/exact.py"
+  ],
+  "scenarios": [
+    {
+      "id": "F01",
+      "title": "Duplicate job and intent delivery",
+      "scenario": "Deliver same account/environment key repeatedly and out of order: one durable effect; changed payload same key rejects.",
+      "sourceIds": ["S-774024c82321f4"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/0",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f01_duplicate_admission_and_dispatch_have_one_durable_effect",
+            "FailureMatrixTests.test_f01_same_key_changed_qualified_payload_is_rejected",
+            "FailureMatrixTests.test_f01_journal_duplicate_identity_and_changed_payload",
+            "FailureMatrixTests.test_f01_reservation_and_outbox_roll_back_together_on_projection_failure",
+            "FailureMatrixTests.test_f01_database_outbox_abort_does_not_commit_reservation",
+            "NativeFactIdentityTests.test_f01_one_transition_two_facts_preserve_source_identity_and_global_order",
+            "NativeFactIdentityTests.test_f01_duplicate_or_reordered_fact_ordinal_rolls_back_entire_transition",
+            "NativeFactIdentityTests.test_f01_native_proof_authority_requires_literal_true",
+            "NativeFactIdentityTests.test_f01_fact_count_is_bounded_at_sixty_four_per_source_transition",
+            "NativeFactIdentityTests.test_f01_nonconformance_proof_fixture_checks_exact_bindings_and_canonical_bytes"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_immutable_idempotency_and_conflict"
+          ],
+          "purpose": "Pure paper simulator duplicate command conflict",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Native canonical validation/byte parity and real transport integration remain unexecuted."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F02",
+      "title": "Broker timeout after possible acceptance",
+      "scenario": "Lose acknowledgment after broker acceptance: receipt unknown, reservation retained, reconcile existing order; never blind retry.",
+      "sourceIds": ["S-a8c27f390a4526"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/1",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f02_dispatch_marker_and_projection_precede_possible_acceptance",
+            "FailureMatrixTests.test_f02_empty_restarted_simulator_cannot_prove_absence",
+            "FailureMatrixTests.test_f02_unresolved_reconciliation_does_not_unlock_or_retry",
+            "FailureMatrixTests.test_f02_cancel_timeout_keeps_obligations_and_does_not_retry"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_unknown_acceptance_never_fills_expires_or_resubmits_itself",
+            "PaperSimulatorTests.test_fresh_empty_engine_does_not_claim_safe_absence",
+            "PaperSimulatorTests.test_unknown_checkpoint_remains_unknown_after_restore"
+          ],
+          "purpose": "Unknown retention and recovery without fabricated absence",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "No broker timeout was induced; scripted paper acceptance loss is the only local boundary model. Durable simulator bridge integration requires its separate source and later execution."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F03",
+      "title": "Restart with open orders",
+      "scenario": "Crash with working orders and restart: replay verified journal, reconcile broker, protect ownership, fence old epoch before admission.",
+      "sourceIds": ["S-7b9698437f9e38"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/2",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f03_restart_replays_open_order_then_requires_current_epoch_reconciliation",
+            "FailureMatrixTests.test_f03_crash_before_dispatch_keeps_reserve_and_rejects_stale_epoch_send",
+            "FailureMatrixTests.test_f03_lifetime_owner_lock_and_stale_in_memory_epoch",
+            "FailureMatrixTests.test_f03_database_epoch_compare_and_swap_fences_all_writes",
+            "FailureMatrixTests.test_f03_ledger_revision_compare_and_swap_is_atomic",
+            "FailureMatrixTests.test_f03_tampered_event_hash_stops_replay",
+            "FailureMatrixTests.test_f03_tampered_checkpoint_stops_replay",
+            "NativeFactIdentityTests.test_f03_owned_journal_origin_is_required_beyond_valid_proof_pair",
+            "NativeFactIdentityTests.test_f03_replay_detects_duplicate_source_ordinal_despite_rehashed_global_chain",
+            "NativeFactIdentityTests.test_f03_replay_detects_reordered_source_ordinals_despite_valid_proofs"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_checkpoint_restores_consumed_depth_event_ids_and_cancel_race",
+            "PaperSimulatorTests.test_checkpoint_rejects_mutation_wrong_provenance_and_model_drift"
+          ],
+          "purpose": "Simulator checkpoint recovery provenance",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Local close/reopen, interrupted durable markers, fcntl and corruption fixtures are authored; process-kill/fsync/power-loss and deployment fencing evidence remain pending."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F04",
+      "title": "Partial fill then cancel race",
+      "scenario": "Partial fill races cancellation: dedup execution IDs, reconcile remaining quantity and reserve only actual obligations.",
+      "sourceIds": ["S-a41a6db4e11b3d"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/3",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f04_partial_fill_cancel_race_dedups_execution_ids_and_releases_on_finality",
+            "FailureMatrixTests.test_f04_changed_execution_payload_and_overfill_leave_ledger_unchanged",
+            "FailureMatrixTests.test_f04_reconciliation_must_include_all_fills_and_final_event_ids",
+            "FailureMatrixTests.test_f04_out_of_order_acceptance_cannot_erase_partial_fills"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_cancel_pending_keeps_reservation_and_racing_fills",
+            "PaperSimulatorTests.test_zero_latency_cancel_is_not_final_until_causal_advance",
+            "PaperSimulatorTests.test_multileg_imbalance_caps_and_timeout_preserve_unhedged_fill"
+          ],
+          "purpose": "Pure matching/cancel race and multileg residuals",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Owner ledger and pure simulator race sources are separate; integrated durable bridge finality execution remains pending."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F05",
+      "title": "Stale/delayed quote",
+      "scenario": "Supply stale, delayed, absent or out-of-order quotes and unready positions: reject risk, never synthesize zero exposure.",
+      "sourceIds": ["S-b45809670d48f7"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/4",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f05_unready_or_stale_private_observations_never_become_zero_exposure",
+            "FailureMatrixTests.test_f05_observation_expiry_blocks_admission_without_balance_replacement",
+            "FailureMatrixTests.test_f05_public_portfolio_and_execution_projections_are_observation_only"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/risk/regression.rs",
+          "symbols": [
+            "unready_positions_are_unknown_not_zero_and_kill_is_independent",
+            "stale_future_crossed_missing_and_unentitled_quotes_fail_closed",
+            "stale_position_greeks_and_wrong_units_cannot_hide_portfolio_exposure"
+          ],
+          "purpose": "Actual kernel quote, position readiness and exposure policy",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_stale_book_cannot_fill_after_latency",
+            "PaperSimulatorTests.test_future_noncausal_conflicting_and_off_tick_market_batches_are_atomic"
+          ],
+          "purpose": "Actual simulator stale/noncausal market evidence",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Local policy stub checks denial propagation only. Actual quote qualification and position readiness are covered by crossreferenced kernel/simulator sources, also unexecuted."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F06",
+      "title": "Market-closed and holiday calendar",
+      "scenario": "Exercise holidays, DST, early close and closed market: session policy rejects outside instrument calendar.",
+      "sourceIds": ["S-60cb48036a61b1"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/5",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f06_calendar_policy_denials_propagate_before_reservation"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/calendar.rs",
+          "symbols": [
+            "source_fixed_sixteen_filter_is_replaced_by_explicit_early_close",
+            "dst_offsets_change_utc_cutoff_without_changing_exchange_wall_time",
+            "ambiguous_local_time_requires_unique_timezone_proof",
+            "utc_date_is_not_exchange_date_and_holiday_is_not_empty_portfolio"
+          ],
+          "purpose": "Actual kernel exchange calendar/session policy",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_exact_symbol_session_model_is_mandatory"
+          ],
+          "purpose": "Exact simulator symbol/session model",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_settlement.py",
+          "symbols": [
+            "SettlementTests.test_holiday_and_weekend_expiry_roll_to_explicit_prior_business_day",
+            "SettlementTests.test_dst_offsets_are_explicit_not_a_fixed_utc_close",
+            "SettlementTests.test_fixing_must_match_exchange_local_date_not_utc_date",
+            "SettlementTests.test_am_fixing_requires_exact_am_official_observation"
+          ],
+          "purpose": "Settlement holiday, DST and exchange-local fixing policy",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Local owner test injects calendar denials only; actual holiday/DST/early-close calculations reside in crossreferenced sources. No exchange calendar runtime evidence exists."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F07",
+      "title": "Option assignment and covered-share reservation",
+      "scenario": "Run put assignment through covered shares and call-away; reject double-reservation and handle early exercise/dividends/settlement.",
+      "sourceIds": ["S-09c18a695819a0"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/6",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f07_covered_shares_cannot_be_reserved_twice_across_sleeves",
+            "FailureMatrixTests.test_f07_final_fill_retains_physical_settlement_obligation"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/risk/regression.rs",
+          "symbols": [
+            "physical_call_exercise_reserves_strike_cash_beyond_premium",
+            "covered_shares_are_settled_and_cannot_be_reused_across_sleeves",
+            "cross_sleeve_cash_cannot_spend_unsettled_sale_proceeds"
+          ],
+          "purpose": "Kernel collateral/covered-share restrictions",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_settlement.py",
+          "symbols": [
+            "SettlementTests.test_short_put_assignment_purchases_shares_and_pays_strike",
+            "SettlementTests.test_short_call_assignment_delivers_shares_and_receives_strike",
+            "SettlementTests.test_cash_settlement_pays_exact_signed_intrinsic_without_delivery",
+            "SettlementTests.test_ex_dividend_conservative_model_delivers_short_call_early",
+            "SettlementTests.test_ex_dividend_risk_is_not_automatic_long_exercise_or_observed_assignment",
+            "SettlementTests.test_short_put_early_assignment_uses_financing_not_call_dividend_rule",
+            "SettlementTests.test_partial_explicit_assignment_keeps_residual_short_obligation"
+          ],
+          "purpose": "Exact assignment/call-away cash and share effects, explicit early exercise/dividend evidence",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Exact assignment and covered-share tests are authored separately. End-to-end put assignment -> settled covered shares -> call-away through journal/bridge remains pending, including trusted settlement verification."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F08",
+      "title": "Corporate action/symbol remap",
+      "scenario": "Apply split/remap/multiplier change with open order/lot: preserve lineage and halt ambiguous qualification.",
+      "sourceIds": ["S-f5e78b3566133c"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/7",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f08_qualification_invalidation_preserves_open_order_lineage_and_halts"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_settlement.py",
+          "symbols": [
+            "SettlementTests.test_adjusted_contract_multiplier_must_match_deliverable"
+          ],
+          "purpose": "Explicit adjusted multiplier handling and rejection of unsupported deliverables; not broad corporate-action migration",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Qualification invalidation preserves order/position lineage and halts admission. General split/symbol-remap transformation for open lots/orders and qualification restoration are not claimed implemented or accepted here."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F09",
+      "title": "Provider entitlement expiry",
+      "scenario": "Expire permission/data entitlement midrun: stop restricted ingestion/new risk, preserve auditable permitted protection and mark missing evidence.",
+      "sourceIds": ["S-1ab927962d8297"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/8",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f09_expired_entitlement_blocks_current_risk_but_not_authorized_protection"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/risk/regression.rs",
+          "symbols": [
+            "stale_future_crossed_missing_and_unentitled_quotes_fail_closed"
+          ],
+          "purpose": "Kernel denied/expired/wrong-usage entitlement cannot authorize quotes",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_settlement.py",
+          "symbols": [
+            "SettlementTests.test_missing_stale_noncausal_or_impossible_evidence_is_not_a_fill",
+            "SettlementTests.test_unconfirmed_short_assignment_and_nonassignment_retain_obligation"
+          ],
+          "purpose": "Missing evidence cannot synthesize a settlement; not ingestion entitlement coverage",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Execution denial and permitted protection are represented. Restricted provider ingestion shutdown/rights expiry orchestration and missing-evidence propagation across data services remain outside this suite and require separate evidence."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F10",
+      "title": "Cross-sleeve cash exhaustion",
+      "scenario": "Submit competing sleeves against one cash/collateral amount: atomic single authority cannot overreserve or double-count NAV.",
+      "sourceIds": ["S-5e6d8965a23f3c"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/9",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f10_competing_sleeves_share_one_atomic_cash_authority"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/risk/regression.rs",
+          "symbols": [
+            "cross_sleeve_cash_cannot_spend_unsettled_sale_proceeds",
+            "covered_shares_are_settled_and_cannot_be_reused_across_sleeves",
+            "worst_partial_legs_are_not_allowed_to_net_zero_greeks"
+          ],
+          "purpose": "Economic kernel collateral, sleeve contention and gross exposure constraints",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Atomic owner contention and economic kernel sources are authored. Full platform NAV attribution across all sleeves and integrated runtime evidence remain pending."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F11",
+      "title": "Agent prompt injection via documents/news",
+      "scenario": "Inject document/news tool instructions: preserve attributed text but deny broker/network-secret/authorization actions.",
+      "sourceIds": ["S-c05fb6eaf60838"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/10",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-agent"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f11_attributed_hostile_document_is_not_an_execution_intent",
+            "FailureMatrixTests.test_f11_injected_intent_text_cannot_grant_actor_or_review_authority",
+            "FailureMatrixTests.test_f11_nonpaper_transport_is_rejected_before_owner_epoch_claim"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_adapters.py",
+          "symbols": [
+            "ResearchAdapterTests.test_missing_ports_are_unavailable",
+            "ResearchAdapterTests.test_unverified_start_blocks_loader_and_runner",
+            "ResearchAdapterTests.test_boolean_receipt_without_finish_proof_is_rejected",
+            "ResearchAdapterTests.test_supervisor_session_substitution_is_rejected",
+            "ResearchAdapterTests.test_changed_dataset_bytes_never_reach_supervisor",
+            "ResearchAdapterTests.test_event_lineage_and_budget_fail_closed",
+            "ResearchAdapterTests.test_output_lineage_and_measured_accounting_cannot_be_rebound",
+            "ResearchAdapterTests.test_nonready_or_executable_plan_never_reaches_supervisor",
+            "ResearchAdapterTests.test_resource_breaches_and_capability_claims_reject_even_with_verifier"
+          ],
+          "purpose": "Research-port attribution, immutable dataset/strategy/run binding and sandbox capability checks only; not full agent prompt-injection acceptance",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Execution-boundary injection rejection and research-port attribution only. Full G-agent/F11 acceptance (hostile retrieval/news, model/tool sandbox, secret/network denials, citations and budgets under real agent orchestration) is NOT claimed by this matrix."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F12",
+      "title": "Operator permission failure",
+      "scenario": "Use wrong actor/account/environment, revoked role or stale approval: mutation rejected before side effect.",
+      "sourceIds": ["S-983e1169e47e5c"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/11",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f12_wrong_scope_actor_revoked_role_and_stale_review_reject_before_reserve",
+            "FailureMatrixTests.test_f12_revocation_between_reserve_and_dispatch_blocks_effect",
+            "FailureMatrixTests.test_f12_mutation_grant_scope_time_and_role_are_independent"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_gateway_safety.py",
+          "symbols": [
+            "GatewaySafetyTests.test_live_target_and_unsupported_operation_reject_before_durable_pause",
+            "GatewaySafetyTests.test_expected_status_and_opaque_account_mapping_are_verified_under_pause",
+            "GatewaySafetyTests.test_binding_verifier_must_return_true_not_truthy_or_unknown",
+            "GatewaySafetyTests.test_expired_or_not_yet_confirmed_binding_rejects_before_pause",
+            "GatewaySafetyTests.test_changed_binding_or_nonpositive_lease_evidence_denies"
+          ],
+          "purpose": "Fenced paper-only gateway status/account/operation attestation; never a human recovery approval or broker effect",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_simulator.py",
+          "symbols": [
+            "PaperSimulatorTests.test_cancel_requires_exact_nonexpired_authorization"
+          ],
+          "purpose": "Simulator exact cancellation permission scope",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Trusted authorization/revocation ports are test doubles; real identity/role snapshot binding and native contract validation remain pending."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F13",
+      "title": "Kill switch independent of model and UI",
+      "scenario": "Disconnect model/UI/Cloudflare/SQL: durable local switch blocks new risk; reconcile/protect continue; reset and liquidation require distinct authority.",
+      "sourceIds": ["S-7e77fcc3f945d5"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/12",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f13_local_kill_survives_ui_model_cloud_disconnect_and_keeps_protection",
+            "FailureMatrixTests.test_f13_reset_cancel_and_liquidation_are_distinct_authorities",
+            "FailureMatrixTests.test_f13_failed_native_fact_keeps_durable_pause_until_atomic_authorized_reset"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_gateway_safety.py",
+          "symbols": [
+            "GatewaySafetyTests.test_successful_lease_fences_mutations_and_never_resets_or_calls_transport",
+            "GatewaySafetyTests.test_context_failure_releases_lease_but_preserves_durable_pause",
+            "GatewaySafetyTests.test_open_reserved_order_denies_even_when_positions_are_empty",
+            "GatewaySafetyTests.test_unknown_acceptance_denies_even_when_positions_are_empty",
+            "GatewaySafetyTests.test_zero_position_unsettled_cash_credit_denies_disruption",
+            "GatewaySafetyTests.test_zero_position_unsettled_share_delivery_denies_disruption",
+            "GatewaySafetyTests.test_lease_expiry_is_minimum_of_binding_policy_and_observation",
+            "GatewaySafetyTests.test_prior_context_lease_cannot_be_reused_during_later_hold"
+          ],
+          "purpose": "Local durable disruption guard rejects unresolved protection, stays paused on every exit and cannot reset or call a broker",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution-kernel/tests/risk/regression.rs",
+          "symbols": [
+            "unready_positions_are_unknown_not_zero_and_kill_is_independent"
+          ],
+          "purpose": "Kernel kill and observation readiness are independent gates",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Tests simulate unavailable model/artifact ports with a local durable SQLite owner, not loss of the local journal. Actual Cloudflare/remote SQL outages and independent operator interface deployment remain unexecuted."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    },
+    {
+      "id": "F14",
+      "title": "Plugin rollback with live positions pinned",
+      "scenario": "Rollback module with open positions: pin existing obligations to old compatible version, drain jobs and never start another writer.",
+      "sourceIds": ["S-5397f905efdfb8"],
+      "sourceReferences": [
+        {
+          "file": "architecture-contract.json",
+          "pointer": "/mandatoryFailureTests/13",
+          "sha256": "b8999f87f878701fd2e4838751dfe9b67bbc4a805699b0839ffcb6cde5968936"
+        }
+      ],
+      "verificationDag": "docs/vertex-rebuild/verification-dag.json",
+      "dependsOn": ["G-edge"],
+      "scope": "offline-fixture",
+      "status": "not_run",
+      "sourceStatus": "authored",
+      "acceptance": "pending_execution_and_remaining_scope",
+      "tests": [
+        {
+          "path": "services/execution/tests/test_failure_matrix.py",
+          "symbols": [
+            "FailureMatrixTests.test_f14_rollback_keeps_existing_orders_pinned_to_old_strategy",
+            "FailureMatrixTests.test_f14_mutated_pinned_strategy_blocks_dispatch_without_releasing_reserve"
+          ],
+          "purpose": "Actual local Journal/owner/reducer boundary with explicitly non-conformance injected test ports",
+          "status": "authored_not_run"
+        },
+        {
+          "path": "services/execution/tests/test_adapters.py",
+          "symbols": [
+            "NautilusAdapterTests.test_exact_stable_version_and_separate_quarantine",
+            "NautilusAdapterTests.test_factory_failure_is_not_automatically_retried"
+          ],
+          "purpose": "Pinned engine metadata and explicit single activation, not scheduler rollback acceptance",
+          "status": "authored_not_run"
+        }
+      ],
+      "pendingEvidence": [
+        "Pinned existing obligations, explicitly abandoned never-dispatched jobs and lifetime single-owner exclusion are represented. Full scheduler/plugin rollout/rollback/drain integration and compatible old-version lifecycle evidence remain pending."
+      ],
+      "commandsExecuted": [],
+      "receipt": null,
+      "receiptRequirements": [
+        "exact revision and dirty-tree digest",
+        "pinned dependency/artifact versions",
+        "command or scenario and environment",
+        "redacted input hashes and observed result",
+        "reviewer identity and unresolved findings",
+        "rollback evidence where applicable"
+      ],
+      "stopCondition": "Any failed, missing, stale, skipped or unobserved required evidence blocks activation; do not reinterpret as pass."
+    }
+  ]
+}

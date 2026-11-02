@@ -1,0 +1,186 @@
+{
+  "slug": "csp-right-to-change-mind",
+  "sourceId": "DYTH5eIOFvz",
+  "title": "Selling a cash-secured put sells your right to change your mind",
+  "summary": "When you sell a one-month cash-secured put, you agree today to buy later. In two or three weeks the chart and the macro picture can change a lot. Example: you sell the put for $2, the stock falls $12, and you sit on a $10 loss. The speaker prefers to buy stock on his own terms, at the time he chooses.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bearish", "regime-change"],
+    "instruments": ["single-stock", "cash-secured-puts"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["cash-secured put", "optionality", "assignment"]
+  },
+  "scene": {
+    "type": "pricepath",
+    "legs": [
+      {
+        "kind": "put",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ],
+    "events": [
+      {
+        "day": 0,
+        "label": "Sell 1-month put for $2",
+        "color": "green"
+      },
+      {
+        "day": 15,
+        "label": "Macro picture changes",
+        "color": "amber"
+      },
+      {
+        "day": 28,
+        "label": "Stock down $12",
+        "color": "red"
+      }
+    ],
+    "waypoints": [
+      {
+        "day": 7,
+        "movePct": 1
+      },
+      {
+        "day": 15,
+        "movePct": -2
+      },
+      {
+        "day": 22,
+        "movePct": -7
+      },
+      {
+        "day": 28,
+        "movePct": -12
+      },
+      {
+        "day": 30,
+        "movePct": -12
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Put strike",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "realizedVol",
+      "label": "Realized volatility",
+      "default": 35,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": -120,
+      "min": -300,
+      "max": 100,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 5,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A $100 stock. We sell a one-month $100 put for about $2.",
+      "time": [0, 1]
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "The strike is the price you must pay if the stock falls below it."
+    },
+    {
+      "element": "events",
+      "color": "gray",
+      "caption": "Two or three weeks later the chart and macro picture look very different."
+    },
+    {
+      "element": "pnl",
+      "color": "red",
+      "caption": "The stock falls $12. After the $2 premium, the position is down about $10 per share.",
+      "time": [0, 1]
+    },
+    {
+      "element": "spot",
+      "color": "blue",
+      "caption": "Without the put you could choose when and where to buy. That choice is what you sold."
+    }
+  ],
+  "formulas": ["breakevenPut", "extrinsic"],
+  "takeaways": [
+    "A cash-secured put commits you to buy, even if conditions change.",
+    "Example: $2 premium against a $12 drop leaves a $10 loss.",
+    "The speaker prefers to buy stock on his own terms.",
+    "He calls this his opinion; others profit from selling puts."
+  ],
+  "caveats": [
+    "The price path is simulated; the $2, $12 and $10 numbers come from the transcript."
+  ]
+}

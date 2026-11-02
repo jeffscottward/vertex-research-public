@@ -1,0 +1,120 @@
+{
+  "slug": "vay-premium-sharpe-ratio",
+  "sourceId": "DTJLWidCX0m",
+  "title": "Normalize option premium by volatility, like a Sharpe ratio",
+  "summary": "When you sell covered calls or cash-secured puts, the premium alone does not tell you if you are paid enough. The speaker divides the premium by the volatility of the underlying, the same way a Sharpe ratio divides returns by standard deviation. That gives context and lets you compare trades apples to apples.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["covered-calls", "cash-secured-puts", "volatility"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["vay", "sharpe ratio", "premium", "normalization"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Start price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 30,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 5,
+      "min": -15,
+      "max": 30,
+      "step": 0.5,
+      "unit": "%",
+      "help": "Average points that implied vol trades above realized vol."
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 60,
+      "min": 0,
+      "max": 150,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Trading days",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "One year of a stock and its volatility. Premium only makes sense next to this risk."
+    },
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "The price path. Bigger swings mean more risk for the option seller.",
+      "time": [0, 1]
+    },
+    {
+      "element": "rv",
+      "color": "cyan",
+      "caption": "Realized volatility is the risk you take: the standard deviation of the stock's returns."
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility sets the premium you collect."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "Premium divided by volatility works like a Sharpe ratio: yield per unit of risk."
+    }
+  ],
+  "formulas": ["vrp", "annualizedYield", "realizedVol"],
+  "takeaways": [
+    "Premium needs context: compare it with the risk of the underlying.",
+    "Dividing yield by volatility is like a Sharpe ratio for option selling.",
+    "A normalized number lets you compare different stocks on one scale."
+  ],
+  "caveats": [
+    "The speaker's screener, Discord and website are promotional and not verified here.",
+    "The clip gives no exact formula or numbers for the metric."
+  ]
+}

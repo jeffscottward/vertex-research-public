@@ -1,0 +1,150 @@
+{
+  "slug": "basket-of-options-csp-vs-covered-call",
+  "sourceId": "DTi5Gj2CY9c",
+  "title": "Own the pieces: why a covered call beats an equivalent cash-secured put",
+  "summary": "A Wall Street saying: a basket of options is worth more than an option on a basket, so own the pieces. A $95 cash-secured put on a $100 stock is economically the same as a $95 covered call, but the covered call has two line items (stock and call) you can manage separately. So the speaker sells covered calls and almost never cash-secured puts.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any", "range"],
+    "instruments": [
+      "single-stock",
+      "covered-calls",
+      "cash-secured-puts",
+      "synthetics"
+    ],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["put-call parity", "dispersion", "flexibility"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Short 95 put (CSP)",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call at 95",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike",
+      "default": 95,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "A cash-secured put struck at $95: one line item."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "A covered call struck at $95: long 100 shares plus one short call. Two line items."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is near zero: by put-call parity the two trades have almost the same payoff."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Both break even at the same price, the strike minus the extra value received."
+    },
+    {
+      "element": "axes",
+      "color": "gold",
+      "caption": "Same economics, but with the covered call you own the pieces and can manage the stock and the call separately."
+    }
+  ],
+  "formulas": ["putCallParity", "extrinsic"],
+  "takeaways": [
+    "A basket of options is worth more than an option on a basket, so you would rather own the pieces.",
+    "Owning 11 S&P 500 sectors lets you rebalance and capture dispersion, which one index fund does not.",
+    "A $95 cash-secured put on a $100 stock equals a $95 covered call economically.",
+    "The covered call gives two line items you can manage separately, so the speaker prefers it."
+  ],
+  "caveats": [
+    "Small differences remain from rates, dividends and early exercise.",
+    "The speaker promotes a waitlist and tools on his website. They are promotional and not verified here."
+  ]
+}

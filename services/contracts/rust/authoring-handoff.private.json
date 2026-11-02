@@ -1,0 +1,120 @@
+{
+  "handoffFormat": "vertex-native-rust-authoring-v1",
+  "status": "source-authored-unexecuted",
+  "owner": "VertexNativeContractsBuild.NativeRustAuthority",
+  "scope": "services/contracts/rust/**",
+  "resourceCeilings": {
+    "bundleBytes": 8388608,
+    "payloadBytes": 67108864,
+    "fixtureBytes": 67108864,
+    "jsonDepth": 64,
+    "jsonNodes": 1000000,
+    "stringBytes": 2097152,
+    "workSteps": 16000000,
+    "arithmeticBits": 512
+  },
+  "admissionCaveat": "Off-hot-path admission ceilings only; no latency or memory proof and no claim all schema maxima jointly fit. API/network callers keep stricter per-contract bounds.",
+  "implemented": [
+    "externally pinned canonical bundle boundary",
+    "frozen ContractAuthority and read-only ValidatedArtifact API",
+    "strict Zod JSON Schema subset and eager unsupported-key/reference checks",
+    "full expression IR plus some/parent/hashOmitPaths",
+    "hashOmitPaths grants only sourceEventHash and continuity.highWaterEventHash in declared order",
+    "exact Gregorian nanosecond parsing including year0000",
+    "safe integer scalar Unicode canonical encoder and raw canonical byte equality",
+    "finite seventeen-source-pattern allowlist and nested calendar enforcement",
+    "SourceUri accessor checks through pinned url2.5.7 WHATWG parser with empty query/fragment/userinfo allowance",
+    "explicit pinned offline conformance runner"
+  ],
+  "testFunctionsAuthored": 21,
+  "conformanceInvocation": "cargo run --example conformance -- BUNDLE_FILE BUNDLE_SHA256 FIXTURES_FILE FIXTURES_SHA256",
+  "validation": {
+    "compiled": false,
+    "tested": false,
+    "linted": false,
+    "formatted": false,
+    "generatedSchemas": false,
+    "networkUsed": false,
+    "reason": "User build-first constraint: source inspection and authoring only."
+  },
+  "dependencies": {
+    "serde": "=1.0.228",
+    "serde_json": "=1.0.145",
+    "sha2": "=0.10.9",
+    "regex": "=1.12.2",
+    "num-bigint": "=0.4.6",
+    "url": "=2.5.7",
+    "base64": "=0.22.1"
+  },
+  "toolchain": {
+    "edition": "2021",
+    "rustVersion": "1.85",
+    "proposedCompiler": "1.85.1",
+    "transitiveLockAndMsrv": "deferred to Main acquisition/verification phase"
+  },
+  "sources": {
+    "services/contracts/rust/Cargo.toml": {
+      "bytes": 259,
+      "sha256": "a8ffdfe7871e804e16025bf53c07b6b36c847cbfc6fa94badcea46f4ad1f1bf0"
+    },
+    "services/contracts/rust/src/lib.rs": {
+      "bytes": 11999,
+      "sha256": "778f6a4c1e268ebb24095be2817ceb98f9cadb1ea2f5a0f4f60747c6c0675675"
+    },
+    "services/contracts/rust/src/canonical.rs": {
+      "bytes": 6274,
+      "sha256": "cef851971247412b7117791f51bad26f910a41ae4992a6566b4468796ec8b22a"
+    },
+    "services/contracts/rust/src/exact.rs": {
+      "bytes": 9450,
+      "sha256": "055ee978da8893bcbd001fb1468686f5d2fc21ed2c17d8cc635dbb33f5d37fd2"
+    },
+    "services/contracts/rust/src/schema.rs": {
+      "bytes": 12861,
+      "sha256": "869d765941e83d9efd56647a90050e09bcb895f6a4043d7c161dae6aa92db2c7"
+    },
+    "services/contracts/rust/src/ir.rs": {
+      "bytes": 23687,
+      "sha256": "ca63b5b303e1c922d98678d09ef97e69e12434ecbb5cd6526c611840f2b46b0c"
+    },
+    "services/contracts/rust/tests/authority.rs": {
+      "bytes": 36022,
+      "sha256": "2f7e44dc89ae5cb240254925ddd2b73177d52891b461fee5d86ca2eabeac6afa"
+    },
+    "services/contracts/rust/examples/conformance.rs": {
+      "bytes": 8964,
+      "sha256": "cae8d3e837eaf439e6079c752e4d33a2dde78d46a8414eb1474a2d3d966f9fc3"
+    },
+    "services/contracts/rust/examples/proof_conformance.rs": {
+      "bytes": 6616,
+      "sha256": "199d0d52c3a9fb4122b90395c03a729fd00faacc9f807bc38c9fbccfb43119d1"
+    },
+    "services/contracts/rust/src/replay.rs": {
+      "bytes": 7304,
+      "sha256": "47b0e90781a60a80eb96f26250439682e933951b6d0d7e9ad60af7428e8f028b"
+    }
+  },
+  "uriParity": {
+    "policy": "Source accessor acceptance, not conservative host subset; input hashes preserved; UTF16 maximum2048",
+    "localUrlCrateSource": "No url2 source found in caller cargo registry cache",
+    "verification": "Unexecuted JS/Rust conformance required; parser-version or IDNA table parity not proven by authoring",
+    "fixtures": "IDNA, punycode, percent host, legacy IPv4, IPv6, empty credentials/query/fragments, recovery forms, normalized accessor checks and raw source hash preservation"
+  },
+  "sourceSet": "Exact nine keys: base API, control API, native-facts API, worker API, policy API, model-use API, worker-epoch API, shared index, invariant metadata",
+  "nativeFactBoundary": "Additive validate_native_journal_proof validates full projection, source raw proof SHA, original canonical proof, then private NativeJournalProofBinding metadata rule. Returns immutable proof artifact. Publisher authentication, grants and atomic store transaction remain caller responsibilities.",
+  "additiveApi": "validate_native_journal_proof(&self,projection_json:&[u8],proof_bytes:&[u8],schema_version:&str)->Result<ValidatedArtifact,ContractError>",
+  "proofConformanceInvocation": "cargo run --example proof_conformance -- BUNDLE_FILE BUNDLE_SHA256 PROOF_FIXTURES_FILE FIXTURES_SHA256",
+  "proofConformanceFixtureFormat": "vertex-native-journal-proof-fixtures-v1",
+  "proofIngressBytes": 1048576,
+  "workerPolicyNotes": "Worker and policy source registries supported through generic emitted schemas and pinned metadata; nested DTO semantics do not gain standalone replay hash checks. Raw base64 decoding/canonical roundtrip/raw hashing remain worker client/service responsibilities. Global2MiB string ceiling is admission only; per-contract source limits unchanged.",
+  "newFiniteOps": [
+    "base64Length(value)",
+    "at(array,index)",
+    "index()",
+    "sum(array,expr)"
+  ],
+  "replayAdapter": "Standalone validate NativeOutboxReplay uses actual-source byte adapter: preparse12MiB wire, aggregate8MiB decoded including approval, perblob1MiB strict canonical RFC4648, raw projection/proof SHA, fixed four-kind child mapping, private NativeReplayRowBinding exact grant/identity/value/priorHash scope, native-fact paired proof. Snapshot rows do not advance head. Nested DTO calls remain semantics-only; signatures/grants/native evidence do not become authorized by this validation.",
+  "workAccounting": "String traversal/clone/base64 work charged per ceilUTF8bytes/1024; instruction/node budgets unchanged.",
+  "retainedTransitionV4": "Required nullable replay.retainedEpochTransitionBase64/grant.retainedEpochTransitionSha256; retained bytes count toward decoded8MiB, perblob1MiB. Nonnull rawSHA and original canonical PortfolioEpochTransition full child validation; first genesis projection bytes equal encoded transition snapshot; exact private scope {grant,transition} binds account/stream/prior owner. Historical provenance is not signature revival/current authorization.",
+  "retainedTransitionSourceSha256": "a1856de8f2bc393dd07ce6054f8206481ce642197ce14fdcf6aedabd619228f0"
+}

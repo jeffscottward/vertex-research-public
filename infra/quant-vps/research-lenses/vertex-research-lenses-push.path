@@ -1,0 +1,12 @@
+# Starts vertex-research-lenses-push.service when either data job rewrites its latest.json.
+# %h is the rig user's home directory.
+[Unit]
+Description=Watch the Vertex research-lens documents on the rig
+
+[Path]
+PathChanged=%h/Github/trading/vertex-research/data/rotation-matrix/latest.json
+PathChanged=%h/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json
+Unit=vertex-research-lenses-push.service
+
+[Install]
+WantedBy=default.target

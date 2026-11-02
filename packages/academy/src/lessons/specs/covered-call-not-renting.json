@@ -1,0 +1,130 @@
+{
+  "slug": "covered-call-not-renting",
+  "sourceId": "DYxDaPQu79J",
+  "title": "A covered call is a transfer of risk, not rent on your shares",
+  "summary": "The speaker rejects the idea that covered calls are like renting out an apartment. A landlord keeps the gain if the building triples in value. A covered call writer's gain stops at the strike. Selling calls is an active transfer of risk: you sell future upside for payment today.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered calls", "risk transfer", "upside"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Own the shares (landlord)",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "100 shares"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike",
+      "default": 110,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. Compare the shares alone with the shares plus a $110 call."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Line A: the owner keeps all upside, like a landlord whose building rises in value."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Line B: the covered call. Its gain stops at $110 plus the premium."
+    },
+    {
+      "element": "diff",
+      "color": "red",
+      "caption": "The gap above $110 is the upside you sold. If the stock triples, it is most of the gain."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Below the strike, the premium gives only a small cushion. The downside stays with you."
+    }
+  ],
+  "formulas": ["breakevenCall", "extrinsic", "delta"],
+  "takeaways": [
+    "Covered calls are not rent: a landlord keeps the property's gains, a call writer does not.",
+    "Selling a call transfers upside risk to the buyer for a premium today.",
+    "This view should drive how you choose strikes, underlyings and when to use the strategy."
+  ],
+  "caveats": [
+    "The 'triples in value' case is an illustration from the speaker, not a forecast."
+  ]
+}

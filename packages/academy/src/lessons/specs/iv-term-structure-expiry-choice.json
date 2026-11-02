@@ -1,0 +1,159 @@
+{
+  "slug": "iv-term-structure-expiry-choice",
+  "sourceId": "DTQo2MDCVQb",
+  "title": "Look at the implied volatility term structure before you pick an expiry",
+  "summary": "Advanced traders look at implied volatility; the speaker says professionals look at the volatility term structure, implied volatility across expiries. You may need to dig on your broker's option page; his broker calls it IV index. If you are thinking about calendar spreads or diagonals, it is a good place to start because it helps you choose your expiration.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["volatility", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": [
+      "term structure",
+      "implied volatility",
+      "calendar",
+      "diagonal",
+      "expiry"
+    ]
+  },
+  "scene": {
+    "type": "greeks",
+    "greek": "vega",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "nearDte",
+        "iv": "nearIv",
+        "label": "Near call sold"
+      },
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "farDte",
+        "iv": "farIv",
+        "label": "Far call bought"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "nearDte",
+      "label": "Near expiry",
+      "default": 30,
+      "min": 7,
+      "max": 120,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "farDte",
+      "label": "Far expiry",
+      "default": 90,
+      "min": 14,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "nearIv",
+      "label": "Near-expiry IV",
+      "default": 32,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%",
+      "help": "One point on the term structure."
+    },
+    {
+      "id": "farIv",
+      "label": "Far-expiry IV",
+      "default": 27,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%",
+      "help": "A second point on the term structure. Change the gap to see the effect."
+    },
+    {
+      "id": "iv",
+      "label": "Chart range IV",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%",
+      "help": "Only sets the price range drawn."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "axes",
+      "color": "gray",
+      "caption": "Each expiry has its own implied volatility. Across expiries that is the term structure (his broker calls it IV index)."
+    },
+    {
+      "element": "strikes",
+      "color": "amber",
+      "caption": "Illustration: a calendar at $100, selling the 30-day call (IV 32%) and buying the 90-day call (IV 27%)."
+    },
+    {
+      "element": "vega",
+      "color": "violet",
+      "caption": "The calendar's vega depends on both expiries, so the IV of each expiry on the term structure matters."
+    },
+    {
+      "element": "theta",
+      "color": "cyan",
+      "caption": "Theta as the near expiry approaches: the near and far legs decay at different rates.",
+      "time": [0, 1]
+    },
+    {
+      "element": "spot",
+      "color": "gold",
+      "caption": "Speaker's point: for calendars and diagonals, start with the term structure to choose your expirations."
+    }
+  ],
+  "formulas": ["vega", "theta", "blackScholes"],
+  "takeaways": [
+    "Advanced traders look at implied volatility; professionals look at its term structure across expiries.",
+    "You may have to dig for it on your broker's option page; his broker calls it IV index.",
+    "For calendar spreads or diagonals, the term structure is a good place to start because it helps you choose the expiration."
+  ],
+  "caveats": [
+    "The transcript is cut mid-sentence and does not say which expiries to buy or sell.",
+    "The calendar, strikes and IV levels are added illustration, not from the clip."
+  ]
+}

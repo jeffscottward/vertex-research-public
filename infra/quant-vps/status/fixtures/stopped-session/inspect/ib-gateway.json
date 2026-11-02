@@ -1,0 +1,18 @@
+{
+  "State": {
+    "Status": "running",
+    "Running": true,
+    "StartedAt": "2026-09-29T23:45:02.407636734Z",
+    "FinishedAt": "2026-09-29T23:45:02.224642046Z",
+    "ExitCode": 0,
+    "OOMKilled": false,
+    "Health": {
+      "Status": "healthy"
+    }
+  },
+  "RestartCount": 1,
+  "Config": {
+    "Image": "gnzsnz/ib-gateway",
+    "Env": ["TWS_PASSWORD=fixture-secret"]
+  }
+}

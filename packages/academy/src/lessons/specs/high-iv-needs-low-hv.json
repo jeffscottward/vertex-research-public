@@ -1,0 +1,119 @@
+{
+  "slug": "high-iv-needs-low-hv",
+  "sourceId": "DYXIpbpuvwf",
+  "title": "High IV is not enough: the edge needs low realized volatility",
+  "summary": "Selling covered calls just because implied volatility is high is half the story. If you sell at 60% IV while the stock moves at 70% annualized, there is no edge. If you sell at 60% IV while the stock moves only 25%, you are paid far more than the stock delivers. That gap is the volatility risk premium.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["high-vol"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["volatility risk premium", "historical vol", "edge"]
+  },
+  "scene": {
+    "type": "ivrv"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "rvBase",
+      "label": "Base realized vol",
+      "default": 25,
+      "min": 5,
+      "max": 120,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "ivPremium",
+      "label": "IV premium over RV",
+      "default": 35,
+      "min": -30,
+      "max": 60,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "volOfVol",
+      "label": "Vol of vol",
+      "default": 50,
+      "min": 0,
+      "max": 200,
+      "step": 5,
+      "unit": "%"
+    },
+    {
+      "id": "drift",
+      "label": "Annual drift",
+      "default": 6,
+      "min": -50,
+      "max": 50,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "days",
+      "label": "Days shown",
+      "default": 250,
+      "min": 40,
+      "max": 750,
+      "step": 10,
+      "unit": "days"
+    },
+    {
+      "id": "seed",
+      "label": "Random path",
+      "default": 7,
+      "min": 1,
+      "max": 999,
+      "step": 1
+    }
+  ],
+  "steps": [
+    {
+      "element": "price",
+      "color": "cyan",
+      "caption": "A volatile stock with option IV near 60%.",
+      "time": [0, 1]
+    },
+    {
+      "element": "iv",
+      "color": "violet",
+      "caption": "Implied volatility near 60%: the premium looks rich."
+    },
+    {
+      "element": "rv",
+      "color": "blue",
+      "caption": "Realized (historical) volatility near 25%: the stock moves much less than priced."
+    },
+    {
+      "element": "vrp",
+      "color": "gold",
+      "caption": "The gap of about 35 points is the volatility risk premium. That is where the edge lives."
+    },
+    {
+      "element": "rv",
+      "color": "red",
+      "caption": "Raise base RV to 70%: now RV exceeds IV, and the same 60% IV call has no edge."
+    }
+  ],
+  "formulas": ["vrp", "realizedVol", "expectedMove"],
+  "takeaways": [
+    "High IV alone does not make a good covered call.",
+    "60% IV against 70% realized volatility: no edge.",
+    "60% IV against 25% realized volatility: a large edge.",
+    "IV minus realized volatility is the volatility risk premium."
+  ],
+  "caveats": [
+    "The speaker's metric behind the bio link is promotional and not verified here."
+  ]
+}

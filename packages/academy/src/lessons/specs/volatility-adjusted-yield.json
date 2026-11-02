@@ -1,0 +1,130 @@
+{
+  "slug": "volatility-adjusted-yield",
+  "sourceId": "DVrCdoGDs4O",
+  "title": "Judge option premium relative to volatility, not in dollars",
+  "summary": "Judging option premium on its own is like judging a stock by its price; a P/E ratio normalizes price by earnings. The speaker's example: a one-month at-the-money call paying $1 versus one paying $2. If the $2 stock has three times the volatility, the $1 premium is better once normalized by volatility. He calls this volatility adjusted yield (VAY), a P/E ratio for option sellers.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls", "volatility"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["premium", "normalization", "VAY", "volatility"]
+  },
+  "scene": {
+    "type": "distribution",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": 1,
+        "label": "100 shares"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": 1,
+        "strike": "strike",
+        "dte": "dte",
+        "label": "1-month ATM call"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Call strike (at the money)",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 7,
+      "max": 60,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 20,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%",
+      "help": "Try 20% and then 60% (three times as volatile) and compare the premium with the width of the move."
+    },
+    {
+      "id": "drift",
+      "label": "Excess drift over rate",
+      "default": 0,
+      "min": -30,
+      "max": 30,
+      "step": 1,
+      "unit": "%",
+      "help": "Your view of annual return above the risk-free rate. Zero = the market view; EV is then about zero."
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "As in the speaker's example: sell a one-month at-the-money call, here against 100 shares of a $100 stock.",
+      "time": [0, 1]
+    },
+    {
+      "element": "pdf",
+      "color": "violet",
+      "caption": "The range of prices one month out. Its width is set by the stock's volatility."
+    },
+    {
+      "element": "band1",
+      "color": "violet",
+      "caption": "Triple the volatility and this one-sigma band is about three times as wide."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "The premium moves the breakeven down. More volatility pays more premium, for a bigger move."
+    },
+    {
+      "element": "pop",
+      "color": "gold",
+      "caption": "Speaker's point: $2 at three times the volatility pays less per unit of volatility than $1. Compare premium per unit of volatility."
+    }
+  ],
+  "formulas": ["expectedMove", "blackScholes", "annualizedYield"],
+  "takeaways": [
+    "A $500 stock is not necessarily expensive and a $5 stock not necessarily cheap; option premium in dollars is the same.",
+    "A $2 premium is not better than $1 if the $2 stock has three times the volatility.",
+    "Normalize premium by volatility, as a P/E ratio normalizes a stock price by earnings."
+  ],
+  "caveats": [
+    "VAY is the speaker's own metric. The clip gives no formula and it is not verified here.",
+    "The clip asks whether viewers would want access to the metric; it is partly promotional.",
+    "The $100 covered call and the chart are added illustration; the speaker gives only the $1 vs $2 example."
+  ]
+}

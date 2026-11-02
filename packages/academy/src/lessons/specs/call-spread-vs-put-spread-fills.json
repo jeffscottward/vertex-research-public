@@ -1,0 +1,156 @@
+{
+  "slug": "call-spread-vs-put-spread-fills",
+  "sourceId": "DZKpgg4N1wf",
+  "title": "In-the-money call spread versus out-of-the-money put spread",
+  "summary": "An in-the-money debit call spread and an out-of-the-money put credit spread at the same strikes are the same trade by put-call parity. Many traders pick the put spread because its bid-ask spread is tighter. The speaker works a limit order just above the mid on the call spread and often gets a better fill than he would on the put spread.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish", "range"],
+    "instruments": ["single-stock", "spreads", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["put-call parity", "execution", "bid-ask"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ITM debit call spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "lowStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "highStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "OTM put credit spread",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "lowStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "highStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 110,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "lowStrike",
+      "label": "Lower strike",
+      "default": 95,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "highStrike",
+      "label": "Upper strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $110. Both spreads use the $95 and $100 strikes, below the market."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "The in-the-money debit call spread: buy the 95 call, sell the 100 call."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "The out-of-the-money put credit spread: sell the 100 put, buy the 95 put. Same shape."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is about zero: put-call parity makes them the same trade. What differs is the fill."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Both break even at the same price. A better fill moves the breakeven in your favor."
+    }
+  ],
+  "formulas": ["putCallParity", "verticalMaxProfit", "breakevenCall"],
+  "takeaways": [
+    "An ITM debit call spread equals an OTM put credit spread at the same strikes.",
+    "A tighter bid-ask spread on the put side does not mean a better trade.",
+    "Work a limit order near the mid on the call spread; fills are often better than the quote suggests."
+  ],
+  "caveats": [
+    "Part of the transcript is missing. Fill quality varies by stock and market; the speaker's experience is not verified data."
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "slug": "covered-calls-vs-total-return",
+  "sourceId": "DU354wACeUR",
+  "title": "Covered calls sell upside and lag the index on total return",
+  "summary": "Selling covered calls sells unlimited upside for a limited premium. If your goal is maximum total return, that is the wrong strategy. The speaker cites the CBOE BuyWrite index at about 7.5% a year, the 2% OTM BuyWrite index at just over 10%, and the S&P 500 total return at almost 15%. Covered calls fit income goals, for example in retirement.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["covered-calls", "etf", "index-options"],
+    "timeframe": "years",
+    "risk": "stock-like",
+    "topics": ["convexity", "buy-write", "total return", "goals"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Long stock",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Index price",
+      "default": 100,
+      "min": 5,
+      "max": 1000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 102,
+      "min": 50,
+      "max": 200,
+      "step": 1,
+      "unit": "$",
+      "help": "The 2% OTM BuyWrite index sells calls about 2% above the market."
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 7,
+      "max": 90,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 18,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The index trades at 100. We compare holding it with holding it and selling a 2% out-of-the-money call."
+    },
+    {
+      "element": "a",
+      "color": "green",
+      "caption": "Long stock: upside is unlimited. This is the convexity the covered call seller gives away."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Covered call: the premium adds a little on the downside, but gains stop at the $102 strike.",
+      "time": [0, 1]
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference: you trade unlimited upside for a limited premium. In big rallies the gap is large."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Index data from the clip: BuyWrite about 7.5% a year, 2% OTM BuyWrite just over 10%, S&P 500 almost 15%."
+    }
+  ],
+  "formulas": ["breakevenCall", "extrinsic", "annualizedYield"],
+  "takeaways": [
+    "A covered call sells unlimited upside for a fixed premium.",
+    "By design a covered call program lags the market in strong up markets.",
+    "Match the strategy to the goal: covered calls fit income needs, not maximum total return."
+  ],
+  "caveats": [
+    "Index return figures are quoted from the video and not checked here.",
+    "Stock legs conflict with the owner's options-only rule."
+  ]
+}

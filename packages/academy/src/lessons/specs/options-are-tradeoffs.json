@@ -1,0 +1,147 @@
+{
+  "slug": "options-are-tradeoffs",
+  "sourceId": "DYfhYfkt941",
+  "title": "Options are tools for trade-offs, not magic strategies",
+  "summary": "There is no magic option strategy. Options are tools that reshape the distribution of a stock's returns. Every choice is a trade-off: current income costs you upside, and convexity costs you premium. Judge each trade by its asymmetry and its probability.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "none",
+    "topics": ["trade-offs", "convexity", "income", "asymmetry"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Income: covered call",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": "contracts",
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": "contracts",
+          "strike": "shortStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Convexity: long call",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": "contracts",
+          "strike": "longStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The same stock at $100, reshaped two ways with options."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "A: income. Selling a call pays you today, but you give up the upside above $105."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "B: convexity. Buying a call keeps the upside open, but it costs premium you may lose."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is the trade-off: each choice gains one thing and gives up another."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Compare asymmetry and probability before you pick a side."
+    }
+  ],
+  "formulas": ["probabilityOfProfit", "expectedValue", "delta"],
+  "takeaways": [
+    "No option strategy is magic; options are tools.",
+    "Options change the distribution of returns of the underlying stock.",
+    "Income costs upside, and convexity costs premium.",
+    "Judge every trade by asymmetry and probability."
+  ],
+  "caveats": ["The strikes are illustrative; the clip gives no numbers."]
+}

@@ -1,0 +1,129 @@
+{
+  "slug": "covered-call-pnl-both-legs",
+  "sourceId": "DTLXseIjrVa",
+  "title": "Track covered call P&L as one trade with two legs",
+  "summary": "A covered call is one trade with two legs: long shares and a short call. Count the P&L of both legs together. If you only count the premium from the sold call, you overstate your results, because the shares can lose much more than the premium.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["covered call", "P&L", "bookkeeping"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "2d",
+    "legs": [
+      {
+        "kind": "stock",
+        "side": "long",
+        "qty": "contracts"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "strike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 5,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Short call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 0.5,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Covered calls",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. You own 100 shares and sell one 30-day call at the $105 strike."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "The dashed lines are the two legs: long shares and a short call. Each one alone tells only half the story."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "The solid line is the whole trade at expiry. This is the P&L you must track."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The gain is capped above $105: the stock gain up to the strike plus the premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the purchase price minus the premium. Below it the trade loses money, whatever the premium was."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "If the stock falls, the share loss can be many times the premium. Counting only the premium hides this loss."
+    }
+  ],
+  "formulas": ["breakevenCall", "extrinsic", "annualizedYield", "blackScholes"],
+  "takeaways": [
+    "A covered call is one trade. Report the P&L of the shares and the sold call together.",
+    "Counting only the call premium as profit is misleading when the shares lose value.",
+    "Judge the strategy by the combined result, not by the income line."
+  ],
+  "caveats": [
+    "The transcript ends mid-sentence. Strike, price and days in the chart are example values, not from the speaker."
+  ]
+}

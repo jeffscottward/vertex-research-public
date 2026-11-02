@@ -1,0 +1,11 @@
+# Runs the Autopilot tick every minute. Each running campaign works for its tick slice (default 20 s).
+[Unit]
+Description=Vertex Autopilot tick timer (research only)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

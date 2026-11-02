@@ -1,0 +1,162 @@
+{
+  "slug": "ten-wide-call-spread-math",
+  "sourceId": "DYiJ_HiNp84",
+  "title": "Ten-wide debit call spreads make reward and risk easy to read",
+  "summary": "The speaker traded call-spread-like structures on rates at a hedge fund. He uses $10-wide debit call spreads because the math is simple: pay $2, the most you get back is $10, so the profit potential is $8, or 400%. The maximum loss is the $2 debit.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["vertical spread", "asymmetry", "reward to risk"]
+  },
+  "scene": {
+    "type": "payoff",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte",
+        "label": "Long call"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte",
+        "label": "Short call"
+      }
+    ],
+    "view": "2d"
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 115,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 45,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 35,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Contracts",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We buy the $105 call and sell the $115 call: a $10-wide spread."
+    },
+    {
+      "element": "strikes",
+      "color": "gray",
+      "caption": "The width between the strikes is $10. That is the most the spread can be worth."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "At expiry the spread pays from $0 below $105 to $10 above $115."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "If it costs about $2, the most you can lose is the $2 debit."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "The most you can make is $10 minus $2 = $8, which is 400% of the debit."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven is the long strike plus the debit: about $107."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "probabilityOfProfit"],
+  "takeaways": [
+    "A $10-wide spread lets you read reward and risk in your head.",
+    "Pay $2 for $10 of width: $8 profit potential, 400% return, $2 maximum loss.",
+    "Check the asymmetry before you trade any spread."
+  ],
+  "caveats": [
+    "The $2 price is an example; real prices depend on strikes, time and implied volatility.",
+    "A cheap spread often has a low probability of paying in full."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["SPY", "QQQ", "AAPL"],
+    "scenario": {
+      "label": "2015-2024 decade incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 45,
+      "longDelta": 0.35,
+      "shortDelta": 0.15,
+      "profitTakePct": 100,
+      "stopLossPct": 60,
+      "exitDte": 5,
+      "riskPct": 2
+    },
+    "note": "Out-of-the-money debit call spread costing about a fifth of its width; take profit at 100% of the debit."
+  }
+}

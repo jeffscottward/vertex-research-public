@@ -1,0 +1,450 @@
+// @vitest-environment jsdom
+import type {
+  InstantBacktestRunInput,
+  InstantBacktestRunOutput,
+  InstantBacktestSeries,
+} from "@darkfactory/api";
+import { act, type ReactElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import {
+  DEFAULT_INSTANT_PARAMS,
+  formatPercent,
+  formatRatio,
+  type InstantBacktestGateway,
+  InstantBacktestWorkspace,
+  toRunInput,
+} from "./instant-backtest-workspace.tsx";
+
+vi.mock("../../features/charts/backtest-series.tsx", () => ({
+  BacktestSeriesChart: ({
+    points,
+    caption,
+  }: {
+    points: readonly unknown[];
+    caption: string;
+  }) => <figure data-points={points.length}>{caption}</figure>,
+}));
+
+const testGlobal = globalThis as typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+const previousAct = testGlobal.IS_REACT_ACT_ENVIRONMENT;
+beforeAll(() => {
+  testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+});
+afterAll(() => {
+  if (previousAct === undefined) delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
+  else testGlobal.IS_REACT_ACT_ENVIRONMENT = previousAct;
+});
+const roots: Root[] = [];
+afterEach(async () => {
+  for (const root of roots.splice(0)) await act(async () => root.unmount());
+  vi.unstubAllGlobals();
+  document.body.replaceChildren();
+});
+
+const flush = async () => {
+  for (let index = 0; index < 20; index += 1) await Promise.resolve();
+};
+
+const mount = async (element: ReactElement) => {
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  roots.push(root);
+  await act(async () => {
+    root.render(element);
+    await flush();
+  });
+  return { container, root };
+};
+
+const DAY_MS = 86_400_000;
+const SPY: InstantBacktestSeries = {
+  symbol: "SPY",
+  timeframe: "1d",
+  source: "Test daily source",
+  sourceSha256: "e".repeat(64),
+  barCount: 8487,
+  firstT: 0,
+  lastT: 100 * DAY_MS,
+  importedAt: "2026-10-18T12:00:00.000Z",
+};
+const BTC: InstantBacktestSeries = {
+  ...SPY,
+  symbol: "BTCUSDT",
+  timeframe: "1m",
+  barCount: 525_600,
+};
+
+const output = (
+  input: InstantBacktestRunInput,
+  totalReturn: number
+): InstantBacktestRunOutput => ({
+  series: input.symbol === "SPY" ? SPY : BTC,
+  stats: {
+    bars: 8487,
+    totalReturn,
+    cagr: 0.0928,
+    maxDrawdown: -0.38,
+    sharpe: 0.72,
+    sortino: null,
+    trades: 18,
+    winRate: 0.72,
+    profitFactor: null,
+    exposure: 0.75,
+    buyHoldReturn: 30.7,
+    buyHoldMaxDrawdown: -0.55,
+  },
+  equity: [
+    { t: 0, equity: 1 },
+    { t: 100 * DAY_MS, equity: 1 + totalReturn },
+  ],
+  timing: { cache: "hit", loadMs: 0.4, computeMs: 1.25 },
+});
+
+type Pending = Readonly<{
+  input: InstantBacktestRunInput;
+  resolve: (value: InstantBacktestRunOutput) => void;
+  reject: (error: unknown) => void;
+}>;
+
+const controlledGateway = (
+  seriesResult: () => Promise<{ series: InstantBacktestSeries[] }>
+) => {
+  const pending: Pending[] = [];
+  const gateway: InstantBacktestGateway = {
+    series: vi.fn(seriesResult),
+    // The web tsconfig targets a lib without Promise.withResolvers, so the executor form stays.
+    run: vi.fn(
+      (input: InstantBacktestRunInput) =>
+        new Promise<InstantBacktestRunOutput>((resolve, reject) => {
+          pending.push({ input, resolve, reject });
+        })
+    ),
+  };
+  return { gateway, pending };
+};
+
+const settle = async (work: () => void) => {
+  await act(async () => {
+    work();
+    await flush();
+  });
+};
+
+const setNative = async (
+  element: HTMLInputElement | HTMLSelectElement,
+  value: string,
+  eventName: "input" | "change"
+) => {
+  const prototype =
+    element instanceof HTMLSelectElement
+      ? HTMLSelectElement.prototype
+      : HTMLInputElement.prototype;
+  await settle(() => {
+    Object.getOwnPropertyDescriptor(prototype, "value")?.set?.call(
+      element,
+      value
+    );
+    element.dispatchEvent(new Event(eventName, { bubbles: true }));
+  });
+};
+
+const field = (label: string) => {
+  const target = [...document.querySelectorAll("label")].find(
+    (node) => node.textContent === label
+  );
+  return document.getElementById(
+    target?.getAttribute("for") ?? ""
+  ) as HTMLInputElement & HTMLSelectElement;
+};
+
+const statText = (label: string) =>
+  document.querySelector(`[data-stat="${label}"] dd`)?.textContent;
+
+const statusText = () =>
+  document.querySelector("[data-instant-status]")?.textContent ?? "";
+
+describe("toRunInput and formatters", () => {
+  it("builds both rule requests and explains invalid parameters", () => {
+    expect(toRunInput(DEFAULT_INSTANT_PARAMS, SPY)).toEqual({
+      input: {
+        symbol: "SPY",
+        timeframe: "1d",
+        rule: { kind: "smaCross", fast: 50, slow: 200 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+        costBps: 2,
+      },
+    });
+    expect(
+      toRunInput({ ...DEFAULT_INSTANT_PARAMS, ruleKind: "breakout" }, BTC)
+    ).toMatchObject({
+      input: {
+        symbol: "BTCUSDT",
+        rule: {
+          kind: "breakout",
+          entryLookback: 20,
+          exitLookback: 10,
+          trendSma: 0,
+        },
+      },
+    });
+    expect(toRunInput({ ...DEFAULT_INSTANT_PARAMS, fast: 2.5 }, SPY)).toEqual({
+      error: "Fast average (bars) must be a whole number from 1 to 500.",
+    });
+    expect(
+      toRunInput({ ...DEFAULT_INSTANT_PARAMS, stopLossPct: 80 }, SPY)
+    ).toEqual({ error: "Stop-loss (% below entry) must be from 0 to 50." });
+    expect(
+      toRunInput({ ...DEFAULT_INSTANT_PARAMS, fast: 300, slow: 200 }, SPY)
+    ).toEqual({
+      error: "The fast average must be shorter than the slow average.",
+    });
+  });
+
+  it("formats missing values as n/a", () => {
+    expect(formatPercent(0.1234)).toBe("12.3%");
+    expect(formatPercent(null)).toBe("n/a");
+    expect(formatRatio(1.234)).toBe("1.23");
+    expect(formatRatio(null)).toBe("n/a");
+  });
+});
+
+describe("InstantBacktestWorkspace", () => {
+  it("re-runs on each parameter change and keeps only the newest result", async () => {
+    const { gateway, pending } = controlledGateway(async () => ({
+      series: [SPY, BTC],
+    }));
+    await mount(<InstantBacktestWorkspace gateway={gateway} />);
+    expect(pending).toHaveLength(1);
+    expect(statusText()).toBe("Running…");
+    await settle(() => pending[0]?.resolve(output(pending[0].input, 0.5)));
+    expect(statText("Total return")).toBe("50.0%");
+    expect(statText("Sortino")).toBe("n/a");
+    expect(statusText()).toMatch(
+      /^Updated in \d+ ms \(server compute 1\.3 ms, bar load 0\.4 ms, cache hit\)\.$/u
+    );
+    expect(document.querySelector("figure")?.dataset["points"]).toBe("2");
+    expect(document.body.textContent).toContain(
+      "8,487 bars, 1970-01-01 to 1970-04-11"
+    );
+
+    await setNative(field("Fast average (bars)"), "20", "input");
+    await setNative(
+      document.querySelector(
+        'input[aria-label="Fast average (bars) slider"]'
+      ) as HTMLInputElement,
+      "30",
+      "input"
+    );
+    // One request is in flight; the slider change waits as the single queued request.
+    expect(pending.map((entry) => entry.input.rule)).toEqual([
+      { kind: "smaCross", fast: 50, slow: 200 },
+      { kind: "smaCross", fast: 20, slow: 200 },
+    ]);
+    // The previous result stays visible while the new run is in flight.
+    expect(statText("Total return")).toBe("50.0%");
+    await settle(() => pending[1]?.resolve(output(pending[1].input, 0.9)));
+    // The superseded result is not shown; the queued parameters are sent instead.
+    expect(statText("Total return")).toBe("50.0%");
+    expect(statusText()).toBe("Running…");
+    expect(pending[2]?.input.rule).toEqual({
+      kind: "smaCross",
+      fast: 30,
+      slow: 200,
+    });
+    await settle(() => pending[2]?.resolve(output(pending[2].input, 0.3)));
+    expect(statText("Total return")).toBe("30.0%");
+    await setNative(field("Cost per side (basis points)"), "3", "input");
+    await setNative(field("Cost per side (basis points)"), "4", "input");
+    expect(pending).toHaveLength(4);
+    await settle(() => pending[3]?.reject(new Error("superseded")));
+    expect(statusText()).toBe("Running…");
+    expect(pending[4]?.input.costBps).toBe(4);
+    await settle(() => pending[4]?.resolve(output(pending[4].input, 0.2)));
+    expect(statText("Total return")).toBe("20.0%");
+    expect(statusText()).toMatch(/^Updated in/u);
+    const submit = new Event("submit", { bubbles: true, cancelable: true });
+    await settle(() => document.querySelector("form")?.dispatchEvent(submit));
+    expect(submit.defaultPrevented).toBe(true);
+  });
+
+  it("switches rule and series, ignores blank input and blocks invalid parameters", async () => {
+    const { gateway, pending } = controlledGateway(async () => ({
+      series: [SPY, BTC],
+    }));
+    const resolveLatest = () =>
+      settle(() => {
+        const latest = pending.at(-1);
+        latest?.resolve(output(latest.input, 0.1));
+      });
+    await mount(<InstantBacktestWorkspace gateway={gateway} />);
+    await resolveLatest();
+    await setNative(field("Rule"), "breakout", "change");
+    expect(pending.at(-1)?.input.rule).toEqual({
+      kind: "breakout",
+      entryLookback: 20,
+      exitLookback: 10,
+      trendSma: 0,
+    });
+    expect(document.body.textContent).toContain("0 turns the filter off.");
+    await resolveLatest();
+    await setNative(
+      field("Trend filter: close above average of N bars"),
+      "50",
+      "input"
+    );
+    expect(pending.at(-1)?.input.rule).toMatchObject({ trendSma: 50 });
+    await resolveLatest();
+    await setNative(field("Bars"), "BTCUSDT:1m", "change");
+    expect(pending.at(-1)?.input).toMatchObject({
+      symbol: "BTCUSDT",
+      timeframe: "1m",
+    });
+    await resolveLatest();
+    const count = pending.length;
+    await setNative(field("Stop-loss (% below entry)"), "", "input");
+    expect(pending).toHaveLength(count);
+    await setNative(field("Rule"), "smaCross", "change");
+    await setNative(field("Fast average (bars)"), "250", "input");
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "The fast average must be shorter than the slow average."
+    );
+    expect(pending).toHaveLength(count + 1);
+    // The response for the earlier valid inputs arrives after they became invalid: ignored.
+    await resolveLatest();
+    expect(document.querySelector("[data-instant-results]")).toBeNull();
+    await setNative(field("Fast average (bars)"), "20", "input");
+    await setNative(field("Fast average (bars)"), "300", "input");
+    await settle(() => pending.at(-1)?.reject(new Error("late")));
+    expect(pending).toHaveLength(count + 2);
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.querySelector("[data-instant-results]")).toBeNull();
+  });
+
+  it("shows run errors and keeps the last result", async () => {
+    const { gateway, pending } = controlledGateway(async () => ({
+      series: [SPY],
+    }));
+    await mount(<InstantBacktestWorkspace gateway={gateway} />);
+    await settle(() => pending[0]?.resolve(output(pending[0].input, 0.5)));
+    await setNative(field("Cost per side (basis points)"), "5", "input");
+    await settle(() =>
+      pending[1]?.reject({
+        code: "BAD_REQUEST",
+        message: "slow must be an integer from 1 to 8487",
+      })
+    );
+    expect(statusText()).toBe("slow must be an integer from 1 to 8487");
+    expect(statText("Total return")).toBe("50.0%");
+  });
+
+  it("explains forbidden, failed and empty series lists", async () => {
+    await mount(
+      <InstantBacktestWorkspace
+        gateway={
+          controlledGateway(async () => {
+            throw { code: "FORBIDDEN", message: "Operator access required" };
+          }).gateway
+        }
+      />
+    );
+    expect(document.querySelector("[data-operator-access]")).not.toBeNull();
+    document.body.replaceChildren();
+    await mount(
+      <InstantBacktestWorkspace
+        gateway={
+          controlledGateway(async () => {
+            throw { code: "STORAGE_ERROR", message: "Bar storage unavailable" };
+          }).gateway
+        }
+      />
+    );
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Bar storage unavailable"
+    );
+    document.body.replaceChildren();
+    await mount(
+      <InstantBacktestWorkspace
+        gateway={controlledGateway(async () => ({ series: [] })).gateway}
+      />
+    );
+    expect(document.body.textContent).toContain("No stored bar series yet.");
+  });
+
+  it("ignores series responses that arrive after unmount", async () => {
+    interface SeriesList {
+      series: InstantBacktestSeries[];
+    }
+    let resolveLate: (value: SeriesList) => void = () => undefined;
+    let rejectLate: (error: unknown) => void = () => undefined;
+    const first = controlledGateway(
+      () =>
+        new Promise<SeriesList>((resolve) => {
+          resolveLate = resolve;
+        })
+    );
+    const second = controlledGateway(
+      () =>
+        new Promise<SeriesList>((_, reject) => {
+          rejectLate = reject;
+        })
+    );
+    const a = await mount(<InstantBacktestWorkspace gateway={first.gateway} />);
+    const b = await mount(
+      <InstantBacktestWorkspace gateway={second.gateway} />
+    );
+    expect(document.body.textContent).toContain("Loading stored bar series");
+    await act(async () => {
+      a.root.unmount();
+      b.root.unmount();
+    });
+    roots.splice(0);
+    await settle(() => {
+      resolveLate({ series: [SPY] });
+      rejectLate(new Error("late"));
+    });
+    expect(first.pending).toHaveLength(0);
+  });
+
+  it("uses the browser oRPC client when no gateway is given", async () => {
+    const fetch = vi.fn(async (request: Request) => {
+      const path = new URL(request.url).pathname;
+      const body = path.endsWith("/series")
+        ? { series: [SPY] }
+        : output(
+            {
+              symbol: "SPY",
+              timeframe: "1d",
+              rule: { kind: "smaCross", fast: 50, slow: 200 },
+              stopLossPct: 0,
+              takeProfitPct: 0,
+              costBps: 2,
+            },
+            0.25
+          );
+      return Response.json({ json: body });
+    });
+    vi.stubGlobal("fetch", fetch);
+    await mount(<InstantBacktestWorkspace />);
+    await act(async () => {
+      await flush();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await flush();
+    });
+    expect(statText("Total return")).toBe("25.0%");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});

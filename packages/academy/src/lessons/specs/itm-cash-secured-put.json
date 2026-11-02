@@ -1,0 +1,149 @@
+{
+  "slug": "itm-cash-secured-put",
+  "sourceId": "DUL1rQ1iS45",
+  "title": "Striking cash-secured puts in the money to keep upside",
+  "summary": "If the market tends to rise, an in-the-money cash-secured put can make more than an out-of-the-money one. An in-the-money put equals a covered call struck just above the stock price, so it leaves room for appreciation. Roll or close before expiry to avoid assignment.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish"],
+    "instruments": ["single-stock", "cash-secured-puts", "covered-calls"],
+    "timeframe": "weeks",
+    "risk": "stock-like",
+    "topics": ["strike selection", "put-call parity", "upside capture"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "ITM put, strike $105",
+      "legs": [
+        {
+          "kind": "put",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short ITM put"
+        }
+      ]
+    },
+    "b": {
+      "label": "Covered call, strike $105",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1,
+          "label": "100 shares"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "strike",
+          "dte": "dte",
+          "label": "Short OTM call"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "strike",
+      "label": "Strike",
+      "default": 105,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 1,
+      "max": 900,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 25,
+      "min": 5,
+      "max": 200,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100. We sell a 30-day put at $105, which is in the money."
+    },
+    {
+      "element": "a",
+      "color": "gold",
+      "caption": "Line A: the in-the-money put. It gains as the stock rises toward $105."
+    },
+    {
+      "element": "b",
+      "color": "blue",
+      "caption": "Line B: 100 shares plus a $105 call. The same shape: put-call parity makes the two trades equivalent."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Both keep about $5 of upside room from $100 to $105 before the gain is capped."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is close to zero, only carry. The choice is strike location, not trade type.",
+      "time": [0, 1]
+    }
+  ],
+  "formulas": ["putCallParity", "breakevenPut", "annualizedYield"],
+  "takeaways": [
+    "An in-the-money cash-secured put equals a covered call struck out of the money.",
+    "It leaves room for the stock to appreciate, which helps if the market's long-run upward bias holds.",
+    "Roll or close before expiration if you do not want assignment."
+  ],
+  "caveats": [
+    "The 'more money over the long term' claim is the speaker's view and depends on a rising market.",
+    "Full downside of the stock remains; the backtest models it at stock-like risk."
+  ],
+  "backtest": {
+    "structure": "cash_secured_put",
+    "tickers": ["SPY", "QQQ", "AAPL"],
+    "scenario": {
+      "label": "2015-2024 decade incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "shortDelta": -0.6,
+      "exitDte": 2
+    },
+    "note": "Monthly cash-secured put struck in the money (60 delta); closed two days before expiry."
+  }
+}

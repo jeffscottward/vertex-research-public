@@ -1,0 +1,171 @@
+{
+  "slug": "itm-debit-call-spread",
+  "sourceId": "DZIcK8GRYVp",
+  "title": "Anatomy of an in-the-money debit call spread",
+  "summary": "An in-the-money debit call spread is a positive-carry trade with a bullish tilt: if the underlying does nothing, time decay works for you. The example SPY 720/730 call spread costs $8 for a $10 width, makes 25% anywhere above $730 (about 3.3% lower; breakeven about 3.6% lower), and loses the full premium below the long strike.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["bullish", "range"],
+    "instruments": ["etf", "spreads"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["theta", "positive carry", "vertical spread"]
+  },
+  "scene": {
+    "type": "payoff",
+    "view": "3d",
+    "legs": [
+      {
+        "kind": "call",
+        "side": "long",
+        "qty": "contracts",
+        "strike": "longStrike",
+        "dte": "dte"
+      },
+      {
+        "kind": "call",
+        "side": "short",
+        "qty": "contracts",
+        "strike": "shortStrike",
+        "dte": "dte"
+      }
+    ]
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "SPY price",
+      "default": 755,
+      "min": 50,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Long call strike",
+      "default": 720,
+      "min": 10,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Short call strike",
+      "default": 730,
+      "min": 10,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 30,
+      "min": 2,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 17,
+      "min": 5,
+      "max": 100,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    },
+    {
+      "id": "contracts",
+      "label": "Spreads",
+      "default": 1,
+      "min": 1,
+      "max": 50,
+      "step": 1,
+      "unit": "contracts"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "SPY trades near $755. We buy the 720 call and sell the 730 call, one month out: both strikes are below the market."
+    },
+    {
+      "element": "legs",
+      "color": "gray",
+      "caption": "The dashed lines are the two legs at expiry: a long call and a short call that caps the gain."
+    },
+    {
+      "element": "expiry",
+      "color": "gold",
+      "caption": "Together: pay about $8 for a $10 wide spread. Above $730 at expiry the spread is worth $10."
+    },
+    {
+      "element": "maxProfit",
+      "color": "green",
+      "caption": "Maximum profit is the width minus the debit, about $2 per share: 25% on the premium."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Breakeven sits near $728, about 3.6% below the market. The full 25% needs SPY above $730, a fall of at most about 3.3%."
+    },
+    {
+      "element": "now",
+      "color": "blue",
+      "time": [0, 1],
+      "caption": "Positive carry: with SPY unchanged, the blue curve rises toward the maximum as expiry approaches. You are net long theta."
+    },
+    {
+      "element": "maxLoss",
+      "color": "red",
+      "caption": "The risk: below $720 at expiry you lose 100% of the premium. Size for that full loss."
+    },
+    {
+      "element": "surface",
+      "color": "violet",
+      "caption": "The 3D surface shows P&L across price and time: the profit plateau grows as the days pass."
+    }
+  ],
+  "formulas": ["verticalMaxProfit", "breakevenCall", "theta", "putCallParity"],
+  "takeaways": [
+    "An ITM debit call spread has the same payoff as an OTM put credit spread at the same strikes.",
+    "It earns from time decay when the price stays put, so it fits mildly bullish or sideways markets.",
+    "The reward is small relative to the risk: a drop below the long strike loses the full debit, so size small."
+  ],
+  "caveats": [
+    "Reward:risk is about 0.25:1. The owner's X09 rule needs logged hit-rate evidence before deploying it.",
+    "The speaker's 'still makes 25% after a 4.9% fall' does not fit 720/730 at $755: a 4.9% fall (~$718) is below the long strike, a full loss. 25% holds only above $730 (-3.3%)."
+  ],
+  "backtest": {
+    "structure": "call_debit_spread",
+    "tickers": ["SPY", "QQQ", "IWM"],
+    "scenario": {
+      "label": "2015-2024 decade incl. 2018, 2020 and 2022 drawdowns",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 30,
+      "longDelta": 0.85,
+      "shortDelta": 0.75,
+      "exitDte": 3,
+      "profitTakePct": 20,
+      "stopLossPct": 60,
+      "riskPct": 5
+    },
+    "note": "One-month spread with both strikes in the money; exit at 20% gained on the debit (80% of the maximum) or 60% lost."
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "slug": "ratio-spreads-two-trades",
+  "sourceId": "DWhNVB4CY9S",
+  "title": "Ratio spreads: avoid naked short units and judge each part alone",
+  "summary": "Two points on ratio spreads. First, selling one extra unit leaves you outright short that unit, which is dangerous on margin; if you sell an extra put, make it cash-secured. Second, a ratio spread is two trades in one, like a zebra (buy two ITM calls, sell one ATM call). Evaluate each part alone and only do the good one.",
+  "kind": "concept",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["spreads", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "undefined",
+    "topics": ["ratio spread", "zebra", "naked short", "trade decomposition"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "1x2 call ratio",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "longStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 2,
+          "strike": "shortStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Zebra: buy 2 ITM, sell 1 ATM",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 2,
+          "strike": "itmStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "atmStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "Stock price",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "longStrike",
+      "label": "Ratio long strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "shortStrike",
+      "label": "Ratio short strike",
+      "default": 110,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "itmStrike",
+      "label": "Zebra ITM strike",
+      "default": 85,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "atmStrike",
+      "label": "Zebra ATM strike",
+      "default": 100,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 45,
+      "min": 1,
+      "max": 730,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 30,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "The stock trades at $100."
+    },
+    {
+      "element": "a",
+      "color": "red",
+      "caption": "A: buy one call, sell two higher. It is cheap, but one short call is naked: losses grow without limit."
+    },
+    {
+      "element": "b",
+      "color": "green",
+      "caption": "B: a zebra. Buy two ITM calls, sell one ATM call. It behaves much like long stock."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "Each ratio is two trades: a spread plus an extra long or short option. Judge each piece alone."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "If the spread is attractive but the extra option is not, do only the spread."
+    }
+  ],
+  "formulas": ["delta", "verticalMaxProfit", "extrinsic"],
+  "takeaways": [
+    "Selling an extra unit leaves you outright short; on margin this can cause big trouble.",
+    "If you sell an extra unit, at least make it a cash-secured put.",
+    "Break a ratio spread into its simple parts and evaluate each one on its own.",
+    "Do not combine a good trade with a mediocre one; just do the good trade."
+  ],
+  "caveats": [
+    "Strikes are illustrative; the clip gives none. Naked short calls break the owner's defined-risk rule."
+  ]
+}

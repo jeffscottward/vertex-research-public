@@ -1,0 +1,2475 @@
+{
+  "semanticProfile": "vertex-invariants-v1",
+  "programs": {
+    "SchemaVersion": true,
+    "Identifier": true,
+    "Digest": true,
+    "Version": true,
+    "SourceIdentity": true,
+    "ModuleStatus": true,
+    "VertexEnvironment": true,
+    "VertexPortfolioGetInput": true,
+    "VertexContinuityGetInput": true,
+    "VertexReviewListInput": true,
+    "Timestamp": ["timestamp", ["get", ""]],
+    "DecimalString": ["eq", ["decimal", ["get", ""]], ["decimal", ["get", ""]]],
+    "NonnegativeDecimal": ["ge", ["decimal", ["get", ""]], 0],
+    "PositiveDecimal": ["gt", ["decimal", ["get", ""]], 0],
+    "ProjectionSequence": ["ge", ["integer", ["get", ""]], 0],
+    "PositiveSequence": ["gt", ["integer", ["get", ""]], 0],
+    "IdentifierArray": ["unique", ["get", ""]],
+    "GammaProvenance": [
+      "eq",
+      ["get", "replayManifestId"],
+      ["concat", "replay-manifest-", ["slice", ["get", "manifestHash"], 0, 24]]
+    ],
+    "Freshness": [
+      "and",
+      ["call", "Timestamp", ["get", "evaluatedAt"]],
+      [
+        "or",
+        ["eq", ["get", "observedAt"], null],
+        ["call", "Timestamp", ["get", "observedAt"]]
+      ],
+      [
+        "if",
+        ["eq", ["get", "status"], "missing"],
+        ["eq", ["get", "observedAt"], null],
+        [
+          "if",
+          ["eq", ["get", "observedAt"], null],
+          ["eq", ["get", "status"], "unknown"],
+          [
+            "and",
+            [
+              "ge",
+              [
+                "sub",
+                ["epoch", ["get", "evaluatedAt"]],
+                ["epoch", ["get", "observedAt"]]
+              ],
+              0
+            ],
+            [
+              "if",
+              ["eq", ["get", "status"], "fresh"],
+              [
+                "le",
+                [
+                  "sub",
+                  ["epoch", ["get", "evaluatedAt"]],
+                  ["epoch", ["get", "observedAt"]]
+                ],
+                ["mul", ["get", "maxAgeMs"], 1000000]
+              ],
+              [
+                "if",
+                ["eq", ["get", "status"], "stale"],
+                [
+                  "gt",
+                  [
+                    "sub",
+                    ["epoch", ["get", "evaluatedAt"]],
+                    ["epoch", ["get", "observedAt"]]
+                  ],
+                  ["mul", ["get", "maxAgeMs"], 1000000]
+                ],
+                true
+              ]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "Entitlement": [
+      "and",
+      ["call", "Timestamp", ["get", "checkedAt"]],
+      [
+        "or",
+        ["eq", ["get", "expiresAt"], null],
+        ["call", "Timestamp", ["get", "expiresAt"]]
+      ],
+      [
+        "if",
+        ["eq", ["get", "status"], "granted"],
+        [
+          "and",
+          ["ne", ["get", "expiresAt"], null],
+          [
+            "lt",
+            ["epoch", ["get", "checkedAt"]],
+            ["epoch", ["get", "expiresAt"]]
+          ]
+        ],
+        [
+          "if",
+          ["eq", ["get", "status"], "expired"],
+          [
+            "and",
+            ["ne", ["get", "expiresAt"], null],
+            [
+              "le",
+              ["epoch", ["get", "expiresAt"]],
+              ["epoch", ["get", "checkedAt"]]
+            ]
+          ],
+          true
+        ]
+      ]
+    ],
+    "MarketDataSource": [
+      "and",
+      ["call", "SourceIdentity", ["get", "identity"]],
+      ["call", "Entitlement", ["get", "entitlement"]],
+      ["call", "Freshness", ["get", "freshness"]],
+      [
+        "if",
+        ["eq", ["get", "dataKind"], "synthetic"],
+        ["ne", ["get", "syntheticReason"], null],
+        ["eq", ["get", "syntheticReason"], null]
+      ]
+    ],
+    "Quote": [
+      "and",
+      ["call", "MarketDataSource", ["get", "source"]],
+      ["call", "NonnegativeDecimal", ["get", "bid"]],
+      ["call", "NonnegativeDecimal", ["get", "ask"]],
+      ["call", "NonnegativeDecimal", ["get", "bidSize"]],
+      ["call", "NonnegativeDecimal", ["get", "askSize"]],
+      [
+        "or",
+        ["eq", ["get", "lastPrice"], null],
+        ["call", "NonnegativeDecimal", ["get", "lastPrice"]]
+      ],
+      ["call", "Timestamp", ["get", "sourceTimestamp"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      ["le", ["decimal", ["get", "bid"]], ["decimal", ["get", "ask"]]],
+      [
+        "le",
+        ["epoch", ["get", "sourceTimestamp"]],
+        ["epoch", ["get", "receivedAt"]]
+      ],
+      ["ne", ["get", "source.freshness.observedAt"], null],
+      [
+        "eq",
+        ["epoch", ["get", "source.freshness.observedAt"]],
+        ["epoch", ["get", "sourceTimestamp"]]
+      ],
+      [
+        "le",
+        ["epoch", ["get", "receivedAt"]],
+        ["epoch", ["get", "source.freshness.evaluatedAt"]]
+      ]
+    ],
+    "TimeWindow": [
+      "and",
+      ["call", "Timestamp", ["get", "startAtInclusive"]],
+      ["call", "Timestamp", ["get", "endAtExclusive"]],
+      [
+        "lt",
+        ["epoch", ["get", "startAtInclusive"]],
+        ["epoch", ["get", "endAtExclusive"]]
+      ]
+    ],
+    "Candle": [
+      "and",
+      ["call", "MarketDataSource", ["get", "source"]],
+      ["call", "TimeWindow", ["get", ""]],
+      ["call", "NonnegativeDecimal", ["get", "open"]],
+      ["call", "NonnegativeDecimal", ["get", "high"]],
+      ["call", "NonnegativeDecimal", ["get", "low"]],
+      ["call", "NonnegativeDecimal", ["get", "close"]],
+      ["call", "NonnegativeDecimal", ["get", "volume"]],
+      ["le", ["decimal", ["get", "low"]], ["decimal", ["get", "open"]]],
+      ["le", ["decimal", ["get", "open"]], ["decimal", ["get", "high"]]],
+      ["le", ["decimal", ["get", "low"]], ["decimal", ["get", "close"]]],
+      ["le", ["decimal", ["get", "close"]], ["decimal", ["get", "high"]]]
+    ],
+    "TradeFlow": [
+      "and",
+      ["call", "MarketDataSource", ["get", "source"]],
+      ["call", "Timestamp", ["get", "sourceTimestamp"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      ["call", "NonnegativeDecimal", ["get", "price"]],
+      ["call", "PositiveDecimal", ["get", "quantity"]],
+      [
+        "le",
+        ["epoch", ["get", "sourceTimestamp"]],
+        ["epoch", ["get", "receivedAt"]]
+      ]
+    ],
+    "VolumeProfileBin": [
+      "and",
+      ["call", "NonnegativeDecimal", ["get", "lowerPriceInclusive"]],
+      ["call", "NonnegativeDecimal", ["get", "buyVolume"]],
+      ["call", "NonnegativeDecimal", ["get", "sellVolume"]],
+      ["call", "NonnegativeDecimal", ["get", "unknownVolume"]],
+      ["call", "PositiveDecimal", ["get", "upperPriceExclusive"]],
+      [
+        "lt",
+        ["decimal", ["get", "lowerPriceInclusive"]],
+        ["decimal", ["get", "upperPriceExclusive"]]
+      ]
+    ],
+    "VolumeProfile": [
+      "and",
+      ["call", "MarketDataSource", ["get", "source"]],
+      ["call", "TimeWindow", ["get", ""]],
+      ["every", ["get", "bins"], ["call", "VolumeProfileBin", ["get", ""]]],
+      [
+        "nonoverlap",
+        ["get", "bins"],
+        "lowerPriceInclusive",
+        "upperPriceExclusive"
+      ]
+    ],
+    "DatasetManifest": [
+      "and",
+      [
+        "if",
+        ["contains", ["keys", ["get", ""]], "historicalSemantics"],
+        [
+          "and",
+          ["eq", ["get", "calendar"], null],
+          ["eq", ["get", "provider"], "ibkr"],
+          ["eq", ["get", "dataVintageId"], null],
+          ["eq", ["get", "dataVintageStatus"], "unavailable"],
+          ["eq", ["get", "gammaProvenance"], null],
+          ["eq", ["len", ["get", "sources"]], 1],
+          ["every", ["get", "sources"], ["eq", ["get", "provider"], "ibkr"]],
+          [
+            "eq",
+            ["get", "adjustmentMethod"],
+            [
+              "if",
+              [
+                "eq",
+                ["get", "historicalSemantics.adjustment"],
+                "split-adjusted-not-dividend-adjusted"
+              ],
+              "split-adjusted",
+              "provider-defined"
+            ]
+          ]
+        ],
+        ["ne", ["get", "calendar"], null]
+      ],
+      ["call", "IdentifierArray", ["get", "instrumentUniverse"]],
+      ["call", "TimeWindow", ["get", ""]],
+      ["call", "Timestamp", ["get", "captureTime"]],
+      ["call", "Timestamp", ["get", "asOfAt"]],
+      ["every", ["get", "sources"], ["call", "SourceIdentity", ["get", ""]]],
+      [
+        "or",
+        ["eq", ["get", "gammaProvenance"], null],
+        ["call", "GammaProvenance", ["get", "gammaProvenance"]]
+      ],
+      ["le", ["epoch", ["get", "asOfAt"]], ["epoch", ["get", "captureTime"]]],
+      [
+        "le",
+        ["epoch", ["get", "endAtExclusive"]],
+        ["epoch", ["get", "captureTime"]]
+      ],
+      [
+        "if",
+        ["eq", ["get", "dataVintageStatus"], "available"],
+        ["ne", ["get", "dataVintageId"], null],
+        ["eq", ["get", "dataVintageId"], null]
+      ]
+    ],
+    "ResearchEvidence": [
+      "and",
+      ["call", "SourceIdentity", ["get", "sourceIdentity"]],
+      [
+        "or",
+        ["eq", ["get", "publishedAt"], null],
+        ["call", "Timestamp", ["get", "publishedAt"]]
+      ],
+      ["call", "Timestamp", ["get", "capturedAt"]],
+      ["publicHttps", ["get", "sourceUri"]],
+      ["eq", ["get", "sourceIdentity.contentHash"], ["get", "contentHash"]],
+      [
+        "or",
+        ["eq", ["get", "publishedAt"], null],
+        [
+          "le",
+          ["epoch", ["get", "publishedAt"]],
+          ["epoch", ["get", "capturedAt"]]
+        ]
+      ]
+    ],
+    "KnowledgeImport": [
+      "and",
+      [
+        "every",
+        ["get", "sourceIdentities"],
+        ["call", "SourceIdentity", ["get", ""]]
+      ],
+      ["uniqueBy", ["get", "sourceIdentities"], "sourceId"],
+      ["unique", ["get", "contentHashes"]],
+      ["uniqueBy", ["get", "unavailableSources"], "sourceId"],
+      ["uniqueBy", ["get", "duplicateMappings"], "sourceId"],
+      [
+        "every",
+        ["get", "unavailableSources"],
+        [
+          "not",
+          [
+            "some",
+            ["root", "sourceIdentities"],
+            ["eq", ["get", "sourceId"], ["parent", "sourceId"]]
+          ]
+        ]
+      ],
+      [
+        "every",
+        ["get", "sourceIdentities"],
+        ["contains", ["root", "contentHashes"], ["get", "contentHash"]]
+      ],
+      [
+        "every",
+        ["get", "contentHashes"],
+        [
+          "some",
+          ["root", "sourceIdentities"],
+          ["eq", ["get", "contentHash"], ["parent", ""]]
+        ]
+      ],
+      [
+        "every",
+        ["get", "duplicateMappings"],
+        [
+          "and",
+          ["ne", ["get", "sourceId"], ["get", "canonicalSourceId"]],
+          [
+            "some",
+            ["root", "sourceIdentities"],
+            [
+              "and",
+              ["eq", ["get", "sourceId"], ["parent", "sourceId"]],
+              ["eq", ["get", "contentHash"], ["parent", "contentHash"]]
+            ]
+          ],
+          [
+            "some",
+            ["root", "sourceIdentities"],
+            [
+              "and",
+              ["eq", ["get", "sourceId"], ["parent", "canonicalSourceId"]],
+              ["eq", ["get", "contentHash"], ["parent", "contentHash"]]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "DataRequirement": true,
+    "DeterministicRule": ["call", "DecimalString", ["get", "threshold"]],
+    "CostModel": [
+      "and",
+      ["call", "NonnegativeDecimal", ["get", "commissionPerUnit"]],
+      ["call", "NonnegativeDecimal", ["get", "spreadBps"]],
+      ["call", "NonnegativeDecimal", ["get", "slippageBps"]],
+      ["call", "NonnegativeDecimal", ["get", "borrowAnnualBps"]],
+      ["call", "PositiveDecimal", ["get", "maximumParticipationBps"]],
+      [
+        "le",
+        ["decimal", ["get", "maximumParticipationBps"]],
+        ["decimal", "10000"]
+      ]
+    ],
+    "StrategySpec": [
+      "and",
+      ["call", "IdentifierArray", ["get", "universe"]],
+      [
+        "every",
+        ["get", "entryRules"],
+        ["call", "DeterministicRule", ["get", ""]]
+      ],
+      [
+        "every",
+        ["get", "exitRules"],
+        ["call", "DeterministicRule", ["get", ""]]
+      ],
+      ["call", "PositiveDecimal", ["get", "riskLimits.maximumLoss"]],
+      ["call", "PositiveDecimal", ["get", "riskLimits.maximumNotional"]],
+      [
+        "every",
+        ["get", "requiredData"],
+        ["call", "DataRequirement", ["get", ""]]
+      ],
+      ["call", "CostModel", ["get", "costModel"]]
+    ],
+    "LeakageCheck": [
+      "or",
+      ["not", ["eq", ["get", "status"], "passed"]],
+      ["ne", ["get", "evidenceId"], null]
+    ],
+    "BacktestRun": [
+      "and",
+      ["call", "IdentifierArray", ["get", "datasetManifestIds"]],
+      ["call", "TimeWindow", ["get", "trainingWindow"]],
+      ["call", "TimeWindow", ["get", "testWindow"]],
+      ["call", "CostModel", ["get", "transactionCosts"]],
+      [
+        "every",
+        ["get", "leakageChecks"],
+        ["call", "LeakageCheck", ["get", ""]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "gammaProvenance"], null],
+        ["call", "GammaProvenance", ["get", "gammaProvenance"]]
+      ],
+      [
+        "le",
+        ["epoch", ["get", "trainingWindow.endAtExclusive"]],
+        ["epoch", ["get", "testWindow.startAtInclusive"]]
+      ],
+      ["uniqueBy", ["get", "leakageChecks"], "kind"],
+      [
+        "or",
+        ["not", ["eq", ["get", "reviewStatus"], "accepted"]],
+        [
+          "and",
+          ["ne", ["get", "resultsRef"], null],
+          ["eq", ["len", ["get", "leakageChecks"]], 5],
+          [
+            "every",
+            ["get", "leakageChecks"],
+            ["eq", ["get", "status"], "passed"]
+          ]
+        ]
+      ]
+    ],
+    "TradeIntent": [
+      "and",
+      ["call", "PositiveDecimal", ["get", "quantity"]],
+      ["call", "PositiveDecimal", ["get", "tickSize"]],
+      ["call", "PositiveDecimal", ["get", "maxLossBudget"]],
+      [
+        "or",
+        ["eq", ["get", "limitPrice"], null],
+        ["call", "PositiveDecimal", ["get", "limitPrice"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "stopPrice"], null],
+        ["call", "PositiveDecimal", ["get", "stopPrice"]]
+      ],
+      ["call", "Timestamp", ["get", "quoteAsOf"]],
+      ["call", "Timestamp", ["get", "proposedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "Quote", ["get", "referenceQuote"]],
+      ["call", "IdentifierArray", ["get", "reasonEvidenceIds"]],
+      ["eq", ["get", "proposalOnly"], true],
+      ["eq", ["get", "executionAuthorized"], false],
+      [
+        "eq",
+        ["contains", ["lit", ["limit", "stop-limit"]], ["get", "orderType"]],
+        ["ne", ["get", "limitPrice"], null]
+      ],
+      [
+        "eq",
+        ["contains", ["lit", ["stop", "stop-limit"]], ["get", "orderType"]],
+        ["ne", ["get", "stopPrice"], null]
+      ],
+      [
+        "or",
+        ["eq", ["get", "limitPrice"], null],
+        [
+          "eq",
+          [
+            "mod",
+            ["decimal", ["get", "limitPrice"]],
+            ["decimal", ["get", "tickSize"]]
+          ],
+          0
+        ]
+      ],
+      [
+        "or",
+        ["eq", ["get", "stopPrice"], null],
+        [
+          "eq",
+          [
+            "mod",
+            ["decimal", ["get", "stopPrice"]],
+            ["decimal", ["get", "tickSize"]]
+          ],
+          0
+        ]
+      ],
+      ["eq", ["get", "referenceQuote.instrumentId"], ["get", "instrumentId"]],
+      [
+        "eq",
+        ["epoch", ["get", "quoteAsOf"]],
+        ["epoch", ["get", "referenceQuote.sourceTimestamp"]]
+      ],
+      ["eq", ["get", "referenceQuote.source.dataKind"], "real"],
+      ["eq", ["get", "referenceQuote.source.freshness.status"], "fresh"],
+      [
+        "ge",
+        [
+          "sub",
+          ["epoch", ["get", "proposedAt"]],
+          ["epoch", ["get", "referenceQuote.sourceTimestamp"]]
+        ],
+        0
+      ],
+      [
+        "le",
+        [
+          "sub",
+          ["epoch", ["get", "proposedAt"]],
+          ["epoch", ["get", "referenceQuote.sourceTimestamp"]]
+        ],
+        ["mul", ["get", "referenceQuote.source.freshness.maxAgeMs"], 1000000]
+      ],
+      [
+        "le",
+        ["epoch", ["get", "referenceQuote.source.freshness.evaluatedAt"]],
+        ["epoch", ["get", "proposedAt"]]
+      ],
+      ["eq", ["get", "referenceQuote.source.entitlement.status"], "granted"],
+      ["ne", ["get", "referenceQuote.source.entitlement.expiresAt"], null],
+      [
+        "le",
+        ["epoch", ["get", "referenceQuote.source.entitlement.checkedAt"]],
+        ["epoch", ["get", "proposedAt"]]
+      ],
+      [
+        "lt",
+        ["epoch", ["get", "proposedAt"]],
+        ["epoch", ["get", "referenceQuote.source.entitlement.expiresAt"]]
+      ],
+      ["lt", ["epoch", ["get", "proposedAt"]], ["epoch", ["get", "expiresAt"]]]
+    ],
+    "ExposureCheck": [
+      "and",
+      [
+        "or",
+        ["eq", ["get", "observed"], null],
+        ["call", "NonnegativeDecimal", ["get", "observed"]]
+      ],
+      ["call", "PositiveDecimal", ["get", "limit"]],
+      [
+        "or",
+        ["not", ["eq", ["get", "status"], "passed"]],
+        [
+          "and",
+          ["ne", ["get", "observed"], null],
+          [
+            "le",
+            ["decimal", ["get", "observed"]],
+            ["decimal", ["get", "limit"]]
+          ]
+        ]
+      ]
+    ],
+    "RiskDecision": [
+      "and",
+      ["call", "Freshness", ["get", "freshnessCheck"]],
+      [
+        "every",
+        ["get", "exposureChecks"],
+        ["call", "ExposureCheck", ["get", ""]]
+      ],
+      ["call", "IdentifierArray", ["get", "reasonCodes"]],
+      ["eq", ["get", "authorizationExpiry"], null],
+      ["eq", ["get", "liveAuthorization"], false],
+      ["eq", ["get", "executionAuthorized"], false],
+      [
+        "or",
+        [
+          "not",
+          [
+            "contains",
+            ["lit", ["paper-eligible", "research-accepted"]],
+            ["get", "decision"]
+          ]
+        ],
+        [
+          "and",
+          ["eq", ["get", "freshnessCheck.status"], "fresh"],
+          ["gt", ["len", ["get", "exposureChecks"]], 0],
+          [
+            "every",
+            ["get", "exposureChecks"],
+            ["eq", ["get", "status"], "passed"]
+          ]
+        ]
+      ]
+    ],
+    "ExecutionReceipt": [
+      "and",
+      ["call", "PositiveDecimal", ["get", "totalQuantity"]],
+      ["call", "NonnegativeDecimal", ["get", "filledQuantity"]],
+      ["call", "NonnegativeDecimal", ["get", "remainingQuantity"]],
+      ["call", "Timestamp", ["get", "lastReconciledAt"]],
+      ["call", "IdentifierArray", ["get", "auditEventIds"]],
+      ["eq", ["get", "observationOnly"], true],
+      [
+        "eq",
+        [
+          "add",
+          ["decimal", ["get", "filledQuantity"]],
+          ["decimal", ["get", "remainingQuantity"]]
+        ],
+        ["decimal", ["get", "totalQuantity"]]
+      ],
+      [
+        "if",
+        ["eq", ["get", "status"], "unknown"],
+        ["eq", ["get", "errorClass"], "unknown-outcome"],
+        [
+          "and",
+          ["ne", ["get", "errorClass"], "unknown-outcome"],
+          [
+            "if",
+            [
+              "contains",
+              ["lit", ["not-submitted", "rejected"]],
+              ["get", "status"]
+            ],
+            ["eq", ["decimal", ["get", "filledQuantity"]], 0],
+            [
+              "and",
+              ["ne", ["get", "brokerOrderRef"], null],
+              [
+                "if",
+                ["eq", ["get", "status"], "filled"],
+                ["eq", ["decimal", ["get", "remainingQuantity"]], 0],
+                [
+                  "if",
+                  ["eq", ["get", "status"], "partially-filled"],
+                  [
+                    "and",
+                    ["gt", ["decimal", ["get", "filledQuantity"]], 0],
+                    ["gt", ["decimal", ["get", "remainingQuantity"]], 0]
+                  ],
+                  [
+                    "if",
+                    ["eq", ["get", "status"], "submitted"],
+                    ["eq", ["decimal", ["get", "filledQuantity"]], 0],
+                    true
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "AgentRun": [
+      "and",
+      ["call", "IdentifierArray", ["get", "inputEvidenceIds"]],
+      ["call", "IdentifierArray", ["get", "outputArtifactIds"]],
+      ["call", "NonnegativeDecimal", ["get", "costBudgetUsd"]],
+      ["eq", ["get", "executionAuthorized"], false],
+      [
+        "or",
+        ["not", ["eq", ["get", "status"], "completed"]],
+        [
+          "and",
+          ["eq", ["len", ["get", "errors"]], 0],
+          ["gt", ["len", ["get", "outputArtifactIds"]], 0]
+        ]
+      ]
+    ],
+    "ModuleManifest": [
+      "and",
+      [
+        "every",
+        ["get", "dataRequirements"],
+        ["call", "DataRequirement", ["get", ""]]
+      ],
+      ["call", "IdentifierArray", ["get", "reasonCodes"]]
+    ],
+    "BrokerRecoveryStatus": [
+      "and",
+      ["call", "Timestamp", ["get", "observedAt"]],
+      ["call", "IdentifierArray", ["get", "reasonCodes"]],
+      ["eq", ["get", "trading"], "disabled"],
+      [
+        "or",
+        [
+          "not",
+          [
+            "contains",
+            ["lit", ["requested", "in-progress", "completed"]],
+            ["get", "recovery"]
+          ]
+        ],
+        ["ne", ["get", "lastHumanRequestId"], null]
+      ]
+    ],
+    "RecoveryRequest": [
+      "and",
+      ["call", "Timestamp", ["get", "requestedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "Timestamp", ["get", "confirmation.confirmedAt"]],
+      ["eq", ["get", "executionAuthorized"], false],
+      [
+        "ge",
+        [
+          "sub",
+          ["epoch", ["get", "requestedAt"]],
+          ["epoch", ["get", "confirmation.confirmedAt"]]
+        ],
+        0
+      ],
+      [
+        "le",
+        [
+          "sub",
+          ["epoch", ["get", "requestedAt"]],
+          ["epoch", ["get", "confirmation.confirmedAt"]]
+        ],
+        300000000000
+      ],
+      [
+        "lt",
+        ["epoch", ["get", "requestedAt"]],
+        ["epoch", ["get", "expiresAt"]]
+      ],
+      [
+        "le",
+        [
+          "sub",
+          ["epoch", ["get", "expiresAt"]],
+          ["epoch", ["get", "confirmation.confirmedAt"]]
+        ],
+        300000000000
+      ]
+    ],
+    "EventEnvelope": [
+      "and",
+      ["call", "Timestamp", ["get", "occurredAt"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      ["call", "Timestamp", ["get", "effectiveAt"]],
+      [
+        "le",
+        ["epoch", ["get", "occurredAt"]],
+        ["epoch", ["get", "receivedAt"]]
+      ],
+      [
+        "or",
+        [
+          "not",
+          [
+            "contains",
+            [
+              "lit",
+              [
+                "trade.proposed",
+                "execution.observed",
+                "broker-status.observed",
+                "recovery.requested"
+              ]
+            ],
+            ["get", "eventType"]
+          ]
+        ],
+        ["eq", ["get", "environment"], ["get", "payload.environment"]]
+      ],
+      [
+        "or",
+        [
+          "and",
+          ["eq", ["get", "eventType"], "dataset.recorded"],
+          ["call", "DatasetManifest", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "research.recorded"],
+          ["call", "ResearchEvidence", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "knowledge.imported"],
+          ["call", "KnowledgeImport", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "strategy.recorded"],
+          ["call", "StrategySpec", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "backtest.recorded"],
+          ["call", "BacktestRun", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "trade.proposed"],
+          ["call", "TradeIntent", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "risk.evaluated"],
+          ["call", "RiskDecision", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "execution.observed"],
+          ["call", "ExecutionReceipt", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "agent.recorded"],
+          ["call", "AgentRun", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "module.recorded"],
+          ["call", "ModuleManifest", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "quote.observed"],
+          ["call", "Quote", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "candle.observed"],
+          ["call", "Candle", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "trade-flow.observed"],
+          ["call", "TradeFlow", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "volume-profile.observed"],
+          ["call", "VolumeProfile", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "broker-status.observed"],
+          ["call", "BrokerRecoveryStatus", ["get", "payload"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "eventType"], "recovery.requested"],
+          ["call", "RecoveryRequest", ["get", "payload"]]
+        ]
+      ],
+      [
+        "eq",
+        ["get", "eventId"],
+        [
+          "concat",
+          "event-",
+          ["hashOmit", ["get", ""], ["lit", ["eventId", "receivedAt"]]]
+        ]
+      ]
+    ],
+    "ProjectionContinuity": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "ProjectionSequence", ["get", "highWaterSequence"]],
+      ["call", "PositiveSequence", ["get", "expectedNextSequence"]],
+      [
+        "or",
+        ["eq", ["get", "receivedSequence"], null],
+        ["call", "ProjectionSequence", ["get", "receivedSequence"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "lastOccurredAt"], null],
+        ["call", "Timestamp", ["get", "lastOccurredAt"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "lastReceivedAt"], null],
+        ["call", "Timestamp", ["get", "lastReceivedAt"]]
+      ],
+      ["call", "Timestamp", ["get", "evaluatedAt"]],
+      ["call", "Freshness", ["get", "freshness"]],
+      ["eq", ["get", "newRiskInhibited"], true],
+      ["eq", ["get", "authoritative"], false],
+      [
+        "eq",
+        ["integer", ["get", "expectedNextSequence"]],
+        ["add", ["integer", ["get", "highWaterSequence"]], 1]
+      ],
+      ["eq", ["get", "freshness.evaluatedAt"], ["get", "evaluatedAt"]],
+      ["eq", ["get", "freshness.observedAt"], ["get", "lastOccurredAt"]],
+      [
+        "if",
+        ["eq", ["get", "highWaterSequence"], "0"],
+        [
+          "and",
+          ["eq", ["get", "highWaterEventHash"], null],
+          ["eq", ["get", "lastOccurredAt"], null],
+          ["eq", ["get", "lastReceivedAt"], null],
+          ["ne", ["get", "state"], "continuous"]
+        ],
+        [
+          "and",
+          ["ne", ["get", "highWaterEventHash"], null],
+          ["ne", ["get", "lastOccurredAt"], null],
+          ["ne", ["get", "lastReceivedAt"], null],
+          [
+            "le",
+            ["epoch", ["get", "lastOccurredAt"]],
+            ["epoch", ["get", "lastReceivedAt"]]
+          ],
+          [
+            "le",
+            ["epoch", ["get", "lastReceivedAt"]],
+            ["epoch", ["get", "evaluatedAt"]]
+          ],
+          [
+            "if",
+            ["eq", ["get", "state"], "continuous"],
+            [
+              "and",
+              ["eq", ["get", "freshness.status"], "fresh"],
+              ["eq", ["get", "receivedSequence"], null]
+            ],
+            [
+              "if",
+              ["eq", ["get", "state"], "stale"],
+              ["eq", ["get", "freshness.status"], "stale"],
+              ["ne", ["get", "state"], "empty"]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "PortfolioPosition": [
+      "and",
+      ["call", "DecimalString", ["get", "quantity"]],
+      [
+        "or",
+        ["eq", ["get", "marketValue"], null],
+        ["call", "DecimalString", ["get", "marketValue"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "costBasis"], null],
+        ["call", "NonnegativeDecimal", ["get", "costBasis"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "priceAsOf"], null],
+        ["call", "Timestamp", ["get", "priceAsOf"]]
+      ]
+    ],
+    "PortfolioLot": [
+      "and",
+      ["call", "DecimalString", ["get", "quantity"]],
+      ["call", "NonnegativeDecimal", ["get", "unitCost"]],
+      ["call", "Timestamp", ["get", "openedAt"]]
+    ],
+    "ReservationProjection": [
+      "and",
+      ["call", "NonnegativeDecimal", ["get", "cashAmount"]],
+      ["call", "NonnegativeDecimal", ["get", "shareQuantity"]],
+      ["eq", ["get", "authoritative"], false]
+    ],
+    "SleeveAllocationProjection": [
+      "and",
+      ["call", "NonnegativeDecimal", ["get", "allocatedAmount"]],
+      ["eq", ["get", "authoritative"], false]
+    ],
+    "PortfolioSnapshot": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "PositiveSequence", ["get", "sequence"]],
+      ["call", "Timestamp", ["get", "asOfAt"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      [
+        "or",
+        ["eq", ["get", "cash"], null],
+        ["call", "DecimalString", ["get", "cash"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "netAssetValue"], null],
+        ["call", "DecimalString", ["get", "netAssetValue"]]
+      ],
+      [
+        "every",
+        ["get", "positions"],
+        ["call", "PortfolioPosition", ["get", ""]]
+      ],
+      ["every", ["get", "lots"], ["call", "PortfolioLot", ["get", ""]]],
+      [
+        "every",
+        ["get", "reservations"],
+        ["call", "ReservationProjection", ["get", ""]]
+      ],
+      [
+        "every",
+        ["get", "sleeveAllocations"],
+        ["call", "SleeveAllocationProjection", ["get", ""]]
+      ],
+      ["call", "ProjectionContinuity", ["get", "continuity"]],
+      ["eq", ["get", "observationOnly"], true],
+      ["eq", ["get", "executionAuthorized"], false],
+      ["eq", ["get", "researchNotionalIncluded"], false],
+      ["le", ["epoch", ["get", "asOfAt"]], ["epoch", ["get", "receivedAt"]]],
+      ["eq", ["get", "continuity.accountAlias"], ["get", "accountAlias"]],
+      ["eq", ["get", "continuity.environment"], ["get", "environment"]],
+      ["eq", ["get", "continuity.streamId"], ["get", "streamId"]],
+      ["eq", ["get", "continuity.ownerEpoch"], ["get", "ownerEpoch"]],
+      ["eq", ["get", "continuity.highWaterSequence"], ["get", "sequence"]],
+      [
+        "eq",
+        ["get", "continuity.highWaterEventHash"],
+        ["get", "sourceEventHash"]
+      ],
+      ["eq", ["get", "continuity.lastOccurredAt"], ["get", "asOfAt"]],
+      ["eq", ["get", "continuity.lastReceivedAt"], ["get", "receivedAt"]],
+      [
+        "or",
+        ["not", ["eq", ["get", "sourceKind"], "paper-simulation"]],
+        ["eq", ["get", "environment"], "paper"]
+      ],
+      [
+        "or",
+        ["not", ["eq", ["get", "environment"], "research"]],
+        ["eq", ["get", "netAssetValue"], null]
+      ],
+      [
+        "or",
+        ["not", ["eq", ["get", "sourceKind"], "source-unavailable"]],
+        [
+          "and",
+          ["eq", ["get", "cash"], null],
+          ["eq", ["get", "netAssetValue"], null],
+          ["eq", ["len", ["get", "positions"]], 0],
+          ["eq", ["len", ["get", "lots"]], 0],
+          ["eq", ["len", ["get", "reservations"]], 0],
+          ["eq", ["len", ["get", "sleeveAllocations"]], 0],
+          ["eq", ["get", "continuity.state"], "unavailable"]
+        ]
+      ],
+      ["uniqueBy", ["get", "positions"], "instrumentId"],
+      ["uniqueBy", ["get", "lots"], "lotId"],
+      ["uniqueBy", ["get", "reservations"], "reservationId"],
+      ["uniqueBy", ["get", "sleeveAllocations"], "sleeveId"]
+    ],
+    "AcceptedReview": [
+      "and",
+      ["call", "Timestamp", ["get", "reviewedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["lt", ["epoch", ["get", "reviewedAt"]], ["epoch", ["get", "expiresAt"]]],
+      [
+        "or",
+        ["not", ["eq", ["get", "purpose"], "paper-simulation"]],
+        ["eq", ["get", "environment"], "paper"]
+      ],
+      ["ne", ["get", "supersedesReviewId"], ["get", "reviewId"]],
+      ["eq", ["get", "executionAuthorized"], false]
+    ],
+    "PaperSimulationAdmission": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "PositiveSequence", ["get", "portfolioSequence"]],
+      ["call", "PositiveDecimal", ["get", "maximumLoss"]],
+      ["call", "PositiveDecimal", ["get", "maximumNotional"]],
+      ["call", "Timestamp", ["get", "admittedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["lt", ["epoch", ["get", "admittedAt"]], ["epoch", ["get", "expiresAt"]]],
+      ["eq", ["get", "intentSha256"], ["get", "reviewedArtifactSha256"]],
+      ["eq", ["get", "simulationOnly"], true],
+      ["eq", ["get", "brokerSubmissionAllowed"], false],
+      ["eq", ["get", "liveAuthorization"], false],
+      ["eq", ["get", "executionAuthorized"], false]
+    ],
+    "ExecutionProjectionSemantics": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "PositiveSequence", ["get", "sequence"]],
+      ["call", "Timestamp", ["get", "occurredAt"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "ExecutionReceipt", ["get", "receipt"]],
+      ["eq", ["get", "authoritative"], false],
+      ["eq", ["get", "reservationAuthority"], "native-owner-only"],
+      [
+        "le",
+        ["epoch", ["get", "occurredAt"]],
+        ["epoch", ["get", "receivedAt"]]
+      ],
+      ["lt", ["epoch", ["get", "occurredAt"]], ["epoch", ["get", "expiresAt"]]],
+      ["eq", ["get", "receipt.environment"], ["get", "environment"]],
+      [
+        "if",
+        ["eq", ["get", "sequence"], "1"],
+        ["eq", ["get", "previousEventHash"], null],
+        ["ne", ["get", "previousEventHash"], null]
+      ],
+      [
+        "or",
+        ["not", ["eq", ["get", "sourceKind"], "paper-simulation"]],
+        [
+          "and",
+          ["eq", ["get", "environment"], "paper"],
+          ["ne", ["get", "admissionId"], null]
+        ]
+      ]
+    ],
+    "ExecutionProjection": [
+      "and",
+      ["call", "ExecutionProjectionSemantics", ["get", ""]],
+      [
+        "eq",
+        ["get", "eventHash"],
+        ["hashOmit", ["get", ""], ["lit", ["eventHash"]]]
+      ]
+    ],
+    "VertexPortfolioRead": [
+      "if",
+      ["eq", ["get", "status"], "available"],
+      ["call", "PortfolioSnapshot", ["get", "snapshot"]],
+      ["eq", ["get", "executionAuthorized"], false]
+    ],
+    "VertexContinuityRead": [
+      "if",
+      ["eq", ["get", "status"], "available"],
+      ["call", "ProjectionContinuity", ["get", "continuity"]],
+      ["eq", ["get", "executionAuthorized"], false]
+    ],
+    "VertexReviewListOutput": [
+      "every",
+      ["get", ""],
+      ["call", "AcceptedReview", ["get", ""]]
+    ],
+    "PortfolioGenesis": [
+      "and",
+      ["call", "PortfolioSnapshot", ["get", ""]],
+      ["eq", ["get", "environment"], "paper"],
+      ["eq", ["get", "sourceKind"], "paper-simulation"],
+      ["eq", ["get", "sequence"], "1"],
+      ["eq", ["get", "continuity.state"], "continuous"],
+      [
+        "eq",
+        ["get", "sourceEventHash"],
+        [
+          "hashOmitPaths",
+          ["get", ""],
+          ["lit", ["sourceEventHash", "continuity.highWaterEventHash"]]
+        ]
+      ]
+    ],
+    "NativeOptionSettlement": [
+      "and",
+      ["call", "PositiveDecimal", ["get", "quantity"]],
+      ["call", "DecimalString", ["get", "cashDelta"]],
+      ["call", "DecimalString", ["get", "shareDelta"]],
+      ["call", "Timestamp", ["get", "dueAt"]],
+      ["call", "IdentifierArray", ["get", "fillEventIds"]],
+      ["ne", ["get", "instrumentId"], ["get", "underlyingId"]],
+      [
+        "or",
+        ["ne", ["get", "settlementKind"], "cash"],
+        ["eq", ["get", "shareDelta"], "0"]
+      ],
+      [
+        "or",
+        ["ne", ["get", "kind"], "option-expiry"],
+        [
+          "and",
+          ["eq", ["get", "cashDelta"], "0"],
+          ["eq", ["get", "shareDelta"], "0"]
+        ]
+      ]
+    ],
+    "NativeFact": [
+      "or",
+      [
+        "and",
+        ["eq", ["get", "kind"], "checkpoint"],
+        ["call", "PositiveSequence", ["get", "journalSequence"]]
+      ],
+      [
+        "and",
+        ["eq", ["get", "kind"], "cash-settlement"],
+        ["call", "DecimalString", ["get", "cashDelta"]],
+        ["call", "IdentifierArray", ["get", "fillEventIds"]]
+      ],
+      [
+        "and",
+        [
+          "contains",
+          ["lit", ["assignment", "exercise", "option-expiry"]],
+          ["get", "kind"]
+        ],
+        ["call", "NativeOptionSettlement", ["get", ""]]
+      ],
+      [
+        "and",
+        ["eq", ["get", "kind"], "corporate-action"],
+        ["call", "PositiveSequence", ["get", "quantityNumerator"]],
+        ["call", "PositiveSequence", ["get", "quantityDenominator"]],
+        ["call", "DecimalString", ["get", "previousQuantity"]],
+        ["call", "DecimalString", ["get", "newQuantity"]],
+        ["call", "DecimalString", ["get", "cashDelta"]]
+      ],
+      [
+        "and",
+        ["eq", ["get", "kind"], "reconciliation"],
+        [
+          "or",
+          ["not", ["get", "reconciled"]],
+          ["eq", ["get", "unknownCount"], 0]
+        ]
+      ],
+      [
+        "and",
+        ["eq", ["get", "kind"], "kill-state"],
+        ["call", "IdentifierArray", ["get", "reasonCodes"]],
+        [
+          "or",
+          ["ne", ["get", "action"], "reset-new-risk"],
+          ["ne", ["get", "grantId"], null]
+        ]
+      ]
+    ],
+    "NativeFactProjectionSemantics": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "PositiveSequence", ["get", "proofJournalSequence"]],
+      ["ge", ["get", "factOrdinal"], 0],
+      ["le", ["get", "factOrdinal"], 63],
+      ["ge", ["integer", ["get", "sequence"]], 2],
+      ["call", "Timestamp", ["get", "occurredAt"]],
+      ["call", "Timestamp", ["get", "receivedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "NativeFact", ["get", "fact"]],
+      ["eq", ["get", "environment"], "paper"],
+      ["eq", ["get", "sourceKind"], "paper-simulation"],
+      ["eq", ["get", "authoritative"], false],
+      ["eq", ["get", "executionAuthorized"], false],
+      ["eq", ["get", "reservationAuthority"], "native-owner-only"],
+      [
+        "le",
+        ["epoch", ["get", "occurredAt"]],
+        ["epoch", ["get", "receivedAt"]]
+      ],
+      ["lt", ["epoch", ["get", "occurredAt"]], ["epoch", ["get", "expiresAt"]]],
+      [
+        "if",
+        [
+          "contains",
+          ["lit", ["assignment", "exercise", "option-expiry"]],
+          ["get", "fact.kind"]
+        ],
+        [
+          "or",
+          ["ne", ["get", "fact.settlementState"], "settled"],
+          [
+            "le",
+            ["epoch", ["get", "fact.dueAt"]],
+            ["epoch", ["get", "occurredAt"]]
+          ]
+        ],
+        true
+      ]
+    ],
+    "NativeFactProjection": [
+      "and",
+      ["call", "NativeFactProjectionSemantics", ["get", ""]],
+      [
+        "eq",
+        ["get", "eventHash"],
+        ["hashOmit", ["get", ""], ["lit", ["eventHash"]]]
+      ]
+    ],
+    "NativeJournalProof": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "PositiveSequence", ["get", "journalSequence"]],
+      ["ge", ["get", "factOrdinal"], 0],
+      ["le", ["get", "factOrdinal"], 63],
+      ["call", "Timestamp", ["get", "occurredAt"]],
+      ["call", "NativeFact", ["get", "payload"]],
+      ["eq", ["get", "environment"], "paper"],
+      ["eq", ["get", "eventType"], ["get", "payload.kind"]],
+      [
+        "if",
+        [
+          "contains",
+          ["lit", ["assignment", "exercise", "option-expiry"]],
+          ["get", "payload.kind"]
+        ],
+        [
+          "or",
+          ["ne", ["get", "payload.settlementState"], "settled"],
+          [
+            "le",
+            ["epoch", ["get", "payload.dueAt"]],
+            ["epoch", ["get", "occurredAt"]]
+          ]
+        ],
+        true
+      ]
+    ],
+    "NativeJournalProofBinding": [
+      "and",
+      ["eq", ["get", "proof.accountAlias"], ["get", "projection.accountAlias"]],
+      ["eq", ["get", "proof.environment"], ["get", "projection.environment"]],
+      ["eq", ["get", "proof.streamId"], ["get", "projection.streamId"]],
+      ["eq", ["get", "proof.ownerEpoch"], ["get", "projection.ownerEpoch"]],
+      [
+        "eq",
+        ["get", "proof.sourceEventId"],
+        ["get", "projection.proof.sourceEventId"]
+      ],
+      [
+        "eq",
+        ["get", "proof.journalSequence"],
+        ["get", "projection.proofJournalSequence"]
+      ],
+      [
+        "eq",
+        ["get", "proof.journalHeadHash"],
+        ["get", "projection.proofJournalHeadHash"]
+      ],
+      ["eq", ["get", "proof.factOrdinal"], ["get", "projection.factOrdinal"]],
+      ["eq", ["get", "proof.occurredAt"], ["get", "projection.occurredAt"]],
+      ["eq", ["get", "proof.payload"], ["get", "projection.fact"]],
+      [
+        "or",
+        ["ne", ["get", "proof.payload.kind"], "checkpoint"],
+        [
+          "and",
+          [
+            "eq",
+            ["get", "proof.payload.journalSequence"],
+            ["get", "proof.journalSequence"]
+          ],
+          [
+            "eq",
+            ["get", "proof.payload.journalHeadHash"],
+            ["get", "proof.journalHeadHash"]
+          ]
+        ]
+      ]
+    ],
+    "WorkerEpoch": ["call", "PositiveSequence", ["get", ""]],
+    "WorkerFence": ["call", "WorkerEpoch", ["get", "leaseEpoch"]],
+    "WorkerLease": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "Timestamp", ["get", "deadlineAt"]],
+      ["call", "Timestamp", ["get", "leaseExpiresAt"]],
+      [
+        "ge",
+        ["epoch", ["get", "deadlineAt"]],
+        ["epoch", ["get", "leaseExpiresAt"]]
+      ]
+    ],
+    "WorkerClaimInput": true,
+    "WorkerClaimOutput": [
+      "every",
+      ["get", "leases"],
+      ["call", "WorkerLease", ["get", ""]]
+    ],
+    "WorkerRenewInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "Timestamp", ["get", "leaseExpiresAt"]]
+    ],
+    "WorkerCompleteInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "IdentifierArray", ["get", "outputArtifactIds"]]
+    ],
+    "WorkerCancelInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerStatusInput": true,
+    "WorkerResult": [
+      "and",
+      [
+        "or",
+        ["eq", ["get", "lease"], null],
+        ["call", "WorkerLease", ["get", "lease"]]
+      ],
+      ["call", "IdentifierArray", ["get", "outputArtifactIds"]],
+      [
+        "if",
+        ["contains", ["keys", ["get", ""]], "admittedAt"],
+        ["call", "Timestamp", ["get", "admittedAt"]],
+        true
+      ]
+    ],
+    "WorkerAdmitRunInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerArtifactRef": true,
+    "WorkerReadArtifactInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerReadArtifactOutput": true,
+    "WorkerReadExperimentInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerReadExperimentOutput": true,
+    "WorkerReadBacktestRunInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerReadBacktestRunOutput": true,
+    "WorkerReadDatasetInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      [
+        "eq",
+        ["eq", ["get", "member"], "content"],
+        ["eq", ["get", "source"], null]
+      ]
+    ],
+    "WorkerReadDatasetOutput": [
+      "eq",
+      ["eq", ["get", "member"], "content"],
+      ["eq", ["get", "source"], null]
+    ],
+    "WorkerStageArtifactInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "IdentifierArray", ["get", "lineageArtifactIds"]]
+    ],
+    "WorkerStageArtifactOutput": true,
+    "WorkerPublishArtifactInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      [
+        "if",
+        ["contains", ["keys", ["get", ""]], "experimentSource"],
+        ["eq", ["get", "contractName"], "BacktestRun"],
+        true
+      ],
+      [
+        "or",
+        [
+          "and",
+          ["eq", ["get", "contractName"], "DatasetManifest"],
+          ["call", "DatasetManifest", ["get", "record"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "contractName"], "ResearchEvidence"],
+          ["call", "ResearchEvidence", ["get", "record"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "contractName"], "StrategySpec"],
+          ["call", "StrategySpec", ["get", "record"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "contractName"], "BacktestRun"],
+          ["call", "BacktestRun", ["get", "record"]]
+        ]
+      ]
+    ],
+    "WorkerPublishAgentInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "AgentRun", ["get", "run"]]
+    ],
+    "WorkerExperimentDependencyPin": true,
+    "WorkerPublishExperimentInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerPublishExperimentOutput": true,
+    "WorkerPublishCollectionInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      [
+        "every",
+        ["get", "imports"],
+        ["call", "KnowledgeImport", ["get", "record"]]
+      ],
+      [
+        "every",
+        ["get", "evidence"],
+        ["call", "ResearchEvidence", ["get", "record"]]
+      ],
+      [
+        "every",
+        ["get", "datasets"],
+        ["call", "DatasetManifest", ["get", "record"]]
+      ]
+    ],
+    "WorkerActivateCollectionInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerReadCollectionInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerCollectionOutput": true,
+    "WorkerRightsPin": true,
+    "WorkerCurrentRightsInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerCurrentRightsOutput": [
+      "and",
+      ["call", "Timestamp", ["get", "checkedAt"]],
+      [
+        "or",
+        ["eq", ["get", "expiresAt"], null],
+        ["call", "Timestamp", ["get", "expiresAt"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "retentionUntil"], null],
+        ["call", "Timestamp", ["get", "retentionUntil"]]
+      ]
+    ],
+    "WorkerAcceptedEvidenceInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerAcceptedEvidenceOutput": [
+      "and",
+      ["call", "ResearchEvidence", ["get", "evidence"]],
+      ["call", "AcceptedReview", ["get", "review"]],
+      ["call", "WorkerCurrentRightsOutput", ["get", "rights"]]
+    ],
+    "WorkerCurrentRightsObservationInput": [
+      "call",
+      "WorkerCurrentRightsInput",
+      ["get", ""]
+    ],
+    "WorkerCurrentRightsObservationOutput": [
+      "and",
+      ["call", "Timestamp", ["get", "observedAt"]],
+      ["call", "WorkerCurrentRightsOutput", ["get", "value"]]
+    ],
+    "WorkerAcceptedEvidenceObservationInput": [
+      "call",
+      "WorkerAcceptedEvidenceInput",
+      ["get", ""]
+    ],
+    "WorkerAcceptedEvidenceObservationOutput": [
+      "and",
+      ["call", "Timestamp", ["get", "observedAt"]],
+      ["call", "WorkerAcceptedEvidenceOutput", ["get", "value"]]
+    ],
+    "WorkerPublishGenesisInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "PortfolioSnapshot", ["get", "snapshot"]]
+    ],
+    "WorkerPublishPortfolioSnapshotInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "PortfolioSnapshot", ["get", "snapshot"]]
+    ],
+    "WorkerPublishOrderProjectionInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "ExecutionProjectionSemantics", ["get", "projection"]]
+    ],
+    "WorkerPublishNativeFactsInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "NativeFactProjectionSemantics", ["get", "projection"]]
+    ],
+    "WorkerProjectionAck": [
+      "call",
+      "ProjectionSequence",
+      ["get", "highWaterSequence"]
+    ],
+    "WorkerReadContinuityInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerReadinessInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "IdentifierArray", ["get", "capabilityIds"]],
+      ["call", "Timestamp", ["get", "observedAt"]]
+    ],
+    "WorkerPolicySelectionInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerCurrentPaperAdmissionInput": ["call", "WorkerFence", ["get", ""]],
+    "WorkerCurrentPaperAdmissionOutput": [
+      "and",
+      ["call", "Timestamp", ["get", "checkedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "PaperSimulationAdmission", ["get", "admission"]],
+      ["call", "AcceptedReview", ["get", "review"]],
+      ["call", "TradeIntent", ["get", "intent"]]
+    ],
+    "WorkerServiceGrant": [
+      "and",
+      ["call", "Timestamp", ["get", "issuedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      [
+        "or",
+        ["eq", ["get", "revokedAt"], null],
+        ["call", "Timestamp", ["get", "revokedAt"]]
+      ],
+      ["lt", ["epoch", ["get", "issuedAt"]], ["epoch", ["get", "expiresAt"]]]
+    ],
+    "RuntimeModulePin": [
+      "and",
+      ["call", "IdentifierArray", ["get", "capabilities"]],
+      ["call", "IdentifierArray", ["get", "requiredComponents"]]
+    ],
+    "ScopedConfigurationReference": [
+      "and",
+      ["call", "IdentifierArray", ["get", "permissions"]],
+      ["call", "IdentifierArray", ["get", "requiredWhen"]],
+      [
+        "or",
+        ["eq", ["get", "lastVerifiedAt"], null],
+        ["call", "Timestamp", ["get", "lastVerifiedAt"]]
+      ],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      [
+        "or",
+        ["ne", ["get", "verificationState"], "verified"],
+        ["ne", ["get", "lastVerifiedAt"], null]
+      ]
+    ],
+    "RuntimeConfigurationGroup": [
+      "and",
+      ["call", "IdentifierArray", ["get", "referenceIds"]],
+      ["call", "IdentifierArray", ["get", "reasonCodes"]],
+      ["call", "IdentifierArray", ["get", "provenanceSourceIds"]]
+    ],
+    "ProviderCapabilityFact": [
+      "and",
+      ["call", "Timestamp", ["get", "observedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["lt", ["epoch", ["get", "observedAt"]], ["epoch", ["get", "expiresAt"]]]
+    ],
+    "RuntimeReviewConfiguration": [
+      "call",
+      "IdentifierArray",
+      ["get", "requiredComponents"]
+    ],
+    "RuntimeResearchConfiguration": [
+      "and",
+      ["call", "NonnegativeDecimal", ["get", "costBudgetUsd"]],
+      ["call", "IdentifierArray", ["get", "requiredComponents"]]
+    ],
+    "RuntimeSimulationConfiguration": [
+      "and",
+      ["call", "PositiveDecimal", ["get", "maximumLoss"]],
+      ["call", "PositiveDecimal", ["get", "maximumNotional"]],
+      ["call", "IdentifierArray", ["get", "requiredComponents"]],
+      ["eq", ["get", "capitalAuthority"], "native-owner-only"]
+    ],
+    "RuntimePolicySelectionSemantics": [
+      "and",
+      ["call", "PositiveSequence", ["get", "revision"]],
+      ["call", "Timestamp", ["get", "issuedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["lt", ["epoch", ["get", "issuedAt"]], ["epoch", ["get", "expiresAt"]]],
+      ["every", ["get", "modules"], ["call", "RuntimeModulePin", ["get", ""]]],
+      [
+        "every",
+        ["get", "configuration"],
+        ["call", "RuntimeConfigurationGroup", ["get", ""]]
+      ],
+      [
+        "every",
+        ["get", "references"],
+        ["call", "ScopedConfigurationReference", ["get", ""]]
+      ],
+      [
+        "every",
+        ["get", "providerCapabilities"],
+        ["call", "ProviderCapabilityFact", ["get", ""]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "review"], null],
+        ["call", "RuntimeReviewConfiguration", ["get", "review"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "research"], null],
+        ["call", "RuntimeResearchConfiguration", ["get", "research"]]
+      ],
+      [
+        "or",
+        ["eq", ["get", "simulation"], null],
+        ["call", "RuntimeSimulationConfiguration", ["get", "simulation"]]
+      ],
+      ["uniqueBy", ["get", "sourcePins"], "sourceId"],
+      ["uniqueBy", ["get", "modules"], "moduleId"],
+      ["uniqueBy", ["get", "policies"], "role"],
+      ["uniqueBy", ["get", "configuration"], "group"],
+      ["uniqueBy", ["get", "references"], "referenceId"],
+      ["uniqueBy", ["get", "providerCapabilities"], "capabilityId"],
+      ["uniqueBy", ["get", "artifacts"], "bindingId"],
+      [
+        "every",
+        ["get", "configuration"],
+        [
+          "and",
+          [
+            "every",
+            ["get", "referenceIds"],
+            [
+              "some",
+              ["root", "references"],
+              ["eq", ["get", "referenceId"], ["parent", ""]]
+            ]
+          ],
+          [
+            "every",
+            ["get", "provenanceSourceIds"],
+            [
+              "some",
+              ["root", "sourcePins"],
+              ["eq", ["get", "sourceId"], ["parent", ""]]
+            ]
+          ]
+        ]
+      ],
+      [
+        "every",
+        ["get", "references"],
+        [
+          "and",
+          ["eq", ["get", "accountAlias"], ["root", "accountAlias"]],
+          ["eq", ["get", "environment"], ["root", "environment"]],
+          [
+            "ge",
+            ["epoch", ["get", "expiresAt"]],
+            ["epoch", ["root", "expiresAt"]]
+          ]
+        ]
+      ],
+      [
+        "every",
+        ["get", "providerCapabilities"],
+        [
+          "and",
+          [
+            "some",
+            ["root", "references"],
+            [
+              "and",
+              ["eq", ["get", "referenceId"], ["parent", "endpointReferenceId"]],
+              ["eq", ["get", "referenceSha256"], ["parent", "endpointSha256"]]
+            ]
+          ],
+          [
+            "some",
+            ["root", "policies"],
+            [
+              "and",
+              ["eq", ["get", "role"], "licensing-rights"],
+              ["eq", ["get", "policyId"], ["parent", "rightsPolicyId"]],
+              ["eq", ["get", "version"], ["parent", "rightsPolicyVersion"]]
+            ]
+          ]
+        ]
+      ],
+      [
+        "or",
+        ["eq", ["get", "review"], null],
+        [
+          "some",
+          ["get", "policies"],
+          [
+            "and",
+            ["eq", ["get", "role"], "review"],
+            ["eq", ["get", "policyId"], ["root", "review.policyId"]],
+            ["eq", ["get", "version"], ["root", "review.version"]]
+          ]
+        ]
+      ],
+      [
+        "or",
+        ["eq", ["get", "research"], null],
+        [
+          "and",
+          [
+            "some",
+            ["get", "modules"],
+            ["eq", ["get", "moduleId"], ["root", "research.moduleId"]]
+          ],
+          [
+            "some",
+            ["get", "providerCapabilities"],
+            [
+              "and",
+              [
+                "eq",
+                ["get", "capabilityId"],
+                ["root", "research.modelCapabilityId"]
+              ],
+              ["eq", ["get", "modelVersion"], ["root", "research.modelVersion"]]
+            ]
+          ],
+          [
+            "some",
+            ["get", "policies"],
+            [
+              "and",
+              ["eq", ["get", "role"], "licensing-rights"],
+              ["eq", ["get", "policyId"], ["root", "research.rightsPolicyId"]]
+            ]
+          ],
+          ["some", ["get", "policies"], ["eq", ["get", "role"], "tool"]],
+          [
+            "some",
+            ["get", "policies"],
+            ["eq", ["get", "role"], "provider-budget"]
+          ]
+        ]
+      ],
+      [
+        "or",
+        ["eq", ["get", "simulation"], null],
+        [
+          "and",
+          ["eq", ["get", "environment"], "paper"],
+          [
+            "some",
+            ["get", "modules"],
+            ["eq", ["get", "moduleId"], ["root", "simulation.moduleId"]]
+          ],
+          [
+            "every",
+            ["lit", ["risk", "capital", "cost", "calendar"]],
+            [
+              "some",
+              ["root", "policies"],
+              ["eq", ["get", "role"], ["parent", ""]]
+            ]
+          ]
+        ]
+      ],
+      ["eq", ["get", "readOnly"], true],
+      ["eq", ["get", "nativeRearmAllowed"], false],
+      ["eq", ["get", "cloudCapitalAuthority"], false]
+    ],
+    "RuntimePolicySelection": [
+      "and",
+      ["call", "RuntimePolicySelectionSemantics", ["get", ""]],
+      [
+        "eq",
+        ["get", "selectionSha256"],
+        ["hashOmit", ["get", ""], ["lit", ["selectionSha256"]]]
+      ]
+    ],
+    "PolicySelectionLookup": true,
+    "RuntimePolicyHead": [
+      "and",
+      ["call", "ProjectionSequence", ["get", "revision"]],
+      ["call", "Timestamp", ["get", "updatedAt"]],
+      [
+        "eq",
+        ["eq", ["get", "selectionId"], null],
+        ["eq", ["get", "selectionSha256"], null]
+      ],
+      [
+        "or",
+        ["eq", ["get", "state"], "disabled"],
+        ["ne", ["get", "selectionId"], null]
+      ]
+    ],
+    "RuntimeOwnershipPin": [
+      "and",
+      ["call", "PositiveSequence", ["get", "ownerEpoch"]],
+      ["call", "RuntimeModulePin", ["get", "module"]],
+      ["call", "Timestamp", ["get", "pinnedAt"]],
+      [
+        "or",
+        ["eq", ["get", "releasedAt"], null],
+        [
+          "and",
+          ["call", "Timestamp", ["get", "releasedAt"]],
+          [
+            "ge",
+            ["epoch", ["get", "releasedAt"]],
+            ["epoch", ["get", "pinnedAt"]]
+          ]
+        ]
+      ]
+    ],
+    "RuntimeComponentEvidence": [
+      "and",
+      ["call", "Timestamp", ["get", "observedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "IdentifierArray", ["get", "reasonCodes"]],
+      ["lt", ["epoch", ["get", "observedAt"]], ["epoch", ["get", "expiresAt"]]]
+    ],
+    "ModelUseGrant": [
+      "and",
+      ["call", "PositiveSequence", ["get", "revision"]],
+      ["unique", ["get", "operations"]],
+      ["unique", ["get", "purposes"]],
+      ["unique", ["get", "allowedTools"]],
+      ["uniqueBy", ["get", "evidence"], "artifactId"],
+      ["call", "NonnegativeDecimal", ["get", "maximumCostUsd"]],
+      ["call", "Timestamp", ["get", "validFrom"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "Timestamp", ["get", "issuedAt"]],
+      ["lt", ["epoch", ["get", "validFrom"]], ["epoch", ["get", "expiresAt"]]],
+      [
+        "or",
+        ["eq", ["get", "status"], "revoked"],
+        ["le", ["epoch", ["get", "issuedAt"]], ["epoch", ["get", "expiresAt"]]]
+      ]
+    ],
+    "ModelUseRequestSemantics": [
+      "and",
+      ["call", "PositiveSequence", ["get", "leaseEpoch"]],
+      ["unique", ["get", "tools"]],
+      ["uniqueBy", ["get", "evidence"], "artifactId"],
+      ["call", "NonnegativeDecimal", ["get", "maximumCostUsd"]],
+      ["call", "Timestamp", ["get", "deadlineAt"]],
+      [
+        "or",
+        ["ne", ["get", "operation"], "model-completion"],
+        ["ne", ["get", "inputTokens"], null]
+      ],
+      [
+        "or",
+        ["ne", ["get", "operation"], "model-tokenize"],
+        ["eq", ["get", "maximumOutputTokens"], 0]
+      ]
+    ],
+    "ModelUseRequest": [
+      "and",
+      ["call", "ModelUseRequestSemantics", ["get", ""]],
+      [
+        "eq",
+        ["get", "requestSha256"],
+        ["hashOmit", ["get", ""], ["lit", ["requestSha256"]]]
+      ]
+    ],
+    "ModelUseProof": [
+      "and",
+      ["call", "PositiveSequence", ["get", "leaseEpoch"]],
+      [
+        "or",
+        ["eq", ["get", "grantRevision"], null],
+        ["call", "PositiveSequence", ["get", "grantRevision"]]
+      ],
+      ["unique", ["get", "reasonCodes"]],
+      ["call", "Timestamp", ["get", "checkedAt"]],
+      ["call", "Timestamp", ["get", "validUntil"]],
+      ["le", ["epoch", ["get", "checkedAt"]], ["epoch", ["get", "validUntil"]]],
+      [
+        "or",
+        ["not", ["get", "externalDispatchAllowed"]],
+        ["eq", ["get", "decision"], "allowed"]
+      ],
+      [
+        "or",
+        ["ne", ["get", "decision"], "allowed"],
+        [
+          "and",
+          ["ne", ["get", "grantRevision"], null],
+          ["ne", ["get", "privacyPolicyId"], null],
+          ["ne", ["get", "privacyPolicyVersion"], null],
+          [
+            "lt",
+            ["epoch", ["get", "checkedAt"]],
+            ["epoch", ["get", "validUntil"]]
+          ]
+        ]
+      ]
+    ],
+    "CanonicalApprovalBase64": ["gt", ["base64Length", ["get", ""]], 0],
+    "PortfolioEpochTransitionSemantics": [
+      "and",
+      ["call", "PortfolioSnapshot", ["get", "snapshot"]],
+      ["call", "PositiveSequence", ["get", "priorOwnerEpoch"]],
+      ["call", "PositiveSequence", ["get", "priorProjectionSequence"]],
+      ["call", "PositiveSequence", ["get", "journalSequence"]],
+      ["call", "CanonicalApprovalBase64", ["get", "approvalBase64"]],
+      ["eq", ["get", "snapshot.environment"], "paper"],
+      ["eq", ["get", "snapshot.sourceKind"], "paper-simulation"],
+      ["eq", ["get", "snapshot.sequence"], "1"],
+      ["eq", ["get", "snapshot.continuity.state"], "continuous"],
+      [
+        "gt",
+        ["integer", ["get", "snapshot.ownerEpoch"]],
+        ["integer", ["get", "priorOwnerEpoch"]]
+      ]
+    ],
+    "PortfolioEpochTransition": [
+      "and",
+      ["call", "PortfolioEpochTransitionSemantics", ["get", ""]],
+      ["call", "PortfolioGenesis", ["get", "snapshot"]]
+    ],
+    "NativeReplayKind": ["get", "kind"],
+    "NativeReplaySequence": ["integer", ["get", "sequence"]],
+    "NativeReplayEventHash": ["get", "eventHash"],
+    "NativeOutboxReplayGrant": [
+      "and",
+      ["call", "PositiveSequence", ["get", "priorOwnerEpoch"]],
+      ["call", "PositiveSequence", ["get", "currentOwnerEpoch"]],
+      ["call", "PositiveSequence", ["get", "journalSequence"]],
+      ["call", "ProjectionSequence", ["get", "startingSequence"]],
+      ["call", "Timestamp", ["get", "issuedAt"]],
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      ["call", "CanonicalApprovalBase64", ["get", "approvalBase64"]],
+      [
+        "gt",
+        ["integer", ["get", "currentOwnerEpoch"]],
+        ["integer", ["get", "priorOwnerEpoch"]]
+      ],
+      ["lt", ["epoch", ["get", "issuedAt"]], ["epoch", ["get", "expiresAt"]]],
+      [
+        "eq",
+        ["eq", ["get", "startingSequence"], "0"],
+        ["eq", ["get", "startingEventHash"], null]
+      ],
+      [
+        "or",
+        ["eq", ["get", "retainedEpochTransitionSha256"], null],
+        [
+          "and",
+          ["eq", ["get", "startingSequence"], "0"],
+          [
+            "eq",
+            ["call", "NativeReplayKind", ["at", ["get", "rows"], 0]],
+            "portfolio-genesis"
+          ]
+        ]
+      ],
+      [
+        "every",
+        ["get", "rows"],
+        [
+          "and",
+          ["call", "PositiveSequence", ["get", "sequence"]],
+          [
+            "eq",
+            ["eq", ["get", "kind"], "native-fact"],
+            ["ne", ["get", "proofSha256"], null]
+          ],
+          [
+            "eq",
+            [
+              "sum",
+              ["root", "rows"],
+              [
+                "if",
+                [
+                  "eq",
+                  ["concat", ["get", "kind"], ":", ["get", "projectionId"]],
+                  [
+                    "concat",
+                    ["parent", "kind"],
+                    ":",
+                    ["parent", "projectionId"]
+                  ]
+                ],
+                1,
+                0
+              ]
+            ],
+            1
+          ],
+          [
+            "if",
+            ["eq", ["get", "kind"], "portfolio-snapshot"],
+            [
+              "and",
+              ["gt", ["integer", ["get", "sequence"]], 0],
+              [
+                "eq",
+                ["integer", ["get", "sequence"]],
+                [
+                  "if",
+                  ["eq", ["index"], 0],
+                  ["integer", ["root", "startingSequence"]],
+                  [
+                    "call",
+                    "NativeReplaySequence",
+                    ["at", ["root", "rows"], ["sub", ["index"], 1]]
+                  ]
+                ]
+              ],
+              [
+                "eq",
+                ["get", "eventHash"],
+                [
+                  "if",
+                  ["eq", ["index"], 0],
+                  ["root", "startingEventHash"],
+                  [
+                    "call",
+                    "NativeReplayEventHash",
+                    ["at", ["root", "rows"], ["sub", ["index"], 1]]
+                  ]
+                ]
+              ]
+            ],
+            [
+              "and",
+              [
+                "eq",
+                ["integer", ["get", "sequence"]],
+                [
+                  "add",
+                  [
+                    "if",
+                    ["eq", ["index"], 0],
+                    ["integer", ["root", "startingSequence"]],
+                    [
+                      "call",
+                      "NativeReplaySequence",
+                      ["at", ["root", "rows"], ["sub", ["index"], 1]]
+                    ]
+                  ],
+                  1
+                ]
+              ],
+              [
+                "eq",
+                ["eq", ["get", "kind"], "portfolio-genesis"],
+                [
+                  "eq",
+                  [
+                    "if",
+                    ["eq", ["index"], 0],
+                    ["integer", ["root", "startingSequence"]],
+                    [
+                      "call",
+                      "NativeReplaySequence",
+                      ["at", ["root", "rows"], ["sub", ["index"], 1]]
+                    ]
+                  ],
+                  0
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ],
+    "NativeOutboxReplaySemantics": [
+      "and",
+      ["call", "NativeOutboxReplayGrant", ["get", "grant"]],
+      ["eq", ["len", ["get", "rows"]], ["len", ["get", "grant.rows"]]],
+      [
+        "eq",
+        ["eq", ["get", "retainedEpochTransitionBase64"], null],
+        ["eq", ["get", "grant.retainedEpochTransitionSha256"], null]
+      ],
+      [
+        "every",
+        ["get", "rows"],
+        [
+          "and",
+          [
+            "eq",
+            ["get", "kind"],
+            [
+              "call",
+              "NativeReplayKind",
+              ["at", ["root", "grant.rows"], ["index"]]
+            ]
+          ],
+          [
+            "eq",
+            ["eq", ["get", "kind"], "native-fact"],
+            ["ne", ["get", "proofBase64"], null]
+          ]
+        ]
+      ],
+      [
+        "le",
+        [
+          "add",
+          [
+            "add",
+            ["base64Length", ["get", "grant.approvalBase64"]],
+            [
+              "if",
+              ["eq", ["get", "retainedEpochTransitionBase64"], null],
+              0,
+              ["base64Length", ["get", "retainedEpochTransitionBase64"]]
+            ]
+          ],
+          [
+            "sum",
+            ["get", "rows"],
+            [
+              "add",
+              ["base64Length", ["get", "projectionBase64"]],
+              [
+                "if",
+                ["eq", ["get", "proofBase64"], null],
+                0,
+                ["base64Length", ["get", "proofBase64"]]
+              ]
+            ]
+          ]
+        ],
+        8388608
+      ]
+    ],
+    "NativeOutboxReplay": ["call", "NativeOutboxReplaySemantics", ["get", ""]],
+    "NativeReplayRowBinding": [
+      "and",
+      ["eq", ["get", "value.accountAlias"], ["get", "grant.accountAlias"]],
+      ["eq", ["get", "value.environment"], "paper"],
+      ["eq", ["get", "value.streamId"], ["get", "grant.streamId"]],
+      ["eq", ["get", "value.ownerEpoch"], ["get", "grant.priorOwnerEpoch"]],
+      ["eq", ["get", "value.sequence"], ["get", "identity.sequence"]],
+      ["eq", ["get", "value.sourceKind"], "paper-simulation"],
+      [
+        "if",
+        [
+          "or",
+          ["eq", ["get", "identity.kind"], "native-fact"],
+          ["eq", ["get", "identity.kind"], "order"]
+        ],
+        [
+          "and",
+          [
+            "eq",
+            ["get", "value.projectionId"],
+            ["get", "identity.projectionId"]
+          ],
+          ["eq", ["get", "value.eventHash"], ["get", "identity.eventHash"]],
+          ["eq", ["get", "value.previousEventHash"], ["get", "priorHash"]],
+          ["eq", ["get", "value.actorId"], ["get", "grant.serviceActorId"]]
+        ],
+        [
+          "and",
+          ["eq", ["get", "value.snapshotId"], ["get", "identity.projectionId"]],
+          [
+            "eq",
+            ["get", "value.sourceEventHash"],
+            ["get", "identity.eventHash"]
+          ]
+        ]
+      ]
+    ],
+    "NativeReplayRetainedTransitionBinding": [
+      "and",
+      [
+        "eq",
+        ["get", "transition.snapshot.ownerEpoch"],
+        ["get", "grant.priorOwnerEpoch"]
+      ],
+      [
+        "eq",
+        ["get", "transition.snapshot.accountAlias"],
+        ["get", "grant.accountAlias"]
+      ],
+      ["eq", ["get", "transition.snapshot.streamId"], ["get", "grant.streamId"]]
+    ],
+    "WorkerBootstrapPayload": true,
+    "WorkerBootstrapCommand": [
+      "and",
+      ["call", "Timestamp", ["get", "issuedAt"]],
+      ["call", "Timestamp", ["get", "deadlineAt"]],
+      ["lt", ["epoch", ["get", "issuedAt"]], ["epoch", ["get", "deadlineAt"]]],
+      ["eq", ["get", "payload.selectionId"], ["get", "policySelectionId"]],
+      [
+        "eq",
+        ["get", "payload.selectionSha256"],
+        ["get", "policySelectionSha256"]
+      ]
+    ],
+    "WorkerCurrentModelUseInput": [
+      "call",
+      "ModelUseRequestSemantics",
+      ["get", ""]
+    ],
+    "WorkerCurrentModelUseOutput": ["call", "ModelUseProof", ["get", ""]],
+    "WorkerPrepareModelPrivacyReviewInput": [
+      "call",
+      "ModelUseRequestSemantics",
+      ["get", ""]
+    ],
+    "WorkerReadModelPrivacyReviewInput": [
+      "call",
+      "ModelUseRequestSemantics",
+      ["get", ""]
+    ],
+    "WorkerModelPrivacyReviewOutput": [
+      "and",
+      [
+        "eq",
+        ["eq", ["get", "status"], "not-observed"],
+        ["eq", ["get", "expiresAt"], null]
+      ],
+      [
+        "if",
+        ["eq", ["get", "expiresAt"], null],
+        true,
+        ["call", "Timestamp", ["get", "expiresAt"]]
+      ]
+    ],
+    "WorkerPrepareNativeEvidencePhaseTwoInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "ModelUseRequestSemantics", ["get", "request"]],
+      ["call", "ModelUseProof", ["get", "proof"]],
+      ["eq", ["get", "environment"], "research"],
+      ["eq", ["get", "request.operation"], "model-completion"],
+      ["eq", ["get", "proof.operation"], "model-completion"],
+      ["eq", ["get", "proof.decision"], "allowed"],
+      ["eq", ["get", "proof.externalDispatchAllowed"], false],
+      ["eq", ["get", "request.accountAlias"], ["get", "accountAlias"]],
+      ["eq", ["get", "request.environment"], ["get", "environment"]],
+      ["eq", ["get", "request.jobId"], ["get", "jobId"]],
+      ["eq", ["get", "request.leaseId"], ["get", "leaseId"]],
+      ["eq", ["get", "request.leaseEpoch"], ["get", "leaseEpoch"]],
+      ["eq", ["get", "proof.requestSha256"], ["get", "request.requestSha256"]],
+      ["eq", ["get", "proof.requestId"], ["get", "request.requestId"]]
+    ],
+    "WorkerNativeEvidencePhase": [
+      "and",
+      ["call", "Timestamp", ["get", "expiresAt"]],
+      [
+        "eq",
+        ["eq", ["get", "phaseOrdinal"], 1],
+        ["eq", ["get", "derivation"], null]
+      ],
+      [
+        "if",
+        ["eq", ["get", "derivation"], null],
+        true,
+        [
+          "eq",
+          ["get", "derivation.argumentsCanonical"],
+          [
+            "concat",
+            "{\"evidence_id\":\"",
+            ["get", "derivation.evidenceId"],
+            "\"}"
+          ]
+        ]
+      ]
+    ],
+    "WorkerPrepareNativeEvidencePhaseTwoOutput": [
+      "and",
+      ["call", "WorkerNativeEvidencePhase", ["get", "phase"]],
+      ["eq", ["get", "phase.phaseOrdinal"], 2]
+    ],
+    "WorkerPublishEpochTransitionInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "PortfolioEpochTransitionSemantics", ["get", "transition"]]
+    ],
+    "WorkerReplayNativeOutboxInput": [
+      "and",
+      ["call", "WorkerFence", ["get", ""]],
+      ["call", "NativeOutboxReplaySemantics", ["get", "replay"]]
+    ],
+    "VertexControlArtifactRefs": ["call", "IdentifierArray", ["get", ""]]
+  },
+  "contractRules": {
+    "SchemaVersion": "SchemaVersion",
+    "Identifier": "Identifier",
+    "Digest": "Digest",
+    "Version": "Version",
+    "Timestamp": "Timestamp",
+    "DecimalString": "DecimalString",
+    "NonnegativeDecimal": "NonnegativeDecimal",
+    "PositiveDecimal": "PositiveDecimal",
+    "SourceIdentity": "SourceIdentity",
+    "GammaProvenance": "GammaProvenance",
+    "Freshness": "Freshness",
+    "Entitlement": "Entitlement",
+    "MarketDataSource": "MarketDataSource",
+    "Quote": "Quote",
+    "Candle": "Candle",
+    "TradeFlow": "TradeFlow",
+    "VolumeProfileBin": "VolumeProfileBin",
+    "VolumeProfile": "VolumeProfile",
+    "DatasetManifest": "DatasetManifest",
+    "ResearchEvidence": "ResearchEvidence",
+    "KnowledgeImport": "KnowledgeImport",
+    "DataRequirement": "DataRequirement",
+    "DeterministicRule": "DeterministicRule",
+    "CostModel": "CostModel",
+    "StrategySpec": "StrategySpec",
+    "TimeWindow": "TimeWindow",
+    "BacktestRun": "BacktestRun",
+    "TradeIntent": "TradeIntent",
+    "RiskDecision": "RiskDecision",
+    "ExecutionReceipt": "ExecutionReceipt",
+    "AgentRun": "AgentRun",
+    "ModuleStatus": "ModuleStatus",
+    "ModuleManifest": "ModuleManifest",
+    "BrokerRecoveryStatus": "BrokerRecoveryStatus",
+    "PortfolioGenesis": "PortfolioGenesis",
+    "RecoveryRequest": "RecoveryRequest",
+    "EventEnvelope": "EventEnvelope",
+    "ProjectionContinuity": "ProjectionContinuity",
+    "PortfolioSnapshot": "PortfolioSnapshot",
+    "AcceptedReview": "AcceptedReview",
+    "PaperSimulationAdmission": "PaperSimulationAdmission",
+    "NativeFact": "NativeFact",
+    "NativeFactProjection": "NativeFactProjection",
+    "NativeJournalProof": "NativeJournalProof",
+    "WorkerLease": "WorkerLease",
+    "WorkerFence": "WorkerFence",
+    "WorkerClaimInput": "WorkerClaimInput",
+    "WorkerClaimOutput": "WorkerClaimOutput",
+    "WorkerRenewInput": "WorkerRenewInput",
+    "WorkerCompleteInput": "WorkerCompleteInput",
+    "WorkerCancelInput": "WorkerCancelInput",
+    "WorkerStatusInput": "WorkerStatusInput",
+    "WorkerResult": "WorkerResult",
+    "WorkerAdmitRunInput": "WorkerAdmitRunInput",
+    "WorkerArtifactRef": "WorkerArtifactRef",
+    "WorkerReadArtifactInput": "WorkerReadArtifactInput",
+    "WorkerReadArtifactOutput": "WorkerReadArtifactOutput",
+    "WorkerReadExperimentInput": "WorkerReadExperimentInput",
+    "WorkerReadExperimentOutput": "WorkerReadExperimentOutput",
+    "WorkerReadBacktestRunInput": "WorkerReadBacktestRunInput",
+    "WorkerReadBacktestRunOutput": "WorkerReadBacktestRunOutput",
+    "WorkerReadDatasetInput": "WorkerReadDatasetInput",
+    "WorkerReadDatasetOutput": "WorkerReadDatasetOutput",
+    "WorkerStageArtifactInput": "WorkerStageArtifactInput",
+    "WorkerStageArtifactOutput": "WorkerStageArtifactOutput",
+    "WorkerPublishArtifactInput": "WorkerPublishArtifactInput",
+    "WorkerPublishAgentInput": "WorkerPublishAgentInput",
+    "WorkerExperimentDependencyPin": "WorkerExperimentDependencyPin",
+    "WorkerPublishExperimentInput": "WorkerPublishExperimentInput",
+    "WorkerPublishExperimentOutput": "WorkerPublishExperimentOutput",
+    "WorkerPublishCollectionInput": "WorkerPublishCollectionInput",
+    "WorkerActivateCollectionInput": "WorkerActivateCollectionInput",
+    "WorkerReadCollectionInput": "WorkerReadCollectionInput",
+    "WorkerCollectionOutput": "WorkerCollectionOutput",
+    "WorkerRightsPin": "WorkerRightsPin",
+    "WorkerCurrentRightsInput": "WorkerCurrentRightsInput",
+    "WorkerCurrentRightsOutput": "WorkerCurrentRightsOutput",
+    "WorkerAcceptedEvidenceInput": "WorkerAcceptedEvidenceInput",
+    "WorkerAcceptedEvidenceOutput": "WorkerAcceptedEvidenceOutput",
+    "WorkerCurrentRightsObservationInput": "WorkerCurrentRightsObservationInput",
+    "WorkerCurrentRightsObservationOutput": "WorkerCurrentRightsObservationOutput",
+    "WorkerAcceptedEvidenceObservationInput": "WorkerAcceptedEvidenceObservationInput",
+    "WorkerAcceptedEvidenceObservationOutput": "WorkerAcceptedEvidenceObservationOutput",
+    "WorkerPublishGenesisInput": "WorkerPublishGenesisInput",
+    "WorkerPublishPortfolioSnapshotInput": "WorkerPublishPortfolioSnapshotInput",
+    "WorkerPublishOrderProjectionInput": "WorkerPublishOrderProjectionInput",
+    "WorkerPublishNativeFactsInput": "WorkerPublishNativeFactsInput",
+    "WorkerProjectionAck": "WorkerProjectionAck",
+    "WorkerReadContinuityInput": "WorkerReadContinuityInput",
+    "WorkerReadinessInput": "WorkerReadinessInput",
+    "WorkerPolicySelectionInput": "WorkerPolicySelectionInput",
+    "WorkerCurrentPaperAdmissionInput": "WorkerCurrentPaperAdmissionInput",
+    "WorkerCurrentPaperAdmissionOutput": "WorkerCurrentPaperAdmissionOutput",
+    "WorkerServiceGrant": "WorkerServiceGrant",
+    "RuntimePolicySelection": "RuntimePolicySelection",
+    "PolicySelectionLookup": "PolicySelectionLookup",
+    "RuntimePolicyHead": "RuntimePolicyHead",
+    "RuntimeOwnershipPin": "RuntimeOwnershipPin",
+    "RuntimeComponentEvidence": "RuntimeComponentEvidence",
+    "ModelUseGrant": "ModelUseGrant",
+    "ModelUseRequest": "ModelUseRequest",
+    "ModelUseProof": "ModelUseProof",
+    "PortfolioEpochTransition": "PortfolioEpochTransition",
+    "NativeOutboxReplayGrant": "NativeOutboxReplayGrant",
+    "NativeOutboxReplay": "NativeOutboxReplay",
+    "WorkerBootstrapPayload": "WorkerBootstrapPayload",
+    "WorkerBootstrapCommand": "WorkerBootstrapCommand",
+    "WorkerCurrentModelUseInput": "WorkerCurrentModelUseInput",
+    "WorkerCurrentModelUseOutput": "WorkerCurrentModelUseOutput",
+    "WorkerPrepareModelPrivacyReviewInput": "WorkerPrepareModelPrivacyReviewInput",
+    "WorkerReadModelPrivacyReviewInput": "WorkerReadModelPrivacyReviewInput",
+    "WorkerModelPrivacyReviewOutput": "WorkerModelPrivacyReviewOutput",
+    "WorkerPrepareNativeEvidencePhaseTwoInput": "WorkerPrepareNativeEvidencePhaseTwoInput",
+    "WorkerNativeEvidencePhase": "WorkerNativeEvidencePhase",
+    "WorkerPrepareNativeEvidencePhaseTwoOutput": "WorkerPrepareNativeEvidencePhaseTwoOutput",
+    "WorkerPublishEpochTransitionInput": "WorkerPublishEpochTransitionInput",
+    "WorkerReplayNativeOutboxInput": "WorkerReplayNativeOutboxInput",
+    "ExecutionProjection": "ExecutionProjection"
+  },
+  "sourcePins": {
+    "packages/api/src/contracts/vertex.ts": "fbf398e006d9d9620702eb633cf3b08e727e517b06b2677b77b81768234cd2a8",
+    "packages/api/src/contracts/vertex-control.ts": "9f6211a55b3025d803f6fc947eefae9fa533e062205958f3c461b69d2854a52b",
+    "packages/api/src/contracts/vertex-native-facts.ts": "23986e92b94ddac46a766f6b841d4ac51d2deaf2fda24c04dfe7092c528bb753",
+    "packages/api/src/contracts/vertex-worker.ts": "b29af7c3a35f6f970b15db2bfd4b85f32c912d61649e14a0e1eb4526cd69b65a",
+    "packages/api/src/contracts/vertex-worker-experiment.ts": "1ed0cf2122afce607582fb1847337b0c314cdcdfa41d241a1126ccc0d350a4e8",
+    "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts": "608f4bde533e2c316f82e42a80808f9fa5b9b5fab77b5f46a503bae7e6b1c988",
+    "packages/api/src/contracts/vertex-policy.ts": "1889875d0b6c7c6bca08d7d2f47513ae84ad4953a83795c35b47bad1238b809d",
+    "packages/api/src/contracts/vertex-model-use.ts": "2b13c4a579abed186f6c1597ec051cad337bf836c195bd03cfcb66f99e3c4070",
+    "packages/api/src/contracts/vertex-worker-epoch.ts": "ffad17dc5768258ccdd56993741d85e8cbf3d117c75454176b73979fa71e5c44",
+    "packages/shared/src/vertex/index.ts": "e06a9933e6d9377855b3065220b45a86a8839935a3a1e9f4b7c670103e80deff"
+  }
+}

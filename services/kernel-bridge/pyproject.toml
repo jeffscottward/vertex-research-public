@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==82.0.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vertex-kernel-bridge"
+version = "0.1.0"
+description = "Explicit reviewed ctypes bridge to the paper-only Vertex kernel"
+requires-python = "==3.12.11"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+# Packaging Python source does not compile, select, download or bundle a native
+# library. A separately reviewed digest-bound Linux image is mandatory at load.

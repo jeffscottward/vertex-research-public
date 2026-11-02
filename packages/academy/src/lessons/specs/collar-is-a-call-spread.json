@@ -1,0 +1,169 @@
+{
+  "slug": "collar-is-a-call-spread",
+  "sourceId": "DZaNLMnu-Xh",
+  "title": "A collar is a bullish call spread in disguise",
+  "summary": "A collar is long stock, a long put just below the price and a short call above it. By put-call parity, stock plus a long put is a synthetic long call. Add the short call and you have a debit call spread at the same strikes. The speaker models both on Microsoft: the expiry payoffs have the same shape.",
+  "kind": "strategy",
+  "tags": {
+    "regime": ["any"],
+    "instruments": ["single-stock", "spreads", "hedging", "synthetics"],
+    "timeframe": "weeks",
+    "risk": "defined",
+    "topics": ["collar", "put-call parity", "call spread", "synthetic"]
+  },
+  "scene": {
+    "type": "compare",
+    "a": {
+      "label": "Collar",
+      "legs": [
+        {
+          "kind": "stock",
+          "side": "long",
+          "qty": 1
+        },
+        {
+          "kind": "put",
+          "side": "long",
+          "qty": 1,
+          "strike": "putStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "callStrike",
+          "dte": "dte"
+        }
+      ]
+    },
+    "b": {
+      "label": "Debit call spread",
+      "legs": [
+        {
+          "kind": "call",
+          "side": "long",
+          "qty": 1,
+          "strike": "putStrike",
+          "dte": "dte"
+        },
+        {
+          "kind": "call",
+          "side": "short",
+          "qty": 1,
+          "strike": "callStrike",
+          "dte": "dte"
+        }
+      ]
+    }
+  },
+  "params": [
+    {
+      "id": "spot",
+      "label": "MSFT price",
+      "default": 430,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "putStrike",
+      "label": "Lower strike (put / long call)",
+      "default": 410,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "callStrike",
+      "label": "Upper strike (short call)",
+      "default": 460,
+      "min": 1,
+      "max": 2000,
+      "step": 1,
+      "unit": "$"
+    },
+    {
+      "id": "dte",
+      "label": "Days to expiry",
+      "default": 60,
+      "min": 1,
+      "max": 365,
+      "step": 1,
+      "unit": "days"
+    },
+    {
+      "id": "iv",
+      "label": "Implied volatility",
+      "default": 28,
+      "min": 5,
+      "max": 150,
+      "step": 1,
+      "unit": "%"
+    },
+    {
+      "id": "rate",
+      "label": "Risk-free rate",
+      "default": 4,
+      "min": 0,
+      "max": 10,
+      "step": 0.25,
+      "unit": "%"
+    }
+  ],
+  "steps": [
+    {
+      "element": "spot",
+      "color": "cyan",
+      "caption": "Microsoft near $430. The collar puts a band around today's price."
+    },
+    {
+      "element": "a",
+      "color": "blue",
+      "caption": "Collar: long stock, long 410 put, short 460 call."
+    },
+    {
+      "element": "b",
+      "color": "gold",
+      "caption": "Debit call spread: long 410 call, short 460 call."
+    },
+    {
+      "element": "diff",
+      "color": "violet",
+      "caption": "The difference is nearly flat: stock plus put equals a long call by put-call parity."
+    },
+    {
+      "element": "breakeven",
+      "color": "amber",
+      "caption": "Same shape, same breakeven area. Only collateral and margin differ."
+    }
+  ],
+  "formulas": ["putCallParity", "verticalMaxProfit", "breakevenCall"],
+  "takeaways": [
+    "Long stock plus a long put is a synthetic long call.",
+    "A collar has the same economics as a debit call spread at the same strikes.",
+    "The two differ in collateral and margin, not in payoff."
+  ],
+  "caveats": [
+    "Strikes and price are illustrative; the transcript does not give them. Small pricing gaps come from carry and dividends."
+  ],
+  "backtest": {
+    "structure": "collar",
+    "tickers": ["MSFT", "AAPL", "SPY"],
+    "scenario": {
+      "label": "2015-2024 decade",
+      "start": "2015-01-01",
+      "end": "2024-12-31"
+    },
+    "rules": {
+      "dte": 60,
+      "putDelta": -0.3,
+      "callDelta": 0.3,
+      "exitDte": 5,
+      "riskPct": 10
+    },
+    "note": "Stock with a 30-delta put and a 30-delta call, two months out; the same payoff as a debit call spread."
+  }
+}
