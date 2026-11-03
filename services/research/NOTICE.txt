@@ -1,21 +1,16 @@
-Vertex Gamma pure research slice
+Vertex research package
 
-Derived from the user's first-party gamma-forge/forge/src/options_alpha source
-and its synthetic unit tests, under the user's explicit reuse instruction.
-Exact source paths and SHA-256 working-file digests are in provenance/source-files.json.
-No license grant beyond that authorization is asserted here.
-
-No LICENSE, COPYING, COPYRIGHT or NOTICE file was observed in the selected
-source directories or their repository ancestors, and no copyright/SPDX/license
-notice was found in the selected source files. Source docstrings and comments
-are retained, except the documented minimal schema extraction/import changes.
-The absence of a root license is not treated as a blocker to authorized reuse.
+This package is first-party Vertex code. Its features, setups, options,
+portfolio and replay modules were first written in Gamma Forge, the owner's
+earlier version of Vertex. They are native Vertex building blocks; Gamma Forge
+is not an upstream project and is not tracked as one. Git history keeps the
+original import.
 
 No Fincept, TradingAgents, quant-mind, provider client, provider dataset, corpus,
 credential, historical worksheet, order or execution implementation is copied.
-Provider names and ticker/company labels in mirrored characterization tests are
+Provider names and ticker/company labels in characterization tests are
 synthetic test metadata, not fetched data or evidence of provider entitlement.
 
 Pydantic, pydantic-core, tzdata and test/build tools remain separately installed
 dependencies under their own distribution notices. They are not vendored or
-relicensed by this slice. Preserve their installed distribution notices.
+relicensed by this package. Preserve their installed distribution notices.

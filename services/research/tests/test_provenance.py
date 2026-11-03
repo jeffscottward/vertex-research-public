@@ -1,4 +1,4 @@
-"""Local source-byte and packaging checks; originals are not imported or read."""
+"""Fixture-byte, dependency-lock, import-surface and public-signature checks for the research package."""
 
 from __future__ import annotations
 
@@ -22,33 +22,12 @@ def load(name):
     return json.loads((ROOT / "provenance" / name).read_bytes())
 
 
-def test_recorded_local_native_bytes_match_implementation():
-    for entry in load("native-files.json")["files"]:
-        assert hashlib.sha256((ROOT / entry["path"]).read_bytes()).hexdigest() == entry["sha256"]
-
-
-def test_full_mirrors_match_original_source_hash_after_documented_adaptations_only():
-    for entry in load("source-files.json")["files"]:
-        if entry["destination"] in {"gamma/schemas/options.py", "gamma/schemas/signals.py"}:
-            continue  # explicitly recorded minimal schema extraction
-        text = (ROOT / entry["destination"]).read_text().replace("from gamma.", "from options_alpha.")
-        if entry["destination"] == "gamma/engines/setup_engine.py":
-            text = text.replace("from importlib.resources import files\n", "")
-            text = text.replace(
-                '# Use the locally pinned tzdata distribution, never mutable host timezone data.\n'
-                'with files("tzdata").joinpath("zoneinfo/America/New_York").open("rb") as _zone_file:\n'
-                '    MARKET_TIME_ZONE = ZoneInfo.from_file(_zone_file, key="America/New_York")',
-                'MARKET_TIME_ZONE = ZoneInfo("America/New_York")',
-            )
-        assert hashlib.sha256(text.encode()).hexdigest() == entry["sha256"], entry["destination"]
-
-
-def test_fixture_bytes_match_their_independent_source_ledger():
+def test_fixture_bytes_match_their_ledger():
     for entry in load("fixtures.json")["fixtures"]:
         assert hashlib.sha256((ROOT / entry["path"]).read_bytes()).hexdigest() == entry["sha256"]
 
 
-def test_locked_dependencies_use_only_source_observed_wheel_hashes():
+def test_locked_dependencies_use_only_pinned_wheel_hashes():
     requirements = (ROOT / "requirements-linux-py312.lock").read_text().splitlines()
     expected = []
     for dependency in load("dependency-lock.json")["dependencies"]:
@@ -74,7 +53,7 @@ def test_native_dependency_surface_has_no_provider_execution_or_clock_import():
                 assert node.func.attr not in {"now", "utcnow", "today"}
 
 
-def test_mapped_native_method_signatures_remain_source_compatible():
+def test_public_feature_and_setup_signatures_stay_stable():
     expected = [
         (MomentumFeatures.compute, ["self", "ticker", "rows", "spy_rows", "qqq_rows"]),
         (MarketStructureFeatures.compute, ["self", "ticker", "rows", "timeframe"]),
