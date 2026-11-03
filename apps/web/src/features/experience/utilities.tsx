@@ -57,7 +57,7 @@ export const GatewayObservation = ({
     <header className="vx-artifact-heading">
       <p className="vx-eyebrow">Source observation / {status.environment}</p>
       <h2>{status.gatewayId}</h2>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         The source observed this status at{" "}
         <time dateTime={status.observedAt}>{status.observedAt}</time>. This page
         does not check heartbeat freshness.
@@ -88,7 +88,7 @@ export const GatewayObservation = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       This status does not include heartbeat freshness, account reconciliation
       evidence, a host fingerprint or a recovery challenge. These values remain
       unknown.
@@ -128,7 +128,7 @@ const HumanConnectionSteps = () => (
         here does not restart, rescan or request recovery.
       </li>
     </ol>
-    <p className="vx-caption">
+    <p>
       Confirmation text, model responses and displayed reason codes do not grant
       authorization. This page cannot perform recovery actions.
     </p>
@@ -532,13 +532,13 @@ const NativeFactIdentity = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       The service verifies the projection content hash, including the proof
       reference. This page cannot retrieve or replay the referenced journal
       proof. The hash does not independently verify economic facts, spendable
       assets, journal completeness or capital authority.
     </p>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Source occurrence, receipt and expiry timestamps remain unchanged. Expired
       observations are stale. This page does not continuously check freshness.
       Projection expiry does not establish admission validity or authorize
@@ -551,7 +551,7 @@ const NativeFactOutcome = ({ fact }: { readonly fact: NativeFact }) => (
   <>
     <strong>Native fact: {fact.kind}</strong>
     {fact.kind === "reconciliation" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {!fact.reconciled || fact.unknownCount > 0
           ? `UNRESOLVED RECONCILIATION — ${fact.unknownCount} unknown (source)`
           : "Source reports reconciled with zero unknown; not an independent reconciliation certificate."}
@@ -560,19 +560,19 @@ const NativeFactOutcome = ({ fact }: { readonly fact: NativeFact }) => (
     {fact.kind === "assignment" ||
     fact.kind === "exercise" ||
     fact.kind === "option-expiry" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         {fact.settlementState === "pending"
           ? "PENDING OBLIGATION — deltas are not spendable cash or shares."
           : "Source reports settled; no economic authority is granted here."}
       </p>
     ) : null}
     {fact.kind === "kill-state" ? (
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         An observed pause or reset is not a control. A grant reference is not a
         new-risk authorization.
       </p>
     ) : null}
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Paper simulation journal observation — not an order receipt.
     </p>
   </>
@@ -624,7 +624,7 @@ const ReceiptIdentity = ({
         ],
       ]}
     />
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       A reconciliation timestamp alone does not establish a known outcome. This
       view does not retrieve or verify the review or admission record and grants
       no execution permission.
@@ -687,10 +687,10 @@ export const AuditLedger = ({
         </p>
       </ResearchTableHeading>
       <ScopeLabel scope={scope} />
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         Complete journal history and reconciliation remain unverified.
       </p>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         This page does not continuously check freshness. Expired records do not
         confirm current readiness or authority.
       </p>
@@ -736,7 +736,7 @@ export const AuditLedger = ({
           warnings
         </summary>
         {index.issues.length === 0 ? (
-          <p className="vx-caption">
+          <p className="text-muted-foreground text-sm leading-relaxed">
             No gap or hash-chain mismatch detected within the returned range.
             Complete history, source authenticity and reconciliation remain
             unverified.
@@ -754,7 +754,7 @@ export const AuditLedger = ({
             ))}
           </ul>
         )}
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           These warnings cover all returned rows and remain visible regardless
           of search or page. Canonical content hashes are verified at the
           experience service boundary. The exact source-supplied hashes below
@@ -779,7 +779,11 @@ export const AuditLedger = ({
             return setPage(0);
           }}
         />
-        <p className="vx-caption" role="status" aria-live="polite">
+        <p
+          className="text-muted-foreground text-sm leading-relaxed"
+          role="status"
+          aria-live="polite"
+        >
           {matches.length} matching of {projections.length} returned
           observations. Page {activePage + 1} of {pages}.
         </p>
@@ -841,11 +845,11 @@ export const AuditLedger = ({
                             ? "UNKNOWN OUTCOME — reconciliation required"
                             : projection.receipt.status}
                         </strong>
-                        <p className="vx-caption">
+                        <p className="text-muted-foreground text-sm leading-relaxed">
                           Error class:{" "}
                           {projection.receipt.errorClass ?? "None supplied"}
                         </p>
-                        <p className="vx-caption">
+                        <p className="text-muted-foreground text-sm leading-relaxed">
                           Observation, not an instruction
                         </p>
                       </>
@@ -908,7 +912,7 @@ export const AuditLedger = ({
         >
           Previous page
         </Button>
-        <span className="vx-caption">
+        <span className="text-muted-foreground text-sm leading-relaxed">
           Page {activePage + 1} of {pages}
         </span>
         <Button

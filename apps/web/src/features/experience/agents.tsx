@@ -50,7 +50,7 @@ export const AgentRunDetails = ({
         </ResearchTableHeading>
         <span className="vx-status">{artifact.value.status}</span>
       </div>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         This agent cannot grant trading authority. Completed status confirms
         recorded outputs. It does not confirm strategy acceptance or broker
         execution.

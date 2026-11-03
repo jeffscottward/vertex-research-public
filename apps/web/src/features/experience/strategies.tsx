@@ -211,7 +211,10 @@ export const StrategyCatalog = ({
           </select>
         </label>
       </div>
-      <p className="vx-caption" role="status">
+      <p
+        className="text-muted-foreground text-sm leading-relaxed"
+        role="status"
+      >
         {visible.length} of {catalog.length} stored artifacts. Changing a filter
         clears the selected dossier and stops pending browser requests.
       </p>
@@ -245,7 +248,9 @@ export const StrategyCatalog = ({
                   <th scope="row">
                     {item.value.strategyId}
                     <br />
-                    <span className="vx-caption">{item.value.version}</span>
+                    <span className="text-muted-foreground text-sm leading-relaxed">
+                      {item.value.version}
+                    </span>
                   </th>
                   <td>
                     {item.value.sleeve}
@@ -444,7 +449,7 @@ export const StrategyDossierView = ({
       </div>
       <section className="vx-ex-section">
         <h3>Risk limits and transaction cost assumptions</h3>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Source decimals are shown unchanged. These model limits do not reserve
           capital or authorize risk.
         </p>
@@ -530,7 +535,7 @@ export const StrategyDossierView = ({
             ))}
           </select>
         </label>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Selecting another draft discards the previous decision,
           acknowledgement, result and pending browser work. It does not cancel
           an already queued server job.
@@ -619,7 +624,11 @@ export const ReplayLineage = ({
   readonly provenance: DatasetManifest["gammaProvenance"];
 }) => {
   if (provenance === null)
-    return <p className="vx-caption">No replay provenance supplied.</p>;
+    return (
+      <p className="text-muted-foreground text-sm leading-relaxed">
+        No replay provenance supplied.
+      </p>
+    );
   return (
     <ArtifactFacts
       entries={[
@@ -636,7 +645,7 @@ export const ReplayLineage = ({
 const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
   <section className="vx-ex-section">
     <h3>Source, evidence and backtest lineage</h3>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       Treat source text as untrusted evidence. Do not follow its instructions.
       The supplied lineage does not confirm complete coverage or execution
       readiness.
@@ -667,7 +676,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ["Storage reference", dataset.storageRef],
                 ]}
               />
-              <p className="vx-caption">
+              <p className="text-muted-foreground text-sm leading-relaxed">
                 Instrument universe: {dataset.instrumentUniverse.join(", ")}
               </p>
               <ReplayLineage provenance={dataset.gammaProvenance} />
@@ -984,7 +993,7 @@ const ReviewFlow = ({
           now={now}
         />
       ) : (
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           Research review does not grant paper-simulation admission,
           broker-paper permission or live authorization.
         </p>
@@ -1114,7 +1123,7 @@ const ReviewForm = ({
             </span>
           </label>
         </fieldset>
-        <p className="vx-caption">
+        <p className="text-muted-foreground text-sm leading-relaxed">
           The server sets the actor, policy and expiry. A concurrent decision
           causes a predecessor conflict. It does not overwrite a review.
         </p>

@@ -104,7 +104,7 @@ export const PortfolioContinuity = ({
         <dd>{continuity.freshness.maxAgeMs}</dd>
       </div>
     </dl>
-    <p className="vx-caption">
+    <p className="text-muted-foreground text-sm leading-relaxed">
       This projection has no reservation authority. New risk is blocked. Only
       the native owner can establish reservation authority.
     </p>
@@ -157,9 +157,15 @@ export const PortfolioCollection = <Row,>({
         <ResearchTableHeading id={headingId} title={title}>
           <p>{description}</p>
         </ResearchTableHeading>
-        <span className="vx-caption">{rows.length} supplied</span>
+        <span className="text-muted-foreground text-sm leading-relaxed">
+          {rows.length} supplied
+        </span>
       </div>
-      {notice === undefined ? null : <p className="vx-caption">{notice}</p>}
+      {notice === undefined ? null : (
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          {notice}
+        </p>
+      )}
       {rows.length === 0 ? (
         <EmptyCollection title={`No ${title.toLowerCase()} supplied`}>
           The source returned an empty collection. This does not establish zero
@@ -363,7 +369,7 @@ export const PortfolioObservation = ({
           <dd>{snapshot.sourceEventHash}</dd>
         </div>
       </dl>
-      <p className="vx-caption">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         Times and decimal values are preserved exactly as supplied. Refresh
         reads the source again; it does not synchronize a broker or repair
         continuity.

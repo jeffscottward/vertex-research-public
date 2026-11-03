@@ -304,7 +304,7 @@ export const TodayDecisionInbox = ({
                     <td>{item.detail}</td>
                     <td>
                       {item.kind === "strategy" ? (
-                        <span className="vx-caption">
+                        <span className="text-muted-foreground text-sm leading-relaxed">
                           Immutable strategy version
                           <br />
                         </span>
