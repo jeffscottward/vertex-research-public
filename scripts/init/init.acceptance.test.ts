@@ -47,8 +47,6 @@ const ALLOWED_LEFTOVERS: readonly string[] = [
   "services/execution/private/source-handoff-v1.json: 1",
   "services/host/HostBuild-v1.private.json: 1",
   "services/research/provenance/numeric-backend.json: 1",
-  "services/research/provenance/port.json: 1",
-  "services/research/provenance/released-source.json: 52",
 ];
 
 // A clone that never starts background Git work. `git commit` runs a detached

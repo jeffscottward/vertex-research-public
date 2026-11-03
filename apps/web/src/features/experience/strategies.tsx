@@ -613,17 +613,17 @@ const DraftFacts = ({
   </div>
 );
 
-const GammaLineage = ({
+export const ReplayLineage = ({
   provenance,
 }: {
   readonly provenance: DatasetManifest["gammaProvenance"];
 }) => {
   if (provenance === null)
-    return <p className="vx-caption">No Gamma replay provenance supplied.</p>;
+    return <p className="vx-caption">No replay provenance supplied.</p>;
   return (
     <ArtifactFacts
       entries={[
-        ["Gamma source trade run", provenance.sourceTradeRunId],
+        ["Replay source trade run", provenance.sourceTradeRunId],
         ["Replay manifest ID", provenance.replayManifestId],
         ["Replay manifest hash", provenance.manifestHash],
         ["Replay input hash", provenance.inputHash],
@@ -670,7 +670,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
               <p className="vx-caption">
                 Instrument universe: {dataset.instrumentUniverse.join(", ")}
               </p>
-              <GammaLineage provenance={dataset.gammaProvenance} />
+              <ReplayLineage provenance={dataset.gammaProvenance} />
               <ul className="vx-ex-record-list">
                 {dataset.sources.map((source) => (
                   <li
@@ -836,7 +836,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                   ],
                 ]}
               />
-              <GammaLineage provenance={backtest.value.gammaProvenance} />
+              <ReplayLineage provenance={backtest.value.gammaProvenance} />
             </details>
           </li>
         ))}

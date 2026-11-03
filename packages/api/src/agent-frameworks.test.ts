@@ -42,6 +42,14 @@ describe("agent framework catalog", () => {
       status: "reimplemented",
     });
     expect(byId.get("tradingagents")?.stages).toHaveLength(5);
+    // Gamma Forge was the owner's earlier version of Vertex, not an upstream:
+    // the TradingAgents desks are Vertex's own code.
+    expect(JSON.stringify(AGENT_FRAMEWORKS)).not.toMatch(/gamma forge/iu);
+    expect(byId.get("tradingagents")).toMatchObject({
+      license:
+        "Upstream: Apache License 2.0. Vertex code: Vertex's own adapter; no upstream code is copied.",
+      version: "Not pinned: Vertex's own adapter, no upstream code",
+    });
     expect(byId.get("ai_hedge_fund")).toMatchObject({
       benchName: null,
       status: "adapted",

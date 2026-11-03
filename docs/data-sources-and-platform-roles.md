@@ -1,6 +1,6 @@
 # Data sources and platform roles
 
-**As of 2026-09-23.** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. Gamma Forge remains the authoritative trading-domain baseline.
+**As of 2026-09-23.** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. The trading-domain code that came from Gamma Forge, the earlier version of Vertex, is native Vertex code (ADR-V02 amendment).
 
 ## The distinction at a glance
 
@@ -58,7 +58,7 @@ These are separate evidence paths. Research outputs do **not** grant trading per
 
 The `/charts` page shows an options panel for stock symbols (`secType` STK). The panel calls `optionsAnalytics.snapshot` (operator-only, read-only). The server-side client in `packages/api/src/server/quantdata-client.ts` calls three QuantData endpoints: `term-structure`, `open-interest-by-strike` and `order-flow/consolidated`. It starts at most one request per second, stops for the `Retry-After` time after HTTP 429 (60 s when absent) and caches chain and open-interest data for 5 minutes and flow for 1 minute. The key comes from `QUANTDATA_API_KEY` (optional `QUANTDATA_API_BASE_URL`, https only). Without a key the procedure returns `NOT_CONFIGURED`. `MARKET_DATA_RUNTIME_STATE` has no enabled value yet, so it cannot gate this panel; the `market_data` entry in `capabilities.yaml` stays `disabled` because the governed ingestion capability (captures, lineage) is still off. This panel is a read-only display only. The Python adapter [L2] stays the research capture path (immutable captures, lineage); it is not deployed or reachable from the Worker, so this read-only display client does not replace it. Both use the same QuantData account limits; run only one high-volume path at a time.
 
-The calculations in `packages/api/src/server/options-analytics-engine.ts` port the Gamma Forge volatility, exposure and flow views: ATM IV term structure, IV at fixed deltas (skew), an out-of-the-money IV surface by moneyness, aggregate open interest, max pain and option flow with hourly premium buckets. GEX is an estimate: aggregate open interest multiplied by Black-Scholes gamma from the front-expiry IV, in dollars per 1 % move, with dealers assumed long calls and short puts. The panel shows these limits under "Data limits". The panel does not place, change or cancel orders.
+The calculations in `packages/api/src/server/options-analytics-engine.ts` implement the volatility, exposure and flow views first written in Gamma Forge (the earlier version of Vertex): ATM IV term structure, IV at fixed deltas (skew), an out-of-the-money IV surface by moneyness, aggregate open interest, max pain and option flow with hourly premium buckets. GEX is an estimate: aggregate open interest multiplied by Black-Scholes gamma from the front-expiry IV, in dollars per 1 % move, with dealers assumed long calls and short puts. The panel shows these limits under "Data limits". The panel does not place, change or cancel orders.
 
 ## Current limitations and decision rules
 

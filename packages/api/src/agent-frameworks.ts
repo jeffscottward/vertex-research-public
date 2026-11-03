@@ -85,7 +85,7 @@ const TRADINGAGENTS: AgentFrameworkOutput = {
   ],
   id: "tradingagents",
   license:
-    "Upstream: Apache License 2.0. Vertex code: a port of Gamma Forge's adapter, no upstream code.",
+    "Upstream: Apache License 2.0. Vertex code: Vertex's own adapter; no upstream code is copied.",
   links: [
     {
       href: "https://github.com/TauricResearch/TradingAgents",
@@ -121,7 +121,7 @@ const TRADINGAGENTS: AgentFrameworkOutput = {
     "Five TradingAgents-style research desks re-implemented in Vertex as typed prompt contracts with JSON output schemas. Each desk validates its output against its contract.",
   toolsAllowed: [],
   toolsExcluded: [],
-  version: "Not pinned: ports Gamma Forge's adapter, not upstream code",
+  version: "Not pinned: Vertex's own adapter, no upstream code",
 };
 
 const AI_HEDGE_FUND: AgentFrameworkOutput = {
