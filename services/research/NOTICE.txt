@@ -1,16 +1,23 @@
 Vertex research package
 
-This package is first-party Vertex code. Its features, setups, options,
-portfolio and replay modules were first written in Gamma Forge, the owner's
-earlier version of Vertex. They are native Vertex building blocks; Gamma Forge
-is not an upstream project and is not tracked as one. Git history keeps the
-original import.
+Most of this package is first-party Vertex code. Its features, setups,
+options, portfolio and replay modules were first written in Gamma Forge, the
+owner's earlier version of Vertex. They are native Vertex building blocks;
+Gamma Forge is not an upstream project and is not tracked as one. Git history
+keeps the original import.
+
+Exceptions:
+- backtesting/event_stats.py and backtesting/event_study.py adapt AI Hedge Fund
+  code under the MIT license (backtesting/AI_HEDGE_FUND_LICENSE.txt).
+- adapters/vibe_trading_framework.py adapts Glassbench code under the Apache
+  License 2.0 (repository root NOTICE and licenses/glassbench-APACHE-2.0.txt).
 
 No Fincept, TradingAgents, quant-mind, provider client, provider dataset, corpus,
 credential, historical worksheet, order or execution implementation is copied.
 Provider names and ticker/company labels in characterization tests are
 synthetic test metadata, not fetched data or evidence of provider entitlement.
 
-Pydantic, pydantic-core, tzdata and test/build tools remain separately installed
+Pydantic, pydantic-core, tzdata, NumPy and SciPy (the optional numeric extra)
+and test/build tools remain separately installed
 dependencies under their own distribution notices. They are not vendored or
 relicensed by this package. Preserve their installed distribution notices.

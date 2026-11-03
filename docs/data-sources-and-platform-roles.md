@@ -1,6 +1,6 @@
 # Data sources and platform roles
 
-**As of 2026-09-23.** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. The trading-domain code that came from Gamma Forge, the earlier version of Vertex, is native Vertex code (ADR-V02 amendment).
+**As of 2026-09-23 (Gamma Forge wording updated 2026-11-03).** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. The trading-domain code that came from Gamma Forge, the earlier version of Vertex, is native Vertex code (ADR-V02 amendment).
 
 ## The distinction at a glance
 
@@ -32,7 +32,7 @@ Dashboard areas below describe intended uses, not a claim that every panel is im
 | **Calendars, contracts and corporate actions** | Qualified instrument identity, dated exchange sessions, timezone/DST/early closes, splits/dividends and applicable expiry/exercise/assignment/settlement facts | Session cutoffs, event warnings, correct replay and portfolio accounting | Use available IBKR metadata first; fill demonstrated gaps with qualified references. A timezone label is not a dated calendar; adjusted prices are not a complete corporate-action cash ledger. A complete calendar/action source is **not yet established**. [L1][L4][L6] |
 | **Fundamentals, filings, earnings and news** | FinancialDatasets and other explicitly rights-cleared primary-source material; publication/as-of timestamps and source citations | Company dossiers, event context, screening and cited research chat | Preserve when information became knowable. Today's revised data cannot stand in for historical point-in-time facts. Earnings coverage does not prove complete exchange calendars or corporate-action coverage. [5][L6] |
 | **Macro/regime context** | Planned macro observations and source vintages | Macro research, regime hypotheses and scheduled-event context | Source links/vintages remain unresolved in the plan. Do not invent a connected feed or use revised series as historical knowledge. [L6] |
-| **Papers and strategy research** | SSRN/other lawfully acquired papers, Gamma-derived strategy specifications, hypotheses, experiment and review artifacts | Quant Lab: paper → hypothesis → explicit strategy → reproducible study | Gamma supplies the domain baseline, not fresh market data. Paper claims and model summaries are research inputs, not validated strategies or permission to trade. Retrieval/full-text rights and reproducibility remain evidence-specific. [L6] |
+| **Papers and strategy research** | SSRN/other lawfully acquired papers, strategy specifications from the research package, hypotheses, experiment and review artifacts | Quant Lab: paper → hypothesis → explicit strategy → reproducible study | The research package supplies the domain baseline, not fresh market data. Paper claims and model summaries are research inputs, not validated strategies or permission to trade. Retrieval/full-text rights and reproducibility remain evidence-specific. [L6] |
 | **Trader corpora** | Separately attributed trader collections, transcripts, summaries and citations; earlier DeltaTrend, Verrillo/Aleks, Crown and DefineYourRisk requirements plus the user-referenced 12-specialist role table | Research library / Agno group chat: compare cited reasoning and hypotheses across macro, risk/process, order flow, auction/liquidity and systematic research roles | **Incomplete research knowledge only.** User reports roughly **10% of transcripts** ingested in another session; this is not independently measured. The role table has been recovered as planning input, not verified corpus readiness or the real traders' current opinions. Rights, provenance and completeness are not established; coordinate with existing ingestion rather than duplicate it. Never treat this as live data or a ready/licensed corpus. [L6] |
 | **Portfolio and execution records** | Broker observations reconciled by the single native execution owner; durable submissions, fills, reservations and receipts; asynchronous dashboard projections | Portfolio, order review, risk/readiness and audit trail | Reconciled broker state governs actual positions and execution outcomes. Dashboard copies may lag; unknown/stale is not zero. Research notional, simulated fills and research P&L never enter actual NAV or create buying power. Operational qualification remains separate. [L6] |
 
@@ -45,7 +45,7 @@ IBKR first + approved gap-fill vendors
         ├─ historical inputs → Nautilus simulation → Quant Lab evidence
         └─ current observations/analytics → Markets / Today / research context
 
-Papers + incomplete trader corpora + Gamma strategy knowledge
+Papers + incomplete trader corpora + research-package strategy knowledge
     → provenance-scoped retrieval → cited hypotheses / drafts / research review
 
 IBKR broker observations → single execution owner + reconciliation

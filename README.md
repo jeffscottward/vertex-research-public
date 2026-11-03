@@ -16,7 +16,7 @@ Vertex Research is a downstream of [DarkFactory](https://github.com/jeffscottwar
 
 Syncing is a repeated process, not a one-time copy. Vertex migrations `0000` to `0022` stay byte-identical. Upstream migrations are appended after the Vertex head. On 2026-10-30, upstream `main` had 3 commits after `d449f290` that are not merged yet.
 
-Vertex grew out of the owner's earlier Gamma Forge project; its features are native Vertex building blocks.
+Vertex grew out of the owner's earlier Gamma Forge project; its features are native Vertex building blocks (see [Native services](#native-services-services)).
 
 Vertex was first written in Civet. Since the 2026-10-05 sync, all first-party web and control-plane source is strict TypeScript. Workspace packages still use the `@darkfactory/*` package scope.
 
@@ -105,15 +105,16 @@ Python and Rust services are the one exception to the TypeScript rule (ADR-V03).
 | `services/ibkr-history` | Rust | IBKR history acquisition; source only, not built or activated |
 | `services/control-client` | Python | Scoped client for the Vertex control plane |
 
-The research building blocks are first-party Vertex code in `services/research`. The Python distribution `vertex-gamma-research`, the `gamma` import package, the recipe profile ID `vertex-gamma-research-v1` and the `gammaProvenance` contract field keep their historical names, so that imports, stored recipes and the API contract stay stable.
+The research building blocks are first-party Vertex code in `services/research`. The Python distribution `vertex-gamma-research`, the `gamma` import package, the recipe profile IDs `vertex-gamma-research-v1` and `vertex-gamma-recipe-v1`, the `gammaProvenance` contract field and the `GAMMA_RESEARCH_API_URL`/`GAMMA_RESEARCH_API_TOKEN` environment variables keep their historical names, so that imports, stored recipes, the API contract and configured environments stay stable.
 
 | Block | What it does | Where it lives |
 | --- | --- | --- |
-| Features | Momentum, market structure, volatility, liquidity, fundamental/catalyst and option-flow features | `gamma/features/`, `indicators/` |
-| Setups | Setup identification from the features, research brief and market regime | `gamma/engines/setup_engine.py` |
-| Options | Options strategy selection and the BridgingCycles short strangle | `gamma/engines/options_strategy_selector.py`, `gamma/engines/bridgingcycles_short_strangle.py`, `gamma/schemas/options.py` |
-| Portfolio | Portfolio committee and portfolio schemas | `gamma/engines/portfolio_committee.py`, `gamma/schemas/portfolio.py` |
-| Replay | Replay manifests and offline backtest replay | `backtesting/replay.py`, `backtesting/manifest.py` |
+| Features | Momentum, market structure, volatility, liquidity, fundamental/catalyst and option-flow features | `services/research/gamma/features/` |
+| Indicators | TA-Lib-compatible EMA, MACD, RSI, ATR, ADX and similar indicators | `services/research/indicators/` |
+| Setups | Setup identification from the features, research brief and market regime | `services/research/gamma/engines/setup_engine.py` |
+| Options | Options strategy selection and the BridgingCycles short strangle | `services/research/gamma/engines/options_strategy_selector.py`, `services/research/gamma/engines/bridgingcycles_short_strangle.py`, `services/research/gamma/schemas/options.py` |
+| Portfolio | Portfolio committee and portfolio schemas | `services/research/gamma/engines/portfolio_committee.py`, `services/research/gamma/schemas/portfolio.py` |
+| Replay | Replay manifests and offline backtest replay | `services/research/backtesting/replay.py`, `services/research/backtesting/manifest.py` |
 
 ### Infrastructure (`infra/*`)
 
