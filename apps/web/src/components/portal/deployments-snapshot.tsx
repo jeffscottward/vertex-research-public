@@ -14,6 +14,15 @@ import type {
   DeploymentStatusOutput,
 } from "@darkfactory/api";
 import type { KeyboardEvent, ReactNode } from "react";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 
 // Read-only views over the tailnet v2 session snapshot (vertex-deploy-status-v2). Nothing here acts on
 // the trading stack; every block is either rendered with its source/as_of or shows the server's reason.
@@ -269,7 +278,7 @@ const BlockFrame = ({
   );
 };
 
-const th = "whitespace-nowrap px-2 py-1.5 font-normal";
+const th = "whitespace-nowrap px-2 py-1.5 font-normal text-muted-foreground";
 const td = "whitespace-nowrap px-2 py-1.5 align-top font-mono";
 const tdNum = `${td} text-right`;
 
@@ -295,23 +304,26 @@ const ScrollTable = ({
       role="region"
       aria-label={caption}
     >
-      <table className={`w-full text-sm ${minWidth}`}>
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground text-xs">
+      <Table
+        containerClassName="overflow-visible"
+        className={`w-full text-sm ${minWidth}`}
+      >
+        <TableCaption className="sr-only">{caption}</TableCaption>
+        <TableHeader>
+          <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
             {head.map(([label, numeric]) => (
-              <th
+              <TableHead
                 className={numeric ? `${th} text-right` : th}
                 key={label}
                 scope="col"
               >
                 {label}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>{children}</tbody>
-      </table>
+          </TableRow>
+        </TableHeader>
+        <TableBody>{children}</TableBody>
+      </Table>
     </div>
   );
 };
@@ -324,11 +336,14 @@ const Empty = ({
   readonly text: string;
 }) => {
   return (
-    <tr>
-      <td className="px-2 py-3 text-muted-foreground text-sm" colSpan={cols}>
+    <TableRow>
+      <TableCell
+        className="whitespace-normal px-2 py-3 text-muted-foreground text-sm"
+        colSpan={cols}
+      >
         {text}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 };
 
@@ -383,34 +398,42 @@ export const PositionsPanel = ({
               ) : (
                 block.items.map((item, index) => {
                   return (
-                    <tr
+                    <TableRow
                       className="border-border border-b"
                       data-position-row={item.symbol}
                       key={`${item.symbol}-${index}`}
                     >
-                      <td className={td}>
+                      <TableCell className={td}>
                         {item.symbol}
                         {item.sec_type === "OPT"
                           ? ` ${item.expiry ?? ""} ${item.strike ?? ""}${item.right ?? ""}`
                           : ""}
-                      </td>
-                      <td className={td}>{item.sec_type ?? "—"}</td>
-                      <td className={tdNum}>{formatNumber(item.qty, 4)}</td>
-                      <td className={tdNum}>{formatNumber(item.avg_px, 4)}</td>
-                      <td className={tdNum}>
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.sec_type ?? "—"}
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.qty, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.avg_px, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.market_price, 4)}
-                      </td>
-                      <td className={tdNum}>
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.market_value)}
-                      </td>
-                      <td className={tdNum}>
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.unrealized_pnl)}
-                      </td>
-                      <td className={tdNum}>
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.realized_pnl)}
-                      </td>
-                      <td className={td}>{item.currency ?? "—"}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.currency ?? "—"}
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
@@ -466,31 +489,41 @@ export const OrdersPanel = ({
               ) : (
                 block.items.map((item, index) => {
                   return (
-                    <tr
+                    <TableRow
                       className="border-border border-b"
                       data-order-row={item.symbol}
                       key={`${item.order_id_masked ?? "order"}-${index}`}
                     >
-                      <td className={td}>{item.order_id_masked ?? "—"}</td>
-                      <td className={td}>{item.symbol}</td>
-                      <td className={td}>{item.side ?? "—"}</td>
-                      <td className={td}>{item.type ?? "—"}</td>
-                      <td className={tdNum}>{formatNumber(item.qty, 4)}</td>
-                      <td className={tdNum}>{formatNumber(item.filled, 4)}</td>
-                      <td className={tdNum}>
+                      <TableCell className={td}>
+                        {item.order_id_masked ?? "—"}
+                      </TableCell>
+                      <TableCell className={td}>{item.symbol}</TableCell>
+                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
+                      <TableCell className={td}>{item.type ?? "—"}</TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.qty, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.filled, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.remaining, 4)}
-                      </td>
-                      <td className={tdNum}>{formatNumber(item.price, 4)}</td>
-                      <td className={tdNum}>{formatNumber(item.stop, 4)}</td>
-                      <td className={tdNum}>
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.price, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.stop, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
                         {formatNumber(item.aux_price, 4)}
-                      </td>
-                      <td className={td}>{item.tif ?? "—"}</td>
-                      <td className={td}>{item.status ?? "—"}</td>
-                      <td className={`${td} text-warning-foreground`}>
+                      </TableCell>
+                      <TableCell className={td}>{item.tif ?? "—"}</TableCell>
+                      <TableCell className={td}>{item.status ?? "—"}</TableCell>
+                      <TableCell className={`${td} text-warning-foreground`}>
                         {item.warning ?? ""}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
@@ -540,19 +573,29 @@ export const FillsPanel = ({
               ) : (
                 block.items.map((item, index) => {
                   return (
-                    <tr
+                    <TableRow
                       className="border-border border-b"
                       data-fill-row={item.symbol}
                       key={`${item.exec_id_masked ?? "fill"}-${index}`}
                     >
-                      <td className={td}>{formatUtc(item.time)}</td>
-                      <td className={td}>{item.symbol}</td>
-                      <td className={td}>{item.side ?? "—"}</td>
-                      <td className={tdNum}>{formatNumber(item.qty, 4)}</td>
-                      <td className={tdNum}>{formatNumber(item.price, 4)}</td>
-                      <td className={td}>{item.order_id_masked ?? "—"}</td>
-                      <td className={td}>{item.exec_id_masked ?? "—"}</td>
-                    </tr>
+                      <TableCell className={td}>
+                        {formatUtc(item.time)}
+                      </TableCell>
+                      <TableCell className={td}>{item.symbol}</TableCell>
+                      <TableCell className={td}>{item.side ?? "—"}</TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.qty, 4)}
+                      </TableCell>
+                      <TableCell className={tdNum}>
+                        {formatNumber(item.price, 4)}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.order_id_masked ?? "—"}
+                      </TableCell>
+                      <TableCell className={td}>
+                        {item.exec_id_masked ?? "—"}
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
@@ -648,19 +691,21 @@ export const LogsPanel = ({
               ) : (
                 block.items.map((item, index) => {
                   return (
-                    <tr
+                    <TableRow
                       className={`border-border border-b ${item.level === "ERROR" ? "text-destructive" : ""}`}
                       data-log-row={item.level}
                       key={`${item.time ?? ""}-${index}`}
                     >
-                      <td className={td}>{formatUtc(item.time)}</td>
-                      <td className={td}>{item.level}</td>
-                      <td className={td}>{item.source}</td>
-                      <td className={tdNum}>{item.count}</td>
-                      <td className="min-w-[20rem] px-2 py-1.5 align-top font-mono text-xs [overflow-wrap:anywhere]">
+                      <TableCell className={td}>
+                        {formatUtc(item.time)}
+                      </TableCell>
+                      <TableCell className={td}>{item.level}</TableCell>
+                      <TableCell className={td}>{item.source}</TableCell>
+                      <TableCell className={tdNum}>{item.count}</TableCell>
+                      <TableCell className="min-w-[20rem] whitespace-normal px-2 py-1.5 align-top font-mono text-xs [overflow-wrap:anywhere]">
                         {item.message}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
@@ -837,12 +882,14 @@ export const RiskPanel = ({
                   ) : (
                     limits.map(([key, value]) => {
                       return (
-                        <tr className="border-border border-b" key={key}>
-                          <td className={`${td} text-xs`}>{key}</td>
-                          <td className={`${td} text-xs`}>
+                        <TableRow className="border-border border-b" key={key}>
+                          <TableCell className={`${td} text-xs`}>
+                            {key}
+                          </TableCell>
+                          <TableCell className={`${td} text-xs`}>
                             {formatValue(value)}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   )}
