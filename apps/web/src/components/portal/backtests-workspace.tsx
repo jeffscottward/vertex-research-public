@@ -843,9 +843,9 @@ export const BacktestsWorkspace = ({
       ) : state.rows.length === 0 ? (
         <p className="text-muted-foreground text-sm">No backtest results.</p>
       ) : (
-        // `relative` makes the scroll box the containing block of the
-        // absolutely positioned sr-only "Actions" label, so it is clipped
-        // with the table instead of widening the page on a phone.
+        // The Table container (`relative`) is the containing block of the
+        // absolutely positioned sr-only "Actions" label, and this scroll box
+        // clips it with the table instead of widening the page on a phone.
         <div className="relative overflow-x-auto" data-backtest-results-scroll>
           <Table
             containerClassName="overflow-visible"

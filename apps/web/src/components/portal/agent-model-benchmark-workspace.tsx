@@ -272,9 +272,7 @@ const ArmTable = ({
             <TableCell className={cn("whitespace-normal", cellClass)}>
               {formatDuration(arm.medianDurationMs)}
             </TableCell>
-            <TableCell
-              className={`whitespace-normal ${cellClass} max-w-64 truncate`}
-            >
+            <TableCell className={`${cellClass} max-w-64 truncate`}>
               {arm.servedModels.length === 0
                 ? "—"
                 : arm.servedModels.join(", ")}

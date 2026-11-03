@@ -461,7 +461,7 @@ export const PositionsPanel = ({
               {rows.map((position) => {
                 return (
                   <TableRow
-                    className="border-border border-b"
+                    className="border-border border-b hover:bg-transparent"
                     data-position-id={position.id}
                     key={position.id}
                   >
@@ -483,7 +483,10 @@ export const PositionsPanel = ({
                   </TableRow>
                 );
               })}
-              <TableRow className="font-semibold" data-totals="true">
+              <TableRow
+                className="font-semibold hover:bg-transparent"
+                data-totals="true"
+              >
                 {columns.map((column) => (
                   <BodyCell
                     column={column}
@@ -594,7 +597,10 @@ const OrderTableRow = ({
   readonly order: PortfolioMonitorOrder;
 }) => (
   <TableRow
-    className={cn("border-border border-b", depth > 0 && "bg-muted")}
+    className={cn(
+      "border-border border-b hover:bg-transparent",
+      depth > 0 && "bg-muted hover:bg-muted"
+    )}
     data-depth={depth}
     data-order-key={order.key}
   >
@@ -862,7 +868,7 @@ export const ExecutionsTable = ({
               {rows.map((execution) => {
                 return (
                   <TableRow
-                    className="border-border border-b last:border-b-0"
+                    className="border-border border-b last:border-b-0 hover:bg-transparent"
                     data-exec-id={execution.execId}
                     key={execution.execId}
                   >

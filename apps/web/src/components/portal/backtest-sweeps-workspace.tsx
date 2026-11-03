@@ -421,21 +421,18 @@ const SweepResults = ({
         <Table
           containerClassName="overflow-visible"
           aria-labelledby={captionId}
-          className="text-xs tabular-nums"
+          className="w-auto text-xs tabular-nums"
           data-sweep-heatmap=""
         >
           <TableHeader>
             <TableRow>
-              <TableHead
-                className="p-1 text-left text-muted-foreground"
-                scope="col"
-              >
+              <TableHead className="h-auto p-1 text-left" scope="col">
                 {axes.y === null ? "" : `${label(axes.y)} / `}
                 {label(axes.x)}
               </TableHead>
               {view.xValues.map((value) => (
                 <TableHead
-                  className="p-1 text-right text-muted-foreground"
+                  className="h-auto p-1 text-right"
                   key={value}
                   scope="col"
                 >
