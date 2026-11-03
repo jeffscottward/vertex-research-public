@@ -14,6 +14,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { type AcademyGateway, errorMessage } from "./academy-client.ts";
 import { useAcademyTheme } from "./academy-theme.tsx";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 
 // Status colors come from the Academy palette, not dark: utilities: the portal theme can be dark
 // while the Academy is light, and dark: matches any dark ancestor.
@@ -255,44 +264,57 @@ export const LessonDeploy = ({
             {gate.otherAllocationsPct.toFixed(1)}%.
           </p>
           <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-max text-sm" data-gate-checks>
-              <caption className="px-3 py-2 text-left font-semibold">
+            <Table
+              containerClassName="overflow-visible"
+              className="w-full min-w-max text-sm"
+              data-gate-checks
+            >
+              <TableCaption className="mt-0 caption-top px-3 py-2 text-left font-semibold text-foreground">
                 Master-rule and owner-cap gates
-              </caption>
-              <thead className="bg-muted/60 text-muted-foreground text-xs">
-                <tr>
-                  <th className="px-3 py-2 text-left" scope="col">
+              </TableCaption>
+              <TableHeader className="bg-muted/60 text-muted-foreground text-xs">
+                <TableRow>
+                  <TableHead
+                    className="px-3 py-2 text-left text-muted-foreground"
+                    scope="col"
+                  >
                     Status
-                  </th>
-                  <th className="px-3 py-2 text-left" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="px-3 py-2 text-left text-muted-foreground"
+                    scope="col"
+                  >
                     Rule
-                  </th>
-                  <th className="px-3 py-2 text-left" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="px-3 py-2 text-left text-muted-foreground"
+                    scope="col"
+                  >
                     Detail
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {gate.checks.map((check) => (
-                  <tr
+                  <TableRow
                     className="border-border border-t"
                     data-gate-check={check.id}
                     data-gate-status={check.status}
                     key={check.id}
                   >
-                    <td className="px-3 py-1.5">
+                    <TableCell className="whitespace-normal px-3 py-1.5">
                       {statusIcon(check.status, palette.tokens)}
-                    </td>
-                    <td className="px-3 py-1.5 font-medium">
+                    </TableCell>
+                    <TableCell className="whitespace-normal px-3 py-1.5 font-medium">
                       {check.id} · {check.title}
-                    </td>
-                    <td className="px-3 py-1.5 text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="whitespace-normal px-3 py-1.5 text-muted-foreground">
                       {check.detail}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           {blocked ? (
             <fieldset
