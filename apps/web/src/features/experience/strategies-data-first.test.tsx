@@ -50,7 +50,11 @@ vi.mock("react", async (importOriginal) => ({
   useEffect: () => undefined,
 }));
 
-import { StrategyCatalog, StrategyDossierView } from "./strategies.tsx";
+import {
+  ReplayLineage,
+  StrategyCatalog,
+  StrategyDossierView,
+} from "./strategies.tsx";
 import {
   ExperienceProvider,
   createUnavailableExperienceServices,
@@ -238,6 +242,28 @@ describe("Strategies data-first immutable records", () => {
     const html = renderToStaticMarkup(catalog([]));
     expect(html).toContain("No stored strategies in this scope");
     return expect(html).not.toContain("<table");
+  });
+  it("labels replay lineage as a Vertex replay, not an outside source", () => {
+    const manifestHash = "b".repeat(64);
+    const html = renderToStaticMarkup(
+      <ReplayLineage
+        provenance={{
+          schemaVersion: "1.0.0",
+          replaySchemaVersion: 2,
+          sourceTradeRunId: "synthetic-trade-run",
+          replayManifestId: `replay-manifest-${manifestHash.slice(0, 24)}`,
+          manifestHash,
+          inputHash: "c".repeat(64),
+          outputHash: "d".repeat(64),
+        }}
+      />
+    );
+    expect(html).toContain("Replay source trade run");
+    expect(html).toContain("synthetic-trade-run");
+    expect(renderToStaticMarkup(<ReplayLineage provenance={null} />)).toContain(
+      "No replay provenance supplied."
+    );
+    return expect(html).not.toMatch(/gamma/iu);
   });
   it("keeps deterministic rules and source requirements exact while live reviews remain blocked", () => {
     const dossier: StrategyDossier = {

@@ -8,17 +8,13 @@
     },
     {
       "path": "tests/test_feature_parity.py",
-      "kind": "first-party Gamma synthetic characterization corpus",
-      "sha256": "6ee278fe58ebe7c6c35dd48ea0c2ce075c42a17e30daf6c568ca315085343d3d",
-      "source": "forge/tests/unit/test_feature_engines.py",
-      "sourceSha256": "cfa2984d4b4dc4d032eeac42ba84a8cfe2bb31c801feb772bccad69311d3791f"
+      "kind": "first-party synthetic characterization corpus",
+      "sha256": "6ee278fe58ebe7c6c35dd48ea0c2ce075c42a17e30daf6c568ca315085343d3d"
     },
     {
       "path": "tests/test_setup_parity.py",
-      "kind": "first-party Gamma synthetic characterization corpus",
-      "sha256": "19daee1e442e3a7f20218843415426173aff0c4d4a7e14a89483371e52dbd1a2",
-      "source": "forge/tests/unit/test_setup_engine.py",
-      "sourceSha256": "58c986b69f5a53b0933122496e54a81effc5374ec640b9b1e22b53bb36c59a7f"
+      "kind": "first-party synthetic characterization corpus",
+      "sha256": "19daee1e442e3a7f20218843415426173aff0c4d4a7e14a89483371e52dbd1a2"
     }
   ]
 }

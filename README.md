@@ -16,6 +16,8 @@ Vertex Research is a downstream of [DarkFactory](https://github.com/jeffscottwar
 
 Syncing is a repeated process, not a one-time copy. Vertex migrations `0000` to `0022` stay byte-identical. Upstream migrations are appended after the Vertex head. On 2026-10-30, upstream `main` had 3 commits after `d449f290` that are not merged yet.
 
+Vertex grew out of the owner's earlier Gamma Forge project; its features are native Vertex building blocks (see [Native services](#native-services-services)).
+
 Vertex was first written in Civet. Since the 2026-10-05 sync, all first-party web and control-plane source is strict TypeScript. Workspace packages still use the `@darkfactory/*` package scope.
 
 Vertex inherits these parts of DarkFactory. The linked documents describe them; this README does not repeat them:
@@ -35,9 +37,8 @@ No upstream project is a git submodule. Each one is a separate service, an adapt
 
 | Module | What it does in Vertex | Where it lives | Isolation | Pin |
 | --- | --- | --- | --- | --- |
-| Gamma Forge (the owner's own project) | Trading-domain source: features, setups, options, portfolio, replay (ADR-V02) | `services/research/` (`gamma/`, `indicators/`, `strategies/`) | Adapted copy in the separate Python package `vertex-gamma-research` | Per-file SHA-256 in `services/research/provenance/source-files.json` |
-| Agno with vLLM | Optional text-only model bridge for the research agents ("Gamma/Agno") | `services/research/adapters/agno.py`, `services/research/agents/adapters.py` | Optional SDK, imported lazily behind ports; capability `gamma-agno` is disabled | `agno` 1.7.12, `openai` 1.93.0, `httpx` 0.28.1, vLLM 0.9.2 (in `agno.py`) |
-| TradingAgents | Five research desks: regime, themes, candidates, bull/bear and setup debate. Output that contains order fields is rejected. | `services/research/agents/external_research.py` (`TradingAgentsResearchAdapter`) | Adapter behind the `ResearchGenerator` protocol with an injected model transport. No TradingAgents code is copied (`services/research/NOTICE.txt`). | Not pinned; the adapter ports Gamma Forge's adapter, not upstream code |
+| Agno with vLLM | Optional text-only model bridge for the research agents | `services/research/adapters/agno.py`, `services/research/agents/adapters.py` | Optional SDK, imported lazily behind ports; capability `agno-vllm` is disabled | `agno` 1.7.12, `openai` 1.93.0, `httpx` 0.28.1, vLLM 0.9.2 (in `agno.py`) |
+| TradingAgents | Five research desks: regime, themes, candidates, bull/bear and setup debate. Output that contains order fields is rejected. | `services/research/agents/external_research.py` (`TradingAgentsResearchAdapter`) | Adapter behind the `ResearchGenerator` protocol with an injected model transport. No TradingAgents code is copied (`services/research/NOTICE.txt`). | Not pinned; Vertex's own adapter, no upstream code |
 | QuantMind | Knowledge search with excerpts and extractive summaries | `services/research/agents/external_research.py` (`QuantMindClient`) | Injected client behind a protocol. No QuantMind code is copied. | Not pinned |
 | ai-hedge-fund | Event-study statistics (OLS, abnormal returns, CAR, t-test, bootstrap) for offline backtests | `services/research/backtesting/event_stats.py`, `event_study.py` | Adapted copy inside the research package, with the MIT notice `AI_HEDGE_FUND_LICENSE.txt` | Upstream file SHA-256 values in the `event_stats.py` docstring and in `QuantReplayBuild-v1.json` (not tracked) |
 | [QuantJourney Backtester](https://github.com/QuantJourneyOrg/quantjourney-bt) | 50 example strategies (quants.md) re-run on Vertex data for research; published versus re-run figures and gates in [`docs/vertex-rebuild/quantjourney-library.md`](docs/vertex-rebuild/quantjourney-library.md) | `research/backtests/quantjourney/` (`qj_adapter.py`) | Research tool outside the platform: the adapter imports the upstream package from a pinned clone (`~/Github/tools/quantjourney-bt`) and replaces only its data download. No upstream code is copied; Apache-2.0. | Commit `4f403d85` (`research/backtests/quantjourney/library.json`) |
@@ -93,7 +94,7 @@ Python and Rust services are the one exception to the TypeScript rule (ADR-V03).
 
 | Service | Language | Purpose |
 | --- | --- | --- |
-| `services/research` | Python | Offline Gamma feature, setup, backtest and research-agent kernels |
+| `services/research` | Python | Offline research building blocks (features, setups, options, portfolio, replay), backtests and research agents |
 | `services/execution` | Python | Fenced deterministic paper simulation; no broker dispatch |
 | `services/execution-kernel` | Rust | Paper-only admission planning; cannot grant live trading permission |
 | `services/kernel-bridge` | Rust, Python | Reviewed ctypes bridge to the paper-only kernel |
@@ -103,6 +104,17 @@ Python and Rust services are the one exception to the TypeScript rule (ADR-V03).
 | `services/market-data` | Python | Market-data normalization and immutable dataset planning |
 | `services/ibkr-history` | Rust | IBKR history acquisition; source only, not built or activated |
 | `services/control-client` | Python | Scoped client for the Vertex control plane |
+
+The research building blocks are first-party Vertex code in `services/research`. The Python distribution `vertex-gamma-research`, the `gamma` import package, the recipe profile IDs `vertex-gamma-research-v1` and `vertex-gamma-recipe-v1`, the `gammaProvenance` contract field and the `GAMMA_RESEARCH_API_URL`/`GAMMA_RESEARCH_API_TOKEN` environment variables keep their historical names, so that imports, stored recipes, the API contract and configured environments stay stable.
+
+| Block | What it does | Where it lives |
+| --- | --- | --- |
+| Features | Momentum, market structure, volatility, liquidity, fundamental/catalyst and option-flow features | `services/research/gamma/features/` |
+| Indicators | TA-Lib-compatible EMA, MACD, RSI, ATR, ADX and similar indicators | `services/research/indicators/` |
+| Setups | Setup identification from the features, research brief and market regime | `services/research/gamma/engines/setup_engine.py` |
+| Options | Options strategy selection and the BridgingCycles short strangle | `services/research/gamma/engines/options_strategy_selector.py`, `services/research/gamma/engines/bridgingcycles_short_strangle.py`, `services/research/gamma/schemas/options.py` |
+| Portfolio | Portfolio committee and portfolio schemas | `services/research/gamma/engines/portfolio_committee.py`, `services/research/gamma/schemas/portfolio.py` |
+| Replay | Replay manifests and offline backtest replay | `services/research/backtesting/replay.py`, `services/research/backtesting/manifest.py` |
 
 ### Infrastructure (`infra/*`)
 

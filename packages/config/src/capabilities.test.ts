@@ -110,12 +110,12 @@ const expectedManifest = {
       runtime_state: "disabled",
     },
     research: {
-      provider: "gamma-agno",
+      provider: "agno-vllm",
       enabled: false,
       runtime_state: "disabled",
     },
     rust_kernel: {
-      provider: "gamma-rust",
+      provider: "vertex-rust-kernel",
       enabled: false,
       runtime_state: "disabled",
     },

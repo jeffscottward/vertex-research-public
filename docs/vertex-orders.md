@@ -1,7 +1,7 @@
 # Owner order screen (Portfolio > Orders)
 
 Owner decision 2026-10-22: a submit/cancel screen for option orders, with a confirm step for
-every order and every cancel. Port of the Gamma Forge order screen.
+every order and every cancel. It grew out of the order screen of Gamma Forge, the earlier version of Vertex.
 
 ## Safety model
 

@@ -132,8 +132,8 @@ export const capabilityManifestSchema = strict({
   }),
   integrations: strict({
     native_quant: pendingIntegration("nautilus-trader"),
-    research: pendingIntegration("gamma-agno"),
-    rust_kernel: pendingIntegration("gamma-rust"),
+    research: pendingIntegration("agno-vllm"),
+    rust_kernel: pendingIntegration("vertex-rust-kernel"),
     market_data: pendingIntegration("quantdata-financialdatasets"),
     charts: pendingIntegration("tanstack-charts-alpha"),
     notifications: pendingIntegration("ntfy-resend"),

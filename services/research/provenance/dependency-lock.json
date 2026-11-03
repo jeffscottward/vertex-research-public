@@ -1,6 +1,4 @@
 {
-  "source": "gamma-forge/forge/uv.lock",
-  "sha256": "e053a7bc967ebfd6fe45e749c4d4ee188fb7649f5a2141a8ed422a6b9e4ec3cb",
   "target": "CPython 3.12 Linux x86_64",
   "dependencies": [
     {
