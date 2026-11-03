@@ -6,7 +6,19 @@ import type {
   RoundHandleFlag,
   PortfolioMonitorPosition,
 } from "@darkfactory/api";
-import { Button, StatusBadge, TableScrollText, cn } from "@darkfactory/ui";
+import {
+  Button,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScrollText,
+  cn,
+} from "@darkfactory/ui";
 import {
   ArrowDown,
   ArrowUp,
@@ -310,18 +322,26 @@ const BodyCell = ({
 }) => {
   if (column.id === "symbol") {
     return (
-      <th className={cn(CELL, STICKY, "text-left font-normal")} scope="row">
+      <TableHead
+        className={cn(
+          "h-auto whitespace-normal",
+          CELL,
+          STICKY,
+          "text-left font-normal"
+        )}
+        scope="row"
+      >
         {value}
-      </th>
+      </TableHead>
     );
   }
   return (
-    <td
-      className={cn(CELL, column.numeric && "text-right")}
+    <TableCell
+      className={cn("whitespace-normal", CELL, column.numeric && "text-right")}
       data-column={column.id}
     >
       {value}
-    </td>
+    </TableCell>
   );
 };
 
@@ -379,18 +399,18 @@ export const PositionsPanel = ({
         />
       ) : (
         <ScrollRegion label="Positions table">
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table containerClassName="overflow-visible" className={TABLE}>
+            <TableCaption className="sr-only">
               Positions. Sorted by{" "}
               {POSITION_COLUMNS.find((column) => column.id === sort.id)?.label},{" "}
               {sort.dir === 1 ? "ascending" : "descending"}.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
                 {columns.map((column) => {
                   const active = sort.id === column.id;
                   return (
-                    <th
+                    <TableHead
                       aria-sort={
                         active
                           ? sort.dir === 1
@@ -399,6 +419,7 @@ export const PositionsPanel = ({
                           : undefined
                       }
                       className={cn(
+                        "text-muted-foreground",
                         "p-0 font-semibold",
                         column.id === "symbol" && STICKY
                       )}
@@ -423,20 +444,23 @@ export const PositionsPanel = ({
                           )
                         ) : null}
                       </button>
-                    </th>
+                    </TableHead>
                   );
                 })}
                 {actions === undefined ? null : (
-                  <th className="px-2 font-semibold" scope="col">
+                  <TableHead
+                    className="px-2 font-semibold text-muted-foreground"
+                    scope="col"
+                  >
                     Actions
-                  </th>
+                  </TableHead>
                 )}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((position) => {
                 return (
-                  <tr
+                  <TableRow
                     className="border-border border-b"
                     data-position-id={position.id}
                     key={position.id}
@@ -449,14 +473,17 @@ export const PositionsPanel = ({
                       />
                     ))}
                     {actions === undefined ? null : (
-                      <td className={CELL} data-column="actions">
+                      <TableCell
+                        className={cn("whitespace-normal", CELL)}
+                        data-column="actions"
+                      >
                         {actions(position, positions)}
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 );
               })}
-              <tr className="font-semibold" data-totals="true">
+              <TableRow className="font-semibold" data-totals="true">
                 {columns.map((column) => (
                   <BodyCell
                     column={column}
@@ -464,10 +491,12 @@ export const PositionsPanel = ({
                     value={totalCell(totals, column.id)}
                   />
                 ))}
-                {actions === undefined ? null : <td className={CELL} />}
-              </tr>
-            </tbody>
-          </table>
+                {actions === undefined ? null : (
+                  <TableCell className={cn("whitespace-normal", CELL)} />
+                )}
+              </TableRow>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>
@@ -564,13 +593,14 @@ const OrderTableRow = ({
   readonly handles?: Readonly<OrderHandleFlags> | undefined;
   readonly order: PortfolioMonitorOrder;
 }) => (
-  <tr
+  <TableRow
     className={cn("border-border border-b", depth > 0 && "bg-muted")}
     data-depth={depth}
     data-order-key={order.key}
   >
-    <th
+    <TableHead
       className={cn(
+        "h-auto whitespace-normal",
         CELL,
         STICKY,
         "text-left font-semibold",
@@ -591,38 +621,52 @@ const OrderTableRow = ({
         ) : null}
         <TableScrollText text={order.symbol} />
       </span>
-    </th>
-    <td className={cn(CELL, SIDE_CLASS(order.action))}>{order.action}</td>
-    <td className={CELL}>{order.orderType}</td>
-    <td className={cn(CELL, "text-right")}>
+    </TableHead>
+    <TableCell
+      className={cn("whitespace-normal", CELL, SIDE_CLASS(order.action))}
+    >
+      {order.action}
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
+      {order.orderType}
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL, "text-right")}>
       {qty(order.qty)}
       {order.filledQty ? (
         <Muted text={` (${qty(order.filledQty)} filled)`} />
       ) : null}
-    </td>
-    <td className={cn(CELL, "text-right")} data-column="limit">
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-right")}
+      data-column="limit"
+    >
       {price(order.limitPrice)}
       <HandleFlag flag={handles?.limit} current={order.limitPrice} />
-    </td>
-    <td className={cn(CELL, "text-right")} data-column="stop">
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-right")}
+      data-column="stop"
+    >
       {price(order.stopPrice)}
       {order.trailPct ? <Muted text={` (trail ${order.trailPct}%)`} /> : null}
       <HandleFlag flag={handles?.stop} current={order.stopPrice} />
-    </td>
-    <td className={CELL}>
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
       {order.tif}
       {order.outsideRth ? " · ext hours" : ""}
-    </td>
-    <td className={CELL}>
+    </TableCell>
+    <TableCell className={cn("whitespace-normal", CELL)}>
       <OrderStatus completed={completed} order={order} />
-    </td>
-    <td className={cn(CELL, "text-muted-foreground text-xs")}>
+    </TableCell>
+    <TableCell
+      className={cn("whitespace-normal", CELL, "text-muted-foreground text-xs")}
+    >
       <span className="inline-flex flex-wrap items-center gap-1">
         {order.ocaGroup ? <OcaBadge group={order.ocaGroup} /> : null}
         {order.orderRef || (order.ocaGroup ? "" : DASH)}
       </span>
-    </td>
-  </tr>
+    </TableCell>
+  </TableRow>
 );
 
 export interface OrdersTableProps {
@@ -657,42 +701,69 @@ export const OrdersTable = ({
         />
       ) : (
         <ScrollRegion label={`${title} table`}>
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table containerClassName="overflow-visible" className={TABLE}>
+            <TableCaption className="sr-only">
               {title}, grouped by symbol. Child orders follow their parent.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
-                <th className={cn(CELL, STICKY)} scope="col">
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, STICKY)}
+                  scope="col"
+                >
                   Symbol
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Side
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Type
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Qty
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Limit
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Stop
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   TIF
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   {completed ? "Result" : "Status"}
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Group / Ref
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {groups.flatMap((group) =>
                 group.rows.map((row) => {
                   return (
@@ -706,8 +777,8 @@ export const OrdersTable = ({
                   );
                 })
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>
@@ -737,64 +808,104 @@ export const ExecutionsTable = ({
         />
       ) : (
         <ScrollRegion label="Executions table">
-          <table className={TABLE}>
-            <caption className="sr-only">
+          <Table containerClassName="overflow-visible" className={TABLE}>
+            <TableCaption className="sr-only">
               Executions today, newest first.
-            </caption>
-            <thead>
-              <tr className={HEAD_ROW}>
-                <th className={CELL} scope="col">
+            </TableCaption>
+            <TableHeader>
+              <TableRow className={HEAD_ROW}>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Time
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Symbol
-                </th>
-                <th className={CELL} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL)}
+                  scope="col"
+                >
                   Side
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Qty
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Price
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Commission
-                </th>
-                <th className={cn(CELL, "text-right")} scope="col">
+                </TableHead>
+                <TableHead
+                  className={cn("text-muted-foreground", CELL, "text-right")}
+                  scope="col"
+                >
                   Realized
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((execution) => {
                 return (
-                  <tr
+                  <TableRow
                     className="border-border border-b last:border-b-0"
                     data-exec-id={execution.execId}
                     key={execution.execId}
                   >
-                    <td className={CELL}>{executionClock(execution.time)}</td>
-                    <th
-                      className={cn(CELL, "text-left font-semibold")}
+                    <TableCell className={cn("whitespace-normal", CELL)}>
+                      {executionClock(execution.time)}
+                    </TableCell>
+                    <TableHead
+                      className={cn(
+                        "h-auto whitespace-normal",
+                        CELL,
+                        "text-left font-semibold"
+                      )}
                       scope="row"
                     >
                       <TableScrollText text={execution.symbol} />
-                    </th>
-                    <td className={cn(CELL, SIDE_CLASS(execution.side))}>
-                      {execution.side}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {qty(execution.shares)}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {price(execution.price)}
-                    </td>
-                    <td className={cn(CELL, "text-right")}>
-                      {usd(execution.commission, 2)}
-                    </td>
-                    <td
+                    </TableHead>
+                    <TableCell
                       className={cn(
+                        "whitespace-normal",
+                        CELL,
+                        SIDE_CLASS(execution.side)
+                      )}
+                    >
+                      {execution.side}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {qty(execution.shares)}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {price(execution.price)}
+                    </TableCell>
+                    <TableCell
+                      className={cn("whitespace-normal", CELL, "text-right")}
+                    >
+                      {usd(execution.commission, 2)}
+                    </TableCell>
+                    <TableCell
+                      className={cn(
+                        "whitespace-normal",
                         CELL,
                         "text-right",
                         pnlClass(execution.realized)
@@ -803,12 +914,12 @@ export const ExecutionsTable = ({
                       {execution.realized
                         ? signed(execution.realized, 2)
                         : DASH}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </ScrollRegion>
       )}
     </section>

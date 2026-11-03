@@ -4,6 +4,16 @@ import type { BacktestGetOutput } from "@darkfactory/api";
 import { useState, type ReactNode } from "react";
 
 import { InfoGlyph } from "./agent-ops-client.tsx";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 
 type Backtest = BacktestGetOutput["backtest"];
 type Analytics = Backtest["analytics"];
@@ -361,23 +371,34 @@ const IntervalRow = ({
   readonly value: Interval | null;
   readonly format: (value: number) => string;
 }) => (
-  <tr className="border-border border-b" data-interval={label}>
-    <th className={headCell} scope="row">
+  <TableRow className="border-border border-b" data-interval={label}>
+    <TableHead className={cn("h-auto whitespace-normal", headCell)} scope="row">
       {label}
-    </th>
+    </TableHead>
     {value === null ? (
-      <td className={`${cell} text-muted-foreground`} colSpan={4}>
+      <TableCell
+        className={`whitespace-normal ${cell} text-muted-foreground`}
+        colSpan={4}
+      >
         {DASH}
-      </td>
+      </TableCell>
     ) : (
       <>
-        <td className={numCell}>{format(value.p2_5)}</td>
-        <td className={numCell}>{format(value.p50)}</td>
-        <td className={numCell}>{format(value.p97_5)}</td>
-        <td className={numCell}>{format(value.mean)}</td>
+        <TableCell className={cn("whitespace-normal", numCell)}>
+          {format(value.p2_5)}
+        </TableCell>
+        <TableCell className={cn("whitespace-normal", numCell)}>
+          {format(value.p50)}
+        </TableCell>
+        <TableCell className={cn("whitespace-normal", numCell)}>
+          {format(value.p97_5)}
+        </TableCell>
+        <TableCell className={cn("whitespace-normal", numCell)}>
+          {format(value.mean)}
+        </TableCell>
       </>
     )}
-  </tr>
+  </TableRow>
 );
 
 const PercentileRow = ({
@@ -389,18 +410,18 @@ const PercentileRow = ({
   readonly value: MonteCarloRun["finalPnl"];
   readonly format: (value: number) => string;
 }) => (
-  <tr className="border-border border-b">
-    <th className={headCell} scope="row">
+  <TableRow className="border-border border-b">
+    <TableHead className={cn("h-auto whitespace-normal", headCell)} scope="row">
       {label}
-    </th>
+    </TableHead>
     {[value.p5, value.p25, value.p50, value.p75, value.p95].map(
       (entry, index) => (
-        <td className={numCell} key={index}>
+        <TableCell className={cn("whitespace-normal", numCell)} key={index}>
           {format(entry)}
-        </td>
+        </TableCell>
       )
     )}
-  </tr>
+  </TableRow>
 );
 
 // Five evenly spaced checkpoints along the fan (20%, 40%, 60%, 80%, 100% of the trade sequence).
@@ -546,24 +567,31 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
           </Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs" data-monte-carlo={mode}>
-              <thead>
-                <tr className="border-border border-b text-left text-muted-foreground">
-                  <th className={headCell} scope="col">
+            <Table
+              containerClassName="overflow-visible"
+              className="w-full text-xs"
+              data-monte-carlo={mode}
+            >
+              <TableHeader>
+                <TableRow className="border-border border-b text-left text-muted-foreground">
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Outcome
-                  </th>
+                  </TableHead>
                   {["5%", "25%", "50%", "75%", "95%"].map((label) => (
-                    <th
-                      className={`${headCell} text-right`}
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
                       key={label}
                       scope="col"
                     >
                       {label}
-                    </th>
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {mode === "bootstrap" ? (
                   <PercentileRow
                     format={(value) => signed(value)}
@@ -586,8 +614,8 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
                     />
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>
@@ -602,27 +630,45 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
           Bootstrap confidence intervals (95%)
         </SectionTitle>
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-border border-b text-left text-muted-foreground">
-                <th className={headCell} scope="col">
+          <Table
+            containerClassName="overflow-visible"
+            className="w-full text-xs"
+          >
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground">
+                <TableHead
+                  className={cn("text-muted-foreground", headCell)}
+                  scope="col"
+                >
                   Metric
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   2.5%
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   Median
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   97.5%
-                </th>
-                <th className={`${headCell} text-right`} scope="col">
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${headCell} text-right`}
+                  scope="col"
+                >
                   Mean
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               <IntervalRow
                 format={(value) => num(value)}
                 label="Sharpe"
@@ -653,8 +699,8 @@ export const RiskPanel = ({ analytics }: { readonly analytics: Analytics }) => {
                 label="Expectancy"
                 value={analytics.bootstrap.expectancy}
               />
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </section>
     </div>
@@ -701,40 +747,61 @@ const BucketTable = ({
       <Empty>No trades reported.</Empty>
     ) : (
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-border border-b text-left text-muted-foreground">
-              <th className={headCell} scope="col">
+        <Table containerClassName="overflow-visible" className="w-full text-xs">
+          <TableHeader>
+            <TableRow className="border-border border-b text-left text-muted-foreground">
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Period
-              </th>
-              <th className={`${headCell} text-right`} scope="col">
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${headCell} text-right`}
+                scope="col"
+              >
                 Trades
-              </th>
-              <th className={`${headCell} text-right`} scope="col">
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${headCell} text-right`}
+                scope="col"
+              >
                 Win rate
-              </th>
-              <th className={`${headCell} text-right`} scope="col">
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${headCell} text-right`}
+                scope="col"
+              >
                 Net P&L
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => {
               return (
-                <tr className="border-border border-b" key={row.key}>
-                  <th className={`${headCell} font-mono`} scope="row">
+                <TableRow className="border-border border-b" key={row.key}>
+                  <TableHead
+                    className={`h-auto whitespace-normal ${headCell} font-mono`}
+                    scope="row"
+                  >
                     {row.key}
-                  </th>
-                  <td className={numCell}>{row.trades}</td>
-                  <td className={numCell}>{pct(row.winRate, 1)}</td>
-                  <td className={`${numCell} ${tone(row.netPnl)}`}>
+                  </TableHead>
+                  <TableCell className={cn("whitespace-normal", numCell)}>
+                    {row.trades}
+                  </TableCell>
+                  <TableCell className={cn("whitespace-normal", numCell)}>
+                    {pct(row.winRate, 1)}
+                  </TableCell>
+                  <TableCell
+                    className={`whitespace-normal ${numCell} ${tone(row.netPnl)}`}
+                  >
                     {signed(row.netPnl)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     )}
   </section>
@@ -769,57 +836,67 @@ export const PeriodsPanel = ({
           <Empty>Needs an equity series.</Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table
+            <Table
+              containerClassName="overflow-visible"
               className="w-full min-w-[48rem] text-xs"
               data-monthly-returns
             >
-              <thead>
-                <tr className="border-border border-b text-left text-muted-foreground">
-                  <th className={headCell} scope="col">
+              <TableHeader>
+                <TableRow className="border-border border-b text-left text-muted-foreground">
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Year
-                  </th>
+                  </TableHead>
                   {MONTHS.map((month) => (
-                    <th
-                      className={`${headCell} text-right`}
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
                       key={month}
                       scope="col"
                     >
                       {month}
-                    </th>
+                    </TableHead>
                   ))}
-                  <th className={`${headCell} text-right`} scope="col">
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Year
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {years.map((year) => {
                   return (
-                    <tr className="border-border border-b" key={year}>
-                      <th className={`${headCell} font-mono`} scope="row">
+                    <TableRow className="border-border border-b" key={year}>
+                      <TableHead
+                        className={`h-auto whitespace-normal ${headCell} font-mono`}
+                        scope="row"
+                      >
                         {year}
-                      </th>
+                      </TableHead>
                       {MONTHS.map((_, index) => {
                         const value = byKey.get(`${year}-${index + 1}`);
                         return (
-                          <td
-                            className={`${numCell} ${heat(value)}`}
+                          <TableCell
+                            className={`whitespace-normal ${numCell} ${heat(value)}`}
                             key={index}
                           >
                             {value === undefined ? "" : pct(value, 1)}
-                          </td>
+                          </TableCell>
                         );
                       })}
-                      <td
-                        className={`${numCell} font-medium ${tone(yearly.get(year))}`}
+                      <TableCell
+                        className={`whitespace-normal ${numCell} font-medium ${tone(yearly.get(year))}`}
                       >
                         {pct(yearly.get(year), 1)}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>
@@ -841,61 +918,92 @@ export const PeriodsPanel = ({
               {drawdowns.ongoing ? " · ongoing at end" : ""}
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" data-drawdown-periods>
-                <thead>
-                  <tr className="border-border border-b text-left text-muted-foreground">
-                    <th className={headCell} scope="col">
+              <Table
+                containerClassName="overflow-visible"
+                className="w-full text-xs"
+                data-drawdown-periods
+              >
+                <TableHeader>
+                  <TableRow className="border-border border-b text-left text-muted-foreground">
+                    <TableHead
+                      className={cn("text-muted-foreground", headCell)}
+                      scope="col"
+                    >
                       Peak
-                    </th>
-                    <th className={headCell} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={cn("text-muted-foreground", headCell)}
+                      scope="col"
+                    >
                       Trough
-                    </th>
-                    <th className={headCell} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={cn("text-muted-foreground", headCell)}
+                      scope="col"
+                    >
                       Recovered
-                    </th>
-                    <th className={`${headCell} text-right`} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
+                      scope="col"
+                    >
                       Depth
-                    </th>
-                    <th className={`${headCell} text-right`} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
+                      scope="col"
+                    >
                       Decline
-                    </th>
-                    <th className={`${headCell} text-right`} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
+                      scope="col"
+                    >
                       Recovery
-                    </th>
-                    <th className={`${headCell} text-right`} scope="col">
+                    </TableHead>
+                    <TableHead
+                      className={`text-muted-foreground ${headCell} text-right`}
+                      scope="col"
+                    >
                       Underwater
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {drawdowns.periods.map((period) => {
                     return (
-                      <tr
+                      <TableRow
                         className="border-border border-b font-mono"
                         key={period.peakT}
                       >
-                        <td className={cell}>{period.peakT}</td>
-                        <td className={cell}>{period.troughT}</td>
-                        <td className={cell}>
+                        <TableCell className={cn("whitespace-normal", cell)}>
+                          {period.peakT}
+                        </TableCell>
+                        <TableCell className={cn("whitespace-normal", cell)}>
+                          {period.troughT}
+                        </TableCell>
+                        <TableCell className={cn("whitespace-normal", cell)}>
                           {period.recoveryT ?? "ongoing"}
-                        </td>
-                        <td className={`${numCell} text-destructive`}>
+                        </TableCell>
+                        <TableCell
+                          className={`whitespace-normal ${numCell} text-destructive`}
+                        >
                           {pct(period.depth)}
-                        </td>
-                        <td className={numCell}>
+                        </TableCell>
+                        <TableCell className={cn("whitespace-normal", numCell)}>
                           {duration(period.declineMs)}
-                        </td>
-                        <td className={numCell}>
+                        </TableCell>
+                        <TableCell className={cn("whitespace-normal", numCell)}>
                           {duration(period.recoveryMs)}
-                        </td>
-                        <td className={numCell}>
+                        </TableCell>
+                        <TableCell className={cn("whitespace-normal", numCell)}>
                           {duration(period.underwaterMs)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </>
         )}
@@ -937,50 +1045,85 @@ export const RegimesPanel = ({
     return <Empty>No trades carry a regime label.</Empty>;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-regimes>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground">
-            <th className={headCell} scope="col">
+      <Table
+        containerClassName="overflow-visible"
+        className="w-full text-xs"
+        data-regimes
+      >
+        <TableHeader>
+          <TableRow className="border-border border-b text-left text-muted-foreground">
+            <TableHead
+              className={cn("text-muted-foreground", headCell)}
+              scope="col"
+            >
               Regime
-            </th>
-            <th className={`${headCell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              scope="col"
+            >
               Trades
-            </th>
-            <th className={`${headCell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              scope="col"
+            >
               Win rate
-            </th>
-            <th className={`${headCell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              scope="col"
+            >
               Avg P&L
-            </th>
-            <th className={`${headCell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              scope="col"
+            >
               Net P&L
-            </th>
-            <th className={`${headCell} text-right`} scope="col">
+            </TableHead>
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              scope="col"
+            >
               Profit factor
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {analytics.regimes.map((row) => {
             return (
-              <tr className="border-border border-b" key={row.regime}>
-                <th className={headCell} scope="row">
+              <TableRow className="border-border border-b" key={row.regime}>
+                <TableHead
+                  className={cn("h-auto whitespace-normal", headCell)}
+                  scope="row"
+                >
                   {row.regime}
-                </th>
-                <td className={numCell}>{row.trades}</td>
-                <td className={numCell}>{pct(row.winRate, 1)}</td>
-                <td className={`${numCell} ${tone(row.avgPnl)}`}>
+                </TableHead>
+                <TableCell className={cn("whitespace-normal", numCell)}>
+                  {row.trades}
+                </TableCell>
+                <TableCell className={cn("whitespace-normal", numCell)}>
+                  {pct(row.winRate, 1)}
+                </TableCell>
+                <TableCell
+                  className={`whitespace-normal ${numCell} ${tone(row.avgPnl)}`}
+                >
                   {signed(row.avgPnl)}
-                </td>
-                <td className={`${numCell} ${tone(row.netPnl)}`}>
+                </TableCell>
+                <TableCell
+                  className={`whitespace-normal ${numCell} ${tone(row.netPnl)}`}
+                >
                   {signed(row.netPnl)}
-                </td>
-                <td className={numCell}>{num(row.profitFactor)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className={cn("whitespace-normal", numCell)}>
+                  {num(row.profitFactor)}
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };
@@ -1063,13 +1206,22 @@ const StrategyTable = ({
   readonly evaluation: ReadyEvaluation;
 }) => (
   <div className="overflow-x-auto">
-    <table className="w-full min-w-[48rem] text-xs" data-placebo-strategies>
-      <caption className="sr-only">Rating replay against baselines</caption>
-      <thead>
-        <tr className="border-border border-b text-left text-muted-foreground">
-          <th className={headCell} scope="col">
+    <Table
+      containerClassName="overflow-visible"
+      className="w-full min-w-[48rem] text-xs"
+      data-placebo-strategies
+    >
+      <TableCaption className="sr-only">
+        Rating replay against baselines
+      </TableCaption>
+      <TableHeader>
+        <TableRow className="border-border border-b text-left text-muted-foreground">
+          <TableHead
+            className={cn("text-muted-foreground", headCell)}
+            scope="col"
+          >
             Strategy
-          </th>
+          </TableHead>
           {[
             "Total return",
             "Annual return",
@@ -1079,51 +1231,78 @@ const StrategyTable = ({
             "Cost drag",
             "Time in market",
           ].map((label) => (
-            <th className={`${headCell} text-right`} key={label} scope="col">
+            <TableHead
+              className={`text-muted-foreground ${headCell} text-right`}
+              key={label}
+              scope="col"
+            >
               {label}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {evaluation.strategies.map((strategy) => {
           const { metrics } = strategy;
           return (
-            <tr
+            <TableRow
               className="border-border border-b"
               data-strategy={strategy.key}
               key={strategy.key}
             >
-              <th className={headCell} scope="row">
+              <TableHead
+                className={cn("h-auto whitespace-normal", headCell)}
+                scope="row"
+              >
                 {strategy.label}
-              </th>
-              <td className={`${numCell} ${tone(metrics.totalReturn)}`}>
+              </TableHead>
+              <TableCell
+                className={`whitespace-normal ${numCell} ${tone(metrics.totalReturn)}`}
+              >
                 {pct(metrics.totalReturn)}
-              </td>
-              <td className={numCell}>{pct(metrics.annualReturn)}</td>
-              <td className={numCell}>{num(metrics.sharpe)}</td>
-              <td className={numCell}>{pct(metrics.maxDrawdown)}</td>
-              <td className={numCell}>{metrics.trades}</td>
-              <td className={numCell}>{pct(metrics.costDrag, 3)}</td>
-              <td className={numCell}>{pct(metrics.timeInMarket, 1)}</td>
-            </tr>
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {pct(metrics.annualReturn)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {num(metrics.sharpe)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {pct(metrics.maxDrawdown)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {metrics.trades}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {pct(metrics.costDrag, 3)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {pct(metrics.timeInMarket, 1)}
+              </TableCell>
+            </TableRow>
           );
         })}
-        <tr className="border-border border-b" data-strategy="placebo_median">
-          <th className={headCell} scope="row">
+        <TableRow
+          className="border-border border-b"
+          data-strategy="placebo_median"
+        >
+          <TableHead
+            className={cn("h-auto whitespace-normal", headCell)}
+            scope="row"
+          >
             Placebo median
-          </th>
-          <td className={numCell}>
+          </TableHead>
+          <TableCell className={cn("whitespace-normal", numCell)}>
             {pct(finalReturn(evaluation.placebo.finalP50))}
-          </td>
+          </TableCell>
           {[0, 1, 2, 3, 4, 5].map((index) => (
-            <td className={numCell} key={index}>
+            <TableCell className={cn("whitespace-normal", numCell)} key={index}>
               {DASH}
-            </td>
+            </TableCell>
           ))}
-        </tr>
-      </tbody>
-    </table>
+        </TableRow>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -1145,39 +1324,57 @@ const BandTable = ({
   }));
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-placebo-band>
-        <caption className="sr-only">
+      <Table
+        containerClassName="overflow-visible"
+        className="w-full text-xs"
+        data-placebo-band
+      >
+        <TableCaption className="sr-only">
           Agents equity against the placebo band
-        </caption>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground">
+        </TableCaption>
+        <TableHeader>
+          <TableRow className="border-border border-b text-left text-muted-foreground">
             {["Date", "Agents", "Placebo 5%", "Placebo 50%", "Placebo 95%"].map(
               (label, index) => (
-                <th
-                  className={index === 0 ? headCell : `${headCell} text-right`}
+                <TableHead
+                  className={cn(
+                    "text-muted-foreground",
+                    index === 0 ? headCell : `${headCell} text-right`
+                  )}
                   key={label}
                   scope="col"
                 >
                   {label}
-                </th>
+                </TableHead>
               )
             )}
-          </tr>
-        </thead>
-        <tbody>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {fanCheckpoints(rows).map((row) => (
-            <tr className="border-border border-b" key={row.t}>
-              <th className={`${headCell} font-mono`} scope="row">
+            <TableRow className="border-border border-b" key={row.t}>
+              <TableHead
+                className={`h-auto whitespace-normal ${headCell} font-mono`}
+                scope="row"
+              >
                 {row.t}
-              </th>
-              <td className={numCell}>{num(row.agents)}</td>
-              <td className={numCell}>{num(row.p5)}</td>
-              <td className={numCell}>{num(row.p50)}</td>
-              <td className={numCell}>{num(row.p95)}</td>
-            </tr>
+              </TableHead>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {num(row.agents)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {num(row.p5)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {num(row.p50)}
+              </TableCell>
+              <TableCell className={cn("whitespace-normal", numCell)}>
+                {num(row.p95)}
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 };
@@ -1188,45 +1385,63 @@ const ByRatingTable = ({
   readonly evaluation: ReadyEvaluation;
 }) => (
   <div className="overflow-x-auto">
-    <table className="w-full text-xs" data-placebo-by-rating>
-      <caption className="sr-only">Next-period return by rating</caption>
-      <thead>
-        <tr className="border-border border-b text-left text-muted-foreground">
+    <Table
+      containerClassName="overflow-visible"
+      className="w-full text-xs"
+      data-placebo-by-rating
+    >
+      <TableCaption className="sr-only">
+        Next-period return by rating
+      </TableCaption>
+      <TableHeader>
+        <TableRow className="border-border border-b text-left text-muted-foreground">
           {[
             "Rating",
             "Decisions",
             "Hit rate",
             "Average next return (close to close)",
           ].map((label, index) => (
-            <th
-              className={index === 0 ? headCell : `${headCell} text-right`}
+            <TableHead
+              className={cn(
+                "text-muted-foreground",
+                index === 0 ? headCell : `${headCell} text-right`
+              )}
               key={label}
               scope="col"
             >
               {label}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {evaluation.byRating.map((row) => (
-          <tr
+          <TableRow
             className="border-border border-b"
             data-rating={row.rating}
             key={row.rating}
           >
-            <th className={headCell} scope="row">
+            <TableHead
+              className={cn("h-auto whitespace-normal", headCell)}
+              scope="row"
+            >
               {RATING_LABELS[row.rating]}
-            </th>
-            <td className={numCell}>{row.decisions}</td>
-            <td className={numCell}>{pct(row.hitRate, 1)}</td>
-            <td className={`${numCell} ${tone(row.averageNextReturn)}`}>
+            </TableHead>
+            <TableCell className={cn("whitespace-normal", numCell)}>
+              {row.decisions}
+            </TableCell>
+            <TableCell className={cn("whitespace-normal", numCell)}>
+              {pct(row.hitRate, 1)}
+            </TableCell>
+            <TableCell
+              className={`whitespace-normal ${numCell} ${tone(row.averageNextReturn)}`}
+            >
               {pct(row.averageNextReturn)}
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 

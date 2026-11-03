@@ -636,6 +636,13 @@ describe("BacktestSweepsWorkspace", () => {
       '[aria-label="Most robust cells"] tbody tr'
     );
     expect(rows).toHaveLength(6);
+    // The bordered max-h-96 box is the only scroller, so the sticky header pins to it.
+    const container = document.querySelector(
+      '[aria-label="Most robust cells"] [data-slot="table-container"]'
+    );
+    expect(container?.className).toContain("overflow-visible");
+    expect(container?.className).not.toContain("overflow-x-auto");
+    expect(container?.parentElement?.className).toContain("overflow-auto");
     await click(button("fast 20, slow 30"));
     expect(text()).toContain("Cell: fast 20, slow 30");
   });

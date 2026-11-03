@@ -4,7 +4,17 @@ import type {
   BacktestGetOutput,
   BacktestResultSummaryOutput,
 } from "@darkfactory/api";
-import { Button } from "@darkfactory/ui";
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  cn,
+} from "@darkfactory/ui";
 import {
   type KeyboardEvent,
   lazy,
@@ -185,24 +195,36 @@ const SplitTable = ({
       <p className="text-muted-foreground text-xs">No split reported.</p>
     ) : (
       <div className="relative overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-border border-b text-left text-muted-foreground">
-              <th className={headCell} scope="col">
+        <Table containerClassName="overflow-visible" className="w-full text-xs">
+          <TableHeader>
+            <TableRow className="border-border border-b text-left text-muted-foreground">
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Window
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Start
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 End
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Metrics
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {(
               [
                 ["In-sample", backtest.isSplit.in_sample],
@@ -210,24 +232,31 @@ const SplitTable = ({
               ] as const
             ).map(([label, value]) => {
               return (
-                <tr
+                <TableRow
                   className="border-border border-b"
                   data-split={label}
                   key={label}
                 >
-                  <th className={headCell} scope="row">
+                  <TableHead
+                    className={cn("h-auto whitespace-normal", headCell)}
+                    scope="row"
+                  >
                     {label}
-                  </th>
-                  <td className={`${cell} font-mono`}>{value.start}</td>
-                  <td className={`${cell} font-mono`}>{value.end}</td>
-                  <td className={`${cell} font-mono`}>
+                  </TableHead>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
+                    {value.start}
+                  </TableCell>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
+                    {value.end}
+                  </TableCell>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
                     {formatMetrics(value.metrics, 12)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     )}
   </section>
@@ -247,48 +276,63 @@ const FoldsTable = ({
       <p className="text-muted-foreground text-xs">No folds reported.</p>
     ) : (
       <div className="relative overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-border border-b text-left text-muted-foreground">
-              <th className={headCell} scope="col">
+        <Table containerClassName="overflow-visible" className="w-full text-xs">
+          <TableHeader>
+            <TableRow className="border-border border-b text-left text-muted-foreground">
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Fold
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Train
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Test
-              </th>
-              <th className={headCell} scope="col">
+              </TableHead>
+              <TableHead
+                className={cn("text-muted-foreground", headCell)}
+                scope="col"
+              >
                 Metrics
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {backtest.folds.map((fold, index) => {
               return (
-                <tr
+                <TableRow
                   className="border-border border-b"
                   data-fold={fold.label}
                   key={`${fold.label}-${index}`}
                 >
-                  <th className={headCell} scope="row">
+                  <TableHead
+                    className={cn("h-auto whitespace-normal", headCell)}
+                    scope="row"
+                  >
                     {fold.label}
-                  </th>
-                  <td className={`${cell} font-mono`}>
+                  </TableHead>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
                     {fold.train_start} to {fold.train_end}
-                  </td>
-                  <td className={`${cell} font-mono`}>
+                  </TableCell>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
                     {fold.test_start} to {fold.test_end}
-                  </td>
-                  <td className={`${cell} font-mono`}>
+                  </TableCell>
+                  <TableCell className={`whitespace-normal ${cell} font-mono`}>
                     {formatMetrics(fold.metrics, 12)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     )}
   </section>
@@ -319,86 +363,149 @@ const TradesTable = ({
             </p>
           ) : null}
           <div className="relative overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-border border-b text-left text-muted-foreground">
-                  <th className={headCell} scope="col">
+            <Table
+              containerClassName="overflow-visible"
+              className="w-full text-xs"
+            >
+              <TableHeader>
+                <TableRow className="border-border border-b text-left text-muted-foreground">
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Entry
-                  </th>
-                  <th className={headCell} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Exit
-                  </th>
-                  <th className={headCell} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Symbol
-                  </th>
-                  <th className={headCell} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Side
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Qty
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Entry px
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Exit px
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Stop
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Target
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     Commission
-                  </th>
-                  <th className={`${headCell} text-right`} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={`text-muted-foreground ${headCell} text-right`}
+                    scope="col"
+                  >
                     PnL
-                  </th>
-                  <th className={headCell} scope="col">
+                  </TableHead>
+                  <TableHead
+                    className={cn("text-muted-foreground", headCell)}
+                    scope="col"
+                  >
                     Regime
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {shownTrades.map((trade, index) => {
                   return (
-                    <tr
+                    <TableRow
                       className="border-border border-b font-mono"
                       data-trade-index={index}
                       key={index}
                     >
-                      <td className={cell}>{trade.entry_t}</td>
-                      <td className={cell}>{trade.exit_t}</td>
-                      <td className={cell}>{trade.symbol ?? "—"}</td>
-                      <td className={cell}>{trade.side}</td>
-                      <td className={`${cell} text-right`}>
+                      <TableCell className={cn("whitespace-normal", cell)}>
+                        {trade.entry_t}
+                      </TableCell>
+                      <TableCell className={cn("whitespace-normal", cell)}>
+                        {trade.exit_t}
+                      </TableCell>
+                      <TableCell className={cn("whitespace-normal", cell)}>
+                        {trade.symbol ?? "—"}
+                      </TableCell>
+                      <TableCell className={cn("whitespace-normal", cell)}>
+                        {trade.side}
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {formatNumber(trade.qty)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {formatNumber(trade.entry_px)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {formatNumber(trade.exit_px)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {optionalNumber(trade.sl)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {optionalNumber(trade.tp)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {optionalNumber(trade.commission)}
-                      </td>
-                      <td className={`${cell} text-right`}>
+                      </TableCell>
+                      <TableCell
+                        className={`whitespace-normal ${cell} text-right`}
+                      >
                         {formatNumber(trade.pnl)}
-                      </td>
-                      <td className={cell}>{trade.regime ?? "—"}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className={cn("whitespace-normal", cell)}>
+                        {trade.regime ?? "—"}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </>
       )}
@@ -740,88 +847,121 @@ export const BacktestsWorkspace = ({
         // absolutely positioned sr-only "Actions" label, so it is clipped
         // with the table instead of widening the page on a phone.
         <div className="relative overflow-x-auto" data-backtest-results-scroll>
-          <table className="w-full min-w-[56rem] text-sm" data-click-private="">
-            <caption className="sr-only">Backtest results</caption>
-            <thead>
-              <tr className="border-border border-b text-left text-muted-foreground text-xs">
-                <th scope="col">Strategy</th>
-                <th scope="col">Instruments</th>
-                <th scope="col">Period</th>
-                <th className="text-right" scope="col">
+          <Table
+            containerClassName="overflow-visible"
+            className="w-full min-w-[56rem] text-sm"
+            data-click-private=""
+          >
+            <TableCaption className="sr-only">Backtest results</TableCaption>
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+                <TableHead className="text-muted-foreground" scope="col">
+                  Strategy
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Instruments
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Period
+                </TableHead>
+                <TableHead
+                  className="text-right text-muted-foreground"
+                  scope="col"
+                >
                   Sharpe
                   <InfoGlyph text="Reported metric sharpe (or sharpe_ratio), as submitted." />
-                </th>
-                <th className="text-right" scope="col">
+                </TableHead>
+                <TableHead
+                  className="text-right text-muted-foreground"
+                  scope="col"
+                >
                   CAGR
                   <InfoGlyph text="Reported metric cagr (or annual_return), as submitted; units are the agent's." />
-                </th>
-                <th className="text-right" scope="col">
+                </TableHead>
+                <TableHead
+                  className="text-right text-muted-foreground"
+                  scope="col"
+                >
                   Max DD
                   <InfoGlyph text="Derived server-side from the reported equity series: min(equity / running peak - 1)." />
-                </th>
-                <th className="text-right" scope="col">
+                </TableHead>
+                <TableHead
+                  className="text-right text-muted-foreground"
+                  scope="col"
+                >
                   Trades
-                </th>
-                <th scope="col">
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
                   Source
                   <InfoGlyph text="Data source named by the agent." />
-                </th>
-                <th scope="col">Task</th>
-                <th scope="col">Recorded (UTC)</th>
-                <th scope="col">
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Task
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Recorded (UTC)
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
                   <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {state.rows.map((row) => {
                 return (
-                  <tr
-                    className="border-border border-b align-top"
+                  <TableRow
+                    className="border-border border-b [&>td]:align-top [&>th]:align-top"
                     data-backtest-id={row.id}
                     key={row.id}
                   >
-                    <th className="py-1 font-normal" scope="row">
+                    <TableHead
+                      className="h-auto whitespace-normal py-1 font-normal"
+                      scope="row"
+                    >
                       {row.strategy}
-                    </th>
-                    <td className="py-1 text-xs">{row.instruments}</td>
-                    <td className="py-1 font-mono text-xs">
+                    </TableHead>
+                    <TableCell className="whitespace-normal py-1 text-xs">
+                      {row.instruments}
+                    </TableCell>
+                    <TableCell className="whitespace-normal py-1 font-mono text-xs">
                       {row.periodStart} to {row.periodEnd}
-                    </td>
-                    <td
-                      className="py-1 text-right font-mono text-xs"
+                    </TableCell>
+                    <TableCell
+                      className="whitespace-normal py-1 text-right font-mono text-xs"
                       data-col="sharpe"
                     >
                       {formatReported(reportedSharpe(row.metrics))}
-                    </td>
-                    <td
-                      className="py-1 text-right font-mono text-xs"
+                    </TableCell>
+                    <TableCell
+                      className="whitespace-normal py-1 text-right font-mono text-xs"
                       data-col="cagr"
                     >
                       {formatReported(reportedCagr(row.metrics))}
-                    </td>
-                    <td
-                      className="py-1 text-right font-mono text-xs"
+                    </TableCell>
+                    <TableCell
+                      className="whitespace-normal py-1 text-right font-mono text-xs"
                       data-col="max-dd"
                     >
                       {formatPercent(row.maxDrawdown)}
-                    </td>
-                    <td className="py-1 text-right font-mono text-xs">
+                    </TableCell>
+                    <TableCell className="whitespace-normal py-1 text-right font-mono text-xs">
                       {row.tradeCount}
-                    </td>
-                    <td className="max-w-48 py-1 text-xs">{row.dataSource}</td>
-                    <td className="py-1 text-xs">
+                    </TableCell>
+                    <TableCell className="max-w-48 whitespace-normal py-1 text-xs">
+                      {row.dataSource}
+                    </TableCell>
+                    <TableCell className="whitespace-normal py-1 text-xs">
                       <a
                         className="underline underline-offset-2"
                         href={`/agents?task=${encodeURIComponent(row.taskId)}`}
                       >
                         {row.taskTitle ?? row.taskId}
                       </a>
-                    </td>
-                    <td className="py-1 font-mono text-muted-foreground text-xs">
+                    </TableCell>
+                    <TableCell className="whitespace-normal py-1 font-mono text-muted-foreground text-xs">
                       {formatTimestamp(row.createdAt)}
-                    </td>
-                    <td className="py-1 text-right">
+                    </TableCell>
+                    <TableCell className="whitespace-normal py-1 text-right">
                       <Button
                         aria-label={`Open ${row.strategy}`}
                         onClick={() => void open(row.id)}
@@ -830,12 +970,12 @@ export const BacktestsWorkspace = ({
                       >
                         Open
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
