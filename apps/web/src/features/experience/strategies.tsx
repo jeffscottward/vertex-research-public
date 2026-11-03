@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import {
   useEffect,
@@ -51,6 +51,13 @@ import {
   type ReviewTarget,
   type StrategySelection,
 } from "./review-model.ts";
+import {
+  ExperienceTable,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 const useCurrentTime = (): string => {
   const [now, setNow] = useState(() => new Date().toISOString());
@@ -225,42 +232,52 @@ export const StrategyCatalog = ({
         </EmptyCollection>
       ) : (
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby={headingId}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table className="vx-ex-table" aria-labelledby={headingId}>
-            <thead>
-              <tr>
-                <th scope="col">Strategy / version</th>
-                <th scope="col">Sleeve / universe</th>
-                <th scope="col">Hypothesis</th>
-                <th scope="col">Immutable artifact ID / strategyVersion</th>
-                <th scope="col">SHA-256</th>
-                <th scope="col">Dossier</th>
-              </tr>
-            </thead>
-            <tbody>
+          <ExperienceTable aria-labelledby={headingId}>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">
+                  Strategy / version
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Sleeve / universe
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Hypothesis
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Immutable artifact ID / strategyVersion
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">SHA-256</ExperienceTableHead>
+                <ExperienceTableHead scope="col">Dossier</ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {visible.map((item) => (
-                <tr key={`${item.artifactId}:${item.sha256}`}>
-                  <th scope="row">
+                <TableRow key={`${item.artifactId}:${item.sha256}`}>
+                  <ExperienceTableHead scope="row">
                     {item.value.strategyId}
                     <br />
                     <span className="text-muted-foreground text-sm leading-relaxed">
                       {item.value.version}
                     </span>
-                  </th>
-                  <td>
+                  </ExperienceTableHead>
+                  <ExperienceTableCell>
                     {item.value.sleeve}
                     <br />
                     {item.value.universe.join(", ")}
-                  </td>
-                  <td>{item.value.hypothesis}</td>
-                  <td>{item.artifactId}</td>
-                  <td>{item.sha256}</td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
+                    {item.value.hypothesis}
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>{item.artifactId}</ExperienceTableCell>
+                  <ExperienceTableCell>{item.sha256}</ExperienceTableCell>
+                  <ExperienceTableCell>
                     <Button
                       variant="outline"
                       type="button"
@@ -277,11 +294,11 @@ export const StrategyCatalog = ({
                     >
                       Read exact dossier
                     </Button>
-                  </td>
-                </tr>
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       )}
     </section>
@@ -347,38 +364,44 @@ const Rules = ({
         </p>
       </ResearchTableHeading>
       <div
-        className="vx-ex-table-scroll"
+        className={experienceTableScroll}
         role="region"
         aria-labelledby={headingId}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
         tabIndex={0}
       >
-        <table className="vx-ex-table" aria-labelledby={headingId}>
-          <thead>
-            <tr>
-              <th scope="col">Rule</th>
-              <th scope="col">Feature</th>
-              <th scope="col">Operator</th>
-              <th scope="col" className="vx-ex-numeric">
+        <ExperienceTable aria-labelledby={headingId}>
+          <ExperienceTableHeader>
+            <TableRow>
+              <ExperienceTableHead scope="col">Rule</ExperienceTableHead>
+              <ExperienceTableHead scope="col">Feature</ExperienceTableHead>
+              <ExperienceTableHead scope="col">Operator</ExperienceTableHead>
+              <ExperienceTableHead scope="col" numeric>
                 Threshold
-              </th>
-              <th scope="col" className="vx-ex-numeric">
+              </ExperienceTableHead>
+              <ExperienceTableHead scope="col" numeric>
                 Lookback bars
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </ExperienceTableHead>
+            </TableRow>
+          </ExperienceTableHeader>
+          <TableBody>
             {rules.map((rule) => (
-              <tr key={rule.ruleId}>
-                <th scope="row">{rule.ruleId}</th>
-                <td>{rule.featureId}</td>
-                <td>{rule.operator}</td>
-                <td className="vx-ex-numeric">{rule.threshold}</td>
-                <td className="vx-ex-numeric">{rule.lookbackBars}</td>
-              </tr>
+              <TableRow key={rule.ruleId}>
+                <ExperienceTableHead scope="row">
+                  {rule.ruleId}
+                </ExperienceTableHead>
+                <ExperienceTableCell>{rule.featureId}</ExperienceTableCell>
+                <ExperienceTableCell>{rule.operator}</ExperienceTableCell>
+                <ExperienceTableCell numeric>
+                  {rule.threshold}
+                </ExperienceTableCell>
+                <ExperienceTableCell numeric>
+                  {rule.lookbackBars}
+                </ExperienceTableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </ExperienceTable>
       </div>
     </section>
   );
@@ -478,38 +501,48 @@ export const StrategyDossierView = ({
           </p>
         </ResearchTableHeading>
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby={requirementsId}
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table className="vx-ex-table" aria-labelledby={requirementsId}>
-            <thead>
-              <tr>
-                <th scope="col">Data kind</th>
-                <th scope="col" className="vx-ex-numeric">
+          <ExperienceTable aria-labelledby={requirementsId}>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">Data kind</ExperienceTableHead>
+                <ExperienceTableHead scope="col" numeric>
                   Maximum age (ms)
-                </th>
-                <th scope="col">Point-in-time</th>
-                <th scope="col">Entitlement policy</th>
-              </tr>
-            </thead>
-            <tbody>
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Point-in-time
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Entitlement policy
+                </ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {strategy.requiredData.map((requirement, index) => (
-                <tr key={`${requirement.kind}:${index}`}>
-                  <th scope="row">{requirement.kind}</th>
-                  <td className="vx-ex-numeric">{requirement.maximumAgeMs}</td>
-                  <td>
+                <TableRow key={`${requirement.kind}:${index}`}>
+                  <ExperienceTableHead scope="row">
+                    {requirement.kind}
+                  </ExperienceTableHead>
+                  <ExperienceTableCell numeric>
+                    {requirement.maximumAgeMs}
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {requirement.pointInTimeRequired
                       ? "required"
                       : "not required"}
-                  </td>
-                  <td>{requirement.entitlementPolicyId}</td>
-                </tr>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
+                    {requirement.entitlementPolicyId}
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       </section>
       <DossierLineage dossier={dossier} />

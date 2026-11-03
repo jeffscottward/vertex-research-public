@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import { useEffect, useId, useMemo, useState } from "react";
 import type {
@@ -20,6 +20,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 const exact = (value: string | null): string =>
   value === null ? "Unknown — not supplied" : value;
@@ -207,35 +215,37 @@ export const PortfolioCollection = <Row,>({
           ) : (
             <div>
               <div
-                className="vx-ex-table-scroll"
+                className={experienceTableScroll}
                 role="region"
                 aria-label={`${title} observations; scroll horizontally for all fields`}
                 // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
                 tabIndex={0}
               >
-                <table className="vx-ex-table" aria-labelledby={headingId}>
-                  <caption>
+                <ExperienceTable aria-labelledby={headingId}>
+                  <ExperienceTableCaption>
                     {title} — exact source values; no calculated totals
-                  </caption>
-                  <thead>
-                    <tr>
+                  </ExperienceTableCaption>
+                  <ExperienceTableHeader>
+                    <TableRow>
                       {columns.map((column) => (
-                        <th key={column.label} scope="col">
+                        <ExperienceTableHead key={column.label} scope="col">
                           {column.label}
-                        </th>
+                        </ExperienceTableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+                    </TableRow>
+                  </ExperienceTableHeader>
+                  <TableBody>
                     {visible.map((row) => (
-                      <tr key={identity(row)}>
+                      <TableRow key={identity(row)}>
                         {columns.map((column) => (
-                          <td key={column.label}>{exact(column.value(row))}</td>
+                          <ExperienceTableCell key={column.label}>
+                            {exact(column.value(row))}
+                          </ExperienceTableCell>
                         ))}
-                      </tr>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </ExperienceTable>
               </div>
               <nav className="vx-ex-pagination" aria-label={`${title} pages`}>
                 <Button

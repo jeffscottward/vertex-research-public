@@ -5,6 +5,7 @@ import { useId } from "react";
 import type { AgentRun } from "@darkfactory/api/vertex";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { ImmutableArtifact } from "./ports.ts";
+import { experienceTableScroll } from "./experience-table.tsx";
 
 export const AgentRunDetails = ({
   artifact,
@@ -58,7 +59,7 @@ export const AgentRunDetails = ({
       <DataTable
         aria-labelledby={headingId}
         caption="Run record — exact source fields"
-        className="vx-ex-table"
+        className="tabular-nums leading-relaxed [&>caption]:py-4 [&>caption]:text-left [&>caption]:font-semibold [&>thead]:bg-surface [&_:is(th,td)]:max-w-[25rem] [&_:is(th,td)]:[overflow-wrap:anywhere] [&_th]:min-w-36 [&_th]:py-3"
         columns={[
           {
             id: "field",
@@ -73,7 +74,7 @@ export const AgentRunDetails = ({
             clamp: true,
           },
         ]}
-        containerClassName="vx-ex-table-scroll"
+        containerClassName={experienceTableScroll}
         containerProps={{
           role: "region",
           "aria-label": `Run ${artifact.value.runId} fields; scroll horizontally for all fields`,

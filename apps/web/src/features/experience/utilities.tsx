@@ -1,6 +1,12 @@
 "use client";
 
-import { alertTitleClassName, alertVariants, Button } from "@darkfactory/ui";
+import {
+  Button,
+  TableBody,
+  TableRow,
+  alertTitleClassName,
+  alertVariants,
+} from "@darkfactory/ui";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -28,6 +34,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 type GatewayScope = Readonly<{
   gatewayId: string;
@@ -220,32 +234,43 @@ const ConnectionsContent = () => {
                     recovers a gateway.
                   </p>
                 </ResearchTableHeading>
-                <table
-                  className="vx-ex-table"
-                  aria-labelledby="gateway-list-title"
-                >
-                  <thead>
-                    <tr>
-                      <th scope="col">Gateway</th>
-                      <th scope="col">Environment</th>
-                      <th scope="col">Account</th>
-                      <th scope="col">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <ExperienceTable aria-labelledby="gateway-list-title">
+                  <ExperienceTableHeader>
+                    <TableRow>
+                      <ExperienceTableHead scope="col">
+                        Gateway
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Environment
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Account
+                      </ExperienceTableHead>
+                      <ExperienceTableHead scope="col">
+                        Status
+                      </ExperienceTableHead>
+                    </TableRow>
+                  </ExperienceTableHeader>
+                  <TableBody>
                     {rows.map((gateway) => {
                       const current =
                         selected !== null &&
                         gatewayKey(selected) === gatewayKey(gateway);
                       return (
-                        <tr
+                        <TableRow
                           key={gatewayKey(gateway)}
                           aria-current={current ? "true" : undefined}
                         >
-                          <th scope="row">{gateway.gatewayId}</th>
-                          <td>{gateway.environment} — observation only</td>
-                          <td>{gateway.accountAlias}</td>
-                          <td>
+                          <ExperienceTableHead scope="row">
+                            {gateway.gatewayId}
+                          </ExperienceTableHead>
+                          <ExperienceTableCell>
+                            {gateway.environment} — observation only
+                          </ExperienceTableCell>
+                          <ExperienceTableCell>
+                            {gateway.accountAlias}
+                          </ExperienceTableCell>
+                          <ExperienceTableCell>
                             <Button
                               variant="outline"
                               type="button"
@@ -256,12 +281,12 @@ const ConnectionsContent = () => {
                                 ? "Showing status"
                                 : `Read ${gateway.gatewayId} status`}
                             </Button>
-                          </td>
-                        </tr>
+                          </ExperienceTableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </ExperienceTable>
               </section>
             )
           }
@@ -795,47 +820,54 @@ export const AuditLedger = ({
         </ReadNotice>
       ) : (
         <div
-          className="vx-ex-table-scroll"
+          className={experienceTableScroll}
           role="region"
           aria-labelledby="audit-ledger-heading"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
           tabIndex={0}
         >
-          <table
+          <ExperienceTable
             id="audit-ledger-table"
-            className="vx-ex-table"
             aria-labelledby="audit-ledger-heading"
           >
-            <caption>
+            <ExperienceTableCaption>
               Observation-only receipts and native facts for{" "}
               {scope.accountAlias} / {scope.environment}. Exact quantities and
               hashes are preserved; no order actions or economic authority are
               available.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Stream / epoch / sequence</th>
-                <th scope="col">Outcome / fact kind</th>
-                <th scope="col">
+            </ExperienceTableCaption>
+            <ExperienceTableHeader>
+              <TableRow>
+                <ExperienceTableHead scope="col">
+                  Stream / epoch / sequence
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Outcome / fact kind
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
                   Exact receipt quantities / typed fact fields
-                </th>
-                <th scope="col">Source & hash chain</th>
-                <th scope="col">Receipt / proof identity</th>
-              </tr>
-            </thead>
-            <tbody>
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Source & hash chain
+                </ExperienceTableHead>
+                <ExperienceTableHead scope="col">
+                  Receipt / proof identity
+                </ExperienceTableHead>
+              </TableRow>
+            </ExperienceTableHeader>
+            <TableBody>
               {visible.map((projection, position) => (
-                <tr
+                <TableRow
                   key={`${projection.projectionId}-${activePage}-${position}`}
                 >
-                  <th scope="row">
+                  <ExperienceTableHead scope="row">
                     <span>{projection.streamId}</span>
                     <br />
                     Epoch {projection.ownerEpoch}
                     <br />
                     Sequence {projection.sequence}
-                  </th>
-                  <td>
+                  </ExperienceTableHead>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <NativeFactOutcome fact={projection.fact} />
                     ) : (
@@ -854,8 +886,8 @@ export const AuditLedger = ({
                         </p>
                       </>
                     )}
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <ArtifactFacts
                         entries={nativeFactEntries(projection.fact)}
@@ -870,8 +902,8 @@ export const AuditLedger = ({
                         <dd>{projection.receipt.remainingQuantity}</dd>
                       </dl>
                     )}
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     <p>{projection.sourceKind}</p>
                     <dl className="vx-facts">
                       <div>
@@ -886,18 +918,18 @@ export const AuditLedger = ({
                         </dd>
                       </div>
                     </dl>
-                  </td>
-                  <td>
+                  </ExperienceTableCell>
+                  <ExperienceTableCell>
                     {"fact" in projection ? (
                       <NativeFactIdentity projection={projection} />
                     ) : (
                       <ReceiptIdentity projection={projection} />
                     )}
-                  </td>
-                </tr>
+                  </ExperienceTableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </ExperienceTable>
         </div>
       )}
       <nav

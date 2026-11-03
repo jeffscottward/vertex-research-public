@@ -12,6 +12,10 @@ const RETIRED_CLASSES = [
   "vx-read-failure",
   "vx-notice-title",
   "vx-caption",
+  "vx-ex-table",
+  "vx-ex-table-wrap",
+  "vx-ex-table-scroll",
+  "vx-ex-numeric",
 ] as const;
 const SOURCE_ROOT = join(import.meta.dirname);
 

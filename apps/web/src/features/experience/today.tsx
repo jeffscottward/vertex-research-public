@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@darkfactory/ui";
+import { Button, TableBody, TableRow } from "@darkfactory/ui";
 
 import { useEffect, useMemo, useState } from "react";
 import { timestampToEpochNanoseconds } from "@darkfactory/shared/vertex";
@@ -18,6 +18,14 @@ import {
   useExperienceResource,
   useExperienceServices,
 } from "./shared.tsx";
+import {
+  ExperienceTable,
+  ExperienceTableCaption,
+  ExperienceTableCell,
+  ExperienceTableHead,
+  ExperienceTableHeader,
+  experienceTableScroll,
+} from "./experience-table.tsx";
 
 type InboxKind = "approval" | "blocked" | "strategy" | "continuity";
 type InboxItem = Readonly<{
@@ -275,34 +283,49 @@ export const TodayDecisionInbox = ({
       ) : (
         <div>
           <div
-            className="vx-ex-table-scroll"
+            className={experienceTableScroll}
             role="region"
             aria-label="Decision inbox; scroll horizontally for all fields"
             // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
             tabIndex={0}
           >
-            <table
-              className="vx-ex-table"
-              aria-labelledby="decision-inbox-title"
-            >
-              <caption>Pending decisions — supplied records only</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Item type</th>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Condition</th>
-                  <th scope="col">Source identity</th>
-                  <th scope="col">Source hash</th>
-                  <th scope="col">Next action</th>
-                </tr>
-              </thead>
-              <tbody>
+            <ExperienceTable aria-labelledby="decision-inbox-title">
+              <ExperienceTableCaption>
+                Pending decisions — supplied records only
+              </ExperienceTableCaption>
+              <ExperienceTableHeader>
+                <TableRow>
+                  <ExperienceTableHead scope="col">
+                    Item type
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Decision
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Condition
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Source identity
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Source hash
+                  </ExperienceTableHead>
+                  <ExperienceTableHead scope="col">
+                    Next action
+                  </ExperienceTableHead>
+                </TableRow>
+              </ExperienceTableHeader>
+              <TableBody>
                 {visible.map((item) => (
-                  <tr key={item.key}>
-                    <td>{kindLabels[item.kind]}</td>
-                    <th scope="row">{item.title}</th>
-                    <td>{item.detail}</td>
-                    <td>
+                  <TableRow key={item.key}>
+                    <ExperienceTableCell>
+                      {kindLabels[item.kind]}
+                    </ExperienceTableCell>
+                    <ExperienceTableHead scope="row">
+                      {item.title}
+                    </ExperienceTableHead>
+                    <ExperienceTableCell>{item.detail}</ExperienceTableCell>
+                    <ExperienceTableCell>
                       {item.kind === "strategy" ? (
                         <span className="text-muted-foreground text-sm leading-relaxed">
                           Immutable strategy version
@@ -310,21 +333,21 @@ export const TodayDecisionInbox = ({
                         </span>
                       ) : null}
                       {item.identity}
-                    </td>
-                    <td>
+                    </ExperienceTableCell>
+                    <ExperienceTableCell>
                       {item.digest === null
                         ? "Unknown — not supplied"
                         : item.digest}
-                    </td>
-                    <td>
+                    </ExperienceTableCell>
+                    <ExperienceTableCell>
                       <a className="vx-text-link" href={item.href}>
                         {item.action}
                       </a>
-                    </td>
-                  </tr>
+                    </ExperienceTableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </ExperienceTable>
           </div>
           <nav className="vx-ex-pagination" aria-label="Decision inbox pages">
             <Button
