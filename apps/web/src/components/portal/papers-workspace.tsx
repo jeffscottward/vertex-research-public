@@ -520,7 +520,7 @@ export const PapersWorkspace = ({
                         key={paper.id}
                       >
                         <TableHead
-                          className="min-w-72 max-w-md whitespace-normal py-1 font-normal"
+                          className="h-auto min-w-72 max-w-md whitespace-normal py-1 font-normal"
                           scope="row"
                         >
                           {paper.sourceUrl === null ? (

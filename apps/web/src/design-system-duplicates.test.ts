@@ -44,4 +44,19 @@ describe("design-system duplicates", () => {
       .map(({ file }) => relative(SOURCE_ROOT, file));
     expect(offenders).toEqual([]);
   });
+
+  it("lets body row headers size and wrap like cells, because TableHead sets h-10 and nowrap", () => {
+    const tableHead = /<TableHead\b(?:[^>{]|\{[^}]*\})*>/gu;
+    const offenders = webSources().flatMap(({ file, source }) =>
+      [...source.matchAll(tableHead)]
+        .map(([tag]) => tag)
+        .filter(
+          (tag) =>
+            tag.includes('scope="row"') &&
+            !(tag.includes("h-auto") && tag.includes("whitespace-normal"))
+        )
+        .map(() => relative(SOURCE_ROOT, file))
+    );
+    expect(offenders).toEqual([]);
+  });
 });

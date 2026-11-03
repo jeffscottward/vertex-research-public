@@ -188,7 +188,7 @@ export const EnginesWorkspace = ({
                 return (
                   <TableRow data-engine={engine.unit} key={engine.unit}>
                     <TableHead
-                      className="whitespace-normal font-mono"
+                      className="h-auto whitespace-normal font-mono"
                       scope="row"
                     >
                       {engine.unit}
