@@ -45,17 +45,22 @@ describe("design-system duplicates", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("lets body row headers size and wrap like cells, because TableHead sets h-10 and nowrap", () => {
+  it("lets body row and row-group headers size and wrap like cells, because TableHead sets h-10 and nowrap", () => {
+    // Matches one level of nested braces in attributes; a deeper block holding ">" cuts the tag short.
     const tableHead = /<TableHead\b(?:[^>{]|\{[^}]*\})*>/gu;
+    const rowScope = /\bscope=(?:"|'|\{["'])row(?:group)?["']\}?/u;
+    const autoHeight = /(?<![\w:-])h-auto(?![\w-])/u;
+    const wraps = /(?<![\w:-])whitespace-normal(?![\w-])/u;
     const offenders = webSources().flatMap(({ file, source }) =>
       [...source.matchAll(tableHead)]
-        .map(([tag]) => tag)
         .filter(
-          (tag) =>
-            tag.includes('scope="row"') &&
-            !(tag.includes("h-auto") && tag.includes("whitespace-normal"))
+          ([tag]) =>
+            rowScope.test(tag) && !(autoHeight.test(tag) && wraps.test(tag))
         )
-        .map(() => relative(SOURCE_ROOT, file))
+        .map(
+          ({ index }) =>
+            `${relative(SOURCE_ROOT, file)}:${source.slice(0, index).split("\n").length}`
+        )
     );
     expect(offenders).toEqual([]);
   });

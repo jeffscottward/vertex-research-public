@@ -570,7 +570,7 @@ export const RotationMatrixWorkspace = ({
                 <TableBody key={sector.sector}>
                   <TableRow className="border-border border-b bg-muted/40">
                     <TableHead
-                      className="py-1 text-left font-semibold"
+                      className="h-auto whitespace-normal py-1 text-left font-semibold"
                       colSpan={5}
                       scope="rowgroup"
                     >
