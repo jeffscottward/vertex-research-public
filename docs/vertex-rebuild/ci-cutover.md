@@ -35,4 +35,6 @@ The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private re
 
 ## Open items
 
+- Browser lane: the first hosted run with `BROWSER_TESTS=on` failed 37 of 135 tests (run 41930652852). The lane was also off on the private repository, so no recent green baseline exists. `BROWSER_TESTS` stays `off` until card `vertex-browser-lane-hosted` fixes the suite.
+
 - Deploy: the public tree has placeholder hosts. A deploy from a public checkout needs the real hosts from a private local file (cutover plan blocker 1, `~/Documents/reports/vertex-public-cutover-plan-1102.md`). Until that exists, deploys build from the private checkout at the tree that matches the public head.
