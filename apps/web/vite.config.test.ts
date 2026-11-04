@@ -210,7 +210,10 @@ describe("Vite application plugin contract", () => {
       "quant-vps-host.example-tailnet.ts.net",
     ]);
     for (const unsafe of [
-      { VERTEX_SELF_HOSTED_ORIGIN: "http://quant-vps-host.example-tailnet.ts.net" },
+      {
+        VERTEX_SELF_HOSTED_ORIGIN:
+          "http://quant-vps-host.example-tailnet.ts.net",
+      },
       { VERTEX_SELF_HOSTED_ORIGIN: `${origin}/` },
       { VERTEX_SELF_HOSTED_ORIGIN: "not a url" },
       { HOST: "0.0.0.0" },
