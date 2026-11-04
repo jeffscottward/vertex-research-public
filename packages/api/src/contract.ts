@@ -21,9 +21,13 @@ import { todosContract } from "./contracts/todos.ts";
 import { watchlistContract } from "./contracts/watchlist.ts";
 import { priceAlertsContract } from "./contracts/price-alerts.ts";
 import { marketNewsContract } from "./contracts/market-news.ts";
+import { basketsContract } from "./contracts/baskets.ts";
 import { agentOpsContract, papersContract } from "./contracts/agent-ops.ts";
 import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
 import { optimizationsContract } from "./contracts/optimizations.ts";
+import { quantLabContract } from "./contracts/quant-lab.ts";
+import { researchReportsContract } from "./contracts/research-reports.ts";
+import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
 import { deploymentRequestsContract } from "./contracts/deployment-requests.ts";
@@ -33,12 +37,15 @@ import { academyContract } from "./contracts/academy.ts";
 import { instantBacktestContract } from "./contracts/instant-backtest.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
+import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
 import { optionsAnalyticsContract } from "./contracts/options-analytics.ts";
 import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
+import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
+import { marketContextContract } from "./contracts/market-context.ts";
 import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
 import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
@@ -283,8 +290,12 @@ export const appContract = {
   watchlist: watchlistContract,
   priceAlerts: priceAlertsContract,
   marketNews: marketNewsContract,
+  baskets: basketsContract,
   todos: todosContract,
   agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
+  quantLab: quantLabContract,
+  researchReports: researchReportsContract,
+  clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,
   agentApiKeys: agentApiKeysContract,
@@ -298,10 +309,13 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
+  sectorRotation: sectorRotationContract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,
   portfolioMonitor: portfolioMonitorContract,
   ibkrMonitor: ibkrMonitorContract,
+  engines: enginesContract,
+  marketContext: marketContextContract,
   ibkrRecovery: ibkrRecoveryContract,
   nautilusArm: nautilusArmContract,
   vertexOrders: vertexOrdersContract,

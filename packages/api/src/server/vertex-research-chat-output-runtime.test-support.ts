@@ -20,13 +20,14 @@ import {
   WorkerResultSchema,
 } from "../contracts/vertex-worker.ts";
 import type { ModelUseRequest } from "../contracts/vertex-model-use.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // SOURCE ONLY: no executions/results claimed. All positive authority is issued
 // by the actual fixture owners. Only SQL/object/R2/provider/clock boundaries are
 // synthetic; pre-existing selected technical history remains explicitly so.
 // Raw authenticated-worker response bytes are NOT provider attestation. This
 // suite does not append chat messages, activate providers or qualify erasure.
-export const TIMEOUT = 120_000;
+export const TIMEOUT = scaledTimeout(120_000);
 export const origins = "vertex_research_chat_advisory_origins";
 export const effects = "vertex_research_chat_copy_effects";
 export const observations = "vertex_research_chat_copy_effect_observations";

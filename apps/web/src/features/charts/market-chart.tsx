@@ -1,13 +1,15 @@
 "use client";
 
-import { CandleCanvas } from "./renderer-host.tsx";
+import { ChartWorkstation } from "./chart-workstation.tsx";
 import { createKLineRenderer } from "./kline-adapter.ts";
 import type { ChartMarker, ChartStudies, DisplayCandle } from "./types.ts";
 import "./charts.css";
 
-// Lazy-loaded entry for the /charts page: KLineCharts candles with built-in studies and markers.
+// Lazy-loaded entry for the /charts page: KLineCharts workstation with chart types,
+// drawings, data window, object tree and PNG screenshot.
 export type MarketBarsChartProps = Readonly<{
   candles: readonly DisplayCandle[];
+  symbol: string;
   label: string;
   pricePrecision: number;
   studies: ChartStudies;
@@ -22,6 +24,7 @@ const MARKET_CHART_CAPTIONS = Object.freeze({
 
 export const MarketBarsChart = ({
   candles,
+  symbol,
   label,
   pricePrecision,
   studies,
@@ -30,15 +33,15 @@ export const MarketBarsChart = ({
   if (typeof window === "undefined")
     return <p className="vx-chart-note">The chart requires a browser.</p>;
   return (
-    <CandleCanvas
+    <ChartWorkstation
+      candles={candles}
       captions={MARKET_CHART_CAPTIONS}
       factory={createKLineRenderer}
       label={label}
       markers={markers}
       pricePrecision={pricePrecision}
       studies={studies}
-      values={candles}
-      volumePrecision={0}
+      symbol={symbol}
     />
   );
 };

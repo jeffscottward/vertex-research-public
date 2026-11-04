@@ -210,10 +210,7 @@ describe("Vite application plugin contract", () => {
       "quant-vps-host.example-tailnet.ts.net",
     ]);
     for (const unsafe of [
-      {
-        VERTEX_SELF_HOSTED_ORIGIN:
-          "http://quant-vps-host.example-tailnet.ts.net",
-      },
+      { VERTEX_SELF_HOSTED_ORIGIN: "http://quant-vps-host.example-tailnet.ts.net" },
       { VERTEX_SELF_HOSTED_ORIGIN: `${origin}/` },
       { VERTEX_SELF_HOSTED_ORIGIN: "not a url" },
       { HOST: "0.0.0.0" },
@@ -247,6 +244,12 @@ describe("Vite application plugin contract", () => {
     }
     expect(keepFontFilesExternal("/images/favicon.svg")).toBeUndefined();
     expect(keepFontFilesExternal("/fonts/notes.woff2.txt")).toBeUndefined();
+  });
+
+  it("defines the build commit for the click log", () => {
+    const value = viteConfig.define?.["__VERTEX_BUILD_SHA__"];
+    expect(typeof value).toBe("string");
+    expect(JSON.parse(String(value))).toMatch(/^(?:[0-9a-f]{7,40}|unknown)$/u);
   });
 
   it("keeps Worker dev-var files out of source control", async () => {

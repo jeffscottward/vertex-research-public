@@ -213,6 +213,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/forward-drift",
   "/strategy-builder",
   "/rotation-matrix",
+  "/sector-rotation",
   "/deep-value",
   "/congress-trades",
   "/risk-allocator",
@@ -224,6 +225,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/autopilot",
   "/charts",
   "/deployments",
+  "/engines",
 ] as const;
 
 // Agent work starts its operator reads on load. Its Reload button appears only after both

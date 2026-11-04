@@ -5,6 +5,12 @@ import type {
   DisplayCandle,
 } from "./types.ts";
 import {
+  type ChartType,
+  type Drawing,
+  type DrawingTool,
+  validDrawing,
+} from "./workstation.ts";
+import {
   VERTEX_STUDIES,
   VERTEX_STUDY_IDS,
   type VertexStudyId,
@@ -60,6 +66,73 @@ export const validDisplayCandles = (
 // Built-in KLineCharts 9.8.12 names: indicators "VOL", "MA", "EMA"; overlay "simpleAnnotation".
 export const VOLUME_PANE_ID = "vx_volume_pane" as const;
 export const MARKER_GROUP_ID = "vx_markers" as const;
+export const DRAWING_GROUP_ID = "vx_drawings" as const;
+export const RECTANGLE_OVERLAY = "vxRectangle" as const;
+// Built-in KLineCharts 9.8.12 overlay names, plus the registered rectangle.
+const DRAWING_OVERLAYS: Readonly<Record<DrawingTool, string>> = Object.freeze({
+  fib: "fibonacciLine",
+  level: "horizontalStraightLine",
+  rectangle: RECTANGLE_OVERLAY,
+  text: "simpleAnnotation",
+  trend: "segment",
+});
+type Coordinate = Readonly<{ x: number; y: number }>;
+export const rectangleFigures = (
+  coordinates: readonly Coordinate[]
+): Readonly<{
+  type: "polygon";
+  attrs: { coordinates: Coordinate[] };
+  styles: { style: "stroke_fill" };
+}>[] => {
+  const [start, end] = coordinates;
+  if (start === undefined || end === undefined) return [];
+  return [
+    {
+      attrs: {
+        coordinates: [
+          start,
+          { x: end.x, y: start.y },
+          end,
+          { x: start.x, y: end.y },
+        ],
+      },
+      styles: { style: "stroke_fill" },
+      type: "polygon",
+    },
+  ];
+};
+const toolForOverlay = (name: string): DrawingTool | undefined =>
+  (Object.keys(DRAWING_OVERLAYS) as DrawingTool[]).find(
+    (tool) => DRAWING_OVERLAYS[tool] === name
+  );
+type OverlayLike = Readonly<{
+  id: string;
+  name: string;
+  points: readonly Readonly<{ timestamp?: number; value?: number }>[];
+  extendData: unknown;
+}>;
+export const drawingFromOverlay = (
+  overlay: OverlayLike
+): Drawing | undefined => {
+  const tool = toolForOverlay(overlay.name);
+  const drawing = {
+    id: overlay.id,
+    points: overlay.points.map((point) => ({
+      timestamp: point.timestamp,
+      value: point.value,
+    })),
+    text: typeof overlay.extendData === "string" ? overlay.extendData : "",
+    tool,
+  };
+  return validDrawing(drawing) ? drawing : undefined;
+};
+const CANDLE_STYLE = Object.freeze({
+  area: "Area",
+  candles: "CandleSolid",
+  "heikin-ashi": "CandleSolid",
+  hollow: "CandleUpStroke",
+  ohlc: "Ohlc",
+} as const satisfies Record<ChartType, string>);
 const CANDLE_PANE_ID = "candle_pane";
 const MAX_STUDY_PERIODS = 4;
 const MAX_CHART_MARKERS = 4096;
@@ -112,6 +185,14 @@ export const createKLineRenderer: CandleRendererFactory = async (
   )
     throw new RangeError("Display precision must be bounded");
   // Idempotent: re-registering a name replaces the same template.
+  library.registerOverlay({
+    createPointFigures: ({ coordinates }) => rectangleFigures(coordinates),
+    name: RECTANGLE_OVERLAY,
+    needDefaultPointFigure: true,
+    needDefaultXAxisFigure: true,
+    needDefaultYAxisFigure: true,
+    totalStep: 3,
+  });
   for (const id of VERTEX_STUDY_IDS)
     library.registerIndicator(
       indicatorTemplate(VERTEX_STUDIES[id], options.pricePrecision)
@@ -309,7 +390,73 @@ export const createKLineRenderer: CandleRendererFactory = async (
     markerKey = next;
     return;
   };
+  const overlayEvents = (onChange: (drawing: Drawing) => void) => {
+    const emit = (event: { overlay: OverlayLike }): boolean => {
+      const drawing = drawingFromOverlay(event.overlay);
+      if (drawing !== undefined) onChange(drawing);
+      return false;
+    };
+    return { onDrawEnd: emit, onPressedMoveEnd: emit };
+  };
+  const setDrawings = (
+    drawings: readonly Drawing[],
+    onChange: (drawing: Drawing) => void
+  ) => {
+    if (!drawings.every(validDrawing)) throw new TypeError("Invalid drawings");
+    if (disposed) return;
+    chart.removeOverlay({ groupId: DRAWING_GROUP_ID });
+    if (drawings.length === 0) return;
+    chart.createOverlay(
+      drawings.map((drawing) => ({
+        extendData: drawing.text,
+        groupId: DRAWING_GROUP_ID,
+        id: drawing.id,
+        name: DRAWING_OVERLAYS[drawing.tool],
+        points: drawing.points.map((point) => ({ ...point })),
+        ...overlayEvents(onChange),
+      }))
+    );
+    return;
+  };
+  const startDrawing = (
+    tool: DrawingTool,
+    text: string,
+    onChange: (drawing: Drawing) => void
+  ) => {
+    if (disposed) return;
+    chart.createOverlay({
+      extendData: text.slice(0, 80),
+      groupId: DRAWING_GROUP_ID,
+      name: DRAWING_OVERLAYS[tool],
+      ...overlayEvents(onChange),
+    });
+    return;
+  };
+  const setChartType = (type: ChartType) => {
+    if (disposed) return;
+    chart.setStyles({
+      candle: { type: library.CandleType[CANDLE_STYLE[type]] },
+    });
+    return;
+  };
+  const onCrosshair = (listener: (timestamp: number | null) => void) => {
+    if (disposed) return;
+    chart.subscribeAction(library.ActionType.OnCrosshairChange, (data) => {
+      const crosshair = data as
+        | { kLineData?: { timestamp?: number } }
+        | undefined;
+      return listener(crosshair?.kLineData?.timestamp ?? null);
+    });
+    return;
+  };
+  const snapshot = (): string =>
+    disposed ? "" : chart.getConvertPictureUrl(true, "png", palette.background);
   return {
+    setChartType,
+    setDrawings,
+    startDrawing,
+    onCrosshair,
+    snapshot,
     replace,
     resize: () => {
       if (!disposed) return chart.resize();

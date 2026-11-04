@@ -36,4 +36,12 @@ describe("design-system duplicates", () => {
       .map(({ file }) => relative(SOURCE_ROOT, file));
     expect(offenders).toEqual([]);
   });
+
+  it("aligns TableRow cells through child selectors, because cells set align-middle", () => {
+    const pattern = /<TableRow\s[^>]*className="[^"]*(?<![:\w-])align-top/u;
+    const offenders = webSources()
+      .filter(({ source }) => pattern.test(source))
+      .map(({ file }) => relative(SOURCE_ROOT, file));
+    expect(offenders).toEqual([]);
+  });
 });

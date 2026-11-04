@@ -217,6 +217,8 @@ const loopbackHttpUrl = (name: string) =>
       .optional()
   );
 const ibkrMonitorUrlSchema = loopbackHttpUrl("IBKR_MONITOR_URL");
+// Rig status file server on the Vertex host's loopback (engines.status, marketContext.get), e.g. http://127.0.0.1:3462.
+const engineStatusUrlSchema = loopbackHttpUrl("ENGINE_STATUS_URL");
 
 // Tailnet HTTPS or loopback http, for services that may run on the web app's own host
 // (QuantVPS history and portfolio: the tailnet route admits only the rig).
@@ -492,6 +494,7 @@ const baseServerEnvSchema = z.object({
   // https://<vps>.ts.net:8443/vertex-portfolio/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
   VERTEX_PORTFOLIO_URL: tailnetOrLoopbackServiceUrl("VERTEX_PORTFOLIO_URL"),
   IBKR_MONITOR_URL: ibkrMonitorUrlSchema,
+  ENGINE_STATUS_URL: engineStatusUrlSchema,
   // Tailnet-only human IBKR 2FA recovery service (ibkrRecovery.*), e.g.
   // https://<vps>.ts.net:8443/vertex-ibkr-recovery/v1. It has its OWN token (VERTEX_IBKR_RECOVERY_TOKEN),
   // because VERTEX_DEPLOY_STATUS_TOKEN also opens the public status route.

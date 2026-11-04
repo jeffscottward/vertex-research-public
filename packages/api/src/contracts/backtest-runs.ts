@@ -1,3 +1,4 @@
+import { BAR_SYMBOL_PATTERN } from "@darkfactory/shared/universes";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
@@ -55,7 +56,7 @@ export const BacktestRunSubmitInputSchema = z
     ]),
     stopLossPct: z.number().min(0).max(99).default(0),
     strategyId: z.string().trim().min(1).max(128).nullable().optional(),
-    symbol: z.string().regex(/^[A-Z0-9.^-]{1,20}$/u),
+    symbol: z.string().regex(BAR_SYMBOL_PATTERN),
     takeProfitPct: z.number().min(0).max(10_000).default(0),
     timeframe: z.enum(INSTANT_BACKTEST_TIMEFRAMES),
     to: CalendarDateSchema,

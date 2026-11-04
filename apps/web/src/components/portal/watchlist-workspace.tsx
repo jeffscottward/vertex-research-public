@@ -5,7 +5,7 @@ import {
   splitWatchlistPaste,
   type WatchlistItemOutput,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import { Button, Input, Panel } from "@darkfactory/ui";
 import { DataTable } from "@darkfactory/ui/client/data-table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -167,242 +167,257 @@ export const WatchlistWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section aria-labelledby="watchlist-add-heading" className="space-y-2">
-        <h2 className="font-medium text-sm" id="watchlist-add-heading">
-          Add symbols
-        </h2>
-        <textarea
-          aria-label="Symbols to add"
-          className="min-h-20 w-full rounded-md border border-border bg-background p-2 font-mono text-sm"
-          id="watchlist-paste"
-          onChange={(event) => setPaste(event.target.value)}
-          placeholder="AAA, BBB.X CCC"
-          value={paste}
-        />
-        <div className="flex items-center gap-3">
-          <Button disabled={adding} onClick={() => void add()} type="button">
-            <Plus aria-hidden="true" className="size-4" />
-            Add symbols
-          </Button>
-          <span className="text-muted-foreground text-xs">
-            Separators: comma, space, newline. Uppercased; duplicates merged;
-            invalid tokens listed, not dropped.
-          </span>
+      <Panel headingId="watchlist-add-heading" title="Add symbols">
+        <div className="space-y-3">
+          <textarea
+            aria-label="Symbols to add"
+            className="min-h-20 w-full rounded-md border border-border bg-background p-2 font-mono text-sm"
+            id="watchlist-paste"
+            onChange={(event) => setPaste(event.target.value)}
+            placeholder="AAA, BBB.X CCC"
+            value={paste}
+          />
+          <div className="flex items-center gap-3">
+            <Button disabled={adding} onClick={() => void add()} type="button">
+              <Plus aria-hidden="true" className="size-4" />
+              Add symbols
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              Separators: comma, space, newline. Uppercased; duplicates merged;
+              invalid tokens listed, not dropped.
+            </span>
+          </div>
         </div>
-      </section>
+      </Panel>
       <div aria-live="polite" className="min-h-5 text-sm" role="status">
         {feedback}
       </div>
-      {state.type === "loading" ? (
-        <p aria-busy="true" className="text-muted-foreground text-sm">
-          Loading watchlist…
-        </p>
-      ) : state.type === "error" ? (
-        <div className="space-y-2" role="alert">
-          <p className="text-sm">{state.message}</p>
-          <Button onClick={() => void load()} type="button" variant="secondary">
-            Retry
-          </Button>
-        </div>
-      ) : state.items.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No symbols. Paste tickers above to start the list.
-        </p>
-      ) : (
-        <DataTable
-          caption={<span className="sr-only">Watchlist symbols</span>}
-          className="text-sm"
-          columns={[
-            {
-              id: "symbol",
-              header: "Symbol",
-              value: (item) => item.symbol,
-              cell: (item) => <span className="font-mono">{item.symbol}</span>,
-              rowHeader: true,
-            },
-            {
-              id: "zone",
-              header: "Buy zone (low – high)",
-              value: (item) => item.buyZoneLow,
-              cell: (item) => {
-                const editingDraft =
-                  draft !== null && draft.id === item.id ? draft : null;
-                const zoneErrorId =
-                  rowError === null ? undefined : `${item.id}-zone-error`;
-                return (
-                  <div className="font-mono">
-                    {editingDraft ? (
-                      <div className="space-y-1">
-                        <div className="flex gap-1">
-                          <Input
-                            aria-describedby={zoneErrorId}
-                            aria-invalid={rowError !== null}
-                            aria-label={`${item.symbol} buy zone low`}
-                            inputMode="decimal"
-                            onChange={(event) =>
-                              setDraft({
-                                ...editingDraft,
-                                low: event.target.value,
-                              })
-                            }
-                            value={editingDraft.low}
-                          />
-                          <Input
-                            aria-describedby={zoneErrorId}
-                            aria-invalid={rowError !== null}
-                            aria-label={`${item.symbol} buy zone high`}
-                            inputMode="decimal"
-                            onChange={(event) =>
-                              setDraft({
-                                ...editingDraft,
-                                high: event.target.value,
-                              })
-                            }
-                            value={editingDraft.high}
-                          />
+      <Panel
+        flush={state.type === "ready" && state.items.length > 0}
+        title={
+          state.type === "ready" ? `Symbols (${state.items.length})` : "Symbols"
+        }
+      >
+        {state.type === "loading" ? (
+          <p aria-busy="true" className="text-muted-foreground text-sm">
+            Loading watchlist…
+          </p>
+        ) : state.type === "error" ? (
+          <div className="space-y-2" role="alert">
+            <p className="text-sm">{state.message}</p>
+            <Button
+              onClick={() => void load()}
+              type="button"
+              variant="secondary"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : state.items.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No symbols. Paste tickers above to start the list.
+          </p>
+        ) : (
+          <DataTable
+            caption={<span className="sr-only">Watchlist symbols</span>}
+            className="text-sm"
+            columns={[
+              {
+                cell: (item) => (
+                  <span className="font-mono">{item.symbol}</span>
+                ),
+                header: "Symbol",
+                id: "symbol",
+                rowHeader: true,
+                value: (item) => item.symbol,
+              },
+              {
+                cell: (item) => {
+                  const editingDraft =
+                    draft !== null && draft.id === item.id ? draft : null;
+                  const zoneErrorId =
+                    rowError === null ? undefined : `${item.id}-zone-error`;
+                  return (
+                    <div className="font-mono">
+                      {editingDraft ? (
+                        <div className="space-y-1">
+                          <div className="flex gap-1">
+                            <Input
+                              aria-describedby={zoneErrorId}
+                              aria-invalid={rowError !== null}
+                              aria-label={`${item.symbol} buy zone low`}
+                              inputMode="decimal"
+                              onChange={(event) =>
+                                setDraft({
+                                  ...editingDraft,
+                                  low: event.target.value,
+                                })
+                              }
+                              value={editingDraft.low}
+                            />
+                            <Input
+                              aria-describedby={zoneErrorId}
+                              aria-invalid={rowError !== null}
+                              aria-label={`${item.symbol} buy zone high`}
+                              inputMode="decimal"
+                              onChange={(event) =>
+                                setDraft({
+                                  ...editingDraft,
+                                  high: event.target.value,
+                                })
+                              }
+                              value={editingDraft.high}
+                            />
+                          </div>
+                          {rowError !== null && (
+                            <p
+                              className="text-destructive text-xs"
+                              id={`${item.id}-zone-error`}
+                              role="alert"
+                            >
+                              {rowError}
+                            </p>
+                          )}
                         </div>
-                        {rowError !== null && (
-                          <p
-                            className="text-destructive text-xs"
-                            id={`${item.id}-zone-error`}
-                            role="alert"
-                          >
-                            {rowError}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      zoneText(item)
-                    )}
-                  </div>
-                );
+                      ) : (
+                        zoneText(item)
+                      )}
+                    </div>
+                  );
+                },
+                header: "Buy zone (low – high)",
+                id: "zone",
+                value: (item) => item.buyZoneLow,
               },
-            },
-            {
-              id: "note",
-              header: "Note",
-              value: (item) => item.note,
-              clamp: true,
-              cell: (item) => {
-                const editingDraft =
-                  draft !== null && draft.id === item.id ? draft : null;
-                return editingDraft ? (
-                  <Input
-                    aria-label={`${item.symbol} note`}
-                    maxLength={500}
-                    onChange={(event) =>
-                      setDraft({
-                        ...editingDraft,
-                        note: event.target.value,
-                      })
-                    }
-                    value={editingDraft.note}
-                  />
-                ) : (
-                  (item.note ?? "—")
-                );
+              {
+                cell: (item) => {
+                  const editingDraft =
+                    draft !== null && draft.id === item.id ? draft : null;
+                  return editingDraft ? (
+                    <Input
+                      aria-label={`${item.symbol} note`}
+                      maxLength={500}
+                      onChange={(event) =>
+                        setDraft({
+                          ...editingDraft,
+                          note: event.target.value,
+                        })
+                      }
+                      value={editingDraft.note}
+                    />
+                  ) : (
+                    (item.note ?? "—")
+                  );
+                },
+                clamp: true,
+                header: "Note",
+                id: "note",
+                value: (item) => item.note,
               },
-            },
-            {
-              id: "updated",
-              header: "Updated",
-              value: (item) => item.updatedAt,
-              cell: (item) => (
-                <span className="font-mono text-muted-foreground text-xs">
-                  {item.updatedAt.toISOString().slice(0, 16).replace("T", " ")}
-                </span>
-              ),
-            },
-            {
-              id: "actions",
-              header: <span className="sr-only">Actions</span>,
-              align: "right",
-              cell: (item) => {
-                const editingDraft =
-                  draft !== null && draft.id === item.id ? draft : null;
-                return editingDraft ? (
-                  <span className="inline-flex gap-1">
-                    <Button
-                      disabled={busyId === item.id}
-                      onClick={() => void save()}
-                      type="button"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setDraft(null);
-                        return setRowError(null);
-                      }}
-                      type="button"
-                      variant="secondary"
-                    >
-                      Cancel
-                    </Button>
+              {
+                cell: (item) => (
+                  <span className="font-mono text-muted-foreground text-xs">
+                    {item.updatedAt
+                      .toISOString()
+                      .slice(0, 16)
+                      .replace("T", " ")}
                   </span>
-                ) : (
-                  <span className="inline-flex gap-1">
-                    <Button
-                      aria-label={`Edit ${item.symbol}`}
-                      onClick={() => {
-                        setRowError(null);
-                        setConfirmRemoveId(null);
-                        return setDraft({
-                          id: item.id,
-                          low: item.buyZoneLow ?? "",
-                          high: item.buyZoneHigh ?? "",
-                          note: item.note ?? "",
-                        });
-                      }}
-                      type="button"
-                      variant="secondary"
-                    >
-                      <Pencil aria-hidden="true" className="size-4" />
-                      Edit
-                    </Button>
-                    {confirmRemoveId === item.id ? (
-                      <>
-                        <Button
-                          aria-label={`Confirm remove ${item.symbol}`}
-                          disabled={busyId === item.id}
-                          onClick={() => void remove(item)}
-                          type="button"
-                          variant="destructive"
-                        >
-                          <Trash2 aria-hidden="true" className="size-4" />
-                          Confirm remove
-                        </Button>
-                        <Button
-                          aria-label={`Keep ${item.symbol}`}
-                          onClick={() => setConfirmRemoveId(null)}
-                          type="button"
-                          variant="secondary"
-                        >
-                          Keep
-                        </Button>
-                      </>
-                    ) : (
+                ),
+                header: "Updated",
+                id: "updated",
+                value: (item) => item.updatedAt,
+              },
+              {
+                align: "right",
+                cell: (item) => {
+                  const editingDraft =
+                    draft !== null && draft.id === item.id ? draft : null;
+                  return editingDraft ? (
+                    <span className="inline-flex gap-1">
                       <Button
-                        aria-label={`Remove ${item.symbol}`}
                         disabled={busyId === item.id}
-                        onClick={() => setConfirmRemoveId(item.id)}
+                        onClick={() => void save()}
+                        type="button"
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setDraft(null);
+                          return setRowError(null);
+                        }}
                         type="button"
                         variant="secondary"
                       >
-                        <Trash2 aria-hidden="true" className="size-4" />
-                        Remove
+                        Cancel
                       </Button>
-                    )}
-                  </span>
-                );
+                    </span>
+                  ) : (
+                    <span className="inline-flex gap-1">
+                      <Button
+                        aria-label={`Edit ${item.symbol}`}
+                        onClick={() => {
+                          setRowError(null);
+                          setConfirmRemoveId(null);
+                          return setDraft({
+                            high: item.buyZoneHigh ?? "",
+                            id: item.id,
+                            low: item.buyZoneLow ?? "",
+                            note: item.note ?? "",
+                          });
+                        }}
+                        type="button"
+                        variant="secondary"
+                      >
+                        <Pencil aria-hidden="true" className="size-4" />
+                        Edit
+                      </Button>
+                      {confirmRemoveId === item.id ? (
+                        <>
+                          <Button
+                            aria-label={`Confirm remove ${item.symbol}`}
+                            disabled={busyId === item.id}
+                            onClick={() => void remove(item)}
+                            type="button"
+                            variant="destructive"
+                          >
+                            <Trash2 aria-hidden="true" className="size-4" />
+                            Confirm remove
+                          </Button>
+                          <Button
+                            aria-label={`Keep ${item.symbol}`}
+                            onClick={() => setConfirmRemoveId(null)}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Keep
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          aria-label={`Remove ${item.symbol}`}
+                          disabled={busyId === item.id}
+                          onClick={() => setConfirmRemoveId(item.id)}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Trash2 aria-hidden="true" className="size-4" />
+                          Remove
+                        </Button>
+                      )}
+                    </span>
+                  );
+                },
+                header: <span className="sr-only">Actions</span>,
+                id: "actions",
               },
-            },
-          ]}
-          rowKey={(item) => item.id}
-          rowProps={(item) => ({ "data-symbol": item.symbol })}
-          rows={state.items}
-        />
-      )}
+            ]}
+            rowKey={(item) => item.id}
+            rowProps={(item) => ({ "data-symbol": item.symbol })}
+            rows={state.items}
+          />
+        )}
+      </Panel>
     </div>
   );
 };

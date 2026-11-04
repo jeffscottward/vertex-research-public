@@ -8,6 +8,7 @@ import type {
   NotificationServiceOptions,
 } from "./contracts.ts";
 import { createNotificationService } from "./service.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 const NOW = 1_700_000_000_000;
 const request: NotificationRequest = {
@@ -432,8 +433,14 @@ describe("notification idempotency and ambiguous delivery", () => {
     const h = setup({ timeoutMs: 50 });
     h.send.mockImplementation(() => new Promise(() => undefined));
     const result = h.service.notify(context, request);
-    // Async crypto settles on the real event loop, so yield to it until dispatch.
-    for (let turn = 0; turn < 1000 && h.send.mock.calls.length === 0; turn++) {
+    // Async crypto settles on the real event loop, so yield to it until
+    // dispatch. The wait is bounded by real time (scaled with host load), not
+    // by a turn count: under load 1000 turns passed before crypto settled.
+    const dispatchDeadline = performance.now() + scaledTimeout(5000);
+    while (
+      h.send.mock.calls.length === 0 &&
+      performance.now() < dispatchDeadline
+    ) {
       await new Promise<void>((resolve) => setImmediate(resolve));
     }
     expect(h.send).toHaveBeenCalledTimes(1);

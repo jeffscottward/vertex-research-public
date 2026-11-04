@@ -64,13 +64,16 @@ export const buildOptionsAnalytics = async (
     filter,
     CHAIN_TTL_MS
   );
+  // Keyed by symbol and window (not the minute-rounded range): at most one flow call per
+  // symbol and window every 60 s.
   const flowResult = await deps.client.request(
     "orderFlow",
     {
       ...filter,
       timeRange: { endTime: end.toISOString(), startTime: start.toISOString() },
     },
-    FLOW_TTL_MS
+    FLOW_TTL_MS,
+    `${symbol} ${flowHours}h`
   );
 
   const spotRaw = chainResult.ok ? chainResult.body["stockPrice"] : undefined;
@@ -144,7 +147,13 @@ export const buildOptionsAnalytics = async (
   const rateLimited = results.some(
     (result) => !result.ok && result.reason === "rate_limited"
   );
-  const cooldown = deps.client.cooldownSeconds();
+  // The longest wait: provider cooldown or any refusal (a local budget sets no cooldown).
+  const wait = Math.max(
+    deps.client.cooldownSeconds(),
+    ...results.map((result) =>
+      result.ok ? 0 : (result.retryAfterSeconds ?? 0)
+    )
+  );
   const notes: string[] = [...OPTIONS_ANALYTICS_NOTES];
   if (chain.expired > 0)
     notes.push(`Excluded ${chain.expired} expired expiries from the IV views.`);
@@ -154,7 +163,7 @@ export const buildOptionsAnalytics = async (
     notes,
     rateLimited,
     receivedAt: now.toISOString(),
-    retryAfterSeconds: rateLimited ? Math.ceil(cooldown) : null,
+    retryAfterSeconds: rateLimited ? Math.ceil(wait) : null,
     source: "quantdata",
     spot,
     symbol,

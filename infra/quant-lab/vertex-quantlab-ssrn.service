@@ -1,0 +1,12 @@
+# User unit (not enabled by default). Install: copy both files to ~/.config/systemd/user/, set the
+# paths below, then: systemctl --user daemon-reload && systemctl --user enable --now vertex-quantlab-ssrn.timer
+[Unit]
+Description=Vertex Quant Lab scheduled SSRN topic search (research only)
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/Github/trading/vertex-research-platform/private/basic-app/.dev.vars
+Environment=QUANTLAB_PYTHON=%h/Github/trading/vertex-research-platform/private/tools/research-py312/bin/python
+ExecStart=%h/Github/trading/vertex-research-platform/infra/quant-lab/ssrn-search.sh 10
+TimeoutStartSec=30min
+Nice=10

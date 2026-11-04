@@ -1,0 +1,82 @@
+{
+  "id": "zakamulin-2013-sma-timing",
+  "name": "SSRN 2242795 10-month SMA timing, SPY vs T-bills",
+  "hypothesis": "A monthly rule that holds SPY when its month-end price is above its 10-month simple moving average, and T-bills otherwise, has a higher Sharpe ratio and a smaller drawdown than buy-and-hold in out-of-sample, walk-forward tests with realistic costs. The paper argues that reported advantages of such rules are overstated, so the prior expectation is a small or no advantage.",
+  "drafted_by": "OMP agent (Claude Opus 5.5) from the Crossref abstract; full text not retained",
+  "paper_claims": [
+    {
+      "locator": "abstract",
+      "quote": "We argue that the reported performance of market timing strategies usually contains a considerable data-mining bias and ignores important market frictions."
+    },
+    {
+      "locator": "abstract",
+      "quote": "To address these issues, we perform out-of-sample tests of these two timing models in which we account for realistic transaction costs."
+    },
+    {
+      "locator": "abstract",
+      "quote": "Our findings reveal that the performance of market timing strategies is highly overstated, to say the least."
+    },
+    {
+      "locator": "abstract",
+      "quote": "see, for example, the paper by M. Faber (2007) \"A Quantitative Approach to Tactical Asset Allocation\" published in the Journal of Wealth Management"
+    }
+  ],
+  "our_reading": {
+    "interpretation": "The paper tests two rule families (moving average and time-series momentum) out of sample with transaction costs and concludes that in-sample results overstate performance. We test the moving-average rule in the Faber form that the abstract cites as the reference, and select the window out of sample with a walk-forward procedure, which is our approximation of the paper's out-of-sample test.",
+    "gaps": [
+      "Full text is not retained (no open-access copy; SSRN blocks automated download), so the paper's exact index, sample period, window grid, selection rule and cost level are unknown.",
+      "The abstract gives no numeric results, so no reported metrics can be compared with ours.",
+      "The paper's selection objective for the out-of-sample test is unknown."
+    ],
+    "assumptions": [
+      "Instrument SPY (total return through adjusted closes) from 1993, instead of the paper's index history.",
+      "Cash earns the 13-week T-bill yield (^IRX), forward-filled, accrued per trading day.",
+      "Decision at the last trading day close of each month; fill at the next session open.",
+      "Window grid 2..12 months, selected by in-window Sharpe on a rolling 10-year train window, applied to the next 2 years.",
+      "Costs per side: commission 0.5 bp, half-spread 0.5 bp, slippage 1 bp; stress test at 5x."
+    ],
+    "deviations": [
+      "Time-series momentum rule from the paper is not tested in this spec.",
+      "Single instrument; the paper may use a different market and a longer sample."
+    ]
+  },
+  "universe": {
+    "instruments": ["SPY"],
+    "cash": { "type": "t_bill", "symbol": "^IRX" }
+  },
+  "signal": {
+    "type": "price_above_sma",
+    "lookback": 10,
+    "lookback_unit": "months",
+    "price": "adjusted_close"
+  },
+  "entry": {
+    "rule": "At a month-end close, if the adjusted close is above the 10-month SMA of month-end closes (including the current month), hold SPY from the next open."
+  },
+  "exit": {
+    "rule": "At a month-end close, if the adjusted close is at or below the SMA, sell SPY at the next open and hold T-bills."
+  },
+  "rebalance": { "frequency": "monthly", "execution": "next_open" },
+  "sizing": { "type": "fixed_weight", "weight": 1.0 },
+  "costs": {
+    "commission_bps": 0.5,
+    "half_spread_bps": 0.5,
+    "slippage_bps": 1.0
+  },
+  "validation": {
+    "in_sample_end": "2009-12-31",
+    "walk_forward": {
+      "train_years": 10,
+      "test_years": 2,
+      "lookback_grid": [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "objective": "sharpe"
+    },
+    "rejection_criteria": [
+      { "check": "walk_forward_sharpe_gt_benchmark" },
+      { "check": "walk_forward_drawdown_better" },
+      { "check": "oos_sharpe_gt_benchmark" },
+      { "check": "survives_cost_stress" }
+    ],
+    "preregistered_at": "2026-10-18T17:52:00Z"
+  }
+}

@@ -3,7 +3,11 @@ import {
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
-import type { Repositories } from "@darkfactory/db/server";
+import type {
+  OrderIntent,
+  OrderIntentRepository,
+  Repositories,
+} from "@darkfactory/db/server";
 import type {
   SemanticEvent,
   SpanHandle,
@@ -72,6 +76,7 @@ type Options = Readonly<{
   emitFails?: boolean;
   sinkFailed?: boolean;
   span?: SpanHandle;
+  intents?: OrderIntentRepository;
 }>;
 
 const clientFor = ({
@@ -81,12 +86,15 @@ const clientFor = ({
   emitFails = false,
   sinkFailed = false,
   span,
+  intents,
 }: Options = {}) => {
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
     const context = createApiContext(request, {
-      repositories: {} as unknown as Repositories,
+      repositories: (intents === undefined
+        ? {}
+        : { orderIntents: intents }) as unknown as Repositories,
       requestId: "request-1",
       capabilities: {
         ai: false,
@@ -157,6 +165,31 @@ const order = (
   limitPrice: 10,
   ...overrides,
 });
+
+// In-memory order intent store with the repository's "last outcome" rule.
+const intentStore = () => {
+  const intents: OrderIntent[] = [];
+  const outcomes = new Map<string, string>();
+  const rows: string[] = [];
+  const store: OrderIntentRepository = {
+    recordIntent: async ({ intent }) => {
+      intents.push({ ...intent, createdAt: clock });
+      rows.push(`intent ${intent.orderRef}`);
+    },
+    recordOutcome: async ({ action, orderRef, outcome }) => {
+      outcomes.set(orderRef, outcome);
+      rows.push(`${action} ${outcome}`);
+    },
+    unresolved: async () =>
+      intents.filter((i) => {
+        const outcome = outcomes.get(i.orderRef);
+        return outcome === undefined || outcome === "unknown";
+      }),
+  };
+  return { store, intents, rows };
+};
+
+let clock = new Date("2026-10-22T15:00:00.000Z");
 
 let bridgeFetch: ReturnType<
   typeof vi.fn<(input: string, init?: RequestInit) => Promise<Response>>
@@ -333,7 +366,8 @@ describe("vertexOrders procedures", () => {
 
   it("both gates open: uses the loopback bridge, and fails closed without config", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
-    const client = clientFor({ config: on });
+    const { store, rows } = intentStore();
+    const client = clientFor({ config: on, intents: store });
     expect((await client.vertexOrders.status({})).gates.mode).toBe("live");
     const preview = await client.vertexOrders.preview(order());
     const result = await client.vertexOrders.submit({
@@ -344,6 +378,15 @@ describe("vertexOrders procedures", () => {
     expect(result).toMatchObject({ mode: "live", permId: 42 });
     expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
       "http://127.0.0.1:3470/orders"
+    );
+    expect(rows).toEqual([
+      expect.stringMatching(/^intent leaps-vertex-/u),
+      "vertex.order.result placed",
+    ]);
+    await expectCode(
+      clientFor({ config: on }).vertexOrders.preview(order()),
+      "AUDIT_UNAVAILABLE",
+      503
     );
     await expectCode(
       clientFor({ config: { ...on, bridgeUrl: null } }).vertexOrders.status({}),
@@ -528,7 +571,7 @@ describe("vertexOrders procedures", () => {
       .filter((e) => e.outcome === "failure")
       .map((e) => [e.name, e.attributes?.["result"]]);
     expect(failures).toEqual([
-      ["vertex.orders.submit", "bridge down"],
+      ["vertex.orders.submit", "outcome unknown: bridge down"],
       ["vertex.orders.cancel", "gateway error"],
     ]);
     const fresh = createMockOrderGateway(() => at);
@@ -538,6 +581,184 @@ describe("vertexOrders procedures", () => {
       state: "aborted",
       permId: null,
     });
+  });
+
+  it("keeps a timed-out order as unknown and reconciles it before a new preview", async () => {
+    clock = new Date(at);
+    const now = () => clock;
+    const late: OrderGatewayPort = {
+      ...mock,
+      // The bridge timed out, but the order reached IBKR.
+      place: async (o, ref) => {
+        await mock.place(o, ref);
+        throw new OrderGatewayError(
+          "UPSTREAM_ERROR",
+          "Order bridge did not answer"
+        );
+      },
+    };
+    const lost: OrderGatewayPort = {
+      ...mock,
+      place: () =>
+        Promise.reject(
+          new OrderGatewayError("UPSTREAM_ERROR", "Order bridge did not answer")
+        ),
+    };
+    const { store, rows } = intentStore();
+    const events: SemanticEvent[] = [];
+    const client = clientFor({ intents: store, events });
+    const submit = async (input = order()) => {
+      const preview = await client.vertexOrders.preview(input);
+      return await client.vertexOrders.submit({
+        order: input,
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      });
+    };
+
+    setVertexOrdersDependenciesForTesting({ mock: late, now });
+    const error = await submit().catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ code: "UPSTREAM_ERROR", status: 502 });
+    expect((error as Error).message).toMatch(/^Outcome unknown/u);
+    expect(rows.at(-1)).toBe("vertex.order.result unknown");
+    // The order shows in open orders: reconciled, and the next preview is accepted.
+    const next = await client.vertexOrders.preview(order({ strike: 120 }));
+    expect(next.review.accepted).toBe(true);
+    expect(rows.at(-1)).toBe("vertex.order.reconciled open");
+    expect(events.some((e) => e.name === "vertex.orders.reconcile")).toBe(true);
+
+    // The order never arrived: every preview is refused until the settle time passes.
+    setVertexOrdersDependenciesForTesting({ mock: lost, now });
+    await expectCode(submit(order({ strike: 110 })), "UPSTREAM_ERROR", 502);
+    const blocked = await client.vertexOrders.preview(order({ strike: 130 }));
+    expect(blocked.review.accepted).toBe(false);
+    expect(blocked.confirmToken).toBeNull();
+    expect(blocked.review.reasons.at(-1)).toMatch(/unknown outcome/u);
+    clock = new Date(at.getTime() + 10 * 60_000);
+    const settled = await client.vertexOrders.preview(order({ strike: 130 }));
+    expect(settled.review.accepted).toBe(true);
+    return expect(rows.at(-1)).toBe("vertex.order.reconciled not-found");
+  });
+
+  it("reconciles an unknown order by a position change", async () => {
+    clock = new Date(at);
+    const { store, intents, rows } = intentStore();
+    const [held] = (await mock.account()).positions;
+    intents.push({
+      orderRef: "leaps-vertex-x",
+      contract: "MOCKA call",
+      symbol: held?.symbol ?? "",
+      expiry: held?.expiry ?? "",
+      strike: held?.strike ?? 0,
+      right: "C",
+      heldBefore: 0,
+      createdAt: new Date(at.getTime() - 10 * 60_000),
+    });
+    const preview = await clientFor({ intents: store }).vertexOrders.preview(
+      order()
+    );
+    expect(preview.review.accepted).toBe(true);
+    return expect(rows).toEqual(["vertex.order.reconciled position-changed"]);
+  });
+
+  it("rethrows an unexpected place error and survives a failed result row", async () => {
+    clock = new Date(at);
+    const { store, intents } = intentStore();
+    setVertexOrdersDependenciesForTesting({
+      mock: { ...mock, place: () => Promise.reject(new Error("bug")) },
+      now: () => clock,
+    });
+    const client = clientFor({
+      intents: {
+        ...store,
+        recordOutcome: () => Promise.reject(new Error("db down")),
+      },
+    });
+    const preview = await client.vertexOrders.preview(order());
+    await expectCode(
+      client.vertexOrders.submit({
+        order: order(),
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      }),
+      "INTERNAL_SERVER_ERROR",
+      500
+    );
+    expect(intents).toHaveLength(1);
+    // The account read fails at submit: audited with the gateway message, nothing placed.
+    let reads = 0;
+    const events: SemanticEvent[] = [];
+    setVertexOrdersDependenciesForTesting({
+      mock: {
+        ...mock,
+        account: () => {
+          reads += 1;
+          return reads > 1
+            ? Promise.reject(new OrderGatewayError("UPSTREAM_ERROR", "down"))
+            : mock.account();
+        },
+      },
+      now: () => clock,
+    });
+    const second = clientFor({ intents: intentStore().store, events });
+    const again = await second.vertexOrders.preview(order({ strike: 140 }));
+    await expectCode(
+      second.vertexOrders.submit({
+        order: order({ strike: 140 }),
+        confirmToken: again.confirmToken ?? "",
+        confirm: true,
+      }),
+      "UPSTREAM_ERROR",
+      502
+    );
+    return expect(events.at(-1)?.attributes?.["result"]).toBe("down");
+  });
+
+  it("fails closed when the intent store fails", async () => {
+    clock = new Date(at);
+    const place = vi.spyOn(mock, "place");
+    const { store, intents } = intentStore();
+    const client = clientFor({
+      intents: {
+        ...store,
+        recordIntent: () => Promise.reject(new Error("db down")),
+      },
+    });
+    const preview = await client.vertexOrders.preview(order());
+    await expectCode(
+      client.vertexOrders.submit({
+        order: order(),
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      }),
+      "AUDIT_UNAVAILABLE",
+      503
+    );
+    expect(place).not.toHaveBeenCalled();
+    const unreadable = await clientFor({
+      intents: { ...store, unresolved: () => Promise.reject(new Error("x")) },
+    }).vertexOrders.preview(order());
+    expect(unreadable.review.reasons.at(-1)).toMatch(
+      /intent store unavailable/u
+    );
+    intents.push({
+      orderRef: "leaps-vertex-y",
+      contract: "OTHER",
+      symbol: "OTHER",
+      expiry: "20280121",
+      strike: 5,
+      right: "C",
+      heldBefore: 0,
+      createdAt: new Date(at.getTime() - 60 * 60_000),
+    });
+    const stuck = await clientFor({
+      intents: {
+        ...store,
+        recordOutcome: () => Promise.reject(new Error("db down")),
+      },
+    }).vertexOrders.preview(order());
+    expect(stuck.review.accepted).toBe(false);
+    return expect(stuck.review.reasons.at(-1)).toMatch(/leaps-vertex-y/u);
   });
 
   it("audits a cancel for an order that is gone", async () => {

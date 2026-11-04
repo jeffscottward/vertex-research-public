@@ -25,9 +25,16 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 ]);
 
 // Single procedures outside those roots that keys may call. The Autopilot scheduler ticks running
-// campaigns with an operator write key; every other autopilot.* procedure stays session-only.
+// campaigns with an operator write key; every other autopilot.* procedure stays session-only. The
+// sector rotation scheduler collects with a write key, and research agents read the snapshot with a
+// read key; sectorRotation.map stays session-only. The click-log CLI (scripts/vertex-click-log.ts)
+// reads clicks with an operator key; clickLog.record stays session-only, so a key never writes
+// clicks for a user.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
+  "sectorRotation.collect",
+  "sectorRotation.snapshot",
+  "clickLog.query",
 ]);
 
 export const isAgentApiKeyProcedurePath = (path: readonly string[]): boolean =>
@@ -50,7 +57,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.snapshot and clickLog.query",
       })
     );
   }

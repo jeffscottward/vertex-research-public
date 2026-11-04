@@ -3,6 +3,22 @@ import { defineConfig } from "vitest/config";
 import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
   type: "json",
 };
+import {
+  resolveTimeoutScale,
+  TIMEOUT_SCALE_ENV,
+} from "./scripts/lib/test-timeout-scale.ts";
+
+// Load-aware deadlines (card prepush-timeouts-runner-load, 2026-11-03): under
+// host load or a CPU quota the default 5 s test / 10 s hook timeouts scale
+// with the measured CPU shortage. Nested Vitest runs inherit the value.
+const timeouts = resolveTimeoutScale(process.env);
+process.env[TIMEOUT_SCALE_ENV] = String(timeouts.scale);
+if (timeouts.supply !== undefined && timeouts.scale > 1) {
+  const { hostCpus, loadAverage, quotaCpus } = timeouts.supply;
+  console.error(
+    `[vitest] timeouts x${timeouts.scale}: load ${loadAverage.toFixed(1)} on ${hostCpus} CPUs, CPU quota ${quotaCpus}`
+  );
+}
 
 // Coverage ratchet (owner decision 2026-10-11, reconfirmed 2026-10-16): files listed in
 // scripts/ci/coverage-baseline.json keep their recorded minimums; every other
@@ -42,6 +58,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    testTimeout: Math.round(5000 * timeouts.scale),
+    hookTimeout: Math.round(10_000 * timeouts.scale),
     coverage: {
       provider: "v8",
       reportsDirectory: "coverage",

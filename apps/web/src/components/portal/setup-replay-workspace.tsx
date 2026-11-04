@@ -12,7 +12,17 @@ import {
   type SetupReplaySummary,
   setupReplaySeriesId,
 } from "@darkfactory/api";
-import { Button, StatCard } from "@darkfactory/ui";
+import {
+  Button,
+  StatCard,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { Play } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 
@@ -244,67 +254,94 @@ const Results = ({ ran }: { readonly ran: Ran }) => {
             // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
             tabIndex={0}
           >
-            <table className="w-full min-w-[40rem] text-sm">
-              <caption className="sr-only">
+            <Table
+              className="w-full min-w-[40rem] text-sm"
+              containerClassName="overflow-visible"
+            >
+              <TableCaption className="sr-only">
                 Past occurrences, newest first
-              </caption>
-              <thead className="sticky top-0 bg-background">
-                <tr className="border-b text-left text-muted-foreground text-xs">
-                  <th className="p-2" scope="col">
+              </TableCaption>
+              <TableHeader className="sticky top-0 bg-background">
+                <TableRow className="border-b text-left text-muted-foreground text-xs">
+                  <TableHead className="p-2 text-muted-foreground" scope="col">
                     Entry
-                  </th>
-                  <th className="p-2" scope="col">
+                  </TableHead>
+                  <TableHead className="p-2 text-muted-foreground" scope="col">
                     Exit
-                  </th>
-                  <th className="p-2 text-right" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="p-2 text-right text-muted-foreground"
+                    scope="col"
+                  >
                     Entry price
-                  </th>
-                  <th className="p-2 text-right" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="p-2 text-right text-muted-foreground"
+                    scope="col"
+                  >
                     Exit price
-                  </th>
-                  <th className="p-2" scope="col">
+                  </TableHead>
+                  <TableHead className="p-2 text-muted-foreground" scope="col">
                     Outcome
-                  </th>
-                  <th className="p-2 text-right" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="p-2 text-right text-muted-foreground"
+                    scope="col"
+                  >
                     Bars
-                  </th>
-                  <th className="p-2 text-right" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="p-2 text-right text-muted-foreground"
+                    scope="col"
+                  >
                     Return
-                  </th>
-                  <th className="p-2 text-right" scope="col">
+                  </TableHead>
+                  <TableHead
+                    className="p-2 text-right text-muted-foreground"
+                    scope="col"
+                  >
                     R
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {occurrences.map((entry) => (
-                  <tr
+                  <TableRow
                     className="border-b last:border-b-0"
                     data-outcome={entry.outcome}
                     key={`${entry.entryDate}-${entry.exitDate}`}
                   >
-                    <th className="p-2 text-left font-normal" scope="row">
+                    <TableHead
+                      className="whitespace-normal p-2 text-left font-normal"
+                      scope="row"
+                    >
                       {entry.entryDate}
-                    </th>
-                    <td className="p-2">{entry.exitDate}</td>
-                    <td className="p-2 text-right font-mono">
+                    </TableHead>
+                    <TableCell className="whitespace-normal p-2">
+                      {entry.exitDate}
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2 text-right font-mono">
                       {entry.entryPrice.toFixed(2)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2 text-right font-mono">
                       {entry.exitPrice.toFixed(2)}
-                    </td>
-                    <td className="p-2">{OUTCOME_LABELS[entry.outcome]}</td>
-                    <td className="p-2 text-right">{entry.barsHeld}</td>
-                    <td className="p-2 text-right font-mono">
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2">
+                      {OUTCOME_LABELS[entry.outcome]}
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2 text-right">
+                      {entry.barsHeld}
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2 text-right font-mono">
                       {formatReturnPct(entry.returnPct)}
-                    </td>
-                    <td className="p-2 text-right font-mono">
+                    </TableCell>
+                    <TableCell className="whitespace-normal p-2 text-right font-mono">
                       {formatR(entry.rMultiple)}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </section>
       )}

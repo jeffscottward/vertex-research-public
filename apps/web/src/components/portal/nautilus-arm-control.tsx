@@ -168,6 +168,20 @@ export const useNautilusArm = ({
   };
 };
 
+const DisarmButton = ({ model }: { readonly model: NautilusArmModel }) => (
+  <Button
+    data-nautilus-disarm-button="true"
+    loading={model.sending === "disarm"}
+    loadingLabel="Disarming the node"
+    onClick={() => void model.disarm()}
+    size="compact"
+    variant="destructive"
+  >
+    <ShieldOff aria-hidden="true" className="size-4" />
+    Disarm
+  </Button>
+);
+
 // Header part: the node badge, then Arm (opens the dialog) or Disarm (one click).
 export const NautilusArmControls = ({
   model,
@@ -177,6 +191,7 @@ export const NautilusArmControls = ({
   if (model.hidden) return null;
   if (model.status === null || model.failure !== null) {
     if (model.failure === null) return null;
+    // Status unknown: Disarm stays reachable; it is safe and idempotent on the node.
     return (
       <>
         <span className="text-muted-foreground text-xs">Nautilus</span>
@@ -187,6 +202,7 @@ export const NautilusArmControls = ({
         >
           {UNREACHABLE_BADGE.label}
         </StatusBadge>
+        <DisarmButton model={model} />
       </>
     );
   }
@@ -217,19 +233,7 @@ export const NautilusArmControls = ({
           Arm
         </Button>
       )}
-      {view.disarm ? (
-        <Button
-          data-nautilus-disarm-button="true"
-          loading={model.sending === "disarm"}
-          loadingLabel="Disarming the node"
-          onClick={() => void model.disarm()}
-          size="compact"
-          variant="destructive"
-        >
-          <ShieldOff aria-hidden="true" className="size-4" />
-          Disarm
-        </Button>
-      ) : null}
+      {view.disarm ? <DisarmButton model={model} /> : null}
     </>
   );
 };
@@ -244,7 +248,16 @@ export const NautilusArmPanel = ({
   useEffect(() => {
     if (model.dialogOpen) reasonRef.current?.focus();
   }, [model.dialogOpen]);
-  if (model.hidden || model.status === null) return null;
+  if (model.hidden) return null;
+  if (model.status === null)
+    // A Disarm sent while the status is unknown still reports its outcome.
+    return model.error === null ? null : (
+      <div className="space-y-2" data-nautilus-arm="true">
+        <p className="text-destructive text-sm" role="alert">
+          {model.error}
+        </p>
+      </div>
+    );
   const view = nautilusArmView(model.status);
   const problem = reasonProblem(model.reason);
   const imageVersion = model.status.arm?.imageVersion ?? "unknown";

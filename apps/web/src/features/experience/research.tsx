@@ -39,6 +39,18 @@ export const ResearchWorkspace = () => {
         )}
       </section>
       <p className="vx-caption">
+        <a className="vx-text-link" href="/assistant">
+          Open the research assistant
+        </a>
+        {" · "}
+        <a className="vx-text-link" href="/research/reports">
+          Research dossiers
+        </a>
+        {" · "}
+        <a className="vx-text-link" href="/knowledge">
+          Open the knowledge chat
+        </a>
+        {" · "}
         <a className="vx-text-link" href="/strategies">
           Exact-version strategy review
         </a>

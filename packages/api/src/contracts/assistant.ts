@@ -1,4 +1,4 @@
-import { oc } from "@orpc/contract";
+import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
@@ -146,11 +146,24 @@ export const AssistantThreadGetOutputSchema = z
   })
   .strict();
 
+// The portal page the operator sent a message from (the assistant side panel). The server adds
+// it to the system prompt as context, never as an instruction.
+export const AssistantPageContextSchema = z
+  .object({
+    path: z
+      .string()
+      .max(200)
+      .regex(/^\/[A-Za-z0-9/_.-]*$/u),
+    title: z.string().trim().min(1).max(120),
+  })
+  .strict();
+
 export const AssistantSendInputSchema = z
   .object({
     threadId: IdSchema,
     message: z.string().trim().min(1).max(ASSISTANT_MESSAGE_MAX),
     mode: AssistantModeSchema.default("plan"),
+    page: AssistantPageContextSchema.optional(),
   })
   .strict();
 export const AssistantSendOutputSchema = z
@@ -166,6 +179,48 @@ export const AssistantSendOutputSchema = z
     actions: z.array(AssistantActionSchema),
   })
   .strict();
+
+// assistant.send streams one turn as events. "started" comes first (the stored user message);
+// "text" carries reply text as the model writes it (modelCall numbers each model call, so a
+// client starts a new text block when it changes); "step" names the tools one model step asked
+// for, before they run; "tool" reports each finished tool call; "done" is last and carries the
+// stored reply, exactly the former response body. A failed turn ends the stream with a typed error.
+export const AssistantSendEventSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("started"),
+      thread: AssistantThreadSchema,
+      userMessage: AssistantMessageSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("text"),
+      modelCall: z.number().int().positive(),
+      delta: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("step"),
+      step: z.number().int().positive(),
+      tools: z.array(z.string()),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("tool"),
+      step: z.number().int().positive(),
+      call: AssistantToolTraceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("done"),
+      result: AssistantSendOutputSchema,
+    })
+    .strict(),
+]);
 
 export const AssistantActionDecideInputSchema = z
   .object({
@@ -217,11 +272,11 @@ const send = assistantApi
     path: "/assistant/threads/{threadId}/send",
     operationId: "assistant.send",
     summary:
-      "Send a message; the assistant may call ledger tools (Plan: read only; Act: also record-keeping writes and confirm cards)",
+      "Send a message and stream the turn (reply text, tool steps, then the stored reply); the assistant may call ledger tools (Plan: read only; Act: also record-keeping writes and confirm cards)",
     tags,
   })
   .input(AssistantSendInputSchema)
-  .output(AssistantSendOutputSchema);
+  .output(eventIterator(AssistantSendEventSchema));
 
 const actionsDecide = assistantApi
   .route({
@@ -258,4 +313,6 @@ export type AssistantThreadGetOutput = z.infer<
   typeof AssistantThreadGetOutputSchema
 >;
 export type AssistantSendInput = z.input<typeof AssistantSendInputSchema>;
+export type AssistantPageContext = z.infer<typeof AssistantPageContextSchema>;
 export type AssistantSendOutput = z.infer<typeof AssistantSendOutputSchema>;
+export type AssistantSendEvent = z.infer<typeof AssistantSendEventSchema>;

@@ -1,3 +1,7 @@
+import {
+  BACKTEST_UNIVERSE_IDS,
+  BAR_SYMBOL_PATTERN,
+} from "@darkfactory/shared/universes";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
@@ -8,7 +12,7 @@ export const INSTANT_BACKTEST_TIMEFRAMES = ["1d", "1m"] as const;
 export const INSTANT_BACKTEST_EQUITY_MAX_POINTS = 2000;
 export const INSTANT_BACKTEST_WINDOW_MAX = 5000;
 
-const symbolSchema = z.string().regex(/^[A-Z0-9.^-]{1,20}$/u);
+const symbolSchema = z.string().regex(BAR_SYMBOL_PATTERN);
 const window = z.number().int().min(1).max(INSTANT_BACKTEST_WINDOW_MAX);
 
 export const InstantBacktestSmaCrossSchema = z
@@ -100,6 +104,33 @@ export const InstantBacktestSeriesListOutputSchema = z
   .object({ series: z.array(InstantBacktestSeriesSchema).max(100) })
   .strict();
 
+export const BacktestUniverseMemberSchema = z
+  .object({
+    symbol: symbolSchema,
+    market: z.string().min(1).max(100),
+    twin: symbolSchema,
+    /** Timeframes with stored bars for this symbol; empty until the bars are imported. */
+    storedTimeframes: z.array(z.enum(INSTANT_BACKTEST_TIMEFRAMES)).max(2),
+  })
+  .strict();
+
+export const BacktestUniverseSchema = z
+  .object({
+    id: z.enum(BACKTEST_UNIVERSE_IDS),
+    label: z.string().min(1).max(100),
+    description: z.string().min(1).max(500),
+    members: z.array(BacktestUniverseMemberSchema).min(1).max(50),
+  })
+  .strict();
+
+export const InstantBacktestUniversesOutputSchema = z
+  .object({
+    /** Preselected in every backtest, sweep and Autopilot form. */
+    defaultUniverseId: z.enum(BACKTEST_UNIVERSE_IDS),
+    universes: z.array(BacktestUniverseSchema).min(1).max(20),
+  })
+  .strict();
+
 export const INSTANT_BACKTEST_ERRORS = {
   BAD_REQUEST: { status: 400, message: "Invalid backtest parameters" },
   UNAUTHORIZED: { status: 401, message: "Authentication required" },
@@ -132,7 +163,18 @@ const run = instantBacktest
   .input(InstantBacktestRunInputSchema)
   .output(InstantBacktestRunOutputSchema);
 
-export const instantBacktestContract = { series, run };
+const universes = instantBacktest
+  .route({
+    method: "GET",
+    path: "/instant-backtest/universes",
+    operationId: "instantBacktest.universes",
+    summary:
+      "List named backtest universes, the default (Core 7 futures) and which members have stored bars",
+    tags: ["Instant backtest"],
+  })
+  .output(InstantBacktestUniversesOutputSchema);
+
+export const instantBacktestContract = { series, run, universes };
 
 export type InstantBacktestRunInput = z.input<
   typeof InstantBacktestRunInputSchema
@@ -141,6 +183,9 @@ export type InstantBacktestRunOutput = z.infer<
   typeof InstantBacktestRunOutputSchema
 >;
 export type InstantBacktestSeries = z.infer<typeof InstantBacktestSeriesSchema>;
+export type InstantBacktestUniversesOutput = z.infer<
+  typeof InstantBacktestUniversesOutputSchema
+>;
 export type InstantBacktestSeriesListOutput = z.infer<
   typeof InstantBacktestSeriesListOutputSchema
 >;

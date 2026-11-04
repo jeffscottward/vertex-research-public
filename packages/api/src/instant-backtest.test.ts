@@ -178,6 +178,17 @@ describe("instant backtest input schema", () => {
       }).success
     ).toBe(false);
   });
+
+  it("accepts Yahoo continuous futures symbols such as ES=F", () => {
+    expect(
+      InstantBacktestRunInputSchema.safeParse({ ...runInput, symbol: "ES=F" })
+        .success
+    ).toBe(true);
+    expect(
+      InstantBacktestRunInputSchema.safeParse({ ...runInput, symbol: "es=f" })
+        .success
+    ).toBe(false);
+  });
 });
 
 describe("instantBacktest procedures", () => {
@@ -213,6 +224,44 @@ describe("instantBacktest procedures", () => {
         importedAt: at.toISOString(),
       },
     ]);
+  });
+
+  it("lists the universes with Core 7 futures as the default and marks stored members", async () => {
+    const output = await clientFor(
+      session("operator"),
+      fakeRepository({
+        listSeries: vi.fn(async () => [
+          seriesRow({ id: "ES=F:1d", symbol: "ES=F" }),
+          seriesRow({ id: "ES=F:1m", symbol: "ES=F", timeframe: "1m" }),
+          seriesRow(),
+        ]),
+      })
+    ).instantBacktest.universes();
+    expect(output.defaultUniverseId).toBe("core7-futures");
+    const [futures, twins] = output.universes;
+    expect(futures?.label).toBe("Core 7 futures");
+    expect(futures?.members.map((member) => member.symbol)).toEqual([
+      "ES=F",
+      "NQ=F",
+      "YM=F",
+      "RTY=F",
+      "GC=F",
+      "SI=F",
+      "CL=F",
+    ]);
+    expect(futures?.members[0]).toEqual({
+      market: "S&P 500",
+      storedTimeframes: ["1d", "1m"],
+      symbol: "ES=F",
+      twin: "SPY",
+    });
+    expect(futures?.members[1]?.storedTimeframes).toEqual([]);
+    expect(twins?.label).toBe("Core 7 ETF twins");
+    expect(twins?.members[0]).toMatchObject({
+      storedTimeframes: ["1d"],
+      symbol: "SPY",
+      twin: "ES=F",
+    });
   });
 
   it("runs a rule, caches the bars and downsamples the curve", async () => {
@@ -352,6 +401,23 @@ describe("instantBacktest procedures", () => {
       ).instantBacktest.series(),
       "STORAGE_ERROR",
       503
+    );
+    await expectCode(
+      clientFor(
+        operator,
+        fakeRepository({
+          listSeries: vi.fn(async () => {
+            throw new Error("down");
+          }),
+        })
+      ).instantBacktest.universes(),
+      "STORAGE_ERROR",
+      503
+    );
+    await expectCode(
+      clientFor(null, fakeRepository()).instantBacktest.universes(),
+      "UNAUTHORIZED",
+      401
     );
     await expectCode(
       clientFor(

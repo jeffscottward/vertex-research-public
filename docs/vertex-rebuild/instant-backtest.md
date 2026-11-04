@@ -11,7 +11,8 @@ The portal page `/instant-backtest` runs a parameterized long-only rule over sto
 | Part | File |
 | --- | --- |
 | Engine (pure, typed arrays, one pass) | `packages/api/src/instant-backtest-engine.ts` |
-| oRPC contract `instantBacktest.series`, `instantBacktest.run` | `packages/api/src/contracts/instant-backtest.ts` |
+| oRPC contract `instantBacktest.series`, `instantBacktest.run`, `instantBacktest.universes` | `packages/api/src/contracts/instant-backtest.ts` |
+| Named universes and the default (Core 7 futures) | `packages/shared/src/universes/index.ts`, see [Core 7 universe](core7-universe.md) |
 | Procedures, operator gate, bar cache | `packages/api/src/server/instant-backtest.ts` |
 | Tables `market_bar_series`, `market_bars` | `packages/db/src/schema/index.ts`, migration `0025_market_bars`, rollback `packages/db/rollback/0025_market_bars.down.sql` |
 | Repository (columnar reads, whole-series replace) | `packages/db/src/server/market-bars.ts` |
@@ -19,6 +20,10 @@ The portal page `/instant-backtest` runs a parameterized long-only rule over sto
 | Import | `scripts/instant-backtest/import.ts`, entry `scripts/vertex-market-bars-import.ts` (`bun run vertex:bars:import`) |
 | Server benchmark | `scripts/instant-backtest/bench.ts`, entry `scripts/vertex-instant-backtest-bench.ts` (`bun run vertex:instant-backtest:bench`) |
 | Browser test and browser latency run | `tests/e2e/instant-backtest.spec.ts`, `tests/e2e/instant-backtest-latency.spec.ts` |
+
+## Default universe
+
+Every backtest, sweep and Autopilot form opens with the universe "Core 7 futures" (ES=F, NQ=F, YM=F, RTY=F, GC=F, SI=F, CL=F) selected; "Core 7 ETF twins" (SPY, QQQ, DIA, IWM, GLD, SLV, USO) and "All stored series" are the other choices. The series list shows the stored members of the chosen universe in market order. When no member has stored bars, the form shows a note and lists all stored series. `instantBacktest.universes` returns the same universes, the default id and the stored timeframes of each member. Stored symbols match `^[A-Z0-9.^=-]{1,20}$` (migration `0045_market_bar_futures_symbols` added `=`).
 
 ## Execution model
 

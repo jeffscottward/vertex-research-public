@@ -127,16 +127,20 @@ const sha256Hex = async (text: string): Promise<string> => {
     .join("");
 };
 
-/** One fixed-text ntfy message through the notifications package. */
-const deliver = async (
+/**
+ * One ntfy message through the notifications package, sent to the price alert ntfy destination
+ * (also used by sectorRotation.collect). The idempotency key is the SHA-256 of `idempotencySource`.
+ */
+export const sendPriceAlertsNtfy = async (
   config: PriceAlertsNtfyConfig | null,
-  ruleIds: readonly string[],
-  at: Date
+  message: Readonly<{ title: string; body: string }>,
+  idempotencySource: string,
+  at: Date,
+  notify?: NotificationFetch
 ): Promise<Delivery> => {
   if (config === null) return "not-configured";
   const fetcher =
-    priceAlertsOptions.notify ??
-    ((url: string, init: RequestInit) => globalThis.fetch(url, init));
+    notify ?? ((url: string, init: RequestInit) => globalThis.fetch(url, init));
   const adapter = createNtfyNotificationAdapter({
     enabled: true,
     fetcher,
@@ -169,10 +173,9 @@ const deliver = async (
   if (preparation.status !== "ready") return "failed";
   const outcome = await preparation.send(
     {
-      ...PRICE_ALERT_NOTIFICATION,
-      providerIdempotencyKey: await sha256Hex(
-        `${at.toISOString()}:${ruleIds.join(",")}`
-      ),
+      body: message.body,
+      providerIdempotencyKey: await sha256Hex(idempotencySource),
+      title: message.title,
     },
     signal
   );
@@ -219,7 +222,13 @@ const notifyOwners = async (
   const deliveries = new Map<string, Delivery>();
   const settled = new Map<string, PriceAlertRuleRecord>();
   for (const [userId, ids] of owners) {
-    const delivery = await deliver(config, ids, now);
+    const delivery = await sendPriceAlertsNtfy(
+      config,
+      PRICE_ALERT_NOTIFICATION,
+      `${now.toISOString()}:${ids.join(",")}`,
+      now,
+      priceAlertsOptions.notify
+    );
     deliveries.set(userId, delivery);
     for (const record of await repository.recordDelivery(ids, delivery))
       settled.set(record.id, record);

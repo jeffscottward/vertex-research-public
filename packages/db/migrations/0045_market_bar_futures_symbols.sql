@@ -1,0 +1,4 @@
+-- Admit Yahoo continuous futures symbols such as ES=F ("=") in stored bar series, for the
+-- Core 7 futures default backtest universe. Widening only: every existing row stays valid.
+ALTER TABLE "market_bar_series" DROP CONSTRAINT "market_bar_series_text_check";--> statement-breakpoint
+ALTER TABLE "market_bar_series" ADD CONSTRAINT "market_bar_series_text_check" CHECK ("market_bar_series"."symbol" ~ '^[A-Z0-9.^=-]{1,20}$' and "market_bar_series"."timeframe" in ('1d', '1m') and char_length(trim("market_bar_series"."source")) between 1 and 300 and "market_bar_series"."source_sha256" ~ '^[0-9a-f]{64}$');

@@ -661,10 +661,24 @@ describe("nautilusArm.disarm", () => {
     ]);
   });
 
-  it("refuses without audit storage or configuration", async () => {
-    await expectCode(disarm({ audit: null }), "AUDIT_UNAVAILABLE", 503);
+  // Disarm is the safety action: an audit outage must not block it (state-machine audit 2026-11-03).
+  it("still disarms when audit storage is missing or the intent row fails", async () => {
+    const events: SemanticEvent[] = [];
+    const missing = await disarm({ audit: null, events });
+    expect(missing.arm.armed).toBe(false);
     store.failOn.add("nautilus.disarm.intent");
-    await expectCode(disarm(), "AUDIT_UNAVAILABLE", 503);
+    const failed = await disarm();
+    expect(failed.arm.armed).toBe(false);
+    expect(posts()).toHaveLength(2);
+    expect(store.rows.map((row) => row.action)).toEqual([
+      "nautilus.disarm.result",
+    ]);
+    return expect(
+      events.some((event) => event.attributes?.["auditDegraded"] === true)
+    ).toBe(true);
+  });
+
+  it("refuses without configuration", async () => {
     await expectCode(disarm({ config: null }), "NOT_CONFIGURED", 503);
     return expect(posts()).toHaveLength(0);
   });

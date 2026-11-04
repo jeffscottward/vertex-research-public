@@ -12,9 +12,10 @@ import {
   scope,
 } from "../../../api/src/server/vertex-research-chat-execution-runtime.test-support.ts";
 import { lifecycleFixture } from "./vertex-research-chat-copy-lifecycle.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Use the existing concrete worker composition; no owner or validator is mocked.
-vi.setConfig({ testTimeout: 120_000 });
+vi.setConfig({ testTimeout: scaledTimeout(120_000) });
 const effects = "vertex_research_chat_copy_effects";
 const observations = "vertex_research_chat_copy_effect_observations";
 const closures = "vertex_research_chat_copy_domain_closures";

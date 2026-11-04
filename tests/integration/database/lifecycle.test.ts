@@ -189,7 +189,7 @@ describe("DF-040 development database lifecycle", { concurrent: false }, () => {
       resetDevelopment(databaseResource.db, {
         environment: "test",
       })
-    ).resolves.toEqual({ tablesCleared: 13 });
+    ).resolves.toEqual({ tablesCleared: 15 });
     expect(await tableCounts()).toEqual(
       Object.fromEntries(TABLES.map((table) => [table, 0]))
     );
@@ -252,7 +252,7 @@ describe("DF-040 development database lifecycle", { concurrent: false }, () => {
     expectNoUnexpectedStderr(secondSeed.stderr);
 
     const reset = await runCli("reset", "test", "test");
-    expect(JSON.parse(reset.stdout)).toEqual({ tablesCleared: 13 });
+    expect(JSON.parse(reset.stdout)).toEqual({ tablesCleared: 15 });
     expect(reset.stdout).not.toContain("Development123!");
     expect(reset.stdout).not.toContain(AUTH_SECRET);
     expectNoUnexpectedStderr(reset.stderr);

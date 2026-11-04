@@ -12,6 +12,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./universes": {
+      "import": "./src/universes/index.ts",
+      "default": "./src/universes/index.ts"
+    },
     "./vertex": {
       "import": "./src/vertex/index.ts",
       "default": "./src/vertex/index.ts"

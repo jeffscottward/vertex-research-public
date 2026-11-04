@@ -208,6 +208,7 @@ const snapshotOtlpHeaders = (
     }
 
     const headers: Record<string, string> = Object.create(null);
+    // biome-ignore lint/suspicious/noForIn: tests pin for-in enumeration semantics for proxy and malformed header records.
     for (const rawName in input) {
       if (!Object.hasOwn(input, rawName)) continue;
 

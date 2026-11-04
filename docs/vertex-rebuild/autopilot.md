@@ -77,7 +77,7 @@ Candidate status: `evaluated` (in-sample only) -> `rejected` or `verified`.
 
 ## Hand-off to paper
 
-`autopilot.candidates.sendToPaper` needs an operator session (API keys are refused) and a verified candidate without a paper request. It first checks what the paper request would refuse (the limits: `maxOrderSize` may not exceed `maxPosition`; the symbol and timeframe formats), so a refused hand-off writes nothing. Then it:
+`autopilot.candidates.sendToPaper` needs an operator session (API keys are refused) and a verified candidate without a paper request. It first checks what the paper request would refuse (the limits: `maxOrderSize` may not exceed `maxPosition`; the symbol and timeframe formats), so a refused hand-off writes nothing. A campaign on a futures symbol (`=F`, for example `ES=F`) is refused; for a Core 7 future the message names its ETF twin: futures are research signals only, and paper or live trades use options on the twin (owner rule 2026-11-03). Then it:
 
 1. saves the definition as revision 1 of `autopilot-<candidate id>` in the strategy builder's saved definitions;
 2. creates a library strategy (slug `autopilot-<candidate id>`, section "Autopilot", status `paper`, kind `external`) whose fixed parameters pin the definition id, its SHA-256, the candidate id and the Nautilus hand-off format;

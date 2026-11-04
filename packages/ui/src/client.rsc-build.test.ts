@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
 
 const workspaceRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const webPackageRoot = fileURLToPath(
@@ -89,16 +90,20 @@ const runRscScanBuild = () => {
 };
 
 describe("UI client Vinext compatibility", () =>
-  it("imports every client export through the actual Vite RSC scan-strip path", () => {
-    const result = runRscScanBuild();
-    const output = `${result.stdout}\n${result.stderr}`;
+  it(
+    "imports every client export through the actual Vite RSC scan-strip path",
+    () => {
+      const result = runRscScanBuild();
+      const output = `${result.stdout}\n${result.stderr}`;
 
-    expect(result.status, output).toBe(0);
-    return expect(JSON.parse(result.stdout)).toEqual([
-      "dialog.ts",
-      "dropdown-menu.ts",
-      "tabs.ts",
-      "theme.ts",
-      "toaster.ts",
-    ]);
-  }));
+      expect(result.status, output).toBe(0);
+      return expect(JSON.parse(result.stdout)).toEqual([
+        "dialog.ts",
+        "dropdown-menu.ts",
+        "tabs.ts",
+        "theme.ts",
+        "toaster.ts",
+      ]);
+    },
+    scaledTimeout(120_000)
+  ));

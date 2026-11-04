@@ -6,7 +6,7 @@ import type {
   RoundHandleFlag,
   PortfolioMonitorPosition,
 } from "@darkfactory/api";
-import { Button, StatusBadge, cn } from "@darkfactory/ui";
+import { Button, StatusBadge, TableScrollText, cn } from "@darkfactory/ui";
 import {
   ArrowDown,
   ArrowUp,
@@ -55,10 +55,14 @@ import {
 export const SORT_STORAGE_KEY = "vertex.monitor.sort.v1";
 
 const TABLE = "w-full min-w-max border-collapse text-sm tabular-nums";
+// Reference header row: tinted, small uppercase muted labels (the tint is on each th, so the sticky
+// symbol header keeps it while the body scrolls under it).
 const HEAD_ROW =
-  "border-b border-border text-left text-xs text-muted-foreground";
+  "border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground [&>th]:bg-muted";
 const CELL = "px-2 py-2 align-top";
-const STICKY = "sticky left-0 z-[1] bg-background";
+const STICKY = "sticky left-0 z-[1] bg-card";
+/** Each table block is a card: clear separation between positions, orders and executions. */
+const SECTION = "space-y-3 rounded-xl border bg-card p-4 shadow-xs";
 const SIDE_CLASS = (side: string): string => {
   return side === "BUY" || side === "BOT"
     ? "text-success-foreground"
@@ -75,7 +79,7 @@ const ScrollRegion = ({
 }) => (
   <div
     aria-label={label}
-    className="overflow-x-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    className="overflow-x-auto rounded-lg border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     role="region"
     // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
     tabIndex={0}
@@ -136,7 +140,12 @@ const positionCell = (
 ): ReactNode => {
   switch (id) {
     case "symbol": {
-      return <span className="font-semibold">{positionName(position)}</span>;
+      return (
+        <TableScrollText
+          className="font-semibold"
+          text={positionName(position)}
+        />
+      );
     }
     case "position": {
       return qty(position.position);
@@ -299,11 +308,16 @@ const BodyCell = ({
 };
 
 export const PositionsPanel = ({
+  actions,
   empty = "No open positions.",
   live,
   positions,
   title = "Positions",
 }: {
+  /** Optional order-button cell per row (owner order actions); adds an "Actions" column. */
+  readonly actions?:
+    | ((position: PortfolioMonitorPosition) => ReactNode)
+    | undefined;
   readonly empty?: string;
   readonly live: boolean;
   readonly positions: readonly PortfolioMonitorPosition[];
@@ -319,7 +333,7 @@ export const PositionsPanel = ({
   const rows = sortPositions(positions, sort);
   const totals = positionTotals(positions);
   return (
-    <section aria-labelledby="pm-positions-title" className="space-y-3">
+    <section aria-labelledby="pm-positions-title" className={SECTION}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <PanelTitle id="pm-positions-title">
           {`${title} (${positions.length})`}
@@ -391,6 +405,11 @@ export const PositionsPanel = ({
                     </th>
                   );
                 })}
+                {actions === undefined ? null : (
+                  <th className="px-2 font-semibold" scope="col">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -408,6 +427,11 @@ export const PositionsPanel = ({
                         value={positionCell(position, column.id)}
                       />
                     ))}
+                    {actions === undefined ? null : (
+                      <td className={CELL} data-column="actions">
+                        {actions(position)}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -419,6 +443,7 @@ export const PositionsPanel = ({
                     value={totalCell(totals, column.id)}
                   />
                 ))}
+                {actions === undefined ? null : <td className={CELL} />}
               </tr>
             </tbody>
           </table>
@@ -543,7 +568,7 @@ const OrderTableRow = ({
             role="img"
           />
         ) : null}
-        {order.symbol}
+        <TableScrollText text={order.symbol} />
       </span>
     </th>
     <td className={cn(CELL, SIDE_CLASS(order.action))}>{order.action}</td>
@@ -600,7 +625,7 @@ export const OrdersTable = ({
 }: OrdersTableProps) => {
   const groups = groupOrders(orders);
   return (
-    <section aria-labelledby={titleId} className="space-y-3">
+    <section aria-labelledby={titleId} className={SECTION}>
       <PanelTitle id={titleId}>{`${title} (${orders.length})`}</PanelTitle>
       {completed ? null : <OrdersExplanation />}
       {orders.length === 0 ? (
@@ -679,7 +704,7 @@ export const ExecutionsTable = ({
 }) => {
   const rows = executionsNewestFirst(executions);
   return (
-    <section aria-labelledby="pm-executions-title" className="space-y-3">
+    <section aria-labelledby="pm-executions-title" className={SECTION}>
       <PanelTitle id="pm-executions-title">
         {`Executions today (${executions.length})`}
       </PanelTitle>
@@ -724,7 +749,7 @@ export const ExecutionsTable = ({
               {rows.map((execution) => {
                 return (
                   <tr
-                    className="border-border border-b"
+                    className="border-border border-b last:border-b-0"
                     data-exec-id={execution.execId}
                     key={execution.execId}
                   >
@@ -733,7 +758,7 @@ export const ExecutionsTable = ({
                       className={cn(CELL, "text-left font-semibold")}
                       scope="row"
                     >
-                      {execution.symbol}
+                      <TableScrollText text={execution.symbol} />
                     </th>
                     <td className={cn(CELL, SIDE_CLASS(execution.side))}>
                       {execution.side}

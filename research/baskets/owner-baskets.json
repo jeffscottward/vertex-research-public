@@ -1,0 +1,86 @@
+{
+  "about": "Owner basket seeds for vertex:baskets:seed. Tracking only (no orders). Equal weights are computed by the seed script so they sum to exactly 1.",
+  "baskets": [
+    {
+      "symbol": "TITY",
+      "name": "TITY",
+      "weighting": "equal",
+      "members": ["VSXY", "ESTA", "AVTR"],
+      "source": "Owner request 2026-10-23: Victoria's Secret (VSXY; ticker VSCO until 2026-06-02), Motiva implants maker Establishment Labs (ESTA), Avantor (AVTR)."
+    },
+    {
+      "symbol": "UW10Y",
+      "name": "Unique winners 10y",
+      "weighting": "equal",
+      "members": [
+        "CELH",
+        "TPL",
+        "CTAS",
+        "DECK",
+        "HEI",
+        "MSCI",
+        "ODFL",
+        "COST",
+        "FICO",
+        "CASY",
+        "WST",
+        "WING",
+        "IDXX",
+        "TXRH",
+        "ORLY",
+        "WM",
+        "RMD",
+        "BRO",
+        "CPRT",
+        "ELF",
+        "AZO"
+      ],
+      "source": "Unique winners research 2026-10-23: names that beat SPY over 10y (research/unique-winners tiers)."
+    },
+    {
+      "symbol": "UW5Y",
+      "name": "Unique winners 5y",
+      "weighting": "equal",
+      "members": [
+        "CASY",
+        "ELF",
+        "CAKE",
+        "TPL",
+        "MO",
+        "MNST",
+        "CTAS",
+        "COST",
+        "HEI",
+        "ORLY",
+        "TXRH",
+        "FICO"
+      ],
+      "source": "Unique winners research 2026-10-23: names that beat SPY over 5y (research/unique-winners tiers)."
+    },
+    {
+      "symbol": "UW2Y",
+      "name": "Unique winners 2y",
+      "weighting": "equal",
+      "members": ["CAKE", "CASY", "MNST", "MO", "ULTA", "WST"],
+      "source": "Unique winners research 2026-10-23: names that beat SPY over 2y (research/unique-winners tiers)."
+    },
+    {
+      "symbol": "UW1Y",
+      "name": "Unique winners 1y",
+      "weighting": "equal",
+      "members": [
+        "CAKE",
+        "ODFL",
+        "MNST",
+        "CASY",
+        "WST",
+        "MO",
+        "CHD",
+        "ULTA",
+        "CTAS",
+        "MSCI"
+      ],
+      "source": "Unique winners research 2026-10-23: names that beat SPY over 1y (research/unique-winners tiers)."
+    }
+  ]
+}

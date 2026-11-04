@@ -203,7 +203,7 @@ describe("nautilusArmView", () => {
     ).toBe("Unknown");
   });
 
-  it("offers Arm only while disarmed and Disarm only while armed", () => {
+  it("offers Arm only while disarmed and Disarm unless confirmed disarmed", () => {
     expect(nautilusArmView(status())).toMatchObject({
       arm: { enabled: true, hint: null },
       disarm: false,
@@ -221,10 +221,14 @@ describe("nautilusArmView", () => {
         })
       ).detail
     ).toBe("Armed by unknown at unknown time");
+    // Unknown or down state: Disarm stays reachable (state-machine audit 2026-11-03).
     expect(nautilusArmView(downStatus)).toMatchObject({
       arm: null,
-      disarm: false,
+      disarm: true,
     });
+    expect(
+      nautilusArmView(status({ arm: null, badge: "unknown" }))
+    ).toMatchObject({ arm: null, disarm: true });
     expect(
       nautilusArmView(
         status({
@@ -441,12 +445,24 @@ describe("Nautilus arm switch in the Monitor", () => {
     expect(badge()?.getAttribute("title")).toBe(
       "UNAVAILABLE: Nautilus arm service unavailable"
     );
+    expect(disarmButton()).not.toBeNull();
     await act(async () => {
       vi.advanceTimersByTime(15_000);
       await flush();
     });
     expect(badgeText()).toBe("Running · Disarmed");
     return expect(gateway.status).toHaveBeenCalledTimes(2);
+  });
+
+  it("disarms while the status is unreachable and shows a failed disarm", async () => {
+    const gateway = gatewayOf({ code: "UNAVAILABLE", message: "down" });
+    gateway.disarm.mockRejectedValueOnce({ code: "CONFLICT", message: "busy" });
+    await mount(monitor(gateway));
+    await run(() => disarmButton()?.click());
+    expect(gateway.disarm).toHaveBeenCalledOnce();
+    return expect(document.querySelector("[role=alert]")?.textContent).toMatch(
+      /^The node was not disarmed \(CONFLICT: /u
+    );
   });
 
   it("hides itself for operator-only failures and stops polling", async () => {

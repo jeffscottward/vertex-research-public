@@ -321,7 +321,7 @@ type Action = "arm" | "disarm";
 // Intent row before the bridge call, the call, then the result row. No intent row => no call.
 const change = async (
   context: ApiContext,
-  audit: AuditRepository,
+  audit: AuditRepository | undefined,
   config: DeployStatusConfig,
   action: Action,
   body: Readonly<Record<string, string>>,
@@ -334,7 +334,8 @@ const change = async (
   const record = async (
     stage: "intent" | "result",
     extra: Readonly<Record<string, string | boolean>>
-  ) =>
+  ) => {
+    if (audit === undefined) throw new Error("audit storage missing");
     await audit.record({
       action: `nautilus.${action}.${stage}`,
       actorUserId: userId,
@@ -342,15 +343,29 @@ const change = async (
       metadata: { ...metadata, ...extra },
       requestId: context.requestId,
     });
+  };
+  // Arm fails closed on the audit log. Disarm is the safety action, so an audit
+  // outage must not block it: it proceeds and the event says the audit is degraded.
+  let auditDegraded = false;
   try {
     await record("intent", {});
   } catch {
-    throw new NautilusArmError(
-      "AUDIT_UNAVAILABLE",
-      "Audit log unavailable; nothing was changed"
-    );
+    if (action === "arm")
+      throw new NautilusArmError(
+        "AUDIT_UNAVAILABLE",
+        "Audit log unavailable; nothing was changed"
+      );
+    auditDegraded = true;
   }
-  await emit(context, `${action}Intent`, "success", { armRequestId });
+  await emit(
+    context,
+    `${action}Intent`,
+    auditDegraded ? "failure" : "success",
+    {
+      armRequestId,
+      ...(auditDegraded ? { auditDegraded: true } : {}),
+    }
+  );
   const fail = async (error: NautilusArmError): Promise<never> => {
     // The node may have changed when the bridge did not answer; the status poll shows the real state.
     await record("result", { outcome: error.code }).catch(() => undefined);
@@ -500,7 +515,7 @@ const disarmProcedure = api.nautilusArm.disarm
     try {
       return await change(
         context,
-        auditOrFail(context),
+        context.repositories.nautilusArmAudit,
         configOrFail(context),
         "disarm",
         { reason: DISARM_REASON },

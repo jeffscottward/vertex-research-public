@@ -10,6 +10,9 @@ import MarketsPage, { metadata } from "./page.tsx";
 vi.mock("../../../components/portal/market-context-workspace.tsx", () => ({
   MarketContextWorkspace: () => <div data-workspace="markets" />,
 }));
+vi.mock("../../../components/portal/market-feeds-workspace.tsx", () => ({
+  MarketFeedsWorkspace: () => <div data-workspace="market-feeds" />,
+}));
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -36,7 +39,12 @@ describe("market context route files", () => {
     const container = await render(<MarketsPage />);
     expect(metadata).toEqual({ title: "Market context" });
     expect(container.querySelector("h1")?.textContent).toBe("Market context");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(
+      container.querySelector('[data-workspace="markets"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-workspace="market-feeds"]')
+    ).not.toBeNull();
   });
 
   it("renders an accessible loading state", async () => {

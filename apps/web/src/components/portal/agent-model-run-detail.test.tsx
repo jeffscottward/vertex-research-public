@@ -6,18 +6,17 @@ import type {
 } from "@darkfactory/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterAll, it as base, beforeAll, describe, expect, vi } from "vitest";
 
 import { AgentModelRunDetail } from "./agent-model-run-detail.tsx";
 import type { AgentModelRunsGateway } from "./agent-model-runs-client.ts";
+
+// A small page keeps the catch-up test cheap: every render then has tens of events, not 500.
+const PAGE_MAX = vi.hoisted(() => 20);
+vi.mock("@darkfactory/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@darkfactory/api")>()),
+  AGENT_MODEL_RUN_EVENTS_PAGE_MAX: PAGE_MAX,
+}));
 
 const defaultGateway = vi.hoisted(() => ({
   breakdown: async () => ({ groupBy: "model", rows: [] }),
@@ -55,16 +54,94 @@ afterAll(() => {
   if (previousAct === undefined) delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
   else testGlobal.IS_REACT_ACT_ENVIRONMENT = previousAct;
 });
-const roots: Root[] = [];
-afterEach(async () => {
-  for (const root of roots.splice(0)) await act(async () => root.unmount());
-  document.body.replaceChildren();
-  vi.useRealTimers();
-});
 
 const flush = async () => {
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
 };
+
+// Each test gets its own harness. Every UI step goes through `step`, so the teardown can wait for
+// the step in flight and stop the rest. A test that times out keeps running in the background;
+// without this, its later act() calls and timer advances overlap the next test.
+const createHarness = (signal: AbortSignal) => {
+  const roots: Root[] = [];
+  let closed = false;
+  let inFlight: Promise<unknown> = Promise.resolve();
+  const step = <T,>(run: () => PromiseLike<T>): Promise<T> => {
+    if (closed || signal.aborted)
+      return Promise.reject(new Error("The test already ended."));
+    // act() returns a thenable without catch(); Promise.resolve adopts it.
+    const result = Promise.resolve(run());
+    inFlight = result.catch(() => undefined);
+    return result;
+  };
+  const settle = () => step(() => act(flush));
+  const harness = {
+    act: (run: () => void | Promise<void>) =>
+      step(() =>
+        act(async () => {
+          await run();
+        })
+      ),
+    advance: async (ms: number) => {
+      await step(() =>
+        act(async () => {
+          await vi.advanceTimersByTimeAsync(ms);
+        })
+      );
+      await settle();
+    },
+    click: async (element: HTMLElement) => {
+      await step(() => act(async () => element.click()));
+      await settle();
+    },
+    close: async () => {
+      closed = true;
+      await inFlight;
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      document.body.replaceChildren();
+      if (vi.isFakeTimers()) vi.clearAllTimers();
+      vi.useRealTimers();
+    },
+    mount: async (gateway?: AgentModelRunsGateway) => {
+      // The step creates the container, so a stopped test adds nothing to the page.
+      const mounted = await step(async () => {
+        const container = document.createElement("div");
+        document.body.append(container);
+        const root = createRoot(container);
+        roots.push(root);
+        await act(async () => {
+          root.render(
+            <AgentModelRunDetail
+              runId="run-1"
+              {...(gateway === undefined ? {} : { gateway })}
+            />
+          );
+        });
+        return { container, root };
+      });
+      await settle();
+      return mounted;
+    },
+    settle,
+    unmount: async (root: Root) => {
+      // Forget the root only after it unmounted; else close() still unmounts it.
+      await step(() => act(async () => root.unmount()));
+      const index = roots.indexOf(root);
+      if (index !== -1) roots.splice(index, 1);
+    },
+  };
+  return harness;
+};
+
+type Harness = ReturnType<typeof createHarness>;
+
+const it = base.extend<{ ui: Harness }>({
+  ui: async ({ signal }, use) => {
+    const harness = createHarness(signal);
+    await use(harness);
+    await harness.close();
+  },
+});
 
 const at = new Date("2026-10-01T12:00:00.000Z");
 const modelRun = (
@@ -155,23 +232,6 @@ const gatewayWith = (
   ...overrides,
 });
 
-const mount = async (gateway?: AgentModelRunsGateway) => {
-  const container = document.createElement("div");
-  document.body.append(container);
-  const root = createRoot(container);
-  roots.push(root);
-  await act(async () => {
-    root.render(
-      <AgentModelRunDetail
-        runId="run-1"
-        {...(gateway === undefined ? {} : { gateway })}
-      />
-    );
-  });
-  await act(flush);
-  return { container, root };
-};
-
 const button = (container: HTMLElement, name: string) => {
   const found = [...container.querySelectorAll("button")].find(
     (element) =>
@@ -182,25 +242,15 @@ const button = (container: HTMLElement, name: string) => {
   return found;
 };
 
-const click = async (element: HTMLElement) => {
-  await act(async () => element.click());
-  await act(flush);
-};
-
-const advance = async (ms: number) => {
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(ms);
-  });
-  await act(flush);
-};
-
 const currentSeq = (container: HTMLElement) =>
   container.querySelector('[aria-current="step"]')?.getAttribute("data-seq");
 
 describe("AgentModelRunDetail", () => {
-  it("shows every run field, the error text and a link back", async () => {
+  it("shows every run field, the error text and a link back", async ({
+    ui,
+  }) => {
     const get = vi.fn(async () => page([], true, modelRun()));
-    const { container } = await mount(gatewayWith({ get }));
+    const { container } = await ui.mount(gatewayWith({ get }));
     expect(get).toHaveBeenCalledWith("run-1");
     expect(container.querySelector("h1")?.textContent).toBe(
       "AAPL · 2026-09-01 · tradingagents"
@@ -223,8 +273,8 @@ describe("AgentModelRunDetail", () => {
     expect(container.textContent).toContain("Memoryon");
   });
 
-  it("shows defaults for a sparse run", async () => {
-    const { container } = await mount(
+  it("shows defaults for a sparse run", async ({ ui }) => {
+    const { container } = await ui.mount(
       gatewayWith({
         get: async () =>
           page(
@@ -252,7 +302,9 @@ describe("AgentModelRunDetail", () => {
     expect(container.querySelector('[aria-label="Flags"]')).toBeNull();
   });
 
-  it("replays a finished run with play, steps, the slider and speed", async () => {
+  it("replays a finished run with play, steps, the slider and speed", async ({
+    ui,
+  }) => {
     vi.useFakeTimers();
     const events = [
       event(0, {
@@ -264,7 +316,7 @@ describe("AgentModelRunDetail", () => {
       event(2, { body: "RSI is oversold near support.", kind: "reasoning" }),
       event(3, { agent: "Trader", body: "Overweight AAPL.", kind: "decision" }),
     ];
-    const { container } = await mount(
+    const { container } = await ui.mount(
       gatewayWith({ get: async () => page(events, true) })
     );
     expect(container.querySelector('[data-live="true"]')).toBeNull();
@@ -275,24 +327,24 @@ describe("AgentModelRunDetail", () => {
         card.getAttribute("data-phase")
       )
     ).toEqual(["done", "done"]);
-    await click(button(container, "Play"));
+    await ui.click(button(container, "Play"));
     expect(currentSeq(container)).toBe("0");
     expect(container.querySelector('[data-phase="reading"]')).not.toBeNull();
-    await advance(1000);
+    await ui.advance(1000);
     expect(currentSeq(container)).toBe("1");
-    await click(button(container, "4x"));
+    await ui.click(button(container, "4x"));
     expect(button(container, "4x").getAttribute("aria-pressed")).toBe("true");
-    await advance(250);
+    await ui.advance(250);
     expect(currentSeq(container)).toBe("2");
     expect(
       container.querySelector('[data-phase="thinking"]')?.textContent
     ).toContain("RSI is oversold near support.");
-    await click(button(container, "Pause"));
-    await advance(2000);
+    await ui.click(button(container, "Pause"));
+    await ui.advance(2000);
     expect(currentSeq(container)).toBe("2");
-    await click(button(container, "Step back"));
+    await ui.click(button(container, "Step back"));
     expect(currentSeq(container)).toBe("1");
-    await click(button(container, "Step forward"));
+    await ui.click(button(container, "Step forward"));
     expect(currentSeq(container)).toBe("2");
     const slider = container.querySelector(
       'input[type="range"]'
@@ -301,29 +353,31 @@ describe("AgentModelRunDetail", () => {
       HTMLInputElement.prototype,
       "value"
     )?.set;
-    await act(async () => {
+    await ui.act(() => {
       setter?.call(slider, "0");
       slider.dispatchEvent(new Event("input", { bubbles: true }));
     });
-    await act(flush);
+    await ui.settle();
     expect(currentSeq(container)).toBe("0");
     expect(container.textContent).toContain("Tool call:");
-    await click(button(container, "Play"));
-    await advance(5000);
+    await ui.click(button(container, "Play"));
+    await ui.advance(5000);
     expect(currentSeq(container)).toBe("3");
     const show = button(container, "Show text");
-    await click(show);
+    await ui.click(show);
     expect(container.querySelector("li pre")?.textContent).toBe(
       "RSI is oversold near support."
     );
     expect(show.getAttribute("aria-expanded")).toBe("true");
-    await click(button(container, "Hide text"));
+    await ui.click(button(container, "Hide text"));
     expect(container.querySelector("li pre")).toBeNull();
   });
 
-  it("wraps long unbroken model text instead of widening the page", async () => {
+  it("wraps long unbroken model text instead of widening the page", async ({
+    ui,
+  }) => {
     const long = "x".repeat(5000);
-    const { container } = await mount(
+    const { container } = await ui.mount(
       gatewayWith({
         get: async () =>
           page(
@@ -333,7 +387,7 @@ describe("AgentModelRunDetail", () => {
           ),
       })
     );
-    await click(button(container, "Show text"));
+    await ui.click(button(container, "Show text"));
     const classes = (selector: string) =>
       container.querySelector(selector)?.className.split(" ") ?? [];
     // overflow-wrap: anywhere lowers the min-content width; break-word does not.
@@ -349,20 +403,22 @@ describe("AgentModelRunDetail", () => {
     expect(classes("[data-phase]")).toContain("min-w-0");
   });
 
-  it("polls a live run every 2 seconds, follows new events and stops when done", async () => {
+  it("polls a live run every 2 seconds, follows new events and stops when done", async ({
+    ui,
+  }) => {
     vi.useFakeTimers();
     const events = vi
       .fn()
       .mockResolvedValueOnce(page([event(1), event(2)], false))
       .mockResolvedValueOnce(page([], false))
       .mockResolvedValueOnce(page([event(3)], true));
-    const { container } = await mount(
+    const { container } = await ui.mount(
       gatewayWith({ events, get: async () => page([event(0)], false) })
     );
     expect(container.querySelector('[data-live="true"]')).not.toBeNull();
     expect(button(container, "Pause")).toBeDefined();
     expect(events).not.toHaveBeenCalled();
-    await advance(2000);
+    await ui.advance(2000);
     expect(events).toHaveBeenLastCalledWith("run-1", 0);
     expect(currentSeq(container)).toBe("2");
     const timeline = container.querySelector("ol") as HTMLOListElement;
@@ -374,14 +430,14 @@ describe("AgentModelRunDetail", () => {
       configurable: true,
       value: 300,
     });
-    await advance(2000);
+    await ui.advance(2000);
     expect(events).toHaveBeenLastCalledWith("run-1", 2);
     const scrollTo = async (top: number) => {
-      await act(async () => {
+      await ui.act(() => {
         timeline.scrollTop = top;
         timeline.dispatchEvent(new Event("scroll"));
       });
-      await act(flush);
+      await ui.settle();
     };
     // Near the bottom the view keeps following.
     await scrollTo(600);
@@ -391,17 +447,21 @@ describe("AgentModelRunDetail", () => {
     expect(button(container, "Follow")).toBeDefined();
     await scrollTo(10);
     expect(button(container, "Follow")).toBeDefined();
-    await advance(2000);
+    await ui.advance(2000);
     expect(container.querySelector('[data-live="true"]')).toBeNull();
     expect(currentSeq(container)).toBe("2");
     expect(container.textContent).toContain("Event 3 of 4");
-    await advance(10_000);
+    await ui.advance(10_000);
     expect(events).toHaveBeenCalledTimes(3);
   });
 
-  it("catches up after a full page, retries failed polls 3 times and resumes", async () => {
+  it("catches up after a full page, retries failed polls 3 times and resumes", async ({
+    ui,
+  }) => {
     vi.useFakeTimers();
-    const full = Array.from({ length: 500 }, (_, index) => event(index + 1));
+    const full = Array.from({ length: PAGE_MAX }, (_, index) =>
+      event(index + 1)
+    );
     const failure = Object.assign(new Error("x"), { code: "STORAGE_ERROR" });
     const finished = modelRun({ status: "succeeded" });
     const events = vi
@@ -413,7 +473,7 @@ describe("AgentModelRunDetail", () => {
       .mockRejectedValueOnce(failure)
       .mockRejectedValueOnce(failure)
       .mockResolvedValueOnce(page([], false, finished));
-    const { container } = await mount(
+    const { container } = await ui.mount(
       gatewayWith({
         events,
         get: async () => page([event(0)], false, finished),
@@ -422,31 +482,35 @@ describe("AgentModelRunDetail", () => {
     expect(container.textContent).toContain(
       "Finished; checking for late events…"
     );
-    await advance(2000);
-    expect(container.textContent).toContain("Event 501 of 501");
+    await ui.advance(2000);
+    expect(container.textContent).toContain(
+      `Event ${PAGE_MAX + 1} of ${PAGE_MAX + 1}`
+    );
     // A full page is followed at once; a failed poll is tried again after 4 s.
-    await advance(10);
+    await ui.advance(10);
     expect(events).toHaveBeenCalledTimes(2);
-    await advance(4000);
+    await ui.advance(4000);
     expect(events).toHaveBeenCalledTimes(3);
     // A finished run is polled every 10 s until the server says done.
-    await advance(9000);
+    await ui.advance(9000);
     expect(events).toHaveBeenCalledTimes(3);
-    await advance(1000);
+    await ui.advance(1000);
     expect(events).toHaveBeenCalledTimes(4);
-    await advance(4000);
-    await advance(8000);
+    await ui.advance(4000);
+    await ui.advance(8000);
     expect(events).toHaveBeenCalledTimes(6);
     expect(container.textContent).toContain("Live updates stopped");
-    await advance(30_000);
+    await ui.advance(30_000);
     expect(events).toHaveBeenCalledTimes(6);
-    await click(button(container, "Resume"));
-    await advance(2000);
+    await ui.click(button(container, "Resume"));
+    await ui.advance(2000);
     expect(events).toHaveBeenCalledTimes(7);
     expect(container.textContent).not.toContain("Live updates stopped");
   });
 
-  it("explains an empty live run and drops answers that arrive after unmount", async () => {
+  it("explains an empty live run and drops answers that arrive after unmount", async ({
+    ui,
+  }) => {
     vi.useFakeTimers();
     let release: (value: AgentModelRunEventsOutput) => void = () => undefined;
     let fail: (error: unknown) => void = () => undefined;
@@ -464,48 +528,47 @@ describe("AgentModelRunDetail", () => {
             fail = reject;
           })
       );
-    const first = await mount(
+    const first = await ui.mount(
       gatewayWith({ events, get: async () => page([], false) })
     );
     expect(first.container.textContent).toContain("No events yet.");
-    await advance(2000);
-    await act(async () => first.root.unmount());
-    await act(async () => release(page([event(0)], false)));
-    const second = await mount(
+    await ui.advance(2000);
+    await ui.unmount(first.root);
+    await ui.act(() => release(page([event(0)], false)));
+    const second = await ui.mount(
       gatewayWith({ events, get: async () => page([], false) })
     );
-    await advance(2000);
-    await act(async () => second.root.unmount());
-    await act(async () => fail(new Error("late")));
-    roots.splice(0);
+    await ui.advance(2000);
+    await ui.unmount(second.root);
+    await ui.act(() => fail(new Error("late")));
     expect(events).toHaveBeenCalledTimes(2);
   });
 
-  it("shows loading, then a failure with retry", async () => {
+  it("shows loading, then a failure with retry", async ({ ui }) => {
     const get = vi
       .fn()
       .mockRejectedValueOnce(
         Object.assign(new Error("x"), { code: "NOT_FOUND" })
       )
       .mockResolvedValueOnce(page([], true, modelRun()));
-    const { container } = await mount(gatewayWith({ get }));
+    const { container } = await ui.mount(gatewayWith({ get }));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "does not exist"
     );
-    await click(button(container, "Retry"));
+    await ui.click(button(container, "Retry"));
     expect(container.querySelector("h1")?.textContent).toContain("AAPL");
   });
 
-  it("explains operator access for a forbidden read", async () => {
-    const { container } = await mount();
+  it("explains operator access for a forbidden read", async ({ ui }) => {
+    const { container } = await ui.mount();
     expect(
       container.querySelector('[data-operator-access="required"]')
     ).not.toBeNull();
     expect(container.querySelector("h1")?.textContent).toBe("Model run");
   });
 
-  it("renders a skeleton while loading", async () => {
-    const { container } = await mount(
+  it("renders a skeleton while loading", async ({ ui }) => {
+    const { container } = await ui.mount(
       gatewayWith({ get: () => new Promise(() => undefined) })
     );
     expect(container.textContent).toContain("Loading the model run");

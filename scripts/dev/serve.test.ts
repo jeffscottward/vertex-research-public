@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
   runDevServer,
   type ServeDependencies,
@@ -71,20 +72,26 @@ describe("foreground development server", () => {
 
   // A flag rename in vinext broke `bun run dev` while CI stayed green (it only
   // builds), so the forwarded flags are checked against the installed CLI.
-  it("forwards only flags that each app's installed vinext dev accepts", () => {
-    const vinexts = Object.keys(DEVELOPMENT_TARGETS)
-      .map((target) => join(root, "apps", target, "node_modules/.bin/vinext"))
-      // `init --without-operator` removes the operator app.
-      .filter((vinext) => existsSync(vinext));
-    expect(vinexts.length).toBeGreaterThan(0);
-    for (const vinext of vinexts) {
-      const help = execFileSync(vinext, ["dev", "--help"], {
-        encoding: "utf8",
-      });
-      expect(help, vinext).toMatch(/^\s+--port\b/mu);
-      expect(help, vinext).toMatch(/^\s+--host\b/mu);
-    }
-  });
+  // Two `vinext dev --help` children run one after the other: 6.0 s in a
+  // pre-push run at load 40-55 on 32 CPUs and up to 18.6 s at CPUQuota=10%.
+  it(
+    "forwards only flags that each app's installed vinext dev accepts",
+    () => {
+      const vinexts = Object.keys(DEVELOPMENT_TARGETS)
+        .map((target) => join(root, "apps", target, "node_modules/.bin/vinext"))
+        // `init --without-operator` removes the operator app.
+        .filter((vinext) => existsSync(vinext));
+      expect(vinexts.length).toBeGreaterThan(0);
+      for (const vinext of vinexts) {
+        const help = execFileSync(vinext, ["dev", "--help"], {
+          encoding: "utf8",
+        });
+        expect(help, vinext).toMatch(/^\s+--port\b/mu);
+        expect(help, vinext).toMatch(/^\s+--host\b/mu);
+      }
+    },
+    scaledTimeout(20_000)
+  );
 
   it("rejects unknown targets and a missing or malformed portless port", async () => {
     for (const [arguments_, environment, message] of [

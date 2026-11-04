@@ -48,6 +48,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "backtestRuns.definitions.get",
   "todos.list",
   "priceAlerts.list",
+  "sectorRotation.snapshot",
   "agentModelRuns.list",
   "agentModelRuns.get",
   "agentModelRuns.breakdown",
@@ -56,6 +57,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.search",
   "agentModelRuns.benchmark",
   "agentModelRuns.frameworks",
+  "clickLog.query",
 ]);
 
 type OperatorErrorFactories = Readonly<{

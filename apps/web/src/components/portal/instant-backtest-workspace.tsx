@@ -25,6 +25,12 @@ import {
   isOperatorAccessDenied,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  firstSeriesKey,
+  UniverseSelect,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 
 // Instant backtest: parameter changes run the backtest again with at most one request in flight;
@@ -362,6 +368,9 @@ export const InstantBacktestWorkspace = ({
     type: "loading",
   });
   const [selected, setSelected] = useState("");
+  const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
+  const universeRef = useRef(universe);
+  universeRef.current = universe;
   const [params, setParams] = useState(DEFAULT_INSTANT_PARAMS);
   const [run, setRun] = useState<RunState>({
     status: "idle",
@@ -380,9 +389,8 @@ export const InstantBacktestWorkspace = ({
       (output) => {
         if (!active) return;
         setSeriesState({ type: "ready", series: output.series });
-        setSelected(
-          output.series[0] === undefined ? "" : seriesKey(output.series[0])
-        );
+        // A reload keeps the user's universe choice; only the series pick follows it.
+        setSelected(firstSeriesKey(output.series, universeRef.current));
       },
       (error: unknown) => {
         if (!active) return;
@@ -493,6 +501,8 @@ export const InstantBacktestWorkspace = ({
     setParams((previous) => ({ ...previous, [key]: value }));
   const fields = [...WINDOW_FIELDS[params.ruleKind], ...RISK_FIELDS];
 
+  const visible = visibleSeries(seriesState.series, universe);
+
   return (
     <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <form
@@ -500,6 +510,16 @@ export const InstantBacktestWorkspace = ({
         className="space-y-4 rounded-xl border p-4"
         onSubmit={(event) => event.preventDefault()}
       >
+        <UniverseSelect
+          fallback={visible.fallback}
+          onChange={(choice) => {
+            setUniverse(choice);
+            setSelected(firstSeriesKey(seriesState.series, choice));
+          }}
+          selectClassName={selectClass}
+          storedSymbols={seriesState.series.map((entry) => entry.symbol)}
+          value={universe}
+        />
         <div className="space-y-1">
           <label className="block font-medium text-sm" htmlFor={seriesId}>
             Bars
@@ -510,7 +530,7 @@ export const InstantBacktestWorkspace = ({
             onChange={(event) => setSelected(event.currentTarget.value)}
             value={selected}
           >
-            {seriesState.series.map((entry) => (
+            {visible.series.map((entry) => (
               <option key={seriesKey(entry)} value={seriesKey(entry)}>
                 {entry.symbol} {entry.timeframe === "1d" ? "daily" : "1-minute"}{" "}
                 ({entry.barCount.toLocaleString("en-US")} bars)

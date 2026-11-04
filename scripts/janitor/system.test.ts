@@ -1,13 +1,17 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { createJanitorDeps } from "./system.ts";
 
 describe("janitor system adapters", () => {
   const dir = mkdtempSync(join(tmpdir(), "janitor-system-"));
+  afterAll(() => {
+    rmSync(dir, { force: true, recursive: true });
+  });
+
   const deps = createJanitorDeps(new Date("2026-11-01T00:00:00Z"));
 
   it("captures stdout and the exit status of a command", () => {

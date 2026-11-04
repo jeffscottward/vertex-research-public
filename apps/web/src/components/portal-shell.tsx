@@ -1,6 +1,6 @@
-// What: Signed-in Vertex Research workspace shell with shadcn sidebar-07 / dashboard-01 anatomy: collapsible inset sidebar (16rem, 3rem icon mode), SidebarInset, and a site header with SidebarTrigger, separator, page title and the user menu.
+// What: Signed-in Vertex Research workspace shell with shadcn sidebar-07 / dashboard-01 anatomy: collapsible inset sidebar (16rem, 3rem icon mode), SidebarInset, a site header with SidebarTrigger, separator, page title, assistant panel toggle and the user menu, and the assistant panel on the right.
 // Used by: apps/web/src/app/(portal)/layout.tsx.
-// See: packages/ui/src/client/sidebar.tsx; apps/web/src/lib/navigation.ts#PORTAL_SIDEBAR_GROUPS; apps/web/src/components/user-menu.tsx.
+// See: packages/ui/src/client/sidebar.tsx; apps/web/src/lib/navigation.ts#PORTAL_SIDEBAR_GROUPS; apps/web/src/components/user-menu.tsx; apps/web/src/components/portal/assistant-panel.tsx (right assistant panel).
 "use client";
 
 import { Button, Separator } from "@darkfactory/ui";
@@ -23,7 +23,7 @@ import { ChevronRight, PanelLeft, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
-
+import { ClickLogListener } from "../features/click-log/listener.tsx";
 import { BrowserExperienceProvider } from "../features/experience/browser-provider.tsx";
 import {
   EXPOSED_ROUTE_PATHS,
@@ -33,9 +33,9 @@ import {
   type NavigationItem,
   PORTAL_BACKTEST_LAB,
   PORTAL_SIDEBAR_GROUPS,
-  SETTINGS_ENTRY,
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
+import { portalPageTitle } from "../lib/portal-page-title.ts";
 import { useUiState } from "../lib/ui-store.tsx";
 import { BrandMark } from "./brand-mark.tsx";
 import {
@@ -43,6 +43,12 @@ import {
   type PaletteItem,
   toPaletteItems,
 } from "./command-palette.tsx";
+import type { AssistantGateway } from "./portal/assistant-client.ts";
+import {
+  AssistantPanel,
+  AssistantPanelProvider,
+  AssistantPanelToggle,
+} from "./portal/assistant-panel.tsx";
 import {
   createResearchReadScope,
   observeResearchSessionScope,
@@ -57,18 +63,6 @@ import { UserMenu } from "./user-menu.tsx";
 interface PortalNavigationProps {
   readonly availableRoutes?: readonly string[];
 }
-
-const TITLE_SOURCES: readonly NavigationItem[] = [
-  ...PORTAL_SIDEBAR_GROUPS.flatMap((group) => group.items),
-  ...SETTINGS_NAVIGATION,
-  SETTINGS_ENTRY,
-];
-
-/** Page title for the site header: the most specific matching navigation label. */
-export const portalPageTitle = (pathname: string): string =>
-  TITLE_SOURCES.filter((item) => isNavigationItemActive(pathname, item)).sort(
-    (left, right) => right.href.length - left.href.length
-  )[0]?.label ?? "Vertex Research";
 
 const SIDEBAR_ITEMS: readonly NavigationItem[] = PORTAL_SIDEBAR_GROUPS.flatMap(
   (group) => group.items
@@ -408,6 +402,7 @@ const PortalTopbar = ({
         </p>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <CommandPalette items={paletteItemsFor(availableRoutes)} />
+          <AssistantPanelToggle />
           <UserMenu
             availableRoutes={availableRoutes}
             name={userName}
@@ -420,8 +415,12 @@ const PortalTopbar = ({
 };
 
 export interface PortalShellProps {
+  /** Assistant panel transport (tests); the browser gateway by default. */
+  readonly assistantGateway?: AssistantGateway;
   readonly availableRoutes?: readonly string[];
   readonly children: ReactNode;
+  /** The saved assistant panel choice from the request cookie; undefined when there is none. */
+  readonly initialAssistantPanelOpen?: boolean | undefined;
   readonly isAdmin?: boolean;
   /**
    * Trusted principal key (user, role, session expiry) from the server layout.
@@ -432,8 +431,10 @@ export interface PortalShellProps {
 }
 
 export const PortalShell = ({
+  assistantGateway,
   availableRoutes = EXPOSED_ROUTE_PATHS,
   children,
+  initialAssistantPanelOpen,
   sessionScopeKey,
   userName,
 }: PortalShellProps) => {
@@ -462,29 +463,40 @@ export const PortalShell = ({
   }, [scope]);
   return (
     <ResearchReadScopeProvider scope={scope}>
-      <SidebarProvider
-        className="vx-workspace"
-        onOpenChange={(open) => setSidebar(open ? "expanded" : "collapsed")}
-        open={sidebar === "expanded"}
+      <ClickLogListener />
+      <AssistantPanelProvider
+        availableRoutes={availableRoutes}
+        initialOpen={initialAssistantPanelOpen}
       >
-        <PortalSidebar availableRoutes={availableRoutes} />
-        <SidebarInset id="main-content" tabIndex={-1}>
-          <PortalTopbar
-            availableRoutes={availableRoutes}
-            onSessionEnding={() => endResearchSession(scope)}
-            userName={userName}
-          />
-          <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
-              <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-                <BrowserExperienceProvider>
-                  {children}
-                </BrowserExperienceProvider>
+        <SidebarProvider
+          className="vx-workspace"
+          onOpenChange={(open) => setSidebar(open ? "expanded" : "collapsed")}
+          open={sidebar === "expanded"}
+        >
+          <PortalSidebar availableRoutes={availableRoutes} />
+          <SidebarInset className="min-w-0" id="main-content" tabIndex={-1}>
+            <PortalTopbar
+              availableRoutes={availableRoutes}
+              onSessionEnding={() => endResearchSession(scope)}
+              userName={userName}
+            />
+            <div className="flex flex-1 flex-col">
+              <div className="@container/main flex flex-1 flex-col gap-2">
+                <div className="flex flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
+                  <BrowserExperienceProvider>
+                    {children}
+                  </BrowserExperienceProvider>
+                </div>
               </div>
             </div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+          </SidebarInset>
+          <AssistantPanel
+            {...(assistantGateway === undefined
+              ? {}
+              : { gateway: assistantGateway })}
+          />
+        </SidebarProvider>
+      </AssistantPanelProvider>
     </ResearchReadScopeProvider>
   );
 };

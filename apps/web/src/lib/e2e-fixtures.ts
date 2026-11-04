@@ -97,3 +97,31 @@ export const resolveE2eEmailPreviewOptions = (
     binding: { runId, hmacKey },
   };
 };
+
+/**
+ * E2E-only assistant model endpoint. When fixtures are enabled and
+ * E2E_ASSISTANT_MODEL_URL names an https `*.localhost` URL (the run's fake model behind
+ * its HTTPS proxy), the assistant sends completions there instead of OpenRouter.
+ * Production binds APP_ENV=production, so this returns `{}` there.
+ */
+export const resolveE2eAssistantModelOverride = (
+  environment: E2eFixtureEnvironment = process.env
+): Readonly<{ chatUrl?: string }> => {
+  if (!isE2eFixtureEnabled(environment)) return {};
+  const value = environment["E2E_ASSISTANT_MODEL_URL"]?.trim();
+  if (!value) return {};
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("E2E_ASSISTANT_MODEL_URL must be an https *.localhost URL");
+  }
+  if (
+    url.protocol !== "https:" ||
+    !url.hostname.endsWith(".localhost") ||
+    url.username !== "" ||
+    url.password !== ""
+  )
+    throw new Error("E2E_ASSISTANT_MODEL_URL must be an https *.localhost URL");
+  return { chatUrl: url.href };
+};

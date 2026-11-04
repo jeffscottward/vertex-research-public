@@ -1,0 +1,34 @@
+#!/bin/sh
+# Forced command for the rig's status-push key (authorized_keys `command=...,restrict`).
+# It ignores any client command and reads stdin (max 256 KiB). The document's "schema" selects one of two
+# fixed files, which it replaces atomically:
+#   vertex-engine-status-v1   -> status.json   (Engines view)
+#   vertex-market-context-v1  -> markets.json  (Market context view)
+# Anything else leaves both files in place.
+set -eu
+d=/var/lib/vertex-engine-status
+t=
+trap 'rm -f "$t"' EXIT
+# A dropped SSH session sends HUP/TERM; exit so the EXIT trap removes the partial temp file.
+# dash skips the EXIT trap when a signal kills it. Set before mktemp so no window is left.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+t=$(mktemp "$d/.push.XXXXXX")
+head -c 262144 > "$t"
+f=$(python3 -c '
+import json, sys
+files = {"vertex-engine-status-v1": "status.json", "vertex-market-context-v1": "markets.json"}
+try:
+    d = json.load(open(sys.argv[1]))
+except ValueError:
+    sys.exit(1)
+schema = d.get("schema") if isinstance(d, dict) else None
+name = files.get(schema) if isinstance(schema, str) else None
+if name is None:
+    sys.exit(1)
+print(name)
+' "$t") || { echo "rejected: not a vertex-engine-status-v1 or vertex-market-context-v1 document" >&2; exit 1; }
+chmod 0644 "$t"
+mv -f "$t" "$d/$f"
+trap - EXIT

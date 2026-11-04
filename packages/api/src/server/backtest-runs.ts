@@ -23,6 +23,7 @@ import {
 } from "../contracts/backtest-sweep.ts";
 import {
   InstantBacktestInputError,
+  type InstantRunResult,
   runInstantBacktest,
 } from "../instant-backtest-engine.ts";
 import { ComboInputError, combinePortfolio } from "../portfolio-combination.ts";
@@ -32,6 +33,10 @@ import { costsForSpec, runParamsForSpec } from "./backtest-run-params.ts";
 import type { ApiContext } from "./context.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
+import {
+  loadSectorQuadrants,
+  type SectorQuadrantSource,
+} from "./sector-quadrant-series.ts";
 
 // Backtest run procedures. submit stores a queued run and schedules its execution on the request's
 // tracked background scheduler (the database connection stays open until it finishes); without a
@@ -52,6 +57,8 @@ type Failures = Readonly<{
 export type BacktestRunExecutionDependencies = Readonly<{
   runs: BacktestRunsRepository;
   marketBars: MarketBarsRepository;
+  /** Stored sector rotation points for definitions with sector filters. */
+  sectorRotation?: SectorQuadrantSource;
 }>;
 
 /** Deterministic JSON with sorted object keys, used for the strategy revision hash. */
@@ -131,15 +138,22 @@ const executeClaimed = async (
   const { rule } = spec;
   // A definition rule carries its own stop, target and sizing; the run-level stop and target
   // apply to the fixed rules only.
-  const result =
-    rule.kind === "dsl"
-      ? runStrategyDefinition(
-          bars,
-          StrategyDefinitionSchema.parse(rule.definition),
-          spec.costBps,
-          costs
-        )
-      : runInstantBacktest(bars, runParamsForSpec(spec));
+  let result: InstantRunResult;
+  if (rule.kind === "dsl") {
+    const definition = StrategyDefinitionSchema.parse(rule.definition);
+    const sectorQuadrants = await loadSectorQuadrants(
+      dependencies.sectorRotation,
+      definition,
+      bars.t[0] as number
+    );
+    result = runStrategyDefinition(
+      bars,
+      definition,
+      spec.costBps,
+      costs,
+      sectorQuadrants
+    );
+  } else result = runInstantBacktest(bars, runParamsForSpec(spec));
   const report = {
     ...buildBacktestRunReport(
       bars,
@@ -194,10 +208,18 @@ const dependenciesFor = (
   context: ApiContext,
   failures: Failures
 ): BacktestRunExecutionDependencies => {
-  const { backtestRuns: runs, marketBars } = context.repositories;
+  const {
+    backtestRuns: runs,
+    marketBars,
+    sectorRotation,
+  } = context.repositories;
   if (runs === undefined || marketBars === undefined)
     throw failures.STORAGE_ERROR();
-  return { marketBars, runs };
+  return {
+    marketBars,
+    runs,
+    ...(sectorRotation === undefined ? {} : { sectorRotation }),
+  };
 };
 
 /** Runs the task on the tracked scheduler, or awaits it when none is wired. */

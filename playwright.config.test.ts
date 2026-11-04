@@ -186,6 +186,23 @@ describe("Playwright harness", () => {
     ).rejects.toThrow();
   });
 
+  // Bundled Playwright Chromium lags Chrome stable security fixes (card
+  // sec-pw-ci-vertex-research-platform, 2026-11-03).
+  it("runs every project in system Google Chrome with the sandbox on", async () => {
+    const config = await loadConfig();
+    expect(config.use?.launchOptions?.chromiumSandbox).toBe(true);
+    expect(config.use?.launchOptions?.args ?? []).not.toContain("--no-sandbox");
+    const projects = config.projects ?? [];
+    expect(projects.length).toBeGreaterThan(0);
+    for (const project of projects) {
+      expect(project.use, project.name).toMatchObject({
+        channel: "chrome",
+        defaultBrowserType: "chromium",
+      });
+      expect(project.use, project.name).not.toHaveProperty("launchOptions");
+    }
+  });
+
   it("gives servers only toolchain variables and blanks remote credentials", async () => {
     const config = await loadConfig();
     const allowed = new Set([

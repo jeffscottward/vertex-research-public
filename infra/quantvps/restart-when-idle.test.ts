@@ -152,6 +152,11 @@ const STARTS =
   "vertex-web Sun 2026-11-01 12:55:08 UTC\n/ibkr-nautilus-exec-node-ib-gateway-1 2026-10-31T17:52:12Z\n";
 // After a restart only the vertex-web line changes.
 const STARTS_AFTER = STARTS.replace("12:55:08", "15:10:00");
+// No global or system git config for fixture commits and the script's ancestry checks.
+const HERMETIC_GIT = {
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+};
 
 let dir = "";
 afterEach(() => {
@@ -173,6 +178,7 @@ const setup = (files: Record<string, string>) => {
     gate: "build-output-ok\n",
     health: HEALTHY,
     probe: IDLE,
+    shas: "new abc1234\ndeployed abc1234\n",
     starts: STARTS,
     "starts.2": STARTS_AFTER,
   };
@@ -184,6 +190,7 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
   const result = spawnSync("bash", [script, ...args], {
     encoding: "utf8",
     env: {
+      ...HERMETIC_GIT,
       FAKE_DIR: dir,
       PATH: `${join(dir, "bin")}:${process.env["PATH"] ?? "/usr/bin:/bin"}`,
       VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
@@ -457,9 +464,251 @@ describe("restart flow", () => {
     expect(existsSync(join(dir, "calls"))).toBe(false);
   });
 
+  it("reports a lock file it cannot open as a failed run, never as another waiter", () => {
+    setup({});
+    // A directory cannot be opened for writing (EISDIR), also as root.
+    const result = run([], { VERTEX_RESTART_LOCK: dir });
+    expect(result.status).toBe(11);
+    expect(result.stdout).toContain(
+      `NOT RESTARTED: cannot open lock file ${dir}: Is a directory`
+    );
+    expect(result.stdout).not.toContain("another vertex-web restart waiter");
+    expect(existsSync(join(dir, "calls"))).toBe(false);
+  });
+
+  it("reports any other flock failure as a failed run", () => {
+    setup({});
+    mkdirSync(join(dir, "bin"));
+    writeFileSync(join(dir, "bin/flock"), "#!/usr/bin/env bash\nexit 65\n");
+    chmodSync(join(dir, "bin/flock"), 0o755);
+    const result = run();
+    expect(result.status).toBe(11);
+    expect(result.stdout).toContain(
+      `NOT RESTARTED: cannot lock ${join(dir, "lock")} (flock exit 65)`
+    );
+    expect(existsSync(join(dir, "calls"))).toBe(false);
+  });
+
   it("rejects unknown arguments and a malformed backup timestamp", () => {
     setup({});
     expect(run(["--now"]).status).toBe(2);
     expect(run(["--backup", "latest"]).status).toBe(2);
+  });
+});
+
+// A real git history for the version guard: base <- mid <- tip, plus a side branch from base.
+// Hermetic git: no global or system config, so no global core.hooksPath hooks run on each
+// commit (they made this fixture 10x slower on a loaded rig and timed tests out).
+const gitRepo = () => {
+  const repo = join(dir, "repo");
+  mkdirSync(repo);
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", repo, ...args], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ...HERMETIC_GIT,
+        GIT_AUTHOR_EMAIL: "t@example.test",
+        GIT_AUTHOR_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@example.test",
+        GIT_COMMITTER_NAME: "t",
+      },
+    }).stdout.trim();
+  git("init", "-q", "-b", "main");
+  const commit = (msg: string) => {
+    git("commit", "-q", "--allow-empty", "-m", msg);
+    return git("rev-parse", "HEAD");
+  };
+  const base = commit("base");
+  const mid = commit("mid");
+  const tip = commit("tip");
+  git("checkout", "-q", "-b", "side", base);
+  const side = commit("side");
+  return { base, mid, repo, side, tip };
+};
+
+// Real git and bash subprocesses: the 30 s budget is for a loaded rig (load average ~75 timed out
+// at the 5 s default in pre-push on 2026-11-03), not a correctness threshold.
+describe("version guard", { timeout: 30_000 }, () => {
+  it("refuses an ancestor of the deployed SHA with no restart", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.mid}\ndeployed ${g.tip}\n`);
+    const result = run([], { VERTEX_DEPLOY_GIT_DIR: g.repo });
+    expect(result.status).toBe(9);
+    expect(result.stdout).toContain("is OLDER than deployed");
+    expect(result.calls).not.toContain("restart");
+    expect(result.calls).not.toContain("probe");
+    expect(result.calls).not.toContain("record");
+  });
+
+  it("passes a descendant and records the new SHA after the restart", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.tip}\ndeployed ${g.base}\n`);
+    const result = run([], { VERTEX_DEPLOY_GIT_DIR: g.repo });
+    expect(result.status).toBe(0);
+    expect(result.calls).toContain("restart");
+    expect(result.calls.at(-1)).toBe("record");
+  });
+
+  it("passes an equal SHA, also as a short SHA", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(
+      join(dir, "shas"),
+      `new ${g.tip.slice(0, 8)}\ndeployed ${g.tip}\n`
+    );
+    expect(run([], { VERTEX_DEPLOY_GIT_DIR: g.repo }).status).toBe(0);
+  });
+
+  it("passes a build on a diverged branch (not an ancestor)", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.side}\ndeployed ${g.tip}\n`);
+    expect(run([], { VERTEX_DEPLOY_GIT_DIR: g.repo }).status).toBe(0);
+  });
+
+  it("passes an ancestor with --allow-older and prints the reason", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.base}\ndeployed ${g.tip}\n`);
+    const result = run(["--allow-older", "rollback after bad build"], {
+      VERTEX_DEPLOY_GIT_DIR: g.repo,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "allowed by --allow-older: rollback after bad build"
+    );
+    expect(result.calls).toContain("restart");
+  });
+
+  it("refuses an unknown deployed SHA unless --allow-older is given", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.tip}\ndeployed none\n`);
+    const refused = run([], { VERTEX_DEPLOY_GIT_DIR: g.repo });
+    expect(refused.status).toBe(9);
+    expect(refused.stdout).toContain("deployed SHA unknown");
+    expect(refused.calls).not.toContain("restart");
+    rmSync(join(dir, "calls"));
+    expect(
+      run(["--allow-older", "first recorded deploy"], {
+        VERTEX_DEPLOY_GIT_DIR: g.repo,
+      }).status
+    ).toBe(0);
+  });
+
+  it("refuses an unknown new SHA and a SHA missing from the checkout", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new none\ndeployed ${g.tip}\n`);
+    expect(run([], { VERTEX_DEPLOY_GIT_DIR: g.repo }).status).toBe(9);
+    writeFileSync(
+      join(dir, "shas"),
+      `new ${"f".repeat(40)}\ndeployed ${g.tip}\n`
+    );
+    const missing = run([], { VERTEX_DEPLOY_GIT_DIR: g.repo });
+    expect(missing.status).toBe(9);
+    expect(missing.stdout).toContain("a commit is missing");
+  });
+
+  it("dry run reports a refusal without exiting 9", () => {
+    setup({});
+    const g = gitRepo();
+    writeFileSync(join(dir, "shas"), `new ${g.mid}\ndeployed ${g.tip}\n`);
+    const result = run(["--dry-run"], { VERTEX_DEPLOY_GIT_DIR: g.repo });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("version guard would refuse:");
+  });
+
+  it("refuses when dist changes during the idle wait", () => {
+    setup({
+      shas: "new abc1234\ndeployed abc1234\n",
+      "shas.2": "new def5678\ndeployed abc1234\n",
+    });
+    const result = run();
+    expect(result.status).toBe(9);
+    expect(result.stdout).toContain("changed during the idle wait");
+    expect(result.calls).not.toContain("restart");
+  });
+
+  it("rejects --allow-older without a reason", () => {
+    setup({});
+    expect(run(["--allow-older"]).status).toBe(2);
+    expect(run(["--allow-older", "--dry-run"]).status).toBe(2);
+  });
+
+  it("reads real SHA files and records only the checked SHA", () => {
+    setup({ real: "" });
+    const g = gitRepo();
+    const web = join(dir, "web");
+    const put = (path: string, body: string) => {
+      mkdirSync(join(web, path, ".."), { recursive: true });
+      writeFileSync(join(web, path), body);
+    };
+    put("dist/DEPLOYED_SHA", `${g.tip}\n`);
+    put("DEPLOYED_SHA", `${g.base}\n`);
+    writeFileSync(
+      join(dir, "fake.sh"),
+      FAKE.replace("gate|candidate|restart|rollback)", "shas|record)")
+    );
+    const ok = run([], { VERTEX_DEPLOY_GIT_DIR: g.repo, VERTEX_WEB_DIR: web });
+    expect(ok.status).toBe(0);
+    expect(ok.syntax).toEqual([]);
+    expect(ok.stdout).toContain(`recorded DEPLOYED_SHA ${g.tip}`);
+    expect(readFileSync(join(web, "DEPLOYED_SHA"), "utf8").trim()).toBe(g.tip);
+    rmSync(join(web, "DEPLOYED_SHA"));
+    rmSync(join(dir, "calls"));
+    const unknown = run([], {
+      VERTEX_DEPLOY_GIT_DIR: g.repo,
+      VERTEX_WEB_DIR: web,
+    });
+    expect(unknown.status).toBe(9);
+    expect(unknown.stdout).toContain(
+      "deployed SHA unknown (DEPLOYED_SHA: none)"
+    );
+    expect(unknown.stdout).toContain("restore dist.bak-<TS>");
+  });
+
+  it("does not record when the health check gets no answer", () => {
+    setup({ health: "", "health.fail": "" });
+    const result = run();
+    expect(result.status).toBe(6);
+    expect(result.calls).not.toContain("record");
+  });
+
+  it("records the restored SHA after a rollback (real commands)", () => {
+    setup({
+      health: "root=502 dashboard=000  active=active\n",
+      "health.2": HEALTHY,
+      real: "",
+    });
+    const web = join(dir, "web");
+    const put = (path: string, body: string) => {
+      mkdirSync(join(web, path, ".."), { recursive: true });
+      writeFileSync(join(web, path), body);
+    };
+    put("dist/server/wrangler.json", "new");
+    put("dist/DEPLOYED_SHA", "abc1234\n");
+    put(".wrangler/deploy/config.json", "new");
+    put("dist.bak-20261101T125501Z/server/wrangler.json", "old");
+    put("dist.bak-20261101T125501Z/DEPLOYED_SHA", "0ld0000\n");
+    put(".wrangler.bak-20261101T125501Z/deploy/config.json", "old");
+    mkdirSync(join(dir, "bin"));
+    writeFileSync(join(dir, "bin/systemctl"), "#!/usr/bin/env bash\n");
+    chmodSync(join(dir, "bin/systemctl"), 0o755);
+    // record is not a "real" call in the fake, so run it here as the fake would.
+    writeFileSync(
+      join(dir, "fake.sh"),
+      FAKE.replace(
+        "gate|candidate|restart|rollback)",
+        "gate|candidate|restart|rollback|record)"
+      )
+    );
+    const result = run([], { VERTEX_WEB_DIR: web });
+    expect(result.status).toBe(5);
+    expect(result.syntax).toEqual([]);
+    expect(readFileSync(join(web, "DEPLOYED_SHA"), "utf8")).toBe("0ld0000\n");
   });
 });

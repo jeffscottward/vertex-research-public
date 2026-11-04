@@ -17,11 +17,12 @@ import {
   fenceInputs,
   type ConversationFixture,
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // SOURCE ONLY: no execution, PostgreSQL concurrency, live provider/storage or
 // operational qualification claim. All positive conversation authority below
 // comes from the original owners, never fabricated agent/history/authority rows.
-export const TIMEOUT = 120_000;
+export const TIMEOUT = scaledTimeout(120_000);
 export const messages = "vertex_research_chat_messages";
 export const closures = "vertex_research_chat_copy_domain_closures";
 export const observations = "vertex_research_chat_copy_effect_observations";

@@ -23,6 +23,7 @@ import {
   WorkerPublishAgentInputSchema,
 } from "../contracts/vertex-worker.ts";
 import { VertexResearchChatReadResponseOutputSchema } from "../contracts/vertex-research-chat-response.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source proof with actual original owners, external SQL/R2/object/provider/clock
 // doubles only. Selected policy/technical-stage history is explicitly synthetic;
@@ -51,7 +52,7 @@ const reidentify = async (
 };
 // Each case builds the full real-owner chat worker fixture (~10s alone).
 describe("actual approved chat copies through private worker/model boundary", {
-  timeout: 120_000,
+  timeout: scaledTimeout(120_000),
 }, () => {
   it("queues real bodyless AgentRun/outbox, binds actual lease, admits exact run, reads governed original bytes", async () => {
     const f = await chatWorkerFixture();

@@ -111,6 +111,13 @@ describe("0022 assistant migration", () => {
       "0038_agent_model_run_events",
       "0039_app_role_grants",
       "0040_price_alert_rules",
+      "0041_baskets",
+      "0042_basket_benchmark_base",
+      "0043_quant_lab",
+      "0044_research_reports",
+      "0045_market_bar_futures_symbols",
+      "0046_click_log",
+      "0047_sector_rotation",
     ]);
   });
 

@@ -71,6 +71,83 @@ export const toSubmitInput = (
   };
 };
 
+export type UniverseRunPlan = Readonly<{
+  inputs: readonly BacktestRunSubmitInput[];
+  /** Series with no stored bars inside the form's dates (the clipped range is empty). */
+  skipped: number;
+  /** Series the form cannot run for another reason; `firstError` is the first such reason. */
+  invalid: number;
+  firstError: string | null;
+}>;
+
+/**
+ * One run per series of a universe. Each run keeps the form's settings; its dates are clipped to
+ * that series' stored bars (from = later start, to = earlier end). Series with no bars inside the
+ * form's dates are skipped; series the form cannot run for another reason count as invalid.
+ */
+export const toUniverseSubmitInputs = (
+  form: RunForm,
+  series: readonly InstantBacktestSeries[]
+): UniverseRunPlan => {
+  const inputs: BacktestRunSubmitInput[] = [];
+  const datesValid =
+    DATE_PATTERN.test(form.from) &&
+    DATE_PATTERN.test(form.to) &&
+    form.from <= form.to;
+  let skipped = 0;
+  let invalid = 0;
+  let firstError: string | null = null;
+  for (const entry of series) {
+    const first = isoDate(entry.firstT);
+    const last = isoDate(entry.lastT);
+    const from = form.from > first ? form.from : first;
+    const to = form.to < last ? form.to : last;
+    if (datesValid && from > to) {
+      skipped += 1;
+      continue;
+    }
+    const built = toSubmitInput({ ...form, from, to }, entry);
+    if ("error" in built) {
+      invalid += 1;
+      firstError ??= built.error;
+    } else inputs.push(built.input);
+  }
+  return { firstError, inputs, invalid, skipped };
+};
+
+/** Preview next to the batch button, e.g. "7 runs, 0 skipped". */
+export const describeUniversePlan = (plan: UniverseRunPlan): string =>
+  `${plan.inputs.length} ${plan.inputs.length === 1 ? "run" : "runs"}, ${plan.skipped + plan.invalid} skipped`;
+
+/** Summary line after a universe batch: submitted, not submitted, skipped and any failure. */
+export const describeUniverseBatch = ({
+  label,
+  submitted,
+  notSubmitted,
+  plan,
+  failure,
+}: Readonly<{
+  label: string;
+  submitted: number;
+  /** Planned runs not sent because a submit failed (the failed one included). */
+  notSubmitted: number;
+  plan: UniverseRunPlan;
+  failure: string | null;
+}>): string =>
+  [
+    `Submitted ${submitted} ${submitted === 1 ? "run" : "runs"} for ${label}.`,
+    notSubmitted === 0 ? null : `${notSubmitted} not submitted.`,
+    plan.skipped === 0
+      ? null
+      : `Skipped ${plan.skipped} series with no bars in the date range.`,
+    plan.invalid === 0
+      ? null
+      : `Skipped ${plan.invalid} series that could not run: ${plan.firstError}`,
+    failure,
+  ]
+    .filter((part) => part !== null)
+    .join(" ");
+
 const money = (value: number | null): string =>
   value === null
     ? "n/a"

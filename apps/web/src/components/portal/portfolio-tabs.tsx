@@ -111,6 +111,7 @@ export const PortfolioTabs = ({
         ) : (
           <PortfolioMonitor
             gateway={gateway}
+            ordersGateway={ordersGateway}
             section={view}
             title="Portfolio · IBKR (via ibkr-monitor)"
           />

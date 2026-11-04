@@ -15,6 +15,7 @@ import {
   createVertexRuntimeRecipes,
   type VertexRuntimeRecipesOptions,
 } from "./vertex-runtime-recipes.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source-only composition. External object storage, reviewer/control service and
 // policy registry fixtures do NOT establish backend durability or live grants.
@@ -756,84 +757,88 @@ const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
 describe.skipIf(!process.env["VERTEX_HMM_TEST_PYTHON"])(
   "bounded HMM reviewed caller source",
   () => {
-    return it("connects selected recipe through real handler and reviewed adapters to unreviewed numerical evidence", async () => {
-      const f = await fixture();
-      const { done, stages, publications, calls } = await runWorker(f);
-      expect(done.outcome).toMatchObject({
-        status: "completed",
-        outputArtifactIds: [f.publication.evidenceId],
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-      });
-      expect(publications).toHaveLength(1);
-      expect(stages).toHaveLength(2);
-      const result = stages[0].content;
-      const record = publications[0].record;
-      expect(record).toMatchObject({
-        acceptanceStatus: "unreviewed",
-        untrustedContent: true,
-        contentHash: stages[0].contentSha256,
-        sourceIdentity: { contentHash: stages[0].contentSha256 },
-      });
-      expect(result).toMatchObject({
-        operation: "macro-hmm-forward-v1",
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-        projectionDecimalEncoding:
-          "binary64-posterior-rounded-15-decimal-places-v1",
-        projectedResult: {
-          profile: "vertex-hmm-forward-result-v1",
-          feature_order: ["return"],
-          state_labels: ["calm", "stress"],
-        },
-      });
-      expect(result.projectedResult.filtered).toHaveLength(2);
-      expect(
-        Number(result.projectedResult.filtered[0].posterior[0])
-      ).toBeCloseTo(2 / 3, 14);
-      expect(
-        Number(result.projectedResult.filtered[1].posterior[0])
-      ).toBeCloseTo(14 / 19, 14);
-      expect(typeof result.projectedResult.filtered[1].posterior[0]).toBe(
-        "string"
-      );
-      expect(stages[0].canonicalSha256).toBeNull();
-      expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
-      expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(28);
-      expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
-      expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
-      expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
-      expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
-        calls.indexOf("admitRun")
-      );
-      expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
-        calls.indexOf("stageArtifact")
-      );
-      expect(record.method).toContain(
-        "binary64 diagonal Gaussian causal forward filter"
-      );
-      expect(
-        record.limitations.some((text: string) =>
-          text.includes("not paper reproduction")
-        )
-      ).toBe(true);
-      // Strict profile refusal is part of this one connected case, not another campaign.
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          parameters: { variant: "full-covariance" },
-        }).success
-      ).toBe(false);
-      return expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          inputs: f.inputs.slice(0, 2),
-        }).success
-      ).toBe(false);
-    }, 60_000);
+    return it(
+      "connects selected recipe through real handler and reviewed adapters to unreviewed numerical evidence",
+      async () => {
+        const f = await fixture();
+        const { done, stages, publications, calls } = await runWorker(f);
+        expect(done.outcome).toMatchObject({
+          status: "completed",
+          outputArtifactIds: [f.publication.evidenceId],
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+        });
+        expect(publications).toHaveLength(1);
+        expect(stages).toHaveLength(2);
+        const result = stages[0].content;
+        const record = publications[0].record;
+        expect(record).toMatchObject({
+          acceptanceStatus: "unreviewed",
+          untrustedContent: true,
+          contentHash: stages[0].contentSha256,
+          sourceIdentity: { contentHash: stages[0].contentSha256 },
+        });
+        expect(result).toMatchObject({
+          operation: "macro-hmm-forward-v1",
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+          projectionDecimalEncoding:
+            "binary64-posterior-rounded-15-decimal-places-v1",
+          projectedResult: {
+            profile: "vertex-hmm-forward-result-v1",
+            feature_order: ["return"],
+            state_labels: ["calm", "stress"],
+          },
+        });
+        expect(result.projectedResult.filtered).toHaveLength(2);
+        expect(
+          Number(result.projectedResult.filtered[0].posterior[0])
+        ).toBeCloseTo(2 / 3, 14);
+        expect(
+          Number(result.projectedResult.filtered[1].posterior[0])
+        ).toBeCloseTo(14 / 19, 14);
+        expect(typeof result.projectedResult.filtered[1].posterior[0]).toBe(
+          "string"
+        );
+        expect(stages[0].canonicalSha256).toBeNull();
+        expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
+        expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(28);
+        expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
+        expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
+        expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
+        expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
+          calls.indexOf("admitRun")
+        );
+        expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
+          calls.indexOf("stageArtifact")
+        );
+        expect(record.method).toContain(
+          "binary64 diagonal Gaussian causal forward filter"
+        );
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("not paper reproduction")
+          )
+        ).toBe(true);
+        // Strict profile refusal is part of this one connected case, not another campaign.
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            parameters: { variant: "full-covariance" },
+          }).success
+        ).toBe(false);
+        return expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            inputs: f.inputs.slice(0, 2),
+          }).success
+        ).toBe(false);
+      },
+      scaledTimeout(60_000)
+    );
   }
 );

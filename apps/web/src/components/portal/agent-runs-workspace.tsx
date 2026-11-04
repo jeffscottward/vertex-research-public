@@ -85,7 +85,7 @@ const TaskDetail = ({ detail }: { readonly detail: AgentTaskGetOutput }) => {
         {detail.task.links.length === 0 ? (
           <p className="text-muted-foreground text-xs">No links.</p>
         ) : (
-          <ul className="space-y-1 text-xs">
+          <ul className="space-y-1 text-xs" data-click-private="">
             {detail.task.links.map((link) => {
               return (
                 <li key={`${link.label}-${link.url}`}>
@@ -425,7 +425,7 @@ export const AgentRunsWorkspace = ({
         // `relative` makes the scroll box the containing block of the absolutely
         // positioned sr-only "Expand" label, so it cannot widen the page on a phone.
         <div className="relative overflow-x-auto" data-agent-tasks-scroll>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" data-click-private="">
             <caption className="sr-only">Agent tasks</caption>
             <thead>
               <tr className="border-border border-b text-left text-muted-foreground text-xs">

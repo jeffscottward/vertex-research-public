@@ -193,6 +193,7 @@ describe("quantdata client", () => {
     const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
     const client = createQuantDataClient(config, {
       fetch: doFetch,
+      maxRequestsPerMinute: 1000,
       minIntervalMs: 0,
     });
     for (let index = 0; index < 201; index += 1)
@@ -200,6 +201,227 @@ describe("quantdata client", () => {
     await client.request("orderFlow", { index: 0 }, 60_000);
     await client.request("orderFlow", { index: 200 }, 60_000);
     return expect(doFetch).toHaveBeenCalledTimes(202);
+  });
+
+  it("caches by an explicit key when the payload changes every minute", async () => {
+    let clock = 0;
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    await client.request("orderFlow", { t: 1 }, 60_000, "SPY 24h");
+    clock = 59_000;
+    await client.request("orderFlow", { t: 2 }, 60_000, "SPY 24h");
+    expect(doFetch).toHaveBeenCalledTimes(1);
+    await client.request("orderFlow", { t: 2 }, 60_000, "QQQ 24h");
+    expect(doFetch).toHaveBeenCalledTimes(2);
+    clock = 60_000;
+    await client.request("orderFlow", { t: 3 }, 60_000, "SPY 24h");
+    return expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops at its per-minute request budget until the window moves", async () => {
+    let clock = 0;
+    const doFetch = vi.fn<QuantDataFetch>(async () => json({ data: 1 }));
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      maxRequestsPerMinute: 2,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    await client.request("orderFlow", { n: 1 }, 1);
+    clock = 10_000;
+    await client.request("orderFlow", { n: 2 }, 1);
+    clock = 20_000;
+    expect(await client.request("orderFlow", { n: 3 }, 1)).toEqual({
+      message:
+        "QuantData orderFlow: the vertex-web budget of 2 requests per minute is used.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds: 40,
+    });
+    expect(doFetch).toHaveBeenCalledTimes(2);
+    clock = 60_000;
+    expect(await client.request("orderFlow", { n: 3 }, 1)).toMatchObject({
+      ok: true,
+    });
+    return expect(doFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits while the shared provider quota is below its reserve", async () => {
+    let clock = 0;
+    let headers: Record<string, string> = {
+      "x-ratelimit-remaining": "200",
+      "x-ratelimit-reset": "45",
+    };
+    const doFetch = vi.fn<QuantDataFetch>(async () =>
+      json({ data: 1 }, { headers })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+      quotaReserve: 100,
+    });
+    expect(await client.request("termStructure", { a: 1 }, 1)).toMatchObject({
+      ok: true,
+    });
+    expect(client.cooldownSeconds()).toBe(0);
+    headers = { "x-ratelimit-remaining": "99", "x-ratelimit-reset": "45" };
+    // The low-quota answer still returns; the queued request behind it waits.
+    const [low, queued] = await Promise.all([
+      client.request("termStructure", { a: 2 }, 1),
+      client.request("termStructure", { a: 3 }, 1),
+    ]);
+    expect(low).toMatchObject({ ok: true });
+    const waiting = {
+      message:
+        "QuantData termStructure: the shared QuantData quota is low; vertex-web waits so trading jobs keep headroom.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds: 45,
+    };
+    expect(queued).toEqual(waiting);
+    expect(client.cooldownSeconds()).toBe(45);
+    expect(await client.request("termStructure", { a: 4 }, 1)).toEqual(waiting);
+    expect(doFetch).toHaveBeenCalledTimes(2);
+    // Unreadable headers never pause; a falling counter waits until its reset, held to 1..60 s,
+    // and a missing reset waits 60 s.
+    const pauseAfter = async (
+      next: Record<string, string>,
+      label: number
+    ): Promise<number> => {
+      clock += 100_000;
+      headers = next;
+      await client.request("openInterest", { label }, 1);
+      return client.cooldownSeconds();
+    };
+    expect(await pauseAfter({ "x-ratelimit-remaining": "abc" }, 1)).toBe(0);
+    expect(await pauseAfter({ "x-ratelimit-remaining": "-1" }, 2)).toBe(0);
+    expect(await pauseAfter({}, 3)).toBe(0);
+    expect(
+      await pauseAfter(
+        { "x-ratelimit-remaining": "50", "x-ratelimit-reset": "999" },
+        4
+      )
+    ).toBe(60);
+    expect(
+      await pauseAfter(
+        { "x-ratelimit-remaining": "40", "x-ratelimit-reset": "0" },
+        5
+      )
+    ).toBe(1);
+    expect(await pauseAfter({ "x-ratelimit-remaining": "0" }, 6)).toBe(60);
+    return expect(doFetch).toHaveBeenCalledTimes(8);
+  });
+
+  it("ignores a low remaining count that does not fall", async () => {
+    // QuantData sent "remaining 19, reset 55" on every response on 2026-11-03.
+    let clock = 0;
+    let headers: Record<string, string> = {
+      "x-ratelimit-remaining": "19",
+      "x-ratelimit-reset": "55",
+    };
+    const doFetch = vi.fn<QuantDataFetch>(async () =>
+      json({ data: 1 }, { headers })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    for (const label of [1, 2, 3]) {
+      clock += 1000;
+      expect(await client.request("openInterest", { label }, 1)).toMatchObject({
+        ok: true,
+      });
+      expect(client.cooldownSeconds()).toBe(0);
+    }
+    // A higher count (a new window) does not wait either; the next fall does.
+    headers = { "x-ratelimit-remaining": "30", "x-ratelimit-reset": "55" };
+    await client.request("openInterest", { label: 4 }, 1);
+    expect(client.cooldownSeconds()).toBe(0);
+    headers = { "x-ratelimit-remaining": "29", "x-ratelimit-reset": "55" };
+    await client.request("openInterest", { label: 5 }, 1);
+    expect(client.cooldownSeconds()).toBe(55);
+    expect(doFetch).toHaveBeenCalledTimes(5);
+    // A 429 that carries the same constant headers still waits for the reset (55 s, past
+    // its 5 s Retry-After).
+    clock += 100_000;
+    doFetch.mockResolvedValueOnce(
+      json({}, { headers: { ...headers, "retry-after": "5" }, status: 429 })
+    );
+    await client.request("openInterest", { label: 6 }, 1);
+    return expect(client.cooldownSeconds()).toBe(55);
+  });
+
+  it("defaults to 30 requests per minute and a reserve of 120", async () => {
+    let clock = 0;
+    let remaining = "120";
+    const doFetch = vi.fn<QuantDataFetch>(async () =>
+      json({ data: 1 }, { headers: { "x-ratelimit-remaining": remaining } })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      minIntervalMs: 0,
+      now: () => clock,
+    });
+    for (let index = 0; index < 31; index += 1)
+      await client.request("orderFlow", { index }, 1);
+    expect(doFetch).toHaveBeenCalledTimes(30);
+    clock = 60_000;
+    remaining = "119";
+    await client.request("orderFlow", { index: 99 }, 1);
+    return expect(client.cooldownSeconds()).toBe(60);
+  });
+
+  it("counts failed requests against the budget", async () => {
+    let clock = 0;
+    const doFetch = vi.fn<QuantDataFetch>(async () =>
+      json({}, { status: 500 })
+    );
+    const client = createQuantDataClient(config, {
+      fetch: doFetch,
+      maxRequestsPerMinute: 1,
+      now: () => clock,
+    });
+    expect(await client.request("orderFlow", { n: 1 }, 1)).toMatchObject({
+      reason: "http",
+    });
+    clock = 30_000;
+    expect(await client.request("orderFlow", { n: 2 }, 1)).toMatchObject({
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    });
+    return expect(doFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the later of a 429 cooldown and a quota wait", async () => {
+    const client = createQuantDataClient(config, {
+      fetch: async () =>
+        json(
+          {},
+          {
+            headers: {
+              "retry-after": "5",
+              "x-ratelimit-remaining": "0",
+              "x-ratelimit-reset": "30",
+            },
+            status: 429,
+          }
+        ),
+      now: () => 0,
+    });
+    await client.request("orderFlow", {}, 1);
+    return expect(client.request("openInterest", {}, 1)).resolves.toEqual({
+      message:
+        "QuantData openInterest: the shared QuantData quota is low; vertex-web waits so trading jobs keep headroom.",
+      ok: false,
+      reason: "rate_limited",
+      retryAfterSeconds: 30,
+    });
   });
 
   it("enters a cooldown on HTTP 429 and fails fast during it", async () => {
@@ -570,8 +792,12 @@ const fakeClient = (
   return {
     calls,
     cooldownSeconds: () => cooldown,
-    request: async (endpoint, payload) => {
-      calls.push([endpoint, payload]);
+    request: async (endpoint, payload, _ttlMs, cacheKey) => {
+      calls.push(
+        cacheKey === undefined
+          ? [endpoint, payload]
+          : [endpoint, payload, cacheKey]
+      );
       return (
         responses[endpoint] ?? {
           message: `QuantData ${endpoint}: HTTP 500.`,
@@ -631,6 +857,7 @@ describe("buildOptionsAnalytics", () => {
           startTime: "2026-10-22T09:00:00.000Z",
         },
       },
+      "NVDA 6h",
     ]);
   });
 
@@ -674,9 +901,21 @@ describe("buildOptionsAnalytics", () => {
     });
     expect(down).toMatchObject({ rateLimited: true, retryAfterSeconds: 12 });
     expect(down.exposure.status).toBe("unavailable");
-    return expect(down.flow).toMatchObject({
+    expect(down.flow).toMatchObject({
       message: "QuantData orderFlow: HTTP 429.",
       status: "unavailable",
+    });
+    // A local budget refusal has no provider cooldown; its own wait time is reported.
+    const budget = await buildOptionsAnalytics(input, {
+      client: fakeClient({
+        orderFlow: { ...limited, retryAfterSeconds: 39.5 },
+        openInterest: { ...limited, retryAfterSeconds: null },
+      }),
+      now: () => NOW,
+    });
+    return expect(budget).toMatchObject({
+      rateLimited: true,
+      retryAfterSeconds: 40,
     });
   });
 });

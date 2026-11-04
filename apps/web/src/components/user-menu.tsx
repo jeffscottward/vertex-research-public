@@ -70,6 +70,7 @@ export const UserMenu = ({
         <DropdownMenuTrigger
           aria-controls={undefined}
           className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-2 rounded-md px-2 font-medium text-foreground text-sm transition-colors duration-base ease-out hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          data-click-label="User menu"
           data-hydration-state={signOut.isHydrated ? "ready" : "pending"}
           id="user-menu-trigger"
         >

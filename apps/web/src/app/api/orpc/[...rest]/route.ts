@@ -41,6 +41,7 @@ import { createSemanticEventFanout } from "@darkfactory/observability/server/fan
 import { initializeTelemetry } from "@darkfactory/observability/server/otel";
 
 import { bufferBoundedRequest } from "../../../../lib/bounded-request-body.ts";
+import { resolveE2eAssistantModelOverride } from "../../../../lib/e2e-fixtures.ts";
 import { resolveEmailPreviewOptions } from "../../../../lib/email-preview-options.ts";
 import { createVertexObjectsForScope } from "../../../../lib/server-vertex-objects.ts";
 import { verifyOwnPassword } from "../../../../lib/verify-own-password.ts";
@@ -276,6 +277,8 @@ const vertexContextDependencies = (
       appOrigin: new URL(env.APP_URL).origin,
       dispatch,
       model: env.VERTEX_ASSISTANT_MODEL,
+      // E2E runs only: the fake model endpoint; `{}` everywhere else.
+      ...resolveE2eAssistantModelOverride(),
     },
     // Read-only QuantVPS status endpoint; the token stays server-side (agentOps.deployment.status).
     deployStatus: resolveDeployStatusConfig(
@@ -288,6 +291,9 @@ const vertexContextDependencies = (
     ),
     // Portfolio tab: read-only proxy to ibkr-monitor on loopback (allow-listed GET endpoints only).
     ibkrMonitor: env.IBKR_MONITOR_URL ?? null,
+    // Engines and Market context views: rig status files pushed to QuantVPS, served on loopback
+    // (engines.status, marketContext.get).
+    engineStatus: env.ENGINE_STATUS_URL ?? null,
     marketHistory: resolveDeployStatusConfig(
       env.VERTEX_HISTORY_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN,

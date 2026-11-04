@@ -3,6 +3,10 @@ import type {
   MarketBarSeries,
   MarketBarsRepository,
 } from "@darkfactory/db/server";
+import {
+  BACKTEST_UNIVERSES,
+  DEFAULT_BACKTEST_UNIVERSE_ID,
+} from "@darkfactory/shared/universes";
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
@@ -121,6 +125,35 @@ const instantBacktestSeries = api.instantBacktest.series
     return { series: rows.map(toSeriesOutput) };
   });
 
+const instantBacktestUniverses = api.instantBacktest.universes
+  .use(requireOperator)
+  .handler(async ({ context, errors }) => {
+    const failures = errors as unknown as InstantBacktestErrorFactories;
+    const repository = repositoryFor(context, failures);
+    let rows: MarketBarSeries[];
+    try {
+      rows = await repository.listSeries();
+    } catch {
+      throw failures.STORAGE_ERROR();
+    }
+    return {
+      defaultUniverseId: DEFAULT_BACKTEST_UNIVERSE_ID,
+      universes: BACKTEST_UNIVERSES.map((universe) => ({
+        description: universe.description,
+        id: universe.id,
+        label: universe.label,
+        members: universe.members.map((member) => ({
+          market: member.market,
+          storedTimeframes: rows
+            .filter((row) => row.symbol === member.symbol)
+            .map((row) => row.timeframe),
+          symbol: member.symbol,
+          twin: member.twin,
+        })),
+      })),
+    };
+  });
+
 const instantBacktestRun = api.instantBacktest.run
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
@@ -179,4 +212,5 @@ const instantBacktestRun = api.instantBacktest.run
 export const instantBacktestRouter = {
   run: instantBacktestRun,
   series: instantBacktestSeries,
+  universes: instantBacktestUniverses,
 };

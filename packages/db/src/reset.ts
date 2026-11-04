@@ -40,6 +40,8 @@ export const resetDevelopment = async (
         "user_preferences",
         "feature_items",
         "watchlist_items",
+        "baskets",
+        "basket_members",
         "contact_rate_limits",
         "audit_records",
         "user",
@@ -50,5 +52,5 @@ export const resetDevelopment = async (
     `);
   });
 
-  return Object.freeze({ tablesCleared: 13 });
+  return Object.freeze({ tablesCleared: 15 });
 };

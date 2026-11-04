@@ -32,10 +32,10 @@ const mount = async () => {
         lessons={lessons}
         media={{
           [first.slug]: {
-            video: "/v.mp4",
             captions: "/c.vtt",
-            thumbnail: "/thumb.jpg",
             durationSeconds: 61.6,
+            thumbnail: "/thumb.jpg",
+            video: "/v.mp4",
           },
         }}
         sourceCount={7}
@@ -138,5 +138,6 @@ describe("AcademyGallery", () => {
     await act(async () => clear.click());
     expect(cards(container).length).toBe(lessons.length);
     expect(search.value).toBe("");
-  });
+    // Many filter steps re-render the whole gallery; a loaded runner needs more than the 5 s default.
+  }, 30_000);
 });

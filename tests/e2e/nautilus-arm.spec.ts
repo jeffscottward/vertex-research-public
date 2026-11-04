@@ -121,9 +121,21 @@ test("Arm needs reason, password and statement; Disarm is one click", async ({
   expect((await nodePosts()).at(-1)).toMatchObject({ action: "disarm" });
 });
 
-test("A stopped node shows Down and no Arm button", async ({
+test("A stopped node shows Down, no Arm button, and a reachable Disarm", async ({
+  browserErrors,
   page,
 }, testInfo) => {
+  // The fake bridge refuses a change while the node is down (409 not_running).
+  browserErrors.allowHttpError({
+    method: "POST",
+    pathname: "/api/orpc/nautilusArm/disarm",
+    status: 409,
+  });
+  for (const message of [
+    "Failed to load resource: the server responded with a status of 409 (Conflict)",
+    "Failed to load resource: the server responded with a status of 409 ()",
+  ])
+    browserErrors.allowConsoleError({ message, pathname: "/dashboard" });
   await nodeScenario("down");
   await signInAs(page, E2E_IDENTITIES.admin);
   await page.goto("/dashboard");
@@ -134,8 +146,20 @@ test("A stopped node shows Down and no Arm button", async ({
   await expect(
     card.getByRole("button", { exact: true, name: "Arm" })
   ).toHaveCount(0);
+  // Status is not "running and disarmed", so Disarm stays reachable (kill-switch card).
+  const disarm = card.getByRole("button", { exact: true, name: "Disarm" });
+  await expect(disarm).toBeEnabled();
   await page.screenshot({
     fullPage: true,
     path: testInfo.outputPath("nautilus-badge-down.png"),
   });
+
+  // One click reaches the bridge; the refusal is shown, nothing is retried.
+  await disarm.click();
+  await expect(card.getByRole("alert")).toContainText(
+    "The node was not disarmed"
+  );
+  const sent = await nodePosts();
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ action: "disarm" });
 });

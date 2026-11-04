@@ -24,6 +24,7 @@ import {
   evaluateOrder,
   type GatewayOpenOrder,
   type OrderAccount,
+  sameContract,
 } from "./vertex-orders-rules.ts";
 
 // Owner order screen (vertexOrders.*). Operator allow-list only (requireOperator; agent API keys
@@ -219,6 +220,99 @@ const guarded = async <T>(
   }
 };
 
+// Order intents with an unknown outcome (state-machine audit 2026-11-03, card sma-vertex-order-unknown).
+// IBKR lists an accepted order at once. After this time, an order that is neither open nor visible as
+// a position change is treated as not received.
+const UNKNOWN_SETTLE_MS = 10 * 60_000;
+const INTENT_LOOKBACK_MS = 7 * 24 * 60 * 60_000;
+
+type IntentStore = NonNullable<ApiContext["repositories"]["orderIntents"]>;
+
+// Live orders need the intent store; the mock uses it when it is wired.
+const intentStoreOf = (
+  context: ApiContext,
+  gateway: OrderGatewayPort,
+  failures: Failures
+): IntentStore | undefined => {
+  const store = context.repositories.orderIntents;
+  if (store === undefined && gateway.mode === "live")
+    throw failures.AUDIT_UNAVAILABLE({
+      message: "Order intent store unavailable; nothing was sent",
+    });
+  return store;
+};
+
+const heldIn = (
+  account: OrderAccount,
+  contract: Parameters<typeof sameContract>[0]
+): number =>
+  account.positions
+    .filter((p) => p.secType === "OPT" && sameContract(contract, p))
+    .reduce((sum, p) => sum + p.quantity, 0);
+
+// Resolves earlier intents with an unknown outcome against the account. Returns one refusal reason
+// for each intent that is still unknown. Concurrent submits are not serialized here.
+const reconcileUnknown = async (
+  context: ApiContext,
+  store: IntentStore | undefined,
+  account: OrderAccount,
+  now: number
+): Promise<string[]> => {
+  if (store === undefined) return [];
+  let pending: Awaited<ReturnType<IntentStore["unresolved"]>>;
+  try {
+    pending = await store.unresolved(new Date(now - INTENT_LOOKBACK_MS));
+  } catch {
+    return [
+      "Order intent store unavailable: earlier orders cannot be checked, so no new order.",
+    ];
+  }
+  const reasons: string[] = [];
+  for (const intent of pending) {
+    // Inside the settle window only an open order resolves an intent: a position change there may
+    // come from another fill on the same contract.
+    const settled = now - intent.createdAt.getTime() >= UNKNOWN_SETTLE_MS;
+    let outcome: "open" | "position-changed" | "not-found" | null = null;
+    if (account.openOrders.some((o) => o.orderRef === intent.orderRef))
+      outcome = "open";
+    else if (settled)
+      outcome =
+        heldIn(account, intent) === intent.heldBefore
+          ? "not-found"
+          : "position-changed";
+    const unknown = `Earlier order ${intent.orderRef} (${intent.contract}) has an unknown outcome and may still reach IBKR. Wait until it shows in open orders or positions.`;
+    if (outcome === null) {
+      reasons.push(unknown);
+      continue;
+    }
+    try {
+      await store.recordOutcome({
+        action: "vertex.order.reconciled",
+        actorUserId: userOf(context),
+        requestId: context.requestId,
+        orderRef: intent.orderRef,
+        outcome,
+      });
+    } catch {
+      reasons.push(unknown);
+      continue;
+    }
+    await audit(context, "reconcile", "success", {
+      orderRef: intent.orderRef,
+      result: outcome,
+    });
+  }
+  return reasons;
+};
+
+const blockedBy = <T extends { accepted: boolean; reasons: string[] }>(
+  review: T,
+  reasons: readonly string[]
+): T =>
+  reasons.length === 0
+    ? review
+    : { ...review, accepted: false, reasons: [...review.reasons, ...reasons] };
+
 const status = api.vertexOrders.status
   .use(requireOperator)
   .use(requireOwner)
@@ -263,7 +357,15 @@ const preview = api.vertexOrders.preview
     const gateway = selectOrderGateway(config);
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
-    const review = evaluateOrder(input, account, now);
+    const review = blockedBy(
+      evaluateOrder(input, account, now),
+      await reconcileUnknown(
+        context,
+        intentStoreOf(context, gateway, failures),
+        account,
+        now.getTime()
+      )
+    );
     const expiresAt = now.getTime() + CONFIRM_TTL_MS;
     const confirmToken = review.accepted
       ? await issueConfirmToken(config.confirmSecret, {
@@ -325,8 +427,12 @@ const submit = api.vertexOrders.submit
         mode: gateway.mode,
         result: outcome,
       });
+    const store = intentStoreOf(context, gateway, failures);
     const account = await guarded(failures, gateway.account, auditFailure);
-    const review = evaluateOrder(input.order, account, now);
+    const review = blockedBy(
+      evaluateOrder(input.order, account, now),
+      await reconcileUnknown(context, store, account, now.getTime())
+    );
     if (!review.accepted) {
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
@@ -338,11 +444,53 @@ const submit = api.vertexOrders.submit
       mode: gateway.mode,
       orderRef,
     });
-    const result = await guarded(
-      failures,
-      () => gateway.place(input.order, orderRef),
-      auditFailure
-    );
+    const outcomeOf = async (outcome: "placed" | "unknown") =>
+      await store
+        ?.recordOutcome({
+          action: "vertex.order.result",
+          actorUserId: userOf(context),
+          requestId: context.requestId,
+          orderRef,
+          outcome,
+        })
+        .catch(() => undefined);
+    try {
+      await store?.recordIntent({
+        actorUserId: userOf(context),
+        requestId: context.requestId,
+        intent: {
+          orderRef,
+          contract: label,
+          symbol: input.order.symbol,
+          expiry: input.order.expiry,
+          strike: input.order.strike,
+          right: input.order.right,
+          heldBefore: heldIn(account, input.order),
+        },
+      });
+    } catch {
+      await auditFailure("intent store unavailable");
+      throw failures.AUDIT_UNAVAILABLE({
+        message: "Order intent store unavailable; nothing was sent",
+      });
+    }
+    // A failed or timed-out place call may still reach IBKR: the intent stays "unknown" and the next
+    // preview reconciles it before any new order.
+    let result: Awaited<ReturnType<OrderGatewayPort["place"]>>;
+    try {
+      result = await gateway.place(input.order, orderRef);
+    } catch (error) {
+      const detail =
+        error instanceof OrderGatewayError ? error.message : "gateway error";
+      await outcomeOf("unknown");
+      await auditFailure(`outcome unknown: ${detail}`);
+      if (error instanceof OrderGatewayError)
+        throw failures[error.code]({
+          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+        });
+      throw error;
+    }
+    await outcomeOf("placed");
     await audit(context, "submit", "success", {
       ...base,
       mode: gateway.mode,

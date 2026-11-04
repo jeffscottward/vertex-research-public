@@ -80,6 +80,15 @@ describe("ResearchWorkspace", () => {
     expect(
       container.querySelector('a[href="/strategies"]')?.textContent
     ).toContain("Exact-version strategy review");
+    expect(
+      container.querySelector('a[href="/assistant"]')?.textContent
+    ).toContain("Open the research assistant");
+    expect(
+      container.querySelector('a[href="/research/reports"]')?.textContent
+    ).toBe("Research dossiers");
+    expect(
+      container.querySelector('a[href="/knowledge"]')?.textContent
+    ).toContain("Open the knowledge chat");
   });
 
   it("reopens the chat room on the scope chosen from the list", async () => {

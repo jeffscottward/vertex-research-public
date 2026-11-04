@@ -23,6 +23,7 @@ import {
   readSelector,
   answerText,
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Only an already-authenticated principal value crosses this service boundary.
 // These tests do not claim to qualify login, a live corpus, storage or a provider.
@@ -43,7 +44,7 @@ const dependencies = (
 
 // Owner-boundary cases build the full real-owner conversation fixture.
 describe("public conversation service retains genuine owner boundaries", {
-  timeout: 120_000,
+  timeout: scaledTimeout(120_000),
 }, () => {
   const messagesTable = "vertex_research_chat_messages";
   const threadsTable = "vertex_research_chat_threads";

@@ -3,10 +3,11 @@
 import type {
   PortfolioMonitorMessage,
   PortfolioMonitorOutput,
+  PortfolioMonitorPosition,
 } from "@darkfactory/api";
 import { Button, Skeleton, StatusBadge, cn } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 import {
@@ -20,7 +21,9 @@ import {
   type PortfolioMonitorFailure,
   type PortfolioMonitorGateway,
 } from "./portfolio-monitor-client.ts";
+import { usePositionActions } from "./position-actions.tsx";
 import { useStoredState } from "./portfolio-monitor-controls.tsx";
+import type { VertexOrdersGateway } from "./vertex-orders-client.ts";
 import {
   PNL_TONE_CLASS,
   REFRESH_INTERVALS,
@@ -45,6 +48,8 @@ import {
 } from "./portfolio-monitor-tables.tsx";
 
 export const INTERVAL_STORAGE_KEY = "vertex.monitor.interval.v1";
+const ORDER_ACTIONS_NOTICE =
+  "Close, Buy and Sell open a confirm dialog. Nothing is sent until you confirm there.";
 export const READ_ONLY_NOTICE =
   "Read-only view of IBKR. Orders cannot be placed, changed or cancelled here.";
 
@@ -56,7 +61,11 @@ export interface PortfolioMonitorProps {
   readonly title?: string;
   // The page owns the tab strip (portfolio-tabs.tsx) and picks the one section shown here.
   readonly section: MonitorSection;
+  // Owner order buttons (Close / Buy / Sell) per position; absent => read-only table.
+  readonly ordersGateway?: VertexOrdersGateway;
 }
+
+type PositionActionCell = (position: PortfolioMonitorPosition) => ReactNode;
 
 const NOT_CONFIGURED_FAILURE: PortfolioMonitorFailure = Object.freeze({
   kind: "not-configured",
@@ -353,11 +362,13 @@ export const ForbiddenState = () => (
 );
 
 const SectionBody = ({
+  actions,
   handles,
   nowMs,
   section,
   snapshot,
 }: {
+  readonly actions?: PositionActionCell | undefined;
   readonly handles: RoundHandleFeed;
   readonly nowMs: number;
   readonly section: MonitorSection;
@@ -417,23 +428,32 @@ const SectionBody = ({
         <PositionsPanel
           empty="No option positions."
           live={live}
+          actions={actions}
           positions={snapshot.positions.filter(isOptionPosition)}
           title="Option positions"
         />
       );
     }
     default: {
-      return <PositionsPanel live={live} positions={snapshot.positions} />;
+      return (
+        <PositionsPanel
+          actions={actions}
+          live={live}
+          positions={snapshot.positions}
+        />
+      );
     }
   }
 };
 
 const MonitorBody = ({
+  actions,
   handles,
   nowMs,
   section,
   snapshot,
 }: {
+  readonly actions?: PositionActionCell | undefined;
   readonly handles: RoundHandleFeed;
   readonly nowMs: number;
   readonly section: MonitorSection;
@@ -442,6 +462,7 @@ const MonitorBody = ({
   <div className="space-y-6">
     <SummaryGrid snapshot={snapshot} />
     <SectionBody
+      actions={actions}
       handles={handles}
       nowMs={nowMs}
       section={section}
@@ -466,7 +487,9 @@ export const PortfolioMonitor = ({
   configured = true,
   title = "IBKR monitor",
   section,
+  ordersGateway,
 }: PortfolioMonitorProps) => {
+  const orderActions = usePositionActions(ordersGateway);
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserPortfolioMonitorGateway()
   );
@@ -516,6 +539,7 @@ export const PortfolioMonitor = ({
           snapshot={snapshot}
         />
         <MonitorBody
+          actions={orderActions?.cell}
           handles={handles}
           nowMs={nowMs}
           section={section}
@@ -574,9 +598,10 @@ export const PortfolioMonitor = ({
         </div>
       </header>
       <p className="text-muted-foreground text-xs" role="note">
-        {READ_ONLY_NOTICE}
+        {orderActions === null ? READ_ONLY_NOTICE : ORDER_ACTIONS_NOTICE}
       </p>
       {body}
+      {orderActions?.dialog}
     </section>
   );
 };

@@ -157,7 +157,15 @@ const expectedInputs = async (
   };
 };
 
-describe("concrete one-expert plan to private review to exact owner approval", () => {
+// Each test builds a full composition fixture (in-memory SQL with transaction
+// snapshots, real grants, reviews and canonical hashing) and runs several owner
+// steps. Measured 2026-11-03 on dev-rig (file run alone): 0.2-1.7 s per test
+// unthrottled; up to 5.5 s under a 25% CPU quota (the first test timed out at
+// the 5 s default in 2 of 3 runs) and up to 14.7 s under 10% (7 of 13 tests
+// above 5 s). 60 s keeps about a 4x margin over the 10% worst case.
+describe("concrete one-expert plan to private review to exact owner approval", {
+  timeout: 60_000,
+}, () => {
   it("persists all three actual owner records with exact producer bytes and no plaintext copies", async () => {
     const f = await compositionFixture();
     const originalObjects = new Map(

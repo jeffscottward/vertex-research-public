@@ -206,3 +206,44 @@ describe("offset and new indicators", () => {
     }
   });
 });
+
+describe("sector quadrant filters", () => {
+  const filter = {
+    quadrants: ["leading", "improving"],
+    sector: "XLK",
+    type: "sectorQuadrant",
+  };
+
+  it("accepts a filter and defaults the timeframe to weekly", () => {
+    const parsed = StrategyDefinitionSchema.parse({
+      ...minimal,
+      filters: [filter],
+    });
+    expect(parsed.filters).toEqual([{ ...filter, timeframe: "weekly" }]);
+  });
+
+  it("rejects an unknown sector, empty or repeated quadrants and too many filters", () => {
+    const issues = (filters: unknown) => {
+      const result = validateStrategyDefinition({ ...minimal, filters });
+      return result.ok ? [] : result.issues.map((issue) => issue.message);
+    };
+    expect(issues([{ ...filter, sector: "AAPL" }])).toEqual([
+      "Unknown sector. Use a Select Sector SPDR symbol, for example XLK",
+    ]);
+    expect(issues([{ ...filter, quadrants: [] }]).length).toBe(1);
+    expect(issues([{ ...filter, quadrants: ["leading", "leading"] }])).toEqual([
+      "Quadrants must not repeat",
+    ]);
+    expect(issues([{ ...filter, quadrants: ["up"] }]).length).toBe(1);
+    expect(issues([]).length).toBe(1);
+    expect(issues(Array.from({ length: 5 }, () => filter)).length).toBe(1);
+  });
+
+  it("adds no filters key to definitions without filters, so revisions stay the same", () => {
+    for (const template of Object.values(STRATEGY_TEMPLATES)) {
+      const parsed = StrategyDefinitionSchema.parse(template);
+      expect("filters" in parsed).toBe(false);
+      expect(JSON.stringify(parsed)).not.toContain('"filters"');
+    }
+  });
+});

@@ -354,6 +354,7 @@ export const redact = (
       const output: Record<string, RedactedValue> = Object.create(null);
       let processed = 0;
       try {
+        // biome-ignore lint/suspicious/noForIn: lazy enumeration keeps maxObjectKeys bounded without allocating every key of a huge object.
         for (const rawKey in value) {
           if (!Object.hasOwn(value, rawKey)) continue;
           if (processed >= maxObjectKeys) {

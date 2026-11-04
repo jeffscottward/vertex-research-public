@@ -3,28 +3,37 @@
 import {
   AGENT_TASK_ATTENTION_STATUSES,
   AGENT_TASK_TERMINAL_STATUSES,
-  RESEARCH_PAPER_STAGE_VALUES,
   type AgentOpsSummaryOutput,
   type AgentTaskOutput,
+  RESEARCH_PAPER_STAGE_VALUES,
 } from "@darkfactory/api";
-import { Button } from "@darkfactory/ui";
+import {
+  Button,
+  Panel,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
-
 import {
-  InfoGlyph,
-  OperatorAccessRequired,
-  STAGE_LABELS,
-  STATUS_LABELS,
+  type AgentOpsGateway,
   createBrowserAgentOpsGateway,
   describeAgentOpsFailure,
-  isOperatorAccessDenied,
   formatDuration,
   formatMetrics,
   formatTimestamp,
+  InfoGlyph,
+  isOperatorAccessDenied,
   labelFor,
-  type AgentOpsGateway,
+  OperatorAccessRequired,
+  STAGE_LABELS,
+  STATUS_LABELS,
 } from "./agent-ops-client.tsx";
+import { SectorRotationChanges } from "./sector-rotation-changes.tsx";
 
 export interface MissionControlProps {
   readonly gateway?: AgentOpsGateway;
@@ -82,27 +91,32 @@ const TaskTable = ({
   }
   return (
     <TableScroll label={caption}>
-      <table className="w-full text-sm">
+      <Table containerClassName="overflow-visible" data-click-private="">
         <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-border border-b text-left text-muted-foreground text-xs">
-            <th scope="col">Task</th>
-            <th scope="col">Kind</th>
-            <th scope="col">Agent</th>
-            <th scope="col">Status</th>
-            <th scope="col">{showOutcome ? "Metrics" : "Duration"}</th>
-            <th scope="col">Updated (UTC)</th>
-          </tr>
-        </thead>
-        <tbody>
+        <TableHeader>
+          <TableRow>
+            <TableHead scope="col">Task</TableHead>
+            <TableHead scope="col">Kind</TableHead>
+            <TableHead scope="col">Agent</TableHead>
+            <TableHead scope="col">Status</TableHead>
+            <TableHead scope="col">
+              {showOutcome ? "Metrics" : "Duration"}
+            </TableHead>
+            <TableHead scope="col">Updated (UTC)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {tasks.map((task) => {
             return (
-              <tr
-                className="border-border border-b align-top"
+              <TableRow
+                className="[&>td]:align-top [&>th]:align-top"
                 data-task-id={task.id}
                 key={task.id}
               >
-                <th className="py-1 font-normal" scope="row">
+                <TableHead
+                  className="h-auto min-w-64 whitespace-normal py-2.5 align-top font-normal"
+                  scope="row"
+                >
                   <a
                     className="underline-offset-2 hover:underline"
                     href={`/agents?task=${encodeURIComponent(task.id)}`}
@@ -114,25 +128,29 @@ const TaskTable = ({
                       {task.summary.slice(0, 160)}
                     </div>
                   )}
-                </th>
-                <td className="py-1 font-mono text-xs">{task.kind}</td>
-                <td className="py-1 font-mono text-xs">{task.agent}</td>
-                <td className="py-1" data-status={task.status}>
+                </TableHead>
+                <TableCell className="align-top font-mono text-xs">
+                  {task.kind}
+                </TableCell>
+                <TableCell className="align-top font-mono text-xs">
+                  {task.agent}
+                </TableCell>
+                <TableCell className="align-top" data-status={task.status}>
                   {labelFor(STATUS_LABELS, task.status)}
-                </td>
-                <td className="py-1 font-mono text-xs">
+                </TableCell>
+                <TableCell className="min-w-40 whitespace-normal align-top font-mono text-xs">
                   {showOutcome
                     ? formatMetrics(task.metrics)
                     : formatDuration(task)}
-                </td>
-                <td className="py-1 font-mono text-muted-foreground text-xs">
+                </TableCell>
+                <TableCell className="align-top font-mono text-muted-foreground text-xs">
                   {formatTimestamp(task.updatedAt)}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             );
           })}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </TableScroll>
   );
 };
@@ -153,12 +171,12 @@ export const MissionControl = ({
         gateway.summary(),
         gateway.listTasks({ limit: 200 }),
       ]);
-      return setState({ type: "ready", data: { summary, tasks } });
+      return setState({ data: { summary, tasks }, type: "ready" });
     } catch (error) {
       return setState(
         isOperatorAccessDenied(error)
           ? { type: "forbidden" }
-          : { type: "error", message: describeAgentOpsFailure(error) }
+          : { message: describeAgentOpsFailure(error), type: "error" }
       );
     }
   }, [gateway]);
@@ -221,34 +239,34 @@ export const MissionControl = ({
     .slice(0, RECENT_RESULTS_LIMIT);
   const counters = [
     {
+      info: "Tasks with status running.",
       label: "Running",
       value: summary.statusCounts.running,
-      info: "Tasks with status running.",
     },
     {
+      info: "Tasks accepted but not started.",
       label: "Queued",
       value: summary.statusCounts.queued,
-      info: "Tasks accepted but not started.",
     },
     {
+      info: "Agent finished a step and waits for operator review.",
       label: "Needs review",
       value: summary.statusCounts.needs_review,
-      info: "Agent finished a step and waits for operator review.",
     },
     {
+      info: "Agent cannot continue without input or access.",
       label: "Blocked",
       value: summary.statusCounts.blocked,
-      info: "Agent cannot continue without input or access.",
     },
     {
+      info: "Tasks that entered failed in the last 24 hours (finished time, else updated time).",
       label: "Failed 24 h",
       value: summary.failedLast24h,
-      info: "Tasks that entered failed in the last 24 hours (finished time, else updated time).",
     },
     {
+      info: "All-time count of succeeded tasks.",
       label: "Succeeded",
       value: summary.statusCounts.succeeded,
-      info: "All-time count of succeeded tasks.",
     },
   ];
 
@@ -257,8 +275,8 @@ export const MissionControl = ({
       {notice}
       <div className="flex items-center justify-between gap-4">
         <dl
-          className="grid flex-1 grid-cols-3 gap-2 md:grid-cols-6"
           aria-label="Task counters"
+          className="grid flex-1 grid-cols-3 gap-2 md:grid-cols-6"
         >
           {counters.map((counter) => {
             return (
@@ -290,11 +308,16 @@ export const MissionControl = ({
           Reload
         </Button>
       </div>
-      <section aria-labelledby="mc-papers" className="space-y-2">
-        <h2 className="font-medium text-sm" id="mc-papers">
-          Papers by stage
-          <InfoGlyph text="Count of research papers at each pipeline stage. Open Papers to change stage or verdict." />
-        </h2>
+      <SectorRotationChanges />
+      <Panel
+        headingId="mc-papers"
+        title={
+          <>
+            Papers by stage
+            <InfoGlyph text="Count of research papers at each pipeline stage. Open Papers to change stage or verdict." />
+          </>
+        }
+      >
         {/* A grid, not a table: the seven stages wrap at 375 px instead of widening the page. */}
         <dl
           aria-label="Paper counts by stage"
@@ -314,84 +337,110 @@ export const MissionControl = ({
             </div>
           ))}
         </dl>
-      </section>
-      <section aria-labelledby="mc-attention" className="space-y-2">
-        <h2 className="font-medium text-sm" id="mc-attention">
-          Needs you
-          <InfoGlyph text="Tasks with status needs review, blocked or failed. Change status on Agent runs." />
-        </h2>
+      </Panel>
+      <Panel
+        flush={attention.length > 0}
+        headingId="mc-attention"
+        title={
+          <>
+            Needs you
+            <InfoGlyph text="Tasks with status needs review, blocked or failed. Change status on Agent runs." />
+          </>
+        }
+      >
         <TaskTable
           caption="Tasks that need the operator"
           empty="Nothing needs you. No task is in needs review, blocked or failed."
           tasks={attention}
         />
-      </section>
-      <section aria-labelledby="mc-running" className="space-y-2">
-        <h2 className="font-medium text-sm" id="mc-running">
-          Running now
-          <InfoGlyph text="Tasks with status running. Duration counts from the first running transition." />
-        </h2>
+      </Panel>
+      <Panel
+        flush={running.length > 0}
+        headingId="mc-running"
+        title={
+          <>
+            Running now
+            <InfoGlyph text="Tasks with status running. Duration counts from the first running transition." />
+          </>
+        }
+      >
         <TaskTable
           caption="Running tasks"
           empty="No task is running."
           tasks={running}
         />
-      </section>
-      <section aria-labelledby="mc-recent" className="space-y-2">
-        <h2 className="font-medium text-sm" id="mc-recent">
-          Recent results
-          <InfoGlyph
-            text={`Last ${RECENT_RESULTS_LIMIT} succeeded or cancelled tasks, newest first. Failed tasks show under Needs you.`}
-          />
-        </h2>
+      </Panel>
+      <Panel
+        flush={recent.length > 0}
+        headingId="mc-recent"
+        title={
+          <>
+            Recent results
+            <InfoGlyph
+              text={`Last ${RECENT_RESULTS_LIMIT} succeeded or cancelled tasks, newest first. Failed tasks show under Needs you.`}
+            />
+          </>
+        }
+      >
         <TaskTable
           caption="Recent task results"
           empty="No finished tasks yet."
           showOutcome
           tasks={recent}
         />
-      </section>
-      <section aria-labelledby="mc-events" className="space-y-2">
-        <h2 className="font-medium text-sm" id="mc-events">
-          Latest events
-          <InfoGlyph text="Last 20 events appended by agents or the operator, newest first." />
-        </h2>
+      </Panel>
+      <Panel
+        flush={summary.latestEvents.length > 0}
+        headingId="mc-events"
+        title={
+          <>
+            Latest events
+            <InfoGlyph text="Last 20 events appended by agents or the operator, newest first." />
+          </>
+        }
+      >
         {summary.latestEvents.length === 0 ? (
           <p className="text-muted-foreground text-sm">No events recorded.</p>
         ) : (
           <TableScroll label="Latest task events">
-            <table className="w-full text-sm">
+            <Table containerClassName="overflow-visible">
               <caption className="sr-only">Latest task events</caption>
-              <thead>
-                <tr className="border-border border-b text-left text-muted-foreground text-xs">
-                  <th scope="col">Time (UTC)</th>
-                  <th scope="col">Level</th>
-                  <th scope="col">Task</th>
-                  <th scope="col">Message</th>
-                </tr>
-              </thead>
-              <tbody>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">Time (UTC)</TableHead>
+                  <TableHead scope="col">Level</TableHead>
+                  <TableHead scope="col">Task</TableHead>
+                  <TableHead scope="col">Message</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {summary.latestEvents.map((event) => {
                   return (
-                    <tr
-                      className="border-border border-b align-top"
+                    <TableRow
+                      className="[&>td]:align-top [&>th]:align-top"
                       data-level={event.level}
                       key={event.id}
                     >
-                      <td className="py-1 font-mono text-muted-foreground text-xs">
+                      <TableCell className="align-top font-mono text-muted-foreground text-xs">
                         {formatTimestamp(event.at)}
-                      </td>
-                      <td className="py-1 font-mono text-xs">{event.level}</td>
-                      <td className="py-1">{event.taskTitle}</td>
-                      <td className="py-1">{event.message}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell className="align-top font-mono text-xs">
+                        {event.level}
+                      </TableCell>
+                      <TableCell className="min-w-48 whitespace-normal align-top">
+                        {event.taskTitle}
+                      </TableCell>
+                      <TableCell className="min-w-48 whitespace-normal align-top">
+                        {event.message}
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </TableScroll>
         )}
-      </section>
+      </Panel>
     </div>
   );
 };

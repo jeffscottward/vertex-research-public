@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   closeSync,
   constants,
@@ -179,7 +180,6 @@ const CLIENT_OPTIMIZE_DEPS_INCLUDE = [
   "@darkfactory/ui > radix-ui",
   "@darkfactory/ui > sonner",
   "lucide-react",
-  "next/router",
   // Pre-bundled so first visits to chart and research-chat pages do not trigger
   // runtime dependency discovery, which forces a full reload and can leave open
   // tabs requesting outdated optimized chunks ("module" errors).
@@ -257,12 +257,33 @@ const environmentOptimizerPolicy = (): Plugin => ({
   },
 });
 
+// The commit the bundle is built from, for the UI click log (apps/web/src/features/click-log).
+// VERTEX_BUILD_SHA wins; otherwise git HEAD; "unknown" when neither is available.
+const BUILD_SHA_PATTERN = /^[0-9a-f]{7,40}$/u;
+const buildSha = (() => {
+  const fromEnvironment = process.env["VERTEX_BUILD_SHA"];
+  if (fromEnvironment !== undefined && BUILD_SHA_PATTERN.test(fromEnvironment))
+    return fromEnvironment;
+  try {
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return BUILD_SHA_PATTERN.test(head) ? head : "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
+
 export default defineConfig({
   ...(localDevelopment || localNamed || selfHostedAllowedHosts !== undefined
     ? { envDir: false as const }
     : {}),
   build: {
     assetsInlineLimit: keepFontFilesExternal,
+  },
+  define: {
+    __VERTEX_BUILD_SHA__: JSON.stringify(buildSha),
   },
   resolve: {
     dedupe: [

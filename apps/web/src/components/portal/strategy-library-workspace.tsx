@@ -11,38 +11,48 @@ import {
   type StrategyStatusValue,
   type StrategySummaryOutput,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { LayoutGrid, Plus, Rows3, Star } from "lucide-react";
 import {
+  type MouseEvent,
   useCallback,
   useEffect,
   useMemo,
   useState,
-  type MouseEvent,
 } from "react";
 
 import {
-  InfoGlyph,
-  OperatorAccessRequired,
   createBrowserStrategyLibraryGateway,
   describeAgentOpsFailure,
   formatTimestamp,
+  InfoGlyph,
   isOperatorAccessDenied,
+  OperatorAccessRequired,
   type StrategyLibraryGateway,
 } from "./agent-ops-client.tsx";
 import { formatPercent } from "./backtests-workspace.tsx";
 import { StrategyDetail, StrategyLinks } from "./strategy-library-detail.tsx";
-import { selectClass } from "./strategy-param-field.tsx";
 import {
-  STRATEGY_KIND_LABELS,
-  STRATEGY_SORT_LABELS,
-  STRATEGY_STATUS_LABELS,
   formatRatio,
   formatSignedPercent,
   groupBySection,
   isStrategyTab,
+  STRATEGY_KIND_LABELS,
+  STRATEGY_SORT_LABELS,
+  STRATEGY_STATUS_LABELS,
   type StrategyTab,
 } from "./strategy-library-model.ts";
+import { selectClass } from "./strategy-param-field.tsx";
 
 export interface StrategyLibraryWorkspaceProps {
   readonly gateway?: StrategyLibraryGateway;
@@ -164,9 +174,9 @@ const NameLink = ({
 );
 
 const latestText = (row: StrategySummaryOutput) => ({
+  maxDrawdown: formatPercent(row.latestBacktest?.maxDrawdown ?? null),
   sharpe: formatRatio(row.latestBacktest?.sharpe),
   totalReturn: formatSignedPercent(row.latestBacktest?.totalReturn),
-  maxDrawdown: formatPercent(row.latestBacktest?.maxDrawdown ?? null),
 });
 
 const RowsView = ({
@@ -183,99 +193,142 @@ const RowsView = ({
   readonly onOpen: (id: string) => void;
 }) => (
   <div className="relative overflow-x-auto">
-    <table className="w-full min-w-[60rem] text-sm">
-      <caption className="sr-only">{label} strategies</caption>
-      <thead>
-        <tr className="border-border border-b text-left text-muted-foreground text-xs">
-          <th className="w-11 py-1 font-normal" scope="col">
+    <Table
+      className="w-full min-w-[60rem] text-sm"
+      containerClassName="overflow-visible"
+      data-click-private=""
+    >
+      <TableCaption className="sr-only">{label} strategies</TableCaption>
+      <TableHeader>
+        <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+          <TableHead
+            className="w-11 py-1 font-normal text-muted-foreground"
+            scope="col"
+          >
             <span className="sr-only">Favorite</span>
-          </th>
-          <th className="py-1 pr-3 font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
             Name
-          </th>
-          <th className="py-1 pr-3 font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
             Status
-          </th>
-          <th className="py-1 pr-3 font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
             Kind
-          </th>
-          <th className="py-1 pr-3 font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
             Tags
-          </th>
-          <th className="py-1 pr-3 text-right font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 text-right font-normal text-muted-foreground"
+            scope="col"
+          >
             Sharpe
             <InfoGlyph text="Derived by the server from the latest linked backtest's reported equity (annualized, risk-free rate 0)." />
-          </th>
-          <th className="py-1 pr-3 text-right font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 text-right font-normal text-muted-foreground"
+            scope="col"
+          >
             Return
             <InfoGlyph text="Total return of the latest linked backtest's reported equity." />
-          </th>
-          <th className="py-1 pr-3 text-right font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 text-right font-normal text-muted-foreground"
+            scope="col"
+          >
             Max DD
-          </th>
-          <th className="py-1 pr-3 text-right font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 text-right font-normal text-muted-foreground"
+            scope="col"
+          >
             Backtests
-          </th>
-          <th className="py-1 pr-3 text-right font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 text-right font-normal text-muted-foreground"
+            scope="col"
+          >
             Presets
-          </th>
-          <th className="py-1 pr-3 font-normal" scope="col">
+          </TableHead>
+          <TableHead
+            className="py-1 pr-3 font-normal text-muted-foreground"
+            scope="col"
+          >
             Updated (UTC)
-          </th>
-        </tr>
-      </thead>
-      <tbody>
+          </TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {rows.map((row) => {
           return (
-            <tr
+            <TableRow
               className="border-border border-b align-middle"
               data-strategy-row={row.id}
               key={row.id}
             >
-              <td className="py-0">
+              <TableCell className="whitespace-normal py-0">
                 <FavoriteButton busy={busy} onToggle={onToggle} row={row} />
-              </td>
-              <th className="py-0 pr-3 font-normal" scope="row">
+              </TableCell>
+              <TableHead
+                className="whitespace-normal py-0 pr-3 font-normal"
+                scope="row"
+              >
                 <NameLink onOpen={onOpen} row={row} />
-              </th>
-              <td className="py-1 pr-3 text-xs" data-col="status">
+              </TableHead>
+              <TableCell
+                className="whitespace-normal py-1 pr-3 text-xs"
+                data-col="status"
+              >
                 {STRATEGY_STATUS_LABELS[row.status]}
-              </td>
-              <td className="py-1 pr-3 text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 text-xs">
                 {STRATEGY_KIND_LABELS[row.kind] ?? row.kind}
-              </td>
-              <td className="py-1 pr-3 text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 text-xs">
                 {row.tags.length === 0 ? "—" : row.tags.join(", ")}
-              </td>
-              <td
-                className="py-1 pr-3 text-right font-mono text-xs"
+              </TableCell>
+              <TableCell
+                className="whitespace-normal py-1 pr-3 text-right font-mono text-xs"
                 data-col="sharpe"
               >
                 {latestText(row).sharpe}
-              </td>
-              <td
-                className="py-1 pr-3 text-right font-mono text-xs"
+              </TableCell>
+              <TableCell
+                className="whitespace-normal py-1 pr-3 text-right font-mono text-xs"
                 data-col="return"
               >
                 {latestText(row).totalReturn}
-              </td>
-              <td className="py-1 pr-3 text-right font-mono text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 text-right font-mono text-xs">
                 {latestText(row).maxDrawdown}
-              </td>
-              <td className="py-1 pr-3 text-right font-mono text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 text-right font-mono text-xs">
                 {row.backtestCount}
-              </td>
-              <td className="py-1 pr-3 text-right font-mono text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 text-right font-mono text-xs">
                 {row.presetCount}
-              </td>
-              <td className="py-1 pr-3 font-mono text-muted-foreground text-xs">
+              </TableCell>
+              <TableCell className="whitespace-normal py-1 pr-3 font-mono text-muted-foreground text-xs">
                 {formatTimestamp(row.updatedAt)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -290,7 +343,10 @@ const CardsView = ({
   readonly onToggle: (row: StrategySummaryOutput) => void;
   readonly onOpen: (id: string) => void;
 }) => (
-  <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+  <ul
+    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+    data-click-private=""
+  >
     {rows.map((row) => {
       return (
         <li
@@ -349,9 +405,9 @@ const CreateForm = ({
     setBusy(true);
     try {
       const created = await gateway.create({
-        name,
-        kind,
         description,
+        kind,
+        name,
         section,
       });
       setName("");
@@ -477,12 +533,12 @@ export const StrategyLibraryWorkspace = ({
         ...(favoritesOnly ? { favorite: true } : {}),
         sort,
       });
-      return setState({ type: "ready", rows });
+      return setState({ rows, type: "ready" });
     } catch (error) {
       return setState(
         isOperatorAccessDenied(error)
           ? { type: "forbidden" }
-          : { type: "error", message: describeStrategyFailure(error) }
+          : { message: describeStrategyFailure(error), type: "error" }
       );
     }
   }, [gateway, query, status, source, favoritesOnly, sort]);
@@ -498,14 +554,14 @@ export const StrategyLibraryWorkspace = ({
         setTab("overview");
         writeLocation(id, "overview");
       }
-      setDetail({ type: "loading", id });
+      setDetail({ id, type: "loading" });
       try {
-        return setDetail({ type: "ready", detail: await gateway.get(id) });
+        return setDetail({ detail: await gateway.get(id), type: "ready" });
       } catch (error) {
         return setDetail({
-          type: "error",
           id,
           message: describeStrategyFailure(error),
+          type: "error",
         });
       }
     },
@@ -539,14 +595,14 @@ export const StrategyLibraryWorkspace = ({
     if (detail.type !== "ready") return;
     try {
       setDetail({
-        type: "ready",
         detail: await gateway.get(detail.detail.strategy.id),
+        type: "ready",
       });
     } catch (error) {
       setDetail({
-        type: "error",
         id: detail.detail.strategy.id,
         message: describeStrategyFailure(error),
+        type: "error",
       });
     }
     await load();
@@ -557,8 +613,8 @@ export const StrategyLibraryWorkspace = ({
       setBusy(true);
       try {
         const updated = await gateway.update({
-          id: row.id,
           favorite: !row.favorite,
+          id: row.id,
         });
         setFeedback(
           updated.favorite
@@ -567,7 +623,7 @@ export const StrategyLibraryWorkspace = ({
         );
         await load();
         if (detail.type === "ready" && detail.detail.strategy.id === row.id) {
-          setDetail({ type: "ready", detail: await gateway.get(row.id) });
+          setDetail({ detail: await gateway.get(row.id), type: "ready" });
         }
       } catch (error) {
         setFeedback(describeStrategyFailure(error));

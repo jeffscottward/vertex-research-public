@@ -108,7 +108,11 @@ const NEEDS = [
     "IV term-structure / skew surface and IV-rank history",
     "M",
   ],
-  [/futures curve|contango|backwardation|basis\b/i, "Futures curve data", "M"],
+  [
+    /futures curve|contango|backwardation|(?<!cost )basis\b/i,
+    "Futures curve data",
+    "M",
+  ],
 ];
 
 const intradayOnly = (c) =>
@@ -145,6 +149,34 @@ const OVERRIDES = {
     cls: "D",
     reason:
       "Futures/commodity spread mean reversion; we trade listed equity options.",
+  },
+  // Hand review 2026-11-02 (In The Money Adam merge, knowledge-bases master rules).
+  C168: {
+    cls: "D",
+    reason:
+      "Flat-by-close is an intraday rule (now also day-trade options); our book does not day trade.",
+  },
+  C653: {
+    cls: "B",
+    reason:
+      "Prefers LEAPS over futures for long-term leverage; contango is the reason given, no curve data needed.",
+  },
+  // Hand review 2026-11-03 (Junny Yang merge, knowledge-bases master rules).
+  C677: {
+    cls: "D",
+    reason:
+      "Trading an IPO-day pop needs shares; listed options do not exist at the IPO.",
+  },
+  C678: {
+    cls: "C",
+    reason: "Needs: IPO lockup-expiry calendar.",
+    feature: "IPO lockup-expiry calendar",
+    effort: "S",
+  },
+  C695: {
+    cls: "B",
+    reason:
+      'Pipeline-growth judgment for pre-revenue names; "qualification cycle" is a sales cycle, not seasonality.',
   },
 };
 

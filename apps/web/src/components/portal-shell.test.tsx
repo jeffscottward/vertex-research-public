@@ -11,7 +11,9 @@ vi.mock("next/navigation", () => ({
 
 import { DEFAULT_ANONYMOUS_THEME } from "../lib/theme.ts";
 import { UiStateProvider } from "../lib/ui-store.tsx";
-import { PortalShell, portalPageTitle } from "./portal-shell.tsx";
+import { portalPageTitle } from "../lib/portal-page-title.ts";
+import type { AssistantGateway } from "./portal/assistant-client.ts";
+import { PortalShell } from "./portal-shell.tsx";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -19,6 +21,8 @@ let mobile = false;
 
 beforeEach(() => {
   mobile = false;
+  // biome-ignore lint/suspicious/noDocumentCookie: clears the assistant panel cookie; jsdom has no Cookie Store API.
+  document.cookie = "vx.assistantPanel=; Path=/; Max-Age=0";
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
@@ -40,7 +44,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const renderShell = (availableRoutes?: readonly string[]) => {
+const assistantGateway = {
+  create: vi.fn(),
+  decide: vi.fn(),
+  get: vi.fn(),
+  list: vi.fn(() => new Promise(() => undefined)),
+  send: vi.fn(),
+} as unknown as AssistantGateway;
+
+const renderShell = (
+  availableRoutes?: readonly string[],
+  initialAssistantPanelOpen?: boolean
+) => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -48,6 +63,8 @@ const renderShell = (availableRoutes?: readonly string[]) => {
     root?.render(
       <UiStateProvider initialPreference={DEFAULT_ANONYMOUS_THEME}>
         <PortalShell
+          assistantGateway={assistantGateway}
+          initialAssistantPanelOpen={initialAssistantPanelOpen}
           userName="Ada Lovelace"
           {...(availableRoutes === undefined ? {} : { availableRoutes })}
         >
@@ -248,6 +265,55 @@ describe("PortalShell", () => {
 
     renderShell(["/dashboard", "/research"]);
     return expect(lab()).toBeNull();
+  });
+
+  it("docks the assistant panel beside the page with a topbar toggle next to the palette", () => {
+    renderShell();
+    const toggle = button("Toggle assistant panel");
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(
+      document.querySelector<HTMLElement>('aside[aria-label="Assistant panel"]')
+        ?.hidden
+    ).toBe(true);
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
+    expect(document.cookie).toContain("vx.assistantPanel=open");
+    expect(toggle?.previousElementSibling).not.toBeNull();
+    const dock = document.querySelector<HTMLElement>(
+      'aside[aria-label="Assistant panel"]'
+    );
+    expect(dock?.hidden).toBe(false);
+    expect(dock?.parentElement?.getAttribute("data-slot")).toBe(
+      "sidebar-wrapper"
+    );
+    expect(
+      document.querySelector('[data-slot="sidebar-inset"]')?.nextElementSibling
+    ).not.toBeNull();
+    expect(document.querySelector('[data-variant="panel"]')).not.toBeNull();
+    act(() => toggle?.click());
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(dock?.hidden).toBe(true);
+    expect(document.querySelector('[data-variant="panel"]')).not.toBeNull();
+    return expect(document.cookie).toContain("vx.assistantPanel=closed");
+  });
+
+  it("opens the assistant panel from the saved choice the server passed", () => {
+    renderShell(undefined, true);
+    expect(button("Toggle assistant panel")?.getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+    return expect(
+      document.querySelector<HTMLElement>('aside[aria-label="Assistant panel"]')
+        ?.hidden
+    ).toBe(false);
+  });
+
+  it("offers no assistant panel without the assistant route", () => {
+    renderShell(["/dashboard", "/research"], true);
+    expect(button("Toggle assistant panel")).toBeNull();
+    return expect(
+      document.querySelector('aside[aria-label="Assistant panel"]')
+    ).toBeNull();
   });
 
   return it("renders the mobile drawer as a native popover that closes after navigation", () => {

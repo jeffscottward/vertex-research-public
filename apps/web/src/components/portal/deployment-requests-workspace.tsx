@@ -886,6 +886,7 @@ export const DeploymentRequestsWorkspace = ({
         >
           <table
             className="w-full min-w-[40rem] text-sm"
+            data-click-private=""
             data-requests-table=""
           >
             <caption className="sr-only">Paper deployment requests</caption>

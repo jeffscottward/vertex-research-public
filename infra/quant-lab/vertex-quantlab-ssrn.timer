@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly Vertex Quant Lab SSRN search
+
+[Timer]
+OnCalendar=Mon *-*-* 06:15:00
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

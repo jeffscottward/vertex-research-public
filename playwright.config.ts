@@ -12,6 +12,11 @@ const isCI = Boolean(process.env["CI"]);
 const isWorker = process.env["TEST_WORKER_INDEX"] !== undefined;
 ensurePrivateStateDirectory(env.stateDir);
 
+// Google Chrome stable from the host (/opt/google/chrome), not Playwright's bundled
+// Chromium, which lags Chrome security fixes (card sec-pw-ci-vertex-research-platform,
+// 2026-11-03). CI checks that the runner has it (.github/workflows/ci.yml).
+const systemChrome = { ...devices["Desktop Chrome"], channel: "chrome" };
+
 export default defineConfig({
   testDir: "./tests/e2e",
   // Specs only; tests/e2e/helpers/*.test.ts are Vitest files.
@@ -32,7 +37,11 @@ export default defineConfig({
   use: {
     baseURL: env.appUrl,
     // The runner never launches a browser and runs before the CA exists.
-    launchOptions: { args: isWorker ? spkiPinArguments(env.caPath) : [] },
+    // Playwright turns the Chromium sandbox off by default; keep it on.
+    launchOptions: {
+      args: isWorker ? spkiPinArguments(env.caPath) : [],
+      chromiumSandbox: true,
+    },
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "off",
@@ -41,12 +50,12 @@ export default defineConfig({
     {
       name: "e2e",
       testIgnore: [/\.a11y\.spec\.ts$/u, /portal-inputs\.spec\.ts$/u],
-      use: { ...devices["Desktop Chrome"] },
+      use: systemChrome,
     },
     {
       name: "a11y",
       testMatch: /\.a11y\.spec\.ts$/u,
-      use: { ...devices["Desktop Chrome"] },
+      use: systemChrome,
     },
     {
       // The input guard opens every portal page in quick succession. Leaving a
@@ -55,7 +64,7 @@ export default defineConfig({
       name: "inputs",
       testMatch: /portal-inputs\.spec\.ts$/u,
       dependencies: ["e2e", "a11y"],
-      use: { ...devices["Desktop Chrome"] },
+      use: systemChrome,
     },
   ],
   webServer: [

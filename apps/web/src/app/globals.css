@@ -222,6 +222,16 @@
     letter-spacing: -0.045em;
     margin-block: var(--space-3) var(--space-4);
   }
+  /* Portal pages: one heading size for every page, the same as PageHeader (text-2xl bold). */
+  .vx-workspace .vx-page-heading {
+    padding-bottom: var(--space-6);
+  }
+  .vx-workspace .vx-page-heading h1 {
+    font:
+      700 var(--text-2xl) / var(--text-2xl--line-height) var(--font-heading);
+    letter-spacing: -0.025em;
+    margin-block: 0;
+  }
   .vx-page-heading > p:last-child {
     max-width: 48rem;
     line-height: 1.8;

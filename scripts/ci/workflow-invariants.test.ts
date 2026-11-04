@@ -7,6 +7,7 @@ import { parse } from "yaml";
 // change without weakening the pipeline.
 
 interface Step {
+  run?: string;
   uses?: string;
   with?: Record<string, unknown>;
 }
@@ -83,12 +84,26 @@ describe("GitHub workflow invariants", () => {
     }
   });
 
-  // Public repository: fork pull requests can start workflows, so every job runs on a
-  // GitHub-hosted runner (owner rule, card vertex-public-audit, 2026-11-02).
-  it("never runs a job on a self-hosted runner", () => {
+  // Bundled Playwright Chromium lags Chrome stable security fixes (card
+  // sec-pw-ci-vertex-research-platform, 2026-11-03). Browser jobs use the
+  // runner's Google Chrome through the "chrome" channel.
+  it("never installs Playwright's bundled Chromium", () => {
+    for (const { file, id, step } of steps) {
+      expect(step.run ?? "", `${file} ${id}`).not.toMatch(
+        /playwright\s+install\b[^\n]*\bchromium/u
+      );
+    }
+  });
+
+  // Vertex development and CI moved to the public repository (owner 2026-11-04,
+  // card vertex-ci-github-hosted). A public repository lets fork pull requests start
+  // workflows, so no job may use a self-hosted runner: every job runs on a
+  // GitHub-hosted runner, which is free for public repositories.
+  it("runs every job on GitHub-hosted runners", () => {
+    expect(jobs.length).toBeGreaterThan(0);
     for (const { file, id, job } of jobs) {
-      if (job.uses) continue;
-      expect(job["runs-on"], `${file}:${id}`).toBe("ubuntu-latest");
+      const runsOn = JSON.stringify(job["runs-on"] ?? "");
+      expect(runsOn, `${file}:${id}`).not.toMatch(/self-hosted|rig/u);
     }
   });
 
@@ -143,16 +158,16 @@ describe("GitHub workflow invariants", () => {
   });
 
   // Owner 2026-11-01: PR runs and non-live-line push runs replace older runs of the
-  // same PR or branch; live-line push runs and manual runs are never cancelled.
-  it("cancels superseded PR and branch runs but never live-line or manual runs", () => {
+  // same PR or branch. Owner 2026-11-02: live-line push runs share one group without
+  // cancel-in-progress, so a running run finishes and only a queued one is replaced.
+  // Manual runs are never cancelled.
+  it("cancels superseded PR and branch runs and batches queued live-line runs", () => {
     const ci = workflows.find(({ file }) => file === "ci.yml")!;
     const { concurrency } = ci.workflow as unknown as {
       concurrency: { group: string; "cancel-in-progress": string };
     };
-    const live =
-      "github.ref == 'refs/heads/vertex/rebuild-darkfactory-20260921'";
     expect(concurrency.group).toContain(
-      `(github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && ${live})) && format('run-{0}', github.run_id)`
+      "github.event_name == 'workflow_dispatch' && format('run-{0}', github.run_id)"
     );
     expect(concurrency.group).toContain(
       "github.event.pull_request.number || github.ref"
@@ -160,6 +175,43 @@ describe("GitHub workflow invariants", () => {
     return expect(concurrency["cancel-in-progress"]).toBe(
       "${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/vertex/rebuild-darkfactory-20260921') }}"
     );
+  });
+
+  // Card vertex-ci-queue-pathfilter (2026-11-02): one required check, a light lane
+  // that never waits for the coverage shards, and no workflow-level path filters.
+  it("gates every CI job behind ci-gate and keeps the light lane independent", () => {
+    const ci = workflows.find(({ file }) => file === "ci.yml")!;
+    const ciJobs = ci.workflow.jobs as Record<
+      string,
+      Job & { needs?: string | string[]; if?: string }
+    >;
+    const gate = ciJobs["ci-gate"]!;
+    expect(gate.name).toBe(
+      "${{ github.event.pull_request.draft && 'ci-gate (draft)' || 'ci-gate' }}"
+    );
+    expect(gate.if).toBe("${{ always() }}");
+    expect([...(gate.needs as string[])].sort()).toEqual(
+      Object.keys(ciJobs)
+        .filter((id) => id !== "ci-gate")
+        .sort()
+    );
+    expect(ciJobs["verification"]!.needs).toBe("changes");
+    expect(ciJobs["coverage-shards"]!.if).toBe(
+      "needs.changes.outputs.heavy == 'true'"
+    );
+    const on = ci.workflow.on as Record<string, Record<string, unknown> | null>;
+    expect(on["pull_request"]?.["types"]).toEqual(
+      expect.arrayContaining([
+        "opened",
+        "synchronize",
+        "reopened",
+        "ready_for_review",
+      ])
+    );
+    for (const trigger of Object.values(on)) {
+      expect(trigger?.["paths-ignore"]).toBeUndefined();
+      expect(trigger?.["paths"]).toBeUndefined();
+    }
   });
 
   return it("keeps the job names that required status checks reference", () => {

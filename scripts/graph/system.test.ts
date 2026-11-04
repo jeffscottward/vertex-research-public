@@ -125,6 +125,14 @@ import {
   nodeGraphFileSystem,
   nodeGraphProcess,
 } from "./system.ts";
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
+
+// The recursive traversal boundary can only be reached after 20,001 sources pass
+// per-file validation (about 280,000 mocked lstat/realpath calls). Measured
+// 2026-11-03 on dev-rig: 1.2-1.5 s unthrottled, 3.6-4.6 s under a 50% CPU
+// quota, 6.4-10.2 s under 20% (17.2 s with coverage) and up to 23.4 s under 10%.
+// The 5 s default timed out under 20%; 60 s keeps about a 2.5x margin.
+const TRAVERSAL_BOUNDARY_TIMEOUT_MS = scaledTimeout(60_000);
 
 const SENTINELS = {
   GEMINI_API_KEY: "sentinel-gemini-secret",
@@ -204,12 +212,14 @@ const configuredSourceConfig = (
       verificationPath: ["from", "to"],
     })
   );
-const isolatedSnapshotFileSystem = () => {
+const isolatedSnapshotFileSystem = (
+  createFileSystem: typeof createNodeGraphFileSystem = createNodeGraphFileSystem
+) => {
   const namespace = randomUUID();
   const snapshotKey = `.graphify/source-snapshot-${createHash("sha256").update(namespace).digest("hex")}`;
   const temporaryNamePrefix = `darkfactory-graph-${createHash("sha256").update(snapshotKey).digest("hex").slice(0, 16)}-`;
   return {
-    fileSystem: createNodeGraphFileSystem(namespace),
+    fileSystem: createFileSystem(namespace),
     get privateParents(): ReadonlySet<string> {
       return new Set(
         [...mocks.snapshotPrivateParents].filter((parent) => {
@@ -219,6 +229,30 @@ const isolatedSnapshotFileSystem = () => {
     },
     temporaryNamePrefix,
   };
+};
+// Workspace alias discovery reads only `packages/<name>/package.json` under the
+// repository root. Fixtures for it must never appear in the real `packages/`
+// directory, because other test files enumerate `packages/*` in parallel. The
+// system module captures its repository root from process.cwd() when it is
+// evaluated, so a static import cannot work: this loads a second instance of the
+// module whose repository root is a private temporary directory.
+const privateRepositorySystem = async () => {
+  const root = await mocks.fileSystemActual.realpath(
+    await mocks.fileSystemActual.mkdtemp(
+      join(tmpdir(), "graph-system-repository-")
+    )
+  );
+  const cwd = vi.spyOn(process, "cwd").mockReturnValue(root);
+  try {
+    vi.resetModules();
+    const system = await import("./system.ts");
+    return { root, createFileSystem: system.createNodeGraphFileSystem };
+  } catch (error) {
+    await mocks.fileSystemActual.rm(root, { force: true, recursive: true });
+    throw error;
+  } finally {
+    cwd.mockRestore();
+  }
 };
 const expectPrivateParentsRemoved = async (
   privateParents: ReadonlySet<string>,
@@ -2517,41 +2551,50 @@ describe("Graph node filesystem boundaries", () => {
   });
 
   it("snapshots TypeScript sources and rewrites discovered workspace aliases", async () => {
+    const repository = await privateRepositorySystem();
     const packageName = `graph-system-${randomUUID()}`;
     const root = join("packages", packageName);
-    await mkdir(join(root, "src"), { recursive: true });
-    await Promise.all([
-      writeFile(
-        join(root, "package.json"),
-        JSON.stringify({
-          name: `@darkfactory/${packageName}`,
-          version: "1.0.0",
-          exports: { ".": "./src/index.ts" },
-        })
-      ),
-      writeFile(join(root, "src/index.ts"), "export const value = 1\n"),
-      writeFile(
-        join(root, "src/consumer.tsx"),
-        `import { value } from "@darkfactory/${packageName}"\nexport const consumer = value\n`
-      ),
-    ]);
-    const config = parseGraphConfig(
-      JSON.stringify({
-        version: 1,
-        graphPath: "graphify-out/graph.json",
-        manifestPath: ".graphify/manifest.json",
-        source: {
-          roots: [root],
-          files: ["package.json"],
-          extensions: [".ts", ".tsx", ".json"],
-          excludes: ["node_modules"],
-        },
-        verificationPath: ["from", "to"],
-      })
-    );
-    const isolated = isolatedSnapshotFileSystem();
+    const absoluteRoot = join(repository.root, root);
 
     try {
+      await mkdir(join(absoluteRoot, "src"), { recursive: true });
+      await Promise.all([
+        writeFile(
+          join(repository.root, "package.json"),
+          JSON.stringify({ private: true })
+        ),
+        writeFile(
+          join(absoluteRoot, "package.json"),
+          JSON.stringify({
+            name: `@darkfactory/${packageName}`,
+            version: "1.0.0",
+            exports: { ".": "./src/index.ts" },
+          })
+        ),
+        writeFile(
+          join(absoluteRoot, "src/index.ts"),
+          "export const value = 1\n"
+        ),
+        writeFile(
+          join(absoluteRoot, "src/consumer.tsx"),
+          `import { value } from "@darkfactory/${packageName}"\nexport const consumer = value\n`
+        ),
+      ]);
+      const config = parseGraphConfig(
+        JSON.stringify({
+          version: 1,
+          graphPath: "graphify-out/graph.json",
+          manifestPath: ".graphify/manifest.json",
+          source: {
+            roots: [root],
+            files: ["package.json"],
+            extensions: [".ts", ".tsx", ".json"],
+            excludes: ["node_modules"],
+          },
+          verificationPath: ["from", "to"],
+        })
+      );
+      const isolated = isolatedSnapshotFileSystem(repository.createFileSystem);
       const snapshot = await isolated.fileSystem.createSourceSnapshot(config);
       try {
         expect(snapshot.path).toBe(join(dirname(snapshot.path), "active"));
@@ -2573,39 +2616,49 @@ describe("Graph node filesystem boundaries", () => {
         await snapshot.cleanup();
       }
     } finally {
-      await rm(root, { force: true, recursive: true });
+      await rm(repository.root, { force: true, recursive: true });
     }
   });
 
   it("removes a failed snapshot corpus and diagnoses a missing ownership marker", async () => {
+    const repository = await privateRepositorySystem();
     const invalidPackage = join(
       "packages",
       `graph-system-invalid-${randomUUID()}`
     );
-    await mkdir(invalidPackage, { recursive: true });
-    await writeFile(join(invalidPackage, "package.json"), "{");
-    const invalidConfig = parseGraphConfig(
-      JSON.stringify({
-        version: 1,
-        graphPath: "graphify-out/graph.json",
-        manifestPath: ".graphify/manifest.json",
-        source: {
-          roots: [invalidPackage],
-          files: ["package.json"],
-          extensions: [".json"],
-          excludes: ["node_modules"],
-        },
-        verificationPath: ["from", "to"],
-      })
-    );
-    const invalidSnapshot = isolatedSnapshotFileSystem();
     try {
+      await mkdir(join(repository.root, invalidPackage), { recursive: true });
+      await writeFile(
+        join(repository.root, "package.json"),
+        JSON.stringify({ private: true })
+      );
+      await writeFile(
+        join(repository.root, invalidPackage, "package.json"),
+        "{"
+      );
+      const invalidConfig = parseGraphConfig(
+        JSON.stringify({
+          version: 1,
+          graphPath: "graphify-out/graph.json",
+          manifestPath: ".graphify/manifest.json",
+          source: {
+            roots: [invalidPackage],
+            files: ["package.json"],
+            extensions: [".json"],
+            excludes: ["node_modules"],
+          },
+          verificationPath: ["from", "to"],
+        })
+      );
+      const invalidSnapshot = isolatedSnapshotFileSystem(
+        repository.createFileSystem
+      );
       await expect(
         invalidSnapshot.fileSystem.createSourceSnapshot(invalidConfig)
-      ).rejects.toThrow();
+      ).rejects.toThrow(SyntaxError);
       await expectPrivateParentsRemoved(invalidSnapshot.privateParents);
     } finally {
-      await rm(invalidPackage, { force: true, recursive: true });
+      await rm(repository.root, { force: true, recursive: true });
     }
 
     const root = join("scripts", "graph", `system-owner-${randomUUID()}`);
@@ -2779,62 +2832,68 @@ describe("Graph node filesystem boundaries", () => {
     }
   });
 
-  it("rejects a recursive source count above the traversal boundary", async () => {
-    const files = Array.from({ length: 20_000 }, (_, index) => ({
-      name: `source-${index}.ts`,
-      isSymbolicLink: () => false,
-      isDirectory: () => false,
-      isFile: () => true,
-    }));
-    const rootEntries = [
-      {
-        name: "a-child",
-        isSymbolicLink: () => false,
-        isDirectory: () => true,
-        isFile: () => false,
-      },
-      {
-        name: "z.ts",
+  it(
+    "rejects a recursive source count above the traversal boundary",
+    async () => {
+      const files = Array.from({ length: 20_000 }, (_, index) => ({
+        name: `source-${index}.ts`,
         isSymbolicLink: () => false,
         isDirectory: () => false,
         isFile: () => true,
-      },
-    ];
-    const canonicalRoot = await mocks.fileSystemActual.realpath(process.cwd());
-    const child = join(canonicalRoot, "a-child");
-    const rootStats = await mocks.fileSystemActual.lstat(canonicalRoot);
-    const childStats = await mocks.fileSystemActual.lstat(
-      join(canonicalRoot, "scripts")
-    );
-    const fileStats = await mocks.fileSystemActual.lstat(
-      join(canonicalRoot, "package.json")
-    );
-    mocks.fileSystem.readdir.mockImplementation(async (...arguments_) => {
-      const path = String(arguments_[0]);
-      if (path === canonicalRoot) return rootEntries as never;
-      if (path === child) return files as never;
-      return Reflect.apply(
-        mocks.fileSystemActual.readdir,
-        undefined,
-        arguments_
+      }));
+      const rootEntries = [
+        {
+          name: "a-child",
+          isSymbolicLink: () => false,
+          isDirectory: () => true,
+          isFile: () => false,
+        },
+        {
+          name: "z.ts",
+          isSymbolicLink: () => false,
+          isDirectory: () => false,
+          isFile: () => true,
+        },
+      ];
+      const canonicalRoot = await mocks.fileSystemActual.realpath(
+        process.cwd()
       );
-    });
-    mocks.fileSystem.realpath.mockImplementation(async (...arguments_) => {
-      return String(arguments_[0]);
-    });
-    mocks.fileSystem.lstat.mockImplementation(async (...arguments_) => {
-      const path = String(arguments_[0]);
-      if (path === canonicalRoot) return rootStats;
-      if (path === child) return childStats;
-      return fileStats;
-    });
+      const child = join(canonicalRoot, "a-child");
+      const rootStats = await mocks.fileSystemActual.lstat(canonicalRoot);
+      const childStats = await mocks.fileSystemActual.lstat(
+        join(canonicalRoot, "scripts")
+      );
+      const fileStats = await mocks.fileSystemActual.lstat(
+        join(canonicalRoot, "package.json")
+      );
+      mocks.fileSystem.readdir.mockImplementation(async (...arguments_) => {
+        const path = String(arguments_[0]);
+        if (path === canonicalRoot) return rootEntries as never;
+        if (path === child) return files as never;
+        return Reflect.apply(
+          mocks.fileSystemActual.readdir,
+          undefined,
+          arguments_
+        );
+      });
+      mocks.fileSystem.realpath.mockImplementation(async (...arguments_) => {
+        return String(arguments_[0]);
+      });
+      mocks.fileSystem.lstat.mockImplementation(async (...arguments_) => {
+        const path = String(arguments_[0]);
+        if (path === canonicalRoot) return rootStats;
+        if (path === child) return childStats;
+        return fileStats;
+      });
 
-    return await expect(
-      nodeGraphFileSystem.listSourceFiles(
-        configuredSourceConfig(["."], ["package.json"])
-      )
-    ).rejects.toThrow(/too many files/i);
-  });
+      return await expect(
+        nodeGraphFileSystem.listSourceFiles(
+          configuredSourceConfig(["."], ["package.json"])
+        )
+      ).rejects.toThrow(/too many files/i);
+    },
+    TRAVERSAL_BOUNDARY_TIMEOUT_MS
+  );
 
   it("rejects source and snapshot file size boundaries before publication", async () => {
     const largeRoot = join("scripts", "graph", `system-large-${randomUUID()}`);

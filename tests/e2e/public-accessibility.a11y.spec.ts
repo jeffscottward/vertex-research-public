@@ -906,6 +906,8 @@ for (const theme of CONCRETE_THEMES) {
     context,
     page,
   }, testInfo) => {
+    // Five pages per theme; full headless Google Chrome needs more than 30 s.
+    test.setTimeout(90_000);
     if (baseURL === undefined) {
       throw new Error("Theme accessibility evidence requires baseURL.");
     }

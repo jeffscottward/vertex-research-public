@@ -37,6 +37,8 @@ export type { InputProps } from "./input.tsx";
 export { Input } from "./input.tsx";
 export type { LabelProps } from "./label.tsx";
 export { Label } from "./label.tsx";
+export type { PanelHeadingLevel, PanelProps } from "./panel.tsx";
+export { Panel } from "./panel.tsx";
 export type { SeparatorProps } from "./separator.tsx";
 export { Separator } from "./separator.tsx";
 export type { SkeletonGroupProps, SkeletonProps } from "./skeleton.tsx";
@@ -51,7 +53,7 @@ export {
   isEmptySortValue,
   numericSortKey,
 } from "./data-table-sort.ts";
-export type { TableProps } from "./table.tsx";
+export type { TableProps, TableScrollTextProps } from "./table.tsx";
 export {
   Table,
   TableBody,
@@ -61,6 +63,7 @@ export {
   TableHead,
   TableHeader,
   TableRow,
+  TableScrollText,
 } from "./table.tsx";
 export type { TextareaProps } from "./textarea.tsx";
 export { Textarea } from "./textarea.tsx";

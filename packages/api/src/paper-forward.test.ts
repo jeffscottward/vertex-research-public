@@ -161,8 +161,10 @@ describe("paper forward broker isolation", () => {
     resolve(here, "../../../scripts/vertex-paper-forward-tick.ts"),
   ];
   const FORBIDDEN = /broker|ibkr|order|execution|quant-?vps|native|gateway/iu;
+  // `@darkfactory/shared/universes` is constants only: its own test proves it imports nothing.
   const ALLOWED_PACKAGES = new Set([
     "@darkfactory/db/server",
+    "@darkfactory/shared/universes",
     "@orpc/contract",
     "zod",
   ]);
