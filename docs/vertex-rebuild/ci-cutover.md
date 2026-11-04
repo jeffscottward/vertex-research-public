@@ -6,8 +6,8 @@ Card: `vertex-ci-github-hosted`. Date: 2026-11-04.
 
 Owner pick 2026-11-04 ([message](https://discord.com/channels/1511468532876185770/1563315691879407676/1567651185832235099)): mechanism (a), work directly in the public repository.
 
-- `jeffscottward/vertex-research-public` is the development repository. Pull requests open there. CI runs there on GitHub-hosted `ubuntu-latest` runners, which are free for public repositories.
-- `jeffscottward/vertex-research` (private) is a read-only backup. Archive it later. Never delete it on GitHub.
+- `vertex-research-public` is the development repository. Pull requests open there. CI runs there on GitHub-hosted `ubuntu-latest` runners, which are free for public repositories.
+- `vertex-research` (private) is a read-only backup. Archive it later. Never delete it on GitHub.
 - The two repositories have unrelated histories (the public copy started as one sanitized snapshot; owner choice 2026-11-02, "Fresh copy without history"). A rebase or merge between them is not possible. Changes move as sanitized tree snapshots or patches.
 
 ## Why

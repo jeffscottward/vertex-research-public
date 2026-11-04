@@ -85,7 +85,7 @@ Private repositories need a paid GitHub plan for branch protection, and GitHub C
 
 ## Runners
 
-All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners in the public repository `jeffscottward/vertex-research-public` (owner 2026-11-04, card vertex-ci-github-hosted; [cutover record](vertex-rebuild/ci-cutover.md)). Hosted minutes and artifact storage are free for public repositories. No workflow uses a self-hosted runner; `scripts/ci/workflow-invariants.test.ts` fails when one does. The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private backup repository and get no new Vertex jobs.
+All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners in the public repository `vertex-research-public` (owner 2026-11-04, card vertex-ci-github-hosted; [cutover record](vertex-rebuild/ci-cutover.md)). Hosted minutes and artifact storage are free for public repositories. No workflow uses a self-hosted runner; `scripts/ci/workflow-invariants.test.ts` fails when one does. The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private backup repository and get no new Vertex jobs.
 
 ## Hyperdrive
 
