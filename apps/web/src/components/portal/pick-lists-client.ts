@@ -3,6 +3,7 @@
 import {
   type ApiClient,
   createApiClient,
+  type PickListImportInput,
   type PickListImportMethod,
   type PickListOutput,
   type PickListScreenOutput,
@@ -18,6 +19,7 @@ export type PickListBucketResult = Readonly<{
 }>;
 
 export interface PickListGateway {
+  readonly import: (input: PickListImportInput) => Promise<PickListOutput>;
   readonly list: () => Promise<PickListOutput[]>;
   readonly screen: (id: string) => Promise<PickListScreenOutput>;
   readonly syncBucket: (
@@ -27,6 +29,7 @@ export interface PickListGateway {
 }
 
 export const createPickListGateway = (client: ApiClient): PickListGateway => ({
+  import: (input) => client.pickLists.import(input),
   list: async () => (await client.pickLists.list({})).items,
   screen: (id) => client.pickLists.screen({ id }),
   syncBucket: (id, bucketSymbol) =>
@@ -42,6 +45,7 @@ export const createBrowserPickListGateway = (): PickListGateway => {
     return gateway;
   };
   return Object.freeze({
+    import: (input: PickListImportInput) => current().import(input),
     list: () => current().list(),
     screen: (id: string) => current().screen(id),
     syncBucket: (id: string, bucketSymbol: string) =>
