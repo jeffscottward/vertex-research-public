@@ -38,6 +38,7 @@ import {
   completedToday,
   isGatewayLive,
   isOptionPosition,
+  failureVisible,
   monitorHealth,
   normalizeInterval,
   summaryStats,
@@ -110,11 +111,18 @@ type Feed = Readonly<{
   snapshot: PortfolioMonitorOutput | null;
   failure: PortfolioMonitorFailure | null;
   fetchedAt: number | null;
+  // Time of the first failure since the last success; null while requests succeed.
+  failingSince: number | null;
 }>;
 
+// Delay before one quick retry after a transient failure, instead of a full poll interval.
+export const SNAPSHOT_RETRY_MS = 2000;
+
 // Polls the snapshot. A failed request keeps the last good snapshot and records the failure.
-// A terminal failure stops the polling; "Retry now" starts it again. `notConfigured` is the
-// failure shown when `enabled` is false (it names the server setting that is missing).
+// A transient failure gets one quick retry. No request is sent while the page is hidden: iOS
+// suspends the page and aborts its fetches, which is not a server fault. A terminal failure
+// stops the polling; "Retry now" starts it again. `notConfigured` is the failure shown when
+// `enabled` is false (it names the server setting that is missing).
 export const useSnapshotFeed = (
   gateway: PortfolioMonitorGateway,
   intervalS: number,
@@ -126,6 +134,7 @@ export const useSnapshotFeed = (
     snapshot: null,
     failure: enabled ? null : notConfigured,
     fetchedAt: null,
+    failingSince: null,
   });
   useEffect(() => {
     if (!enabled) return;
@@ -135,19 +144,41 @@ export const useSnapshotFeed = (
     // a return to the tab sends another request; only "Retry now" does.
     let stopped = false;
     let timer: number | undefined;
+    let retryTimer: number | undefined;
+    let retried = false;
+    // A terminal failure stops polling; a transient one gets one quick retry per failure run.
+    const onFailure = (error: unknown): void => {
+      const failure = describePortfolioMonitorFailure(error);
+      if (TERMINAL_FAILURES[failure.kind]) {
+        stopped = true;
+        window.clearInterval(timer);
+      } else if (alive && !retried) {
+        retried = true;
+        retryTimer = window.setTimeout(() => void load(), SNAPSHOT_RETRY_MS);
+      }
+      if (alive)
+        setFeed((current) => ({
+          ...current,
+          failure,
+          failingSince: current.failingSince ?? Date.now(),
+        }));
+    };
     const load = async (): Promise<void> => {
-      if (busy || stopped) return;
+      if (busy || stopped || document.visibilityState === "hidden") return;
       busy = true;
+      window.clearTimeout(retryTimer);
       try {
         const snapshot = await gateway.snapshot();
-        if (alive) setFeed({ snapshot, failure: null, fetchedAt: Date.now() });
+        retried = false;
+        if (alive)
+          setFeed({
+            snapshot,
+            failure: null,
+            fetchedAt: Date.now(),
+            failingSince: null,
+          });
       } catch (error) {
-        const failure = describePortfolioMonitorFailure(error);
-        if (TERMINAL_FAILURES[failure.kind]) {
-          stopped = true;
-          window.clearInterval(timer);
-        }
-        if (alive) setFeed((current) => ({ ...current, failure }));
+        onFailure(error);
       }
       busy = false;
     };
@@ -161,6 +192,7 @@ export const useSnapshotFeed = (
     return () => {
       alive = false;
       window.clearInterval(timer);
+      window.clearTimeout(retryTimer);
       return document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [enabled, gateway, intervalS, reloadKey]);
@@ -308,11 +340,13 @@ export const Banner = ({
   }
   if (health.key === "live") return null;
   const detail =
-    health.key === "stale"
-      ? age === null
-        ? "The IBKR data time is unknown."
-        : `The IBKR data is ${Math.round(age)} s old.`
-      : `IBKR gateway: ${snapshot.status.gateway}.`;
+    health.key === "updating"
+      ? `Updating: the last request did not complete, so the page is retrying. Values below are from ${clock(fetchedAt)}.`
+      : health.key === "stale"
+        ? age === null
+          ? "The IBKR data time is unknown."
+          : `The IBKR data is ${Math.round(age)} s old.`
+        : `IBKR gateway: ${snapshot.status.gateway}.`;
   const lastError =
     snapshot.status.lastError === null ? "" : ` ${snapshot.status.lastError}`;
   return (
@@ -538,18 +572,27 @@ export const PortfolioMonitor = ({
     normalizeInterval
   );
   const [reloadKey, setReloadKey] = useState(0);
-  const { failure, fetchedAt, snapshot } = useSnapshotFeed(
-    gateway,
-    intervalS,
-    reloadKey,
-    configured
-  );
+  const feed = useSnapshotFeed(gateway, intervalS, reloadKey, configured);
+  const { fetchedAt, snapshot } = feed;
   const nowMs = useNow();
+  // With data on screen, a transient failure waits out its grace window before it is shown.
+  const failure =
+    feed.failure !== null &&
+    (snapshot === null ||
+      failureVisible({
+        kind: feed.failure.kind,
+        failingSince: feed.failingSince,
+        nowMs,
+        intervalS,
+      }))
+      ? feed.failure
+      : null;
   const health = monitorHealth({
     snapshot,
     failureKind: failure?.kind ?? null,
     nowMs,
     intervalS,
+    retrying: feed.failure !== null && failure === null,
   });
   const age =
     snapshot === null ? null : ageSeconds(snapshot.status.dataAsOf, nowMs);
