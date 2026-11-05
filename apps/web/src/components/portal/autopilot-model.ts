@@ -6,7 +6,9 @@ import type {
   AutopilotGateOutput,
   BacktestRunSubmitInput,
   InstantBacktestSeries,
+  SectorRotationQuadrant,
 } from "@darkfactory/api";
+import { SECTOR_ROTATION_QUADRANTS } from "@darkfactory/api";
 
 // Autopilot view-model: pure formatting and request building for the Autopilot page. Research only.
 
@@ -20,10 +22,15 @@ export type AutopilotForm = Readonly<{
   gatePerGeneration: number;
   costBps: number;
   seed: string;
+  /** Sector ETF symbol for the optional weekly sector filter; "" means no filter. */
+  filterSector: string;
+  filterQuadrants: readonly SectorRotationQuadrant[];
 }>;
 
 export const DEFAULT_AUTOPILOT_FORM: AutopilotForm = {
   costBps: 5,
+  filterQuadrants: ["leading", "improving"],
+  filterSector: "",
   gatePerGeneration: 3,
   maxCandidates: 2000,
   maxCpuMinutes: 60,
@@ -55,6 +62,15 @@ export const toCampaignInput = (
   const seed = form.seed.trim();
   if (seed !== "" && !/^\d{1,9}$/u.test(seed))
     return { message: "The seed must be a whole number.", ok: false };
+  if (form.filterSector !== "" && form.filterQuadrants.length === 0)
+    return {
+      message: "Choose at least one quadrant for the sector filter.",
+      ok: false,
+    };
+  // Quadrants keep the fixed map order, whatever order they were checked in.
+  const quadrants = SECTOR_ROTATION_QUADRANTS.filter((quadrant) =>
+    form.filterQuadrants.includes(quadrant)
+  );
   return {
     input: {
       budget: {
@@ -72,6 +88,18 @@ export const toCampaignInput = (
       symbol: selected.symbol,
       timeframe: selected.timeframe,
       ...(seed === "" ? {} : { seed: Number(seed) }),
+      ...(form.filterSector === ""
+        ? {}
+        : {
+            filters: [
+              {
+                quadrants,
+                sector: form.filterSector,
+                timeframe: "weekly" as const,
+                type: "sectorQuadrant" as const,
+              },
+            ],
+          }),
     },
     ok: true,
   };

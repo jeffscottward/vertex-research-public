@@ -14,6 +14,7 @@ import { appContract } from "../contract.ts";
 import type {
   AssistantActionOutput,
   AssistantMessageOutput,
+  AssistantSendEvent,
   AssistantThreadOutput,
   AssistantUsageOutput,
 } from "../contracts/assistant.ts";
@@ -220,6 +221,77 @@ const budgetLeft = (
   );
 };
 
+export type AssistantEventStream<T> = Readonly<{
+  push: (event: T) => void;
+  /** Ends the stream; with an error the reader gets that error after the queued events. */
+  end: (error?: unknown) => void;
+  iterator: AsyncIteratorObject<T, void, void>;
+}>;
+
+// Hands a turn's events to the response stream. The turn pushes; the response reads. return() (the
+// client stopped reading: Stop or a closed tab) calls onCancel at once, also while next() waits,
+// which an async generator cannot do. Events pushed after the end are dropped.
+export const createAssistantEventStream = <T>(
+  onCancel: () => void
+): AssistantEventStream<T> => {
+  const queue: T[] = [];
+  let ended = false;
+  let failure: Readonly<{ error: unknown }> | null = null;
+  let waiting: (() => void)[] = [];
+  const notify = (): void => {
+    const woken = waiting;
+    waiting = [];
+    for (const wake of woken) wake();
+  };
+  const iterator: AsyncIteratorObject<T, void, void> = {
+    next: async (): Promise<IteratorResult<T, void>> => {
+      while (queue.length === 0 && !ended) {
+        await new Promise<void>((resolve) => {
+          waiting.push(resolve);
+        });
+      }
+      if (queue.length > 0) {
+        const [value] = queue.splice(0, 1) as [T];
+        return { done: false, value };
+      }
+      if (failure !== null) {
+        const { error } = failure;
+        failure = null;
+        throw error;
+      }
+      return { done: true, value: undefined };
+    },
+    return: (): Promise<IteratorResult<T, void>> => {
+      queue.length = 0;
+      failure = null;
+      if (!ended) {
+        ended = true;
+        onCancel();
+        notify();
+      }
+      return Promise.resolve({ done: true, value: undefined });
+    },
+    [Symbol.asyncIterator]: () => iterator,
+    [Symbol.asyncDispose]: async () => {
+      await iterator.return?.();
+    },
+  };
+  return Object.freeze({
+    push: (event: T) => {
+      if (ended) return;
+      queue.push(event);
+      notify();
+    },
+    end: (error?: unknown) => {
+      if (ended) return;
+      ended = true;
+      if (error !== undefined) failure = { error };
+      notify();
+    },
+    iterator,
+  });
+};
+
 const assistantThreadsList = api.assistant.threads.list
   .use(refuseApiKeys)
   .use(requireOperator)
@@ -389,85 +461,120 @@ export const assistantSend = api.assistant.send
         );
       },
     };
-    let result: AssistantTurnResult;
-    try {
-      result = await runAssistantTurn({
-        mode: input.mode,
-        history: history.map((row) => ({
-          role: row.role,
-          content: historyContent(
-            row.content,
-            earlierActions.filter((action) => action.messageId === row.id)
-          ),
-        })),
-        message: input.message,
-        client: runtime.client,
-        callProcedure: runtime.callProcedure,
-        budget,
-        maxSteps: runtime.maxSteps,
-        now: runtime.now,
-        ...(signal === undefined ? {} : { signal }),
-        ...(runtime.log === undefined ? {} : { log: runtime.log }),
-      });
-    } catch (error) {
-      if (error instanceof AssistantBudgetError) {
-        throw failures.BUDGET_EXCEEDED({
-          message: "Daily assistant budget used up",
-        });
-      }
-      if (error instanceof AssistantTurnError) {
-        // Keep the transcript honest: record the failed turn with whatever tools already ran and
-        // the confirm cards it proposed.
-        await stored(
-          () =>
-            repository.appendMessage({
-              threadId: thread.id,
-              role: "assistant",
-              mode: input.mode,
-              content: `No reply: ${error.failure.message}`,
-              toolCalls: error.trace,
-              model: runtime.model,
-              inputTokens: error.inputTokens,
-              outputTokens: error.outputTokens,
-            }),
-          errors
-        )
-          .then((failed) => storeProposals(failed.id, error.proposals))
-          .catch(() => undefined);
-        throw failures[error.failure.code]({ message: error.failure.message });
-      }
-      throw error;
-    }
-    const reply = await stored(
-      () =>
-        repository.appendMessage({
-          threadId: thread.id,
-          role: "assistant",
-          mode: input.mode,
-          content: result.content,
-          toolCalls: result.trace,
-          model: runtime.model,
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-        }),
-      errors
+    // Stop: the request signal (where the runtime reports a cancelled request) or the client
+    // closing the stream. Either aborts a running model call at once (its text so far is kept) and
+    // ends the turn before any further tool or model call; the turn still stores what it did.
+    const stopper = new AbortController();
+    if (signal?.aborted === true) stopper.abort();
+    signal?.addEventListener("abort", () => stopper.abort(), { once: true });
+    const stream = createAssistantEventStream<AssistantSendEvent>(() =>
+      stopper.abort()
     );
-    const actions = await storeProposals(reply.id, result.proposals);
-    const refreshed = await stored(
-      () => repository.getThread({ id: thread.id, userId }),
-      errors
-    );
-    const usage = await stored(() => repository.usage(userId, day), errors);
-    return {
-      thread: toAssistantThreadOutput(refreshed ?? thread),
+    stream.push({
+      type: "started",
+      thread: toAssistantThreadOutput(thread),
       userMessage: toAssistantMessageOutput(userMessage),
-      reply: toAssistantMessageOutput(reply),
-      trace: result.trace.map((entry) => ({ ...entry })),
-      stopReason: result.stopReason,
-      steps: result.steps,
-      usage: usageOutput(usage, runtime),
-      actions: actions.map(toAssistantActionOutput),
+    });
+    const runTurn = async (): Promise<void> => {
+      let result: AssistantTurnResult;
+      try {
+        result = await runAssistantTurn({
+          mode: input.mode,
+          history: history.map((row) => ({
+            role: row.role,
+            content: historyContent(
+              row.content,
+              earlierActions.filter((action) => action.messageId === row.id)
+            ),
+          })),
+          message: input.message,
+          ...(input.page === undefined ? {} : { page: input.page }),
+          client: runtime.client,
+          callProcedure: runtime.callProcedure,
+          budget,
+          maxSteps: runtime.maxSteps,
+          now: runtime.now,
+          signal: stopper.signal,
+          onEvent: (event) => stream.push(event),
+          ...(runtime.log === undefined ? {} : { log: runtime.log }),
+        });
+      } catch (error) {
+        if (error instanceof AssistantBudgetError) {
+          throw failures.BUDGET_EXCEEDED({
+            message: "Daily assistant budget used up",
+          });
+        }
+        if (error instanceof AssistantTurnError) {
+          // Keep the transcript honest: record the failed turn with whatever tools already ran and
+          // the confirm cards it proposed.
+          await stored(
+            () =>
+              repository.appendMessage({
+                threadId: thread.id,
+                role: "assistant",
+                mode: input.mode,
+                content: `No reply: ${error.failure.message}`,
+                toolCalls: error.trace,
+                model: runtime.model,
+                inputTokens: error.inputTokens,
+                outputTokens: error.outputTokens,
+              }),
+            errors
+          )
+            .then((failed) => storeProposals(failed.id, error.proposals))
+            .catch(() => undefined);
+          throw failures[error.failure.code]({
+            message: error.failure.message,
+          });
+        }
+        throw error;
+      }
+      const reply = await stored(
+        () =>
+          repository.appendMessage({
+            threadId: thread.id,
+            role: "assistant",
+            mode: input.mode,
+            content: result.content,
+            toolCalls: result.trace,
+            model: runtime.model,
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+          }),
+        errors
+      );
+      const actions = await storeProposals(reply.id, result.proposals);
+      const refreshed = await stored(
+        () => repository.getThread({ id: thread.id, userId }),
+        errors
+      );
+      const usage = await stored(() => repository.usage(userId, day), errors);
+      stream.push({
+        type: "done",
+        result: {
+          thread: toAssistantThreadOutput(refreshed ?? thread),
+          userMessage: toAssistantMessageOutput(userMessage),
+          reply: toAssistantMessageOutput(reply),
+          trace: result.trace.map((entry) => ({ ...entry })),
+          stopReason: result.stopReason,
+          steps: result.steps,
+          usage: usageOutput(usage, runtime),
+          actions: actions.map(toAssistantActionOutput),
+        },
+      });
     };
+    // The response returns before the turn ends, and the request scope closes its database
+    // connection once the response is returned and its tracked tasks are done. Tracking the turn
+    // keeps the connection open until the turn has stored its reply, also when the client left.
+    const turn = runTurn().then(
+      () => stream.end(),
+      (error: unknown) => stream.end(error)
+    );
+    // Without a scheduler the work runs before responding (see ApiContext.scheduleDatabaseTask);
+    // the events stay queued for the reader.
+    if (context.scheduleDatabaseTask === undefined) await turn;
+    else context.scheduleDatabaseTask(turn);
+    return stream.iterator;
   });
 
 const assistantActionsDecide = api.assistant.actions.decide

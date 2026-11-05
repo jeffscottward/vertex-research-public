@@ -1090,11 +1090,13 @@ describe("feature item mutation repository", () => {
       "dashboard",
       "generated",
       "watchlist",
+      "baskets",
       "todos",
       "agentOps",
       "researchPapers",
       "backtestResults",
       "optimizationRuns",
+      "quantLab",
       "strategyLibrary",
       "deploymentRequests",
       "assistant",
@@ -1104,10 +1106,14 @@ describe("feature item mutation repository", () => {
       "agentModelRuns",
       "academyAudit",
       "nautilusArmAudit",
+      "orderIntents",
       "strategyDefinitions",
       "assistantActions",
       "autopilot",
       "priceAlerts",
+      "researchReports",
+      "sectorRotation",
+      "clickLog",
     ]);
     return expect(repositories.generated).toEqual({});
   });

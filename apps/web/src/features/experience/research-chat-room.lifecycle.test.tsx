@@ -58,6 +58,7 @@ import {
   type VertexResearchChatReadResponseContentInput,
   type VertexResearchChatTranscriptMessage,
 } from "@darkfactory/api/vertex";
+import { scaledTimeout } from "../../../../../scripts/lib/test-timeout-scale.ts";
 
 const reactTestGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -2815,225 +2816,240 @@ const mountOrdinaryPreview = async (
 };
 
 describe("ordinary unavailable expert preview frontier", () => {
-  it("connects the actual unavailable roster picker to one exact client preview without approval", async () => {
-    const roster = await ordinaryPreviewRoster();
-    const before = canonicalArtifactJson(roster);
-    const f = await mountOrdinaryPreview(roster);
-    const prepare = vi.spyOn(f.port, "prepareResponse");
-    const approve = vi.spyOn(f.port, "approveAndRequestResponse");
-    expect(previewSelect().textContent).toContain(
-      "Unavailable · corpus incomplete · preview only"
-    );
-    expect(document.body.textContent).toContain("corpus-not-qualified");
-    expect(previewButton().disabled).toBe(true);
-    await choosePreviewExpert(f.participantId);
-    expect(prepare).not.toHaveBeenCalled();
-    expect(previewButton().disabled).toBe(false);
-    await act(async () => {
-      previewButton().click();
-      previewButton().click();
-      return await flush();
-    });
-    await settleConversation(() => conversationView().candidate !== null);
-    expect(prepare).toHaveBeenCalledTimes(1);
-    const result = await prepare.mock.results[0]!.value;
-    if (result.status !== "prepared")
-      throw new Error("Expected client preview fixture");
-    expect(conversationView().candidate?.preview).toEqual(result.preview);
-    expect(result.preview.request).toEqual(f.preparedInputs[0]);
-    expect(result.preview.request.participantId).toBe(f.participantId);
-    expect(conversationView().candidate?.recordDigests).toEqual(
-      await Promise.all(
-        f.messages.map((message) =>
-          hashArtifact(canonicalArtifactJson(message))
-        )
-      )
-    );
-    const displayed = document.querySelector(
-      '[aria-label="Exact request fields (query, parent, snapshot, start, key and scope)"] pre'
-    );
-    expect(JSON.parse(displayed?.textContent ?? "null")).toEqual(
-      result.preview.request
-    );
-    expect(
-      document.querySelector(
-        '[aria-label="Displayed context approval preview"]'
-      )?.textContent
-    ).toContain(result.preview.planSha256);
-    expect(
-      document.querySelector<HTMLButtonElement>(
-        'button[data-action="approve-response"]'
-      )?.disabled
-    ).toBe(false);
-    expect(approve).not.toHaveBeenCalled();
-    expect(f.approvedInputs).toHaveLength(0);
-    expect(f.appendInputs).toHaveLength(0);
-    return expect(canonicalArtifactJson(roster)).toBe(before);
-  }, 15_000);
-
-  it("rejects outside-room blocked missing and nonexpert targets while preserving native isolation", async () => {
-    const roster = await ordinaryPreviewRoster();
-    const expert = roster[0]!,
-      outside = roster[1]!;
-    const blocked = {
-      ...expert,
-      participantId: "blocked-expert",
-      availability: "blocked" as const,
-    };
-    const f = await mountOrdinaryPreview(
-      [...roster, blocked],
-      [expert.participantId, "first-mate", blocked.participantId]
-    );
-    const prepare = vi.spyOn(f.port, "prepareResponse");
-    const debate = vi.spyOn(f.port, "prepareDebateStep");
-    const native = vi.fn(unavailable);
-    f.port.prepareNativeEvidence = native;
-    expect([...previewSelect().options].map((option) => option.value)).toEqual([
-      "",
-      expert.participantId,
-    ]);
-    for (const mode of ["one-expert", "stepwise-debate"] as const) {
+  it(
+    "connects the actual unavailable roster picker to one exact client preview without approval",
+    async () => {
+      const roster = await ordinaryPreviewRoster();
+      const before = canonicalArtifactJson(roster);
+      const f = await mountOrdinaryPreview(roster);
+      const prepare = vi.spyOn(f.port, "prepareResponse");
+      const approve = vi.spyOn(f.port, "approveAndRequestResponse");
+      expect(previewSelect().textContent).toContain(
+        "Unavailable · corpus incomplete · preview only"
+      );
+      expect(document.body.textContent).toContain("corpus-not-qualified");
+      expect(previewButton().disabled).toBe(true);
+      await choosePreviewExpert(f.participantId);
+      expect(prepare).not.toHaveBeenCalled();
+      expect(previewButton().disabled).toBe(false);
       await act(async () => {
-        conversationView().debate?.onModeChange(mode);
+        previewButton().click();
+        previewButton().click();
         return await flush();
       });
-      for (const target of [
-        outside.participantId,
-        blocked.participantId,
-        "first-mate",
-        "missing-expert",
-      ]) {
+      await settleConversation(() => conversationView().candidate !== null);
+      expect(prepare).toHaveBeenCalledTimes(1);
+      const result = await prepare.mock.results[0]!.value;
+      if (result.status !== "prepared")
+        throw new Error("Expected client preview fixture");
+      expect(conversationView().candidate?.preview).toEqual(result.preview);
+      expect(result.preview.request).toEqual(f.preparedInputs[0]);
+      expect(result.preview.request.participantId).toBe(f.participantId);
+      expect(conversationView().candidate?.recordDigests).toEqual(
+        await Promise.all(
+          f.messages.map((message) =>
+            hashArtifact(canonicalArtifactJson(message))
+          )
+        )
+      );
+      const displayed = document.querySelector(
+        '[aria-label="Exact request fields (query, parent, snapshot, start, key and scope)"] pre'
+      );
+      expect(JSON.parse(displayed?.textContent ?? "null")).toEqual(
+        result.preview.request
+      );
+      expect(
+        document.querySelector(
+          '[aria-label="Displayed context approval preview"]'
+        )?.textContent
+      ).toContain(result.preview.planSha256);
+      expect(
+        document.querySelector<HTMLButtonElement>(
+          'button[data-action="approve-response"]'
+        )?.disabled
+      ).toBe(false);
+      expect(approve).not.toHaveBeenCalled();
+      expect(f.approvedInputs).toHaveLength(0);
+      expect(f.appendInputs).toHaveLength(0);
+      return expect(canonicalArtifactJson(roster)).toBe(before);
+    },
+    scaledTimeout(15_000)
+  );
+
+  it(
+    "rejects outside-room blocked missing and nonexpert targets while preserving native isolation",
+    async () => {
+      const roster = await ordinaryPreviewRoster();
+      const expert = roster[0]!,
+        outside = roster[1]!;
+      const blocked = {
+        ...expert,
+        participantId: "blocked-expert",
+        availability: "blocked" as const,
+      };
+      const f = await mountOrdinaryPreview(
+        [...roster, blocked],
+        [expert.participantId, "first-mate", blocked.participantId]
+      );
+      const prepare = vi.spyOn(f.port, "prepareResponse");
+      const debate = vi.spyOn(f.port, "prepareDebateStep");
+      const native = vi.fn(unavailable);
+      f.port.prepareNativeEvidence = native;
+      expect(
+        [...previewSelect().options].map((option) => option.value)
+      ).toEqual(["", expert.participantId]);
+      for (const mode of ["one-expert", "stepwise-debate"] as const) {
         await act(async () => {
-          conversationView().onSelectionChange("expertId", target);
+          conversationView().debate?.onModeChange(mode);
           return await flush();
         });
-        expect(previewButton().disabled).toBe(true);
-        await act(async () => {
-          conversationView().onPrepare();
-          return await flush();
-        });
-        expect(conversationView().status).toContain(
-          "Select a responder in this room"
-        );
+        for (const target of [
+          outside.participantId,
+          blocked.participantId,
+          "first-mate",
+          "missing-expert",
+        ]) {
+          await act(async () => {
+            conversationView().onSelectionChange("expertId", target);
+            return await flush();
+          });
+          expect(previewButton().disabled).toBe(true);
+          await act(async () => {
+            conversationView().onPrepare();
+            return await flush();
+          });
+          expect(conversationView().status).toContain(
+            "Select a responder in this room"
+          );
+        }
       }
-    }
-    // Newly authorized debate preview eligibility is not native permission.
-    await act(async () => {
-      conversationView().onSelectionChange("expertId", expert.participantId);
-      return await flush();
-    });
-    expect(previewButton().disabled).toBe(false);
-    await act(async () => {
-      conversationView().debate?.onModeChange(
-        "first-mate-read-reviewed-evidence-v1"
-      );
-      return await flush();
-    });
-    expect(previewButton().disabled).toBe(true);
-    await act(async () => {
-      conversationView().onPrepare();
-      return await flush();
-    });
-    expect(prepare).not.toHaveBeenCalled();
-    expect(debate).not.toHaveBeenCalled();
-    expect(native).not.toHaveBeenCalled();
-    return expect(f.approvedInputs).toHaveLength(0);
-  }, 15_000);
-
-  it("keeps an authoritative unavailable client response unavailable with no approval", async () => {
-    const f = await mountOrdinaryPreview(await ordinaryPreviewRoster());
-    const prepare = vi
-      .spyOn(f.port, "prepareResponse")
-      .mockImplementation(async (input) =>
-        VertexResearchChatPrepareResponseOutputSchema.parse({
-          schemaVersion: "1.0.0",
-          executionAuthorized: false,
-          status: "unavailable",
-          selector: {
-            accountAlias: input.accountAlias,
-            environment: input.environment,
-            threadId: input.threadId,
-            idempotencyKey: input.idempotencyKey,
-          },
-          reasonCodes: ["participant-unavailable", "corpus-unavailable"],
-        })
-      );
-    await choosePreviewExpert(f.participantId);
-    await act(async () => {
-      previewButton().click();
-      return await flush();
-    });
-    await settleConversation(() =>
-      conversationView().status.includes("Preview unavailable:")
-    );
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(document.body.textContent).toContain(
-      "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
-    );
-    expect(conversationView().candidate).toBeNull();
-    expect(
-      document.querySelector(
-        '[aria-label="Displayed context approval preview"]'
-      )
-    ).toBeNull();
-    expect(
-      document.querySelector<HTMLButtonElement>(
-        'button[data-action="approve-response"]'
-      )?.disabled
-    ).toBe(true);
-    return expect(f.approvedInputs).toHaveLength(0);
-  }, 15_000);
-
-  return it("discards an in-flight preview after selection changes and rejects stale approval", async () => {
-    const f = await mountOrdinaryPreview(await ordinaryPreviewRoster());
-    const original = f.port.prepareResponse;
-    let release: (() => void) | null = null;
-    let requestSignal: AbortSignal | undefined;
-    const prepare = vi
-      .spyOn(f.port, "prepareResponse")
-      .mockImplementation(async (input, signal) => {
-        requestSignal = signal;
-        const result = await original(input, signal);
-        return new Promise<
-          Awaited<ReturnType<ExperienceResearchChatPort["prepareResponse"]>>
-        >((resolve) => {
-          release = () => resolve(result);
-        });
+      // Newly authorized debate preview eligibility is not native permission.
+      await act(async () => {
+        conversationView().onSelectionChange("expertId", expert.participantId);
+        return await flush();
       });
-    await choosePreviewExpert(f.participantId);
-    const stale = conversationView();
-    await act(async () => {
-      previewButton().click();
-      return await flush();
-    });
-    await settleConversation(() => release !== null);
-    expect(previewButton().disabled).toBe(true);
-    // A queued selection callback must retire even a response ignoring abort.
-    await act(async () => {
-      stale.onSelectionChange("query", "Changed exact retrieval query");
-      return await flush();
-    });
-    expect(requestSignal?.aborted).toBe(true);
-    await act(async () => {
-      release?.();
-      return await flush();
-    });
-    await settleConversation(() => !conversationView().busy);
-    await act(async () => {
-      stale.onApprove();
-      conversationView().onApprove();
-      return await flush();
-    });
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(conversationView().query).toBe("Changed exact retrieval query");
-    expect(conversationView().candidate).toBeNull();
-    expect(
-      document.querySelector(
-        '[aria-label="Displayed context approval preview"]'
-      )
-    ).toBeNull();
-    return expect(f.approvedInputs).toHaveLength(0);
-  }, 15_000);
+      expect(previewButton().disabled).toBe(false);
+      await act(async () => {
+        conversationView().debate?.onModeChange(
+          "first-mate-read-reviewed-evidence-v1"
+        );
+        return await flush();
+      });
+      expect(previewButton().disabled).toBe(true);
+      await act(async () => {
+        conversationView().onPrepare();
+        return await flush();
+      });
+      expect(prepare).not.toHaveBeenCalled();
+      expect(debate).not.toHaveBeenCalled();
+      expect(native).not.toHaveBeenCalled();
+      return expect(f.approvedInputs).toHaveLength(0);
+    },
+    scaledTimeout(15_000)
+  );
+
+  it(
+    "keeps an authoritative unavailable client response unavailable with no approval",
+    async () => {
+      const f = await mountOrdinaryPreview(await ordinaryPreviewRoster());
+      const prepare = vi
+        .spyOn(f.port, "prepareResponse")
+        .mockImplementation(async (input) =>
+          VertexResearchChatPrepareResponseOutputSchema.parse({
+            schemaVersion: "1.0.0",
+            executionAuthorized: false,
+            status: "unavailable",
+            selector: {
+              accountAlias: input.accountAlias,
+              environment: input.environment,
+              threadId: input.threadId,
+              idempotencyKey: input.idempotencyKey,
+            },
+            reasonCodes: ["participant-unavailable", "corpus-unavailable"],
+          })
+        );
+      await choosePreviewExpert(f.participantId);
+      await act(async () => {
+        previewButton().click();
+        return await flush();
+      });
+      await settleConversation(() =>
+        conversationView().status.includes("Preview unavailable:")
+      );
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(document.body.textContent).toContain(
+        "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
+      );
+      expect(conversationView().candidate).toBeNull();
+      expect(
+        document.querySelector(
+          '[aria-label="Displayed context approval preview"]'
+        )
+      ).toBeNull();
+      expect(
+        document.querySelector<HTMLButtonElement>(
+          'button[data-action="approve-response"]'
+        )?.disabled
+      ).toBe(true);
+      return expect(f.approvedInputs).toHaveLength(0);
+    },
+    scaledTimeout(15_000)
+  );
+
+  return it(
+    "discards an in-flight preview after selection changes and rejects stale approval",
+    async () => {
+      const f = await mountOrdinaryPreview(await ordinaryPreviewRoster());
+      const original = f.port.prepareResponse;
+      let release: (() => void) | null = null;
+      let requestSignal: AbortSignal | undefined;
+      const prepare = vi
+        .spyOn(f.port, "prepareResponse")
+        .mockImplementation(async (input, signal) => {
+          requestSignal = signal;
+          const result = await original(input, signal);
+          return new Promise<
+            Awaited<ReturnType<ExperienceResearchChatPort["prepareResponse"]>>
+          >((resolve) => {
+            release = () => resolve(result);
+          });
+        });
+      await choosePreviewExpert(f.participantId);
+      const stale = conversationView();
+      await act(async () => {
+        previewButton().click();
+        return await flush();
+      });
+      await settleConversation(() => release !== null);
+      expect(previewButton().disabled).toBe(true);
+      // A queued selection callback must retire even a response ignoring abort.
+      await act(async () => {
+        stale.onSelectionChange("query", "Changed exact retrieval query");
+        return await flush();
+      });
+      expect(requestSignal?.aborted).toBe(true);
+      await act(async () => {
+        release?.();
+        return await flush();
+      });
+      await settleConversation(() => !conversationView().busy);
+      await act(async () => {
+        stale.onApprove();
+        conversationView().onApprove();
+        return await flush();
+      });
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(conversationView().query).toBe("Changed exact retrieval query");
+      expect(conversationView().candidate).toBeNull();
+      expect(
+        document.querySelector(
+          '[aria-label="Displayed context approval preview"]'
+        )
+      ).toBeNull();
+      return expect(f.approvedInputs).toHaveLength(0);
+    },
+    scaledTimeout(15_000)
+  );
 });
 
 // Debate preview UI frontier only. These fixtures do not exercise the actual
@@ -3094,291 +3110,310 @@ const mountDebatePreview = async (
 };
 
 describe("unavailable roster stepwise debate preview frontier", () => {
-  it("previews the explicitly selected unavailable first speaker with exact client pins and no approval", async () => {
-    const roster = await ordinaryPreviewRoster();
-    const rosterBefore = canonicalArtifactJson(roster);
-    const f = await mountDebatePreview(roster);
-    const prepare = vi.spyOn(f.port, "prepareDebateStep");
-    expect(f.preparedInputs).toHaveLength(0);
-    expect(
-      [...debatePreviewSelect().options].map((option) => option.value)
-    ).toEqual(["", roster[0]!.participantId, roster[1]!.participantId]);
-    expect(debatePreviewSelect().textContent).toContain(
-      "Unavailable · corpus incomplete · preview only"
-    );
-    expect(document.body.textContent).toContain(
-      "may refuse the selected first speaker"
-    );
-    await mountedAction("prepare-response");
-    await settleConversation(() => conversationView().candidate !== null);
-    expect(prepare).toHaveBeenCalledTimes(1);
-    const result = await prepare.mock.results[0]!.value;
-    if (result.status !== "prepared")
-      throw new Error("Expected strict debate client fixture");
-    expect(conversationView().candidate?.preview).toEqual(result.preview);
-    expect(result.preview.request.participantId).toBe(roster[0]!.participantId);
-    expect(result.preview.request.debate).toMatchObject({
-      ordinal: 1,
-      predecessors: [],
-    });
-    expect(result.preview.debate.participantIds).toEqual([
-      roster[0]!.participantId,
-      roster[1]!.participantId,
-    ]);
-    const displayed = document.querySelector(
-      '[aria-label="Exact request fields (query, parent, snapshot, start, key and scope)"] pre'
-    );
-    expect(JSON.parse(displayed?.textContent ?? "null")).toEqual(
-      result.preview.request
-    );
-    expect(conversationView().candidate?.recordDigests).toEqual(
-      await Promise.all(
-        f.messages.map((message) =>
-          hashArtifact(canonicalArtifactJson(message))
+  it(
+    "previews the explicitly selected unavailable first speaker with exact client pins and no approval",
+    async () => {
+      const roster = await ordinaryPreviewRoster();
+      const rosterBefore = canonicalArtifactJson(roster);
+      const f = await mountDebatePreview(roster);
+      const prepare = vi.spyOn(f.port, "prepareDebateStep");
+      expect(f.preparedInputs).toHaveLength(0);
+      expect(
+        [...debatePreviewSelect().options].map((option) => option.value)
+      ).toEqual(["", roster[0]!.participantId, roster[1]!.participantId]);
+      expect(debatePreviewSelect().textContent).toContain(
+        "Unavailable · corpus incomplete · preview only"
+      );
+      expect(document.body.textContent).toContain(
+        "may refuse the selected first speaker"
+      );
+      await mountedAction("prepare-response");
+      await settleConversation(() => conversationView().candidate !== null);
+      expect(prepare).toHaveBeenCalledTimes(1);
+      const result = await prepare.mock.results[0]!.value;
+      if (result.status !== "prepared")
+        throw new Error("Expected strict debate client fixture");
+      expect(conversationView().candidate?.preview).toEqual(result.preview);
+      expect(result.preview.request.participantId).toBe(
+        roster[0]!.participantId
+      );
+      expect(result.preview.request.debate).toMatchObject({
+        ordinal: 1,
+        predecessors: [],
+      });
+      expect(result.preview.debate.participantIds).toEqual([
+        roster[0]!.participantId,
+        roster[1]!.participantId,
+      ]);
+      const displayed = document.querySelector(
+        '[aria-label="Exact request fields (query, parent, snapshot, start, key and scope)"] pre'
+      );
+      expect(JSON.parse(displayed?.textContent ?? "null")).toEqual(
+        result.preview.request
+      );
+      expect(conversationView().candidate?.recordDigests).toEqual(
+        await Promise.all(
+          f.messages.map((message) =>
+            hashArtifact(canonicalArtifactJson(message))
+          )
         )
-      )
-    );
-    expect(
-      document.querySelector('[aria-label="Exact stepwise debate consent"]')
-        ?.textContent
-    ).toContain("Step 1 of 5");
-    expect(
-      document.querySelector<HTMLButtonElement>(
-        'button[data-action="approve-response"]'
-      )?.disabled
-    ).toBe(false);
-    expect(debatePreviewSelect().closest("fieldset")?.disabled).toBe(true);
-    expect(f.approvedInputs).toHaveLength(0);
-    expect(f.appendInputs).toHaveLength(0);
-    return expect(canonicalArtifactJson(roster)).toBe(rosterBefore);
-  }, 15_000);
+      );
+      expect(
+        document.querySelector('[aria-label="Exact stepwise debate consent"]')
+          ?.textContent
+      ).toContain("Step 1 of 5");
+      expect(
+        document.querySelector<HTMLButtonElement>(
+          'button[data-action="approve-response"]'
+        )?.disabled
+      ).toBe(false);
+      expect(debatePreviewSelect().closest("fieldset")?.disabled).toBe(true);
+      expect(f.approvedInputs).toHaveLength(0);
+      expect(f.appendInputs).toHaveLength(0);
+      return expect(canonicalArtifactJson(roster)).toBe(rosterBefore);
+    },
+    scaledTimeout(15_000)
+  );
 
-  it("requires settled predecessor observation before one explicit frozen next-speaker preview", async () => {
-    const roster = await ordinaryPreviewRoster();
-    const f = await mountDebatePreview(roster);
-    const prepare = vi.spyOn(f.port, "prepareDebateStep");
-    const originalApprove = f.port.approveAndRequestDebateStep;
-    f.port.approveAndRequestDebateStep = async (input, signal) => {
-      await originalApprove(input, signal);
-      throw new VertexReadError("unavailable");
-    };
-    await mountedAction("prepare-response");
-    await settleConversation(() => conversationView().candidate !== null);
-    const first = conversationView().candidate!;
-    if (!("debate" in first.preview)) throw new Error("Missing debate fixture");
-    await mountedAction("approve-response");
-    await settleConversation(() => !conversationView().busy);
-    expect(conversationView().status).toContain("not acknowledged");
-    // Fixture-only prior publication: next-step metadata can exist before the
-    // UI has observed settlement. This is not real publication/model evidence.
-    await f.port.appendResponse(
-      {
-        accountAlias: "synthetic-account",
-        environment: "research",
-        threadId: "synthetic-room",
-        responseRequestId: first.preview.responseRequestId,
-        expectedRevision: view().selectedThread!.revision,
-      },
-      new AbortController().signal
-    );
-    await mountedAction("read-debate-run");
-    await settleConversation(() => !conversationView().busy);
-    expect(conversationView().debate?.metadata?.nextStep?.ordinal).toBe(2);
-    expect(conversationView().debate?.canPrepare).toBe(false);
-    expect(previewButton().disabled).toBe(true);
-    await act(async () => {
-      conversationView().onPrepare();
-      return await flush();
-    });
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(conversationView().operationKey).toBe(
-      first.preview.request.idempotencyKey
-    );
-    f.append();
-    await mountedAction("inspect-response");
-    await settleConversation(
-      () =>
-        !(conversationView().busy || view().loading) &&
-        view().messages.length === 3
-    );
-    await mountedAction("read-debate-run");
-    await settleConversation(() => !conversationView().busy);
-    expect(conversationView().debate?.canPrepare).toBe(true);
-    const next = conversationView().debate!.metadata!.nextStep!;
-    expect(prepare).toHaveBeenCalledTimes(1);
-    // A frozen metadata-selected speaker still has to be a nonblocked expert.
-    const originalRoster = f.port.roster;
-    f.port.roster = async (input, signal) => {
-      const value = await originalRoster(input, signal);
-      return {
-        ...value,
-        participants: value.participants.map((entry) =>
-          entry.participantId === roster[1]!.participantId
-            ? { ...entry, availability: "blocked" as const }
-            : entry
-        ),
+  it(
+    "requires settled predecessor observation before one explicit frozen next-speaker preview",
+    async () => {
+      const roster = await ordinaryPreviewRoster();
+      const f = await mountDebatePreview(roster);
+      const prepare = vi.spyOn(f.port, "prepareDebateStep");
+      const originalApprove = f.port.approveAndRequestDebateStep;
+      f.port.approveAndRequestDebateStep = async (input, signal) => {
+        await originalApprove(input, signal);
+        throw new VertexReadError("unavailable");
       };
-    };
-    await act(async () => {
-      view().onRetry();
-      return await flush();
-    });
-    await settleTranscript();
-    await mountedAction("read-debate-run");
-    await settleConversation(() => !conversationView().busy);
-    await act(async () => {
-      conversationView().onPrepare();
-      return await flush();
-    });
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(conversationView().status).toContain(
-      "Select a responder in this room"
-    );
-    f.port.roster = originalRoster;
-    await act(async () => {
-      view().onRetry();
-      return await flush();
-    });
-    await settleTranscript();
-    await mountedAction("read-debate-run");
-    await settleConversation(() => !conversationView().busy);
-    await act(async () => {
-      conversationView().onSelectionChange(
-        "expertId",
+      await mountedAction("prepare-response");
+      await settleConversation(() => conversationView().candidate !== null);
+      const first = conversationView().candidate!;
+      if (!("debate" in first.preview))
+        throw new Error("Missing debate fixture");
+      await mountedAction("approve-response");
+      await settleConversation(() => !conversationView().busy);
+      expect(conversationView().status).toContain("not acknowledged");
+      // Fixture-only prior publication: next-step metadata can exist before the
+      // UI has observed settlement. This is not real publication/model evidence.
+      await f.port.appendResponse(
+        {
+          accountAlias: "synthetic-account",
+          environment: "research",
+          threadId: "synthetic-room",
+          responseRequestId: first.preview.responseRequestId,
+          expectedRevision: view().selectedThread!.revision,
+        },
+        new AbortController().signal
+      );
+      await mountedAction("read-debate-run");
+      await settleConversation(() => !conversationView().busy);
+      expect(conversationView().debate?.metadata?.nextStep?.ordinal).toBe(2);
+      expect(conversationView().debate?.canPrepare).toBe(false);
+      expect(previewButton().disabled).toBe(true);
+      await act(async () => {
+        conversationView().onPrepare();
+        return await flush();
+      });
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(conversationView().operationKey).toBe(
+        first.preview.request.idempotencyKey
+      );
+      f.append();
+      await mountedAction("inspect-response");
+      await settleConversation(
+        () =>
+          !(conversationView().busy || view().loading) &&
+          view().messages.length === 3
+      );
+      await mountedAction("read-debate-run");
+      await settleConversation(() => !conversationView().busy);
+      expect(conversationView().debate?.canPrepare).toBe(true);
+      const next = conversationView().debate!.metadata!.nextStep!;
+      expect(prepare).toHaveBeenCalledTimes(1);
+      // A frozen metadata-selected speaker still has to be a nonblocked expert.
+      const originalRoster = f.port.roster;
+      f.port.roster = async (input, signal) => {
+        const value = await originalRoster(input, signal);
+        return {
+          ...value,
+          participants: value.participants.map((entry) =>
+            entry.participantId === roster[1]!.participantId
+              ? { ...entry, availability: "blocked" as const }
+              : entry
+          ),
+        };
+      };
+      await act(async () => {
+        view().onRetry();
+        return await flush();
+      });
+      await settleTranscript();
+      await mountedAction("read-debate-run");
+      await settleConversation(() => !conversationView().busy);
+      await act(async () => {
+        conversationView().onPrepare();
+        return await flush();
+      });
+      expect(prepare).toHaveBeenCalledTimes(1);
+      expect(conversationView().status).toContain(
+        "Select a responder in this room"
+      );
+      f.port.roster = originalRoster;
+      await act(async () => {
+        view().onRetry();
+        return await flush();
+      });
+      await settleTranscript();
+      await mountedAction("read-debate-run");
+      await settleConversation(() => !conversationView().busy);
+      await act(async () => {
+        conversationView().onSelectionChange(
+          "expertId",
+          roster[1]!.participantId
+        );
+        conversationView().onSelectionChange(
+          "query",
+          "Must not replace frozen query"
+        );
+        return await flush();
+      });
+      expect(conversationView().expertId).toBe(roster[0]!.participantId);
+      expect(conversationView().query).toBe(
+        first.preview.request.retrievalQuery
+      );
+      await mountedAction("prepare-response");
+      await settleConversation(() => conversationView().candidate !== null);
+      const second = conversationView().candidate!;
+      if (!("debate" in second.preview))
+        throw new Error("Missing next debate fixture");
+      expect(prepare).toHaveBeenCalledTimes(2);
+      expect(second.preview.request.participantId).toBe(
         roster[1]!.participantId
       );
-      conversationView().onSelectionChange(
-        "query",
-        "Must not replace frozen query"
+      expect(second.preview.request.debate).toEqual(next);
+      expect(second.preview.request.idempotencyKey).not.toBe(
+        first.preview.request.idempotencyKey
       );
-      return await flush();
-    });
-    expect(conversationView().expertId).toBe(roster[0]!.participantId);
-    expect(conversationView().query).toBe(first.preview.request.retrievalQuery);
-    await mountedAction("prepare-response");
-    await settleConversation(() => conversationView().candidate !== null);
-    const second = conversationView().candidate!;
-    if (!("debate" in second.preview))
-      throw new Error("Missing next debate fixture");
-    expect(prepare).toHaveBeenCalledTimes(2);
-    expect(second.preview.request.participantId).toBe(roster[1]!.participantId);
-    expect(second.preview.request.debate).toEqual(next);
-    expect(second.preview.request.idempotencyKey).not.toBe(
-      first.preview.request.idempotencyKey
-    );
-    for (const key of [
-      "parentMessageId",
-      "snapshotRevision",
-      "contextStartSequence",
-      "retrievalQuery",
-    ] as const) {
-      expect(second.preview.request[key]).toBe(first.preview.request[key]);
-    }
-    for (const key of [
-      "configuration",
-      "participantIds",
-      "synthesizerId",
-      "humanWindowSha256",
-      "turnTokens",
-      "turnCostUsd",
-      "aggregateTokens",
-      "aggregateCostUsd",
-    ] as const) {
-      expect(second.preview.debate[key]).toEqual(first.preview.debate[key]);
-    }
-    expect(second.preview.corpus).toEqual(first.preview.corpus);
-    expect(second.messages).toEqual(first.messages);
-    expect(second.recordDigests).toEqual(first.recordDigests);
-    expect(f.approvedInputs).toHaveLength(1);
-    return expect(f.preparedInputs).toHaveLength(2);
-  }, 15_000);
+      for (const key of [
+        "parentMessageId",
+        "snapshotRevision",
+        "contextStartSequence",
+        "retrievalQuery",
+      ] as const) {
+        expect(second.preview.request[key]).toBe(first.preview.request[key]);
+      }
+      for (const key of [
+        "configuration",
+        "participantIds",
+        "synthesizerId",
+        "humanWindowSha256",
+        "turnTokens",
+        "turnCostUsd",
+        "aggregateTokens",
+        "aggregateCostUsd",
+      ] as const) {
+        expect(second.preview.debate[key]).toEqual(first.preview.debate[key]);
+      }
+      expect(second.preview.corpus).toEqual(first.preview.corpus);
+      expect(second.messages).toEqual(first.messages);
+      expect(second.recordDigests).toEqual(first.recordDigests);
+      expect(f.approvedInputs).toHaveLength(1);
+      return expect(f.preparedInputs).toHaveLength(2);
+    },
+    scaledTimeout(15_000)
+  );
 
-  return it("retains unavailable identity and rejects out-of-room and retired in-flight debate previews", async () => {
-    const roster = await ordinaryPreviewRoster();
-    const f = await mountDebatePreview(roster);
-    const original = f.port.prepareDebateStep;
-    const prepare = vi
-      .spyOn(f.port, "prepareDebateStep")
-      .mockImplementationOnce(async (input) =>
-        VertexResearchChatDebatePrepareOutputSchema.parse({
-          schemaVersion: "1.0.0",
-          executionAuthorized: false,
-          status: "unavailable",
-          selector: {
-            accountAlias: input.accountAlias,
-            environment: input.environment,
-            threadId: input.threadId,
-            idempotencyKey: input.idempotencyKey,
-          },
-          reasonCodes: ["participant-unavailable", "corpus-unavailable"],
-        })
+  return it(
+    "retains unavailable identity and rejects out-of-room and retired in-flight debate previews",
+    async () => {
+      const roster = await ordinaryPreviewRoster();
+      const f = await mountDebatePreview(roster);
+      const original = f.port.prepareDebateStep;
+      const prepare = vi
+        .spyOn(f.port, "prepareDebateStep")
+        .mockImplementationOnce(async (input) =>
+          VertexResearchChatDebatePrepareOutputSchema.parse({
+            schemaVersion: "1.0.0",
+            executionAuthorized: false,
+            status: "unavailable",
+            selector: {
+              accountAlias: input.accountAlias,
+              environment: input.environment,
+              threadId: input.threadId,
+              idempotencyKey: input.idempotencyKey,
+            },
+            reasonCodes: ["participant-unavailable", "corpus-unavailable"],
+          })
+        );
+      await mountedAction("prepare-response");
+      await settleConversation(() => !conversationView().busy);
+      const initial = prepare.mock.calls[0]![0];
+      expect(conversationView().status).toContain(
+        "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
       );
-    await mountedAction("prepare-response");
-    await settleConversation(() => !conversationView().busy);
-    const initial = prepare.mock.calls[0]![0];
-    expect(conversationView().status).toContain(
-      "Preview unavailable: participant-unavailable, corpus-unavailable. No approval submitted."
-    );
-    expect(conversationView().candidate).toBeNull();
-    expect(conversationView().debate?.runKey).toBe(initial.debate.runKey);
-    expect(prepare).toHaveBeenCalledTimes(1);
-    prepare.mockImplementationOnce(async (input, signal) => {
-      const result = await original(input, signal);
-      if (result.status !== "prepared") return result;
-      return VertexResearchChatDebatePrepareOutputSchema.parse({
-        ...result,
-        preview: {
-          ...result.preview,
-          debate: {
-            ...result.preview.debate,
-            participantIds: [
-              roster[0]!.participantId,
-              roster[2]!.participantId,
-            ],
-            synthesizerId: roster[2]!.participantId,
+      expect(conversationView().candidate).toBeNull();
+      expect(conversationView().debate?.runKey).toBe(initial.debate.runKey);
+      expect(prepare).toHaveBeenCalledTimes(1);
+      prepare.mockImplementationOnce(async (input, signal) => {
+        const result = await original(input, signal);
+        if (result.status !== "prepared") return result;
+        return VertexResearchChatDebatePrepareOutputSchema.parse({
+          ...result,
+          preview: {
+            ...result.preview,
+            debate: {
+              ...result.preview.debate,
+              participantIds: [
+                roster[0]!.participantId,
+                roster[2]!.participantId,
+              ],
+              synthesizerId: roster[2]!.participantId,
+            },
           },
-        },
+        });
       });
-    });
-    await mountedAction("prepare-response");
-    await settleConversation(() => !conversationView().busy);
-    expect(prepare.mock.calls[1]![0]).toEqual(initial);
-    expect(conversationView().candidate).toBeNull();
-    expect(conversationView().status).toContain("Preview unavailable");
-    let release: (() => void) | null = null;
-    let requestSignal: AbortSignal | undefined;
-    prepare.mockImplementationOnce(async (input, signal) => {
-      requestSignal = signal;
-      const result = await original(input, signal);
-      return new Promise<
-        Awaited<ReturnType<ExperienceResearchChatPort["prepareDebateStep"]>>
-      >((resolve) => {
-        release = () => resolve(result);
+      await mountedAction("prepare-response");
+      await settleConversation(() => !conversationView().busy);
+      expect(prepare.mock.calls[1]![0]).toEqual(initial);
+      expect(conversationView().candidate).toBeNull();
+      expect(conversationView().status).toContain("Preview unavailable");
+      let release: (() => void) | null = null;
+      let requestSignal: AbortSignal | undefined;
+      prepare.mockImplementationOnce(async (input, signal) => {
+        requestSignal = signal;
+        const result = await original(input, signal);
+        return new Promise<
+          Awaited<ReturnType<ExperienceResearchChatPort["prepareDebateStep"]>>
+        >((resolve) => {
+          release = () => resolve(result);
+        });
       });
-    });
-    const staleApproval = conversationView().onApprove;
-    await mountedAction("prepare-response");
-    await settleConversation(() => release !== null);
-    expect(previewButton().disabled).toBe(true);
-    await act(async () => {
-      window.dispatchEvent(new Event("pagehide"));
-      return await flush();
-    });
-    expect(requestSignal?.aborted).toBe(true);
-    await act(async () => {
-      release?.();
-      staleApproval();
-      return await flush();
-    });
-    await settleConversation(() => !conversationView().busy);
-    expect(prepare.mock.calls[2]![0]).toEqual(initial);
-    expect(conversationView().candidate).toBeNull();
-    expect(
-      document.querySelector(
-        '[aria-label="Displayed context approval preview"]'
-      )
-    ).toBeNull();
-    expect(f.approvedInputs).toHaveLength(0);
-    return expect(prepare).toHaveBeenCalledTimes(3);
-  }, 15_000);
+      const staleApproval = conversationView().onApprove;
+      await mountedAction("prepare-response");
+      await settleConversation(() => release !== null);
+      expect(previewButton().disabled).toBe(true);
+      await act(async () => {
+        window.dispatchEvent(new Event("pagehide"));
+        return await flush();
+      });
+      expect(requestSignal?.aborted).toBe(true);
+      await act(async () => {
+        release?.();
+        staleApproval();
+        return await flush();
+      });
+      await settleConversation(() => !conversationView().busy);
+      expect(prepare.mock.calls[2]![0]).toEqual(initial);
+      expect(conversationView().candidate).toBeNull();
+      expect(
+        document.querySelector(
+          '[aria-label="Displayed context approval preview"]'
+        )
+      ).toBeNull();
+      expect(f.approvedInputs).toHaveLength(0);
+      return expect(prepare).toHaveBeenCalledTimes(3);
+    },
+    scaledTimeout(15_000)
+  );
 });

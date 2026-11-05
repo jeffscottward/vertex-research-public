@@ -261,6 +261,11 @@ describe("weekly pass", () => {
     const model = run.calls.find((call) => call.line.startsWith("omp"));
     expect(model).toMatchObject({ cwd: WT, inherit: true });
     expect(model?.line).toContain("--model=anthropic/claude-opus-5-5");
+    const commit = lines.findIndex((line) => line.startsWith("git commit"));
+    const unlink = lines.indexOf(`rm -f ${WT}/node_modules`);
+    expect(commit).toBeGreaterThan(-1);
+    // The pre-commit hook needs node_modules: unlink only after the commit.
+    expect(unlink).toBeGreaterThan(commit);
     expect(lines.slice(-2)).toEqual([
       `git worktree remove --force ${WT}`,
       `git branch -D ${BRANCH}`,

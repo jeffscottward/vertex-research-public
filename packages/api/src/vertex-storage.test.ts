@@ -39,6 +39,7 @@ import {
   computeNativeFactProjectionHash,
   parseNativeFactProjection,
 } from "./vertex.ts";
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
 
 // Synthetic implementations exist only in this test file. No implicit provider,
 // global repository, clock, authorization, random source or network is used.
@@ -1040,69 +1041,73 @@ describe("Vertex immutable artifact storage (offline authored coverage)", () => 
 
   // Hashes and canonicalizes several MiB-scale bodies; under a loaded parallel
   // run this exceeds the 5s default without any behaviour change.
-  it("permits large raw bodies only under an explicit budget while keeping API manifests capped at 1MiB", async () => {
-    const fixture = await harness();
-    const sourceBytes = new Uint8Array(MAX_VERTEX_STORAGE_BYTES + 1).fill(65);
-    const sourceContentSha256 = await hashArtifact(sourceBytes);
-    const manifest = datasetValue(sourceContentSha256);
-    const input = {
-      ...fixture.input,
-      manifest,
-      sourceBytes,
-      sourceContentSha256,
-      artifactSha256: await hashArtifact(encode(manifest)),
-    };
-    await expectCode(fixture.storage.putManifest(input), "too-large");
-    const maximumContentBytes = 64 * MAX_VERTEX_STORAGE_BYTES;
-    const storage = createVertexArtifactStorage({
-      ...fixture.dependencies,
-      maximumContentBytes,
-    });
-    const metadata = await storage.putManifest(input);
-    expect(
-      await storage.getContent({ ...fixture.request, use: "read" })
-    ).toEqual(sourceBytes);
-    expect(await storage.getManifest(fixture.request)).toEqual({
-      bytes: encode(manifest),
-      metadata,
-    });
-    await putModules(fixture);
-    const reader = createVertexReadPort({
-      ...fixture.readerDependencies,
-      maximumContentBytes,
-    });
-    expect(
-      (await reader.listModules(fixture.apiPrincipal)).bytes.byteLength
-    ).toBeLessThanOrEqual(MAX_VERTEX_STORAGE_BYTES);
-    const oversizedManifest = {
-      ...manifest,
-      provider: "x".repeat(MAX_VERTEX_STORAGE_BYTES + 1),
-    };
-    await expectCode(
-      storage.putManifest({ ...input, manifest: oversizedManifest }),
-      "too-large"
-    );
-    const contentKey = vertexQualifiedObjectKey(
-      scope,
-      collectionId,
-      "content",
-      sourceContentSha256
-    );
-    expect(
-      fixture.getBounded.mock.calls
-        .filter(([key]) => key === metadata.objectKey)
-        .every(([, bound]) => bound <= MAX_VERTEX_STORAGE_BYTES)
-    ).toBe(true);
-    expect(
-      fixture.getBounded.mock.calls
-        .filter(([key]) => key === contentKey)
-        .every(([, bound]) => bound <= maximumContentBytes)
-    ).toBe(true);
-    return await expectCode(
-      fixture.storage.getContent({ ...fixture.request, use: "read" }),
-      "too-large"
-    );
-  }, 60_000);
+  it(
+    "permits large raw bodies only under an explicit budget while keeping API manifests capped at 1MiB",
+    async () => {
+      const fixture = await harness();
+      const sourceBytes = new Uint8Array(MAX_VERTEX_STORAGE_BYTES + 1).fill(65);
+      const sourceContentSha256 = await hashArtifact(sourceBytes);
+      const manifest = datasetValue(sourceContentSha256);
+      const input = {
+        ...fixture.input,
+        manifest,
+        sourceBytes,
+        sourceContentSha256,
+        artifactSha256: await hashArtifact(encode(manifest)),
+      };
+      await expectCode(fixture.storage.putManifest(input), "too-large");
+      const maximumContentBytes = 64 * MAX_VERTEX_STORAGE_BYTES;
+      const storage = createVertexArtifactStorage({
+        ...fixture.dependencies,
+        maximumContentBytes,
+      });
+      const metadata = await storage.putManifest(input);
+      expect(
+        await storage.getContent({ ...fixture.request, use: "read" })
+      ).toEqual(sourceBytes);
+      expect(await storage.getManifest(fixture.request)).toEqual({
+        bytes: encode(manifest),
+        metadata,
+      });
+      await putModules(fixture);
+      const reader = createVertexReadPort({
+        ...fixture.readerDependencies,
+        maximumContentBytes,
+      });
+      expect(
+        (await reader.listModules(fixture.apiPrincipal)).bytes.byteLength
+      ).toBeLessThanOrEqual(MAX_VERTEX_STORAGE_BYTES);
+      const oversizedManifest = {
+        ...manifest,
+        provider: "x".repeat(MAX_VERTEX_STORAGE_BYTES + 1),
+      };
+      await expectCode(
+        storage.putManifest({ ...input, manifest: oversizedManifest }),
+        "too-large"
+      );
+      const contentKey = vertexQualifiedObjectKey(
+        scope,
+        collectionId,
+        "content",
+        sourceContentSha256
+      );
+      expect(
+        fixture.getBounded.mock.calls
+          .filter(([key]) => key === metadata.objectKey)
+          .every(([, bound]) => bound <= MAX_VERTEX_STORAGE_BYTES)
+      ).toBe(true);
+      expect(
+        fixture.getBounded.mock.calls
+          .filter(([key]) => key === contentKey)
+          .every(([, bound]) => bound <= maximumContentBytes)
+      ).toBe(true);
+      return await expectCode(
+        fixture.storage.getContent({ ...fixture.request, use: "read" }),
+        "too-large"
+      );
+    },
+    scaledTimeout(60_000)
+  );
 
   it("rejects non-finite, non-integral, non-positive and unsafe content budgets", async () => {
     const fixture = await harness();

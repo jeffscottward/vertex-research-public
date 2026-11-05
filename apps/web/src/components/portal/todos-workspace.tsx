@@ -495,7 +495,11 @@ export const TodosWorkspace = ({
             </label>
           </div>
           {tags.length > 0 && (
-            <nav aria-label="Filter by tag" className="flex flex-wrap gap-1">
+            <nav
+              aria-label="Filter by tag"
+              className="flex flex-wrap gap-1"
+              data-click-private=""
+            >
               <Button
                 aria-pressed={activeTag === null}
                 onClick={() => setTagFilter(null)}
@@ -526,7 +530,7 @@ export const TodosWorkspace = ({
                 : "No to-dos match this filter."}
             </p>
           ) : (
-            <ul aria-label="To-dos" className="space-y-2">
+            <ul aria-label="To-dos" className="space-y-2" data-click-private="">
               {visible.map((item) => (
                 <TodoRow
                   busy={busyIds.has(item.id)}

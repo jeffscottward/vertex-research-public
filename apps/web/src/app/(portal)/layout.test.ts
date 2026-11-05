@@ -160,6 +160,23 @@ describe("PortalLayout", () => {
     expect(new Set(scopes).size).toBe(4);
   });
 
+  it("passes the saved assistant panel choice from the request cookie", async () => {
+    const results: unknown[] = [];
+    for (const cookie of [
+      "better-auth.session_token=opaque; vx.assistantPanel=open",
+      "vx.assistantPanel=closed",
+      "better-auth.session_token=opaque",
+    ]) {
+      mocks.headers.mockResolvedValueOnce(new Headers({ cookie }));
+      mocks.getRequestPortalSession.mockResolvedValueOnce(
+        activeSession("member")
+      );
+      const result = await PortalLayout({ children: "protected" });
+      results.push(result.props.initialAssistantPanelOpen);
+    }
+    return expect(results).toEqual([true, false, undefined]);
+  });
+
   return it.each([
     ["member", false, true, MEMBER_PORTAL_ROUTE_PATHS],
     ["admin", true, true, ADMIN_PORTAL_ROUTE_PATHS],
@@ -237,6 +254,7 @@ describe("portal route manifests", () =>
       "/forward-drift",
       "/strategy-builder",
       "/rotation-matrix",
+      "/sector-rotation",
       "/deep-value",
       "/congress-trades",
       "/risk-allocator",
@@ -246,9 +264,11 @@ describe("portal route manifests", () =>
       "/autopilot",
       "/charts",
       "/deployments",
+      "/engines",
       "/watchlist",
       "/price-alerts",
       "/news",
+      "/baskets",
       "/todos",
       "/today",
       "/portfolio",

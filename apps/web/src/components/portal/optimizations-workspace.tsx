@@ -17,12 +17,12 @@ import {
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  InfoGlyph,
-  OperatorAccessRequired,
   createBrowserOptimizationsGateway,
   describeAgentOpsFailure,
   formatTimestamp,
+  InfoGlyph,
   isOperatorAccessDenied,
+  OperatorAccessRequired,
   type OptimizationsGateway,
 } from "./agent-ops-client.tsx";
 import {
@@ -31,13 +31,13 @@ import {
   PBO_HELP,
 } from "./optimizations-detail.tsx";
 import {
-  METHOD_LABELS,
-  VALIDATION_LABELS,
   formatMarkets,
   formatProbability,
   formatScore,
   isOptimizationTab,
+  METHOD_LABELS,
   type OptimizationTab,
+  VALIDATION_LABELS,
 } from "./optimizations-model.ts";
 
 export interface OptimizationsWorkspaceProps {
@@ -127,14 +127,14 @@ export const OptimizationsWorkspace = ({
     setState({ type: "loading" });
     try {
       return setState({
-        type: "ready",
         rows: await gateway.list(strategyId === null ? {} : { strategyId }),
+        type: "ready",
       });
     } catch (error) {
       return setState(
         isOperatorAccessDenied(error)
           ? { type: "forbidden" }
-          : { type: "error", message: describeAgentOpsFailure(error) }
+          : { message: describeAgentOpsFailure(error), type: "error" }
       );
     }
   }, [gateway, strategyId]);
@@ -145,14 +145,14 @@ export const OptimizationsWorkspace = ({
         setTab("overview");
         writeLocation(id, "overview");
       }
-      setDetail({ type: "loading", id });
+      setDetail({ id, type: "loading" });
       try {
-        return setDetail({ type: "ready", detail: await gateway.get(id) });
+        return setDetail({ detail: await gateway.get(id), type: "ready" });
       } catch (error) {
         return setDetail({
-          type: "error",
           id,
           message: describeAgentOpsFailure(error),
+          type: "error",
         });
       }
     },
@@ -238,6 +238,7 @@ export const OptimizationsWorkspace = ({
         <div className="overflow-x-auto">
           <Table
             className="w-full min-w-[60rem] text-sm"
+            data-click-private=""
             data-optimizations-table=""
           >
             <TableCaption className="sr-only">Optimizer runs</TableCaption>
@@ -295,7 +296,7 @@ export const OptimizationsWorkspace = ({
               {state.rows.map((row) => {
                 return (
                   <TableRow
-                    className="border-border border-b align-top"
+                    className="border-border border-b [&>td]:align-top [&>th]:align-top"
                     data-optimization-id={row.id}
                     key={row.id}
                   >

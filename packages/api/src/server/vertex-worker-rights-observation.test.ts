@@ -27,10 +27,11 @@ import {
   CONTRACTS_URL_DISTRIBUTIONS,
   pinnedPython,
 } from "./research-python.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Finite SOURCE-native composition only. No bundle is generated or installed;
 // production ContractAuthority's known source-set mismatch is not bypassed.
-const TIMEOUT = 120_000;
+const TIMEOUT = scaledTimeout(120_000);
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
 const fixture = (
   extra: Partial<NonNullable<Parameters<typeof chatWorkerFixture>[0]>> = {}

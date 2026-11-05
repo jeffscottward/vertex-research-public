@@ -87,6 +87,9 @@ export type ApiContext = Readonly<{
   portfolioMonitor?: DeployStatusConfig | null;
   // ibkr-monitor base URL on loopback (IBKR_MONITOR_URL, e.g. http://127.0.0.1:3461). null => not configured.
   ibkrMonitor?: string | null;
+  // Rig status file server on loopback (ENGINE_STATUS_URL, e.g. http://127.0.0.1:3462): status.json for
+  // engines.status, markets.json for marketContext.get. null => not configured.
+  engineStatus?: string | null;
   // Tailnet-only human 2FA recovery service (VERTEX_IBKR_RECOVERY_URL, own token
   // VERTEX_IBKR_RECOVERY_TOKEN). Server-only; null => not configured.
   ibkrRecovery?: DeployStatusConfig | null;
@@ -139,6 +142,9 @@ export type ApiContextDependencies = Readonly<{
   portfolioMonitor?: DeployStatusConfig | null;
   // ibkr-monitor base URL on loopback (IBKR_MONITOR_URL, e.g. http://127.0.0.1:3461). null => not configured.
   ibkrMonitor?: string | null;
+  // Rig status file server on loopback (ENGINE_STATUS_URL, e.g. http://127.0.0.1:3462): status.json for
+  // engines.status, markets.json for marketContext.get. null => not configured.
+  engineStatus?: string | null;
   // Tailnet-only human 2FA recovery service (VERTEX_IBKR_RECOVERY_URL, own token
   // VERTEX_IBKR_RECOVERY_TOKEN). Server-only; null => not configured.
   ibkrRecovery?: DeployStatusConfig | null;
@@ -233,6 +239,7 @@ export const createApiContext = (
     priceAlertsNtfy: dependencies.priceAlertsNtfy ?? null,
     portfolioMonitor: dependencies.portfolioMonitor ?? null,
     ibkrMonitor: dependencies.ibkrMonitor ?? null,
+    engineStatus: dependencies.engineStatus ?? null,
     ibkrRecovery: dependencies.ibkrRecovery ?? null,
     ...(verifyPassword === undefined
       ? {}

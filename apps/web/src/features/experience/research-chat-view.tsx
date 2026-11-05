@@ -1337,7 +1337,7 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
         <aside className="vx-chat-sidebar" aria-label="Research rooms">
           <h3>Rooms</h3>
           <nav aria-label="Research conversations">
-            <ul className="vx-chat-threads">
+            <ul className="vx-chat-threads" data-click-private="">
               {threads.filter(isResearchThread).map((thread) => (
                 <li key={thread.threadId}>
                   <Button

@@ -6,6 +6,8 @@ import {
   type AssistantActionDecision,
   type AssistantActionOutput,
   type AssistantModeValue,
+  type AssistantPageContext,
+  type AssistantSendEvent,
   type AssistantSendOutput,
   type AssistantThreadGetOutput,
   type AssistantThreadListOutput,
@@ -13,20 +15,27 @@ import {
 } from "@darkfactory/api";
 
 // Research assistant (assistant.*): operator session only. The browser never sees the model key; the
-// server runs the tool loop and returns the reply with a tool-call trace. Confirm cards (save a
-// strategy definition, run a backtest, run a sweep) run only after `decide` with "approve".
+// server runs the tool loop and streams the turn: reply text as the model writes it, tool steps, then
+// the stored reply with its tool-call trace. Confirm cards (save a strategy definition, run a
+// backtest, run a sweep) run only after `decide` with "approve". A message sent from the side panel
+// carries the portal page it came from; the server adds it to the prompt as context only.
+export type AssistantSendRequest = Readonly<{
+  threadId: string;
+  message: string;
+  mode: AssistantModeValue;
+  page?: AssistantPageContext;
+}>;
+
 export interface AssistantGateway {
   readonly list: () => Promise<AssistantThreadListOutput>;
   readonly create: (title?: string) => Promise<AssistantThreadOutput>;
   readonly get: (id: string) => Promise<AssistantThreadGetOutput>;
   readonly send: (
-    input: Readonly<{
-      threadId: string;
-      message: string;
-      mode: AssistantModeValue;
-    }>,
-    // Stop: aborting cancels the request; the server ends the turn at its next step.
-    signal?: AbortSignal
+    input: AssistantSendRequest,
+    // Stop: aborting closes the stream; the server ends the turn at its next step and keeps it.
+    signal?: AbortSignal,
+    // Live progress while the turn runs; the promise resolves with the stored reply.
+    onEvent?: (event: AssistantSendEvent) => void
   ) => Promise<AssistantSendOutput>;
   readonly decide: (
     id: string,
@@ -34,19 +43,40 @@ export interface AssistantGateway {
   ) => Promise<AssistantActionOutput>;
 }
 
+const STREAM_ENDED_CODE = "STREAM_ENDED";
+
+/** Reads a streamed turn: passes each event on and returns the stored reply from "done". */
+export const readAssistantTurn = async (
+  events: AsyncIterable<AssistantSendEvent>,
+  onEvent?: (event: AssistantSendEvent) => void
+): Promise<AssistantSendOutput> => {
+  for await (const event of events) {
+    onEvent?.(event);
+    if (event.type === "done") return event.result;
+  }
+  throw Object.assign(
+    new Error("The reply stream ended before the reply was stored."),
+    { code: STREAM_ENDED_CODE }
+  );
+};
+
 const createAssistantGateway = (client: ApiClient): AssistantGateway => ({
   list: () => client.assistant.threads.list({}),
   create: (title) =>
     client.assistant.threads.create(title === undefined ? {} : { title }),
   get: (id) => client.assistant.threads.get({ id }),
-  send: (input, signal) =>
-    client.assistant.send(
-      {
-        threadId: input.threadId,
-        message: input.message,
-        mode: input.mode,
-      },
-      signal === undefined ? {} : { signal }
+  send: async (input, signal, onEvent) =>
+    readAssistantTurn(
+      await client.assistant.send(
+        {
+          threadId: input.threadId,
+          message: input.message,
+          mode: input.mode,
+          ...(input.page === undefined ? {} : { page: input.page }),
+        },
+        signal === undefined ? {} : { signal }
+      ),
+      onEvent
     ),
   decide: (id, decision) => client.assistant.actions.decide({ id, decision }),
 });
@@ -64,13 +94,10 @@ export const createBrowserAssistantGateway = (): AssistantGateway => {
     create: (title?: string) => current().create(title),
     get: (id: string) => current().get(id),
     send: (
-      input: Readonly<{
-        threadId: string;
-        message: string;
-        mode: AssistantModeValue;
-      }>,
-      signal?: AbortSignal
-    ) => current().send(input, signal),
+      input: AssistantSendRequest,
+      signal?: AbortSignal,
+      onEvent?: (event: AssistantSendEvent) => void
+    ) => current().send(input, signal, onEvent),
     decide: (id: string, decision: AssistantActionDecision) =>
       current().decide(id, decision),
   });
@@ -135,6 +162,9 @@ export const describeAssistantFailure = (error: unknown): string => {
     }
     case "STORAGE_ERROR": {
       return message ?? "Assistant storage unavailable.";
+    }
+    case STREAM_ENDED_CODE: {
+      return "The reply stopped arriving. The thread shows what the server kept.";
     }
     default: {
       return "Request failed. Try again.";

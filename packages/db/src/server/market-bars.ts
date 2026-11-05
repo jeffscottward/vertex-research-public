@@ -1,3 +1,4 @@
+import { BAR_SYMBOL_PATTERN } from "@darkfactory/shared/universes";
 import { asc, eq } from "drizzle-orm";
 
 import {
@@ -13,7 +14,6 @@ import type { DatabaseExecutor } from "./client.ts";
 
 const INSERT_CHUNK_ROWS = 5000;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
-const SYMBOL_PATTERN = /^[A-Z0-9.^-]{1,20}$/u;
 
 export type MarketBarSeries = Readonly<{
   id: string;
@@ -86,8 +86,8 @@ export const validateMarketBars = (
   series: MarketBarSeriesInput,
   bars: readonly MarketBarRow[]
 ): void => {
-  if (!SYMBOL_PATTERN.test(series.symbol)) {
-    throw new MarketBarsInputError("symbol must match ^[A-Z0-9.^-]{1,20}$");
+  if (!BAR_SYMBOL_PATTERN.test(series.symbol)) {
+    throw new MarketBarsInputError("symbol must match ^[A-Z0-9.^=-]{1,20}$");
   }
   if (!MARKET_BAR_TIMEFRAMES.includes(series.timeframe)) {
     throw new MarketBarsInputError("timeframe must be 1d or 1m");

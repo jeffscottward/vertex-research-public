@@ -5,6 +5,7 @@ import {
   FILTER_STUDY_MODEL,
   FilterStudiesPanel,
 } from "../../../components/portal/filter-studies-panel.tsx";
+import { QuantLabPanel } from "../../../components/portal/quant-lab-panel.tsx";
 
 export const metadata = { title: "Backtests" };
 
@@ -13,6 +14,7 @@ export default function BacktestsPage() {
     <div className="space-y-8">
       <PageHeader title="Backtests" />
       <BacktestsWorkspace />
+      <QuantLabPanel />
       <FilterStudiesPanel model={FILTER_STUDY_MODEL} />
     </div>
   );

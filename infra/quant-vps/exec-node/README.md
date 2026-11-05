@@ -12,10 +12,11 @@ The exec node is the Docker Compose project `ibkr-nautilus-exec-node` on QuantVP
 | `frozen-manifest.sha256` | SHA-256 of every runtime file carried from `/opt/vertex-quant` (Nautilus node code, portfolio-ui and its build output, `src/`, other scripts), except state, `.env`, installed dependencies and caches. It is the live tree of 2026-10-31 (deploy commit `3511184` plus recorded live edits). Refresh it with `exec_node.py manifest`. |
 | `exec_node.py` | `stage`, `gate`, `switch`, `verify`, `rollback`. |
 
-Every file under `runtime/` equals its frozen bytes, with two documented exceptions that `test_exec_node.py` checks:
+Every file under `runtime/` equals its frozen bytes, with three documented exceptions that `test_exec_node.py` checks:
 
 - `runtime/scripts/nautilus-arm.sh` and `runtime/scripts/nautilus_health_alert.py` differ only in the root path.
 - `runtime/nautilus/ibkr_account.py` is the reader from vertex-quant commit `ef1b38b` (merged to its main). The live tree paired the new snapshot script with the old reader, so the snapshot failed with a `TypeError` and the IBKR-only readiness check could never pass. The new reader is a superset of the old one. It is used by the 2FA readiness snapshot and the portfolio-ui snapshot; the running Nautilus image is not rebuilt.
+- `runtime/watchdog/watchdog.py` and `runtime/nautilus/arm_gate.py` carry the kill-switch safety fix (state-machine audit 2026-11-03). While `data/KILL_SWITCH` exists, the gate and the watchdog delete the owner arm record `data/nautilus/ARMED`, so removing the kill switch never re-arms the node; the owner must arm again. `arm_gate.py` also enforces the options-only, defined-risk order policy `options_only_defined_risk_v1` (owner rule 2026-11-04) in `place_order`: an armed node may only buy options or close/reduce a position held in the newest fresh account snapshot (`test_order_policy.py`). `test_arm_killswitch.py` tests the kill switch; `python-safety.test.ts` runs both Python tests in CI; `test_exec_node.py` pins both digests. They take effect when the watchdog and Nautilus containers are next rebuilt.
 
 ## Invariants
 

@@ -13,6 +13,11 @@ import { fileURLToPath } from "node:url";
 import { postgresTestDatabaseUrl } from "@darkfactory/testkit/postgres";
 
 import {
+  FAKE_ASSISTANT_MODEL_HOST,
+  FAKE_ASSISTANT_MODEL_KEY,
+  FAKE_ASSISTANT_MODEL_PATH,
+} from "./helpers/fake-assistant-model.ts";
+import {
   FAKE_IBKR_RECOVERY_HOST,
   FAKE_IBKR_RECOVERY_TOKEN,
 } from "./helpers/fake-ibkr-recovery.ts";
@@ -250,6 +255,10 @@ export const e2eEnvironment = (
       // through the run's HTTPS proxy. It starts nothing; no test reaches the real VPS.
       VERTEX_IBKR_RECOVERY_URL: `${recoveryOrigin}/vertex-ibkr-recovery/v1`,
       VERTEX_IBKR_RECOVERY_TOKEN: FAKE_IBKR_RECOVERY_TOKEN,
+      // Fake assistant model (tests/e2e/helpers/fake-assistant-model.ts) behind the run's
+      // HTTPS proxy; the key is a fixed fake. No run reaches OpenRouter.
+      OPENROUTER_API_KEY: FAKE_ASSISTANT_MODEL_KEY,
+      E2E_ASSISTANT_MODEL_URL: `https://${FAKE_ASSISTANT_MODEL_HOST}.localhost:${httpsPort}${FAKE_ASSISTANT_MODEL_PATH}`,
     },
     source
   );

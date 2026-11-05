@@ -12,7 +12,16 @@ import {
   type ForwardDriftRecordInput,
   type PaperForwardTickResult,
 } from "@darkfactory/api";
-import { StatusBadge } from "@darkfactory/ui";
+import {
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import {
   useCallback,
   useEffect,
@@ -268,10 +277,13 @@ const ChecksTable = ({
   checks,
 }: Readonly<{ checks: readonly ForwardDriftCheckOutput[] }>) => (
   <div className="overflow-x-auto">
-    <table className="w-full text-left text-sm">
-      <caption className="sr-only">Drift checks</caption>
-      <thead>
-        <tr className="border-b">
+    <Table
+      className="w-full text-left text-sm"
+      containerClassName="overflow-visible"
+    >
+      <TableCaption className="sr-only">Drift checks</TableCaption>
+      <TableHeader>
+        <TableRow className="border-b">
           {[
             "Check",
             "Baseline",
@@ -282,39 +294,53 @@ const ChecksTable = ({
             "Level",
             "Detail",
           ].map((heading) => (
-            <th className="px-2 py-2 font-medium" key={heading} scope="col">
+            <TableHead
+              className="px-2 py-2 font-medium text-muted-foreground"
+              key={heading}
+              scope="col"
+            >
               {heading}
-            </th>
+            </TableHead>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {checks.map((check) => (
-          <tr className="border-b align-top" key={check.key}>
-            <th className="px-2 py-2 font-medium" scope="row">
+          <TableRow
+            className="border-b [&>td]:align-top [&>th]:align-top"
+            key={check.key}
+          >
+            <TableHead
+              className="whitespace-normal px-2 py-2 font-medium"
+              scope="row"
+            >
               {check.label}
-            </th>
-            <td className="px-2 py-2 tabular-nums">
+            </TableHead>
+            <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
               {formatCheckValue(check.key, check.baseline)}
-            </td>
-            <td className="px-2 py-2 tabular-nums">
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
               {formatCheckValue(check.key, check.forward)}
-            </td>
-            <td className="px-2 py-2 tabular-nums">
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
               {check.ratio === null ? "n/a" : check.ratio.toFixed(2)}
-            </td>
-            <td className="px-2 py-2 tabular-nums">{check.warnAt}</td>
-            <td className="px-2 py-2 tabular-nums">{check.alertAt}</td>
-            <td className="px-2 py-2">
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
+              {check.warnAt}
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2 tabular-nums">
+              {check.alertAt}
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2">
               <LevelBadge level={check.level} />
-            </td>
-            <td className="px-2 py-2 text-muted-foreground">
+            </TableCell>
+            <TableCell className="whitespace-normal px-2 py-2 text-muted-foreground">
               {check.reason} ({check.sample}/{check.minSample} samples)
-            </td>
-          </tr>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   </div>
 );
 
@@ -808,7 +834,7 @@ export const ForwardDriftWorkspace = ({
             No drift monitors yet. Create one from a finished backtest run.
           </p>
         ) : (
-          <ul className="grid gap-2">
+          <ul className="grid gap-2" data-click-private="">
             {state.monitors.map((monitor) => (
               <li
                 className="flex flex-wrap items-center gap-3 text-sm"

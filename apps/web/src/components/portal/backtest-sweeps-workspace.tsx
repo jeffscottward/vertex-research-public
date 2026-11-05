@@ -20,7 +20,14 @@ import {
 } from "@darkfactory/api";
 import { TriangleAlert } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   isOperatorAccessDenied,
@@ -43,6 +50,11 @@ import {
   type SweepForm,
   toSweepInput,
 } from "./backtest-sweeps-model.ts";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  UniverseSelect,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
@@ -551,6 +563,9 @@ export const BacktestSweepsWorkspace = ({
   );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
   const [selectedSeries, setSelectedSeries] = useState("");
+  const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
+  const universeRef = useRef(universe);
+  universeRef.current = universe;
   const [form, setForm] = useState<SweepForm>({
     dimensions: defaultDimensions(DEFAULT_INSTANT_PARAMS.ruleKind),
     from: "",
@@ -565,21 +580,25 @@ export const BacktestSweepsWorkspace = ({
   const fromId = useId();
   const toId = useId();
 
+  // Selects a series and sets the dates to its stored range.
+  const applySeries = useCallback((next: InstantBacktestSeries | undefined) => {
+    if (next === undefined) return;
+    setSelectedSeries(seriesKey(next));
+    setForm((current) => ({
+      ...current,
+      from: isoDate(next.firstT),
+      to: isoDate(next.lastT),
+    }));
+  }, []);
+
   useEffect(() => {
     let active = true;
     gateway.series().then(
       (loaded) => {
         if (!active) return;
         setLoad({ series: loaded, type: "ready" });
-        const first = loaded[0];
-        if (first !== undefined) {
-          setSelectedSeries(seriesKey(first));
-          setForm((current) => ({
-            ...current,
-            from: isoDate(first.firstT),
-            to: isoDate(first.lastT),
-          }));
-        }
+        // A reload keeps the user's universe choice.
+        applySeries(visibleSeries(loaded, universeRef.current).series[0]);
       },
       (error: unknown) => {
         if (!active) return;
@@ -596,7 +615,7 @@ export const BacktestSweepsWorkspace = ({
     return () => {
       active = false;
     };
-  }, [gateway]);
+  }, [gateway, applySeries]);
 
   if (load.type === "forbidden")
     return <OperatorAccessRequired feature="backtests" />;
@@ -613,6 +632,7 @@ export const BacktestSweepsWorkspace = ({
     (entry) => seriesKey(entry) === selectedSeries
   );
   const request = series === undefined ? null : toSweepInput(form, series);
+  const visible = visibleSeries(load.series, universe);
   const { params } = form;
   const used = new Set(form.dimensions.map((dimension) => dimension.param));
   const applicable = BACKTEST_SWEEP_PARAMS.filter((param) =>
@@ -670,6 +690,15 @@ export const BacktestSweepsWorkspace = ({
         }}
       >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <UniverseSelect
+            fallback={visible.fallback}
+            onChange={(choice) => {
+              setUniverse(choice);
+              applySeries(visibleSeries(load.series, choice).series[0]);
+            }}
+            storedSymbols={load.series.map((entry) => entry.symbol)}
+            value={universe}
+          />
           <Select
             label="Symbol and timeframe"
             onChange={(value) => {
@@ -683,7 +712,7 @@ export const BacktestSweepsWorkspace = ({
                 to: isoDate(next.lastT),
               }));
             }}
-            options={load.series.map((entry) => ({
+            options={visible.series.map((entry) => ({
               label: `${entry.symbol} ${entry.timeframe} (${isoDate(entry.firstT)} to ${isoDate(entry.lastT)})`,
               value: seriesKey(entry),
             }))}

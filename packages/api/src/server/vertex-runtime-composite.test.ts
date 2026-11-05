@@ -15,6 +15,7 @@ import {
   createVertexRuntimeRecipes,
   type VertexRuntimeRecipesOptions,
 } from "./vertex-runtime-recipes.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source-only composition. External object storage, reviewer/control service and
 // policy registry fixtures do NOT establish backend durability or live grants.
@@ -912,260 +913,266 @@ const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
 describe.skipIf(!process.env["VERTEX_COMPOSITE_TEST_PYTHON"])(
   "bounded regime composite reviewed caller source",
   () => {
-    return it("connects selected recipe through real handler to unreviewed implemented-components envelope over two review-pinned component contents", async () => {
-      const f = await fixture();
-      const { done, stages, publications, calls, reads } = await runWorker(f);
-      expect(done.outcome).toMatchObject({
-        status: "completed",
-        outputArtifactIds: [f.publication.evidenceId],
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-      });
-      expect(publications).toHaveLength(1);
-      expect(stages).toHaveLength(2);
-      const result = stages[0].content;
-      const record = publications[0].record;
-      expect(record).toMatchObject({
-        acceptanceStatus: "unreviewed",
-        untrustedContent: true,
-        contentHash: stages[0].contentSha256,
-        sourceIdentity: { contentHash: stages[0].contentSha256 },
-      });
-      expect(result).toMatchObject({
-        operation: "macro-regime-composite-envelope-v1",
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-        projectionDecimalEncoding:
-          "exact-decimal-sum-of-published-hmm-posterior-strings-v1",
-      });
-      // Both component contents were read by their pinned content references (hash-checked in the adapter).
-      expect(
-        reads.filter((id) => id === f.hmmComponent.content.artifactId).length
-      ).toBeGreaterThanOrEqual(2);
-      expect(
-        reads.filter((id) => id === f.jumpComponent.content.artifactId).length
-      ).toBeGreaterThanOrEqual(2);
-      const envelope = result.projectedResult;
-      expect(Object.keys(envelope).sort()).toEqual([
-        "aggregation",
-        "calendar_id",
-        "components",
-        "identity_basis",
-        "limitations",
-        "market_id",
-        "numerical_encoding",
-        "pending",
-        "prediction_as_of",
-        "profile",
-        "provenance_only",
-        "rows",
-        "summary_scope",
-        "variant",
-      ]);
-      expect(envelope).toMatchObject({
-        profile: "vertex-regime-composite-envelope-result-v1",
-        variant: "implemented-components-agreement-envelope-v1",
-        aggregation: "agreement-envelope-replaces-numeric-average-v1",
-        prediction_as_of: ns(at),
-        market_id: market,
-        calendar_id: calendar,
-        identity_basis: "reviewed-attestation-not-machine-verified-v1",
-        summary_scope: ["HMM", "JM"],
-        pending,
-        provenance_only: [
+    return it(
+      "connects selected recipe through real handler to unreviewed implemented-components envelope over two review-pinned component contents",
+      async () => {
+        const f = await fixture();
+        const { done, stages, publications, calls, reads } = await runWorker(f);
+        expect(done.outcome).toMatchObject({
+          status: "completed",
+          outputArtifactIds: [f.publication.evidenceId],
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+        });
+        expect(publications).toHaveLength(1);
+        expect(stages).toHaveLength(2);
+        const result = stages[0].content;
+        const record = publications[0].record;
+        expect(record).toMatchObject({
+          acceptanceStatus: "unreviewed",
+          untrustedContent: true,
+          contentHash: stages[0].contentSha256,
+          sourceIdentity: { contentHash: stages[0].contentSha256 },
+        });
+        expect(result).toMatchObject({
+          operation: "macro-regime-composite-envelope-v1",
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+          projectionDecimalEncoding:
+            "exact-decimal-sum-of-published-hmm-posterior-strings-v1",
+        });
+        // Both component contents were read by their pinned content references (hash-checked in the adapter).
+        expect(
+          reads.filter((id) => id === f.hmmComponent.content.artifactId).length
+        ).toBeGreaterThanOrEqual(2);
+        expect(
+          reads.filter((id) => id === f.jumpComponent.content.artifactId).length
+        ).toBeGreaterThanOrEqual(2);
+        const envelope = result.projectedResult;
+        expect(Object.keys(envelope).sort()).toEqual([
+          "aggregation",
+          "calendar_id",
+          "components",
+          "identity_basis",
+          "limitations",
+          "market_id",
+          "numerical_encoding",
+          "pending",
+          "prediction_as_of",
+          "profile",
+          "provenance_only",
+          "rows",
+          "summary_scope",
+          "variant",
+        ]);
+        expect(envelope).toMatchObject({
+          profile: "vertex-regime-composite-envelope-result-v1",
+          variant: "implemented-components-agreement-envelope-v1",
+          aggregation: "agreement-envelope-replaces-numeric-average-v1",
+          prediction_as_of: ns(at),
+          market_id: market,
+          calendar_id: calendar,
+          identity_basis: "reviewed-attestation-not-machine-verified-v1",
+          summary_scope: ["HMM", "JM"],
+          pending,
+          provenance_only: [
+            {
+              source: "ruuj-hmm-article-x-2074503360208884204",
+              role: "methodological-provenance-only-not-a-component-stance-or-signal",
+            },
+          ],
+          numerical_encoding:
+            "exact-decimal-sum-of-published-hmm-posterior-strings-v1",
+        });
+        expect(envelope.components).toEqual([
           {
-            source: "ruuj-hmm-article-x-2074503360208884204",
-            role: "methodological-provenance-only-not-a-component-stance-or-signal",
+            component: "HMM",
+            operation: "macro-hmm-forward-v1",
+            variant: "diagonal-gaussian-log-forward-v1",
+            native_kind: "filtered-posterior-vector",
+            evidence_id: f.hmmComponent.review.evidenceId,
+            content_sha256: f.hmmComponent.content.sha256,
+            model_content_sha256: hmmModel,
+            component_as_of: ns(componentAsOf),
+            captured_at: ns(componentCapturedAt),
+            state_labels: ["low-vol", "mid-vol", "high-vol"],
+            stance_map: [
+              { state_label: "low-vol", stance: "non-defensive" },
+              { state_label: "mid-vol", stance: "neutral" },
+              { state_label: "high-vol", stance: "defensive" },
+            ],
+            posterior_mass_threshold: "0.7",
           },
-        ],
-        numerical_encoding:
-          "exact-decimal-sum-of-published-hmm-posterior-strings-v1",
-      });
-      expect(envelope.components).toEqual([
-        {
-          component: "HMM",
-          operation: "macro-hmm-forward-v1",
-          variant: "diagonal-gaussian-log-forward-v1",
-          native_kind: "filtered-posterior-vector",
-          evidence_id: f.hmmComponent.review.evidenceId,
-          content_sha256: f.hmmComponent.content.sha256,
-          model_content_sha256: hmmModel,
-          component_as_of: ns(componentAsOf),
-          captured_at: ns(componentCapturedAt),
-          state_labels: ["low-vol", "mid-vol", "high-vol"],
-          stance_map: [
-            { state_label: "low-vol", stance: "non-defensive" },
-            { state_label: "mid-vol", stance: "neutral" },
-            { state_label: "high-vol", stance: "defensive" },
-          ],
-          posterior_mass_threshold: "0.7",
-        },
-        {
-          component: "JM",
-          operation: "macro-jump-state-v1",
-          variant: "discrete-fixed-centroid-trailing-window-dp-v1",
-          native_kind: "hard-assignment-not-probability",
-          evidence_id: f.jumpComponent.review.evidenceId,
-          content_sha256: f.jumpComponent.content.sha256,
-          model_content_sha256: jumpModel,
-          component_as_of: ns(componentAsOf),
-          captured_at: ns(componentCapturedAt),
-          state_labels: ["bull", "bear"],
-          stance_map: [
-            { state_label: "bull", stance: "non-defensive" },
-            { state_label: "bear", stance: "defensive" },
-          ],
-          posterior_mass_threshold: null,
-        },
-      ]);
-      // Row 1: HMM non-defensive mass .8 >= .7; JM warmup -> incomplete. Row 2: HMM defensive .8, JM bear
-      // (not warmup/tie) -> aligned-defensive; eligible at the later JM available_at.
-      expect(envelope.rows).toEqual([
-        {
-          observed_at: ns(day1),
-          eligible_at: ns(day1),
-          components: [
-            {
-              component: "HMM",
-              status: "available",
-              stance: "non-defensive",
-              state_label: "low-vol",
-              mapped_defensive_posterior_mass: "0.05",
-              mapped_non_defensive_posterior_mass: "0.8",
-            },
-            {
-              component: "JM",
-              status: "warmup",
-              stance: null,
-              state_label: "bull",
-              mapped_defensive_posterior_mass: null,
-              mapped_non_defensive_posterior_mass: null,
-            },
-          ],
-          coverage: "partial",
-          pending,
-          implemented_components_summary: "incomplete",
-        },
-        {
-          observed_at: ns(day2),
-          eligible_at: ns(day2Jump),
-          components: [
-            {
-              component: "HMM",
-              status: "available",
-              stance: "defensive",
-              state_label: "high-vol",
-              mapped_defensive_posterior_mass: "0.8",
-              mapped_non_defensive_posterior_mass: "0.1",
-            },
-            {
-              component: "JM",
-              status: "available",
-              stance: "defensive",
-              state_label: "bear",
-              mapped_defensive_posterior_mass: null,
-              mapped_non_defensive_posterior_mass: null,
-            },
-          ],
-          coverage: "partial",
-          pending,
-          implemented_components_summary: "aligned-defensive",
-        },
-      ]);
-      // No bare composite label, counts, percentages, votes or averages in the published table.
-      const table = JSON.stringify(envelope.rows);
-      for (const forbidden of [
-        /vote/i,
-        /average/i,
-        /percent/i,
-        /%/,
-        /count/i,
-        /\b\d+ of \d+\b/,
-        /"composite_label"/,
-        /"aligned"/,
-      ])
-        expect(table).not.toMatch(forbidden);
-      expect(stages[0].canonicalSha256).toBeNull();
-      expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
-      expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(16);
-      expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
-      expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
-      expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
-      expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
-        calls.indexOf("admitRun")
-      );
-      expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
-        calls.indexOf("stageArtifact")
-      );
-      expect(record.method).toContain(
-        "implemented-components (HMM, JM) agreement envelope, not an average, vote or probability"
-      );
-      expect(
-        record.limitations.some((text: string) =>
-          text.includes("not independent confirmation")
-        )
-      ).toBe(true);
-      expect(
-        record.limitations.some((text: string) => text.includes("uncalibrated"))
-      ).toBe(true);
-      expect(
-        record.limitations.some((text: string) =>
-          text.includes("replaces a numeric average")
-        )
-      ).toBe(true);
-      // Strict profile refusal is part of this one connected case, not another campaign.
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          parameters: {
-            ...f.payload.recipe.parameters,
-            variant: "weighted-average",
-          },
-        }).success
-      ).toBe(false);
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          parameters: {
-            ...f.payload.recipe.parameters,
-            weights: ["0.5", "0.5"],
-          },
-        }).success
-      ).toBe(false);
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          inputs: f.inputs.slice(0, 1),
-        }).success
-      ).toBe(false);
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          dependencies: f.dependencies.slice(0, 1),
-        }).success
-      ).toBe(false);
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          publication: {
-            ...f.payload.recipe.publication,
-            limitations: Array.from({ length: 58 }, (_, i) => `limit ${i}`),
-          },
-        }).success
-      ).toBe(false);
-      return expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          operation: "macro-jump-state-v1",
-          parameters: {
+          {
+            component: "JM",
+            operation: "macro-jump-state-v1",
             variant: "discrete-fixed-centroid-trailing-window-dp-v1",
+            native_kind: "hard-assignment-not-probability",
+            evidence_id: f.jumpComponent.review.evidenceId,
+            content_sha256: f.jumpComponent.content.sha256,
+            model_content_sha256: jumpModel,
+            component_as_of: ns(componentAsOf),
+            captured_at: ns(componentCapturedAt),
+            state_labels: ["bull", "bear"],
+            stance_map: [
+              { state_label: "bull", stance: "non-defensive" },
+              { state_label: "bear", stance: "defensive" },
+            ],
+            posterior_mass_threshold: null,
           },
-        }).success
-      ).toBe(false);
-    }, 60_000);
+        ]);
+        // Row 1: HMM non-defensive mass .8 >= .7; JM warmup -> incomplete. Row 2: HMM defensive .8, JM bear
+        // (not warmup/tie) -> aligned-defensive; eligible at the later JM available_at.
+        expect(envelope.rows).toEqual([
+          {
+            observed_at: ns(day1),
+            eligible_at: ns(day1),
+            components: [
+              {
+                component: "HMM",
+                status: "available",
+                stance: "non-defensive",
+                state_label: "low-vol",
+                mapped_defensive_posterior_mass: "0.05",
+                mapped_non_defensive_posterior_mass: "0.8",
+              },
+              {
+                component: "JM",
+                status: "warmup",
+                stance: null,
+                state_label: "bull",
+                mapped_defensive_posterior_mass: null,
+                mapped_non_defensive_posterior_mass: null,
+              },
+            ],
+            coverage: "partial",
+            pending,
+            implemented_components_summary: "incomplete",
+          },
+          {
+            observed_at: ns(day2),
+            eligible_at: ns(day2Jump),
+            components: [
+              {
+                component: "HMM",
+                status: "available",
+                stance: "defensive",
+                state_label: "high-vol",
+                mapped_defensive_posterior_mass: "0.8",
+                mapped_non_defensive_posterior_mass: "0.1",
+              },
+              {
+                component: "JM",
+                status: "available",
+                stance: "defensive",
+                state_label: "bear",
+                mapped_defensive_posterior_mass: null,
+                mapped_non_defensive_posterior_mass: null,
+              },
+            ],
+            coverage: "partial",
+            pending,
+            implemented_components_summary: "aligned-defensive",
+          },
+        ]);
+        // No bare composite label, counts, percentages, votes or averages in the published table.
+        const table = JSON.stringify(envelope.rows);
+        for (const forbidden of [
+          /vote/i,
+          /average/i,
+          /percent/i,
+          /%/,
+          /count/i,
+          /\b\d+ of \d+\b/,
+          /"composite_label"/,
+          /"aligned"/,
+        ])
+          expect(table).not.toMatch(forbidden);
+        expect(stages[0].canonicalSha256).toBeNull();
+        expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
+        expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(16);
+        expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
+        expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
+        expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
+        expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
+          calls.indexOf("admitRun")
+        );
+        expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
+          calls.indexOf("stageArtifact")
+        );
+        expect(record.method).toContain(
+          "implemented-components (HMM, JM) agreement envelope, not an average, vote or probability"
+        );
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("not independent confirmation")
+          )
+        ).toBe(true);
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("uncalibrated")
+          )
+        ).toBe(true);
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("replaces a numeric average")
+          )
+        ).toBe(true);
+        // Strict profile refusal is part of this one connected case, not another campaign.
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            parameters: {
+              ...f.payload.recipe.parameters,
+              variant: "weighted-average",
+            },
+          }).success
+        ).toBe(false);
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            parameters: {
+              ...f.payload.recipe.parameters,
+              weights: ["0.5", "0.5"],
+            },
+          }).success
+        ).toBe(false);
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            inputs: f.inputs.slice(0, 1),
+          }).success
+        ).toBe(false);
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            dependencies: f.dependencies.slice(0, 1),
+          }).success
+        ).toBe(false);
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            publication: {
+              ...f.payload.recipe.publication,
+              limitations: Array.from({ length: 58 }, (_, i) => `limit ${i}`),
+            },
+          }).success
+        ).toBe(false);
+        return expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            operation: "macro-jump-state-v1",
+            parameters: {
+              variant: "discrete-fixed-centroid-trailing-window-dp-v1",
+            },
+          }).success
+        ).toBe(false);
+      },
+      scaledTimeout(60_000)
+    );
   }
 );

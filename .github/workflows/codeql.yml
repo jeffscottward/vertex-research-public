@@ -16,7 +16,7 @@ jobs:
     # Public repositories always scan. Private repositories opt in with the
     # DF_CODEQL_ENABLED repository variable; an opted-in scan that cannot run fails.
     if: ${{ !github.event.repository.private || vars.DF_CODEQL_ENABLED == 'true' }}
-    # Public repository: GitHub-hosted runners only.
+    # GitHub-hosted runner (public repository; owner 2026-11-04).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

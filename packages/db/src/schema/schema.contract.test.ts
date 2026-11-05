@@ -6,6 +6,8 @@ import {
   addresses,
   auditRecords,
   APPEARANCE_THEMES,
+  basketMembers,
+  baskets,
   DENSITIES,
   FONT_SIZES,
   contactRateLimits,
@@ -322,6 +324,56 @@ describe("DarkFactory-owned schema", () => {
       ])
     );
     return expect(foreignKey(featureItems, "owner_id").onDelete).toBe(
+      "cascade"
+    );
+  });
+
+  it("defines private custom baskets with an owner-unique symbol and bounded members", () => {
+    expect(columnNames(baskets)).toEqual([
+      "id",
+      "user_id",
+      "symbol",
+      "name",
+      "base_date",
+      "base_value",
+      "benchmark_base_price",
+      "created_at",
+      "updated_at",
+    ]);
+    expect(indexSignature(baskets, "baskets_user_symbol_unique_idx")).toEqual([
+      ["user_id", "asc"],
+      ["symbol", "asc"],
+    ]);
+    expect(checkNames(baskets)).toEqual([
+      "baskets_symbol_check",
+      "baskets_name_check",
+      "baskets_base_value_check",
+      "baskets_benchmark_base_price_check",
+    ]);
+    const owner = foreignKey(baskets, "user_id").reference();
+    expect(getTableConfig(owner.foreignTable).name).toBe("user");
+    expect(foreignKey(baskets, "user_id").onDelete).toBe("cascade");
+
+    expect(columnNames(basketMembers)).toEqual([
+      "basket_id",
+      "symbol",
+      "weight",
+      "base_price",
+      "shares_at_base",
+    ]);
+    expect(
+      getTableConfig(basketMembers).primaryKeys.map((key) =>
+        key.columns.map((candidate) => candidate.name)
+      )
+    ).toEqual([["basket_id", "symbol"]]);
+    expect(checkNames(basketMembers)).toEqual([
+      "basket_members_symbol_check",
+      "basket_members_weight_check",
+      "basket_members_base_check",
+    ]);
+    const parent = foreignKey(basketMembers, "basket_id").reference();
+    expect(getTableConfig(parent.foreignTable).name).toBe("baskets");
+    return expect(foreignKey(basketMembers, "basket_id").onDelete).toBe(
       "cascade"
     );
   });

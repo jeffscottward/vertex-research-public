@@ -1,0 +1,11 @@
+[Unit]
+Description=Push engine unit state and public market context to QuantVPS for the Vertex Engines and Market context views
+
+[Service]
+Type=oneshot
+# tick-runner (self-healing-harness) runs each step in vertex-rig-push.steps and sends one #omp-alerts error
+# after 3 consecutive failures of a step, plus one recovery notice (infra/rig/engine-status/README.md).
+# Installed copies only, so the unit never depends on a checkout branch.
+ExecStart=%h/Github/tools/self-healing-harness/bin/tick-runner vertex-rig-push %h/.local/share/vertex-engine-status/vertex-rig-push.steps
+TimeoutStartSec=120
+Nice=10

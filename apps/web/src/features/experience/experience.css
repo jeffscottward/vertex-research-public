@@ -109,10 +109,25 @@
     gap: var(--space-8);
   }
 
+  /* Sections are bordered cards (reference layout): one card per content block, clear separation. */
   .vx-ex-section,
   .vx-ex-utility-section {
-    border-top: 1px solid var(--border);
-    padding-block: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--card);
+    color: var(--card-foreground);
+    padding: var(--space-4) var(--space-5) var(--space-5);
+  }
+
+  /* A stack already spaces its children with gap. */
+  :not(.vx-ex-stack) > .vx-ex-section + .vx-ex-section,
+  :not(.vx-ex-stack) > .vx-ex-utility-section + .vx-ex-utility-section {
+    margin-top: var(--space-6);
+  }
+
+  .vx-ex-section > :first-child,
+  .vx-ex-utility-section > :first-child {
+    margin-top: 0;
   }
 
   .vx-ex-toolbar,
@@ -179,7 +194,8 @@
     max-width: 100%;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
-    border-block: 1px solid var(--border-strong);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
   }
 
   .vx-ex-table {
@@ -212,9 +228,26 @@
     text-align: right;
   }
 
+  /* Reference header row: tinted, small uppercase muted labels. */
   .vx-ex-table thead {
-    background: var(--surface);
-    color: var(--foreground);
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  .vx-ex-table thead th {
+    padding-block: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .vx-ex-table tbody tr:last-child > :is(th, td) {
+    border-bottom: 0;
+  }
+
+  .vx-ex-table tbody tr:hover {
+    background: color-mix(in oklab, var(--muted) 50%, transparent);
   }
 
   .vx-ex-rows,

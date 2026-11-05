@@ -12,7 +12,7 @@ jobs:
     # Public repositories always review. Private repositories opt in with the
     # DF_DEPENDENCY_REVIEW_ENABLED repository variable; an opted-in review that cannot run fails.
     if: ${{ !github.event.repository.private || vars.DF_DEPENDENCY_REVIEW_ENABLED == 'true' }}
-    # Public repository: GitHub-hosted runners only.
+    # GitHub-hosted runner (public repository; owner 2026-11-04).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

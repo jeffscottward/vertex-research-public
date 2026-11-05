@@ -19,6 +19,8 @@ export type PremiumCaps = Readonly<{
   shortPct: number;
 }>;
 const CONTRACT_MULTIPLIER = 100;
+// Owner hard gate 2026-11-02: max possible loss of a new position <= 2% of account value.
+const MAX_LOSS_PCT = 2;
 const DAY_MS = 86_400_000;
 
 export type OrderPosition = Readonly<{
@@ -92,8 +94,13 @@ const isLeaps = (expiry: string | null, now: Date, minDays: number): boolean =>
 export const contractLabel = (order: VertexOrderInput): string =>
   `${order.symbol} ${order.expiry} ${order.strike} ${order.right === "C" ? "call" : "put"}`;
 
-const sameContract = (
-  order: VertexOrderInput,
+export const sameContract = (
+  order: Readonly<{
+    symbol: string;
+    expiry: string;
+    strike: number;
+    right: string;
+  }>,
   other: Readonly<{
     symbol: string;
     expiry: string | null;
@@ -150,6 +157,12 @@ export const evaluateOrder = (
   const held = account.positions
     .filter((p) => p.secType === "OPT" && sameContract(order, p))
     .reduce((sum, p) => sum + p.quantity, 0);
+  // A closing order only reduces a held position: SELL against a long, or BUY against a short
+  // (owner 2026-11-04: closing and reducing is always allowed, also on expiry day).
+  const closing = buy
+    ? held < 0 && order.quantity <= -held
+    : order.quantity <= held;
+  const opening = buy && !closing;
 
   if (order.secType !== "OPT")
     reasons.push(
@@ -160,7 +173,12 @@ export const evaluateOrder = (
   if (order.right !== "C")
     reasons.push("Calls only: the IBKR order gateway does not place puts.");
   if (days === null) reasons.push("Expiry is not a valid date.");
-  else if (days < 1) reasons.push("Expiry must be after today.");
+  else if (days < 0 || (days < 1 && !closing))
+    reasons.push(
+      days < 0
+        ? "Expiry must be after today."
+        : "Expiry must be after today (only a closing order may trade on expiry day)."
+    );
   if (account.gates.killSwitch)
     reasons.push("Kill switch is on: no new orders.");
   if (!account.gates.optionsOnly)
@@ -178,7 +196,7 @@ export const evaluateOrder = (
       `Sell ${order.quantity} > held ${held} contracts: SELL only closes held contracts (no short).`
     );
 
-  const kind = buy ? (leaps ? "leaps" : "short-dated") : "none";
+  const kind = opening ? (leaps ? "leaps" : "short-dated") : "none";
   const limitPct =
     kind === "leaps"
       ? account.caps.leapsPct
@@ -189,14 +207,14 @@ export const evaluateOrder = (
     kind === "short-dated"
       ? openPremium(account, order.symbol, now, "short-dated")
       : openPremium(account, order.symbol, now, "all");
-  const afterOrder = round2(bucketOpen + (buy ? premium : 0));
+  const afterOrder = round2(bucketOpen + (opening ? premium : 0));
   const usableNlv = nlv !== null && nlv > 0 ? nlv : null;
   const limitAmount =
     usableNlv === null ? 0 : round2((usableNlv * limitPct) / 100);
   const afterOrderPct =
     usableNlv === null ? 0 : round2((afterOrder / usableNlv) * 100);
 
-  if (buy && usableNlv !== null) {
+  if (opening && usableNlv !== null) {
     if (afterOrder > limitAmount + 1e-6)
       reasons.push(
         `Premium cap: ${order.symbol} would hold $${afterOrder} (${afterOrderPct}% NLV) of ${kind === "leaps" ? "LEAPS" : "short-dated"} premium; the cap is ${limitPct}% ($${limitAmount}).`
@@ -212,6 +230,17 @@ export const evaluateOrder = (
         );
     }
   }
+
+  // Hard max-loss gate (owner 2026-11-02): a new long option can lose its whole premium, so an
+  // opening BUY whose premium is above 2% NLV is refused, whatever the per-name cap allows.
+  if (
+    opening &&
+    usableNlv !== null &&
+    premium > (usableNlv * MAX_LOSS_PCT) / 100 + 1e-6
+  )
+    reasons.push(
+      `Max loss: this order risks $${premium} (${round2((premium / usableNlv) * 100)}% NLV); new positions are limited to ${MAX_LOSS_PCT}% NLV.`
+    );
 
   return {
     order,
@@ -229,7 +258,9 @@ export const evaluateOrder = (
           ? `LEAPS cap ${account.caps.leapsPct}% NLV per name`
           : kind === "short-dated"
             ? `Short-dated cap ${account.caps.shortPct}% NLV per name`
-            : "No cap: closing sale",
+            : buy
+              ? "No cap: closing buy (covers a short)"
+              : "No cap: closing sale",
       limitPct,
       limitAmount,
       openPremium: bucketOpen,

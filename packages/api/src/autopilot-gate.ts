@@ -24,29 +24,32 @@ import {
   type TrialReturns,
 } from "./quant-multiple-testing.ts";
 import type { StrategyDefinition } from "./strategy-dsl.ts";
-import { runStrategyDefinition } from "./strategy-dsl-compile.ts";
+import {
+  runStrategyDefinition,
+  type SectorQuadrantSeries,
+} from "./strategy-dsl-compile.ts";
 
 export const AUTOPILOT_GATE = Object.freeze({
-  version: "autopilot-gate-v1",
-  /** Share of the bars used for breeding and selection; the rest is out of sample. */
-  inSampleFraction: 0.6,
-  /** The longest block indicator (250 bars) must fit into the in-sample bars. */
-  minBars: 500,
-  /** Trades needed for full fitness in sample; fewer trades scale the fitness down. */
-  inSampleTradesForFullFitness: 15,
-  oosSharpeMin: 0.5,
-  forwardFolds: 3,
-  monteCarloProfitMin: 0.8,
-  monteCarloDrawdownP5Min: -0.35,
+  costStressMultiple: 2,
+  curvePoints: 300,
   deflatedSharpeMin: 0.95,
   fdrAlpha: 0.05,
-  minTradesTotal: 30,
-  minTradesOos: 8,
+  forwardFolds: 3,
+  /** Share of the bars used for breeding and selection; the rest is out of sample. */
+  inSampleFraction: 0.6,
+  /** Trades needed for full fitness in sample; fewer trades scale the fitness down. */
+  inSampleTradesForFullFitness: 15,
+  /** The longest block indicator (250 bars) must fit into the in-sample bars. */
+  minBars: 500,
   minCostBps: 1,
-  costStressMultiple: 2,
+  minTradesOos: 8,
+  minTradesTotal: 30,
+  monteCarloDrawdownP5Min: -0.35,
+  monteCarloProfitMin: 0.8,
   neighbourShareMin: 0.75,
   neighbourSharpeRatio: 0.5,
-  curvePoints: 300,
+  oosSharpeMin: 0.5,
+  version: "autopilot-gate-v1",
 });
 
 export type AutopilotGateCheckId =
@@ -179,12 +182,19 @@ const requireBars = (bars: BarColumns): void => {
 export const evaluateInSample = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  costBps: number
+  costBps: number,
+  sectorQuadrants?: SectorQuadrantSeries
 ): InSampleResult => {
   requireBars(bars);
   const end = splitIndex(bars.c.length);
   const inSample = slice(bars, end);
-  const run = runStrategyDefinition(inSample, definition, costBps);
+  const run = runStrategyDefinition(
+    inSample,
+    definition,
+    costBps,
+    undefined,
+    sectorQuadrants
+  );
   const series = points(inSample, run.equity, 0, end);
   const stats = statsOf(series);
   const trades = run.trades.length;
@@ -212,12 +222,19 @@ const outOfSample = (bars: BarColumns, run: InstantRunResult, end: number) =>
 export const outOfSampleSharpe = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  costBps: number
+  costBps: number,
+  sectorQuadrants?: SectorQuadrantSeries
 ): number | null => {
   requireBars(bars);
   return outOfSample(
     bars,
-    runStrategyDefinition(bars, definition, costBps),
+    runStrategyDefinition(
+      bars,
+      definition,
+      costBps,
+      undefined,
+      sectorQuadrants
+    ),
     splitIndex(bars.c.length)
   ).sharpe;
 };
@@ -267,13 +284,22 @@ export const evaluateGate = (
     inSample: InSampleResult;
     ledger: AutopilotLedger;
     seed: string;
+    /** Series for the definition's sector filters, when it has any. */
+    sectorQuadrants?: SectorQuadrantSeries | undefined;
   }>
 ): GateReport => {
-  const { bars, costBps, definition, inSample, ledger } = input;
+  const { bars, costBps, definition, inSample, ledger, sectorQuadrants } =
+    input;
   const gate = AUTOPILOT_GATE;
   requireBars(bars);
   const end = splitIndex(bars.c.length);
-  const run = runStrategyDefinition(bars, definition, costBps);
+  const run = runStrategyDefinition(
+    bars,
+    definition,
+    costBps,
+    undefined,
+    sectorQuadrants
+  );
   const oos = outOfSample(bars, run, end);
   const oosTrades = run.trades.filter((trade) => trade.entryIndex >= end);
   const folds = foldsOf(bars, run.equity, end);
@@ -290,7 +316,13 @@ export const evaluateGate = (
     Math.max(costBps, gate.minCostBps) * gate.costStressMultiple;
   const stressed = outOfSample(
     bars,
-    runStrategyDefinition(bars, definition, stressBps),
+    runStrategyDefinition(
+      bars,
+      definition,
+      stressBps,
+      undefined,
+      sectorQuadrants
+    ),
     end
   );
   const testing = multipleTesting(

@@ -1,3 +1,12 @@
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import adxFilterStudy from "../../features/research-studies/adx-filter-study.json";
 import {
   type FilterStudyViewModel,
@@ -9,10 +18,10 @@ import {
 // Read-only summary of frozen filter studies (docs/specs/research/adx-filter.md). The numbers come
 // from the committed study summary; nothing here runs a backtest or places orders.
 
-const headCell = "px-2 py-2 text-left font-normal";
-const numHead = "px-2 py-2 text-right font-normal";
-const cell = "px-2 py-2";
-const numCell = "px-2 py-2 text-right font-mono";
+const headCell = "text-muted-foreground px-2 py-2 text-left font-normal";
+const numHead = "text-muted-foreground px-2 py-2 text-right font-normal";
+const cell = "whitespace-normal px-2 py-2";
+const numCell = "whitespace-normal px-2 py-2 text-right font-mono";
 
 const TONE_CLASS: Readonly<Record<VerdictTone, string>> = {
   baseline: "text-muted-foreground",
@@ -41,75 +50,78 @@ const StudyTable = ({
       // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll this overflow region.
       tabIndex={0}
     >
-      <table className="w-full min-w-[56rem] text-xs">
-        <caption className="sr-only">{caption}</caption>
-        <thead>
-          <tr className="border-border border-b text-muted-foreground">
-            <th className={headCell} scope="col">
+      <Table
+        className="w-full min-w-[56rem] text-xs"
+        containerClassName="overflow-visible"
+      >
+        <TableCaption className="sr-only">{caption}</TableCaption>
+        <TableHeader>
+          <TableRow className="border-border border-b text-muted-foreground">
+            <TableHead className={headCell} scope="col">
               Strategy
-            </th>
-            <th className={headCell} scope="col">
+            </TableHead>
+            <TableHead className={headCell} scope="col">
               Filter
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               Sharpe
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               1st half
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               2nd half
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               CAGR
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               Max DD
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               Trades
-            </th>
-            <th className={numHead} scope="col">
+            </TableHead>
+            <TableHead className={numHead} scope="col">
               Trades/yr
-            </th>
+            </TableHead>
             {showDeflated ? (
-              <th className={numHead} scope="col">
+              <TableHead className={numHead} scope="col">
                 Deflated Sharpe
-              </th>
+              </TableHead>
             ) : null}
-            <th className={headCell} scope="col">
+            <TableHead className={headCell} scope="col">
               Verdict
-            </th>
-          </tr>
-        </thead>
-        <tbody>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.map((row) => (
-            <tr
+            <TableRow
               className="border-border border-b"
               data-row={row.key}
               key={row.key}
             >
-              <th className={`${cell} font-normal`} scope="row">
+              <TableHead className={`${cell} font-normal`} scope="row">
                 {row.strategy}
-              </th>
-              <td className={cell}>{row.filter}</td>
-              <td className={numCell}>{row.sharpe}</td>
-              <td className={numCell}>{row.firstHalf}</td>
-              <td className={numCell}>{row.secondHalf}</td>
-              <td className={numCell}>{row.cagr}</td>
-              <td className={numCell}>{row.maxDrawdown}</td>
-              <td className={numCell}>{row.trades}</td>
-              <td className={numCell}>{row.tradesPerYear}</td>
+              </TableHead>
+              <TableCell className={cell}>{row.filter}</TableCell>
+              <TableCell className={numCell}>{row.sharpe}</TableCell>
+              <TableCell className={numCell}>{row.firstHalf}</TableCell>
+              <TableCell className={numCell}>{row.secondHalf}</TableCell>
+              <TableCell className={numCell}>{row.cagr}</TableCell>
+              <TableCell className={numCell}>{row.maxDrawdown}</TableCell>
+              <TableCell className={numCell}>{row.trades}</TableCell>
+              <TableCell className={numCell}>{row.tradesPerYear}</TableCell>
               {showDeflated ? (
-                <td className={numCell}>{row.deflated}</td>
+                <TableCell className={numCell}>{row.deflated}</TableCell>
               ) : null}
-              <td className={`${cell} ${TONE_CLASS[row.tone]}`}>
+              <TableCell className={`${cell} ${TONE_CLASS[row.tone]}`}>
                 {row.verdict}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   </div>
 );

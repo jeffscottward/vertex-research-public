@@ -147,3 +147,22 @@ Rules:
 `benchmark` (MCP `model_runs_benchmark`, page `/agents/benchmark`) groups up to 5000 filtered runs into arms (`armBy`: `model`, `servedModel`, `provider_model`, `framework` or `variant`) and compares them on shared (ticker, decision date) cells: coverage, rating mix, rerun agreement, agreement with `baselineArm`, a pairwise agreement matrix of the 12 largest arms and, with `pair: { control, treatment }`, directional hits on the 5-day forward return with an exact sign test. [agent-benchmark.md](../agent-benchmark.md) defines each measure and describes the bench command that records the runs.
 
 `frameworks` returns the static reference sheets of the frameworks Vertex benchmarks (TradingAgents desks, AI Hedge Fund event study, Vibe-Trading): status, version, stages, data with point-in-time notes, allowed and excluded tools, guards, code paths, licence and links. The page shows them in its Frameworks section.
+
+## In The Money Adam desk
+
+Research only. `services/research/agents/inthemoneyadam_desk.py` is a deterministic, extractive stock-picking desk built on the local "In The Money Adam" knowledge base (`~/Github/knowledge-bases/trading/inthemoneyadam`). For one ticker it returns a typed `DeskOutput`: `verdict` (`favorable`, `neutral`, `unfavorable` or `insufficient_evidence`), ticker findings, risks, criteria checked and citations (`video_id`, `title`, `url`, `timestamp`, `quote`). It calls no model.
+
+- Every quote is checked against the raw transcript; an unverified quote is dropped.
+- Only findings whose own text or quote names the ticker carry a stance and set the verdict. Generic rules carry no stance. Without a ticker-naming directional finding the verdict is `insufficient_evidence`.
+- `research_only` is always `true`, `can_authorize_trade` is always `false`, and the output has no size, side, order or level field.
+
+`agents/inthemoneyadam_record.py` records one desk run with framework `inthemoneyadam_desk`, analyst `inthemoneyadam`, flag `research_only` and no rating. It calls only `agentModelRuns.record`, `.appendEvents` and `.update` and needs a write key:
+
+```sh
+cd services/research
+python -m agents.inthemoneyadam_record --kb ~/Github/knowledge-bases/trading/inthemoneyadam \
+  --kb-commit "$(git -C ~/Github/knowledge-bases/trading/inthemoneyadam rev-parse HEAD)" \
+  --ticker AMD --origin "$VERTEX_APP_URL" --key-file <write-key-file>
+```
+
+The run shows on `/agents/runs/<id>` with a `decision` event and one `kb_citation` event per citation. Tests: `services/research/tests/test_inthemoneyadam_desk.py`.

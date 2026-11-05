@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { scaledTimeout } from "./lib/test-timeout-scale.ts";
 
 const originalExitCode = process.exitCode;
 
@@ -27,6 +28,9 @@ describe("gateway gate entrypoint", () => {
       expect(createGatewayDependencies).toHaveBeenCalledOnce();
       expect(runGatewayTests).toHaveBeenCalledExactlyOnceWith(dependencies);
       return expect(process.exitCode).toBe(status);
-    }
+    },
+    // The first case imports the entrypoint cold under coverage instrumentation; on a
+    // loaded rig that import alone exceeded the 5 s default (local coverage shard 1/12 rerun).
+    scaledTimeout(30_000)
   );
 });

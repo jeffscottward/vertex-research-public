@@ -38,6 +38,7 @@ import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { clearInstantBacktestCacheForTesting } from "./server/instant-backtest.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
+import type { SectorQuadrantSource } from "./server/sector-quadrant-series.ts";
 import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
@@ -316,6 +317,7 @@ type Harness = Readonly<{
   scheduled?: Promise<unknown>[];
   library?: StrategyLibraryRepository | undefined;
   drift?: ForwardDriftRepository | undefined;
+  sectorRotation?: SectorQuadrantSource;
 }>;
 
 const clientFor = (harness: Harness) => {
@@ -328,6 +330,7 @@ const clientFor = (harness: Harness) => {
     forwardDrift: "drift" in harness ? harness.drift : memoryDrift(),
     marketBars: harness.bars,
     profiles: {},
+    sectorRotation: harness.sectorRotation,
     strategyLibrary: "library" in harness ? harness.library : strategyLibrary,
     userPreferences: {},
   } as unknown as Repositories;
@@ -567,6 +570,124 @@ describe("backtestRuns procedures", () => {
     });
     expect(run.status).toBe("succeeded");
     expect(run.report?.trades.length).toBeGreaterThan(0);
+  });
+
+  it("sector quadrant filter allows entries only in leading or improving weeks", async () => {
+    // Entry and exit conditions hold on every bar, so only the filter decides when entries happen.
+    const definition = StrategyDefinitionSchema.parse({
+      entry: {
+        all: [
+          {
+            left: { field: "close", type: "price" },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      exit: {
+        any: [
+          {
+            left: { field: "close", type: "price" },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      filters: [
+        {
+          quadrants: ["leading", "improving"],
+          sector: "XLK",
+          type: "sectorQuadrant",
+        },
+      ],
+      name: "Sector filter",
+      version: 1,
+    });
+    const listPoints = vi.fn(async () => [
+      {
+        benchmark: "SPY",
+        computedAt: at,
+        date: "1970-01-02",
+        momentum: 99,
+        quadrant: "lagging" as const,
+        ratio: 99,
+        symbol: "XLK",
+        timeframe: "weekly" as const,
+      },
+      {
+        benchmark: "SPY",
+        computedAt: at,
+        date: "1970-03-06",
+        momentum: 101,
+        quadrant: "improving" as const,
+        ratio: 99,
+        symbol: "XLK",
+        timeframe: "weekly" as const,
+      },
+      {
+        benchmark: "SPY",
+        computedAt: at,
+        date: "1970-03-13",
+        momentum: 101,
+        quadrant: "leading" as const,
+        ratio: 101,
+        symbol: "XLK",
+        timeframe: "weekly" as const,
+      },
+      {
+        benchmark: "SPY",
+        computedAt: at,
+        date: "1970-03-20",
+        momentum: 99,
+        quadrant: "weakening" as const,
+        ratio: 101,
+        symbol: "XLK",
+        timeframe: "weekly" as const,
+      },
+    ]);
+    const client = clientFor({
+      bars: fakeBars(),
+      runs: memoryRuns(),
+      sectorRotation: { listPoints },
+    });
+    const run = await client.backtestRuns.submit({
+      ...submitInput,
+      rule: { definition, kind: "dsl" },
+    });
+    expect(run.status).toBe("succeeded");
+    expect(listPoints).toHaveBeenCalledWith({
+      fromDate: "1969-12-01",
+      symbols: ["XLK"],
+      timeframe: "weekly",
+    });
+    const trades = run.report?.trades ?? [];
+    expect(trades.length).toBeGreaterThan(0);
+    const first = Date.parse("1970-03-06T00:00:00Z");
+    const last = Date.parse("1970-03-20T00:00:00Z");
+    for (const trade of trades) {
+      // Signal on bars dated 1970-03-06 to 1970-03-19, fill on the next bar.
+      expect(trade.entryT).toBeGreaterThan(first);
+      expect(trade.entryT).toBeLessThanOrEqual(last);
+    }
+  });
+
+  it("fails a filtered definition run when no sector data is wired", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const definition = StrategyDefinitionSchema.parse({
+      ...STRATEGY_TEMPLATES.smaCross,
+      filters: [
+        { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+      ],
+    });
+    const run = await client.backtestRuns.submit({
+      ...submitInput,
+      rule: { definition, kind: "dsl" },
+    });
+    expect(run.status).toBe("failed");
+    expect(run.error).toBe(
+      "Sector quadrant data is not available for XLK (weekly)"
+    );
   });
 
   it("gives a definition run no fixed-rule engine parameters", async () => {

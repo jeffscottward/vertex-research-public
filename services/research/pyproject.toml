@@ -15,11 +15,12 @@ numeric = ["numpy==2.4.6", "scipy==1.18.1"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*"]
+include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*", "quantlab", "quantlab.*"]
 exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
 backtesting = ["AI_HEDGE_FUND_LICENSE.txt"]
+quantlab = ["topics.json", "drafts/*.json"]
 
 # Approved source plan; artifacts have not been acquired or runtime-qualified.
 [tool.vertex.optional-backends.event-study-numerics]

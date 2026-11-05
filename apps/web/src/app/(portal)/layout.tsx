@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { PortalShell } from "../../components/portal-shell.tsx";
+import { parseAssistantPanelCookie } from "../../lib/assistant-panel-cookie.ts";
 import { portalRoutePathsFor } from "../../lib/navigation.ts";
 import { getRequestPortalSession } from "../../lib/request-portal-session.ts";
 import { portalSignInHref } from "../../lib/server-session.ts";
@@ -13,8 +14,9 @@ export default async function PortalLayout({
   readonly children: ReactNode;
 }) {
   const requestHeaders = await headers();
+  const cookieHeader = requestHeaders.get("cookie");
   const session = await getRequestPortalSession(
-    requestHeaders.get("cookie"),
+    cookieHeader,
     requestHeaders.get("cf-connecting-ip")
   );
 
@@ -33,6 +35,8 @@ export default async function PortalLayout({
         isAdmin,
         isOperator: session.isOperator,
       })}
+      // The saved assistant panel choice, so the server renders the panel as the browser will.
+      initialAssistantPanelOpen={parseAssistantPanelCookie(cookieHeader)}
       isAdmin={isAdmin}
       key={sessionScopeKey}
       sessionScopeKey={sessionScopeKey}

@@ -83,6 +83,10 @@ JSON
 
 Private repositories need a paid GitHub plan for branch protection, and GitHub Code Security plus the `DF_CODEQL_ENABLED` and `DF_DEPENDENCY_REVIEW_ENABLED` repository variables for the scans ([security.md](security.md#scanning)). Without Code Security, list only the four `Verification` checks: the skipped scan jobs report success, and the `CodeQL` result never arrives, so it would block every merge.
 
+## Runners
+
+All Vertex CI runs on GitHub-hosted `ubuntu-latest` runners in the public repository `vertex-research-public` (owner 2026-11-04, card vertex-ci-github-hosted; [cutover record](vertex-rebuild/ci-cutover.md)). Hosted minutes and artifact storage are free for public repositories. No workflow uses a self-hosted runner; `scripts/ci/workflow-invariants.test.ts` fails when one does. The rig runners `rig-vertex` to `rig-vertex-4` stay registered to the private backup repository and get no new Vertex jobs.
+
 ## Hyperdrive
 
 Hyperdrive pools Postgres connections close to the Worker. The code path is the same with or without it: the request scope opens one `pg` client per request, and the connection string comes from the `HYPERDRIVE` binding instead of `DATABASE_URL`.

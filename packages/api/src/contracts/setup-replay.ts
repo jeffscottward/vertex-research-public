@@ -22,7 +22,7 @@ export const SETUP_REPLAY_MAX_OCCURRENCES = 2000;
 /** Daily series id as stored: `SYMBOL:1d`. */
 export const SetupReplaySeriesIdSchema = z
   .string()
-  .regex(/^[A-Z0-9.^-]{1,20}:1d$/u);
+  .regex(/^[A-Z0-9.^=-]{1,20}:1d$/u);
 
 export const setupReplaySeriesId = (symbol: string): string => `${symbol}:1d`;
 

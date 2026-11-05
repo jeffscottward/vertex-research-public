@@ -1,0 +1,4 @@
+# tick-runner steps for vertex-rig-push.service (format: name timeout_s every_s stage command...).
+# Both steps push through the dedicated key ~/.ssh/vertex_engine_status_ed25519 (forced command on QuantVPS).
+engine-status   45  0    1  /usr/bin/python3 ~/.local/share/vertex-engine-status/collect.py
+market-context  45  300  1  /usr/bin/python3 ~/.local/share/vertex-engine-status/market_context.py

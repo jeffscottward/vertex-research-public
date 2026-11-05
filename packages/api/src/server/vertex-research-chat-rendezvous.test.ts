@@ -49,8 +49,9 @@ import {
   pinnedPython,
   RESEARCH_SDK_DISTRIBUTIONS,
 } from "./research-python.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
-const TIMEOUT = 120_000;
+const TIMEOUT = scaledTimeout(120_000);
 const candidateTable = "vertex_research_chat_model_privacy_candidates";
 const dispatchTable = "vertex_research_chat_model_dispatches";
 const fixture = (extra = {}) =>
@@ -310,7 +311,7 @@ const consumeNative = async (f: Fixture) => {
   const timer = setTimeout(() => {
     watchdogFired = true;
     return child.kill("SIGKILL");
-  }, 120_000);
+  }, scaledTimeout(120_000));
   let done: Record<string, any> | null = null;
   child.stderr.resume(); // Drain without retaining or emitting arbitrary child messages.
   const exited = new Promise<{ code: number | null; signal: string | null }>(
@@ -426,92 +427,98 @@ const consumeNative = async (f: Fixture) => {
 };
 
 describe("FirstMate exact-request privacy rendezvous source", () => {
-  it("connects pending tokenizer -> authenticated independent review -> native 1+1 -> actual governed publication/private read", async ({
-    skip,
-  }) => {
-    // The Python consumer imports its pytest HTTP double and invokes the real
-    // pinned SDK; without that stack in python3 the round trip cannot run.
-    const consumer = pinnedPython("VERTEX_RENDEZVOUS_TEST_PYTHON", {
-      ...RESEARCH_SDK_DISTRIBUTIONS,
-      pytest: null,
-    });
-    skip(consumer.skip, consumer.note);
-    // Conditional frozen-clock source proof, not advancing-clock readiness.
-    const f = await fixture({ frozenRightsAtExecution: true });
-    // Native endpoint storage-read is separate from provider/model permission.
-    const rightsAdmin = { actorId: "fixture-grant-admin" };
-    await f.grant(rightsAdmin.actorId, "endpoint-policy", ["manage-rights"]);
-    await f.store.putRights(rightsAdmin, scope, null, {
-      policyId: "endpoint-policy",
-      version: "1.0.0",
-      status: "granted",
-      allowedUses: ["read"],
-      checkedAt: f.clock.now(),
-      expiresAt: END,
-      retentionUntil: null,
-    });
-    await f.grant(owner.actorId, "endpoint-policy", ["read"]);
-    const originalRights = structuredClone(f.table("vertex_rights_versions"));
-    expect(
-      originalRights
-        .map((row) => [row["collection_key"], row["policy_id"], row["version"]])
-        .sort()
-    ).toEqual(
-      [
-        ["", "endpoint-policy", "1.0.0"],
-        ["", "policy-rights", "1.0.0"],
-        ["corpus", "corpus-rights", "1.0.0"],
-        ["corpus", "policy-rights", "1.0.0"],
-      ].sort()
-    );
-    for (const row of originalRights) {
-      expect(row["revision"]).toBe("1");
-      expect(row["payload"].checkedAt).toBe(f.clock.now());
-    }
-    expect(
-      originalRights.find((row) => row["policy_id"] === "endpoint-policy")?.[
-        "payload"
-      ].allowedUses
-    ).toEqual(["read"]);
-    const done = await consumeNative(f);
-    expect(done["outcome"]).toMatchObject({
-      status: "completed",
-      outputArtifactIds: [f.plan.runId],
-      executionAuthorized: false,
-    });
-    expect(done["sends"]).toEqual([
-      { path: "/tokenize", sha256: f.recipe.copies.tokenizeInput.sha256 },
-      {
-        path: "/v1/chat/completions",
-        sha256: f.recipe.copies.completionInput.sha256,
-      },
-    ]);
-    expect(f.table(candidateTable)).toHaveLength(2);
-    expect(f.table(dispatchTable)).toHaveLength(2);
-    expect(f.table("vertex_model_use_budget_reservations")).toHaveLength(2);
-    await completeResponse(f);
-    await fenceInputs(f);
-    const appended = await f.runtime.conversation.appendResponse(owner, {
-      ...f.selector,
-      expectedRevision: "2",
-    });
-    if (appended.status !== "appended")
-      throw new Error("Actual private advisory reference unavailable");
-    const content = await f.runtime.conversation.readResponseContent(owner, {
-      ...f.selector,
-      messageId: appended.message.messageId,
-    });
-    expect(content.status).toBe("available");
-    if (content.status !== "available")
-      throw new Error("Actual private advisory read unavailable");
-    expect(content.profile).toMatchObject({
-      responseRequestId: f.responseRequestId,
-      planSha256: f.plan.planSha256,
-      executionAuthorized: false,
-    });
-    expect(await hashArtifact(content.profile)).toBe(content.sha256);
-    return expect(f.table("vertex_rights_versions")).toEqual(originalRights);
-  }, 180_000);
+  it(
+    "connects pending tokenizer -> authenticated independent review -> native 1+1 -> actual governed publication/private read",
+    async ({ skip }) => {
+      // The Python consumer imports its pytest HTTP double and invokes the real
+      // pinned SDK; without that stack in python3 the round trip cannot run.
+      const consumer = pinnedPython("VERTEX_RENDEZVOUS_TEST_PYTHON", {
+        ...RESEARCH_SDK_DISTRIBUTIONS,
+        pytest: null,
+      });
+      skip(consumer.skip, consumer.note);
+      // Conditional frozen-clock source proof, not advancing-clock readiness.
+      const f = await fixture({ frozenRightsAtExecution: true });
+      // Native endpoint storage-read is separate from provider/model permission.
+      const rightsAdmin = { actorId: "fixture-grant-admin" };
+      await f.grant(rightsAdmin.actorId, "endpoint-policy", ["manage-rights"]);
+      await f.store.putRights(rightsAdmin, scope, null, {
+        policyId: "endpoint-policy",
+        version: "1.0.0",
+        status: "granted",
+        allowedUses: ["read"],
+        checkedAt: f.clock.now(),
+        expiresAt: END,
+        retentionUntil: null,
+      });
+      await f.grant(owner.actorId, "endpoint-policy", ["read"]);
+      const originalRights = structuredClone(f.table("vertex_rights_versions"));
+      expect(
+        originalRights
+          .map((row) => [
+            row["collection_key"],
+            row["policy_id"],
+            row["version"],
+          ])
+          .sort()
+      ).toEqual(
+        [
+          ["", "endpoint-policy", "1.0.0"],
+          ["", "policy-rights", "1.0.0"],
+          ["corpus", "corpus-rights", "1.0.0"],
+          ["corpus", "policy-rights", "1.0.0"],
+        ].sort()
+      );
+      for (const row of originalRights) {
+        expect(row["revision"]).toBe("1");
+        expect(row["payload"].checkedAt).toBe(f.clock.now());
+      }
+      expect(
+        originalRights.find((row) => row["policy_id"] === "endpoint-policy")?.[
+          "payload"
+        ].allowedUses
+      ).toEqual(["read"]);
+      const done = await consumeNative(f);
+      expect(done["outcome"]).toMatchObject({
+        status: "completed",
+        outputArtifactIds: [f.plan.runId],
+        executionAuthorized: false,
+      });
+      expect(done["sends"]).toEqual([
+        { path: "/tokenize", sha256: f.recipe.copies.tokenizeInput.sha256 },
+        {
+          path: "/v1/chat/completions",
+          sha256: f.recipe.copies.completionInput.sha256,
+        },
+      ]);
+      expect(f.table(candidateTable)).toHaveLength(2);
+      expect(f.table(dispatchTable)).toHaveLength(2);
+      expect(f.table("vertex_model_use_budget_reservations")).toHaveLength(2);
+      await completeResponse(f);
+      await fenceInputs(f);
+      const appended = await f.runtime.conversation.appendResponse(owner, {
+        ...f.selector,
+        expectedRevision: "2",
+      });
+      if (appended.status !== "appended")
+        throw new Error("Actual private advisory reference unavailable");
+      const content = await f.runtime.conversation.readResponseContent(owner, {
+        ...f.selector,
+        messageId: appended.message.messageId,
+      });
+      expect(content.status).toBe("available");
+      if (content.status !== "available")
+        throw new Error("Actual private advisory read unavailable");
+      expect(content.profile).toMatchObject({
+        responseRequestId: f.responseRequestId,
+        planSha256: f.plan.planSha256,
+        executionAuthorized: false,
+      });
+      expect(await hashArtifact(content.profile)).toBe(content.sha256);
+      return expect(f.table("vertex_rights_versions")).toEqual(originalRights);
+    },
+    scaledTimeout(180_000)
+  );
   it(
     "binds immutable slot, current worker authority and narrow private reviewer discovery",
     async () => {

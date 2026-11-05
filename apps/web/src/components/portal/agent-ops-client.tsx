@@ -372,9 +372,12 @@ export const OPERATOR_FEATURE_COPY = Object.freeze({
   backtests: "Backtest runs are limited to operators.",
   "deployment-requests": "Paper deployment requests are limited to operators.",
   deployments: "Deployment status is limited to operators.",
+  engines: "Engine status is limited to operators.",
   "ibkr-monitor": "The IBKR monitor is limited to operators.",
   "instant-backtest": "Instant backtests are limited to operators.",
   "knowledge-chat": "The knowledge chat is limited to operators.",
+  "market-context":
+    "GEX, macro and news from the rig are limited to operators.",
   "mission-control":
     "Agent work and the IBKR monitor on Mission control are limited to operators.",
   optimizations: "Optimization runs are limited to operators.",

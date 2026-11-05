@@ -103,6 +103,7 @@ const secretValues = [
     ...required.map((key) => bindings[key]),
     bindings.RESEND_API_KEY,
     bindings.OPENROUTER_API_KEY,
+    bindings.QUANTDATA_API_KEY,
     bindings.VERTEX_DEPLOY_STATUS_TOKEN,
     databaseUrl.password,
     decodeURIComponent(databaseUrl.password),

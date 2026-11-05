@@ -354,7 +354,7 @@ export const PortfolioCombosWorkspace = ({
             first.
           </p>
         ) : (
-          <ul className="grid gap-2">
+          <ul className="grid gap-2" data-click-private="">
             {runs.map((run) => {
               const label = describeRun(run);
               const weight = weights[run.id];

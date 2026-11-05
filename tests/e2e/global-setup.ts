@@ -10,6 +10,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resetDatabase } from "./helpers/database.ts";
 import {
+  FAKE_ASSISTANT_MODEL_HOST,
+  startFakeAssistantModel,
+} from "./helpers/fake-assistant-model.ts";
+import {
   FAKE_IBKR_RECOVERY_HOST,
   startFakeIbkrRecovery,
 } from "./helpers/fake-ibkr-recovery.ts";
@@ -74,6 +78,18 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     ]);
     cleanup.push(async () => {
       await portless(["alias", "--remove", FAKE_IBKR_RECOVERY_HOST]);
+    });
+    // Fake chat completions model behind the same proxy (E2E_ASSISTANT_MODEL_URL).
+    const model = await startFakeAssistantModel();
+    cleanup.push(() => model.close());
+    await portless([
+      "alias",
+      FAKE_ASSISTANT_MODEL_HOST,
+      String(model.port),
+      "--force",
+    ]);
+    cleanup.push(async () => {
+      await portless(["alias", "--remove", FAKE_ASSISTANT_MODEL_HOST]);
     });
   } catch (error) {
     await teardown();

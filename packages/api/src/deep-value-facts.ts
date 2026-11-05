@@ -344,6 +344,8 @@ export const YahooChartSchema = z.object({
           meta: z
             .object({
               longName: z.string().nullable().optional(),
+              regularMarketPrice: z.number().finite().nullable().optional(),
+              regularMarketTime: z.number().nullable().optional(),
               shortName: z.string().nullable().optional(),
             })
             .optional(),

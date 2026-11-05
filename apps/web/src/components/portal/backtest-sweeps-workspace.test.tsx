@@ -632,6 +632,76 @@ describe("BacktestSweepsWorkspace", () => {
     vi.unstubAllGlobals();
   });
 
+  it("preselects Core 7 futures and its first stored series, and follows a universe change", async () => {
+    const ES: InstantBacktestSeries = {
+      ...SPY,
+      firstT: 5 * DAY_MS,
+      lastT: 60 * DAY_MS,
+      symbol: "ES=F",
+    };
+    const TEST: InstantBacktestSeries = { ...SPY, symbol: "TEST" };
+    await mount(
+      <BacktestSweepsWorkspace
+        gateway={gatewayOf({
+          series: vi.fn(async () => [
+            { ...SPY, symbol: "BTCUSDT", timeframe: "1m" as const },
+            ES,
+            SPY,
+            TEST,
+          ]),
+        })}
+      />
+    );
+    const options = () =>
+      [...field("Symbol and timeframe").options].map((option) => option.value);
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
+    expect(options()).toEqual(["ES=F:1d"]);
+    expect(field("From").value).toBe("1970-01-06");
+    expect(field("To").value).toBe("1970-03-02");
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(options()).toEqual(["SPY:1d"]);
+    expect(field("From").value).toBe("1970-01-01");
+    expect(field("To").value).toBe("1970-04-10");
+    await setNative(field("Universe"), "all");
+    expect(options()).toHaveLength(4);
+    expect(field("Symbol and timeframe").value).toBe("BTCUSDT:1m");
+  });
+
+  it("keeps the universe choice when the series list reloads", async () => {
+    const ES: InstantBacktestSeries = { ...SPY, symbol: "ES=F" };
+    await mount(
+      <BacktestSweepsWorkspace
+        gateway={gatewayOf({ series: vi.fn(async () => [ES, SPY]) })}
+      />
+    );
+    await setNative(field("Universe"), "core7-etf-twins");
+    const root = roots.at(-1);
+    await settle(() =>
+      root?.render(
+        <BacktestSweepsWorkspace
+          gateway={gatewayOf({ series: vi.fn(async () => [ES, SPY]) })}
+        />
+      )
+    );
+    expect(field("Universe").value).toBe("core7-etf-twins");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+  });
+
+  it("shows every stored series when no Core 7 future is stored", async () => {
+    await mount(<BacktestSweepsWorkspace gateway={gatewayOf()} />);
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+    expect(field("Symbol and timeframe").options).toHaveLength(2);
+    expect(text()).toContain(
+      "No stored bars for Core 7 futures yet. Showing all stored series."
+    );
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(
+      [...field("Symbol and timeframe").options].map((option) => option.value)
+    ).toEqual(["SPY:1d", "QQQ:1d"]);
+  });
+
   it("shows empty, forbidden and error states", async () => {
     await mount(
       <BacktestSweepsWorkspace

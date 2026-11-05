@@ -23,7 +23,15 @@ import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { MAX_WORKFLOW_SCOPE_PATHS } from "../workflow/index.ts";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 type WPFilesystemDelegate = (
   actual: (...arguments_: any[]) => any,
@@ -62,6 +70,22 @@ const mocks = vi.hoisted(() => ({
   // Replaces model-relay.ts#openOmpModelRelay when set.
   openModelRelay: undefined as WPFilesystemDelegate | undefined,
 }));
+
+// One private temporary directory per test run. Tests below remove and chmod
+// the OMP worktree root; other runs of this file on the same host (parallel
+// worktrees, CI-mode loops) must never share that root. omp.ts reads tmpdir()
+// once at import for its worktree root, so TMPDIR changes before the imports.
+const runTemporaryDirectory = vi.hoisted(() => {
+  const { mkdtempSync, realpathSync } = process.getBuiltinModule("node:fs");
+  const { tmpdir: hostTemporaryDirectory } =
+    process.getBuiltinModule("node:os");
+  const { join: joinPath } = process.getBuiltinModule("node:path");
+  const previous = process.env["TMPDIR"];
+  const hostPath = hostTemporaryDirectory();
+  const path = realpathSync(mkdtempSync(joinPath(hostPath, "df-omp-run-")));
+  process.env["TMPDIR"] = path;
+  return { path, hostPath, previous };
+});
 
 vi.mock("node:child_process", () => ({
   execFile: mocks.execFile,
@@ -234,6 +258,7 @@ import {
 import { OmpModelRelayError } from "./model-relay.ts";
 import { processFilterFor } from "./seccomp.ts";
 import { createLocalWayfinderExecutionAdapter } from "./wayfinder.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // The operator's own model (WORKFLOW_OMP_MODEL); DarkFactory pins none.
 const TEST_OMP_MODEL = "anthropic/claude-opus-5-5";
@@ -723,6 +748,12 @@ afterEach(async () => {
     delete process.env["PATH"];
   } else process.env["PATH"] = originalProcessPath;
   return await removeOwnedTestArtifacts();
+});
+afterAll(async () => {
+  if (runTemporaryDirectory.previous === undefined) {
+    delete process.env["TMPDIR"];
+  } else process.env["TMPDIR"] = runTemporaryDirectory.previous;
+  return await rm(runTemporaryDirectory.path, { recursive: true, force: true });
 });
 const requestFor = (
   overrides: Partial<OmpExecutionRequest> = {}
@@ -1422,8 +1453,12 @@ describe("OMP CLI adapter", () => {
 
       // The real relay opens, but this sandbox never reports its process: the
       // run stops before OMP starts and the relay removes its socket directory.
-      // A private TMPDIR keeps other test files' relays out of the check.
-      const relayRoot = await mkdtemp(join(tmpdir(), "df-relay-root-"));
+      // A private TMPDIR keeps other test files' relays out of the check. It
+      // is made in the host temporary directory: the longer run directory
+      // would push the relay socket path past the Unix socket path limit.
+      const relayRoot = await mkdtemp(
+        join(runTemporaryDirectory.hostPath, "df-relay-root-")
+      );
       const isRelayDirectory = (name: string) =>
         name.startsWith("darkfactory-model-relay-");
       const openedWith: string[][] = [];
@@ -4413,6 +4448,16 @@ describe("OMP CLI adapter", () => {
     await mkdir(worktreesRoot, { mode: 0o700 });
     return await chmod(worktreesRoot, 0o700);
   });
+  it("keeps the OMP worktree root private to this test run", async () => {
+    const prepared = await prepareVerificationWorkspace(
+      createOmpCliAdapter({ repositoriesRoot }),
+      "private-worktree-root"
+    );
+    await prepared.implementation.lifecycle!.finalize("unpersisted");
+    expect(dirname(prepared.workspaceDirectory)).toBe(
+      join(runTemporaryDirectory.path, "darkfactory-omp-worktrees")
+    );
+  });
   it("covers Docker inspection rejection, abort, cleanup cid, and process-group races", async () => {
     const inspectIdentity = `${VERIFIER_IMAGE_DIGEST}|${OMP_VERIFIER_CONFIG_DIGEST}|${OMP_VERIFIER_ARGV_IDENTITY}`;
     const run = (signal?: AbortSignal) =>
@@ -4586,90 +4631,99 @@ describe("OMP CLI adapter", () => {
     );
   });
   // Five sequential workspace preparations exceed the 5 s default on a loaded CI runner.
-  it("rejects unsafe verifier workspace package layouts before injected checks", async () => {
-    const verifyRejectedLayout = async (workspaceId: string): Promise<void> => {
-      const verificationRunner = vi.fn(async () => verifierRunnerResult());
-      const adapter = createOmpCliAdapter({
-        repositoriesRoot,
-        verificationRunner,
-      });
-      const prepared = await prepareVerificationWorkspace(adapter, workspaceId);
-      await prepared.implementation.lifecycle!.finalize("persisted");
-      callbackWith(null, "verification");
-      const result = await adapter.execute(verificationRequestFor(prepared));
-      expect(result).toMatchObject({ status: "failed", verification: null });
-      expect(verificationRunner).not.toHaveBeenCalled();
-      await result.lifecycle!.finalize("unpersisted");
-    };
+  it(
+    "rejects unsafe verifier workspace package layouts before injected checks",
+    async () => {
+      const verifyRejectedLayout = async (
+        workspaceId: string
+      ): Promise<void> => {
+        const verificationRunner = vi.fn(async () => verifierRunnerResult());
+        const adapter = createOmpCliAdapter({
+          repositoriesRoot,
+          verificationRunner,
+        });
+        const prepared = await prepareVerificationWorkspace(
+          adapter,
+          workspaceId
+        );
+        await prepared.implementation.lifecycle!.finalize("persisted");
+        callbackWith(null, "verification");
+        const result = await adapter.execute(verificationRequestFor(prepared));
+        expect(result).toMatchObject({ status: "failed", verification: null });
+        expect(verificationRunner).not.toHaveBeenCalled();
+        await result.lifecycle!.finalize("unpersisted");
+      };
 
-    const longDirectory = "x".repeat(129);
-    const longManifest = `packages/${longDirectory}/package.json`;
-    await mkdir(join(repositoryDirectory, "packages", longDirectory));
-    await writeFile(
-      join(repositoryDirectory, longManifest),
-      JSON.stringify({ name: `@darkfactory/${longDirectory}` })
-    );
-    trackedPaths.add(longManifest);
-    await verifyRejectedLayout("verifier-package-long-name");
-    trackedPaths.delete(longManifest);
-    await rm(join(repositoryDirectory, "packages", longDirectory), {
-      recursive: true,
-    });
-
-    const linkedDirectory = join(
-      repositoryDirectory,
-      "packages",
-      "linked-package"
-    );
-    await symlink("jobs", linkedDirectory);
-    trackedPaths.add("packages/linked-package");
-    await verifyRejectedLayout("verifier-package-symlink");
-    trackedPaths.delete("packages/linked-package");
-    await rm(linkedDirectory);
-
-    const invalidManifest = "packages/invalid-package/package.json";
-    await mkdir(dirname(join(repositoryDirectory, invalidManifest)));
-    await writeFile(
-      join(repositoryDirectory, invalidManifest),
-      JSON.stringify({ name: "not-darkfactory" })
-    );
-    trackedPaths.add(invalidManifest);
-    await verifyRejectedLayout("verifier-package-invalid-manifest");
-    trackedPaths.delete(invalidManifest);
-    await rm(join(repositoryDirectory, "packages", "invalid-package"), {
-      recursive: true,
-    });
-
-    const existingLink = "node_modules/@darkfactory/jobs";
-    await mkdir(dirname(join(repositoryDirectory, existingLink)), {
-      recursive: true,
-    });
-    await writeFile(join(repositoryDirectory, existingLink), "occupied");
-    trackedPaths.add(existingLink);
-    await verifyRejectedLayout("verifier-package-existing-link");
-    trackedPaths.delete(existingLink);
-    await rm(join(repositoryDirectory, "node_modules"), { recursive: true });
-
-    const extraManifests = Array.from({ length: 257 }, (_, index) => {
-      return `packages/extra-${String(index).padStart(3, "0")}/package.json`;
-    });
-    for (const manifestPath of extraManifests) {
-      await mkdir(dirname(join(repositoryDirectory, manifestPath)));
-      const packageName = basename(dirname(manifestPath));
+      const longDirectory = "x".repeat(129);
+      const longManifest = `packages/${longDirectory}/package.json`;
+      await mkdir(join(repositoryDirectory, "packages", longDirectory));
       await writeFile(
-        join(repositoryDirectory, manifestPath),
-        JSON.stringify({ name: `@darkfactory/${packageName}` })
+        join(repositoryDirectory, longManifest),
+        JSON.stringify({ name: `@darkfactory/${longDirectory}` })
       );
-      trackedPaths.add(manifestPath);
-    }
-    await verifyRejectedLayout("verifier-package-count");
-    for (const manifestPath of extraManifests) {
-      trackedPaths.delete(manifestPath);
-      await rm(dirname(join(repositoryDirectory, manifestPath)), {
+      trackedPaths.add(longManifest);
+      await verifyRejectedLayout("verifier-package-long-name");
+      trackedPaths.delete(longManifest);
+      await rm(join(repositoryDirectory, "packages", longDirectory), {
         recursive: true,
       });
-    }
-  }, 20_000);
+
+      const linkedDirectory = join(
+        repositoryDirectory,
+        "packages",
+        "linked-package"
+      );
+      await symlink("jobs", linkedDirectory);
+      trackedPaths.add("packages/linked-package");
+      await verifyRejectedLayout("verifier-package-symlink");
+      trackedPaths.delete("packages/linked-package");
+      await rm(linkedDirectory);
+
+      const invalidManifest = "packages/invalid-package/package.json";
+      await mkdir(dirname(join(repositoryDirectory, invalidManifest)));
+      await writeFile(
+        join(repositoryDirectory, invalidManifest),
+        JSON.stringify({ name: "not-darkfactory" })
+      );
+      trackedPaths.add(invalidManifest);
+      await verifyRejectedLayout("verifier-package-invalid-manifest");
+      trackedPaths.delete(invalidManifest);
+      await rm(join(repositoryDirectory, "packages", "invalid-package"), {
+        recursive: true,
+      });
+
+      const existingLink = "node_modules/@darkfactory/jobs";
+      await mkdir(dirname(join(repositoryDirectory, existingLink)), {
+        recursive: true,
+      });
+      await writeFile(join(repositoryDirectory, existingLink), "occupied");
+      trackedPaths.add(existingLink);
+      await verifyRejectedLayout("verifier-package-existing-link");
+      trackedPaths.delete(existingLink);
+      await rm(join(repositoryDirectory, "node_modules"), { recursive: true });
+
+      const extraManifests = Array.from({ length: 257 }, (_, index) => {
+        return `packages/extra-${String(index).padStart(3, "0")}/package.json`;
+      });
+      for (const manifestPath of extraManifests) {
+        await mkdir(dirname(join(repositoryDirectory, manifestPath)));
+        const packageName = basename(dirname(manifestPath));
+        await writeFile(
+          join(repositoryDirectory, manifestPath),
+          JSON.stringify({ name: `@darkfactory/${packageName}` })
+        );
+        trackedPaths.add(manifestPath);
+      }
+      await verifyRejectedLayout("verifier-package-count");
+      for (const manifestPath of extraManifests) {
+        trackedPaths.delete(manifestPath);
+        await rm(dirname(join(repositoryDirectory, manifestPath)), {
+          recursive: true,
+        });
+      }
+    },
+    scaledTimeout(20_000)
+  );
 
   it("normalizes nullish injected verifier streams", async () => {
     const controller = new AbortController();
@@ -6158,9 +6212,7 @@ describe("OMP CLI adapter", () => {
     survivingNow.mockRestore();
     return survivingKill.mockRestore();
   });
-  const WP4errno = (
-    code: NodeJS.ErrnoException["code"]
-  ): NodeJS.ErrnoException => {
+  const WP4errno = (code: string): NodeJS.ErrnoException => {
     return Object.assign(new Error(`WP4 ${code} filesystem failure`), { code });
   };
   const WP4terminateNextGitCleanup = (pid: number) => {

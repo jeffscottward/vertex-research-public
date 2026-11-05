@@ -1,6 +1,6 @@
 // What: oRPC implementation of appContract: binds each procedure to feature, account, theme and contact services,
 // plus the Vertex research surface (vertex.*, vertexWorker.*, agentOps.*, papers.*, agentApiKeys.*,
-// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, assistant.*).
+// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, baskets.*, assistant.*).
 // Used by: packages/api/src/server/handler.ts, packages/api/src/server/index.ts (appRouter).
 // See: packages/api/src/contract.ts#appContract; docs/getting-started.md#add-your-first-feature.
 import {
@@ -49,6 +49,8 @@ import { agentOpsRouter, papersRouter } from "./agent-ops.ts";
 import { agentModelRunsRouter } from "./agent-model-runs.ts";
 import { assistantRouter } from "./assistant.ts";
 import { portfolioMonitorRouter } from "./portfolio-monitor.ts";
+import { enginesRouter } from "./engines.ts";
+import { marketContextRouter } from "./market-context.ts";
 import { ibkrMonitorRouter } from "./ibkr-monitor.ts";
 import { ibkrRecoveryRouter } from "./ibkr-recovery.ts";
 import { nautilusArmRouter } from "./nautilus-arm.ts";
@@ -73,6 +75,9 @@ import { riskAllocatorRouter } from "./risk-allocator.ts";
 import { marketDataRouter } from "./market-data.ts";
 import { optionsAnalyticsRouter } from "./options-analytics.ts";
 import { optimizationsRouter } from "./optimizations.ts";
+import { quantLabRouter } from "./quant-lab.ts";
+import { researchReportsRouter } from "./research-reports.ts";
+import { clickLogRouter } from "./click-log.ts";
 import {
   createFeatureItemService,
   createThemePreferenceService,
@@ -127,7 +132,9 @@ import { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
 import { todosRouter } from "./todos.ts";
 import { watchlistRouter } from "./watchlist.ts";
 import { priceAlertsRouter } from "./price-alerts.ts";
+import { sectorRotationRouter } from "./sector-rotation.ts";
 import { marketNewsRouter } from "./market-news.ts";
+import { basketsRouter } from "./baskets.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -1701,9 +1708,14 @@ export const appRouter = api.router({
   dashboard: { summary: dashboardSummary },
   watchlist: watchlistRouter,
   priceAlerts: priceAlertsRouter,
+  sectorRotation: sectorRotationRouter,
   marketNews: marketNewsRouter,
+  baskets: basketsRouter,
   todos: todosRouter,
   agentOps: { ...agentOpsRouter, optimizations: optimizationsRouter },
+  quantLab: quantLabRouter,
+  researchReports: researchReportsRouter,
+  clickLog: clickLogRouter,
   papers: papersRouter,
   agentModelRuns: agentModelRunsRouter,
   agentApiKeys: agentApiKeysRouter,
@@ -1725,6 +1737,8 @@ export const appRouter = api.router({
   riskAllocator: riskAllocatorRouter,
   portfolioMonitor: portfolioMonitorRouter,
   ibkrMonitor: ibkrMonitorRouter,
+  engines: enginesRouter,
+  marketContext: marketContextRouter,
   ibkrRecovery: ibkrRecoveryRouter,
   nautilusArm: nautilusArmRouter,
   vertexOrders: vertexOrdersRouter,

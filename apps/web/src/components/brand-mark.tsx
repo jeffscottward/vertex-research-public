@@ -28,7 +28,7 @@ export const BrandLink = ({ className }: { readonly className?: string }) => (
   >
     <BrandMark />
     <span className="vx-wordmark">
-      Vertex<span>Research</span>
+      Vertex <span>Research</span>
     </span>
   </a>
 );

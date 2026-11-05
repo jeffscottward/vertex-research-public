@@ -19,12 +19,20 @@ import {
   parseAssignments,
   serialize,
 } from "./core.ts";
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
+// fsyncSync is replaced by an fd check without the physical disk flush. These
+// tests cover CLI orchestration; files.test.ts covers fsync order and failures.
+// Measured 2026-11-04 on dev-rig (btrfs): the 6 fsyncs of one consolidate
+// took 94-217 ms with 32 CPU hogs, but 0.8-11.9 s with 4 parallel fsync writers
+// added, and the "derives the root" test hit 15 s in CI shard 10/12 (run
+// 41816221283). CI runners keep TMPDIR on the shared btrfs /var/tmp.
 const effects = vi.hoisted(() => ({
   spawnSync: vi.fn(),
   mkdirSync: vi.fn(),
   writeFileSync: vi.fn(),
   openSync: vi.fn(),
+  fsyncSync: vi.fn(),
 }));
 vi.mock("node:child_process", () => ({ spawnSync: effects.spawnSync }));
 vi.mock("node:fs", async (importOriginal) => ({
@@ -32,6 +40,7 @@ vi.mock("node:fs", async (importOriginal) => ({
   mkdirSync: effects.mkdirSync,
   writeFileSync: effects.writeFileSync,
   openSync: effects.openSync,
+  fsyncSync: effects.fsyncSync,
 }));
 
 const directories: string[] = [];
@@ -45,6 +54,11 @@ beforeEach(async () => {
   effects.mkdirSync.mockReset().mockImplementation(fs.mkdirSync);
   effects.writeFileSync.mockReset().mockImplementation(fs.writeFileSync);
   effects.openSync.mockReset().mockImplementation(fs.openSync);
+  // fstat keeps the EBADF failure of a closed or invalid descriptor.
+  effects.fsyncSync.mockReset().mockImplementation((descriptor: number) => {
+    fs.fstatSync(descriptor);
+    return;
+  });
   return;
 });
 
@@ -126,19 +140,30 @@ afterEach(() => {
   return;
 });
 
+const CLI_IMPORT_TIMEOUT_MS = scaledTimeout(30_000);
+
 describe("Vertex configuration CLI boundary", () => {
-  it("does not read, write, spawn, authenticate, or fetch on import", async () => {
-    vi.resetModules();
-    const network = vi.spyOn(globalThis, "fetch");
-    const output = vi.spyOn(process.stdout, "write");
-    await import("./cli.ts");
-    expect(effects.spawnSync).not.toHaveBeenCalled();
-    expect(effects.mkdirSync).not.toHaveBeenCalled();
-    expect(effects.writeFileSync).not.toHaveBeenCalled();
-    expect(effects.openSync).not.toHaveBeenCalled();
-    expect(network).not.toHaveBeenCalled();
-    return expect(output).not.toHaveBeenCalled();
-  });
+  // Cold import of cli.ts and its module graph. Measured 2026-11-03 on dev-rig:
+  // 0.17-3.0 s over 10 single-file runs (5 idle, 5 with 32 busy-loop CPU hogs); during a
+  // full parallel pre-push run it took 5.46 s and the 5 s default timed out. 30 s keeps
+  // more than a 5x margin over that worst case.
+  it(
+    "does not read, write, spawn, authenticate, or fetch on import",
+    async () => {
+      vi.resetModules();
+      const network = vi.spyOn(globalThis, "fetch");
+      const output = vi.spyOn(process.stdout, "write");
+      // Dynamic import is the module-loading boundary under test.
+      await import("./cli.ts");
+      expect(effects.spawnSync).not.toHaveBeenCalled();
+      expect(effects.mkdirSync).not.toHaveBeenCalled();
+      expect(effects.writeFileSync).not.toHaveBeenCalled();
+      expect(effects.openSync).not.toHaveBeenCalled();
+      expect(network).not.toHaveBeenCalled();
+      return expect(output).not.toHaveBeenCalled();
+    },
+    CLI_IMPORT_TIMEOUT_MS
+  );
 
   it("rejects unexpected arguments without touching source or destination files", async () => {
     const root = mkdtempSync(join(tmpdir(), "vertex-cli-test-"));
@@ -616,6 +641,8 @@ describe("configuration process entrypoint", () => {
       QUANTDATA_API_KEY: "fixture-consolidated",
     });
     expect(valuesAt(join(root, ".env"))).toEqual(localDefaults());
+    // The publication path still syncs each file and its directory.
+    expect(effects.fsyncSync).toHaveBeenCalled();
     return expect(output.write).toHaveBeenCalledWith(
       "private/configuration/inventory.json: local credential-presence inventory; provider validation not performed.\n"
     );

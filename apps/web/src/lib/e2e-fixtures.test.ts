@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isE2eFixtureEnabled,
+  resolveE2eAssistantModelOverride,
   resolveE2eEmailPreviewOptions,
 } from "./e2e-fixtures.ts";
 
@@ -153,5 +154,47 @@ describe("E2E-only route fixtures", () => {
         "E2E_EMAIL_PREVIEW_ENDPOINT must be an exact loopback capture URL"
       );
     }
+  });
+});
+
+describe("E2E assistant model override", () => {
+  const enabled = { APP_ENV: "test", E2E_FIXTURES: "1" };
+  it("returns nothing outside an E2E run or without a URL", () => {
+    expect(
+      resolveE2eAssistantModelOverride({
+        APP_ENV: "production",
+        E2E_ASSISTANT_MODEL_URL: "https://model.localhost/v1",
+      })
+    ).toEqual({});
+    expect(resolveE2eAssistantModelOverride(enabled)).toEqual({});
+    return expect(
+      resolveE2eAssistantModelOverride({
+        ...enabled,
+        E2E_ASSISTANT_MODEL_URL: " ",
+      })
+    ).toEqual({});
+  });
+
+  it("accepts an https *.localhost URL", () =>
+    expect(
+      resolveE2eAssistantModelOverride({
+        ...enabled,
+        E2E_ASSISTANT_MODEL_URL: "https://model-fake.localhost:8443/v1/chat",
+      })
+    ).toEqual({ chatUrl: "https://model-fake.localhost:8443/v1/chat" }));
+
+  it("rejects other URLs", () => {
+    for (const value of [
+      "not a url",
+      "http://model.localhost/v1",
+      "https://openrouter.ai/api/v1",
+      "https://user:pw@model.localhost/v1",
+    ])
+      expect(() =>
+        resolveE2eAssistantModelOverride({
+          ...enabled,
+          E2E_ASSISTANT_MODEL_URL: value,
+        })
+      ).toThrow("E2E_ASSISTANT_MODEL_URL");
   });
 });

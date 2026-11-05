@@ -7,6 +7,15 @@ import { getRequestPortalSession } from "../../../lib/request-portal-session.ts"
 
 export const metadata = { title: "Knowledge chat" };
 
+// Vertex is a trading platform, so the frame shows only the trading and commodities KBs.
+// kb-chat's back end enforces this ?category= scope (knowledge-bases apps/kb-chat, scope.py).
+const KB_CHAT_CATEGORIES = "trading,commodities";
+const kbChatFrameSrc = (base: string): string => {
+  const src = new URL(base);
+  src.searchParams.set("category", KB_CHAT_CATEGORIES);
+  return src.toString();
+};
+
 // kb-chat embed, option a (audit section 7.2): kb-chat runs on the rig behind its tailnet gateway.
 // Vertex only frames it, so KB text and model calls never pass through Vertex or QuantVPS.
 // No API call guards this page (it only frames kb-chat), so it checks operator access itself:
@@ -43,8 +52,8 @@ export default async function KnowledgePage() {
             className="h-[75vh] w-full rounded-lg border"
             data-kb-chat="frame"
             referrerPolicy="no-referrer"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            src={url}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+            src={kbChatFrameSrc(url)}
             title="Knowledge chat (kb-chat on the rig)"
           />
         </>

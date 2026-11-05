@@ -36,11 +36,12 @@ import {
 } from "../contracts/vertex-research-chat-conversation.ts";
 import { VertexResearchChatDebateConfigurationV1Schema } from "../contracts/vertex-research-chat-debate.ts";
 import { ResearchEvidenceSchema } from "../contracts/vertex.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source-only composition: real input/admission/approval/privacy/copy/parser and
 // publication/read owners, synthetic SQL/object/provider transport and history.
 // No operational Agno, provider, DB, worker host or scientific acceptance claim.
-const TIMEOUT = 120_000;
+const TIMEOUT = scaledTimeout(120_000);
 const encode = (value: unknown) =>
   new TextEncoder().encode(canonicalArtifactJson(value));
 

@@ -9,6 +9,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 type Manifest = Readonly<{ scripts?: Readonly<Record<string, string>> }>;
 type VitestRun = Readonly<{ cwd: string; arguments_: readonly string[] }>;
@@ -439,7 +440,7 @@ describe("coverage measures every authored source file", () => {
 });
 
 describe("every Vitest test file runs in the gates", {
-  timeout: 120_000,
+  timeout: scaledTimeout(120_000),
 }, () => {
   it("assigns each test file to exactly one Vitest project", async () => {
     const files = await allTestFiles();
@@ -481,6 +482,31 @@ describe("every Vitest test file runs in the gates", {
       local.filter(({ file }) => !counts.has(file)).map(({ file }) => file)
     ).toEqual([]);
   });
+});
+
+describe("tests remove their temporary directories", () => {
+  // /tmp on the rig is a small tmpfs. Test runs that left their mkdtemp
+  // directories behind filled it (card vertex-test-tmp-leak, 2026-11-02).
+  // A text check: a test file that makes a temp dir must also call rm/rmSync.
+  // It reads all ~700 tracked test files: 5.1 s in a pre-push run at load
+  // 40-55 on 32 CPUs and 6.2 s at CPUQuota=10%, over the 5 s default.
+  return it(
+    "pairs every mkdtemp in a test file with a removal",
+    async () => {
+      const makers: string[] = [];
+      const leaking: string[] = [];
+      for (const file of await trackedFiles) {
+        if (!TEST_FILE.test(file)) continue;
+        const text = await readFile(join(root, file), "utf8");
+        if (!/\bmkdtemp(?:Sync)?\b/u.test(text)) continue;
+        makers.push(file);
+        if (!/\brm(?:Sync)?\b/u.test(text)) leaking.push(file);
+      }
+      expect(makers.length).toBeGreaterThan(0);
+      return expect(leaking).toEqual([]);
+    },
+    scaledTimeout(15_000)
+  );
 });
 
 describe("verify mirrors the CI lanes and builds once", () => {

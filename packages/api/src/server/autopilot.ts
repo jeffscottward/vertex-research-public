@@ -9,6 +9,10 @@ import {
   normalizeDeploymentSymbol,
   normalizeDeploymentTimeframe,
 } from "@darkfactory/db/server";
+import {
+  etfTwinOfFuture,
+  isFuturesSymbol,
+} from "@darkfactory/shared/universes";
 import { implement } from "@orpc/server";
 
 import { AUTOPILOT_GATE } from "../autopilot-gate.ts";
@@ -24,8 +28,8 @@ import {
   AUTOPILOT_TICK_MAX,
   type AutopilotCampaignOutput,
   AutopilotCampaignSchema,
-  type AutopilotCandidateSummaryOutput,
   AutopilotCandidateDetailSchema,
+  type AutopilotCandidateSummaryOutput,
   AutopilotCandidateSummarySchema,
   AutopilotGateSchema,
   type AutopilotTickResult,
@@ -87,13 +91,14 @@ const runnerFor = (
   context: ApiContext,
   failures: Failures
 ): AutopilotRunnerDependencies => {
-  const marketBars = context.repositories.marketBars;
+  const { marketBars, sectorRotation } = context.repositories;
   if (marketBars === undefined) throw failures.STORAGE_ERROR();
   return {
     autopilot: repositoryFor(context, failures),
     clock: () => performance.now(),
     generateId: () => crypto.randomUUID(),
     marketBars,
+    ...(sectorRotation === undefined ? {} : { sectorRotation }),
   };
 };
 
@@ -115,6 +120,7 @@ const create = api.autopilot.campaigns.create
       config: {
         budget: input.budget,
         costBps: input.costBps,
+        ...(input.filters === undefined ? {} : { filters: input.filters }),
         gateVersion: AUTOPILOT_GATE.version,
         seed,
       },
@@ -301,6 +307,16 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
       throw failures.NOT_FOUND({ message: "Campaign not found" });
     // Check what the paper request will refuse before any write, so a refused hand-off leaves
     // nothing behind (no saved revision, no library strategy).
+    // Owner rule: futures are research signals only; paper and live use options on the twin.
+    if (isFuturesSymbol(campaign.symbol)) {
+      const twin = etfTwinOfFuture(campaign.symbol);
+      throw failures.VALIDATION_ERROR({
+        message:
+          twin === null
+            ? `${campaign.symbol} is a research-only future. Paper and live trades use options on an ETF; run a campaign on an ETF to hand off.`
+            : `${campaign.symbol} is a research-only future. Paper and live trades use options on its ETF twin ${twin}; run a campaign on ${twin} to hand off.`,
+      });
+    }
     try {
       normalizeDeploymentLimits(input.limits);
       normalizeDeploymentSymbol(campaign.symbol);

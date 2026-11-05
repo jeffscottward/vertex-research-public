@@ -1,29 +1,73 @@
 name: CI
 
 on:
+  # ready_for_review is not a default type: it starts the full lane when a draft PR
+  # becomes ready (card vertex-ci-queue-pathfilter, 2026-11-02).
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   # Test every merge on the live line (owner 2026-10-31, card vertex-ci-push-trigger).
   push:
     branches: [vertex/rebuild-darkfactory-20260921]
   workflow_dispatch:
 
 concurrency:
-  # PR runs share a group per PR; push runs on any branch other than the live line share
-  # a group per branch. Both cancel the older run (owner 2026-11-01). Live-line push runs
-  # and manual runs get their own group, so they are never cancelled or replaced.
-  group: ${{ github.workflow }}-${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/vertex/rebuild-darkfactory-20260921')) && format('run-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
+  # PR runs share a group per PR; push runs share a group per branch. PR runs and push
+  # runs on other branches cancel the older run (owner 2026-11-01). Live-line push runs
+  # are batched (owner 2026-11-02, card vertex-ci-queue-pathfilter): they never cancel a
+  # running run, but a newer push replaces a still-queued one, because GitHub keeps only
+  # one pending run per group. Deploy only from a commit whose own CI run is green.
+  # Manual runs get their own group, so they are never cancelled or replaced.
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && format('run-{0}', github.run_id) || github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/vertex/rebuild-darkfactory-20260921') }}
 
 permissions:
   contents: read
 
 jobs:
+  # Light lane vs full lane (card vertex-ci-queue-pathfilter, 2026-11-02). This job
+  # lists the changed files and decides whether the heavy jobs run; see
+  # scripts/ci/ci-changes.sh. It runs on a GitHub-hosted runner so the light lane
+  # never waits in the rig runner queue to start.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      heavy: ${{ steps.plan.outputs.heavy }}
+      exclude: ${{ steps.plan.outputs.exclude }}
+    steps:
+      - name: Check out the CI scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+
+      - name: Plan lanes
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DRAFT: ${{ github.event.pull_request.draft || false }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BROWSER_TESTS: ${{ vars.BROWSER_TESTS }}
+        run: bash scripts/ci/ci-changes.sh plan
+
   # A 2-vCPU runner cannot finish the 100% coverage run within the job limit,
   # so it runs in parallel shards. Each shard uploads a Vitest blob report; the
   # coverage lane below merges them and enforces the thresholds once.
   coverage-shards:
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     name: Coverage shard (${{ matrix.shard }})
-    # Public repository: GitHub-hosted runners only (owner rule, card vertex-public-audit).
+    # GitHub-hosted runners only (owner 2026-11-04, card vertex-ci-github-hosted):
+    # development moved to the public repository, where hosted minutes are free.
+    # scripts/ci/workflow-invariants.test.ts forbids self-hosted runners.
     runs-on: ubuntu-latest
     # The acceptance clone reruns the whole unit suite (45-minute test limit).
     timeout-minutes: ${{ matrix.shard == 'acceptance' && 50 || 30 }}
@@ -80,14 +124,18 @@ jobs:
           path: .vitest-reports/
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 3
 
   verification:
     name: Verification (${{ matrix.lane }})
     # core, integration and browser do not use the shard reports, so they start
     # at once instead of waiting for every coverage shard. Only the coverage lane
-    # (job verification-coverage below) waits for the shards.
-    # PostgreSQL comes from scripts/ci/rig-postgres.sh (user-space binaries, no Docker).
+    # (job verification-coverage below) waits for the shards. The core lane is the
+    # light lane and always runs; the changes job excludes integration (and browser)
+    # when the full lane is not needed.
+    needs: changes
+    # GitHub-hosted runner. PostgreSQL comes from scripts/ci/rig-postgres.sh
+    # (user-space binaries, no Docker).
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -97,7 +145,8 @@ jobs:
         # Browser tests are off by owner order (2026-11-01, card browser-tests-pause)
         # until the blocked stack clears; offload is planned. The browser job is not
         # created unless the repository variable BROWSER_TESTS is "on". Spec files stay.
-        exclude: ${{ fromJSON(vars.BROWSER_TESTS == 'on' && '[]' || '[{"lane":"browser"}]') }}
+        # scripts/ci/ci-changes.sh applies that rule and the light-lane rule.
+        exclude: ${{ fromJSON(needs.changes.outputs.exclude) }}
     # Keep CI infrastructure unprivileged and isolated from production credentials.
     env:
       APP_ENV: test
@@ -191,9 +240,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browser
+      # Playwright's bundled Chromium lags Chrome stable security fixes, so the browser
+      # lane uses the runner's Google Chrome stable (channel "chrome" in
+      # playwright.config.ts; card sec-pw-ci-vertex-research-platform, 2026-11-03). The rig
+      # gets Chrome from the system package; GitHub-hosted Ubuntu images include it.
+      - name: Check system Google Chrome
         if: matrix.lane == 'browser'
-        run: bunx --bun --no-install playwright install chromium
+        shell: bash
+        run: |
+          chrome=/opt/google/chrome/chrome
+          if [[ ! -x "${chrome}" ]]; then
+            echo "::error::Google Chrome stable is missing at ${chrome}. Install it on the runner."
+            exit 1
+          fi
+          "${chrome}" --version
 
       # The browser lane starts its own PostgreSQL in its network namespace.
       - name: Start PostgreSQL integration service
@@ -253,9 +313,9 @@ jobs:
   # enforces the coverage thresholds once, so it alone waits for the shards.
   verification-coverage:
     name: Verification (${{ matrix.lane }})
-    needs: coverage-shards
+    needs: [changes, coverage-shards]
     # Run even when a shard fails; the lane then fails on the check below.
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.changes.outputs.heavy == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -303,24 +363,47 @@ jobs:
           path: .vitest-reports
           merge-multiple: true
 
+      # Every shard must be present: a partial merge could pass on partial data.
+      - name: Require all 13 coverage shard reports
+        shell: bash
+        run: |
+          count=$(find .vitest-reports -maxdepth 1 -type f | wc -l)
+          echo "Coverage shard reports: ${count}"
+          if (( count != 13 )); then echo "Expected 13 shard reports; use Re-run all jobs."; exit 1; fi
+
       - name: Run verification lane
         run: bun run "verify:${{ matrix.lane }}"
 
-  # The one required status check: it fails unless every coverage shard, every
-  # verification lane and the coverage merge succeeded.
+  # The single required status check (card vertex-ci-queue-pathfilter, 2026-11-02).
+  # It fails when any job failed or was cancelled. When the changes job chose the
+  # full lane, every coverage shard and the coverage merge must have succeeded: a
+  # skipped coverage job is never a pass for a code change on a ready PR.
+  # A draft run reports as "ci-gate (draft)": after `gh pr ready` the new run's gate
+  # starts only when its jobs finish, so a green draft result must never stand in
+  # for the required "ci-gate" check on the same commit.
   ci-gate:
-    name: ci-gate
-    needs: [coverage-shards, verification, verification-coverage]
+    name: ${{ github.event.pull_request.draft && 'ci-gate (draft)' || 'ci-gate' }}
+    needs: [changes, coverage-shards, verification, verification-coverage]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check every lane
-        shell: bash
+      - name: Check job results
         env:
+          HEAVY: ${{ needs.changes.outputs.heavy }}
+          CHANGES: ${{ needs.changes.result }}
           SHARDS: ${{ needs.coverage-shards.result }}
           VERIFICATION: ${{ needs.verification.result }}
           COVERAGE: ${{ needs.verification-coverage.result }}
         run: |
-          echo "shards=${SHARDS} verification=${VERIFICATION} coverage=${COVERAGE}"
-          [[ "${SHARDS}" == success && "${VERIFICATION}" == success && "${COVERAGE}" == success ]]
+          echo "heavy=${HEAVY} changes=${CHANGES} shards=${SHARDS} verification=${VERIFICATION} coverage=${COVERAGE}"
+          fail=0
+          for r in "${CHANGES}" "${SHARDS}" "${VERIFICATION}" "${COVERAGE}"; do
+            case "${r}" in failure | cancelled) fail=1 ;; esac
+          done
+          [[ "${CHANGES}" == success && "${VERIFICATION}" == success ]] || fail=1
+          if [[ "${HEAVY}" != false ]]; then
+            [[ "${SHARDS}" == success && "${COVERAGE}" == success ]] || fail=1
+          fi
+          if ((fail)); then echo "ci-gate: failed"; exit 1; fi
+          echo "ci-gate: passed"

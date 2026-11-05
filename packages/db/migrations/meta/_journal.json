@@ -288,6 +288,55 @@
       "when": 1793611521969,
       "tag": "0040_price_alert_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793625773636,
+      "tag": "0041_baskets",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793648350268,
+      "tag": "0042_basket_benchmark_base",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793694482737,
+      "tag": "0043_quant_lab",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793703475642,
+      "tag": "0044_research_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793759284156,
+      "tag": "0045_market_bar_futures_symbols",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793801338719,
+      "tag": "0046_click_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793804712766,
+      "tag": "0047_sector_rotation",
+      "breakpoints": true
     }
   ]
 }

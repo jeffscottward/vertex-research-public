@@ -7,24 +7,34 @@ import {
   type ResearchPaperStageValue,
   type ResearchPaperVerdictValue,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { Download, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  InfoGlyph,
-  OperatorAccessRequired,
-  STAGE_LABELS,
   createBrowserPapersGateway,
   describeAgentOpsFailure,
-  isOperatorAccessDenied,
   formatMetrics,
   formatTimestamp,
+  InfoGlyph,
+  isOperatorAccessDenied,
   labelFor,
   metricsToText,
-  parseMetricsText,
-  upsertById,
+  OperatorAccessRequired,
   type PapersGateway,
+  parseMetricsText,
+  STAGE_LABELS,
+  upsertById,
 } from "./agent-ops-client.tsx";
 
 export interface PapersWorkspaceProps {
@@ -74,12 +84,12 @@ export const PapersWorkspace = ({
   const load = useCallback(async () => {
     setState({ type: "loading" });
     try {
-      return setState({ type: "ready", papers: await gateway.list() });
+      return setState({ papers: await gateway.list(), type: "ready" });
     } catch (error) {
       return setState(
         isOperatorAccessDenied(error)
           ? { type: "forbidden" }
-          : { type: "error", message: describeAgentOpsFailure(error) }
+          : { message: describeAgentOpsFailure(error), type: "error" }
       );
     }
   }, [gateway]);
@@ -93,10 +103,10 @@ export const PapersWorkspace = ({
     setState((current) =>
       current.type === "ready"
         ? {
-            type: "ready",
             papers: current.papers.some((row) => row.id === paper.id)
               ? upsertById(current.papers, paper)
               : [...current.papers, paper],
+            type: "ready",
           }
         : current
     );
@@ -109,7 +119,7 @@ export const PapersWorkspace = ({
     }
     setBusy(true);
     try {
-      const paper = await gateway.add({ title, sourceUrl: blankToNull(url) });
+      const paper = await gateway.add({ sourceUrl: blankToNull(url), title });
       replace(paper);
       setTitle("");
       setUrl("");
@@ -161,13 +171,13 @@ export const PapersWorkspace = ({
     setBusy(true);
     try {
       const paper = await gateway.update({
-        id: draft.id,
-        stage: draft.stage,
-        verdict: draft.verdict,
         blockers: blankToNull(draft.blockers),
+        id: draft.id,
         notes: blankToNull(draft.notes),
         reportedMetrics,
         reproducedMetrics,
+        stage: draft.stage,
+        verdict: draft.verdict,
       });
       replace(paper);
       setDraft(null);
@@ -181,13 +191,13 @@ export const PapersWorkspace = ({
 
   const edit = (paper: ResearchPaperOutput): void => {
     setDraft({
-      id: paper.id,
-      stage: paper.stage,
-      verdict: paper.verdict,
       blockers: paper.blockers ?? "",
+      id: paper.id,
       notes: paper.notes ?? "",
       reported: metricsToText(paper.reportedMetrics),
       reproduced: metricsToText(paper.reproducedMetrics),
+      stage: paper.stage,
+      verdict: paper.verdict,
     });
   };
 
@@ -269,44 +279,51 @@ export const PapersWorkspace = ({
           seeded references.
         </p>
       ) : (
-        <table className="w-full text-sm">
-          <caption className="sr-only">Research papers</caption>
-          <thead>
-            <tr className="border-border border-b text-left text-muted-foreground text-xs">
-              <th scope="col">Paper</th>
-              <th scope="col">
+        <Table className="w-full text-sm" data-click-private="">
+          <TableCaption className="sr-only">Research papers</TableCaption>
+          <TableHeader>
+            <TableRow className="border-border border-b text-left text-muted-foreground text-xs">
+              <TableHead className="text-muted-foreground" scope="col">
+                Paper
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 Stage
                 <InfoGlyph text="Queued → ingested → spec extracted → implemented → backtested → forward tested → verdict." />
-              </th>
-              <th scope="col">
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 Verdict
                 <InfoGlyph text="Pending until a reproduced backtest and forward test exist." />
-              </th>
-              <th scope="col">
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 Blockers
                 <InfoGlyph text="Unresolved specification details or missing data that stop the next stage." />
-              </th>
-              <th scope="col">
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 Reported / reproduced
                 <InfoGlyph text="Reported: values claimed by the source, unverified. Reproduced: values from our own runs." />
-              </th>
-              <th scope="col">Updated (UTC)</th>
-              <th scope="col">
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
+                Updated (UTC)
+              </TableHead>
+              <TableHead className="text-muted-foreground" scope="col">
                 <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {state.papers.map((paper) => {
               const editingDraft =
                 draft !== null && draft.id === paper.id ? draft : null;
               return (
-                <tr
-                  className="border-border border-b align-top"
+                <TableRow
+                  className="border-border border-b [&>td]:align-top [&>th]:align-top"
                   data-paper-id={paper.id}
                   key={paper.id}
                 >
-                  <th className="max-w-xs py-1 font-normal" scope="row">
+                  <TableHead
+                    className="max-w-xs whitespace-normal py-1 font-normal"
+                    scope="row"
+                  >
                     {paper.sourceUrl === null ? (
                       paper.title
                     ) : (
@@ -346,8 +363,11 @@ export const PapersWorkspace = ({
                     ) : paper.notes === null ? null : (
                       <p className="mt-1 text-xs">{paper.notes}</p>
                     )}
-                  </th>
-                  <td className="py-1" data-stage={paper.stage}>
+                  </TableHead>
+                  <TableCell
+                    className="whitespace-normal py-1"
+                    data-stage={paper.stage}
+                  >
                     {editingDraft ? (
                       <select
                         aria-label={`${paper.title} stage`}
@@ -370,8 +390,11 @@ export const PapersWorkspace = ({
                     ) : (
                       labelFor(STAGE_LABELS, paper.stage)
                     )}
-                  </td>
-                  <td className="py-1" data-verdict={paper.verdict}>
+                  </TableCell>
+                  <TableCell
+                    className="whitespace-normal py-1"
+                    data-verdict={paper.verdict}
+                  >
                     {editingDraft ? (
                       <select
                         aria-label={`${paper.title} verdict`}
@@ -394,8 +417,8 @@ export const PapersWorkspace = ({
                     ) : (
                       paper.verdict
                     )}
-                  </td>
-                  <td className="max-w-sm py-1 text-xs">
+                  </TableCell>
+                  <TableCell className="max-w-sm whitespace-normal py-1 text-xs">
                     {editingDraft ? (
                       <textarea
                         aria-label={`${paper.title} blockers`}
@@ -412,8 +435,8 @@ export const PapersWorkspace = ({
                     ) : (
                       (paper.blockers ?? "—")
                     )}
-                  </td>
-                  <td className="py-1 font-mono text-xs">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 font-mono text-xs">
                     {editingDraft ? (
                       <div className="space-y-1">
                         <textarea
@@ -447,11 +470,11 @@ export const PapersWorkspace = ({
                         <div>P: {formatMetrics(paper.reproducedMetrics)}</div>
                       </div>
                     )}
-                  </td>
-                  <td className="py-1 font-mono text-muted-foreground text-xs">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 font-mono text-muted-foreground text-xs">
                     {formatTimestamp(paper.updatedAt)}
-                  </td>
-                  <td className="py-1 text-right">
+                  </TableCell>
+                  <TableCell className="whitespace-normal py-1 text-right">
                     {editingDraft ? (
                       <span className="inline-flex gap-1">
                         <Button
@@ -480,12 +503,12 @@ export const PapersWorkspace = ({
                         Edit
                       </Button>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </div>
   );

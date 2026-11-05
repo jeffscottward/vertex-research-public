@@ -66,18 +66,18 @@ const PORTAL_NAVIGATION_HREFS = [
   "/todos",
   "/portfolio",
   "/research",
-  "/assistant",
   "/charts",
   "/watchlist",
   "/price-alerts",
   "/news",
+  "/baskets",
   "/papers",
   "/rotation-matrix",
+  "/sector-rotation",
   "/deep-value",
   "/congress-trades",
   "/risk-allocator",
   "/markets",
-  "/knowledge",
   "/library",
   "/academy",
   "/strategies",
@@ -94,6 +94,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/agents",
   "/agents/benchmark",
   "/deployments",
+  "/engines",
   "/audit",
   "/modules",
   "/connections",
@@ -1156,6 +1157,9 @@ test.describe
       browser,
       page,
     }) => {
+      // Full headless Google Chrome (channel "chrome") is slower per page than the
+      // bundled headless shell; this multi-page journey needs more than 30 s.
+      test.setTimeout(90_000);
       const resolvedBaseURL = requireBaseURL(baseURL);
       const memberContext = await newConfiguredContext(
         browser,
@@ -1348,6 +1352,8 @@ test.describe
       browserErrors,
       page,
     }) => {
+      // Visits every sidebar page; full headless Google Chrome needs more than 30 s.
+      test.setTimeout(90_000);
       // Allow exactly the manifest thumbnail paths the browser requests. They are allowed one by
       // one as requested: lazy loading fetches a varying subset, and the gallery has more
       // lessons than the collector's rule cap. The console resource errors count against these.
@@ -1366,6 +1372,13 @@ test.describe
         method: "POST",
         pathname: "/api/orpc/congressTrades/feed",
         status: 502,
+      });
+      // The E2E database holds no collected sector rotation rows: the stored map answers
+      // NOT_FOUND (HTTP 404) and /sector-rotation shows it as an alert.
+      browserErrors.allowHttpError({
+        method: "POST",
+        pathname: "/api/orpc/sectorRotation/map",
+        status: 404,
       });
       await signInAs(page, E2E_IDENTITIES.alice);
       await page.goto("/settings/account/profile");

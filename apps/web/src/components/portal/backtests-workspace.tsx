@@ -738,7 +738,7 @@ export const BacktestsWorkspace = ({
         // absolutely positioned sr-only "Actions" label, so it is clipped
         // with the table instead of widening the page on a phone.
         <div className="relative overflow-x-auto" data-backtest-results-scroll>
-          <table className="w-full min-w-[56rem] text-sm">
+          <table className="w-full min-w-[56rem] text-sm" data-click-private="">
             <caption className="sr-only">Backtest results</caption>
             <thead>
               <tr className="border-border border-b text-left text-muted-foreground text-xs">

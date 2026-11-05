@@ -19,6 +19,7 @@ import type {
   VertexResearchChatCopyAllocation,
   VertexResearchChatCopyOperations,
 } from "./vertex-research-chat-copy-ports.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Deterministic offline fake, NOT PostgreSQL/trigger/concurrency qualification.
 // API fixtures reject every unregistered input/output; real public DTO coverage
@@ -1046,35 +1047,39 @@ describe("exclusive copy inventory metadata, never a content grant", () => {
     }
   );
   // 66 sequential locked reservations exceed the 5 s default on a loaded CI runner.
-  it("enforces total reserved capacity and the 64 allocation domain under the same lock", async () => {
-    const f = await fixture();
-    await f.h.store.reserveResearchChatCopy({
-      ...f.input,
-      maximumBytes: MAX_VERTEX_CHAT_COPY_BYTES,
-    });
-    await expect(
-      f.h.store.reserveResearchChatCopy({
+  it(
+    "enforces total reserved capacity and the 64 allocation domain under the same lock",
+    async () => {
+      const f = await fixture();
+      await f.h.store.reserveResearchChatCopy({
         ...f.input,
-        copyIdempotencyKey: "overflow",
-        maximumBytes: 1,
-      })
-    ).rejects.toMatchObject({ code: "invalid" });
-    const { h, input } = await fixture();
-    for (let index = 0; index < 64; index++)
-      await h.store.reserveResearchChatCopy({
-        ...input,
-        copyIdempotencyKey: `copy-${index}`,
-        maximumBytes: 1,
+        maximumBytes: MAX_VERTEX_CHAT_COPY_BYTES,
       });
-    await expect(
-      h.store.reserveResearchChatCopy({
-        ...input,
-        copyIdempotencyKey: "copy-64",
-        maximumBytes: 1,
-      })
-    ).rejects.toMatchObject({ code: "invalid" });
-    return expect(h.table(ALLOCATION)).toHaveLength(64);
-  }, 20_000);
+      await expect(
+        f.h.store.reserveResearchChatCopy({
+          ...f.input,
+          copyIdempotencyKey: "overflow",
+          maximumBytes: 1,
+        })
+      ).rejects.toMatchObject({ code: "invalid" });
+      const { h, input } = await fixture();
+      for (let index = 0; index < 64; index++)
+        await h.store.reserveResearchChatCopy({
+          ...input,
+          copyIdempotencyKey: `copy-${index}`,
+          maximumBytes: 1,
+        });
+      await expect(
+        h.store.reserveResearchChatCopy({
+          ...input,
+          copyIdempotencyKey: "copy-64",
+          maximumBytes: 1,
+        })
+      ).rejects.toMatchObject({ code: "invalid" });
+      return expect(h.table(ALLOCATION)).toHaveLength(64);
+    },
+    scaledTimeout(20_000)
+  );
   it.each([
     "principal-newline",
     "scope-newline",

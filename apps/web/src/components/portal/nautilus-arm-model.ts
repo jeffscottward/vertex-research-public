@@ -39,7 +39,7 @@ export type NautilusArmView = Readonly<{
   badge: Readonly<{ key: NautilusNodeBadge; label: string; tone: HealthTone }>;
   // null: no Arm button. `enabled: false` with a hint explains why.
   arm: Readonly<{ enabled: boolean; hint: string | null }> | null;
-  // Disarm shows whenever the node reports an arm record as armed.
+  // Disarm shows unless the node confirms it is disarmed: armed, down or unknown.
   disarm: boolean;
   // "Armed by owner at 14:59 UTC: reason" and similar, or null.
   detail: string | null;
@@ -51,7 +51,7 @@ export const nautilusArmView = (
   const badge = { key: status.badge, ...BADGE[status.badge] };
   const arm = status.arm;
   if (arm === null || status.badge === "down" || status.badge === "unknown")
-    return { arm: null, badge, detail: null, disarm: false };
+    return { arm: null, badge, detail: null, disarm: true };
   if (arm.armed)
     return {
       arm: null,

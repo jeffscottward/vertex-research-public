@@ -481,6 +481,13 @@ describe("strategy detail", () => {
       '[data-linked-backtest="bt-1"] a'
     )!;
     expect(link.getAttribute("href")).toBe("/backtests?id=bt-1");
+    const rerun = section.querySelector<HTMLAnchorElement>(
+      '[data-strategy-rerun="s-jump"]'
+    );
+    expect(rerun?.textContent).toBe("Re-run on Core 7 futures");
+    expect(rerun?.getAttribute("href")).toBe(
+      "/backtest-runs?strategy=s-jump&universe=core7-futures"
+    );
     expect(
       section.querySelector("[data-latest-summary]")?.textContent
     ).toContain("Sharpe 1.23");

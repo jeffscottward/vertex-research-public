@@ -1,0 +1,2189 @@
+{
+  "buyAndHold": [
+    {
+      "combined": {
+        "summary": {
+          "cagr": 0.1250223343992769,
+          "end": "2026-11-03",
+          "maxDrawdown": -0.32351080204591487,
+          "sharpe": 0.7690794045025561,
+          "start": "2017-07-10",
+          "totalReturn": 1.9968401893290375
+        },
+        "window": {
+          "end": "2026-11-03",
+          "start": "2017-07-10"
+        }
+      },
+      "id": "core7-futures",
+      "label": "Core 7 futures",
+      "symbols": [
+        {
+          "summary": {
+            "cagr": 0.06456584475039229,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.5711340206185567,
+            "sharpe": 0.42239061002916745,
+            "start": "2000-09-18",
+            "totalReturn": 4.127086882453152
+          },
+          "symbol": "ES=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.08076458490012661,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.7899039709317415,
+            "sharpe": 0.43200102581593225,
+            "start": "2000-09-18",
+            "totalReturn": 6.606952237580402
+          },
+          "symbol": "NQ=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.06777885095756342,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.5414764346421297,
+            "sharpe": 0.4543090641163118,
+            "start": "2002-04-05",
+            "totalReturn": 4.012827988338192
+          },
+          "symbol": "YM=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.07670359572378782,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.42646213846066994,
+            "sharpe": 0.42907661784772794,
+            "start": "2017-07-10",
+            "totalReturn": 0.9908426898623666
+          },
+          "symbol": "RTY=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.1073625426917244,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.44363844125895235,
+            "sharpe": 0.6485269861822194,
+            "start": "2000-08-30",
+            "totalReturn": 13.43300488960915
+          },
+          "symbol": "GC=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.09213404019158244,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.7584595804147046,
+            "sharpe": 0.43475658291586516,
+            "start": "2000-08-30",
+            "totalReturn": 9.044625189054333
+          },
+          "symbol": "SI=F"
+        },
+        {
+          "summary": {
+            "cagr": 0.04249367251157432,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.9150664139113448,
+            "sharpe": 0.3083564289518246,
+            "start": "2000-08-23",
+            "totalReturn": 1.9747269456295529
+          },
+          "symbol": "CL=F"
+        }
+      ]
+    },
+    {
+      "combined": {
+        "summary": {
+          "cagr": 0.09895171324146945,
+          "end": "2026-11-03",
+          "maxDrawdown": -0.4474596706921913,
+          "sharpe": 0.635230924114449,
+          "start": "2006-04-28",
+          "totalReturn": 5.930694339300375
+        },
+        "window": {
+          "end": "2026-11-03",
+          "start": "2006-04-28"
+        }
+      },
+      "id": "core7-etf-twins",
+      "label": "Core 7 ETF twins",
+      "symbols": [
+        {
+          "summary": {
+            "cagr": 0.10744938802910053,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.5518945345025814,
+            "sharpe": 0.6442853256979834,
+            "start": "1993-01-29",
+            "totalReturn": 30.36128563491046
+          },
+          "symbol": "SPY"
+        },
+        {
+          "summary": {
+            "cagr": 0.10532322105761849,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.8296391060806624,
+            "sharpe": 0.5070124725294123,
+            "start": "1999-03-10",
+            "totalReturn": 14.943317554977593
+          },
+          "symbol": "QQQ"
+        },
+        {
+          "summary": {
+            "cagr": 0.08993586352367533,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.5186837186272337,
+            "sharpe": 0.5589735925065205,
+            "start": "1998-01-20",
+            "totalReturn": 10.929292472350223
+          },
+          "symbol": "DIA"
+        },
+        {
+          "summary": {
+            "cagr": 0.08482333116297158,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.5863998481004056,
+            "sharpe": 0.46180257703075506,
+            "start": "2000-05-26",
+            "totalReturn": 7.607401833500642
+          },
+          "symbol": "IWM"
+        },
+        {
+          "summary": {
+            "cagr": 0.09992376250651902,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.45555012734257017,
+            "sharpe": 0.6131013063250106,
+            "start": "2004-11-18",
+            "totalReturn": 7.095087902639438
+          },
+          "symbol": "GLD"
+        },
+        {
+          "summary": {
+            "cagr": 0.05907218011487436,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.7628015142556759,
+            "sharpe": 0.341795715423015,
+            "start": "2006-04-28",
+            "totalReturn": 2.2464523067566704
+          },
+          "symbol": "SLV"
+        },
+        {
+          "summary": {
+            "cagr": -0.058307298827008025,
+            "end": "2026-11-03",
+            "maxDrawdown": -0.9818692538851106,
+            "sharpe": 0.02674557320687045,
+            "start": "2006-04-10",
+            "totalReturn": -0.70933180319212
+          },
+          "symbol": "USO"
+        }
+      ]
+    }
+  ],
+  "costBps": 10,
+  "data": {
+    "source": "Yahoo Finance via yfinance 0.2.66 (research/backtests/core7/fetch_data.py)",
+    "symbols": {
+      "ES=F": {
+        "normalizedSha256": "2484c3116b6283dcf07d5610d0940144acbfea61236ea0103fcb2b159b8c9cbe",
+        "sourceSha256": "bb7acc9b6bcced09b66b2f5a1b994c04dde6d3f195def281b6b4fb1e8a057e3f",
+        "manifestSha256": "7ed1addb5a13cd83e2db1bbd868b6ed23fce3924755e8b619c5b548f500ed290",
+        "bars": 6587,
+        "first": "2000-09-18",
+        "last": "2026-11-03"
+      },
+      "NQ=F": {
+        "normalizedSha256": "39ac1e6a34e554934a1be61a03ce635aa22af2328f8e22eec3674528d2bb9fc4",
+        "sourceSha256": "2c1e71292e241bf4c5ea0723de60b8ecf2a7def7c784e9241654e5ce63b0bcee",
+        "manifestSha256": "7e7df9f3cee8b31b4a27ae0a5d77d7d57dc078088ada41df3e7a4e461b2ff8aa",
+        "bars": 6573,
+        "first": "2000-09-18",
+        "last": "2026-11-03"
+      },
+      "YM=F": {
+        "normalizedSha256": "f748bd2cd1ad4722c12be3599d78ac799b1b04dd95ff96dbcb5560ef18e024a5",
+        "sourceSha256": "3c5896a856bd5c76db4ee5195aaf0544511a5a534480d69a72ac6aa18b0fe6c4",
+        "manifestSha256": "bcfd00e92b4e1b3cd2fdb8c9f4a853abe8678eb6f09e8641d23bcfc73e2d0e45",
+        "bars": 6159,
+        "first": "2002-04-05",
+        "last": "2026-11-03"
+      },
+      "RTY=F": {
+        "normalizedSha256": "2048541b6abc35b426a9893f4e9dd83b927212664f8843c6bdcf834f231b21ad",
+        "sourceSha256": "5c0ee9bc58c1f37be990fd67da0255c42abcabe5004a6e82c8e4a3bcebd2f15e",
+        "manifestSha256": "ce57ec59790082cbf3ca64526b575be1d73ad3c2f9a387dacaa552fedd595baf",
+        "bars": 2347,
+        "first": "2017-07-10",
+        "last": "2026-11-03"
+      },
+      "GC=F": {
+        "normalizedSha256": "f041388b8c7b605c55329e2fd733ff2d9b613cd67e44013ce3fb4c11791376d9",
+        "sourceSha256": "f66d7ba9433a22643ce0f4b1102a0ba1b033a79e35d01ef935cd10e9ec6ed1e3",
+        "manifestSha256": "70dd48f3dd49dfc5abdef0195e5c4a4e73ff90b786d3bc793d0e01640d62d205",
+        "bars": 6129,
+        "first": "2000-08-30",
+        "last": "2026-11-03"
+      },
+      "SI=F": {
+        "normalizedSha256": "8ea804c5beb0f5d86a0673d6128aea33e92bed70a7f4dcdd3907b5984fabdee5",
+        "sourceSha256": "e9fa769054e1fc1422d7850ffa18126e281f758b1f36ad995c82bc8f42ccdbd0",
+        "manifestSha256": "35d5f889419b79afd4ce41a95a4a0d51011d92da9afee1ae3ff3e2ff4e52d752",
+        "bars": 6328,
+        "first": "2000-08-30",
+        "last": "2026-11-03"
+      },
+      "CL=F": {
+        "normalizedSha256": "f0c172306aec0a8104921851d29a6e0d804f4af98bbe2a79eda704cdb51ebf1a",
+        "sourceSha256": "aae609168f9c9518f21d9166acef90b24d1ed406f6aa47daa5b2d7ba4c14a700",
+        "manifestSha256": "46914983886a357521d6d39413cb3c965ef3b4f1c07896bc5926c7a377fef9c4",
+        "bars": 6569,
+        "first": "2000-08-23",
+        "last": "2026-11-03"
+      },
+      "SPY": {
+        "normalizedSha256": "be49c1eb81569376046dc639c5beee0a89ff2fcb98ffd8a2d316d80dd2ba58f9",
+        "sourceSha256": "fe62a676f31f731dfbddfab9dc7487d524c45f2481329c63cd7bc2c74d1f3468",
+        "manifestSha256": "afc36867500e3a65eefdeae16978099dab853a582f09ef844f61d89f558e51f5",
+        "bars": 8499,
+        "first": "1993-01-29",
+        "last": "2026-11-03"
+      },
+      "QQQ": {
+        "normalizedSha256": "62562383f5d213f884cf4528fd162d9d095238eeaf2287da9c262f07fe47493e",
+        "sourceSha256": "988f7b22dffdeb3d8527053a739e260937106f73593f1bb553788e2574292243",
+        "manifestSha256": "91533b549841489265fa996ad399faee07cdd05f22d6b27b5bca47742d959282",
+        "bars": 6957,
+        "first": "1999-03-10",
+        "last": "2026-11-03"
+      },
+      "DIA": {
+        "normalizedSha256": "ee3248118f2339ff2949131105c071ce025476e9a306e05d7f28362286b9df43",
+        "sourceSha256": "a38d3445c5023cb73461fdbbf0bfe610789237b7211901e0dd3af84194985090",
+        "manifestSha256": "7434d1df81c6ca764d8592ece834f7a220bf6280fe804bfd1763a1f9462442b4",
+        "bars": 7243,
+        "first": "1998-01-20",
+        "last": "2026-11-03"
+      },
+      "IWM": {
+        "normalizedSha256": "9e21a5010703998f47b09306b5ffbcd6521813f897f6952c6c41ee61a6597361",
+        "sourceSha256": "e94d16565220d10c8bd20d28e63eceb0a2a4d7846bf830a5142c81c2948c0ab6",
+        "manifestSha256": "e0b45475fc833587a1eb3381c34baf5074ec6b4a49cfb2f4fbf95dc09c4ddd20",
+        "bars": 6649,
+        "first": "2000-05-26",
+        "last": "2026-11-03"
+      },
+      "GLD": {
+        "normalizedSha256": "46a0efd7bf9c359258624bb1a74bb44a1de2a13bcf736e2065c9c87b2049250f",
+        "sourceSha256": "a0223c89bb9e48b78754815aeced0a5b11ad623b071a11327a7f820ef274037b",
+        "manifestSha256": "c249181cd4b72b2f4fe094fb29812ffa8c00480baf11da48e9ac6b0f78db6f83",
+        "bars": 5524,
+        "first": "2004-11-18",
+        "last": "2026-11-03"
+      },
+      "SLV": {
+        "normalizedSha256": "62eaf89ab38628a529a76d7659ab977d80c29efc46e182a62e588d3c21242e57",
+        "sourceSha256": "5079a7dce6404b0f4223a14380668b1706c35032deaa3deba63ac7f86787e4ed",
+        "manifestSha256": "db09c564ddcd593311acc8b09541498ddf02d0df657875c3dc6bd567ddc9adc0",
+        "bars": 5162,
+        "first": "2006-04-28",
+        "last": "2026-11-03"
+      },
+      "USO": {
+        "normalizedSha256": "026c6e5d00d8644e1524dfe2c719c5263a27ba6b8eca72512097d11e8b69e499",
+        "sourceSha256": "6f09a31a2fa95b8b94df0a10929ebc4f48cb7150a7550b2dc254bfacc55ee3a2",
+        "manifestSha256": "6644a6720540d9e684288e6edc05ed849887ae428996f2a0847dbce4d4499654",
+        "bars": 5175,
+        "first": "2006-04-10",
+        "last": "2026-11-03"
+      }
+    }
+  },
+  "generated": "2026-11-04T02:35:20.509Z",
+  "method": [
+    "Each symbol runs on its full Yahoo daily history, so per-symbol figures cover different periods.",
+    "Prices come from parsePriceCsv (scripts/research/quantjourney.ts): OHLC scaled by adj_close / close, so ETF runs include dividends. For the futures adj_close equals close.",
+    "Rows that the Vertex bar importer rejects (non-positive price, low above open or close, high below open or close) are dropped, as in the import files.",
+    "Combined: equal starting capital per member, never rebalanced (combineSleeves), on the common window of all members. Each sleeve is rebased to 1 at the window start.",
+    "The futures are Yahoo continuous front-month series, not back-adjusted: a roll gap counts as a return.",
+    "Statistics: Vertex returnStats (risk-free rate 0). Cost: 10 bp per side on every position change."
+  ],
+  "promoted": [],
+  "researchOnly": true,
+  "strategies": [
+    {
+      "id": "O01",
+      "name": "Market SMA Crossover",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.07617332741154748,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.2100321669286085,
+              "sharpe": 0.6871703806087763,
+              "start": "2017-07-10",
+              "totalReturn": 0.9817263837233179
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.027517279828319197,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.314897443608798,
+                "sharpe": 0.294379303386298,
+                "start": "2000-09-18",
+                "totalReturn": 1.0322919032597788
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.058765138388940485,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.28599018409577404,
+                "sharpe": 0.44795370216213465,
+                "start": "2000-09-18",
+                "totalReturn": 3.445082265828792
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.022739193028291638,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.33750623470370356,
+                "sharpe": 0.2614196739093721,
+                "start": "2002-04-05",
+                "totalReturn": 0.7379023269330478
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04150545130819405,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.38788771970181113,
+                "sharpe": 0.33301527725807184,
+                "start": "2017-07-10",
+                "totalReturn": 0.4606662046114962
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.07073149005596058,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.34285156447363874,
+                "sharpe": 0.5524224095116809,
+                "start": "2000-08-30",
+                "totalReturn": 4.983238214713646
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04183849267339346,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6589671064541143,
+                "sharpe": 0.2915698760784287,
+                "start": "2000-08-30",
+                "totalReturn": 1.9238411671536833
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.02872472167304485,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5287505839895341,
+                "sharpe": 0.2397729279804019,
+                "start": "2000-08-23",
+                "totalReturn": 1.0998401467965446
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.05023766935008678,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.21042525112323895,
+              "sharpe": 0.511869260955512,
+              "start": "2006-04-28",
+              "totalReturn": 1.7338027139409746
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.05530998139886112,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3656212680700567,
+                "sharpe": 0.5132689514682068,
+                "start": "1993-01-29",
+                "totalReturn": 5.15631153748895
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.061835291313289575,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5736554775618353,
+                "sharpe": 0.43452666827818304,
+                "start": "1999-03-10",
+                "totalReturn": 4.254605280058799
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.03519614867372867,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.36027948577847124,
+                "sharpe": 0.3593474929284441,
+                "start": "1998-01-20",
+                "totalReturn": 1.7066891103638984
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.03532388791890395,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3580174267535502,
+                "sharpe": 0.3015342614809284,
+                "start": "2000-05-26",
+                "totalReturn": 1.5038423086298165
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.050467478489739204,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3754004141352171,
+                "sharpe": 0.41861146282390777,
+                "start": "2004-11-18",
+                "totalReturn": 1.9478816777745278
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.03737944854598574,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6335879180513125,
+                "sharpe": 0.27506674410189036,
+                "start": "2006-04-28",
+                "totalReturn": 1.123243443275903
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": 0.05264817316067383,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.44782349704598456,
+                "sharpe": 0.33819403274153875,
+                "start": "2006-04-10",
+                "totalReturn": 1.8727214489638189
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O02",
+      "name": "Market RSI Reversion",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.051462533682186784,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.30221580457017605,
+              "sharpe": 0.5046641873085149,
+              "start": "2017-07-10",
+              "totalReturn": 0.596065874677036
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.01887169368640773,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5317685268981218,
+                "sharpe": 0.19795309742276324,
+                "start": "2000-09-18",
+                "totalReturn": 0.6297402114528083
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.02878434115137618,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6769834928047467,
+                "sharpe": 0.24157389160115672,
+                "start": "2000-09-18",
+                "totalReturn": 1.0987864422813782
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.03155473950097765,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4692682926829269,
+                "sharpe": 0.2856428061738075,
+                "start": "2002-04-05",
+                "totalReturn": 1.1460801521603967
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.014353673109210208,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4115185254505156,
+                "sharpe": 0.1697517338964734,
+                "start": "2017-07-10",
+                "totalReturn": 0.14200003439309095
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04480319629079088,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.30828527914182047,
+                "sharpe": 0.46812440386527043,
+                "start": "2000-08-30",
+                "totalReturn": 2.149619809133981
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.06802094534694225,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4481094999065274,
+                "sharpe": 0.45261171968638403,
+                "start": "2000-08-30",
+                "totalReturn": 4.599135244992684
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0026876709677114974,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.8818746034442551,
+                "sharpe": 0.1595121633553469,
+                "start": "2000-08-23",
+                "totalReturn": 0.07284192204628992
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.0313542711492838,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.3712674991267628,
+              "sharpe": 0.3259786026093364,
+              "start": "2006-04-28",
+              "totalReturn": 0.8840628377532649
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.02852141131476804,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5208588157804082,
+                "sharpe": 0.26832251784520605,
+                "start": "1993-01-29",
+                "totalReturn": 1.5842088529226803
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.02157357013932959,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6592532409868656,
+                "sharpe": 0.20624729632660788,
+                "start": "1999-03-10",
+                "totalReturn": 0.8043759699830992
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.03106086920309803,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.45506141662101807,
+                "sharpe": 0.2834927577362631,
+                "start": "1998-01-20",
+                "totalReturn": 1.4121196853423688
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.022843136633452055,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.40821035125383864,
+                "sharpe": 0.21786200723460974,
+                "start": "2000-05-26",
+                "totalReturn": 0.8169595340134499
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.02781360321785642,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.316431802227526,
+                "sharpe": 0.32421388634051146,
+                "start": "2004-11-18",
+                "totalReturn": 0.8264607465517073
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.05635528359752384,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.48119373783819464,
+                "sharpe": 0.3651718430638862,
+                "start": "2006-04-28",
+                "totalReturn": 2.0797875360375557
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": -0.06206282957082199,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.9556526823318838,
+                "sharpe": -0.08936293147598344,
+                "start": "2006-04-10",
+                "totalReturn": -0.7322651957040174
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O03",
+      "name": "Limit RSI Dip Buyer",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O04",
+      "name": "Limit Trend Pullback",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O05",
+      "name": "Stop Breakout Entry",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O06",
+      "name": "Protective Stop Loss",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.058116689238472574,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.19797982280386262,
+              "sharpe": 0.5955598357007804,
+              "start": "2017-07-10",
+              "totalReturn": 0.6926880136468114
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.01862404114021121,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.31469693336363447,
+                "sharpe": 0.22970153851629158,
+                "start": "2000-09-18",
+                "totalReturn": 0.6194229286010897
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.03366523420214329,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3241617577353457,
+                "sharpe": 0.31844377308824545,
+                "start": "2000-09-18",
+                "totalReturn": 1.3750293916449219
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.020588552845705266,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.2905870619245031,
+                "sharpe": 0.24712115358030998,
+                "start": "2002-04-05",
+                "totalReturn": 0.6502653721180229
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.05428390545979467,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5052781687907565,
+                "sharpe": -0.396858069999816,
+                "start": "2017-07-10",
+                "totalReturn": -0.40548138010863133
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0817401347464437,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.24504103512713404,
+                "sharpe": 0.6346562003324842,
+                "start": "2000-08-30",
+                "totalReturn": 6.820280683913663
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.07039784683534389,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.514658730578363,
+                "sharpe": 0.41309140394253635,
+                "start": "2000-08-30",
+                "totalReturn": 4.934625652547462
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0007674934025960756,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6405449777630663,
+                "sharpe": 0.11113902877050705,
+                "start": "2000-08-23",
+                "totalReturn": 0.020300670492538586
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.0404750692378002,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.22790268163257688,
+              "sharpe": 0.47326656198178946,
+              "start": "2006-04-28",
+              "totalReturn": 1.257096716034538
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.037967987169902795,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3404127988530343,
+                "sharpe": 0.40230370568943785,
+                "start": "1993-01-29",
+                "totalReturn": 2.518662032779211
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.047167351018361225,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5324260703447212,
+                "sharpe": 0.38212878951588947,
+                "start": "1999-03-10",
+                "totalReturn": 2.5767688255568224
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.030543344847608234,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.2897962170751128,
+                "sharpe": 0.33405637585714204,
+                "start": "1998-01-20",
+                "totalReturn": 1.3775100012612516
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.016833019105471747,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.46437819223081167,
+                "sharpe": 0.19166015910313408,
+                "start": "2000-05-26",
+                "totalReturn": 0.554806415687511
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.043461133413573494,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3754971863493588,
+                "sharpe": 0.38877216070788256,
+                "start": "2004-11-18",
+                "totalReturn": 1.5450365665495553
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.047438183032896264,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5110329065491344,
+                "sharpe": 0.32253587563752123,
+                "start": "2006-04-28",
+                "totalReturn": 1.5881148700833538
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": 0.034796171678151966,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6356070415834618,
+                "sharpe": 0.2698863488090743,
+                "start": "2006-04-10",
+                "totalReturn": 1.0207612767307874
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O07",
+      "name": "Stop-Limit Breakout",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O08",
+      "name": "Stop-Limit Protection",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O09",
+      "name": "Trailing Stop Trend",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O10",
+      "name": "RSI + Trailing Stop",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O11",
+      "name": "Trailing Stop-Limit",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O12",
+      "name": "Bracket Trend",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.021524838059258533,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.07668501868091049,
+              "sharpe": 0.6696193154294067,
+              "start": "2017-07-10",
+              "totalReturn": 0.21947084381927695
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.008285628466010442,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.28332908365331777,
+                "sharpe": 0.15848579012019623,
+                "start": "2000-09-18",
+                "totalReturn": 0.2405646943854205
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.017188712693933184,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.19707994100501158,
+                "sharpe": 0.2911012911768074,
+                "start": "2000-09-18",
+                "totalReturn": 0.5608525073654749
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.005235076863352783,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.2341723913710071,
+                "sharpe": -0.04717136797258424,
+                "start": "2002-04-05",
+                "totalReturn": -0.12104222236007922
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.00723049241693241,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.19468263980142064,
+                "sharpe": 0.13833340729802635,
+                "start": "2017-07-10",
+                "totalReturn": 0.06942748383746933
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.031077538902066992,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.20609015476540293,
+                "sharpe": 0.5183176230304394,
+                "start": "2000-08-30",
+                "totalReturn": 1.228032984349332
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.022330809259730522,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.19287449084897323,
+                "sharpe": 0.3245926046761229,
+                "start": "2000-08-30",
+                "totalReturn": 0.7826719936059425
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.005493198133328825,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4701934472492486,
+                "sharpe": -0.043435664198378354,
+                "start": "2000-08-23",
+                "totalReturn": -0.13436779362722873
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.02343672046308165,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.07458883945538564,
+              "sharpe": 0.6603407307031425,
+              "start": "2006-04-28",
+              "totalReturn": 0.6085182934522564
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.013626293809640089,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.2934364020554281,
+                "sharpe": 0.23853260292625897,
+                "start": "1993-01-29",
+                "totalReturn": 0.5792082009978345
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.028406334988761994,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.14663946098922165,
+                "sharpe": 0.44952039745317185,
+                "start": "1999-03-10",
+                "totalReturn": 1.1696168426442695
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.0036326052351312033,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.21303299283121435,
+                "sharpe": 0.08736656411795721,
+                "start": "1998-01-20",
+                "totalReturn": 0.1100197931422322
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.022595054349471067,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.19761761363310437,
+                "sharpe": 0.35501677576554824,
+                "start": "2000-05-26",
+                "totalReturn": 0.8053438514994546
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.01539367148726778,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.2858093088714855,
+                "sharpe": 0.2708401774424137,
+                "start": "2004-11-18",
+                "totalReturn": 0.398544876451397
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.014883408169687806,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.19251851060854486,
+                "sharpe": 0.23366108163449037,
+                "start": "2006-04-28",
+                "totalReturn": 0.3540762240085562
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": 0.034985882887919484,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.21395064454610668,
+                "sharpe": 0.4806199149684665,
+                "start": "2006-04-10",
+                "totalReturn": 1.028394319280975
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O13",
+      "name": "Bracket RSI Reversion",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.004704197776673302,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.08727225168990838,
+              "sharpe": 0.12410005496291497,
+              "start": "2017-07-10",
+              "totalReturn": 0.04469586272430748
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": -0.016420939610910623,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5272618257958588,
+                "sharpe": -0.1522113789579215,
+                "start": "2000-09-18",
+                "totalReturn": -0.3511484157182271
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.0030633407913395194,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5891975294210476,
+                "sharpe": 0.013334870968075969,
+                "start": "2000-09-18",
+                "totalReturn": -0.07702330672237834
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0022166209211091914,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.37017928312046544,
+                "sharpe": 0.06760079220634053,
+                "start": "2002-04-05",
+                "totalReturn": 0.055933473963615254
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.0349214623207863,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3386318020886948,
+                "sharpe": -0.36614503487857836,
+                "start": "2017-07-10",
+                "totalReturn": -0.2819218246826276
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.021076662819749847,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.12963268738205347,
+                "sharpe": 0.3614696633609404,
+                "start": "2000-08-30",
+                "totalReturn": 0.7263018440298852
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0219632883591363,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.40806426531242945,
+                "sharpe": 0.27996508768385925,
+                "start": "2000-08-30",
+                "totalReturn": 0.7659722033409051
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.09279411628207535,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.9342855603510767,
+                "sharpe": -0.7946424536082808,
+                "start": "2000-08-23",
+                "totalReturn": -0.9220038857202028
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": -0.005680896619017273,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.27915547737092294,
+              "sharpe": -0.09032376531841886,
+              "start": "2006-04-28",
+              "totalReturn": -0.11031683036046014
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": -0.00011680883782594353,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.35773177803760414,
+                "sharpe": 0.036017792941586364,
+                "start": "1993-01-29",
+                "totalReturn": -0.003935981509861519
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.0009189310436845677,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4485308498925742,
+                "sharpe": 0.056738404615102676,
+                "start": "1999-03-10",
+                "totalReturn": 0.025724182152763397
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": -0.009129293579875797,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5105134822327628,
+                "sharpe": -0.07507705871516063,
+                "start": "1998-01-20",
+                "totalReturn": -0.2320269168342486
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": -0.02101774848938609,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4906033130104751,
+                "sharpe": -0.19548218799728545,
+                "start": "2000-05-26",
+                "totalReturn": -0.4297155886519213
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.014462991751335474,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.1694417704852893,
+                "sharpe": 0.24396020812460553,
+                "start": "2004-11-18",
+                "totalReturn": 0.37066694376729314
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.00518484928037366,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.42486560428635345,
+                "sharpe": 0.10165315427369283,
+                "start": "2006-04-28",
+                "totalReturn": 0.1119387053733345
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": -0.12434395648120933,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.9594328372446531,
+                "sharpe": -0.9924069164392721,
+                "start": "2006-04-10",
+                "totalReturn": -0.934838753214148
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O14",
+      "name": "OCO Dip or Breakout",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O15",
+      "name": "Intraday 5m Bracket Reversion",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O16",
+      "name": "Intraday 30m Stop Breakout",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O17",
+      "name": "Monthly Rotation (orders)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O18",
+      "name": "Signal-Change Rotation (orders)",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.07617332741154748,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.2100321669286085,
+              "sharpe": 0.6871703806087763,
+              "start": "2017-07-10",
+              "totalReturn": 0.9817263837233179
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.027517279828319197,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.314897443608798,
+                "sharpe": 0.294379303386298,
+                "start": "2000-09-18",
+                "totalReturn": 1.0322919032597788
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.058765138388940485,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.28599018409577404,
+                "sharpe": 0.44795370216213465,
+                "start": "2000-09-18",
+                "totalReturn": 3.445082265828792
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.022739193028291638,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.33750623470370356,
+                "sharpe": 0.2614196739093721,
+                "start": "2002-04-05",
+                "totalReturn": 0.7379023269330478
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04150545130819405,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.38788771970181113,
+                "sharpe": 0.33301527725807184,
+                "start": "2017-07-10",
+                "totalReturn": 0.4606662046114962
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.07073149005596058,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.34285156447363874,
+                "sharpe": 0.5524224095116809,
+                "start": "2000-08-30",
+                "totalReturn": 4.983238214713646
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04183849267339346,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6589671064541143,
+                "sharpe": 0.2915698760784287,
+                "start": "2000-08-30",
+                "totalReturn": 1.9238411671536833
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.02872472167304485,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5287505839895341,
+                "sharpe": 0.2397729279804019,
+                "start": "2000-08-23",
+                "totalReturn": 1.0998401467965446
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.05023766935008678,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.21042525112323895,
+              "sharpe": 0.511869260955512,
+              "start": "2006-04-28",
+              "totalReturn": 1.7338027139409746
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.05530998139886112,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3656212680700567,
+                "sharpe": 0.5132689514682068,
+                "start": "1993-01-29",
+                "totalReturn": 5.15631153748895
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.061835291313289575,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5736554775618353,
+                "sharpe": 0.43452666827818304,
+                "start": "1999-03-10",
+                "totalReturn": 4.254605280058799
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.03519614867372867,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.36027948577847124,
+                "sharpe": 0.3593474929284441,
+                "start": "1998-01-20",
+                "totalReturn": 1.7066891103638984
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.03532388791890395,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3580174267535502,
+                "sharpe": 0.3015342614809284,
+                "start": "2000-05-26",
+                "totalReturn": 1.5038423086298165
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.050467478489739204,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3754004141352171,
+                "sharpe": 0.41861146282390777,
+                "start": "2004-11-18",
+                "totalReturn": 1.9478816777745278
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.03737944854598574,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6335879180513125,
+                "sharpe": 0.27506674410189036,
+                "start": "2006-04-28",
+                "totalReturn": 1.123243443275903
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": 0.05264817316067383,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.44782349704598456,
+                "sharpe": 0.33819403274153875,
+                "start": "2006-04-10",
+                "totalReturn": 1.8727214489638189
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "O19",
+      "name": "FX Momentum with Standard Lots",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "O20",
+      "name": "Futures Donchian Contracts",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W01",
+      "name": "Daily SMA Trend",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.07421023328580167,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.277605805616292,
+              "sharpe": 0.6021606616610288,
+              "start": "2017-07-10",
+              "totalReturn": 0.9483005619697296
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.06638563889902604,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3444534652003838,
+                "sharpe": 0.5665873494974581,
+                "start": "2000-09-18",
+                "totalReturn": 4.361037270172351
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.10558540193612265,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.28242667077618533,
+                "sharpe": 0.693755846710304,
+                "start": "2000-09-18",
+                "totalReturn": 12.766707219820702
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04836588158820532,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3982936995780729,
+                "sharpe": 0.4453958418233239,
+                "start": "2002-04-05",
+                "totalReturn": 2.193120165621984
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": -0.023153529005485618,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5384463306703549,
+                "sharpe": -0.0470726063291044,
+                "start": "2017-07-10",
+                "totalReturn": -0.19608024316389117
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.08820826530844572,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3665526342918437,
+                "sharpe": 0.620777678428645,
+                "start": "2000-08-30",
+                "totalReturn": 8.14103877647475
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.06865214932434327,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5970372706457383,
+                "sharpe": 0.3837626470668336,
+                "start": "2000-08-30",
+                "totalReturn": 4.686403925108816
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04549705400490245,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6566441227791359,
+                "sharpe": 0.3011432561409506,
+                "start": "2000-08-23",
+                "totalReturn": 2.2075668139696876
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.07366941607298871,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.28572397698850194,
+              "sharpe": 0.6345413856807863,
+              "start": "2006-04-28",
+              "totalReturn": 3.2991811462154175
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.09363563808054254,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.33717253866088304,
+                "sharpe": 0.7239662093917854,
+                "start": "1993-01-29",
+                "totalReturn": 19.528528943640165
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.10690312199919427,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.36465007828602525,
+                "sharpe": 0.64240888697344,
+                "start": "1999-03-10",
+                "totalReturn": 15.585628105010471
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.05361370839941171,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4126046186896649,
+                "sharpe": 0.4707913956748499,
+                "start": "1998-01-20",
+                "totalReturn": 3.496781333354482
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.019335878025235953,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5061327556395038,
+                "sharpe": 0.1991895765704509,
+                "start": "2000-05-26",
+                "totalReturn": 0.6592235708370227
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.07943810353899794,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.3689237767894188,
+                "sharpe": 0.5904210100137618,
+                "start": "2004-11-18",
+                "totalReturn": 4.35724580271145
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.05193492744141026,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5976837130495194,
+                "sharpe": 0.3285243492409043,
+                "start": "2006-04-28",
+                "totalReturn": 1.8258931194170516
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": 0.006962532979673641,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.7910147432510548,
+                "sharpe": 0.14704352007776747,
+                "start": "2006-04-10",
+                "totalReturn": 0.15338415905240588
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "name": "Monthly ETF Trend + Drift",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W03",
+      "name": "Weekly RSI Reversion",
+      "status": "run",
+      "universes": [
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.051462533682186784,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.30221580457017605,
+              "sharpe": 0.5046641873085149,
+              "start": "2017-07-10",
+              "totalReturn": 0.596065874677036
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2017-07-10"
+            }
+          },
+          "id": "core7-futures",
+          "label": "Core 7 futures",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.01887169368640773,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5317685268981218,
+                "sharpe": 0.19795309742276324,
+                "start": "2000-09-18",
+                "totalReturn": 0.6297402114528083
+              },
+              "symbol": "ES=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.02878434115137618,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6769834928047467,
+                "sharpe": 0.24157389160115672,
+                "start": "2000-09-18",
+                "totalReturn": 1.0987864422813782
+              },
+              "symbol": "NQ=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.03155473950097765,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4692682926829269,
+                "sharpe": 0.2856428061738075,
+                "start": "2002-04-05",
+                "totalReturn": 1.1460801521603967
+              },
+              "symbol": "YM=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.014353673109210208,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4115185254505156,
+                "sharpe": 0.1697517338964734,
+                "start": "2017-07-10",
+                "totalReturn": 0.14200003439309095
+              },
+              "symbol": "RTY=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.04480319629079088,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.30828527914182047,
+                "sharpe": 0.46812440386527043,
+                "start": "2000-08-30",
+                "totalReturn": 2.149619809133981
+              },
+              "symbol": "GC=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.06802094534694225,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.4481094999065274,
+                "sharpe": 0.45261171968638403,
+                "start": "2000-08-30",
+                "totalReturn": 4.599135244992684
+              },
+              "symbol": "SI=F"
+            },
+            {
+              "summary": {
+                "cagr": 0.0026876709677114974,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.8818746034442551,
+                "sharpe": 0.1595121633553469,
+                "start": "2000-08-23",
+                "totalReturn": 0.07284192204628992
+              },
+              "symbol": "CL=F"
+            }
+          ]
+        },
+        {
+          "combined": {
+            "summary": {
+              "cagr": 0.0313542711492838,
+              "end": "2026-11-03",
+              "maxDrawdown": -0.3712674991267628,
+              "sharpe": 0.3259786026093364,
+              "start": "2006-04-28",
+              "totalReturn": 0.8840628377532649
+            },
+            "window": {
+              "end": "2026-11-03",
+              "start": "2006-04-28"
+            }
+          },
+          "id": "core7-etf-twins",
+          "label": "Core 7 ETF twins",
+          "symbols": [
+            {
+              "summary": {
+                "cagr": 0.02852141131476804,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.5208588157804082,
+                "sharpe": 0.26832251784520605,
+                "start": "1993-01-29",
+                "totalReturn": 1.5842088529226803
+              },
+              "symbol": "SPY"
+            },
+            {
+              "summary": {
+                "cagr": 0.02157357013932959,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.6592532409868656,
+                "sharpe": 0.20624729632660788,
+                "start": "1999-03-10",
+                "totalReturn": 0.8043759699830992
+              },
+              "symbol": "QQQ"
+            },
+            {
+              "summary": {
+                "cagr": 0.03106086920309803,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.45506141662101807,
+                "sharpe": 0.2834927577362631,
+                "start": "1998-01-20",
+                "totalReturn": 1.4121196853423688
+              },
+              "symbol": "DIA"
+            },
+            {
+              "summary": {
+                "cagr": 0.022843136633452055,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.40821035125383864,
+                "sharpe": 0.21786200723460974,
+                "start": "2000-05-26",
+                "totalReturn": 0.8169595340134499
+              },
+              "symbol": "IWM"
+            },
+            {
+              "summary": {
+                "cagr": 0.02781360321785642,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.316431802227526,
+                "sharpe": 0.32421388634051146,
+                "start": "2004-11-18",
+                "totalReturn": 0.8264607465517073
+              },
+              "symbol": "GLD"
+            },
+            {
+              "summary": {
+                "cagr": 0.05635528359752384,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.48119373783819464,
+                "sharpe": 0.3651718430638862,
+                "start": "2006-04-28",
+                "totalReturn": 2.0797875360375557
+              },
+              "symbol": "SLV"
+            },
+            {
+              "summary": {
+                "cagr": -0.06206282957082199,
+                "end": "2026-11-03",
+                "maxDrawdown": -0.9556526823318838,
+                "sharpe": -0.08936293147598344,
+                "start": "2006-04-10",
+                "totalReturn": -0.7322651957040174
+              },
+              "symbol": "USO"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "name": "Quarterly Dual Momentum",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W05",
+      "name": "Monthly Inverse Volatility",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W06",
+      "name": "Signal-Change Defensive Rotation",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W07",
+      "name": "Intraday RSI 15m",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W08",
+      "name": "Intraday EMA Scalp 1m",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W09",
+      "name": "Intraday SMA Trend 1h",
+      "reason": "hourly (1h) definition; the Core 7 data set is daily only; not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W10",
+      "name": "Monthly + Circuit Breaker",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W11",
+      "name": "Quarterly TE + Cost Gate",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W12",
+      "name": "Daily Partial Drift",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W13",
+      "name": "Pairs Trading (Ratio Z-Score)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W14",
+      "name": "Pairs Trading (Hedge Ratio)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W15",
+      "name": "Cross-Sectional Momentum (L/S)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W16",
+      "name": "Cross-Sectional Reversal (L/S)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W17",
+      "name": "Vol-Targeted Trend",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W18",
+      "name": "Vol-Targeted Momentum",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W19",
+      "name": "Risk Parity (Multi-Asset ERC)",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W20",
+      "name": "Risk Parity + Position Cap",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W21",
+      "name": "Bollinger Band Reversion",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W22",
+      "name": "MACD Trend",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W23",
+      "name": "FX Time-Series Momentum",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W24",
+      "name": "FX Cross-Sectional Momentum",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "W25",
+      "name": "Continuous Futures Trend Proxy",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "WF01",
+      "name": "Rolling Walk-Forward",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "WF02",
+      "name": "Expanding Walk-Forward",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "WF03",
+      "name": "Anchored + Pre-OOS Purging",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "WF04",
+      "name": "Grid Search",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    },
+    {
+      "id": "WF05",
+      "name": "Optuna TPE + Walk-Forward",
+      "reason": "needs the QuantJourney adapter (fixed ticker lists); not re-run on Core 7",
+      "status": "not-run"
+    }
+  ]
+}

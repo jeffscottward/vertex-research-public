@@ -38,6 +38,7 @@ import { VertexResearchChatAppendResponseOutputSchema } from "../contracts/verte
 import { WorkerReadArtifactOutputSchema } from "../contracts/vertex-worker.ts";
 import { AcceptedReviewSchema } from "../contracts/vertex-control.ts";
 import { researchParityPython } from "./research-python.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source acceptance only: one serial SQL-memory DB and real R2 copy adapter.
 // No PostgreSQL isolation/durability, live qualification, provider or model claim.
@@ -701,7 +702,7 @@ export const finishTurn = async (f: ConversationFixture, native = false) => {
   return { ...f, advisory, cleaner, appended };
 };
 
-export const TIMEOUT = 180_000;
+export const TIMEOUT = scaledTimeout(180_000);
 export const pending = (f: PreparedChatFixture) =>
   f.runtime.conversation.approveAndRequestDebateStep(owner, f.approveInput);
 export const unchanged = (f: PreparedChatFixture) => counters(f.base);

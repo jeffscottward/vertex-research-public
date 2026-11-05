@@ -42,6 +42,13 @@ import {
   type VertexWorkerOutput,
 } from "./contracts/vertex-worker-rpc.ts";
 import { buildOpenApiDocument } from "./openapi.ts";
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
+
+// A full in-memory Vite browser build. Measured 2026-11-02 on dev-rig: 0.6-1.6 s
+// unthrottled or pinned to one or two CPUs; under a 50% CPU quota completed builds took
+// up to 27.4 s, and the 5 s default timed out under high rig load. 60 s keeps about a
+// 2x margin over that worst case.
+const BROWSER_BUNDLE_BUILD_TIMEOUT_MS = scaledTimeout(60_000);
 
 // Enumerated independently: deriving expectations from the production list would
 // silently bless an accidental broker/recovery/grant-administration procedure.
@@ -510,76 +517,80 @@ describe("root Vertex worker and scoped browser contract integration", () => {
 
   // Authored for the final verification phase; this does not run an alternate
   // server/client and writes no build output when the regression is executed.
-  it("keeps the root contract browser bundle free of API server and database modules", async () => {
-    const modules: string[] = [];
-    const result = await build({
-      configFile: false,
-      logLevel: "silent",
-      plugins: [
-        {
-          name: "capture-root-contract-boundary",
-          generateBundle() {
-            modules.push(...this.getModuleIds());
-            return;
+  it(
+    "keeps the root contract browser bundle free of API server and database modules",
+    async () => {
+      const modules: string[] = [];
+      const result = await build({
+        configFile: false,
+        logLevel: "silent",
+        plugins: [
+          {
+            name: "capture-root-contract-boundary",
+            generateBundle() {
+              modules.push(...this.getModuleIds());
+              return;
+            },
+          },
+        ],
+        resolve: { conditions: ["browser"] },
+        build: {
+          target: "esnext",
+          write: false,
+          minify: false,
+          lib: {
+            entry: fileURLToPath(new URL("./contract.ts", import.meta.url)),
+            formats: ["es"],
+            fileName: "root-contract",
           },
         },
-      ],
-      resolve: { conditions: ["browser"] },
-      build: {
-        target: "esnext",
-        write: false,
-        minify: false,
-        lib: {
-          entry: fileURLToPath(new URL("./contract.ts", import.meta.url)),
-          formats: ["es"],
-          fileName: "root-contract",
-        },
-      },
-    });
-    const builds = Array.isArray(result) ? result : [result];
-    const chunks = builds.flatMap((entry) => {
-      if (!("output" in entry))
-        throw new Error("Expected completed in-memory contract bundle");
-      return entry.output.filter((output) => output.type === "chunk");
-    });
-    expect(
-      modules.some((id) =>
-        /\/contracts\/vertex-worker-rpc\.ts(?:\?.*)?$/.test(id)
-      )
-    ).toBe(true);
-    expect(
-      modules.some((id) =>
-        /\/contracts\/vertex-chart-read\.ts(?:\?.*)?$/.test(id)
-      )
-    ).toBe(true);
-    expect(
-      modules.some((id) =>
-        /\/contracts\/vertex-notification-read\.ts(?:\?.*)?$/.test(id)
-      )
-    ).toBe(true);
-    expect(
-      modules.filter((id) =>
-        /\/packages\/(?:db|jobs)\/|\/packages\/api\/src\/server\/|@darkfactory\/(?:db|jobs)(?:\/|$)/.test(
-          id
+      });
+      const builds = Array.isArray(result) ? result : [result];
+      const chunks = builds.flatMap((entry) => {
+        if (!("output" in entry))
+          throw new Error("Expected completed in-memory contract bundle");
+        return entry.output.filter((output) => output.type === "chunk");
+      });
+      expect(
+        modules.some((id) =>
+          /\/contracts\/vertex-worker-rpc\.ts(?:\?.*)?$/.test(id)
         )
-      )
-    ).toEqual([]);
-    expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexWorkerService"
-    );
-    expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexChartReadService"
-    );
-    expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexNotificationReadService"
-    );
-    expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexResearchChatCopyCleanupService"
-    );
-    return expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexWorkerCredentials"
-    );
-  });
+      ).toBe(true);
+      expect(
+        modules.some((id) =>
+          /\/contracts\/vertex-chart-read\.ts(?:\?.*)?$/.test(id)
+        )
+      ).toBe(true);
+      expect(
+        modules.some((id) =>
+          /\/contracts\/vertex-notification-read\.ts(?:\?.*)?$/.test(id)
+        )
+      ).toBe(true);
+      expect(
+        modules.filter((id) =>
+          /\/packages\/(?:db|jobs)\/|\/packages\/api\/src\/server\/|@darkfactory\/(?:db|jobs)(?:\/|$)/.test(
+            id
+          )
+        )
+      ).toEqual([]);
+      expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexWorkerService"
+      );
+      expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexChartReadService"
+      );
+      expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexNotificationReadService"
+      );
+      expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexResearchChatCopyCleanupService"
+      );
+      return expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexWorkerCredentials"
+      );
+    },
+    BROWSER_BUNDLE_BUILD_TIMEOUT_MS
+  );
 });
 
 describe("root notification historical-delivery contract", () => {

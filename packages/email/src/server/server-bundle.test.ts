@@ -3,70 +3,79 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
 import { describe, expect, it, vi } from "vitest";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 const packageRoot = fileURLToPath(new URL("../..", import.meta.url));
 
 describe("email server browser bundle", () => {
-  it("preserves browser poison for a side-effect-only server import", async () => {
-    const tempDir = await mkdtemp(join(packageRoot, ".server-browser-bundle-"));
-    const entry = join(tempDir, "entry.mjs");
+  it(
+    "preserves browser poison for a side-effect-only server import",
+    async () => {
+      const tempDir = await mkdtemp(
+        join(packageRoot, ".server-browser-bundle-")
+      );
+      const entry = join(tempDir, "entry.mjs");
 
-    try {
-      await writeFile(entry, 'import "@darkfactory/email/server"\n');
-      const buildResult = await build({
-        configFile: false,
-        logLevel: "silent",
-        resolve: {
-          conditions: ["browser"],
-        },
-        ssr: {
-          noExternal: true,
+      try {
+        await writeFile(entry, 'import "@darkfactory/email/server"\n');
+        const buildResult = await build({
+          configFile: false,
+          logLevel: "silent",
           resolve: {
             conditions: ["browser"],
           },
-        },
-        build: {
-          outDir: join(tempDir, "dist"),
-          ssr: true,
-          target: "esnext",
-          write: false,
-          rollupOptions: {
-            input: entry,
+          ssr: {
+            noExternal: true,
+            resolve: {
+              conditions: ["browser"],
+            },
           },
-        },
-      });
-      const builds = Array.isArray(buildResult) ? buildResult : [buildResult];
-      const bundle = builds
-        .flatMap((result) => {
-          if (!("output" in result))
-            throw new Error("Vite build did not finish");
-          return result.output;
-        })
-        .filter((output) => output.type === "chunk")
-        .map((chunk) => chunk.code)
-        .join("\n");
-      const moduleUrl = `data:text/javascript;base64,${Buffer.from(bundle).toString("base64")}`;
+          build: {
+            outDir: join(tempDir, "dist"),
+            ssr: true,
+            target: "esnext",
+            write: false,
+            rollupOptions: {
+              input: entry,
+            },
+          },
+        });
+        const builds = Array.isArray(buildResult) ? buildResult : [buildResult];
+        const bundle = builds
+          .flatMap((result) => {
+            if (!("output" in result))
+              throw new Error("Vite build did not finish");
+            return result.output;
+          })
+          .filter((output) => output.type === "chunk")
+          .map((chunk) => chunk.code)
+          .join("\n");
+        const moduleUrl = `data:text/javascript;base64,${Buffer.from(bundle).toString("base64")}`;
 
-      return await expect(import(moduleUrl)).rejects.toThrow(
-        "@darkfactory/email/server is unavailable in browser bundles"
+        return await expect(import(moduleUrl)).rejects.toThrow(
+          "@darkfactory/email/server is unavailable in browser bundles"
+        );
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    },
+    scaledTimeout(120_000)
+  );
+
+  return it(
+    "folds filesystem preview transports closed in a production Worker bundle",
+    async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const tempDir = await mkdtemp(
+        join(packageRoot, ".server-production-bundle-")
       );
-    } finally {
-      await rm(tempDir, { recursive: true, force: true });
-    }
-  });
+      const entry = join(tempDir, "entry.mjs");
+      const previewDirectory = JSON.stringify(join(tempDir, "previews"));
 
-  return it("folds filesystem preview transports closed in a production Worker bundle", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    const tempDir = await mkdtemp(
-      join(packageRoot, ".server-production-bundle-")
-    );
-    const entry = join(tempDir, "entry.mjs");
-    const previewDirectory = JSON.stringify(join(tempDir, "previews"));
-
-    try {
-      await writeFile(
-        entry,
-        `
+      try {
+        await writeFile(
+          entry,
+          `
 import { selectContactEmailPort, selectEmailPort } from "@darkfactory/email/server"
 export const emailResult = await selectEmailPort({
   environment: "development",
@@ -91,61 +100,63 @@ export const contactResult = await selectContactEmailPort({
   message: "Please review the deployment boundary.",
 })
 `
-      );
-      const buildResult = await build({
-        configFile: false,
-        logLevel: "silent",
-        mode: "production",
-        resolve: {
-          conditions: ["workerd", "worker"],
-        },
-        ssr: {
-          noExternal: true,
-          target: "webworker",
+        );
+        const buildResult = await build({
+          configFile: false,
+          logLevel: "silent",
+          mode: "production",
           resolve: {
             conditions: ["workerd", "worker"],
           },
-        },
-        build: {
-          outDir: join(tempDir, "dist"),
-          ssr: true,
-          target: "esnext",
-          write: false,
-          rollupOptions: {
-            input: entry,
-            output: {
-              inlineDynamicImports: true,
+          ssr: {
+            noExternal: true,
+            target: "webworker",
+            resolve: {
+              conditions: ["workerd", "worker"],
             },
           },
-        },
-      });
-      vi.unstubAllEnvs();
-      const builds = Array.isArray(buildResult) ? buildResult : [buildResult];
-      const bundle = builds
-        .flatMap((result) => {
-          if (!("output" in result))
-            throw new Error("Vite build did not finish");
-          return result.output;
-        })
-        .filter((output) => output.type === "chunk")
-        .map((chunk) => chunk.code)
-        .join("\n");
-      const moduleUrl = `data:text/javascript;base64,${Buffer.from(bundle).toString("base64")}`;
-      const bundled = await import(moduleUrl);
+          build: {
+            outDir: join(tempDir, "dist"),
+            ssr: true,
+            target: "esnext",
+            write: false,
+            rollupOptions: {
+              input: entry,
+              output: {
+                inlineDynamicImports: true,
+              },
+            },
+          },
+        });
+        vi.unstubAllEnvs();
+        const builds = Array.isArray(buildResult) ? buildResult : [buildResult];
+        const bundle = builds
+          .flatMap((result) => {
+            if (!("output" in result))
+              throw new Error("Vite build did not finish");
+            return result.output;
+          })
+          .filter((output) => output.type === "chunk")
+          .map((chunk) => chunk.code)
+          .join("\n");
+        const moduleUrl = `data:text/javascript;base64,${Buffer.from(bundle).toString("base64")}`;
+        const bundled = await import(moduleUrl);
 
-      expect(bundled.emailResult).toMatchObject({
-        status: "failed",
-        provider: "disabled",
-        code: "EMAIL_DELIVERY_DISABLED",
-      });
-      return expect(bundled.contactResult).toMatchObject({
-        status: "not-delivered",
-        provider: "disabled",
-        code: "CONTACT_DELIVERY_DISABLED",
-      });
-    } finally {
-      vi.unstubAllEnvs();
-      await rm(tempDir, { recursive: true, force: true });
-    }
-  });
+        expect(bundled.emailResult).toMatchObject({
+          status: "failed",
+          provider: "disabled",
+          code: "EMAIL_DELIVERY_DISABLED",
+        });
+        return expect(bundled.contactResult).toMatchObject({
+          status: "not-delivered",
+          provider: "disabled",
+          code: "CONTACT_DELIVERY_DISABLED",
+        });
+      } finally {
+        vi.unstubAllEnvs();
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    },
+    scaledTimeout(120_000)
+  );
 });

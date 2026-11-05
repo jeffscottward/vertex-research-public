@@ -1,0 +1,15 @@
+[Unit]
+Description=Vertex engine status (read-only static file on 127.0.0.1:3462 for vertex-web)
+
+[Service]
+DynamicUser=yes
+ExecStart=/usr/bin/python3 -m http.server 3462 --bind 127.0.0.1 --directory /var/lib/vertex-engine-status
+ReadOnlyPaths=/var/lib/vertex-engine-status
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

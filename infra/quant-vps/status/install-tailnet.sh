@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Phase 2: serve v2 ONLY on the VPS tailnet address, ONLY to the rig. Run as root on QuantVPS after the
 # device has been approved in the tailnet. The rig-side deployer substitutes TS, COLLECT, TAILCADDY and
-# SERVICE (base64 payloads). Touches only /opt/vertex-status, the collector unit and the
-# vertex-status-tailnet container. Never touches the trading stack, the main Caddyfile or vertex-status.
+# SERVICE (base64 payloads). Touches only /opt/vertex-status, the collector unit, the
+# vertex-status-tailnet container and the tailscaled drop-in RuntimeDirectoryPreserve=yes (daemon-reload
+# only; tailscaled is not restarted). Never touches the trading stack, the main Caddyfile or vertex-status.
 set -euo pipefail
 TS=__TS__
 RIG_IPS="100.64.0.20 fd7a:115c:a1e0::20"
@@ -62,12 +63,18 @@ install -m 644 "$STAGE/Caddyfile.tailnet" /opt/vertex-status/Caddyfile.tailnet
 systemctl daemon-reload
 systemctl start vertex-status-collect.service
 test -s "$P/status-v2.json" && test ! -e /opt/vertex-status/public/status-v2.json && echo "collector ok (v2 private only)"
+# Mount the tailscaled socket DIRECTORY, not the socket file: a file mount keeps the old inode when
+# tailscaled re-creates the socket, and TLS then fails. The drop-in keeps the directory across
+# tailscaled restarts (same path and setting as infra/quantvps/tailscaled-preserve-runtime-dir.conf).
+mkdir -p /etc/systemd/system/tailscaled.service.d
+printf '[Service]\nRuntimeDirectoryPreserve=yes\n' > /etc/systemd/system/tailscaled.service.d/10-vertex-preserve-runtime-dir.conf
+systemctl daemon-reload
 docker rm -f vertex-status-tailnet >/dev/null 2>&1 || true
 docker run -d --name vertex-status-tailnet --restart unless-stopped --network host --read-only \
   --tmpfs /tmp --tmpfs /config --tmpfs /data --cap-drop ALL --cap-add NET_BIND_SERVICE --security-opt no-new-privileges --memory 64m \
   --env-file /opt/vertex-status/token.env \
   -v /opt/vertex-status/Caddyfile.tailnet:/etc/caddy/Caddyfile:ro -v "$P:/srv:ro" \
-  -v /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock caddy:2-alpine >/dev/null
+  -v /var/run/tailscale:/var/run/tailscale:ro caddy:2-alpine >/dev/null
 sleep 6
 echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # 4) non-allowed source check from the VPS itself (source = the VPS tailnet IP, not the rig): expect 403

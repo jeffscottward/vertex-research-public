@@ -372,6 +372,30 @@ describe("autopilot model", () => {
       symbol: "SPY",
     });
     expect(seriesLabel(SPY)).toBe("SPY 1d (2,516 bars)");
+    expect(
+      toCampaignInput({ ...form, filterQuadrants: [], filterSector: "XLK" }, [
+        SPY,
+      ])
+    ).toEqual({
+      message: "Choose at least one quadrant for the sector filter.",
+      ok: false,
+    });
+    const filtered = toCampaignInput(
+      {
+        ...form,
+        filterQuadrants: ["improving", "leading"],
+        filterSector: "XLK",
+      },
+      [SPY]
+    );
+    expect(filtered.ok && filtered.input.filters).toEqual([
+      {
+        quadrants: ["leading", "improving"],
+        sector: "XLK",
+        timeframe: "weekly",
+        type: "sectorQuadrant",
+      },
+    ]);
   });
 
   it("formats values, budgets and checks", () => {
@@ -536,6 +560,87 @@ describe("AutopilotWorkspace", () => {
     await setNative(field("Seed (optional)"), "abc");
     await click(button("Start campaign"));
     expect(text()).toContain("The seed must be a whole number.");
+
+    await setNative(field("Seed (optional)"), "");
+    expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0);
+    // Sector filter: choose a sector, then change the checked quadrants.
+    await setNative(field("Sector"), "XLE");
+    const box = (label: string) =>
+      [...document.querySelectorAll("label")]
+        .find((node) => node.textContent === label)
+        ?.querySelector("input") as HTMLInputElement;
+    expect(box("Leading").checked).toBe(true);
+    expect(box("Lagging").checked).toBe(false);
+    await click(box("Leading"));
+    await click(box("Improving"));
+    await click(button("Start campaign"));
+    expect(text()).toContain(
+      "Choose at least one quadrant for the sector filter."
+    );
+    await click(box("Weakening"));
+    await click(button("Start campaign"));
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        filters: [
+          {
+            quadrants: ["weakening"],
+            sector: "XLE",
+            timeframe: "weekly",
+            type: "sectorQuadrant",
+          },
+        ],
+      })
+    );
+  });
+
+  it("preselects Core 7 futures and its first stored series, and follows a universe change", async () => {
+    const create = vi.fn(async () => campaign({ id: "c3", name: "New" }));
+    const series = [
+      { ...SPY, symbol: "BTCUSDT" },
+      { ...SPY, symbol: "ES=F" },
+      SPY,
+      { ...SPY, symbol: "TEST" },
+    ];
+    await mount(
+      <AutopilotWorkspace
+        gateway={gatewayOf({ create, series: vi.fn(async () => series) })}
+      />
+    );
+    const options = () =>
+      [...field("Bar series").options].map((option) => option.value);
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Bar series").value).toBe("ES=F:1d");
+    expect(options()).toEqual(["ES=F:1d"]);
+    await click(button("Start campaign"));
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "ES=F 1d campaign", symbol: "ES=F" })
+    );
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(options()).toEqual(["SPY:1d"]);
+    expect(field("Bar series").value).toBe("SPY:1d");
+    await setNative(field("Universe"), "all");
+    expect(options()).toHaveLength(4);
+    expect(field("Bar series").value).toBe("BTCUSDT:1d");
+  });
+
+  it("shows every stored series when no Core 7 future is stored", async () => {
+    await mount(
+      <AutopilotWorkspace
+        gateway={gatewayOf({
+          series: vi.fn(async () => [SPY, { ...SPY, symbol: "TEST" }]),
+        })}
+      />
+    );
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Bar series").value).toBe("SPY:1d");
+    expect(field("Bar series").options).toHaveLength(2);
+    expect(text()).toContain(
+      "No stored bars for Core 7 futures yet. Showing all stored series."
+    );
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(
+      [...field("Bar series").options].map((option) => option.value)
+    ).toEqual(["SPY:1d"]);
   });
 
   it("stops, ticks and restarts a campaign", async () => {

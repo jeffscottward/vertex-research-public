@@ -872,6 +872,7 @@ export const ChartsWorkspace = ({
                   markers={markers}
                   pricePrecision={pricePrecisionFor(data)}
                   studies={studies}
+                  symbol={data.contract.localSymbol}
                 />
               </Suspense>
             </ChartRendererBoundary>

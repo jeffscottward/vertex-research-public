@@ -22,6 +22,8 @@ import {
   relativeStrength,
   relativeVolumeAtTime,
   runStrategyDefinition,
+  SectorQuadrantDataError,
+  type SectorQuadrantPoint,
 } from "./strategy-dsl-compile.ts";
 
 const DAY_MS = 86_400_000;
@@ -780,5 +782,107 @@ describe("offset and new indicators in definitions", () => {
     expect(() => signals(rows([1, 1, 1, 1]), entry)).toThrow(
       InstantBacktestInputError
     );
+  });
+});
+
+describe("sector quadrant filters", () => {
+  // Entry on every bar with close > 0; no exit, so the first allowed bar is the only entry.
+  const filtered = (timeframe: "daily" | "weekly" = "weekly") =>
+    define({
+      entry: {
+        all: [
+          {
+            left: { field: "close", type: "price" },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      filters: [
+        {
+          quadrants: ["leading", "improving"],
+          sector: "XLK",
+          timeframe,
+          type: "sectorQuadrant",
+        },
+      ],
+      name: "Filtered",
+      version: 1,
+    });
+  const daily = wave(10); // 1970-01-01 to 1970-01-10
+  const signalsOf = (
+    bars: BarColumns,
+    points: readonly SectorQuadrantPoint[]
+  ) =>
+    Array.from(
+      compileStrategy(bars, filtered(), { "XLK:weekly": points }).signals
+    );
+
+  it("blocks entries on a lagging week and allows them on a leading week, as of each bar", () => {
+    expect(
+      signalsOf(daily, [
+        { date: "1970-01-02", quadrant: "lagging" },
+        { date: "1970-01-05", quadrant: "leading" },
+        { date: "1970-01-08", quadrant: "weakening" },
+      ])
+    ).toEqual([0, 0, 0, 0, 1, 1, 1, 0, 0, 0]);
+  });
+
+  it("ignores points dated after the bar (no lookahead) and fails closed before any point", () => {
+    expect(
+      signalsOf(daily, [{ date: "1970-01-20", quadrant: "leading" }])
+    ).toEqual(Array.from({ length: 10 }, () => 0));
+  });
+
+  it("uses only earlier dates for intraday bars", () => {
+    const hourly = wave(30, HOUR_MS); // 1970-01-01 00:00 to 1970-01-02 05:00
+    const signals = signalsOf(hourly, [
+      { date: "1970-01-01", quadrant: "leading" },
+    ]);
+    expect(signals.slice(0, 24).every((value) => value === 0)).toBe(true);
+    expect(signals.slice(24).every((value) => value === 1)).toBe(true);
+  });
+
+  it("does not block exits", () => {
+    const definition = define({
+      ...filtered(),
+      exit: {
+        any: [
+          {
+            left: { field: "close", type: "price" },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+    });
+    const compiled = compileStrategy(daily, definition, {
+      "XLK:weekly": [{ date: "1970-01-01", quadrant: "lagging" }],
+    });
+    expect(Array.from(compiled.signals)).toEqual(
+      Array.from({ length: 10 }, () => -1)
+    );
+  });
+
+  it("throws a typed error when the series is missing", () => {
+    expect(() => runStrategyDefinition(daily, filtered("daily"), 0)).toThrow(
+      new SectorQuadrantDataError("XLK", "daily")
+    );
+    expect(() => compileStrategy(daily, filtered(), {})).toThrow(
+      "Sector quadrant data is not available for XLK (weekly)"
+    );
+    try {
+      compileStrategy(daily, filtered(), {});
+    } catch (error) {
+      expect(error).toBeInstanceOf(InstantBacktestInputError);
+      expect(error).toBeInstanceOf(SectorQuadrantDataError);
+    }
+  });
+
+  it("runs a filtered definition with series", () => {
+    const run = runStrategyDefinition(daily, filtered(), 0, undefined, {
+      "XLK:weekly": [{ date: "1970-01-03", quadrant: "improving" }],
+    });
+    expect(run.trades.length).toBe(1);
   });
 });

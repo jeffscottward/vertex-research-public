@@ -62,7 +62,7 @@ A failed migration or seed does not stop the run; `setup` lists the problems and
 
 `bun run setup -- --check` reports missing tools, dependencies, `.env` and `.dev.vars` without changing anything. It does not probe the database.
 
-Browser tests need Chromium once: `pnpm exec playwright install chromium`.
+Browser tests run in Google Chrome stable from the system (Playwright channel `chrome`), not in Playwright's bundled Chromium. Install Chrome with your OS package manager, or run `pnpm exec playwright install chrome` on Debian or Ubuntu.
 
 ## Run
 

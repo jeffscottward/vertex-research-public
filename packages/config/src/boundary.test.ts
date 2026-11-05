@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
 
 const workspaceRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const webPackageRoot = fileURLToPath(
@@ -150,7 +151,8 @@ describe("config package boundaries", () => {
       expect(bundle.status).toBe(0);
       expect(bundle.stderr).toBe("");
       expect(bundle.stdout).toContain(message);
-    }
+    },
+    scaledTimeout(120_000)
   );
 
   it.each([

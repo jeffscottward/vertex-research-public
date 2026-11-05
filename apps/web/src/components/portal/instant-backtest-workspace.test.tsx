@@ -334,6 +334,68 @@ describe("InstantBacktestWorkspace", () => {
     expect(document.querySelector("[data-instant-results]")).toBeNull();
   });
 
+  it("preselects Core 7 futures and its first stored series, and follows a universe change", async () => {
+    const ES: InstantBacktestSeries = { ...SPY, symbol: "ES=F" };
+    const TEST: InstantBacktestSeries = { ...SPY, symbol: "TEST" };
+    const { gateway, pending } = controlledGateway(async () => ({
+      series: [BTC, ES, SPY, TEST],
+    }));
+    await mount(<InstantBacktestWorkspace gateway={gateway} />);
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Bars").value).toBe("ES=F:1d");
+    expect([...field("Bars").options].map((option) => option.value)).toEqual([
+      "ES=F:1d",
+    ]);
+    expect(pending.at(-1)?.input.symbol).toBe("ES=F");
+    expect(document.querySelector("[data-universe-fallback]")).toBeNull();
+    // One request is in flight at a time; finish it so the next one is sent.
+    await settle(() => pending[0]?.resolve(output(pending[0].input, 0.1)));
+    await setNative(field("Universe"), "core7-etf-twins", "change");
+    expect([...field("Bars").options].map((option) => option.value)).toEqual([
+      "SPY:1d",
+    ]);
+    expect(pending.at(-1)?.input.symbol).toBe("SPY");
+
+    await setNative(field("Universe"), "all", "change");
+    expect(field("Bars").options).toHaveLength(4);
+    expect(field("Bars").value).toBe("BTCUSDT:1m");
+  });
+
+  it("keeps the universe choice when the series list reloads", async () => {
+    const ES: InstantBacktestSeries = { ...SPY, symbol: "ES=F" };
+    const first = controlledGateway(async () => ({ series: [ES, SPY] }));
+    const { root } = await mount(
+      <InstantBacktestWorkspace gateway={first.gateway} />
+    );
+    await setNative(field("Universe"), "core7-etf-twins", "change");
+    const second = controlledGateway(async () => ({ series: [ES, SPY] }));
+    await act(async () => {
+      root.render(<InstantBacktestWorkspace gateway={second.gateway} />);
+      await flush();
+    });
+    expect(field("Universe").value).toBe("core7-etf-twins");
+    expect(field("Bars").value).toBe("SPY:1d");
+  });
+
+  it("shows every stored series when no Core 7 future is stored", async () => {
+    const TEST: InstantBacktestSeries = { ...SPY, symbol: "TEST" };
+    const { gateway } = controlledGateway(async () => ({
+      series: [SPY, TEST],
+    }));
+    await mount(<InstantBacktestWorkspace gateway={gateway} />);
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Bars").value).toBe("SPY:1d");
+    expect(field("Bars").options).toHaveLength(2);
+    expect(
+      document.querySelector("[data-universe-fallback]")?.textContent
+    ).toBe("No stored bars for Core 7 futures yet. Showing all stored series.");
+    await setNative(field("Universe"), "core7-etf-twins", "change");
+    expect([...field("Bars").options].map((option) => option.value)).toEqual([
+      "SPY:1d",
+    ]);
+    expect(document.querySelector("[data-universe-fallback]")).toBeNull();
+  });
+
   it("shows run errors and keeps the last result", async () => {
     const { gateway, pending } = controlledGateway(async () => ({
       series: [SPY],

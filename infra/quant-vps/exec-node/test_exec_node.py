@@ -212,9 +212,7 @@ class OwnedRuntimeTests(unittest.TestCase):
         "watchdog/Dockerfile",
         "watchdog/__init__.py",
         "watchdog/requirements.txt",
-        "watchdog/watchdog.py",
         "nautilus/arm_cli.py",
-        "nautilus/arm_gate.py",
         "scripts/request-ibkr-2fa-until-ready.sh",
         "scripts/ibkr_account_snapshot.py",
         "scripts/ibkr-account-heartbeat.sh",
@@ -228,6 +226,20 @@ class OwnedRuntimeTests(unittest.TestCase):
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is
     # vertex-quant commit ef1b38b (merged to its main), a superset of the frozen one.
     reader_fix = {"nautilus/ibkr_account.py": "60b6cc80e892b66dc194e63ffc12dc0911fb35b6dd625a6afc4d7d913b29be8f"}
+
+    # State-machine audit 2026-11-03 (card sma-vertex-arm-killswitch): a kill switch deletes the
+    # owner arm record (gate and watchdog), so removing the kill switch never re-arms the node.
+    # Test: test_arm_killswitch.py. arm_gate.py also carries the options-only, defined-risk order
+    # policy in place_order (owner rule 2026-11-04). Test: test_order_policy.py.
+    safety_fix = {
+        "watchdog/watchdog.py": "87a01578372fb5607888b3e2f94d4709aa73f7153613537013d705c4dca7b887",
+        "nautilus/arm_gate.py": "929b3a3112707c456ac23bdab0c6f9b557a3b311bb34ecb7f5661e08d613cd82",
+    }
+
+    def test_safety_fix_files_are_pinned(self):
+        for rel, digest in self.safety_fix.items():
+            self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
+            self.assertNotEqual(digest, self.manifest[rel], rel)
 
     def test_reader_fix_matches_the_snapshot_script(self):
         for rel, digest in self.reader_fix.items():
@@ -253,7 +265,7 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertEqual(sha(text.replace(NEW, OLD).encode()), self.manifest[rel], rel)
 
     def test_overlay_is_exactly_the_listed_files(self):
-        listed = set(self.unchanged) | set(self.path_changed) | set(self.reader_fix) | {"watchdog/.gitkeep"}
+        listed = set(self.unchanged) | set(self.path_changed) | set(self.reader_fix) | set(self.safety_fix) | {"watchdog/.gitkeep"}
         self.assertEqual(set(en.owned_files(RUNTIME)), listed)
 
     def test_compose_keeps_the_project_name(self):

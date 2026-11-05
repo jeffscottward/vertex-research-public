@@ -9,6 +9,13 @@ import {
 } from "./contracts/vertex-research-chat.ts";
 import { vertexResearchChatResponseContract } from "./contracts/vertex-research-chat-response-rpc.ts";
 import { vertexResearchChatCopyCleanupContract } from "./contracts/vertex-research-chat-copy-cleanup-rpc.ts";
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
+
+// A full in-memory Vite browser build. Measured 2026-11-02 on dev-rig: 1.6-4.2 s
+// unthrottled or pinned to one or two CPUs; under a 50% CPU quota completed builds took
+// up to 27.9 s, and the 5 s default timed out under high rig load. 60 s keeps about a
+// 2x margin over that worst case.
+const BROWSER_BUNDLE_BUILD_TIMEOUT_MS = scaledTimeout(60_000);
 
 const composedChatContract = {
   ...vertexResearchChatContract,
@@ -149,58 +156,64 @@ describe("root research-chat contract integration", () => {
     }
   });
 
-  it("keeps the chat contract browser bundle free of server, database and model runtime imports", async () => {
-    const modules: string[] = [];
-    const result = await build({
-      configFile: false,
-      envDir: false,
-      logLevel: "silent",
-      plugins: [
-        {
-          name: "capture-research-chat-boundary",
-          generateBundle() {
-            modules.push(...this.getModuleIds());
-            return;
+  it(
+    "keeps the chat contract browser bundle free of server, database and model runtime imports",
+    async () => {
+      const modules: string[] = [];
+      const result = await build({
+        configFile: false,
+        envDir: false,
+        logLevel: "silent",
+        plugins: [
+          {
+            name: "capture-research-chat-boundary",
+            generateBundle() {
+              modules.push(...this.getModuleIds());
+              return;
+            },
+          },
+        ],
+        resolve: { conditions: ["browser"] },
+        build: {
+          target: "esnext",
+          write: false,
+          minify: false,
+          lib: {
+            entry: fileURLToPath(new URL("./contract.ts", import.meta.url)),
+            formats: ["es"],
+            fileName: "research-chat-contract",
           },
         },
-      ],
-      resolve: { conditions: ["browser"] },
-      build: {
-        target: "esnext",
-        write: false,
-        minify: false,
-        lib: {
-          entry: fileURLToPath(new URL("./contract.ts", import.meta.url)),
-          formats: ["es"],
-          fileName: "research-chat-contract",
-        },
-      },
-    });
-    const builds = Array.isArray(result) ? result : [result];
-    const chunks = builds.flatMap((entry) => {
-      if (!("output" in entry))
-        throw new Error("Expected an in-memory browser contract bundle");
-      return entry.output.filter((output) => output.type === "chunk");
-    });
-    expect(modules.filter((id) => id.includes("vertex-research-chat"))).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(
-          /\/contracts\/vertex-research-chat\.ts(?:\?.*)?$/
-        ),
-      ])
-    );
-    expect(
-      modules.filter((id) =>
-        /\/packages\/(?:db|jobs)\/|\/packages\/api\/src\/server\/|@darkfactory\/(?:db|jobs)(?:\/|$)|@copilotkit\/runtime(?:\/|$)|\/agno\//i.test(
-          id
+      });
+      const builds = Array.isArray(result) ? result : [result];
+      const chunks = builds.flatMap((entry) => {
+        if (!("output" in entry))
+          throw new Error("Expected an in-memory browser contract bundle");
+        return entry.output.filter((output) => output.type === "chunk");
+      });
+      expect(
+        modules.filter((id) => id.includes("vertex-research-chat"))
+      ).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /\/contracts\/vertex-research-chat\.ts(?:\?.*)?$/
+          ),
+        ])
+      );
+      expect(
+        modules.filter((id) =>
+          /\/packages\/(?:db|jobs)\/|\/packages\/api\/src\/server\/|@darkfactory\/(?:db|jobs)(?:\/|$)|@copilotkit\/runtime(?:\/|$)|\/agno\//i.test(
+            id
+          )
         )
-      )
-    ).toEqual([]);
-    expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createVertexStore"
-    );
-    return expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
-      "createCopilotRuntimeHandler"
-    );
-  });
+      ).toEqual([]);
+      expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createVertexStore"
+      );
+      return expect(chunks.map((chunk) => chunk.code).join("\n")).not.toContain(
+        "createCopilotRuntimeHandler"
+      );
+    },
+    BROWSER_BUNDLE_BUILD_TIMEOUT_MS
+  );
 });

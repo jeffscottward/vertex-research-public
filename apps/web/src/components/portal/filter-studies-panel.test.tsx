@@ -48,6 +48,19 @@ describe("FilterStudiesPanel", () => {
     ).toContain("text-muted-foreground");
   });
 
+  it("keeps the focusable region as the only horizontal scroller", () => {
+    const view = render(
+      renderToStaticMarkup(<FilterStudiesPanel model={FILTER_STUDY_MODEL} />)
+    );
+    const containers = view.querySelectorAll("[data-slot='table-container']");
+    expect(containers).toHaveLength(2);
+    for (const container of containers) {
+      expect(container.className).toContain("overflow-visible");
+      expect(container.className).not.toContain("overflow-x-auto");
+      expect(container.parentElement?.getAttribute("tabindex")).toBe("0");
+    }
+  });
+
   it("is part of the Backtests page", () => {
     const view = render(renderToStaticMarkup(<BacktestsPage />));
     return expect(

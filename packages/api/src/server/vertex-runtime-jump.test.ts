@@ -15,6 +15,7 @@ import {
   createVertexRuntimeRecipes,
   type VertexRuntimeRecipesOptions,
 } from "./vertex-runtime-recipes.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Source-only composition. External object storage, reviewer/control service and
 // policy registry fixtures do NOT establish backend durability or live grants.
@@ -762,124 +763,128 @@ const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
 describe.skipIf(!process.env["VERTEX_JUMP_TEST_PYTHON"])(
   "bounded jump-model reviewed caller source",
   () => {
-    return it("connects selected recipe through real handler and reviewed adapters to unreviewed hard-assignment evidence", async () => {
-      const f = await fixture();
-      const { done, stages, publications, calls } = await runWorker(f);
-      expect(done.outcome).toMatchObject({
-        status: "completed",
-        outputArtifactIds: [f.publication.evidenceId],
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-      });
-      expect(publications).toHaveLength(1);
-      expect(stages).toHaveLength(2);
-      const result = stages[0].content;
-      const record = publications[0].record;
-      expect(record).toMatchObject({
-        acceptanceStatus: "unreviewed",
-        untrustedContent: true,
-        contentHash: stages[0].contentSha256,
-        sourceIdentity: { contentHash: stages[0].contentSha256 },
-      });
-      expect(result).toMatchObject({
-        operation: "macro-jump-state-v1",
-        acceptanceStatus: "unreviewed",
-        proposalOnly: true,
-        executionAuthorized: false,
-        simulatedCapitalEntersNav: false,
-        projectionDecimalEncoding:
-          "decimal-prec-200-half-even-cost-margin-rounded-15-decimal-places-v1",
-        projectedResult: {
-          profile: "vertex-jump-state-result-v1",
-          assignment_kind: "hard-assignment-not-probability",
-          variant: "discrete-fixed-centroid-trailing-window-dp-v1",
-          feature_order: ["downside"],
-          feature_construction:
-            "upstream-reviewed-downside-deviation-variant-declared-unknown-v1",
-          state_labels: ["bull", "bear"],
-          jump_penalty: "0.5",
-          window_length: 3,
-          window_semantics: "trailing-window-fresh-start-each-step-v1",
-          tie_rule: "lowest-state-index-v1",
-        },
-      });
-      // Losses (0,.5) then (.32,.02); lambda .5 keeps bull: V=(.32,.52), margin .2.
-      expect(result.projectedResult.states).toEqual([
-        {
-          observed_at: ns(firstAt),
-          available_at: ns(firstAt),
-          window_start_observed_at: ns(firstAt),
-          window_observations: 1,
-          warmup: true,
-          state_index: 0,
-          state_label: "bull",
-          tie: false,
-          cost_margin: "0.5",
-        },
-        {
-          observed_at: ns(at),
-          available_at: ns(at),
-          window_start_observed_at: ns(firstAt),
-          window_observations: 2,
-          warmup: true,
-          state_index: 0,
-          state_label: "bull",
-          tie: false,
-          cost_margin: "0.2",
-        },
-      ]);
-      // Limitations intentionally say "never averaged with HMM posteriors"; check the assignment payload only.
-      expect(JSON.stringify(result.projectedResult.states)).not.toContain(
-        "posterior"
-      );
-      expect(Object.keys(result.projectedResult)).not.toContain("posterior");
-      expect(stages[0].canonicalSha256).toBeNull();
-      expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
-      expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(28);
-      expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
-      expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
-      expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
-      expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
-        calls.indexOf("admitRun")
-      );
-      expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
-        calls.indexOf("stageArtifact")
-      );
-      expect(record.method).toContain(
-        "fixed-centroid trailing-window jump DP hard assignment, not probability"
-      );
-      expect(
-        record.limitations.some((text: string) =>
-          text.includes("not paper reproduction")
-        )
-      ).toBe(true);
-      expect(
-        record.limitations.some((text: string) =>
-          text.includes("not a calibrated probability")
-        )
-      ).toBe(true);
-      // Strict profile refusal is part of this one connected case, not another campaign.
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          parameters: { variant: "continuous-jump" },
-        }).success
-      ).toBe(false);
-      expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          inputs: f.inputs.slice(0, 2),
-        }).success
-      ).toBe(false);
-      return expect(
-        SleeveResearchRecipeSchema.safeParse({
-          ...f.payload.recipe,
-          operation: "macro-hmm-forward-v1",
-          parameters: { variant: "diagonal-gaussian-log-forward-v1" },
-        }).success
-      ).toBe(false);
-    }, 60_000);
+    return it(
+      "connects selected recipe through real handler and reviewed adapters to unreviewed hard-assignment evidence",
+      async () => {
+        const f = await fixture();
+        const { done, stages, publications, calls } = await runWorker(f);
+        expect(done.outcome).toMatchObject({
+          status: "completed",
+          outputArtifactIds: [f.publication.evidenceId],
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+        });
+        expect(publications).toHaveLength(1);
+        expect(stages).toHaveLength(2);
+        const result = stages[0].content;
+        const record = publications[0].record;
+        expect(record).toMatchObject({
+          acceptanceStatus: "unreviewed",
+          untrustedContent: true,
+          contentHash: stages[0].contentSha256,
+          sourceIdentity: { contentHash: stages[0].contentSha256 },
+        });
+        expect(result).toMatchObject({
+          operation: "macro-jump-state-v1",
+          acceptanceStatus: "unreviewed",
+          proposalOnly: true,
+          executionAuthorized: false,
+          simulatedCapitalEntersNav: false,
+          projectionDecimalEncoding:
+            "decimal-prec-200-half-even-cost-margin-rounded-15-decimal-places-v1",
+          projectedResult: {
+            profile: "vertex-jump-state-result-v1",
+            assignment_kind: "hard-assignment-not-probability",
+            variant: "discrete-fixed-centroid-trailing-window-dp-v1",
+            feature_order: ["downside"],
+            feature_construction:
+              "upstream-reviewed-downside-deviation-variant-declared-unknown-v1",
+            state_labels: ["bull", "bear"],
+            jump_penalty: "0.5",
+            window_length: 3,
+            window_semantics: "trailing-window-fresh-start-each-step-v1",
+            tie_rule: "lowest-state-index-v1",
+          },
+        });
+        // Losses (0,.5) then (.32,.02); lambda .5 keeps bull: V=(.32,.52), margin .2.
+        expect(result.projectedResult.states).toEqual([
+          {
+            observed_at: ns(firstAt),
+            available_at: ns(firstAt),
+            window_start_observed_at: ns(firstAt),
+            window_observations: 1,
+            warmup: true,
+            state_index: 0,
+            state_label: "bull",
+            tie: false,
+            cost_margin: "0.5",
+          },
+          {
+            observed_at: ns(at),
+            available_at: ns(at),
+            window_start_observed_at: ns(firstAt),
+            window_observations: 2,
+            warmup: true,
+            state_index: 0,
+            state_label: "bull",
+            tie: false,
+            cost_margin: "0.2",
+          },
+        ]);
+        // Limitations intentionally say "never averaged with HMM posteriors"; check the assignment payload only.
+        expect(JSON.stringify(result.projectedResult.states)).not.toContain(
+          "posterior"
+        );
+        expect(Object.keys(result.projectedResult)).not.toContain("posterior");
+        expect(stages[0].canonicalSha256).toBeNull();
+        expect(stages[1].canonicalSha256).toBe(stages[1].contentSha256);
+        expect(calls.filter((m) => m === "acceptedEvidence")).toHaveLength(28);
+        expect(calls.filter((m) => m === "admitRun")).toHaveLength(1);
+        expect(calls.filter((m) => m === "stageArtifact")).toHaveLength(2);
+        expect(calls.filter((m) => m === "publishArtifact")).toHaveLength(1);
+        expect(calls.indexOf("acceptedEvidence")).toBeLessThan(
+          calls.indexOf("admitRun")
+        );
+        expect(calls.lastIndexOf("acceptedEvidence")).toBeGreaterThan(
+          calls.indexOf("stageArtifact")
+        );
+        expect(record.method).toContain(
+          "fixed-centroid trailing-window jump DP hard assignment, not probability"
+        );
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("not paper reproduction")
+          )
+        ).toBe(true);
+        expect(
+          record.limitations.some((text: string) =>
+            text.includes("not a calibrated probability")
+          )
+        ).toBe(true);
+        // Strict profile refusal is part of this one connected case, not another campaign.
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            parameters: { variant: "continuous-jump" },
+          }).success
+        ).toBe(false);
+        expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            inputs: f.inputs.slice(0, 2),
+          }).success
+        ).toBe(false);
+        return expect(
+          SleeveResearchRecipeSchema.safeParse({
+            ...f.payload.recipe,
+            operation: "macro-hmm-forward-v1",
+            parameters: { variant: "diagonal-gaussian-log-forward-v1" },
+          }).success
+        ).toBe(false);
+      },
+      scaledTimeout(60_000)
+    );
   }
 );

@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CandleRendererOptions, DisplayCandle } from "./types.ts";
 
 const mocks = vi.hoisted(() => ({
-  CandleType: { CandleUpStroke: "candle_up_stroke" },
+  CandleType: {
+    CandleUpStroke: "candle_up_stroke",
+    CandleSolid: "candle_solid",
+    Ohlc: "ohlc",
+    Area: "area",
+  },
+  ActionType: { OnCrosshairChange: "onCrosshairChange" },
+  registerOverlay: vi.fn(),
   version: vi.fn(() => "9.8.12"),
   init: vi.fn(),
   dispose: vi.fn(),
@@ -10,7 +17,11 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("klinecharts", () => mocks);
 import {
+  DRAWING_GROUP_ID,
   MARKER_GROUP_ID,
+  RECTANGLE_OVERLAY,
+  drawingFromOverlay,
+  rectangleFigures,
   VOLUME_PANE_ID,
   createKLineRenderer,
   validDisplayCandles,
@@ -57,6 +68,9 @@ const studyChart = () => ({
   removeIndicator: vi.fn(),
   createOverlay: vi.fn(() => []),
   removeOverlay: vi.fn(),
+  setStyles: vi.fn(),
+  subscribeAction: vi.fn(),
+  getConvertPictureUrl: vi.fn(() => "data:image/png;base64,AA"),
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -258,7 +272,7 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     ).toThrow("Unknown Vertex study");
     return expect(instance.createIndicator).toHaveBeenCalledTimes(2);
   });
-  return it("draws markers as locked simpleAnnotation overlays in one group and clears them", async () => {
+  it("draws markers as locked simpleAnnotation overlays in one group and clears them", async () => {
     stubBrowser();
     const instance = studyChart();
     mocks.init.mockReturnValue(instance);
@@ -307,5 +321,165 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         { id: "long", timestamp: 1, value: 1, text: "x".repeat(41) },
       ])
     ).toThrow(TypeError);
+  });
+  it("registers a rectangle overlay whose figure is a closed polygon", async () => {
+    stubBrowser();
+    mocks.init.mockReturnValue(studyChart());
+    await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const template = (
+      mocks.registerOverlay.mock.calls as unknown as unknown[][]
+    )[0]?.[0] as {
+      name: string;
+      createPointFigures: (params: {
+        coordinates: { x: number; y: number }[];
+      }) => unknown[];
+    };
+    expect(template.name).toBe(RECTANGLE_OVERLAY);
+    expect(
+      template.createPointFigures({ coordinates: [{ x: 0, y: 0 }] })
+    ).toEqual([]);
+    expect(
+      template.createPointFigures({
+        coordinates: [
+          { x: 0, y: 0 },
+          { x: 4, y: 3 },
+        ],
+      })
+    ).toEqual(
+      rectangleFigures([
+        { x: 0, y: 0 },
+        { x: 4, y: 3 },
+      ])
+    );
+    return expect(
+      rectangleFigures([
+        { x: 0, y: 0 },
+        { x: 4, y: 3 },
+      ])[0]?.attrs.coordinates
+    ).toEqual([
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 4, y: 3 },
+      { x: 0, y: 3 },
+    ]);
+  });
+  it("maps overlays back to drawings and rejects unknown ones", () => {
+    expect(
+      drawingFromOverlay({
+        extendData: undefined,
+        id: "o1",
+        name: "horizontalStraightLine",
+        points: [{ timestamp: 1000, value: 10 }],
+      })
+    ).toEqual({
+      id: "o1",
+      points: [{ timestamp: 1000, value: 10 }],
+      text: "",
+      tool: "level",
+    });
+    expect(
+      drawingFromOverlay({
+        extendData: "note",
+        id: "o2",
+        name: "simpleAnnotation",
+        points: [{ timestamp: 1000, value: 10 }],
+      })?.text
+    ).toBe("note");
+    return expect(
+      drawingFromOverlay({
+        extendData: null,
+        id: "o3",
+        name: "brush",
+        points: [],
+      })
+    ).toBeUndefined();
+  });
+  it("sets chart types, drawings, crosshair listener and snapshots", async () => {
+    stubBrowser();
+    const instance = studyChart();
+    mocks.init.mockReturnValue(instance);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    renderer.setChartType!("ohlc");
+    expect(instance.setStyles).toHaveBeenCalledWith({
+      candle: { type: "ohlc" },
+    });
+    const onChange = vi.fn();
+    const drawing = {
+      id: "d1",
+      points: [
+        { timestamp: 1000, value: 10 },
+        { timestamp: 2000, value: 11 },
+      ],
+      text: "",
+      tool: "trend" as const,
+    };
+    renderer.setDrawings!([drawing], onChange);
+    expect(instance.removeOverlay).toHaveBeenCalledWith({
+      groupId: DRAWING_GROUP_ID,
+    });
+    const created = (
+      instance.createOverlay.mock.calls as unknown as unknown[][]
+    )[0]?.[0] as {
+      name: string;
+      onDrawEnd: (event: unknown) => boolean;
+      onPressedMoveEnd: (event: unknown) => boolean;
+    }[];
+    expect(created[0]?.name).toBe("segment");
+    expect(
+      created[0]?.onPressedMoveEnd({
+        overlay: {
+          extendData: "",
+          id: "d1",
+          name: "segment",
+          points: drawing.points,
+        },
+      })
+    ).toBe(false);
+    expect(onChange).toHaveBeenCalledWith(drawing);
+    created[0]?.onDrawEnd({
+      overlay: { extendData: "", id: "x", name: "brush", points: [] },
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    renderer.setDrawings!([], onChange);
+    expect(instance.createOverlay).toHaveBeenCalledTimes(1);
+    expect(() =>
+      renderer.setDrawings!([{ ...drawing, id: "" }], onChange)
+    ).toThrow("Invalid");
+    renderer.startDrawing!("text", "hello", onChange);
+    expect(instance.createOverlay).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        extendData: "hello",
+        groupId: DRAWING_GROUP_ID,
+        name: "simpleAnnotation",
+      })
+    );
+    const listener = vi.fn();
+    renderer.onCrosshair!(listener);
+    const callback = (
+      instance.subscribeAction.mock.calls as unknown as unknown[][]
+    )[0]?.[1] as (data?: unknown) => void;
+    callback({ kLineData: { timestamp: 2000 } });
+    callback(undefined);
+    expect(listener.mock.calls).toEqual([[2000], [null]]);
+    expect(renderer.snapshot!()).toBe("data:image/png;base64,AA");
+    expect(instance.getConvertPictureUrl).toHaveBeenCalledWith(
+      true,
+      "png",
+      "#ffffff"
+    );
+    renderer.dispose();
+    renderer.setChartType!("area");
+    renderer.setDrawings!([drawing], onChange);
+    renderer.startDrawing!("trend", "", onChange);
+    renderer.onCrosshair!(listener);
+    expect(renderer.snapshot!()).toBe("");
+    expect(instance.setStyles).toHaveBeenCalledTimes(1);
+    return expect(instance.subscribeAction).toHaveBeenCalledTimes(1);
   });
 });

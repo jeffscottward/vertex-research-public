@@ -41,11 +41,14 @@ describe("KnowledgePage", () => {
     vi.stubEnv("VERTEX_KB_CHAT_URL", "https://rig.example.ts.net/kb");
     mocks.getRequestPortalSession.mockResolvedValueOnce({ isOperator: true });
     const markup = await html();
-    expect(markup).toContain('src="https://rig.example.ts.net/kb"');
+    // Only the trading and commodities KBs: kb-chat enforces ?category= in its back end.
+    expect(markup).toContain(
+      'src="https://rig.example.ts.net/kb?category=trading%2Ccommodities"'
+    );
     expect(markup).toContain('title="Knowledge chat (kb-chat on the rig)"');
     expect(markup).toContain('referrerPolicy="no-referrer"');
     expect(markup).toContain(
-      'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"'
+      'sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"'
     );
   });
 

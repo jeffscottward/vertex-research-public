@@ -28,6 +28,8 @@ import {
   COST_PROFILE_OPTIONS,
   costRows,
   describeRevision,
+  describeUniverseBatch,
+  describeUniversePlan,
   isFinished,
   isCostProfilePresetId,
   isoDate,
@@ -35,7 +37,15 @@ import {
   type RunForm,
   replayGeometry,
   toSubmitInput,
+  toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  parseUniverseChoice,
+  UniverseSelect,
+  universeChoiceLabel,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
@@ -341,6 +351,7 @@ export const BacktestRunsWorkspace = ({
   );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
   const [selectedSeries, setSelectedSeries] = useState("");
+  const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
   const [form, setForm] = useState<RunForm>({
     params: DEFAULT_INSTANT_PARAMS,
     from: "",
@@ -373,21 +384,34 @@ export const BacktestRunsWorkspace = ({
     gateway.list().then(setRuns, () => undefined);
   }, [gateway]);
 
+  // Selects a series and sets the dates to its stored range.
+  const applySeries = useCallback((next: InstantBacktestSeries | undefined) => {
+    if (next === undefined) return;
+    setSelectedSeries(seriesKey(next));
+    setForm((current) => ({
+      ...current,
+      from: isoDate(next.firstT),
+      to: isoDate(next.lastT),
+    }));
+  }, []);
+
   useEffect(() => {
     let active = true;
     Promise.all([gateway.series(), gateway.strategies()]).then(
       ([loadedSeries, strategies]) => {
         if (!active) return;
         setLoad({ type: "ready", series: loadedSeries, strategies });
-        const first = loadedSeries[0];
-        if (first !== undefined) {
-          setSelectedSeries(seriesKey(first));
-          setForm((current) => ({
-            ...current,
-            from: isoDate(first.firstT),
-            to: isoDate(first.lastT),
-          }));
-        }
+        // A link such as /backtest-runs?strategy=<id>&universe=core7-futures (from the strategy
+        // library) preselects the universe and the strategy. Read after load, like `run` above.
+        const query = new URLSearchParams(window.location.search);
+        const choice = parseUniverseChoice(query.get("universe"));
+        setUniverse(choice);
+        const linked = strategies.find(
+          (strategy) => strategy.id === query.get("strategy")
+        );
+        if (linked !== undefined)
+          setForm((current) => ({ ...current, strategyId: linked.id }));
+        applySeries(visibleSeries(loadedSeries, choice).series[0]);
       },
       (error: unknown) => {
         if (!active) return;
@@ -405,7 +429,7 @@ export const BacktestRunsWorkspace = ({
     return () => {
       active = false;
     };
-  }, [gateway, refreshList]);
+  }, [gateway, refreshList, applySeries]);
 
   // Follow the selected run until it finishes, at most POLL_MAX reads.
   useEffect(() => {
@@ -452,7 +476,13 @@ export const BacktestRunsWorkspace = ({
   const series = load.series.find(
     (entry) => seriesKey(entry) === selectedSeries
   );
+  const visible = visibleSeries(load.series, universe);
+  // One run per series needs a universe with more than one stored series.
+  const batchReady =
+    universe !== "all" && !visible.fallback && visible.series.length > 1;
+  const plan = toUniverseSubmitInputs(form, visible.series);
   const request = series === undefined ? null : toSubmitInput(form, series);
+  const canRun = request !== null && !("error" in request);
   const setParam = (key: keyof RunForm["params"], value: number) =>
     setForm((current) => ({
       ...current,
@@ -475,6 +505,33 @@ export const BacktestRunsWorkspace = ({
     }
   };
 
+  const submitUniverse = async () => {
+    const label = universeChoiceLabel(universe);
+    setSubmitting(true);
+    setMessage(null);
+    let submitted = 0;
+    let failure: string | null = null;
+    try {
+      for (const input of plan.inputs) {
+        await gateway.submit(input);
+        submitted += 1;
+      }
+    } catch (error) {
+      failure = describeMarketDataFailure(error).message;
+    }
+    setMessage(
+      describeUniverseBatch({
+        failure,
+        label,
+        notSubmitted: plan.inputs.length - submitted,
+        plan,
+        submitted,
+      })
+    );
+    refreshList();
+    setSubmitting(false);
+  };
+
   const { params } = form;
   return (
     <div className="grid gap-8">
@@ -491,6 +548,15 @@ export const BacktestRunsWorkspace = ({
           void submit();
         }}
       >
+        <UniverseSelect
+          fallback={visible.fallback}
+          onChange={(choice) => {
+            setUniverse(choice);
+            applySeries(visibleSeries(load.series, choice).series[0]);
+          }}
+          storedSymbols={load.series.map((entry) => entry.symbol)}
+          value={universe}
+        />
         <div className="grid gap-1">
           <label className="font-medium text-sm" htmlFor={seriesId}>
             Symbol and timeframe
@@ -512,7 +578,7 @@ export const BacktestRunsWorkspace = ({
             }}
             value={selectedSeries}
           >
-            {load.series.map((entry) => (
+            {visible.series.map((entry) => (
               <option key={seriesKey(entry)} value={seriesKey(entry)}>
                 {entry.symbol} {entry.timeframe} ({isoDate(entry.firstT)} to{" "}
                 {isoDate(entry.lastT)})
@@ -679,11 +745,28 @@ export const BacktestRunsWorkspace = ({
         <div className="flex flex-wrap items-end gap-3 md:col-span-2 lg:col-span-3">
           <button
             className="min-h-11 rounded-md bg-primary px-4 font-medium text-primary-foreground text-sm disabled:opacity-60"
-            disabled={submitting || request === null || "error" in request}
+            disabled={submitting || !canRun}
             type="submit"
           >
             {submitting ? "Queuing…" : "Run backtest"}
           </button>
+          {batchReady ? (
+            <button
+              className="min-h-11 rounded-md border px-4 font-medium text-sm disabled:opacity-60"
+              disabled={submitting || !canRun || plan.inputs.length === 0}
+              onClick={() => {
+                void submitUniverse();
+              }}
+              type="button"
+            >
+              Run on every series in {universeChoiceLabel(universe)}
+            </button>
+          ) : null}
+          {batchReady ? (
+            <p className="text-muted-foreground text-sm" data-universe-plan="">
+              {describeUniversePlan(plan)}
+            </p>
+          ) : null}
           {request !== null && "error" in request ? (
             <p className="text-sm" role="status">
               {request.error}
@@ -712,7 +795,7 @@ export const BacktestRunsWorkspace = ({
         {runs.length === 0 ? (
           <p className="text-muted-foreground text-sm">No runs yet.</p>
         ) : (
-          <ul className="grid gap-1">
+          <ul className="grid gap-1" data-click-private="">
             {runs.map((entry) => (
               <li key={entry.id}>
                 <button

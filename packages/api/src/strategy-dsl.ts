@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+import {
+  SECTOR_ROTATION_QUADRANTS,
+  SECTOR_ROTATION_SECTORS,
+} from "./contracts/sector-rotation.ts";
+
 // Strategy definition format (version 1): a small declarative, long-only strategy. Entry needs
 // every entry condition on the signal bar; exit needs any exit condition. Conditions compare two
 // expressions (price fields, constants or indicators). The definition compiles to the signal
@@ -10,6 +15,41 @@ export const STRATEGY_DSL_MAX_CONDITIONS = 8;
 export const STRATEGY_DSL_MAX_LENGTH = 1000;
 /** rvol averages this many previous sessions at most, which keeps its cost per bar small. */
 export const STRATEGY_DSL_MAX_RVOL_SESSIONS = 100;
+/** Most entry filters in one definition. */
+export const STRATEGY_DSL_MAX_FILTERS = 4;
+export const STRATEGY_FILTER_TIMEFRAMES = ["daily", "weekly"] as const;
+
+const SECTOR_SYMBOLS: ReadonlySet<string> = new Set(
+  SECTOR_ROTATION_SECTORS.map((sector) => sector.symbol)
+);
+
+/**
+ * Entry filter: entries are allowed only when the latest stored sector rotation point of `sector`
+ * on `timeframe`, dated on or before the signal bar, has a quadrant in `quadrants`. No point at or
+ * before the bar means no entry. Exits are never blocked.
+ */
+export const StrategyFilterSchema = z
+  .object({
+    quadrants: z
+      .array(z.enum(SECTOR_ROTATION_QUADRANTS))
+      .min(1)
+      .refine((values) => new Set(values).size === values.length, {
+        message: "Quadrants must not repeat",
+      }),
+    sector: z.string().refine((symbol) => SECTOR_SYMBOLS.has(symbol), {
+      message:
+        "Unknown sector. Use a Select Sector SPDR symbol, for example XLK",
+    }),
+    timeframe: z.enum(STRATEGY_FILTER_TIMEFRAMES).default("weekly"),
+    type: z.literal("sectorQuadrant"),
+  })
+  .strict();
+
+/** One to STRATEGY_DSL_MAX_FILTERS entry filters; Autopilot campaigns use the same list. */
+export const StrategyFiltersSchema = z
+  .array(StrategyFilterSchema)
+  .min(1)
+  .max(STRATEGY_DSL_MAX_FILTERS);
 
 export const STRATEGY_PRICE_FIELDS = ["open", "high", "low", "close"] as const;
 export const STRATEGY_INDICATORS = [
@@ -124,6 +164,8 @@ export const StrategyDefinitionSchema = z
       })
       .strict()
       .default({ any: [] }),
+    /** Optional with no default, so definitions without it keep the same canonical JSON. */
+    filters: StrategyFiltersSchema.optional(),
     name: z.string().trim().min(1).max(120),
     /** Entries happen only on signal bars whose UTC time is in [start, end). Omit for all bars. */
     session: z
@@ -161,6 +203,7 @@ export const StrategyDefinitionSchema = z
 export type StrategyExpr = z.infer<typeof StrategyExprSchema>;
 export type StrategyCondition = z.infer<typeof StrategyConditionSchema>;
 export type StrategyDefinition = z.infer<typeof StrategyDefinitionSchema>;
+export type StrategyFilter = z.infer<typeof StrategyFilterSchema>;
 export type StrategyDefinitionInput = z.input<typeof StrategyDefinitionSchema>;
 
 export type StrategyValidationIssue = Readonly<{

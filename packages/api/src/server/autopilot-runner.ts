@@ -37,6 +37,14 @@ import {
   InstantBacktestInputError,
 } from "../instant-backtest-engine.ts";
 import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
+import {
+  SectorQuadrantDataError,
+  type SectorQuadrantSeries,
+} from "../strategy-dsl-compile.ts";
+import {
+  loadSectorQuadrants,
+  type SectorQuadrantSource,
+} from "./sector-quadrant-series.ts";
 
 // Autopilot runner. One tick works on one running campaign for at most its tick time slice:
 // breed a generation from the fittest candidates (in-sample fitness only), evaluate and store the
@@ -54,6 +62,8 @@ export type AutopilotRunnerDependencies = Readonly<{
   /** Monotonic milliseconds (performance.now in production). */
   clock: () => number;
   generateId: () => string;
+  /** Stored sector rotation points for campaigns with sector filters. */
+  sectorRotation?: SectorQuadrantSource;
 }>;
 
 const GeneSchema = z.object({
@@ -101,6 +111,8 @@ type Context = Readonly<{
   bars: BarColumns;
   keys: Set<string>;
   ledger: { value: AutopilotLedger | null };
+  /** Series for the campaign's sector filters; undefined without filters. */
+  sectorQuadrants: SectorQuadrantSeries | undefined;
 }>;
 
 const candidateRow = (
@@ -115,14 +127,19 @@ const candidateRow = (
 ): Readonly<{ row: AutopilotCandidateInput; inSample: InSampleResult }> => {
   const label = genomeLabel(input.genome);
   const id = context.dependencies.generateId();
-  const definition = genomeDefinition(
+  const bred = genomeDefinition(
     input.genome,
     `AP ${context.campaign.symbol} ${label}`
   );
+  // Campaign filters become part of every candidate definition, so the gate and the paper
+  // hand-off use the same rules as the in-sample run.
+  const filters = context.config.filters;
+  const definition = filters === undefined ? bred : { ...bred, filters };
   const inSample = evaluateInSample(
     context.bars,
     definition,
-    context.config.costBps
+    context.config.costBps,
+    context.sectorQuadrants
   );
   const summary = inSample.summary;
   return {
@@ -221,7 +238,8 @@ const refine = async (
       oosSharpe: outOfSampleSharpe(
         context.bars,
         StrategyDefinitionSchema.parse(built.row.definition),
-        context.config.costBps
+        context.config.costBps,
+        context.sectorQuadrants
       ),
     });
     if (!known) {
@@ -251,6 +269,7 @@ const gateCandidate = async (
       definition,
       inSample,
       ledger: await ledgerFor(context, candidate.id),
+      sectorQuadrants: context.sectorQuadrants,
       seed: candidate.id,
     });
   let report = await run();
@@ -349,14 +368,21 @@ export const tickAutopilotCampaign = async (
     // Bad stored data fails the campaign for good (that message is written for users). Any other error (for example a short database
     // outage) only records a note and the tick time, so the campaign retries next tick and never
     // blocks the campaigns behind it.
-    if (error instanceof InstantBacktestInputError)
+    if (
+      error instanceof InstantBacktestInputError &&
+      !(error instanceof SectorQuadrantDataError)
+    )
       return await failure(
         dependencies,
         campaign,
         `Tick failed: ${message}`.slice(0, 500)
       );
-    // The raw message can hold SQL and parameters: the stored note stays generic.
-    const note = "Tick error; the next tick retries.";
+    // Sector data may arrive with the next collection, so the campaign waits for it. The raw
+    // message of other errors can hold SQL and parameters: their stored note stays generic.
+    const note =
+      error instanceof SectorQuadrantDataError
+        ? `${message}; the next tick retries.`
+        : "Tick error; the next tick retries.";
     const saved = await dependencies.autopilot.recordProgress({
       cpuMs: 0,
       generation: campaign.generation,
@@ -394,6 +420,11 @@ const runSlice = async (
     dependencies,
     keys: new Set(await dependencies.autopilot.campaignKeys(campaign.id)),
     ledger: { value: null },
+    sectorQuadrants: await loadSectorQuadrants(
+      dependencies.sectorRotation,
+      config,
+      bars.t[0] as number
+    ),
   };
   let generation = campaign.generation;
   let evaluated = 0;

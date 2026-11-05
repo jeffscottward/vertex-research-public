@@ -24,6 +24,7 @@ export * from "./vertex-research-chat-model-privacy.ts";
 export * from "./vertex-research-chat-advisory.ts";
 export * from "./vertex-research-chat-debate.ts";
 export * from "./vertex-research-chat-native-evidence.ts";
+export * from "./research-reports.ts";
 
 import { sql } from "drizzle-orm";
 import {
@@ -455,6 +456,79 @@ export const watchlistItems = pgTable(
     check(
       "watchlist_items_buy_zone_check",
       sql`(${table.buyZoneLow} is null or ${table.buyZoneLow} > 0) and (${table.buyZoneHigh} is null or ${table.buyZoneHigh} > 0) and (${table.buyZoneLow} is null or ${table.buyZoneHigh} is null or ${table.buyZoneLow} <= ${table.buyZoneHigh})`
+    ),
+  ]
+);
+
+// Private per-user custom baskets ("fake ETFs"): tracked price index only. No orders,
+// intents, quantities held, or broker linkage. base_date null = base not fixed yet
+// (fixed at the first full session close after creation).
+export const BASKET_SYMBOL_PATTERN = /^[A-Z][A-Z0-9]{0,9}$/;
+export const BASKET_NAME_MAX_LENGTH = 80;
+export const BASKET_MAX_MEMBERS = 50;
+
+export const baskets = pgTable(
+  "baskets",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    name: text("name").notNull(),
+    baseDate: date("base_date"),
+    baseValue: numeric("base_value").default("100").notNull(),
+    // Benchmark (SPY) close on base_date; kept so the benchmark line survives after the
+    // base date leaves the one-year history window. Null = not known yet.
+    benchmarkBasePrice: numeric("benchmark_base_price"),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("baskets_user_symbol_unique_idx").on(
+      table.userId,
+      table.symbol
+    ),
+    check(
+      "baskets_symbol_check",
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9]{0,9}$'`
+    ),
+    check(
+      "baskets_name_check",
+      sql`char_length(trim(${table.name})) between 1 and 80`
+    ),
+    check("baskets_base_value_check", sql`${table.baseValue} > 0`),
+    check(
+      "baskets_benchmark_base_price_check",
+      sql`${table.benchmarkBasePrice} is null or ${table.benchmarkBasePrice} > 0`
+    ),
+  ]
+);
+
+export const basketMembers = pgTable(
+  "basket_members",
+  {
+    basketId: text("basket_id")
+      .notNull()
+      .references(() => baskets.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    weight: numeric("weight").notNull(),
+    basePrice: numeric("base_price"),
+    sharesAtBase: numeric("shares_at_base"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.basketId, table.symbol] }),
+    check(
+      "basket_members_symbol_check",
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$'`
+    ),
+    check(
+      "basket_members_weight_check",
+      sql`${table.weight} > 0 and ${table.weight} <= 1`
+    ),
+    check(
+      "basket_members_base_check",
+      sql`(${table.basePrice} is null or ${table.basePrice} > 0) and (${table.sharesAtBase} is null or ${table.sharesAtBase} > 0)`
     ),
   ]
 );
@@ -928,6 +1002,95 @@ export const backtestResults = pgTable(
     ),
   ]
 );
+
+// Quant Lab (migration 0043): SSRN paper captures and frozen strategy specs. Research records only;
+// nothing reads them to start, route or submit orders. Written through server/quant-lab-store.ts.
+// A capture is unique by DOI and Crossref deposit time (version); a spec is unique by its SHA-256.
+export const paperCaptures = pgTable(
+  "paper_captures",
+  {
+    id: text("id").primaryKey(),
+    paperId: text("paper_id")
+      .notNull()
+      .references(() => researchPapers.id, { onDelete: "cascade" }),
+    doi: text("doi").notNull(),
+    ssrnId: text("ssrn_id").notNull(),
+    version: text("version").notNull(),
+    topic: text("topic").notNull(),
+    title: text("title").notNull(),
+    authors: jsonb("authors").$type<string[]>().default([]).notNull(),
+    posted: text("posted"),
+    abstract: text("abstract"),
+    url: text("url").notNull(),
+    metadataSource: text("metadata_source").notNull(),
+    pdfStatus: text("pdf_status").notNull(),
+    pdfSha256: text("pdf_sha256"),
+    pdfBytes: integer("pdf_bytes"),
+    pdfSourceUrl: text("pdf_source_url"),
+    capturedAt: utcTimestamp("captured_at").notNull(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("paper_captures_doi_version_unique_idx").on(
+      table.doi,
+      table.version
+    ),
+    index("paper_captures_paper_idx").on(table.paperId),
+    check(
+      "paper_captures_text_check",
+      sql`${table.doi} ~ '^10\\.2139/ssrn\\.[0-9]+$' and ${table.ssrnId} ~ '^[0-9]+$' and char_length(${table.version}) between 1 and 120 and char_length(trim(${table.topic})) between 1 and 200 and char_length(trim(${table.title})) between 1 and 300 and (${table.abstract} is null or char_length(${table.abstract}) <= 10000) and char_length(${table.url}) <= 2000 and (${table.pdfSourceUrl} is null or char_length(${table.pdfSourceUrl}) <= 2000)`
+    ),
+    check(
+      "paper_captures_pdf_check",
+      sql`(${table.pdfStatus} = 'retained' and ${table.pdfSha256} ~ '^[0-9a-f]{64}$' and ${table.pdfBytes} > 0) or (${table.pdfStatus} like 'metadata_only:%' and ${table.pdfSha256} is null and ${table.pdfBytes} is null)`
+    ),
+    check(
+      "paper_captures_authors_check",
+      sql`jsonb_typeof(${table.authors}) = 'array' and jsonb_array_length(${table.authors}) <= 100 and octet_length(${table.authors}::text) <= 8192`
+    ),
+  ]
+);
+
+export const strategySpecs = pgTable(
+  "strategy_specs",
+  {
+    id: text("id").primaryKey(),
+    specKey: text("spec_key").notNull(),
+    specSha256: text("spec_sha256").notNull(),
+    paperId: text("paper_id").references(() => researchPapers.id, {
+      onDelete: "set null",
+    }),
+    captureId: text("capture_id").references(() => paperCaptures.id, {
+      onDelete: "set null",
+    }),
+    strategyId: text("strategy_id").references(() => strategies.id, {
+      onDelete: "set null",
+    }),
+    name: text("name").notNull(),
+    hypothesis: text("hypothesis").notNull(),
+    paperClaims: jsonb("paper_claims")
+      .$type<Record<string, unknown>[]>()
+      .notNull(),
+    ourReading: jsonb("our_reading").$type<Record<string, unknown>>().notNull(),
+    spec: jsonb("spec").$type<Record<string, unknown>>().notNull(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("strategy_specs_sha_unique_idx").on(table.specSha256),
+    index("strategy_specs_paper_idx").on(table.paperId),
+    check(
+      "strategy_specs_text_check",
+      sql`${table.specSha256} ~ '^[0-9a-f]{64}$' and ${table.specKey} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and char_length(${table.specKey}) <= 80 and char_length(trim(${table.name})) between 1 and 200 and char_length(trim(${table.hypothesis})) between 1 and 4000`
+    ),
+    check(
+      "strategy_specs_json_check",
+      sql`jsonb_typeof(${table.paperClaims}) = 'array' and jsonb_array_length(${table.paperClaims}) between 1 and 50 and jsonb_typeof(${table.ourReading}) = 'object' and jsonb_typeof(${table.spec}) = 'object' and octet_length(${table.spec}::text) <= 65536`
+    ),
+  ]
+);
+
+export type QuantLabPaperCapture = typeof paperCaptures.$inferSelect;
+export type QuantLabStrategySpec = typeof strategySpecs.$inferSelect;
 
 // Agent model runs: one row per framework run (for example TradingAgents) on one ticker and decision
 // date, recorded by the agent that ran it. rating and the entry/stop/target levels are research labels.
@@ -1581,6 +1744,54 @@ export const contactRateLimits = pgTable(
   ]
 );
 
+// UI click log (card vertex-click-log): one row per recorded portal click or form submit, for
+// debugging what a user did before a problem. Rows are redacted before insert (no typed text,
+// field values, tokens or numbers shown on screen) and deleted 14 days after receipt.
+// Used by: packages/db/src/server/click-log.ts. See: docs/vertex-rebuild/click-log.md.
+export const uiClickEvents = pgTable(
+  "ui_click_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Random id of one browser tab, so one tab's clicks read in order. */
+    tabId: text("tab_id").notNull(),
+    /** Browser time of the click. */
+    occurredAt: utcTimestampMs("occurred_at").notNull(),
+    /** Server time of the batch insert; retention uses this column. */
+    receivedAt: utcTimestampMs("received_at").defaultNow().notNull(),
+    kind: text("kind").notNull(),
+    role: text("role").notNull(),
+    label: text("label").notNull(),
+    testId: text("test_id"),
+    route: text("route").notNull(),
+    targetRoute: text("target_route"),
+    important: boolean("important").notNull(),
+    /** Correlation ids of the oRPC calls an important click caused. */
+    requestIds: text("request_ids").array().notNull(),
+    /** Correlation id of the clickLog.record request that stored the row. */
+    recordRequestId: text("record_request_id").notNull(),
+    buildSha: text("build_sha").notNull(),
+  },
+  (table) => [
+    index("ui_click_events_user_occurred_idx").on(
+      table.userId,
+      table.occurredAt
+    ),
+    index("ui_click_events_occurred_idx").on(table.occurredAt),
+    index("ui_click_events_received_idx").on(table.receivedAt),
+    check(
+      "ui_click_events_kind_check",
+      sql`${table.kind} in ('click', 'submit') and ${table.role} in ('button', 'link', 'menuitem', 'tab', 'option', 'checkbox', 'radio', 'switch', 'summary', 'form')`
+    ),
+    check(
+      "ui_click_events_text_check",
+      sql`char_length(${table.label}) <= 80 and char_length(${table.route}) between 1 and 300 and (${table.testId} is null or char_length(${table.testId}) <= 80) and (${table.targetRoute} is null or char_length(${table.targetRoute}) <= 300) and cardinality(${table.requestIds}) <= 8`
+    ),
+  ]
+);
+
 export const outboxEvents = pgTable(
   "outbox_events",
   {
@@ -1698,6 +1909,8 @@ export type FeatureItem = typeof featureItems.$inferSelect;
 export type NewFeatureItem = typeof featureItems.$inferInsert;
 export type WatchlistItem = typeof watchlistItems.$inferSelect;
 export type NewWatchlistItem = typeof watchlistItems.$inferInsert;
+export type Basket = typeof baskets.$inferSelect;
+export type BasketMember = typeof basketMembers.$inferSelect;
 export type ResearchPaper = typeof researchPapers.$inferSelect;
 export type NewResearchPaper = typeof researchPapers.$inferInsert;
 export type AgentTask = typeof agentTasks.$inferSelect;
@@ -1750,7 +1963,7 @@ export const marketBarSeries = pgTable(
     ),
     check(
       "market_bar_series_text_check",
-      sql`${table.symbol} ~ '^[A-Z0-9.^-]{1,20}$' and ${table.timeframe} in ('1d', '1m') and char_length(trim(${table.source})) between 1 and 300 and ${table.sourceSha256} ~ '^[0-9a-f]{64}$'`
+      sql`${table.symbol} ~ '^[A-Z0-9.^=-]{1,20}$' and ${table.timeframe} in ('1d', '1m') and char_length(trim(${table.source})) between 1 and 300 and ${table.sourceSha256} ~ '^[0-9a-f]{64}$'`
     ),
     check(
       "market_bar_series_range_check",
@@ -2367,3 +2580,76 @@ export const priceAlertRules = pgTable(
 );
 
 export type PriceAlertRuleRow = typeof priceAlertRules.$inferSelect;
+
+// Sector rotation map (sectorRotation.*): ratio and momentum of each stored sector against its
+// benchmark, recomputed and upserted by (timeframe, symbol, date). Alerts are insert-once by
+// (symbol, quadrant, entered_on), so a rerun never sends the same alert twice. Research only.
+export type SectorRotationTimeframeValue = "daily" | "weekly";
+export type SectorRotationQuadrantValue =
+  | "leading"
+  | "weakening"
+  | "lagging"
+  | "improving";
+export type SectorRotationAlertDeliveryValue =
+  | "pending"
+  | "sent"
+  | "not-configured"
+  | "failed";
+
+export const sectorRotationPoints = pgTable(
+  "sector_rotation_points",
+  {
+    timeframe: text("timeframe")
+      .$type<SectorRotationTimeframeValue>()
+      .notNull(),
+    symbol: text("symbol").notNull(),
+    benchmark: text("benchmark").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    ratio: doublePrecision("ratio").notNull(),
+    momentum: doublePrecision("momentum").notNull(),
+    quadrant: text("quadrant").$type<SectorRotationQuadrantValue>().notNull(),
+    computedAt: utcTimestamp("computed_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.timeframe, table.symbol, table.date] }),
+    index("sector_rotation_points_timeframe_date_idx").on(
+      table.timeframe,
+      table.date
+    ),
+    check(
+      "sector_rotation_points_fields_check",
+      sql`${table.timeframe} in ('daily', 'weekly') and ${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and ${table.benchmark} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and ${table.quadrant} in ('leading', 'weakening', 'lagging', 'improving')`
+    ),
+    check(
+      "sector_rotation_points_values_check",
+      sql`${table.ratio} > 0 and ${table.ratio} < 'Infinity'::double precision and ${table.momentum} > 0 and ${table.momentum} < 'Infinity'::double precision`
+    ),
+  ]
+);
+
+export type SectorRotationPointRow = typeof sectorRotationPoints.$inferSelect;
+
+export const sectorRotationAlerts = pgTable(
+  "sector_rotation_alerts",
+  {
+    symbol: text("symbol").notNull(),
+    quadrant: text("quadrant").$type<SectorRotationQuadrantValue>().notNull(),
+    enteredOn: date("entered_on", { mode: "string" }).notNull(),
+    line: text("line").notNull(),
+    delivery: text("delivery")
+      .$type<SectorRotationAlertDeliveryValue>()
+      .default("pending")
+      .notNull(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.quadrant, table.enteredOn] }),
+    check(
+      "sector_rotation_alerts_fields_check",
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and ${table.quadrant} in ('leading', 'weakening', 'lagging', 'improving') and char_length(${table.line}) between 1 and 300 and ${table.delivery} in ('pending', 'sent', 'not-configured', 'failed')`
+    ),
+  ]
+);
+
+export type SectorRotationAlertRow = typeof sectorRotationAlerts.$inferSelect;

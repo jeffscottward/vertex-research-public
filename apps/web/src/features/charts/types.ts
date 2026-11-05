@@ -7,6 +7,7 @@ import type {
 } from "@darkfactory/api/vertex";
 import type { DeepReadonly } from "@darkfactory/shared/vertex";
 import type { VertexStudyId } from "./vertex-studies.ts";
+import type { ChartType, Drawing, DrawingTool } from "./workstation.ts";
 
 // Presentation-only ports. These are not wire contracts, broker authority, or a BFF.
 export interface ChartRecords {
@@ -111,6 +112,23 @@ export type CandleRenderer = Readonly<{
   dispose: () => void;
   setStudies?: (studies: ChartStudies) => void;
   setMarkers?: (markers: readonly ChartMarker[]) => void;
+  // Workstation features (optional; renderers without them hide the controls).
+  setChartType?: (type: ChartType) => void;
+  // Replace all user drawings. onChange receives a drawing after a drag edit.
+  setDrawings?: (
+    drawings: readonly Drawing[],
+    onChange: (drawing: Drawing) => void
+  ) => void;
+  // Start one interactive drawing; onChange receives it when it is complete.
+  startDrawing?: (
+    tool: DrawingTool,
+    text: string,
+    onChange: (drawing: Drawing) => void
+  ) => void;
+  // Called with the bar timestamp under the crosshair, or null when it leaves.
+  onCrosshair?: (listener: (timestamp: number | null) => void) => void;
+  // PNG data URL of the chart including drawings.
+  snapshot?: () => string;
 }>;
 export type CandleRendererFactory = (
   element: HTMLElement,

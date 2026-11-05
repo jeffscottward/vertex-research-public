@@ -20,6 +20,8 @@ import {
 
 import {
   describeRevision,
+  describeUniverseBatch,
+  describeUniversePlan,
   isFinished,
   isoDate,
   COST_PROFILE_OPTIONS,
@@ -28,6 +30,7 @@ import {
   metricRows,
   replayGeometry,
   toSubmitInput,
+  toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
 import {
   type BacktestRunsGateway,
@@ -133,6 +136,20 @@ const SPY: InstantBacktestSeries = {
   lastT: 99 * DAY_MS,
   importedAt: "2026-10-18T00:00:00.000Z",
 };
+const ES: InstantBacktestSeries = { ...SPY, symbol: "ES=F" };
+const NQ: InstantBacktestSeries = {
+  ...SPY,
+  symbol: "NQ=F",
+  firstT: 10 * DAY_MS,
+  lastT: 20 * DAY_MS,
+};
+const CL: InstantBacktestSeries = {
+  ...SPY,
+  symbol: "CL=F",
+  firstT: 200 * DAY_MS,
+  lastT: 300 * DAY_MS,
+};
+const TEST: InstantBacktestSeries = { ...SPY, symbol: "TEST" };
 
 const report: BacktestRunReportOutput = {
   bars: 3,
@@ -301,6 +318,92 @@ describe("backtest runs model", () => {
     expect(toSubmitInput({ ...form, initialCapital: 0 }, SPY)).toEqual({
       error: "Initial capital must be from 1 to 1,000,000,000.",
     });
+  });
+
+  it("builds one run per universe series with dates clipped to its bars", () => {
+    const plan = toUniverseSubmitInputs(
+      { ...form, from: "1970-01-05", to: "1970-04-10" },
+      [ES, NQ, CL]
+    );
+    expect(plan.skipped).toBe(1);
+    expect(
+      plan.inputs.map((input) => [input.symbol, input.from, input.to])
+    ).toEqual([
+      ["ES=F", "1970-01-05", "1970-04-10"],
+      ["NQ=F", "1970-01-11", "1970-01-21"],
+    ]);
+    expect(plan.inputs[0]).toMatchObject({ initialCapital: 5000 });
+    // A form that cannot run skips every series.
+    expect(
+      toUniverseSubmitInputs(
+        { ...form, params: { ...DEFAULT_INSTANT_PARAMS, fast: 300 } },
+        [ES, NQ]
+      )
+    ).toEqual({
+      firstError: "The fast average must be shorter than the slow average.",
+      inputs: [],
+      invalid: 2,
+      skipped: 0,
+    });
+    // Empty clipped ranges and other errors are counted apart; the first error is kept.
+    expect(
+      toUniverseSubmitInputs({ ...form, initialCapital: 0 }, [ES, CL])
+    ).toEqual({
+      firstError: "Initial capital must be from 1 to 1,000,000,000.",
+      inputs: [],
+      invalid: 1,
+      skipped: 1,
+    });
+    // A form whose own dates are invalid reports that error rather than an empty range.
+    expect(
+      toUniverseSubmitInputs(
+        { ...form, from: "1970-02-01", to: "1970-01-01" },
+        [ES]
+      )
+    ).toMatchObject({ invalid: 1, skipped: 0 });
+    expect(toUniverseSubmitInputs({ ...form, to: "" }, [ES])).toMatchObject({
+      invalid: 1,
+      skipped: 0,
+    });
+    expect(
+      describeUniversePlan({
+        firstError: null,
+        inputs: [],
+        invalid: 1,
+        skipped: 2,
+      })
+    ).toBe("0 runs, 3 skipped");
+    expect(describeUniversePlan(toUniverseSubmitInputs(form, [ES]))).toBe(
+      "1 run, 0 skipped"
+    );
+  });
+
+  it("summarizes a universe batch", () => {
+    expect(
+      describeUniverseBatch({
+        failure: null,
+        label: "Core 7 futures",
+        notSubmitted: 0,
+        plan: { firstError: null, inputs: [], invalid: 0, skipped: 0 },
+        submitted: 7,
+      })
+    ).toBe("Submitted 7 runs for Core 7 futures.");
+    expect(
+      describeUniverseBatch({
+        failure: "Bar storage unavailable",
+        label: "Core 7 ETF twins",
+        notSubmitted: 3,
+        plan: {
+          firstError: "Initial capital must be from 1 to 1,000,000,000.",
+          inputs: [],
+          invalid: 1,
+          skipped: 2,
+        },
+        submitted: 1,
+      })
+    ).toBe(
+      "Submitted 1 run for Core 7 ETF twins. 3 not submitted. Skipped 2 series with no bars in the date range. Skipped 1 series that could not run: Initial capital must be from 1 to 1,000,000,000. Bar storage unavailable"
+    );
   });
 
   it("lists cost profiles and shows gross versus net rows", () => {
@@ -634,6 +737,169 @@ describe("BacktestRunsWorkspace", () => {
     expect(field("To").value).toBe("1970-01-21");
     await setNative(field("Symbol and timeframe"), "missing");
     expect(field("From").value).toBe("1970-01-11");
+  });
+
+  const optionValues = (label: string) =>
+    [...field(label).options].map((option) => option.value);
+  const batchButton = (label: string) =>
+    button(`Run on every series in ${label}`) as HTMLButtonElement | undefined;
+
+  it("preselects Core 7 futures and its first stored series", async () => {
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({
+          series: vi.fn(async () => [
+            { ...SPY, symbol: "BTCUSDT" },
+            NQ,
+            SPY,
+            TEST,
+          ]),
+        })}
+      />
+    );
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Symbol and timeframe").value).toBe("NQ=F:1d");
+    expect(optionValues("Symbol and timeframe")).toEqual(["NQ=F:1d"]);
+    expect(field("From").value).toBe("1970-01-11");
+    expect(field("To").value).toBe("1970-01-21");
+    // One stored member: no batch button.
+    expect(batchButton("Core 7 futures")).toBeUndefined();
+
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(optionValues("Symbol and timeframe")).toEqual(["SPY:1d"]);
+    expect(field("From").value).toBe("1970-01-01");
+    expect(field("To").value).toBe("1970-04-10");
+    await setNative(field("Universe"), "all");
+    expect(optionValues("Symbol and timeframe")).toHaveLength(4);
+    expect(field("Symbol and timeframe").value).toBe("BTCUSDT:1d");
+  });
+
+  it("shows every stored series when no Core 7 future is stored", async () => {
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({ series: vi.fn(async () => [SPY, TEST]) })}
+      />
+    );
+    expect(field("Universe").value).toBe("core7-futures");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+    expect(optionValues("Symbol and timeframe")).toEqual(["SPY:1d", "TEST:1d"]);
+    expect(document.body.textContent).toContain(
+      "No stored bars for Core 7 futures yet. Showing all stored series."
+    );
+    expect(batchButton("Core 7 futures")).toBeUndefined();
+    await setNative(field("Universe"), "core7-etf-twins");
+    expect(optionValues("Symbol and timeframe")).toEqual(["SPY:1d"]);
+  });
+
+  it("reads universe and strategy from the URL", async () => {
+    try {
+      window.history.replaceState(
+        null,
+        "",
+        "/backtest-runs?strategy=s-1&universe=core7-etf-twins"
+      );
+      await mount(
+        <BacktestRunsWorkspace
+          gateway={gatewayOf({ series: vi.fn(async () => [ES, SPY]) })}
+        />
+      );
+      expect(field("Universe").value).toBe("core7-etf-twins");
+      expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+      expect(field("Strategy (optional)").value).toBe("s-1");
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      document.body.replaceChildren();
+
+      window.history.replaceState(
+        null,
+        "",
+        "/backtest-runs?strategy=unknown&universe=nasdaq"
+      );
+      await mount(
+        <BacktestRunsWorkspace
+          gateway={gatewayOf({ series: vi.fn(async () => [SPY, ES]) })}
+        />
+      );
+      expect(field("Universe").value).toBe("core7-futures");
+      expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
+      expect(field("Strategy (optional)").value).toBe("");
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
+  it("submits one run per series of the universe with clipped dates", async () => {
+    const submit = vi.fn(async () => runOf({ status: "queued", report: null }));
+    const list = vi.fn(async () => [runOf()]);
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({
+          list,
+          series: vi.fn(async () => [CL, SPY, NQ, ES]),
+          submit,
+        })}
+      />
+    );
+    expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
+    expect(optionValues("Symbol and timeframe")).toEqual([
+      "ES=F:1d",
+      "NQ=F:1d",
+      "CL=F:1d",
+    ]);
+    const plan = () =>
+      document.querySelector("[data-universe-plan]")?.textContent;
+    expect(plan()).toBe("2 runs, 1 skipped");
+    await setNative(field("From"), "1970-01-15");
+    const listCalls = list.mock.calls.length;
+    await settle(() => batchButton("Core 7 futures")?.click());
+    expect(
+      submit.mock.calls.map((call: readonly unknown[]) => {
+        const input = call[0] as { symbol: string; from: string; to: string };
+        return [input.symbol, input.from, input.to];
+      })
+    ).toEqual([
+      ["ES=F", "1970-01-15", "1970-04-10"],
+      ["NQ=F", "1970-01-15", "1970-01-21"],
+    ]);
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Submitted 2 runs for Core 7 futures. Skipped 1 series with no bars in the date range."
+    );
+    expect(list.mock.calls.length).toBe(listCalls + 1);
+
+    // A range with no bars in any series: zero planned runs disable the batch button.
+    await setNative(field("From"), "1970-04-11");
+    await setNative(field("To"), "1970-04-20");
+    expect(plan()).toBe("0 runs, 3 skipped");
+    expect(batchButton("Core 7 futures")?.disabled).toBe(true);
+    // An invalid form disables the batch button too.
+    await setNative(field("From"), "");
+    expect(batchButton("Core 7 futures")?.disabled).toBe(true);
+    // "All stored series" has no batch button.
+    await setNative(field("Universe"), "all");
+    expect(batchButton("All stored series")).toBeUndefined();
+  });
+
+  it("reports how many runs were submitted before a failure", async () => {
+    let calls = 0;
+    const submit = vi.fn(async () => {
+      calls += 1;
+      if (calls === 2)
+        return Promise.reject({
+          code: "STORAGE_ERROR",
+          message: "Bar storage unavailable",
+        });
+      return runOf({ status: "queued", report: null });
+    });
+    await mount(
+      <BacktestRunsWorkspace
+        gateway={gatewayOf({ series: vi.fn(async () => [ES, NQ]), submit })}
+      />
+    );
+    await settle(() => batchButton("Core 7 futures")?.click());
+    expect(submit).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+      "Submitted 1 run for Core 7 futures. 1 not submitted. Bar storage unavailable"
+    );
+    expect(batchButton("Core 7 futures")?.disabled).toBe(false);
   });
 
   it("ignores form submits while the input is invalid", async () => {

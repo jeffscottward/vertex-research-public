@@ -12,6 +12,8 @@ import {
   createApiClient,
   type DeploymentLimitsOutput,
   type InstantBacktestSeries,
+  SECTOR_ROTATION_QUADRANTS,
+  SECTOR_ROTATION_SECTORS,
 } from "@darkfactory/api";
 import {
   StatusBadge,
@@ -48,6 +50,12 @@ import {
   seriesLabel,
   toCampaignInput,
 } from "./autopilot-model.ts";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  UniverseSelect,
+  firstSeriesKey,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
 
@@ -64,27 +72,33 @@ const buttonClass =
 const secondaryClass =
   "min-h-11 rounded-md border px-4 font-medium text-sm disabled:opacity-60";
 const linkButtonClass = "min-h-11 text-left underline";
+const QUADRANT_LABELS = {
+  improving: "Improving",
+  lagging: "Lagging",
+  leading: "Leading",
+  weakening: "Weakening",
+} as const;
 
 export interface AutopilotGateway {
-  readonly series: () => Promise<readonly InstantBacktestSeries[]>;
-  readonly list: () => Promise<readonly AutopilotCampaignOutput[]>;
+  readonly candidate: (id: string) => Promise<AutopilotCandidateDetailOutput>;
   readonly create: (
     input: AutopilotCampaignCreateInput
   ) => Promise<AutopilotCampaignOutput>;
   readonly get: (id: string) => Promise<AutopilotCampaignDetailOutput>;
-  readonly setStatus: (
-    id: string,
-    action: "start" | "stop"
-  ) => Promise<AutopilotCampaignOutput>;
-  readonly tick: (id: string) => Promise<void>;
-  readonly candidate: (id: string) => Promise<AutopilotCandidateDetailOutput>;
+  readonly list: () => Promise<readonly AutopilotCampaignOutput[]>;
   readonly sendToPaper: (
     id: string,
     limits: DeploymentLimitsOutput
   ) => Promise<Readonly<{ id: string; status: string }>>;
+  readonly series: () => Promise<readonly InstantBacktestSeries[]>;
+  readonly setStatus: (
+    id: string,
+    action: "start" | "stop"
+  ) => Promise<AutopilotCampaignOutput>;
   readonly submitBacktest: (
     input: BacktestRunSubmitInput
   ) => Promise<BacktestRun>;
+  readonly tick: (id: string) => Promise<void>;
 }
 
 export const createAutopilotGateway = (
@@ -156,15 +170,18 @@ const CampaignForm = ({
   series: readonly InstantBacktestSeries[];
   onCreate: (input: AutopilotCampaignCreateInput) => Promise<void>;
 }>) => {
+  const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
   const [form, setForm] = useState<AutopilotForm>({
     ...DEFAULT_AUTOPILOT_FORM,
-    seriesKey: series[0] === undefined ? "" : seriesKeyOf(series[0]),
+    seriesKey: firstSeriesKey(series, DEFAULT_UNIVERSE_CHOICE),
   });
+  const visible = visibleSeries(series, universe);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const nameId = useId();
   const seriesId = useId();
   const seedId = useId();
+  const sectorId = useId();
   const update = (patch: Partial<AutopilotForm>) =>
     setForm({ ...form, ...patch });
   const submit = async () => {
@@ -203,6 +220,15 @@ const CampaignForm = ({
             value={form.name}
           />
         </div>
+        <UniverseSelect
+          fallback={visible.fallback}
+          onChange={(choice) => {
+            setUniverse(choice);
+            update({ seriesKey: firstSeriesKey(series, choice) });
+          }}
+          storedSymbols={series.map((item) => item.symbol)}
+          value={universe}
+        />
         <div className="grid min-w-0 gap-1">
           <label className="font-medium text-sm" htmlFor={seriesId}>
             Bar series
@@ -213,7 +239,7 @@ const CampaignForm = ({
             onChange={(event) => update({ seriesKey: event.target.value })}
             value={form.seriesKey}
           >
-            {series.map((item) => (
+            {visible.series.map((item) => (
               <option key={seriesKeyOf(item)} value={seriesKeyOf(item)}>
                 {seriesLabel(item)}
               </option>
@@ -264,6 +290,62 @@ const CampaignForm = ({
           />
         </div>
       </div>
+      <fieldset className="grid gap-2">
+        <legend className="font-medium text-sm">
+          Sector filter (optional)
+        </legend>
+        <p className="text-muted-foreground text-sm">
+          Candidates enter only while the sector is in a checked quadrant of the
+          weekly sector rotation map.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid min-w-0 gap-1">
+            <label className="font-medium text-sm" htmlFor={sectorId}>
+              Sector
+            </label>
+            <select
+              className="min-h-11 rounded-md border bg-background px-3 text-sm"
+              id={sectorId}
+              onChange={(event) => update({ filterSector: event.target.value })}
+              value={form.filterSector}
+            >
+              <option value="">None</option>
+              {SECTOR_ROTATION_SECTORS.map((sector) => (
+                <option key={sector.symbol} value={sector.symbol}>
+                  {sector.symbol} {sector.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {form.filterSector === "" ? null : (
+            <fieldset className="flex flex-wrap items-end gap-3">
+              <legend className="sr-only">Quadrants</legend>
+              {SECTOR_ROTATION_QUADRANTS.map((quadrant) => (
+                <label
+                  className="flex min-h-11 items-center gap-2 text-sm"
+                  key={quadrant}
+                >
+                  <input
+                    checked={form.filterQuadrants.includes(quadrant)}
+                    className="size-5"
+                    onChange={(event) =>
+                      update({
+                        filterQuadrants: event.target.checked
+                          ? [...form.filterQuadrants, quadrant]
+                          : form.filterQuadrants.filter(
+                              (value) => value !== quadrant
+                            ),
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  {QUADRANT_LABELS[quadrant]}
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </div>
+      </fieldset>
       <div className="flex flex-wrap items-center gap-3">
         <button
           className={buttonClass}
@@ -298,7 +380,7 @@ const CampaignTable = ({
       <p className="text-muted-foreground text-sm">No campaigns yet.</p>
     ) : (
       <div className="overflow-x-auto">
-        <Table className="w-full text-sm">
+        <Table className="w-full text-sm" data-click-private="">
           <TableHeader>
             <TableRow className="text-left text-muted-foreground">
               <TableHead className="py-2 pr-4 text-muted-foreground">
@@ -594,9 +676,9 @@ const PaperHandoff = ({
       )}
       {showLive ? (
         <div
+          aria-label="Live readiness"
           className="grid gap-2 rounded-md border p-3"
           role="region"
-          aria-label="Live readiness"
         >
           <p className="font-medium text-sm">
             Live readiness: not allowed. Autopilot never requests or arms live

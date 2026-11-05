@@ -71,7 +71,6 @@ describe("resolved Vite environment optimizer contract", () => {
         "@darkfactory/auth > better-auth/client/plugins",
         "@darkfactory/ui > sonner",
         "lucide-react",
-        "next/router",
         "@copilotkit/react-core/v2",
         "@tanstack/charts",
         "@tanstack/charts/react",

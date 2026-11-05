@@ -181,6 +181,9 @@ class WatchdogConfig:
     socket_timeout_seconds: float = 3.0
     log_dir: Path = Path("./data/nautilus/logs")
     kill_switch_path: Path = Path("./data/KILL_SWITCH")
+    # The Nautilus owner arm record. A kill switch deletes it, so removing the
+    # kill switch never re-arms the node without the owner.
+    nautilus_armed_path: Path = Path("./data/nautilus/ARMED")
     create_kill_switch_on_critical: bool = False
     kill_switch_failure_threshold: int = 6
     redis_url: str = "redis://redis:6379/0"
@@ -253,6 +256,7 @@ class WatchdogConfig:
             socket_timeout_seconds=max(0.1, float(value("WATCHDOG_SOCKET_TIMEOUT_SECONDS", 3))),
             log_dir=Path(str(value("WATCHDOG_LOG_DIR", value("NAUTILUS_LOG_DIR", "./data/nautilus/logs")))),
             kill_switch_path=Path(str(value("KILL_SWITCH_PATH", "./data/KILL_SWITCH"))),
+            nautilus_armed_path=Path(str(value("NAUTILUS_ARMED_PATH", "./data/nautilus/ARMED"))),
             create_kill_switch_on_critical=kill_switch_on_failure,
             kill_switch_failure_threshold=max(
                 failure_threshold,
@@ -710,6 +714,21 @@ class WatchdogService:
     def maybe_restart_ib_gateway(self, reason: str) -> None:
         self.maybe_restart_service("ib-gateway", reason, self.docker_manager.restart_ib_gateway)
 
+    def clear_arm_record_on_kill_switch(self) -> None:
+        """While the kill switch exists, the owner arm record must not exist."""
+        if not self.config.kill_switch_path.exists():
+            return
+        try:
+            self.config.nautilus_armed_path.unlink()
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            self.log_event({"event": "arm_record_clear_failed", "detail": safe_detail(exc)})
+            return
+        self.log_event(
+            {"event": "arm_record_cleared_by_kill_switch", "path": str(self.config.nautilus_armed_path)}
+        )
+
     def maybe_create_kill_switch(self) -> None:
         if not self.config.create_kill_switch_on_critical:
             return
@@ -780,6 +799,7 @@ class WatchdogService:
                 self.maybe_restart_ib_gateway("ib_gateway_api_failed")
 
             self.maybe_create_kill_switch()
+            self.clear_arm_record_on_kill_switch()
 
             summary = self.status_payload()
             now = self.monotonic()

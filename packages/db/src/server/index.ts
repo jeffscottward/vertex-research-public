@@ -169,6 +169,14 @@ export {
   type NautilusArmAuditRepository,
 } from "./arm-switch-audit.ts";
 export {
+  createOrderIntentRepository,
+  ORDER_INTENT_ACTIONS,
+  type OrderIntent,
+  type OrderIntentAction,
+  type OrderIntentOutcome,
+  type OrderIntentRepository,
+} from "./order-intents.ts";
+export {
   boundDriftMessage,
   createForwardDriftRepository,
   FORWARD_DRIFT_ALERTS_MAX,
@@ -186,6 +194,18 @@ export {
   type PriceAlertTriggerInput,
   priceAlertRecordOf,
 } from "./price-alerts.ts";
+export {
+  createSectorRotationRepository,
+  SECTOR_ROTATION_UPSERT_BATCH,
+  type SectorRotationAlertDeliveryValue,
+  type SectorRotationAlertKey,
+  type SectorRotationPointQuery,
+  type SectorRotationPointRecord,
+  type SectorRotationQuadrantValue,
+  type SectorRotationRepository,
+  type SectorRotationRepositoryDependencies,
+  type SectorRotationTimeframeValue,
+} from "./sector-rotation.ts";
 export type {
   MarketBarColumns,
   MarketBarRow,
@@ -199,9 +219,61 @@ export {
   marketBarSeriesId,
 } from "./market-bars.ts";
 export type {
+  ResearchCatalogImport,
+  ResearchCategoryInput,
+  ResearchCompanyResearchInput,
+  ResearchCompanyResearchRecord,
+  ResearchDatasetInput,
+  ResearchDatasetRecord,
+  ResearchImportResult,
+  ResearchReportCategoryRecord,
+  ResearchReportCounts,
+  ResearchReportInput,
+  ResearchReportRecord,
+  ResearchReportsRepository,
+  ResearchRevisionInput,
+} from "./research-reports.ts";
+export type {
+  ClickLogInsert,
+  ClickLogQuery,
+  ClickLogQueryResult,
+  ClickLogRepository,
+  ClickLogRow,
+  ClickLogRowWithUser,
+} from "./click-log.ts";
+export {
+  CLICK_LOG_RETENTION_DAYS,
+  createClickLogRepository,
+} from "./click-log.ts";
+export {
+  createResearchReportsRepository,
+  ResearchReportsInputError,
+  validateResearchCatalogImport,
+} from "./research-reports.ts";
+export type {
   BacktestResultDraft,
   NormalizedBacktestResult,
 } from "./backtest-results.ts";
+export type {
+  BasketMemberInput,
+  BasketRepository,
+  BasketWithMembers,
+  CreateBasketInput,
+  FixBasketBaseInput,
+  SetBasketBenchmarkBaseInput,
+  UpdateBasketInput,
+} from "./basket-repository.ts";
+export {
+  createBasketRepository,
+  normalizeBasketSymbol,
+  validateBasketMembers,
+} from "./basket-repository.ts";
+export type { BasketSeed, BasketSeedResult } from "./basket-seed.ts";
+export {
+  equalBasketWeights,
+  findUserIdByEmail,
+  seedUserBaskets,
+} from "./basket-seed.ts";
 export {
   BACKTEST_EQUITY_MAX_POINTS,
   BACKTEST_FOLDS_MAX,
@@ -267,6 +339,35 @@ export {
   OPTIMIZATION_TRIALS_MAX,
   OptimizationRunInputError,
 } from "./optimization-runs.ts";
+export type {
+  QuantLabCaptureSummaryRow,
+  QuantLabReadModel,
+  QuantLabReadRepository,
+  QuantLabStudyBacktestRow,
+  QuantLabStudyPaperRow,
+  QuantLabStudyRow,
+  QuantLabStudyStrategyRow,
+} from "./quant-lab-read.ts";
+export {
+  createQuantLabReadRepository,
+  QUANT_LAB_CAPTURES_MAX_LISTED,
+  QUANT_LAB_STUDIES_MAX_LISTED,
+} from "./quant-lab-read.ts";
+export type {
+  QuantLabBacktestRow,
+  QuantLabCaptureRow,
+  QuantLabPaperOutcome,
+  QuantLabPaperRow,
+  QuantLabSpecRow,
+  QuantLabStore,
+  QuantLabStrategyRow,
+  QuantLabTaskRow,
+} from "./quant-lab-store.ts";
+export {
+  createQuantLabStore,
+  QuantLabStoreError,
+  recordQuantLab,
+} from "./quant-lab-store.ts";
 export type {
   AddResearchPaperInput,
   AddressRepository,

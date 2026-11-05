@@ -1,0 +1,122 @@
+{
+  "schema": "vertex-market-context-v1",
+  "generatedAt": 1793700000,
+  "host": "dev-rig",
+  "missing": [],
+  "gex": {
+    "asOf": 1793652780,
+    "oiSession": "2026-10-30",
+    "label": "estimate from QuantData OI+IV",
+    "index": [
+      {
+        "symbol": "SPY",
+        "status": "ok",
+        "spot": 752.69,
+        "netGex": -12500453319.0,
+        "regime": "amplified",
+        "flip": 768.49,
+        "spotVsFlip": "below",
+        "callWall": 752.0,
+        "putWall": 750.0,
+        "netVex": 1.0,
+        "netChex": 2.0,
+        "netDex": -3.0,
+        "fadeNote": "levels may fade after 2026-11-04",
+        "zeroDte": {
+          "expiry": "2026-11-02",
+          "netGex": -5.0,
+          "flip": 756.77,
+          "callWall": 752.0,
+          "putWall": 753.0
+        },
+        "notes": ["GEX negative"]
+      },
+      {
+        "symbol": "QQQ",
+        "status": "ok",
+        "spot": 681.65,
+        "netGex": null,
+        "regime": null,
+        "flip": null,
+        "spotVsFlip": null,
+        "callWall": null,
+        "putWall": null,
+        "netVex": null,
+        "netChex": null,
+        "netDex": null,
+        "fadeNote": null,
+        "zeroDte": null,
+        "notes": []
+      }
+    ]
+  },
+  "macro": {
+    "asOf": 1793690228,
+    "series": [
+      {
+        "id": "DGS2",
+        "label": "2-year Treasury yield",
+        "group": "rates",
+        "units": "%",
+        "status": "ok",
+        "stale": false,
+        "value": 4.56,
+        "date": "2026-10-30",
+        "change1d": -0.05,
+        "change1w": null,
+        "change1m": null,
+        "change1y": null,
+        "pct1y": 86.4,
+        "source": "FRED",
+        "sourceUrl": "https://fred.stlouisfed.org/series/DGS2"
+      }
+    ],
+    "regimes": [
+      {
+        "id": "curve",
+        "label": "normal",
+        "rule": "10y-2y < 0 inverted"
+      }
+    ],
+    "events": [
+      {
+        "date": "2026-11-06",
+        "time": "08:30",
+        "name": "Employment Situation"
+      }
+    ]
+  },
+  "news": {
+    "asOf": 1793689500,
+    "themes": [
+      {
+        "id": "fed_rates",
+        "label": "Fed / rates",
+        "count24h": 5,
+        "count72h": 11,
+        "sentiment24h": -0.09,
+        "shock": false
+      }
+    ],
+    "headlines": [
+      {
+        "title": "Oil jumps",
+        "publisher": "CNBC",
+        "url": "https://example.test/b",
+        "publishedAt": 1793689200,
+        "theme": null,
+        "sentiment": 0.3,
+        "materiality": "high"
+      },
+      {
+        "title": "Fed holds",
+        "publisher": "Reuters",
+        "url": "https://example.test/a",
+        "publishedAt": 1793685600,
+        "theme": "Fed / rates",
+        "sentiment": -0.5,
+        "materiality": "low"
+      }
+    ]
+  }
+}

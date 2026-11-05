@@ -1,6 +1,6 @@
 import {
-  AUTHORIZATION_ERROR_CODES,
   type AgentApiKeyService,
+  AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
@@ -326,9 +326,9 @@ const memoryAutopilot = () => {
         generation: input.generation,
         note: input.note,
         status: input.status,
-        version: row.version + 1,
         verifiedCount: own.filter((other) => other.status === "verified")
           .length,
+        version: row.version + 1,
       };
       campaigns.set(row.id, saved);
       return saved;
@@ -440,6 +440,7 @@ type Harness = Readonly<{
   apiKeyAccess?: "read" | "write";
   handoff?: ReturnType<typeof handoffRepositories>;
   withMarketBars?: boolean;
+  sectorRotation?: Repositories["sectorRotation"];
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -456,6 +457,9 @@ const clientFor = (options: Harness = {}) => {
       ? {}
       : { autopilot: options.autopilot }),
     ...(options.withMarketBars === false ? {} : { marketBars: marketBars() }),
+    ...(options.sectorRotation === undefined
+      ? {}
+      : { sectorRotation: options.sectorRotation }),
     ...(options.handoff === undefined
       ? {}
       : {
@@ -713,6 +717,109 @@ describe("autopilot procedures", () => {
         withMarketBars: false,
       }).autopilot.campaigns.tick({}),
       "STORAGE_ERROR"
+    );
+  });
+
+  it("applies campaign sector filters to every candidate and waits for missing data", async () => {
+    clearInstantBacktestCacheForTesting();
+    const filter = {
+      quadrants: ["leading", "improving"] as ("leading" | "improving")[],
+      sector: "XLK",
+      type: "sectorQuadrant" as const,
+    };
+    const filters = [filter];
+    // One point before the first bar: every bar sees that quadrant.
+    const sectorRotation = (quadrant: "leading" | "lagging") => {
+      const listPoints = vi.fn(async () => [
+        {
+          benchmark: "SPY",
+          computedAt: at,
+          date: "2014-12-31",
+          momentum: 100,
+          quadrant,
+          ratio: 100,
+          symbol: "XLK",
+          timeframe: "weekly" as const,
+        },
+      ]);
+      return {
+        listPoints,
+        repository: { listPoints } as unknown as Repositories["sectorRotation"],
+      };
+    };
+    const campaignFor = async (quadrant: "leading" | "lagging") => {
+      const memory = memoryAutopilot();
+      const source = sectorRotation(quadrant);
+      const client = clientFor({
+        autopilot: memory.repository,
+        sectorRotation: source.repository,
+      });
+      const campaign = await client.autopilot.campaigns.create({
+        budget: { ...budget, maxCandidates: 20 },
+        filters: [...filters],
+        name: "Filtered",
+        seed: 7,
+        symbol: "TEST",
+        timeframe: "1d",
+      });
+      await client.autopilot.campaigns.tick({ id: campaign.id });
+      return { campaign, listPoints: source.listPoints, memory };
+    };
+    const tradesOf = (row: Candidate) => Number(row.inSample["trades"]);
+
+    const allowed = await campaignFor("leading");
+    expect(allowed.campaign.config.filters).toEqual([
+      {
+        ...filter,
+        quadrants: ["leading", "improving"],
+        timeframe: "weekly",
+      },
+    ]);
+    expect(allowed.listPoints).toHaveBeenCalledWith({
+      fromDate: "2014-12-01",
+      symbols: ["XLK"],
+      timeframe: "weekly",
+    });
+    expect(allowed.memory.candidates.length).toBeGreaterThan(0);
+    for (const row of allowed.memory.candidates)
+      expect(row.definition["filters"]).toEqual(
+        allowed.campaign.config.filters
+      );
+    expect(allowed.memory.candidates.some((row) => tradesOf(row) > 0)).toBe(
+      true
+    );
+
+    const blocked = await campaignFor("lagging");
+    expect(blocked.memory.candidates.length).toBeGreaterThan(0);
+    expect(blocked.memory.candidates.every((row) => tradesOf(row) === 0)).toBe(
+      true
+    );
+
+    // No sector repository: the campaign keeps running and retries on the next tick.
+    const memory = memoryAutopilot();
+    const client = clientFor({ autopilot: memory.repository });
+    const waiting = await client.autopilot.campaigns.create({
+      budget,
+      filters: [...filters],
+      name: "Waiting",
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    expect(
+      (await client.autopilot.campaigns.tick({ id: waiting.id })).results[0]
+    ).toMatchObject({
+      note: "Sector quadrant data is not available for XLK (weekly); the next tick retries.",
+      status: "running",
+    });
+    expect(memory.candidates).toHaveLength(0);
+    await expectCode(
+      client.autopilot.campaigns.create({
+        filters: [{ ...filter, quadrants: [], sector: "AAPL" }],
+        name: "Bad",
+        symbol: "TEST",
+        timeframe: "1d",
+      }),
+      "BAD_REQUEST"
     );
   });
 
@@ -989,6 +1096,46 @@ describe("autopilot procedures", () => {
       "NOT_FOUND",
       "Campaign"
     );
+    // Owner rule: a Core 7 future is research only; the refusal names the ETF twin and writes
+    // nothing.
+    const futuresCampaign = memory.campaigns.get(
+      (verified[0] as Candidate).campaignId
+    );
+    if (futuresCampaign === undefined) throw new Error("campaign missing");
+    memory.campaigns.set(futuresCampaign.id, {
+      ...futuresCampaign,
+      symbol: "ES=F",
+    });
+    const futures = handoffRepositories();
+    await expectCode(
+      clientFor({
+        autopilot: memory.repository,
+        handoff: futures,
+      }).autopilot.candidates.sendToPaper({
+        id: (verified[0] as Candidate).id,
+        limits,
+      }),
+      "VALIDATION_ERROR",
+      "options on its ETF twin SPY"
+    );
+    expect(futures.library.create).not.toHaveBeenCalled();
+    expect(futures.requests.create).not.toHaveBeenCalled();
+    memory.campaigns.set(futuresCampaign.id, {
+      ...futuresCampaign,
+      symbol: "ZB=F",
+    });
+    await expectCode(
+      clientFor({
+        autopilot: memory.repository,
+        handoff: futures,
+      }).autopilot.candidates.sendToPaper({
+        id: (verified[0] as Candidate).id,
+        limits,
+      }),
+      "VALIDATION_ERROR",
+      "options on an ETF"
+    );
+    expect(futures.library.create).not.toHaveBeenCalled();
   });
 
   it("refines a candidate that passes the gate and stores its neighbours as trials", async () => {

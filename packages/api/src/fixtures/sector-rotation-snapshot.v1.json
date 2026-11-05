@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-10-30",
+  "previousDate": "2026-10-29",
+  "timeframe": "daily",
+  "benchmark": "SPY",
+  "sectors": [
+    {
+      "symbol": "XLB",
+      "name": "Materials",
+      "quadrant": "leading",
+      "ratio": 101.42,
+      "momentum": 100.88,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLC",
+      "name": "Communication Services",
+      "quadrant": "weakening",
+      "ratio": 100.64,
+      "momentum": 99.53,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLE",
+      "name": "Energy",
+      "quadrant": "lagging",
+      "ratio": 98.73,
+      "momentum": 99.1,
+      "date": "2026-10-30",
+      "since": "2026-10-30",
+      "periods": 1
+    },
+    {
+      "symbol": "XLF",
+      "name": "Financials",
+      "quadrant": "improving",
+      "ratio": 99.41,
+      "momentum": 100.44,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLI",
+      "name": "Industrials",
+      "quadrant": "leading",
+      "ratio": 101.46,
+      "momentum": 100.84,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLK",
+      "name": "Technology",
+      "quadrant": "weakening",
+      "ratio": 100.68,
+      "momentum": 99.49,
+      "date": "2026-10-30",
+      "since": "2026-10-30",
+      "periods": 1
+    },
+    {
+      "symbol": "XLP",
+      "name": "Consumer Staples",
+      "quadrant": "lagging",
+      "ratio": 98.77,
+      "momentum": 99.06,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLRE",
+      "name": "Real Estate",
+      "quadrant": "improving",
+      "ratio": 99.45,
+      "momentum": 100.4,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLU",
+      "name": "Utilities",
+      "quadrant": "leading",
+      "ratio": 101.5,
+      "momentum": 100.8,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLV",
+      "name": "Health Care",
+      "quadrant": "weakening",
+      "ratio": 100.72,
+      "momentum": 99.45,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    },
+    {
+      "symbol": "XLY",
+      "name": "Consumer Discretionary",
+      "quadrant": "lagging",
+      "ratio": 98.81,
+      "momentum": 99.02,
+      "date": "2026-10-30",
+      "since": "2026-10-12",
+      "periods": 15
+    }
+  ],
+  "changes": [
+    {
+      "symbol": "XLE",
+      "name": "Energy",
+      "date": "2026-10-30",
+      "from": "improving",
+      "to": "lagging"
+    },
+    {
+      "symbol": "XLK",
+      "name": "Technology",
+      "date": "2026-10-30",
+      "from": "leading",
+      "to": "weakening"
+    }
+  ],
+  "recentTransitions": [
+    {
+      "symbol": "XLE",
+      "name": "Energy",
+      "date": "2026-10-30",
+      "from": "improving",
+      "to": "lagging"
+    },
+    {
+      "symbol": "XLK",
+      "name": "Technology",
+      "date": "2026-10-30",
+      "from": "leading",
+      "to": "weakening"
+    },
+    {
+      "symbol": "XLU",
+      "name": "Utilities",
+      "date": "2026-10-21",
+      "from": "weakening",
+      "to": "leading"
+    },
+    {
+      "symbol": "XLB",
+      "name": "Materials",
+      "date": "2026-10-12",
+      "from": "improving",
+      "to": "leading"
+    }
+  ]
+}

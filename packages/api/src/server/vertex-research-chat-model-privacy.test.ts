@@ -15,6 +15,7 @@ import {
 } from "./vertex-research-chat-model-privacy.ts";
 import { ChatModelPrivacyReviewInputSchema } from "../contracts/vertex-model-privacy-rendezvous.ts";
 import { chatWorkerFixture } from "./vertex-research-chat-worker-runtime.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 type Fixture = Awaited<ReturnType<typeof chatWorkerFixture>>;
 const reviews = (f: Fixture) =>
@@ -57,7 +58,7 @@ const revoke = async (f: Fixture, grantId: string): Promise<void> => {
 // storage. The joined budget->dispatch scenario belongs to the worker suite.
 // Each case builds the full real-owner chat worker fixture (~10s alone).
 describe("research chat original model privacy issuer", {
-  timeout: 120_000,
+  timeout: scaledTimeout(120_000),
 }, () => {
   it("owner consent and prepared copies alone never issue a model decision", async () => {
     const f = await chatWorkerFixture();

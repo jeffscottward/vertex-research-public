@@ -23,7 +23,7 @@ export const Table = ({
     data-slot="table-container"
   >
     <table
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("w-full caption-bottom text-sm tabular-nums", className)}
       data-slot="table"
       {...props}
     />
@@ -34,8 +34,12 @@ export const TableHeader = ({
   className,
   ...props
 }: ComponentPropsWithRef<"thead">) => (
+  // Reference look: a tinted header row with small uppercase muted labels; row headers in the body keep body text.
   <thead
-    className={cn("[&_tr]:border-b", className)}
+    className={cn(
+      "bg-muted/50 [&_th]:h-9 [&_th]:font-medium [&_th]:text-muted-foreground [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wide [&_tr]:border-b [&_tr]:hover:bg-transparent",
+      className
+    )}
     data-slot="table-header"
     {...props}
   />
@@ -86,7 +90,7 @@ export const TableHead = ({
 }: ComponentPropsWithRef<"th">) => (
   <th
     className={cn(
-      "h-10 whitespace-nowrap px-2 text-left align-middle font-medium text-foreground",
+      "h-10 whitespace-nowrap px-3 text-left align-middle font-medium text-foreground",
       className
     )}
     data-slot="table-head"
@@ -99,7 +103,7 @@ export const TableCell = ({
   ...props
 }: ComponentPropsWithRef<"td">) => (
   <td
-    className={cn("whitespace-nowrap p-2 align-middle", className)}
+    className={cn("whitespace-nowrap px-3 py-2.5 align-middle", className)}
     data-slot="table-cell"
     {...props}
   />
@@ -114,4 +118,35 @@ export const TableCaption = ({
     data-slot="table-caption"
     {...props}
   />
+);
+
+export interface TableScrollTextProps
+  extends Omit<ComponentPropsWithRef<"span">, "children" | "title"> {
+  /** The full text; also the tooltip, so a cut-off name stays readable. */
+  text: string;
+}
+
+/**
+ * Narrow cell text for identifier columns (symbols): a fixed width of about 5 characters. Longer
+ * text, such as an option contract name with expiry and strike, scrolls inside the cell instead of
+ * widening the column and squashing the other columns. Keyboard users can focus it to scroll.
+ */
+export const TableScrollText = ({
+  className,
+  text,
+  ...props
+}: TableScrollTextProps) => (
+  <span
+    className={cn(
+      "block w-[5ch] overflow-x-auto whitespace-nowrap [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      className
+    )}
+    data-slot="table-scroll-text"
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to focus and scroll a long name.
+    tabIndex={0}
+    title={text}
+    {...props}
+  >
+    {text}
+  </span>
 );

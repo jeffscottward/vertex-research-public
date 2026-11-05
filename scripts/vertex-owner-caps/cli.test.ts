@@ -1,14 +1,24 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { OWNER_RISK_CAPS } from "../../packages/api/src/risk-allocator.ts";
 import { readMarketWatchCaps, runOwnerCapsCheck } from "./cli.ts";
 
+// Every fake checkout is removed after its test, also when the test fails.
+const roots: string[] = [];
+
+afterEach(() => {
+  for (const root of roots.splice(0)) {
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
 const checkout = (leapsPct = "6.0"): string => {
   const root = mkdtempSync(join(tmpdir(), "mwb-"));
+  roots.push(root);
   mkdirSync(join(root, "market_watch/copyrot"), { recursive: true });
   mkdirSync(join(root, "market_watch/reentry"), { recursive: true });
   writeFileSync(

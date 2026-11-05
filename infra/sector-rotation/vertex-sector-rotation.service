@@ -1,0 +1,18 @@
+# Vertex sector rotation collection (research only: public daily bars, stored points, one ntfy line
+# per new entry into leading or lagging, no orders).
+# Not installed or enabled by default. To install as a user unit: copy this file and the .timer to
+# ~/.config/systemd/user/, create the environment file below (mode 0600) and run:
+# systemctl --user enable --now vertex-sector-rotation.timer
+# Environment file keys: VERTEX_ORIGIN (portal origin) and VERTEX_AGENT_API_KEY (operator write key);
+# optional VERTEX_ALERT_POST_URL and VERTEX_ALERT_CHANNEL (chat route for undelivered alert lines).
+[Unit]
+Description=Vertex sector rotation collection (research only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/vertex/sector-rotation.env
+WorkingDirectory=%h/Github/trading/vertex-research-platform
+ExecStart=/usr/bin/env bun run vertex:sector-rotation:tick
+TimeoutStartSec=300
+NoNewPrivileges=yes

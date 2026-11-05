@@ -334,7 +334,6 @@ export const runJanitorWeekly = (
       ),
       "janitor model pass"
     );
-    run("rm", ["-f", "node_modules"], { cwd: wt });
     const head = must(
       run("git", ["rev-parse", "HEAD"], { cwd: wt }),
       "git rev-parse"
@@ -396,6 +395,9 @@ export const runJanitorWeekly = (
   } finally {
     run("rm", ["-f", busyPath, `${wt}-pr-body.md`], { cwd: main });
     if (worktree) {
+      // The node_modules link stays until here: the pre-commit hook (biome via
+      // `bunx --no-install`) needs it. `git add` excludes it by pathspec.
+      run("rm", ["-f", `${wt}/node_modules`], { cwd: main });
       run("git", ["worktree", "remove", "--force", wt], { cwd: main });
       // Keep a pushed branch; drop the local one of a pass that pushed nothing.
       run("git", ["branch", "-D", branch], { cwd: main });

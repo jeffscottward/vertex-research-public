@@ -65,17 +65,43 @@ const restingBuy = (expiry: string, limitPrice: number | null) => ({
 });
 
 describe("vertex order rules", () => {
-  it("accepts a LEAPS call buy within the 6% cap and reports the review", () => {
-    const review = evaluateOrder(order({ quantity: 5 }), account(), now);
+  it("accepts a LEAPS call buy within the 2% max-loss gate and reports the review", () => {
+    const review = evaluateOrder(order({ quantity: 2 }), account(), now);
     expect(review).toMatchObject({
       accepted: true,
       reasons: [],
-      premium: 5000,
-      premiumPctNlv: 5,
+      premium: 2000,
+      premiumPctNlv: 2,
       contractLabel: "ABC 20280121 100 call",
-      cap: { kind: "leaps", limitPct: 6, limitAmount: 6000, afterOrder: 5000 },
+      cap: { kind: "leaps", limitPct: 6, limitAmount: 6000, afterOrder: 2000 },
     });
     expect(review.daysToExpiry).toBeGreaterThanOrEqual(365);
+  });
+
+  it("refuses an opening buy above 2% NLV max loss even inside the 6% LEAPS cap", () => {
+    const review = evaluateOrder(order({ quantity: 5 }), account(), now);
+    expect(review.accepted).toBe(false);
+    expect(review.reasons).toEqual([
+      "Max loss: this order risks $5000 (5% NLV); new positions are limited to 2% NLV.",
+    ]);
+    const buyBack = evaluateOrder(
+      order({ quantity: 5 }),
+      account({
+        positions: [
+          {
+            symbol: "ABC",
+            secType: "OPT",
+            expiry: LEAPS,
+            strike: 100,
+            right: "C",
+            quantity: -5,
+            premium: 0,
+          },
+        ],
+      }),
+      now
+    );
+    expect(buyBack).toMatchObject({ accepted: true, cap: { kind: "none" } });
   });
 
   it("rejects share orders (options only) and non-limit orders", () => {
@@ -196,7 +222,47 @@ describe("vertex order rules", () => {
     expect(review.cap.limitAmount).toBe(0);
     expect(
       evaluateOrder(order({ expiry: "20261022" }), account(), now).reasons
+    ).toEqual([
+      "Expiry must be after today (only a closing order may trade on expiry day).",
+    ]);
+    expect(
+      evaluateOrder(order({ expiry: "20261021" }), account(), now).reasons
     ).toEqual(["Expiry must be after today."]);
+  });
+
+  it("allows closing orders on expiry day and treats a BUY that covers a short as closing", () => {
+    const today = "20261022";
+    const position = (quantity: number) => ({
+      symbol: "ABC",
+      secType: "OPT",
+      expiry: today,
+      strike: 100,
+      right: "C",
+      quantity,
+      premium: 500,
+    });
+    const sell = evaluateOrder(
+      order({ expiry: today, side: "SELL", quantity: 2 }),
+      account({ positions: [position(2)] }),
+      now
+    );
+    expect(sell).toMatchObject({ accepted: true, cap: { kind: "none" } });
+    const cover = evaluateOrder(
+      order({ expiry: today, quantity: 3, limitPrice: 1000 }),
+      account({ positions: [position(-3)] }),
+      now
+    );
+    expect(cover).toMatchObject({
+      accepted: true,
+      cap: { kind: "none", label: "No cap: closing buy (covers a short)" },
+    });
+    expect(
+      evaluateOrder(
+        order({ expiry: today, quantity: 4 }),
+        account({ positions: [position(-3)] }),
+        now
+      ).accepted
+    ).toBe(false);
   });
 
   it("allows a SELL only to close held contracts and refuses duplicates", () => {

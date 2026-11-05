@@ -6,7 +6,18 @@ import type {
   RiskAllocatorRow,
   RiskAllocatorSuggestion,
 } from "@darkfactory/api";
-import { Badge, Button, Input, Label } from "@darkfactory/ui";
+import {
+  Badge,
+  Button,
+  Input,
+  Label,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@darkfactory/ui";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
@@ -204,39 +215,58 @@ const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
     ) : null}
     {row.limits.length > 0 ? (
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[28rem] text-left text-sm">
-          <thead>
-            <tr className="border-border border-b">
-              <th className="py-2 pr-3" scope="col">
+        <Table
+          className="w-full min-w-[28rem] text-left text-sm"
+          containerClassName="overflow-visible"
+        >
+          <TableHeader>
+            <TableRow className="border-border border-b">
+              <TableHead
+                className="py-2 pr-3 text-muted-foreground"
+                scope="col"
+              >
                 Limit
-              </th>
-              <th className="py-2 pr-3" scope="col">
+              </TableHead>
+              <TableHead
+                className="py-2 pr-3 text-muted-foreground"
+                scope="col"
+              >
                 Cap
-              </th>
-              <th className="py-2 pr-3" scope="col">
+              </TableHead>
+              <TableHead
+                className="py-2 pr-3 text-muted-foreground"
+                scope="col"
+              >
                 Used
-              </th>
-              <th className="py-2" scope="col">
+              </TableHead>
+              <TableHead className="py-2 text-muted-foreground" scope="col">
                 Room
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {row.limits.map((item) => (
-              <tr className="border-border border-b" key={item.id}>
-                <th className="py-2 pr-3 font-normal" scope="row">
+              <TableRow className="border-border border-b" key={item.id}>
+                <TableHead
+                  className="whitespace-normal py-2 pr-3 font-normal"
+                  scope="row"
+                >
                   {item.label}
                   {item.id === row.bindingLimit ? " (binding)" : ""}
-                </th>
-                <td className="py-2 pr-3">
+                </TableHead>
+                <TableCell className="whitespace-normal py-2 pr-3">
                   {item.capPct}% = {usd(item.capUsd)}
-                </td>
-                <td className="py-2 pr-3">{usd(item.usedUsd)}</td>
-                <td className="py-2">{usd(item.roomUsd)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="whitespace-normal py-2 pr-3">
+                  {usd(item.usedUsd)}
+                </TableCell>
+                <TableCell className="whitespace-normal py-2">
+                  {usd(item.roomUsd)}
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     ) : null}
   </section>

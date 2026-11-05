@@ -133,6 +133,10 @@ import {
   createNautilusArmAuditRepository,
 } from "./arm-switch-audit.ts";
 import {
+  createOrderIntentRepository,
+  type OrderIntentRepository,
+} from "./order-intents.ts";
+import {
   createForwardDriftRepository,
   type ForwardDriftRepository,
 } from "./forward-drift.ts";
@@ -140,6 +144,15 @@ import {
   createPriceAlertRepository,
   type PriceAlertRepository,
 } from "./price-alerts.ts";
+import {
+  CLICK_LOG_RETENTION_DAYS,
+  type ClickLogRepository,
+  createClickLogRepository,
+} from "./click-log.ts";
+import {
+  createResearchReportsRepository,
+  type ResearchReportsRepository,
+} from "./research-reports.ts";
 import {
   type AgentModelRunsRepository,
   createAgentModelRunsRepository,
@@ -203,6 +216,18 @@ import {
   normalizeAssistantTokens,
   normalizeAssistantToolTrace,
 } from "./assistant-records.ts";
+import {
+  type BasketRepository,
+  createBasketRepository,
+} from "./basket-repository.ts";
+import {
+  createQuantLabReadRepository,
+  type QuantLabReadRepository,
+} from "./quant-lab-read.ts";
+import {
+  createSectorRotationRepository,
+  type SectorRotationRepository,
+} from "./sector-rotation.ts";
 import { required } from "./required.ts";
 
 const FEATURE_METADATA_LIMIT_BYTES = 16 * 1024;
@@ -256,7 +281,7 @@ const resolveDependencies = (
   generateId: dependencies.generateId ?? (() => crypto.randomUUID()),
 });
 
-const databaseErrorDetails = (
+export const databaseErrorDetails = (
   error: unknown
 ): Readonly<{ code?: unknown; constraint?: unknown }> => {
   const visited = new Set<object>();
@@ -309,7 +334,7 @@ const mapFeatureMutationError = (error: unknown): never => {
   throw error;
 };
 
-const requireNonBlank = (value: string, field: string): void => {
+export const requireNonBlank = (value: string, field: string): void => {
   if (value.trim().length === 0) {
     throw new InvalidRepositoryInputError(`${field} must not be blank`);
   }
@@ -4280,11 +4305,13 @@ export type Repositories = Readonly<{
   dashboard: DashboardRepository;
   generated?: GeneratedFeatureRepositories;
   watchlist?: WatchlistRepository;
+  baskets?: BasketRepository;
   todos?: TodoRepository;
   agentOps?: AgentOpsRepository;
   researchPapers?: ResearchPapersRepository;
   backtestResults?: BacktestResultsRepository;
   optimizationRuns?: OptimizationRunsRepository;
+  quantLab?: QuantLabReadRepository;
   deploymentRequests?: DeploymentRequestsRepository;
   assistant?: AssistantRepository;
   strategyLibrary?: StrategyLibraryRepository;
@@ -4294,10 +4321,14 @@ export type Repositories = Readonly<{
   agentModelRuns?: AgentModelRunsRepository;
   academyAudit?: AcademyAuditRepository;
   nautilusArmAudit?: NautilusArmAuditRepository;
+  orderIntents?: OrderIntentRepository;
   strategyDefinitions?: StrategyDefinitionsRepository;
   assistantActions?: AssistantActionsRepository;
   autopilot?: AutopilotRepository;
   priceAlerts?: PriceAlertRepository;
+  researchReports?: ResearchReportsRepository;
+  sectorRotation?: SectorRotationRepository;
+  clickLog?: ClickLogRepository;
 }>;
 
 export const createRepositories = (
@@ -4312,11 +4343,13 @@ export const createRepositories = (
   dashboard: createDashboardRepository(database),
   generated: createGeneratedFeatureRepositories(database),
   watchlist: createWatchlistRepository(database, dependencies),
+  baskets: createBasketRepository(database, dependencies),
   todos: createTodoRepository(database, dependencies),
   agentOps: createAgentOpsRepository(database, dependencies),
   researchPapers: createResearchPapersRepository(database, dependencies),
   backtestResults: createBacktestResultsRepository(database, dependencies),
   optimizationRuns: createOptimizationRunsRepository(database, dependencies),
+  quantLab: createQuantLabReadRepository(database),
   strategyLibrary: createStrategyLibraryRepository(database, dependencies),
   deploymentRequests: createDeploymentRequestsRepository(
     database,
@@ -4344,6 +4377,10 @@ export const createRepositories = (
     database,
     resolveDependencies(dependencies)
   ),
+  orderIntents: createOrderIntentRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
   strategyDefinitions: createStrategyDefinitionsRepository(
     database,
     resolveDependencies(dependencies)
@@ -4360,4 +4397,13 @@ export const createRepositories = (
     database,
     resolveDependencies(dependencies)
   ),
+  researchReports: createResearchReportsRepository(database, dependencies.now),
+  sectorRotation: createSectorRotationRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  clickLog: createClickLogRepository(database, {
+    ...resolveDependencies(dependencies),
+    retentionDays: CLICK_LOG_RETENTION_DAYS,
+  }),
 });

@@ -183,7 +183,12 @@ const specifiersIn = (text: string): string[] =>
   );
 const FORBIDDEN_MODULE =
   /order|broker|ibkr|deploy|vertex-worker|execution|gateway|quant-?vps|portfolio-monitor|paper-forward/iu;
-const ALLOWED_PACKAGES = new Set(["zod", "@orpc/contract"]);
+// `@darkfactory/shared/universes` is constants only: its own test proves it imports nothing.
+const ALLOWED_PACKAGES = new Set([
+  "zod",
+  "@orpc/contract",
+  "@darkfactory/shared/universes",
+]);
 
 const importClosure = (entry: string) => {
   const files = new Set<string>();

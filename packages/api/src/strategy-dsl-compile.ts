@@ -11,6 +11,7 @@ import type {
   StrategyCondition,
   StrategyDefinition,
   StrategyExpr,
+  StrategyFilter,
 } from "./strategy-dsl.ts";
 
 // Compiles a validated strategy definition to engine signals and runs it. Indicator values are NaN
@@ -397,6 +398,84 @@ const inSession = (
     : minute >= start || minute < end;
 };
 
+/** One stored sector rotation point, reduced to what a filter needs. */
+export type SectorQuadrantPoint = Readonly<{
+  /** YYYY-MM-DD of the period close. */
+  date: string;
+  quadrant: StrategyFilter["quadrants"][number];
+}>;
+
+/** Series by `${sector}:${timeframe}` (for example "XLK:weekly"), sorted by date ascending. */
+export type SectorQuadrantSeries = Readonly<
+  Record<string, readonly SectorQuadrantPoint[]>
+>;
+
+/** A definition has a sector filter, but its series was not given. */
+export class SectorQuadrantDataError extends InstantBacktestInputError {
+  constructor(sector: string, timeframe: string) {
+    super(`Sector quadrant data is not available for ${sector} (${timeframe})`);
+    this.name = "SectorQuadrantDataError";
+  }
+}
+
+export const sectorQuadrantKey = (filter: StrategyFilter): string =>
+  `${filter.sector}:${filter.timeframe}`;
+
+/** Smallest gap between bars below this means intraday bars. */
+const INTRADAY_GAP_MS = 20 * HOUR_MS;
+
+const isIntraday = (t: Float64Array): boolean => {
+  for (let index = 1; index < t.length; index += 1) {
+    if ((t[index] as number) - (t[index - 1] as number) < INTRADAY_GAP_MS)
+      return true;
+  }
+  return false;
+};
+
+/**
+ * 1 on bars where the filter passes. A point is known after its period closes, so a daily or
+ * weekly bar (signal at its close) may use a point of the same date, and an intraday bar uses only
+ * points dated before its date. No usable point means 0 (no entry).
+ */
+const filterSeries = (
+  t: Float64Array,
+  filter: StrategyFilter,
+  points: readonly SectorQuadrantPoint[],
+  intraday: boolean
+): Uint8Array => {
+  const allowed = new Set<string>(filter.quadrants);
+  const out = new Uint8Array(t.length);
+  let next = 0;
+  let quadrant: string | undefined;
+  for (let index = 0; index < t.length; index += 1) {
+    const date = new Date(t[index] as number).toISOString().slice(0, 10);
+    while (next < points.length) {
+      const point = points[next] as SectorQuadrantPoint;
+      if (intraday ? point.date >= date : point.date > date) break;
+      quadrant = point.quadrant;
+      next += 1;
+    }
+    if (quadrant !== undefined && allowed.has(quadrant)) out[index] = 1;
+  }
+  return out;
+};
+
+const filterMasks = (
+  bars: BarColumns,
+  definition: StrategyDefinition,
+  sectorQuadrants: SectorQuadrantSeries | undefined
+): Uint8Array[] => {
+  const filters = definition.filters ?? [];
+  if (filters.length === 0) return [];
+  const intraday = isIntraday(bars.t);
+  return filters.map((filter) => {
+    const points = sectorQuadrants?.[sectorQuadrantKey(filter)];
+    if (points === undefined)
+      throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
+    return filterSeries(bars.t, filter, points, intraday);
+  });
+};
+
 export type CompiledStrategy = Readonly<{
   signals: Int8Array;
   /** 1 on every bar where any exit condition holds, also when the entry conditions hold. */
@@ -420,19 +499,24 @@ const distanceSeries = (
 };
 
 /**
- * Compiles a validated definition to signals: 1 when every entry condition holds (and the bar is in
+ * Compiles a validated definition to signals: 1 when every entry condition and filter holds (and the bar is in
  * the session), otherwise -1 when any exit condition holds, otherwise 0. The exit mask keeps exits
  * on bars where the entry conditions also hold, so an open position still exits there.
  */
 export const compileStrategy = (
   bars: BarColumns,
-  definition: StrategyDefinition
+  definition: StrategyDefinition,
+  sectorQuadrants?: SectorQuadrantSeries
 ): CompiledStrategy => {
   const size = bars.c.length;
   const cache: SeriesCache = new Map();
-  const entries = definition.entry.all.map((condition) =>
-    conditionSeries(bars, condition, cache)
-  );
+  const filters = filterMasks(bars, definition, sectorQuadrants);
+  const entries = [
+    ...definition.entry.all.map((condition) =>
+      conditionSeries(bars, condition, cache)
+    ),
+    ...filters,
+  ];
   const exits = definition.exit.any.map((condition) =>
     conditionSeries(bars, condition, cache)
   );
@@ -463,9 +547,10 @@ export const runStrategyDefinition = (
   bars: BarColumns,
   definition: StrategyDefinition,
   costBps: number,
-  costs?: NonNullable<SignalRunOptions["costs"]>
+  costs?: NonNullable<SignalRunOptions["costs"]>,
+  sectorQuadrants?: SectorQuadrantSeries
 ): InstantRunResult => {
-  const compiled = compileStrategy(bars, definition);
+  const compiled = compileStrategy(bars, definition, sectorQuadrants);
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),

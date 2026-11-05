@@ -29,8 +29,9 @@ import {
   pinnedPython,
   RESEARCH_SDK_DISTRIBUTIONS,
 } from "./research-python.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
-const TIMEOUT = 180_000;
+const TIMEOUT = scaledTimeout(180_000);
 // consumeNativeEvidence runs the real SDK invoke path in a Python child; it
 // cannot run without the pinned research SDK stack, so those cases skip.
 const requireNativeSdk = (

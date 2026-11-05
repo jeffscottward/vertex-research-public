@@ -5,10 +5,9 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity,
   BellRing,
-  Waves,
-  BookOpenText,
   Blocks,
   BookOpen,
+  BookOpenText,
   Bot,
   BotMessageSquare,
   Boxes,
@@ -18,10 +17,10 @@ import {
   Dna,
   FileText,
   FlaskConical,
-  GraduationCap,
   Gauge,
   Gem,
   GitCompareArrows,
+  GraduationCap,
   Grid3x3,
   History,
   House,
@@ -29,17 +28,18 @@ import {
   Info,
   KeyRound,
   Landmark,
-  LayoutGrid,
   Layers,
+  LayoutGrid,
   LayoutList,
-  ListTodo,
   Library,
   ListChecks,
+  ListTodo,
   LockKeyhole,
   Mail,
   MapPin,
   MessageSquare,
   Newspaper,
+  Orbit,
   Palette,
   Play,
   Plug,
@@ -49,11 +49,14 @@ import {
   Server,
   Settings,
   ShieldCheck,
+  ShoppingBasket,
   SlidersHorizontal,
   Sparkles,
+  Timer,
   UserPlus,
   UserRound,
   Wallet,
+  Waves,
   Wrench,
   Zap,
 } from "lucide-react";
@@ -113,18 +116,18 @@ export const PORTAL_PORTFOLIO_NAVIGATION: readonly NavigationItem[] =
 export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
   Object.freeze([
     { href: "/research", icon: MessageSquare, label: "Research" },
-    { href: "/assistant", icon: BotMessageSquare, label: "Assistant" },
     { href: "/charts", icon: ChartCandlestick, label: "Charts" },
     { href: "/watchlist", icon: ListChecks, label: "Watchlist" },
     { href: "/price-alerts", icon: BellRing, label: "Price alerts" },
     { href: "/news", icon: Newspaper, label: "News monitor" },
+    { href: "/baskets", icon: ShoppingBasket, label: "Baskets" },
     { href: "/papers", icon: ScrollText, label: "Papers" },
     { href: "/rotation-matrix", icon: Grid3x3, label: "Rotation matrix" },
+    { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
     { href: "/deep-value", icon: Gem, label: "Deep value screen" },
     { href: "/congress-trades", icon: Landmark, label: "Congress trades" },
     { href: "/risk-allocator", icon: Scale, label: "Risk allocator" },
     { href: "/markets", icon: Waves, label: "Market context" },
-    { href: "/knowledge", icon: BookOpenText, label: "Knowledge chat" },
   ]);
 
 /**
@@ -183,6 +186,7 @@ export const PORTAL_AUTOMATION_NAVIGATION: readonly NavigationItem[] =
       label: "Model benchmark",
     },
     { href: "/deployments", icon: Server, label: "Deployments" },
+    { href: "/engines", icon: Timer, label: "Engines" },
   ]);
 
 /** Data & Ops: scoped readers of governed records. */
@@ -211,6 +215,15 @@ export const PORTAL_SIDEBAR_GROUPS: readonly NavigationGroup[] = Object.freeze([
     items: [...PORTAL_DATA_NAVIGATION, ...FEATURE_NAVIGATION],
     label: "Data & Ops",
   },
+]);
+
+/**
+ * Portal pages reached from another page, not from the sidebar. The assistant and
+ * the knowledge chat open from Research, so the sidebar has one chat entry (audit IA map, sections 5 and 7).
+ */
+const PORTAL_LINKED_NAVIGATION: readonly NavigationItem[] = Object.freeze([
+  { href: "/assistant", icon: BotMessageSquare, label: "Assistant" },
+  { href: "/knowledge", icon: BookOpenText, label: "Knowledge chat" },
 ]);
 
 /** Product navigation: every portal destination in sidebar order. */
@@ -280,6 +293,7 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/forward-drift",
   "/strategy-builder",
   "/rotation-matrix",
+  "/sector-rotation",
   "/deep-value",
   "/congress-trades",
   "/risk-allocator",
@@ -289,9 +303,11 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/autopilot",
   "/charts",
   "/deployments",
+  "/engines",
   "/watchlist",
   "/price-alerts",
   "/news",
+  "/baskets",
   "/todos",
   "/today",
   "/portfolio",
@@ -343,6 +359,7 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/forward-drift",
   "/strategy-builder",
   "/rotation-matrix",
+  "/sector-rotation",
   "/deep-value",
   "/congress-trades",
   "/risk-allocator",
@@ -354,6 +371,8 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/autopilot",
   "/charts",
   "/deployments",
+  "/baskets",
+  "/engines",
 ] as const);
 
 /** Portal routes this session can open, by role (admin) and operator status. */
@@ -377,9 +396,6 @@ export const portalRoutePathsFor = ({
  * redirects, so bookmarks and deep links keep working.
  */
 export const LEGACY_ROUTE_REDIRECTS = Object.freeze({
-  // Data & evidence was dropped (owner decision 2026-10-30): no dataset or
-  // evidence list exists, and its exact-ID lookups were removed.
-  "/data": "/research",
   "/account": SETTINGS_HOME_PATH,
   "/account/address": "/settings/account/address",
   "/account/preferences": "/settings/account/preferences",
@@ -387,6 +403,9 @@ export const LEGACY_ROUTE_REDIRECTS = Object.freeze({
   "/account/security": "/settings/account/security",
   "/admin": "/settings/administration",
   "/admin/users": "/settings/administration",
+  // Data & evidence was dropped (owner decision 2026-10-30): no dataset or
+  // evidence list exists, and its exact-ID lookups were removed.
+  "/data": "/research",
 } as const);
 
 export const EXPOSED_ROUTE_PATHS = Object.freeze([
@@ -443,7 +462,6 @@ export const ROUTE_PAGE_FILES: Readonly<Record<string, string>> = Object.freeze(
 /** Page files of the legacy redirects in `LEGACY_ROUTE_REDIRECTS`. */
 export const LEGACY_ROUTE_PAGE_FILES: Readonly<Record<string, string>> =
   Object.freeze({
-    "/data": "(portal)/data/page.ts",
     "/account": "(portal)/account/page.ts",
     "/account/address": "(portal)/account/address/page.ts",
     "/account/preferences": "(portal)/account/preferences/page.ts",
@@ -451,6 +469,7 @@ export const LEGACY_ROUTE_PAGE_FILES: Readonly<Record<string, string>> =
     "/account/security": "(portal)/account/security/page.ts",
     "/admin": "(portal)/admin/page.ts",
     "/admin/users": "(portal)/admin/users/page.ts",
+    "/data": "(portal)/data/page.ts",
   });
 
 export const ALL_NAVIGATION: readonly NavigationItem[] = Object.freeze([
@@ -458,6 +477,7 @@ export const ALL_NAVIGATION: readonly NavigationItem[] = Object.freeze([
   ...SUPPORT_NAVIGATION,
   ...AUTH_NAVIGATION,
   ...PORTAL_NAVIGATION,
+  ...PORTAL_LINKED_NAVIGATION,
   ...FEATURE_NAVIGATION,
   SETTINGS_ENTRY,
   ...SETTINGS_NAVIGATION,

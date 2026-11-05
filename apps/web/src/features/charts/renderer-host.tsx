@@ -41,6 +41,8 @@ export type CandleCanvasProps = Readonly<{
   markers?: readonly ChartMarker[];
   // Optional caption copy for hosts without an exact-value table.
   captions?: Readonly<{ ready: string; loading: string; error: string }>;
+  // Receives each mounted renderer, and null when it goes away.
+  onRenderer?: (renderer: CandleRenderer | null) => void;
 }>;
 export const CandleCanvas = ({
   values,
@@ -51,7 +53,10 @@ export const CandleCanvas = ({
   studies,
   markers,
   captions,
+  onRenderer,
 }: CandleCanvasProps) => {
+  const latestOnRenderer = useRef(onRenderer);
+  latestOnRenderer.current = onRenderer;
   const element = useRef<HTMLDivElement>(null);
   const renderer = useRef<CandleRenderer | null>(null);
   const latest = useRef(values);
@@ -95,6 +100,7 @@ export const CandleCanvas = ({
         if (latestMarkers.current !== undefined)
           instance.setMarkers?.(latestMarkers.current);
         instance.resize();
+        latestOnRenderer.current?.(instance);
         return setPhase("ready");
       } catch {
         if (active && mine === generation) {
@@ -122,6 +128,7 @@ export const CandleCanvas = ({
     if (typeof MutationObserver !== "undefined") {
       theme = new MutationObserver(() => {
         generation += 1;
+        latestOnRenderer.current?.(null);
         mounted?.dispose();
         mounted = null;
         renderer.current = null;
@@ -138,6 +145,7 @@ export const CandleCanvas = ({
       controller?.abort();
       resize?.disconnect();
       theme?.disconnect();
+      latestOnRenderer.current?.(null);
       mounted?.dispose();
       renderer.current = null;
     };

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 const packageDirectory = fileURLToPath(new URL("../..", import.meta.url));
 const resolveInlineWith = (conditions: readonly string[]) => {
@@ -36,26 +37,30 @@ describe("inline jobs package boundary", () => {
     ]);
   });
 
-  it("fails closed for browser-only resolution through a dependency-free poison module", async () => {
-    const resolution = resolveInlineWith(["browser"]);
-    const poisonSource = await readFile(
-      new URL("./unsupported.ts", import.meta.url),
-      "utf8"
-    );
+  it(
+    "fails closed for browser-only resolution through a dependency-free poison module",
+    async () => {
+      const resolution = resolveInlineWith(["browser"]);
+      const poisonSource = await readFile(
+        new URL("./unsupported.ts", import.meta.url),
+        "utf8"
+      );
 
-    expect({ status: resolution.status, stderr: resolution.stderr }).toEqual({
-      status: 0,
-      stderr: "",
-    });
-    expect(resolution.stdout).toMatch(/\/src\/server\/unsupported\.ts$/);
-    expect(poisonSource).not.toMatch(/^\s*import\s/m);
-    expect(poisonSource).not.toMatch(
-      /celery|flower|redis|rabbitmq|amqp|broker/i
-    );
-    return await expect(import("./unsupported.ts")).rejects.toThrow(
-      "@darkfactory/jobs/server/inline is unavailable in browser bundles"
-    );
-  }, 15_000);
+      expect({ status: resolution.status, stderr: resolution.stderr }).toEqual({
+        status: 0,
+        stderr: "",
+      });
+      expect(resolution.stdout).toMatch(/\/src\/server\/unsupported\.ts$/);
+      expect(poisonSource).not.toMatch(/^\s*import\s/m);
+      expect(poisonSource).not.toMatch(
+        /celery|flower|redis|rabbitmq|amqp|broker/i
+      );
+      return await expect(import("./unsupported.ts")).rejects.toThrow(
+        "@darkfactory/jobs/server/inline is unavailable in browser bundles"
+      );
+    },
+    scaledTimeout(15_000)
+  );
 
   return it.each(["workerd", "worker"])(
     "resolves the real inline module for simultaneous %s and browser conditions",

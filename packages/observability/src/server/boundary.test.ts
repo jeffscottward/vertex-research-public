@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 const packageDirectory = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -52,21 +53,23 @@ describe("observability package boundaries", () => {
     }
   });
 
-  it("preserves browser poison in a side-effect-only Vite bundle", () => {
-    const fixtureDirectory = mkdtempSync(
-      join(packageDirectory, ".vite-browser-boundary-")
-    );
-    const outputDirectory = join(fixtureDirectory, "dist");
-    const entry = join(fixtureDirectory, "index.mjs");
-    const config = join(fixtureDirectory, "vite.config.mjs");
-    writeFileSync(
-      entry,
-      'import "@darkfactory/observability/server/otel"\n',
-      "utf8"
-    );
-    writeFileSync(
-      config,
-      `export default {
+  it(
+    "preserves browser poison in a side-effect-only Vite bundle",
+    () => {
+      const fixtureDirectory = mkdtempSync(
+        join(packageDirectory, ".vite-browser-boundary-")
+      );
+      const outputDirectory = join(fixtureDirectory, "dist");
+      const entry = join(fixtureDirectory, "index.mjs");
+      const config = join(fixtureDirectory, "vite.config.mjs");
+      writeFileSync(
+        entry,
+        'import "@darkfactory/observability/server/otel"\n',
+        "utf8"
+      );
+      writeFileSync(
+        config,
+        `export default {
   resolve: { conditions: ["browser"] },
   build: {
     emptyOutDir: true,
@@ -79,30 +82,34 @@ describe("observability package boundaries", () => {
     outDir: ${JSON.stringify(outputDirectory)},
   },
 }\n`,
-      "utf8"
-    );
+        "utf8"
+      );
 
-    try {
-      execFileSync(
-        fileURLToPath(new URL("../../node_modules/.bin/vite", import.meta.url)),
-        ["build", fixtureDirectory, "--config", config],
-        { cwd: packageDirectory, encoding: "utf8" }
-      );
-      const bundlePath = join(outputDirectory, "index.js");
-      const bundle = readFileSync(bundlePath, "utf8");
-      expect(bundle).toContain(
-        "@darkfactory/observability server adapters are unavailable in browser bundles"
-      );
-      return expect(() =>
-        execFileSync(process.execPath, [bundlePath], {
-          cwd: packageDirectory,
-          encoding: "utf8",
-        })
-      ).toThrow(/server adapters are unavailable in browser bundles/);
-    } finally {
-      rmSync(fixtureDirectory, { force: true, recursive: true });
-    }
-  });
+      try {
+        execFileSync(
+          fileURLToPath(
+            new URL("../../node_modules/.bin/vite", import.meta.url)
+          ),
+          ["build", fixtureDirectory, "--config", config],
+          { cwd: packageDirectory, encoding: "utf8" }
+        );
+        const bundlePath = join(outputDirectory, "index.js");
+        const bundle = readFileSync(bundlePath, "utf8");
+        expect(bundle).toContain(
+          "@darkfactory/observability server adapters are unavailable in browser bundles"
+        );
+        return expect(() =>
+          execFileSync(process.execPath, [bundlePath], {
+            cwd: packageDirectory,
+            encoding: "utf8",
+          })
+        ).toThrow(/server adapters are unavailable in browser bundles/);
+      } finally {
+        rmSync(fixtureDirectory, { force: true, recursive: true });
+      }
+    },
+    scaledTimeout(120_000)
+  );
 
   it("declares ordered workerd then worker before browser for every runtime export", () => {
     const manifest = JSON.parse(

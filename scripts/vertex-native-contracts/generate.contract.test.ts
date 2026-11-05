@@ -68,6 +68,7 @@ import {
   buildNativeContractFixtures,
 } from "./fixtures.ts";
 import { buildNativeFactsFixtures } from "./native-facts-fixtures.ts";
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 
 const registry = {
   ...VERTEX_CONTRACT_SCHEMAS,
@@ -142,7 +143,9 @@ const portableAccepted = async (
 // the deferred verification phase. No environment, provider or broker access.
 // Bundle generation runs the portable evaluator over every registry; under a
 // fully loaded runner that takes seconds, which is not a latency claim.
-describe("portable native source bridge", { timeout: 60_000 }, () => {
+describe("portable native source bridge", {
+  timeout: scaledTimeout(60_000),
+}, () => {
   it("covers every frozen base and control registry exactly", async () => {
     const rules = await metadata();
     expect(Object.keys(rules.contractRules).sort()).toEqual(
@@ -333,46 +336,51 @@ describe("portable native source bridge", { timeout: 60_000 }, () => {
       expect(() => assertSupportedSchema(schema)).toThrow();
   });
 
-  it("source safeParse plus replay/hash helpers agree with all explicit fixtures", async () => {
-    const document = await buildNativeContractFixtures();
-    const programs = (await metadata()).programs;
-    const covered = new Set(
-      document.cases.filter((test) => test.valid).map((test) => test.contract)
-    );
-    expect([...covered].sort()).toEqual(Object.keys(registry).sort());
-    for (const test of document.cases) {
-      expect(await sourceAccepted(test.contract, test.payload), test.name).toBe(
-        test.valid
+  it(
+    "source safeParse plus replay/hash helpers agree with all explicit fixtures",
+    async () => {
+      const document = await buildNativeContractFixtures();
+      const programs = (await metadata()).programs;
+      const covered = new Set(
+        document.cases.filter((test) => test.valid).map((test) => test.contract)
       );
-      let structurallyValid = false;
-      try {
-        structurallyValid = registry[
-          test.contract as keyof typeof registry
-        ].safeParse(test.payload).success;
-      } catch {
-        // Source refinement helpers may throw on an already-invalid calendar;
-        // parity is rejection, never acceptance or coercion.
-        structurallyValid = false;
-      }
-      let semantic = false;
-      try {
-        semantic = await evaluateFixtureProgram(
-          programs,
-          test.contract,
-          test.payload
-        );
-        if (semantic && test.contract === "NativeOutboxReplay")
-          semantic = await evaluateReplayFixture(
+      expect([...covered].sort()).toEqual(Object.keys(registry).sort());
+      for (const test of document.cases) {
+        expect(
+          await sourceAccepted(test.contract, test.payload),
+          test.name
+        ).toBe(test.valid);
+        let structurallyValid = false;
+        try {
+          structurallyValid = registry[
+            test.contract as keyof typeof registry
+          ].safeParse(test.payload).success;
+        } catch {
+          // Source refinement helpers may throw on an already-invalid calendar;
+          // parity is rejection, never acceptance or coercion.
+          structurallyValid = false;
+        }
+        let semantic = false;
+        try {
+          semantic = await evaluateFixtureProgram(
             programs,
-            test.payload,
-            (name, value) => portableAccepted(programs, name, value)
+            test.contract,
+            test.payload
           );
-      } catch {
-        semantic = false;
+          if (semantic && test.contract === "NativeOutboxReplay")
+            semantic = await evaluateReplayFixture(
+              programs,
+              test.payload,
+              (name, value) => portableAccepted(programs, name, value)
+            );
+        } catch {
+          semantic = false;
+        }
+        expect(structurallyValid && semantic, test.name).toBe(test.valid);
       }
-      expect(structurallyValid && semantic, test.name).toBe(test.valid);
-    }
-  }, 60_000);
+    },
+    scaledTimeout(60_000)
+  );
 
   it("checks semantic-negative fixtures independently of source refinements", async () => {
     const document = await buildNativeContractFixtures();
@@ -495,18 +503,23 @@ describe("portable native source bridge", { timeout: 60_000 }, () => {
 
   // Capacity fixtures run the portable evaluator over maximum-size payloads;
   // they prove bounded admission, not latency, so they get an explicit budget.
-  it("keeps bounded admission capacity fixtures out of hot-path latency claims", async () => {
-    const programs = (await metadata()).programs;
-    for (const test of await buildNativeCapacityFixtures()) {
-      expect(await sourceAccepted(test.contract, test.payload), test.name).toBe(
-        test.valid
-      );
-      expect(
-        await portableAccepted(programs, test.contract, test.payload),
-        test.name
-      ).toBe(test.valid);
-    }
-  }, 60_000);
+  it(
+    "keeps bounded admission capacity fixtures out of hot-path latency claims",
+    async () => {
+      const programs = (await metadata()).programs;
+      for (const test of await buildNativeCapacityFixtures()) {
+        expect(
+          await sourceAccepted(test.contract, test.payload),
+          test.name
+        ).toBe(test.valid);
+        expect(
+          await portableAccepted(programs, test.contract, test.payload),
+          test.name
+        ).toBe(test.valid);
+      }
+    },
+    scaledTimeout(60_000)
+  );
 
   it("limits nested hash omissions to the declared replay boundary", async () => {
     expect(() =>

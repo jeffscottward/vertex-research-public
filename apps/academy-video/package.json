@@ -13,11 +13,11 @@
   },
   "dependencies": {
     "@darkfactory/academy": "workspace:*",
-    "@remotion/bundler": "4.0.535",
-    "@remotion/renderer": "4.0.535",
+    "@remotion/bundler": "4.0.539",
+    "@remotion/renderer": "4.0.539",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "remotion": "4.0.535"
+    "remotion": "4.0.539"
   },
   "devDependencies": {
     "@types/node": "catalog:",

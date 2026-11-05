@@ -109,6 +109,18 @@ describe("validateMarketBars", () => {
     ).not.toThrow();
   });
 
+  it("accepts Yahoo continuous futures symbols such as ES=F", () => {
+    expect(() =>
+      validateMarketBars({ ...series, symbol: "ES=F" }, [bar(1), bar(2)])
+    ).not.toThrow();
+  });
+
+  it("rejects a symbol with SQL-like text", () => {
+    expect(() =>
+      validateMarketBars({ ...series, symbol: "ES; DROP" }, [bar(1), bar(2)])
+    ).toThrow("symbol must match ^[A-Z0-9.^=-]{1,20}$");
+  });
+
   it.each([
     [{ symbol: "spy" }, "symbol"],
     [{ timeframe: "5m" }, "timeframe"],
@@ -311,5 +323,55 @@ describe("0025_market_bars migration", () => {
     );
     expect(rollback).toContain('DROP TABLE "public"."market_bars"');
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE/i);
+  });
+});
+
+describe("0045_market_bar_futures_symbols migration", () => {
+  const migration = readFileSync(
+    new URL(
+      "../../migrations/0045_market_bar_futures_symbols.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL(
+      "../../rollback/0045_market_bar_futures_symbols.down.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: Array<{ idx: number; tag: string }> };
+
+  it("widens only the symbol check to admit '=' and is journaled at index 45", () => {
+    expect(migration).toContain(
+      'DROP CONSTRAINT "market_bar_series_text_check"'
+    );
+    expect(migration).toContain("'^[A-Z0-9.^=-]{1,20}$'");
+    expect(migration).not.toMatch(/DROP TABLE|DELETE|TRUNCATE/i);
+    const index = journal.entries.findIndex(
+      (entry) => entry.tag === "0045_market_bar_futures_symbols"
+    );
+    expect(journal.entries[index]).toMatchObject({ idx: 45 });
+    expect(journal.entries[index - 1]).toMatchObject({
+      tag: "0044_research_reports",
+    });
+  });
+
+  it("matches the schema check", () => {
+    const [textCheck] = getTableConfig(marketBarSeries).checks;
+    expect(sqlText(textCheck?.value)).toContain("'^[A-Z0-9.^=-]{1,20}$'");
+  });
+
+  it("rollback refuses while futures symbols are stored", () => {
+    expect(rollback).toContain("position('=' in \"symbol\") > 0");
+    expect(rollback).toContain("refusing rollback");
+    expect(rollback).toContain("'^[A-Z0-9.^-]{1,20}$'");
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DELETE/i);
   });
 });

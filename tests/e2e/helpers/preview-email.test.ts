@@ -10,6 +10,9 @@ import { waitForContactPreview, waitForPreviewLink } from "./preview-email.ts";
 const APP_ORIGIN = "https://darkfactory.localhost";
 const HMAC_KEY = Buffer.alloc(32, 7).toString("base64url");
 const RUN_ID = "preview_reader_contract";
+// Waits that must find an artifact return on their first poll. The limit only
+// bounds a failure; it is not a timing budget.
+const FOUND_TIMEOUT_MS = 2000;
 const directories: string[] = [];
 
 const createDirectory = async (): Promise<string> => {
@@ -41,13 +44,18 @@ const publishReset = async (directory: string, email = "alice@domain.test") => {
   return result.artifactPath;
 };
 
+// `after` is the freshness floor. Take it before the artifact is written, as
+// the real E2E callers do. A floor taken after the write drops the artifact
+// when the publish (fsync, link) or the event loop is slower than the 1000 ms
+// slack, which happened on loaded CI runners.
 const waitForReset = (
   directory: string,
   email: string,
-  timeoutMs = 100
+  after: number,
+  timeoutMs: number
 ): Promise<URL> =>
   waitForPreviewLink({
-    after: Date.now() - 1000,
+    after,
     appOrigin: APP_ORIGIN,
     directory,
     hmacKey: HMAC_KEY,
@@ -68,15 +76,21 @@ afterEach(async () => {
 describe("authenticated preview polling", () => {
   it("binds a same-name artifact to the exact normalized recipient", async () => {
     const directory = await createDirectory();
+    const after = Date.now() - 1000;
     await publishReset(directory, "Alice.Tag@DOMAIN.TEST ");
 
     await expect(
-      waitForReset(directory, "alice.Tag@domain.test", 20)
+      waitForReset(directory, "alice.Tag@domain.test", after, 20)
     ).rejects.toThrowError(
       "Timed out waiting for reset-password preview artifact."
     );
     await expect(
-      waitForReset(directory, " Alice.Tag@domain.test ")
+      waitForReset(
+        directory,
+        " Alice.Tag@domain.test ",
+        after,
+        FOUND_TIMEOUT_MS
+      )
     ).resolves.toMatchObject({
       pathname: "/api/auth/reset-password/authenticated-token",
     });
@@ -86,6 +100,7 @@ describe("authenticated preview polling", () => {
     "rejects a committed artifact with tampered %s binding",
     async (tamper) => {
       const directory = await createDirectory();
+      const after = Date.now() - 1000;
       const htmlPath = await publishReset(directory);
       const textPath = htmlPath.replace(/\.html$/u, ".txt");
       const metadataPath = htmlPath.replace(/\.html$/u, ".metadata.json");
@@ -106,7 +121,7 @@ describe("authenticated preview polling", () => {
       }
 
       await expect(
-        waitForReset(directory, "alice@domain.test", 20)
+        waitForReset(directory, "alice@domain.test", after, 20)
       ).rejects.toThrowError(
         "Timed out waiting for reset-password preview artifact."
       );
@@ -118,6 +133,7 @@ describe("run-owned contact preview polling", () => {
   it("requires a fresh regular HTML/text pair with unique contact markers", async () => {
     const directory = await createDirectory();
     const artifactName = "contact-00000000-0000-4000-8000-000000000001";
+    const after = Date.now() - 1000;
     await Promise.all([
       writeFile(
         join(directory, `${artifactName}.html`),
@@ -131,7 +147,7 @@ describe("run-owned contact preview polling", () => {
 
     await expect(
       waitForContactPreview({
-        after: Date.now() - 1000,
+        after,
         directory,
         recipientEmail: "unique-contact@domain.test",
         subject: "Wrong subject",
@@ -140,10 +156,11 @@ describe("run-owned contact preview polling", () => {
     ).rejects.toThrowError("Timed out waiting for contact preview artifact.");
     await expect(
       waitForContactPreview({
-        after: Date.now() - 1000,
+        after,
         directory,
         recipientEmail: "unique-contact@domain.test",
         subject: "Unique contact subject",
+        timeoutMs: FOUND_TIMEOUT_MS,
       })
     ).resolves.toBeUndefined();
   });

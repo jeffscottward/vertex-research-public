@@ -18,12 +18,13 @@ import {
   deferred,
   lifecycleFixture,
 } from "./vertex-research-chat-copy-lifecycle.test-support.ts";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
 // Authored SOURCE scenarios, not executed by this writer. No actual database,
 // deployment/storage qualification, worker admission, model call or AI output.
 // The real positive SOURCE scenario measured ~9s. Scope the finite allowance
 // to this test file; do not change project defaults or replace real owners.
-vi.setConfig({ testTimeout: 30_000 });
+vi.setConfig({ testTimeout: scaledTimeout(30_000) });
 const effects = "vertex_research_chat_copy_effects";
 const observations = "vertex_research_chat_copy_effect_observations";
 const closures = "vertex_research_chat_copy_domain_closures";

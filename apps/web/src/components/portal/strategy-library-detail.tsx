@@ -20,38 +20,37 @@ import {
   Textarea,
 } from "@darkfactory/ui";
 import { Copy, Save, Trash2, Upload } from "lucide-react";
-import { useEffect, useState, type KeyboardEvent } from "react";
-
+import { type KeyboardEvent, useEffect, useState } from "react";
+import {
+  formatTimestamp,
+  InfoGlyph,
+  type StrategyLibraryGateway,
+} from "./agent-ops-client.tsx";
 import {
   formatPercent,
   formatReported,
   reportedSharpe,
 } from "./backtests-workspace.tsx";
-import { ParamField, selectClass } from "./strategy-param-field.tsx";
 import { newRequestHref } from "./deployment-requests-model.ts";
 import {
-  InfoGlyph,
-  formatTimestamp,
-  type StrategyLibraryGateway,
-} from "./agent-ops-client.tsx";
-import {
-  STRATEGY_KIND_LABELS,
-  STRATEGY_STATUS_LABELS,
-  STRATEGY_TAB_LABELS,
-  STRATEGY_TABS,
   descriptionLinks,
   formatParamValue,
   formatPresetValues,
   formatRatio,
   formatSignedPercent,
+  type PresetFormValues,
   parseParamsJson,
   parseTagsText,
   presetExportText,
   presetFormValues,
   presetValuesFromForm,
-  type PresetFormValues,
+  STRATEGY_KIND_LABELS,
+  STRATEGY_STATUS_LABELS,
+  STRATEGY_TAB_LABELS,
+  STRATEGY_TABS,
   type StrategyTab,
 } from "./strategy-library-model.ts";
+import { ParamField, selectClass } from "./strategy-param-field.tsx";
 
 // External links from a strategy description (source dashboard, code), opened in a new tab.
 export const StrategyLinks = ({
@@ -62,6 +61,7 @@ export const StrategyLinks = ({
   return (
     <p
       className="flex flex-wrap gap-x-3 gap-y-1 text-xs"
+      data-click-private=""
       data-strategy-links=""
     >
       {links.map((link) => (
@@ -87,14 +87,14 @@ const linkButton =
 type Detail = StrategyGetOutput;
 
 export interface StrategyDetailProps {
+  readonly describeFailure: (error: unknown) => string;
   readonly detail: Detail;
   readonly gateway: StrategyLibraryGateway;
-  readonly tab: StrategyTab;
-  readonly onTab: (tab: StrategyTab) => void;
-  readonly onClose: () => void;
   // Reloads detail and board after a successful write.
   readonly onChanged: () => Promise<void>;
-  readonly describeFailure: (error: unknown) => string;
+  readonly onClose: () => void;
+  readonly onTab: (tab: StrategyTab) => void;
+  readonly tab: StrategyTab;
 }
 
 // Roving focus for the tab list: arrows move and select, Home/End jump.
@@ -172,13 +172,13 @@ const OverviewTab = ({
     setBusy(true);
     try {
       await gateway.update({
+        description,
         id: strategy.id,
         name,
-        status,
         section,
-        tags: parseTagsText(tags),
         sourceRef,
-        description,
+        status,
+        tags: parseTagsText(tags),
       });
       setMessage({ text: "Saved.", tone: "status" });
       await onChanged();
@@ -474,8 +474,8 @@ const ParametersTab = ({
     setBusy(true);
     try {
       const preset = await gateway.savePreset({
-        strategyId: strategy.id,
         name: presetName,
+        strategyId: strategy.id,
         values,
       });
       setPresetMessage({
@@ -568,7 +568,10 @@ const ParametersTab = ({
           <p className="text-muted-foreground text-xs">No presets.</p>
         ) : (
           <div className="relative overflow-x-auto">
-            <Table className="w-full min-w-[40rem] text-xs">
+            <Table
+              className="w-full min-w-[40rem] text-xs"
+              data-click-private=""
+            >
               <TableCaption className="sr-only">Presets</TableCaption>
               <TableHeader>
                 <TableRow className="border-border border-b text-left text-muted-foreground">
@@ -602,7 +605,7 @@ const ParametersTab = ({
                 {presets.map((preset) => {
                   return (
                     <TableRow
-                      className="border-border border-b align-top"
+                      className="border-border border-b [&>td]:align-top [&>th]:align-top"
                       data-preset={preset.name}
                       key={preset.id}
                     >
@@ -669,10 +672,10 @@ const ParametersTab = ({
         )}
         {exported === null ? null : (
           <pre
-            role="region"
             aria-label={`Preset ${exported.name} as text`}
             className="overflow-x-auto rounded-md border border-border p-2 text-xs"
             data-preset-export={exported.name}
+            role="region"
           >
             {exported.text}
           </pre>
@@ -751,13 +754,22 @@ const BacktestsTab = ({ detail }: { readonly detail: Detail }) => {
               : `Sharpe ${formatRatio(latest.sharpe)} · return ${formatSignedPercent(latest.totalReturn)} · CAGR ${formatSignedPercent(latest.cagr)}`}
           </span>
         </p>
-        <a
-          className={linkButton}
-          data-strategy-optimizations={strategy.id}
-          href={`/optimizations?strategy=${encodeURIComponent(strategy.id)}`}
-        >
-          Optimizations
-        </a>
+        <div className="flex flex-wrap gap-2">
+          <a
+            className={linkButton}
+            data-strategy-rerun={strategy.id}
+            href={`/backtest-runs?strategy=${encodeURIComponent(strategy.id)}&universe=core7-futures`}
+          >
+            Re-run on Core 7 futures
+          </a>
+          <a
+            className={linkButton}
+            data-strategy-optimizations={strategy.id}
+            href={`/optimizations?strategy=${encodeURIComponent(strategy.id)}`}
+          >
+            Optimizations
+          </a>
+        </div>
       </div>
       {backtests.length === 0 ? (
         <p className="text-muted-foreground text-xs">
@@ -768,6 +780,7 @@ const BacktestsTab = ({ detail }: { readonly detail: Detail }) => {
         <div className="relative overflow-x-auto">
           <Table
             className="w-full min-w-[48rem] text-sm"
+            data-click-private=""
             data-strategy-backtests=""
           >
             <TableCaption className="sr-only">Linked backtests</TableCaption>
@@ -835,7 +848,7 @@ const BacktestsTab = ({ detail }: { readonly detail: Detail }) => {
               {backtests.map((row) => {
                 return (
                   <TableRow
-                    className="border-border border-b align-top"
+                    className="border-border border-b [&>td]:align-top [&>th]:align-top"
                     data-linked-backtest={row.id}
                     key={row.id}
                   >

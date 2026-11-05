@@ -246,7 +246,7 @@ export const AgentApiKeysSection = ({
       ) : state.keys.length === 0 ? (
         <p className="text-muted-foreground text-sm">No API keys.</p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" data-click-private="">
           <caption className="sr-only">Agent API keys</caption>
           <thead>
             <tr className="border-border border-b text-left text-muted-foreground text-xs">

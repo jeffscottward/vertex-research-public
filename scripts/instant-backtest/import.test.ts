@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runMarketBarsImport } from "./import.ts";
 
@@ -71,6 +71,10 @@ beforeEach(() => {
   out = [];
   err = [];
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  rmSync(directory, { force: true, recursive: true });
 });
 
 describe("runMarketBarsImport", () => {

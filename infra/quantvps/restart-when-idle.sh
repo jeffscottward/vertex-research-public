@@ -7,6 +7,10 @@
 # Steps:
 #  1. Gate: the build output that run-preview.mjs needs (apps/web/dist/server/wrangler.json and
 #     apps/web/.wrangler/deploy/config.json) must exist on QuantVPS. Else no restart (exit 3).
+#  1b. Version guard: the new build SHA (dist/DEPLOYED_SHA, written on the rig at build time) must not
+#     be a strict ancestor of the deployed SHA (apps/web/DEPLOYED_SHA, written by this script after
+#     each healthy restart). An older build, an unknown SHA or a SHA missing from the rig checkout
+#     stops the run with no restart (exit 9), unless --allow-older <reason> is given.
 #  2. Wait until vertex-web is idle (signal below) on two polls in a row.
 #  3. `systemctl restart vertex-web`, then a health check: `/` returns 200 and `/dashboard` returns
 #     307 to the sign-in page on 127.0.0.1:3450.
@@ -35,19 +39,24 @@
 # #omp-alerts notice (exit 4). There is no forced restart.
 # Lock: one fixed path for every caller, ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock.
 #
-# Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--backup <TS>]
+# Usage: infra/quantvps/restart-when-idle.sh [--dry-run] [--backup <TS>] [--allow-older <reason>]
 #   --dry-run  print the idle decision, current health, rollback candidate and start times; no
 #              restart, no lock, no alert. Exit 0 = idle, 10 = busy.
+#   --allow-older  deploy a build that is older than (or not provably newer than) the deployed SHA,
+#              for a deliberate rollback or the first recorded deploy. The reason is printed.
 #   --backup   rollback source timestamp (dist.bak-<TS> and .wrangler.bak-<TS>), default newest pair.
 # Exit codes: 0 restarted and healthy; 2 usage; 3 gate or probe failed, or the vertex-web start time
 #   did not change (no restart happened); 4 gave up (busy); 5 health failed, rolled back and healthy;
 #   6 health failed and rollback failed (web down), or no health answer over ssh (state unknown);
 #   7 restarted and healthy, but a container start time changed or could not be checked;
-#   8 another restart waiter holds the lock (this run did nothing).
+#   8 another restart waiter holds the lock (this run did nothing);
+#   9 version guard refused: the new build is older than the deployed one, or a SHA is unknown;
+#   11 the lock file could not be opened or flock failed (this run did nothing).
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
-#   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds). `--decide` is the pure idle decision used
+#   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_DEPLOY_GIT_DIR (checkout for the
+#   ancestry check, default this repository). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
 set -uo pipefail
 
@@ -117,6 +126,7 @@ fi
 
 DRY=0
 BACKUP=""
+ALLOW_OLDER=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
@@ -124,7 +134,11 @@ while [ $# -gt 0 ]; do
       shift
       [[ "${1:-}" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo "--backup needs a timestamp like 20261101T125501Z" >&2; exit 2; }
       BACKUP="$1" ;;
-    *) echo "usage: $0 [--dry-run] [--backup <TS>]" >&2; exit 2 ;;
+    --allow-older)
+      shift
+      [ -n "${1:-}" ] && [[ "$1" != --* ]] || { echo "--allow-older needs a reason" >&2; exit 2; }
+      ALLOW_OLDER="$1" ;;
+    *) echo "usage: $0 [--dry-run] [--backup <TS>] [--allow-older <reason>]" >&2; exit 2 ;;
   esac
   shift
 done
@@ -167,6 +181,44 @@ for d in \$(ls -1d dist.bak-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][
   ts=\${d#dist.bak-}; if [ -n \"\$want\" ] && [ \"\$ts\" != \"\$want\" ]; then continue; fi;
   if [ -d \".wrangler.bak-\$ts\" ]; then echo \"\$ts\"; exit 0; fi; done; exit 1"
 RESTART=": restart; systemctl restart $UNIT"
+# New build SHA (inside dist, copied from the rig) and the SHA that last passed a restart.
+SHAS=": shas; $WEB_CD && echo \"new \$(cat dist/DEPLOYED_SHA 2>/dev/null || echo none)\" &&
+echo \"deployed \$(cat DEPLOYED_SHA 2>/dev/null || echo none)\""
+# After a healthy restart, the SHA the guard checked becomes the deployed SHA, but only while dist
+# still holds it (a dist copied again during the idle wait is not recorded). After a rollback, the
+# restored dist's SHA is recorded (no SHA file: the record is removed).
+record_new() { remote ": record; $WEB_CD && if [ \"\$(cat dist/DEPLOYED_SHA 2>/dev/null)\" = '$CHECKED_SHA' ]; then echo '$CHECKED_SHA' >DEPLOYED_SHA.tmp && mv DEPLOYED_SHA.tmp DEPLOYED_SHA; else echo dist-changed; exit 1; fi"; }
+CHECKED_SHA=""
+RECORD=": record; $WEB_CD && if [ -f dist/DEPLOYED_SHA ]; then cp dist/DEPLOYED_SHA DEPLOYED_SHA.tmp && mv DEPLOYED_SHA.tmp DEPLOYED_SHA; else rm -f DEPLOYED_SHA; fi"
+GIT_DIR_CHECK="${VERTEX_DEPLOY_GIT_DIR:-$(cd "$(dirname "$0")" && git rev-parse --show-toplevel 2>/dev/null || echo .)}"
+
+# Version guard. Prints one decision line; returns 0 = allowed, 1 = refused.
+version_guard() {
+  local out new deployed problem=""
+  out="$(remote "$SHAS" 2>/dev/null)"
+  new="$(sed -n 's/^new //p' <<<"$out" | head -n 1)"
+  deployed="$(sed -n 's/^deployed //p' <<<"$out" | head -n 1)"
+  sha_ok() { [[ "$1" =~ ^[0-9a-f]{7,40}$ ]]; }
+  if ! sha_ok "$new"; then problem="new build SHA unknown (dist/DEPLOYED_SHA: ${new:-no answer})"
+  elif ! sha_ok "$deployed"; then problem="deployed SHA unknown (DEPLOYED_SHA: ${deployed:-no answer})"
+  fi
+  sha_ok "$new" && CHECKED_SHA="$new"
+  if [ -n "$problem" ]; then :
+  elif [ "$new" = "$deployed" ]; then echo "version: new $new equals deployed"; return 0
+  elif ! git -C "$GIT_DIR_CHECK" cat-file -e "$new^{commit}" 2>/dev/null ||
+       ! git -C "$GIT_DIR_CHECK" cat-file -e "$deployed^{commit}" 2>/dev/null; then
+    problem="cannot compare $new with deployed $deployed: a commit is missing in $GIT_DIR_CHECK (git fetch)"
+  elif [ "$(git -C "$GIT_DIR_CHECK" rev-parse "$new^{commit}")" = "$(git -C "$GIT_DIR_CHECK" rev-parse "$deployed^{commit}")" ]; then
+    echo "version: new $new equals deployed"; return 0
+  elif git -C "$GIT_DIR_CHECK" merge-base --is-ancestor "$new" "$deployed"; then
+    problem="new build $new is OLDER than deployed $deployed (strict ancestor)"
+  else echo "version: new $new is not an ancestor of deployed $deployed"; return 0
+  fi
+  if [ -n "$ALLOW_OLDER" ]; then echo "version: WARNING $problem; allowed by --allow-older: $ALLOW_OLDER"; return 0; fi
+  echo "NOT RESTARTED: $problem; use --allow-older <reason> for a deliberate rollback."
+  echo "  The refused build is still in apps/web/dist on QuantVPS: restore dist.bak-<TS> and .wrangler.bak-<TS>, so a later restart cannot serve it."
+  return 1
+}
 
 healthy() { [[ "$1" =~ ^root=200\ dashboard=307\ [^\ ]*/sign-in[^\ ]*\ active=active$ ]]; }
 # The health line only: ssh warnings on stderr must not fail a healthy build.
@@ -202,16 +254,34 @@ if [ "$DRY" = 1 ]; then
   echo "build output: $(remote "$GATE" 2>/dev/null || echo missing)"
   echo "rollback source: $(remote "$CANDIDATE" 2>/dev/null || echo none) (dist.bak-<TS> + .wrangler.bak-<TS>)"
   echo "start times:"; remote "$STARTS" 2>&1 | sed 's/^/  /'
+  version_guard | sed 's/^NOT RESTARTED: /version guard would refuse: /'
   echo "dry run: no restart"
   [ "$(head -n 1 <<<"$d")" = idle ] && exit 0
   exit 10
 fi
 
 # One fixed lock path for every caller (login shell, cron, systemd-run, ssh), so two waiters never run.
+# Only flock's "lock held" answer (exit 1) means another waiter (exit 8). A lock file that cannot be
+# opened (full disk, no permission, a directory) or any other flock failure is a failed run (exit 11).
 LOCK="${VERTEX_RESTART_LOCK:-${XDG_STATE_HOME:-$HOME/.local/state}/vertex-web-restart.lock}"
 mkdir -p "$(dirname "$LOCK")"
-exec 9>"$LOCK"
-flock -n 9 || { echo "NOT RESTARTED: another vertex-web restart waiter is active; exiting"; exit 8; }
+if ! { exec 9>"$LOCK"; } 2>/dev/null; then
+  # Open it again in a subshell only to read the reason: bash reports "<path>: <reason>".
+  reason="$({ : >"$LOCK"; } 2>&1)"
+  reason="${reason##*: }"
+  echo "NOT RESTARTED: cannot open lock file $LOCK: ${reason:-open failed}"
+  exit 11
+fi
+flock -n 9
+lock_rc=$?
+if [ "$lock_rc" = 1 ]; then
+  echo "NOT RESTARTED: another vertex-web restart waiter is active; exiting"
+  exit 8
+fi
+if [ "$lock_rc" != 0 ]; then
+  echo "NOT RESTARTED: cannot lock $LOCK (flock exit $lock_rc)"
+  exit 11
+fi
 
 gate="$(remote "$GATE" 2>/dev/null)"
 if [ "$gate" != build-output-ok ]; then
@@ -223,6 +293,7 @@ if ! source_ts="$(remote "$CANDIDATE" 2>/dev/null)" || ! [[ "$source_ts" =~ ^[0-
   exit 3
 fi
 echo "gate: build output ok; rollback source $source_ts"
+version_guard || exit 9
 
 # The give-up limit is wall-clock time: ssh and probe time count too.
 busy_since=""; streak=0; d=""
@@ -244,6 +315,14 @@ while :; do
   $SLEEP "$POLL"
 done
 echo "idle: $(tail -n +2 <<<"$d" | paste -sd ';' -)"
+# The idle wait can be long: a build copied into dist meanwhile was never checked.
+if [ -n "$CHECKED_SHA" ]; then
+  now_sha="$(sed -n 's/^new //p' <<<"$(remote "$SHAS" 2>/dev/null)" | head -n 1)"
+  if [ "$now_sha" != "$CHECKED_SHA" ]; then
+    echo "NOT RESTARTED: dist/DEPLOYED_SHA changed during the idle wait ($CHECKED_SHA -> ${now_sha:-no answer}); run the script again"
+    exit 9
+  fi
+fi
 
 # 0 = vertex-web restarted and every container start time is unchanged; 1 = a container start time
 # changed or could not be read; 2 = the vertex-web start time did not change (no restart happened).
@@ -294,6 +373,9 @@ if h="$(wait_healthy)"; then
     echo "NOT RESTARTED: $UNIT ActiveEnterTimestamp did not change; the old process still serves"
     exit 3
   fi
+  if [ -z "$CHECKED_SHA" ]; then echo "warning: new build SHA unknown; DEPLOYED_SHA not recorded"
+  elif ! record_new >/dev/null 2>&1; then echo "warning: DEPLOYED_SHA not recorded (dist/DEPLOYED_SHA no longer $CHECKED_SHA, or ssh failed)"
+  else echo "recorded DEPLOYED_SHA $CHECKED_SHA"; fi
   [ "$rc" = 0 ] || exit 7
   exit 0
 fi
@@ -310,6 +392,7 @@ cp -a dist.bak-$source_ts dist && cp -a .wrangler.bak-$source_ts .wrangler && sy
 if remote "$ROLLBACK" 300 2>&1 && h2="$(wait_healthy)"; then
   echo "rolled back to $source_ts: $h2 (failed build kept as dist.failed-$NOW)"
   alert "⚠️ **vertex-web restart failed its health check** (QuantVPS: $h). Rolled back to build $source_ts; the web app is healthy again ($h2). The failed build is kept as dist.failed-$NOW."
+  remote "$RECORD" 2>/dev/null || echo "warning: could not record DEPLOYED_SHA on QuantVPS"
   check_starts
   exit 5
 fi
