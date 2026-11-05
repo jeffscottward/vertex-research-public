@@ -418,3 +418,45 @@ export const evaluateCombo = (
     reasons,
   };
 };
+
+// Opening vertical as ONE combo order (merge plan P6). Only the simulated gateway calls this; the
+// structure, the 2% max loss and the JEV verdict are checked by the final gate
+// (final-order-gate.ts). Here: the account gates and the order-book checks.
+export const evaluateOpeningCombo = (
+  order: VertexComboInput,
+  account: OrderAccount,
+  now: Date
+): VertexComboReview => {
+  const reasons: string[] = [];
+  if (account.gates.killSwitch)
+    reasons.push("Kill switch is on: no opening or increasing orders.");
+  if (!account.gates.optionsOnly)
+    reasons.push(
+      "Trading gate OPTIONS_ONLY is not confirmed on: no new positions."
+    );
+  if (workingCombo(account, order.symbol))
+    reasons.push(WORKING_COMBO(order.symbol));
+  for (const leg of order.legs) {
+    const label = `${leg.expiry} ${leg.strike}${leg.right}`;
+    const days = daysToExpiry(leg.expiry, now);
+    if (days === null || days < 1)
+      reasons.push(`Leg ${label}: expiry must be after today.`);
+    if (
+      account.openOrders.some(
+        (o) =>
+          o.secType === "OPT" &&
+          sameContract({ symbol: order.symbol, ...leg }, o)
+      )
+    )
+      reasons.push(
+        `Leg ${label}: an open order rests on this contract; cancel it first.`
+      );
+  }
+  return {
+    accepted: reasons.length === 0,
+    label: comboLabel(order),
+    netAmount: round2(order.limitPrice * order.quantity * CONTRACT_MULTIPLIER),
+    order,
+    reasons,
+  };
+};

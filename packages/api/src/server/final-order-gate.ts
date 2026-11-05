@@ -1,5 +1,9 @@
 import type { JevVerdictOutput } from "../contracts/jev-verdict.ts";
-import { daysToExpiry } from "./vertex-orders-rules.ts";
+import {
+  daysToExpiry,
+  type OrderPosition,
+  sameContract,
+} from "./vertex-orders-rules.ts";
 
 // Final JEV order gate (merge plan P6). One pure function that every order path (platform ticket,
 // re-entry, harness, wish-list, ops scripts) calls after its own code gates and immediately before
@@ -9,7 +13,8 @@ import { daysToExpiry } from "./vertex-orders-rules.ts";
 // - max possible loss of a new position <= 2% of account value; unknown account value denies;
 // - the P5 JEV verdict must be fresh and must not oppose the structure's direction; missing,
 //   stale or unreachable denies. Risk-reducing orders (stops, closes) are sent when JEV is
-//   unreachable, but an explicit JEV deny still blocks them.
+//   unreachable, but an explicit JEV deny still blocks them. "Risk-reducing" is derived from the
+//   held positions (every leg reverses a held leg, no larger than the holding), never a caller flag.
 // JEV never changes size or price: this gate only answers allow or deny with reasons.
 // This module places no orders and reads no environment.
 
@@ -31,7 +36,6 @@ export type FinalGateOrder = Readonly<{
   quantity: number;
   // Per structure: positive = debit paid, negative = credit received.
   limitPrice: number;
-  riskReducing: boolean;
   engine: string;
   reason: string;
 }>;
@@ -134,8 +138,28 @@ export const classifyStructure = (order: FinalGateOrder): Structure => {
   return classifyVertical(first, second, quantity, limitPrice);
 };
 
+// true when every leg only reduces a held option leg: SELL against a long, BUY against a short.
+export const isRiskReducing = (
+  order: FinalGateOrder,
+  positions: readonly OrderPosition[]
+): boolean =>
+  order.legs.length > 0 &&
+  order.legs.every((leg) => {
+    const held = positions
+      .filter(
+        (p) =>
+          p.secType === "OPT" &&
+          sameContract({ symbol: order.symbol, ...leg }, p)
+      )
+      .reduce((sum, p) => sum + p.quantity, 0);
+    const size = leg.ratio * order.quantity;
+    return leg.side === "SELL" ? size <= held : size <= -held;
+  });
+
 export type FinalGateInput = Readonly<{
   order: FinalGateOrder;
+  // Held positions from the same fresh snapshot; decides whether the order is risk-reducing.
+  positions: readonly OrderPosition[];
   // Account value (NLV) from a fresh snapshot; null when unknown.
   accountValue: number | null;
   // P5 verdict; null when JEV or the verdict store is unreachable.
@@ -151,6 +175,7 @@ export type FinalGateDecision = Readonly<{
   maxLoss: number | null;
   maxLossPct: number | null;
   jevState: "fresh" | "stale" | "none" | "unreachable";
+  jevStance: "BULLISH" | "NEUTRAL" | "BEARISH" | null;
   reasons: readonly string[];
 }>;
 
@@ -176,6 +201,7 @@ export const evaluateFinalOrderGate = (
   const { order, accountValue, jev, now } = input;
   const reasons: string[] = [];
   const jevState = jev === null ? "unreachable" : jev.state;
+  const jevStance = jev?.verdict?.stance ?? null;
 
   for (const l of order.legs) {
     const days = l.secType === "OPT" ? daysToExpiry(l.expiry, now) : 0;
@@ -186,10 +212,11 @@ export const evaluateFinalOrderGate = (
   }
   if (input.jevDenied === true) reasons.push("JEV denied this order.");
 
-  if (order.riskReducing) {
+  if (isRiskReducing(order, input.positions)) {
     // Stops and closes: no structure or loss check (they remove risk); a JEV outage never blocks.
     return {
       decision: reasons.length === 0 ? "allow" : "deny",
+      jevStance,
       jevState,
       maxLoss: null,
       maxLossPct: null,
@@ -224,6 +251,7 @@ export const evaluateFinalOrderGate = (
 
   return {
     decision: reasons.length === 0 ? "allow" : "deny",
+    jevStance,
     jevState,
     maxLoss: structure.maxLoss,
     maxLossPct,

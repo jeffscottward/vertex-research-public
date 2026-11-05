@@ -32,8 +32,41 @@ import type { OrderAccount } from "./server/vertex-orders-rules.ts";
 import type { VertexComboInput } from "./contracts/vertex-orders.ts";
 import {
   type VertexOrdersConfig,
-  setVertexOrdersDependenciesForTesting,
+  setVertexOrdersDependenciesForTesting as setOrdersDependencies,
 } from "./server/vertex-orders.ts";
+import type { JevVerdictOutput } from "./contracts/jev-verdict.ts";
+
+// The final JEV order gate runs on the mock gateway. These tests cover the order rules, so they
+// see a fresh NEUTRAL verdict (never opposes); final-order-gate tests cover the JEV rules.
+const neutralJev = (symbol: string): JevVerdictOutput => ({
+  configured: true,
+  lastFailure: null,
+  minIntervalSeconds: 1800,
+  nextRefreshAt: null,
+  notes: [],
+  refreshed: false,
+  staleAfterSeconds: 3600,
+  state: "fresh",
+  symbol,
+  throttled: false,
+  verdict: {
+    choice: "NEUTRAL",
+    dataAsOf: "2026-10-21",
+    decidedAt: "2026-10-22T14:50:00.000Z",
+    factors: [],
+    model: "test",
+    probabilities: { BEARISH: 0.2, BULLISH: 0.2, NEUTRAL: 0.6 },
+    reason: "test",
+    sentFields: [],
+    stance: "NEUTRAL",
+  },
+});
+const setVertexOrdersDependenciesForTesting = (
+  next: Parameters<typeof setOrdersDependencies>[0]
+): void =>
+  setOrdersDependencies(
+    next === undefined ? undefined : { jevVerdict: neutralJev, ...next }
+  );
 
 // Fictional values only. No test here can reach IBKR: the bridge fetch is a spy.
 const at = new Date("2026-10-22T15:00:00.000Z");
@@ -254,7 +287,11 @@ describe("vertexOrders procedures", () => {
       killSwitch: false,
       optionsOnly: true,
     });
-    expect(status.openOrders.map((o) => o.cancellable)).toEqual([true, false]);
+    expect(status.openOrders.map((o) => o.cancellable)).toEqual([
+      true,
+      false,
+      true,
+    ]);
     const preview = await client.vertexOrders.preview(order());
     expect(preview.review.accepted).toBe(true);
     const result = await client.vertexOrders.submit({
@@ -979,7 +1016,7 @@ describe("vertexOrders procedures", () => {
       orderRef: "mock-seed",
       mode: "simulated",
     });
-    expect((await client.vertexOrders.status({})).openOrders).toHaveLength(1);
+    expect((await client.vertexOrders.status({})).openOrders).toHaveLength(2);
     expect(events.at(-1)?.correlation).toMatchObject({
       traceId: "a".repeat(32),
     });
@@ -1306,5 +1343,177 @@ describe("vertexOrders procedures", () => {
     }
     expect(place).not.toHaveBeenCalled();
     expect(cancelSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("final JEV order gate on the simulated gateway (merge plan P6)", () => {
+  const vertical = (
+    over: Partial<VertexComboInput> = {}
+  ): VertexComboInput => ({
+    symbol: "MOCKV",
+    quantity: 2,
+    limitPrice: 4,
+    legs: [
+      { expiry: "20280121", strike: 100, right: "C", side: "BUY", ratio: 1 },
+      { expiry: "20280121", strike: 110, right: "C", side: "SELL", ratio: 1 },
+    ],
+    ...over,
+  });
+
+  it("shows the gate verdict and denies an order without a fresh JEV verdict", async () => {
+    setOrdersDependencies({ mock, now: () => at });
+    const preview = await clientFor().vertexOrders.preview(order());
+    expect(preview.review.accepted).toBe(false);
+    expect(preview.review.finalGate).toMatchObject({
+      decision: "deny",
+      jevState: "none",
+      structure: "long-option",
+    });
+    expect(preview.review.reasons.join(" ")).toMatch(/Final gate: JEV/);
+    expect(preview.confirmToken).toBeNull();
+  });
+
+  it("denies a long option that opposes the JEV stance", async () => {
+    setOrdersDependencies({
+      mock,
+      now: () => at,
+      jevVerdict: (symbol) => {
+        const base = neutralJev(symbol);
+        return base.verdict === null
+          ? base
+          : { ...base, verdict: { ...base.verdict, stance: "BEARISH" } };
+      },
+    });
+    const preview = await clientFor().vertexOrders.preview(order());
+    expect(preview.review.finalGate?.reasons.join(" ")).toMatch(/opposes/);
+    expect(preview.review.accepted).toBe(false);
+  });
+
+  it("opens a debit vertical as one combo and places it on the mock", async () => {
+    const client = clientFor();
+    const preview = await client.vertexOrders.comboPreview(vertical());
+    expect(preview.review.accepted).toBe(true);
+    expect(preview.review.finalGate).toMatchObject({
+      decision: "allow",
+      maxLoss: 800,
+      structure: "debit-vertical",
+    });
+    const result = await client.vertexOrders.comboSubmit({
+      order: vertical(),
+      confirmToken: preview.confirmToken ?? "",
+      confirm: true,
+    });
+    expect(result).toMatchObject({ mode: "simulated", state: "submitted" });
+    expect(bridgeFetch).not.toHaveBeenCalled();
+  });
+
+  it("denies a vertical whose max loss is above 2% of account value, and a naked ratio leg", async () => {
+    const client = clientFor();
+    const big = await client.vertexOrders.comboPreview(
+      vertical({ quantity: 20 })
+    );
+    expect(big.review.accepted).toBe(false);
+    expect(big.review.reasons.join(" ")).toMatch(/2% of account value/);
+    const ratio = await client.vertexOrders.comboPreview(
+      vertical({
+        legs: [
+          {
+            expiry: "20280121",
+            strike: 100,
+            right: "C",
+            side: "BUY",
+            ratio: 1,
+          },
+          {
+            expiry: "20280121",
+            strike: 110,
+            right: "C",
+            side: "SELL",
+            ratio: 2,
+          },
+        ],
+      })
+    );
+    expect(ratio.review.finalGate?.structure).toBe("rejected");
+    expect(ratio.review.accepted).toBe(false);
+  });
+
+  it("refuses opening combos that break the account gates", async () => {
+    const gated = {
+      ...mock,
+      account: async () => ({
+        ...(await mock.account()),
+        gates: { killSwitch: true, optionsOnly: false },
+        openOrders: [
+          {
+            permId: 5,
+            symbol: "MOCKV",
+            secType: "OPT",
+            expiry: "20280121",
+            strike: 100,
+            right: "C",
+            side: "BUY",
+            quantity: 1,
+            orderType: "LMT",
+            limitPrice: 1,
+            status: "Submitted",
+            orderRef: "x",
+          },
+          {
+            permId: 6,
+            symbol: "MOCKV",
+            secType: "BAG",
+            expiry: null,
+            strike: null,
+            right: null,
+            side: "BUY",
+            quantity: 1,
+            orderType: "LMT",
+            limitPrice: 1,
+            status: "Submitted",
+            orderRef: "y",
+          },
+        ],
+      }),
+    };
+    setVertexOrdersDependenciesForTesting({ mock: gated, now: () => at });
+    const preview = await clientFor().vertexOrders.comboPreview(
+      vertical({
+        legs: [
+          {
+            expiry: "20221021",
+            strike: 100,
+            right: "C",
+            side: "BUY",
+            ratio: 1,
+          },
+          {
+            expiry: "20221021",
+            strike: 110,
+            right: "C",
+            side: "SELL",
+            ratio: 1,
+          },
+        ],
+      })
+    );
+    const text = preview.review.reasons.join(" ");
+    expect(text).toMatch(/Kill switch/);
+    expect(text).toMatch(/OPTIONS_ONLY/);
+    expect(text).toMatch(/combo order on MOCKV/);
+    expect(text).toMatch(/expiry must be after today/);
+    const resting = await clientFor().vertexOrders.comboPreview(vertical());
+    expect(resting.review.reasons.join(" ")).toMatch(/open order rests/);
+  });
+
+  it("live mode keeps the existing gates: no final gate and close-only combos", async () => {
+    const on = { ...OFF, enabled: true, submission: "enabled" };
+    const { store } = intentStore();
+    const client = clientFor({ config: on, intents: store });
+    const preview = await client.vertexOrders.preview(order());
+    expect(preview.review.finalGate).toBeNull();
+    const combo = await client.vertexOrders.comboPreview(vertical());
+    expect(combo.review.finalGate).toBeNull();
+    expect(combo.review.accepted).toBe(false);
   });
 });

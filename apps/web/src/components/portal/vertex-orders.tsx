@@ -8,8 +8,16 @@ import type {
   VertexOrdersStatus,
 } from "@darkfactory/api";
 import { Button, Input, Label, StatusBadge } from "@darkfactory/ui";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
+import { FinalGatePanel } from "./final-gate-panel.tsx";
+import { VerticalTicket } from "./vertical-ticket.tsx";
 import {
   orderErrorMessage,
   type VertexOrdersGateway,
@@ -28,6 +36,7 @@ type FormState = Readonly<{
   symbol: string;
   expiry: string;
   strike: string;
+  right: "C" | "P";
   side: "BUY" | "SELL";
   quantity: string;
   limitPrice: string;
@@ -37,6 +46,7 @@ const EMPTY: FormState = {
   symbol: "",
   expiry: "",
   strike: "",
+  right: "C",
   side: "BUY",
   quantity: "1",
   limitPrice: "",
@@ -47,7 +57,7 @@ export const toOrderInput = (form: FormState): VertexOrderInput => ({
   secType: "OPT",
   expiry: form.expiry.replaceAll("-", ""),
   strike: Number(form.strike),
-  right: "C",
+  right: form.right,
   side: form.side,
   quantity: Number(form.quantity),
   orderType: "LMT",
@@ -59,6 +69,39 @@ const Row = ({ label, value }: Readonly<{ label: string; value: string }>) => (
     <dt className="text-muted-foreground">{label}</dt>
     <dd className="text-right font-medium tabular-nums">{value}</dd>
   </div>
+);
+
+const RightSelect = (
+  props: Readonly<{
+    id: string;
+    value: string;
+    onChange: (event: { target: { value: string } }) => void;
+  }>
+) => (
+  <div className="space-y-1.5">
+    <Label htmlFor={props.id}>Right</Label>
+    <select
+      className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+      {...props}
+    >
+      <option value="C">Call</option>
+      <option value="P">Put</option>
+    </select>
+  </div>
+);
+
+const PaperOnly = ({
+  paper,
+  children,
+}: Readonly<{ paper: boolean; children: ReactNode }>) =>
+  paper ? children : null;
+
+const TicketHint = ({ paper }: Readonly<{ paper: boolean }>) => (
+  <p className="text-muted-foreground text-sm sm:col-span-2 lg:col-span-3">
+    {paper
+      ? "Calls or puts, limit order, day order. Share orders and naked short options are not available."
+      : "Call options, limit order, day order. Puts and share orders are not available."}
+  </p>
 );
 
 const ModeBanner = ({ status }: Readonly<{ status: VertexOrdersStatus }>) =>
@@ -147,6 +190,10 @@ export const VertexOrders = ({
       await refresh();
     });
 
+  // P6: puts and opening verticals are offered on the simulated (paper) gateway only; live keeps
+  // the call-only single-leg ticket until the owner approves the live gate change.
+  const paper = status?.gates.mode === "simulated";
+
   const field = (key: keyof FormState) => ({
     id: `order-${key}`,
     value: form[key],
@@ -202,6 +249,9 @@ export const VertexOrders = ({
               type="number"
             />
           </div>
+          <PaperOnly paper={paper}>
+            <RightSelect {...field("right")} />
+          </PaperOnly>
           <div className="space-y-1.5">
             <Label htmlFor="order-side">Side</Label>
             <select
@@ -234,10 +284,7 @@ export const VertexOrders = ({
               type="number"
             />
           </div>
-          <p className="text-muted-foreground text-sm sm:col-span-2 lg:col-span-3">
-            Call options, limit order, day order. Puts and share orders are not
-            available.
-          </p>
+          <TicketHint paper={paper} />
           <div className="sm:col-span-2 lg:col-span-3">
             <Button disabled={busy} type="submit">
               Review order
@@ -280,6 +327,7 @@ export const VertexOrders = ({
               value={`${money(review.review.cap.afterOrder)} (${review.review.cap.afterOrderPct}% NLV)`}
             />
           </dl>
+          <FinalGatePanel gate={review.review.finalGate} />
           {review.review.accepted ? (
             <StatusBadge status="success">Passes all order rules</StatusBadge>
           ) : (
@@ -315,6 +363,10 @@ export const VertexOrders = ({
           </div>
         </section>
       )}
+
+      <PaperOnly paper={paper}>
+        <VerticalTicket gateway={gateway} onPlaced={refresh} />
+      </PaperOnly>
 
       <div className="space-y-3">
         <h3 className="font-semibold">Open orders</h3>
