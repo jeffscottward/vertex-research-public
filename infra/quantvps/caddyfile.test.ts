@@ -28,4 +28,23 @@ describe("vertex-web-tailnet Caddyfile", () => {
       `Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"`
     );
   });
+
+  it("takes every host value from the server-side environment", () => {
+    // The public tree names no host: Caddy reads the tailnet name and address from
+    // /etc/vertex/hosts.env (container --env-file). An unset value falls back to a
+    // reserved .invalid name, so the listener cannot bind to every interface.
+    const config = caddyfile
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("#"))
+      .join("\n");
+    const host = "{$VERTEX_TAILNET_HOST:unset-vertex-tailnet-host.invalid}";
+    const ipv4 = "{$VERTEX_TAILNET_IPV4:unset-vertex-tailnet-ipv4.invalid}";
+    expect(config).toContain(`default_bind ${ipv4}\n`);
+    expect(config).toContain(`\nhttps://${host}:3451 {\n  bind ${ipv4}\n`);
+    expect(config).toContain(`not header Origin https://${host}:3451\n`);
+    expect(caddyfile).not.toMatch(/\bts\.net\b|\b100\.\d+\.\d+\.\d+\b|fd7a:/u);
+    return expect(
+      config.match(/\{\$[A-Z0-9_]+(?::[^}]*)?\}/gu)?.sort()
+    ).toEqual([host, host, ipv4, ipv4].sort());
+  });
 });

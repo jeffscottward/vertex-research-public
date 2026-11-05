@@ -2,7 +2,7 @@
 # 2026-10-18: first version (app origin http://vertex.localhost, Host/Origin rewrite).
 # 2026-10-21 (audit P0-1): the app is a production build (`vite preview`, infra/quantvps/run-preview.mjs)
 # whose APP_URL/BETTER_AUTH_URL is this tailnet origin, so nothing is rewritten any more. This proxy:
-#  - serves https://quant-vps-host.example-tailnet.ts.net:3451 with the Tailscale certificate,
+#  - serves https://<VERTEX_TAILNET_HOST>:3451 with the Tailscale certificate,
 #  - rejects any request whose Origin header is present and is not exactly that URL (defence in
 #    depth; the app checks Origin against APP_URL too),
 #  - passes Host and Origin unchanged and sets X-Forwarded-Proto: https (Caddy overwrites any
@@ -11,13 +11,21 @@
 # 2026-11-05 (sec-20 items 1 and 7): Better Auth and the contact throttle key on
 #  cf-connecting-ip and no Cloudflare is in front, so the proxy overwrites that header
 #  with the peer address; the CSP adds object-src, base-uri and form-action.
+# 2026-11-05 (public repository): the host values are server-side config, never committed.
+#  Caddy reads VERTEX_TAILNET_HOST (the MagicDNS name) and VERTEX_TAILNET_IPV4 (the VPS
+#  tailnet IPv4) from its environment when it loads this file; the container gets them
+#  with `--env-file /etc/vertex/hosts.env` (infra/quantvps/recreate-tailnet-proxies.sh
+#  refuses to run without them). An unset value falls back to a name under the reserved
+#  .invalid domain, so Caddy cannot bind its listener; an empty value leaves the site
+#  without an address, so Caddy starts no listener. Either way it serves nothing and never
+#  binds every interface (checked on QuantVPS 2026-11-05 with caddy:2-alpine).
 {
   admin unix//tmp/caddy-admin.sock
   auto_https disable_redirects
-  default_bind 100.64.0.10
+  default_bind {$VERTEX_TAILNET_IPV4:unset-vertex-tailnet-ipv4.invalid}
 }
-https://quant-vps-host.example-tailnet.ts.net:3451 {
-  bind 100.64.0.10
+https://{$VERTEX_TAILNET_HOST:unset-vertex-tailnet-host.invalid}:3451 {
+  bind {$VERTEX_TAILNET_IPV4:unset-vertex-tailnet-ipv4.invalid}
   tls {
     get_certificate tailscale
   }
@@ -31,7 +39,7 @@ https://quant-vps-host.example-tailnet.ts.net:3451 {
   }
   @foreign_origin {
     header Origin *
-    not header Origin https://quant-vps-host.example-tailnet.ts.net:3451
+    not header Origin https://{$VERTEX_TAILNET_HOST:unset-vertex-tailnet-host.invalid}:3451
   }
   handle @foreign_origin {
     respond "forbidden origin" 403

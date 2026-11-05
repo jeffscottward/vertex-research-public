@@ -15,6 +15,9 @@
 #      (tailscaled is NOT restarted);
 #   2. recreate both containers with the read-only directory mount (same image, flags and other mounts as before);
 #   3. check that each container sees the host socket inode.
+# Host values (public repository, 2026-11-05): the committed Caddyfile names no host. vertex-web-tailnet
+# reads VERTEX_TAILNET_HOST and VERTEX_TAILNET_IPV4 from the host-local /etc/vertex/hosts.env (not in git);
+# the script refuses to run when either value is missing or malformed.
 # It never touches tailscaled itself, vertex-web, Nautilus, the IB gateway, the exec node, the recovery
 # bridge or any trading container.
 #
@@ -49,6 +52,11 @@ for f in "$ROOT/opt/vertex-web-tailnet/Caddyfile" "$ROOT/opt/vertex-status/Caddy
 done
 [ -d "$ROOT/opt/vertex-status/private-v2" ] || { echo "missing private-v2; nothing changed"; exit 3; }
 [ -S "$ROOT$SOCK_DIR/tailscaled.sock" ] || { echo "no tailscaled socket; nothing changed"; exit 3; }
+HOSTS_ENV=/etc/vertex/hosts.env
+host_value() { sed -n "s/^$1=//p" "$ROOT$HOSTS_ENV" 2>/dev/null | tail -1 || true; }
+TS_HOST=$(host_value VERTEX_TAILNET_HOST); TS_IP4=$(host_value VERTEX_TAILNET_IPV4)
+[[ "$TS_HOST" =~ ^[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$ ]] || { echo "VERTEX_TAILNET_HOST missing or malformed in $HOSTS_ENV; nothing changed"; exit 3; }
+[[ "$TS_IP4" =~ ^100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || { echo "VERTEX_TAILNET_IPV4 missing or malformed in $HOSTS_ENV; nothing changed"; exit 3; }
 
 # 1) drop-in: keep /run/tailscale across tailscaled restarts
 mkdir -p "$DROPIN_DIR"
@@ -62,6 +70,7 @@ echo "drop-in ok: RuntimeDirectoryPreserve=yes"
 docker rm -f vertex-web-tailnet >/dev/null 2>&1 || true
 docker run -d --name vertex-web-tailnet --restart unless-stopped --network host --read-only \
   --tmpfs /tmp --tmpfs /config --tmpfs /data --cap-drop ALL --cap-add NET_BIND_SERVICE \
+  --env-file "$HOSTS_ENV" \
   -v /opt/vertex-web-tailnet/Caddyfile:/etc/caddy/Caddyfile:ro \
   -v "$SOCK_DIR:$SOCK_DIR:ro" caddy:2-alpine >/dev/null \
   || { echo "CONTAINER RUN FAILED; proxy is down"; exit 6; }

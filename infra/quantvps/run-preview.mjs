@@ -3,7 +3,7 @@
 // on the prebuilt Worker (apps/web/dist, from `vinext build`), so there is no Vite
 // error overlay, no HMR socket and no /@fs asset path.
 //
-// Route: browser -> vertex-web-tailnet Caddy (https://quant-vps-host.example-tailnet.ts.net:3451,
+// Route: browser -> vertex-web-tailnet Caddy (https://<VERTEX_TAILNET_HOST>:3451,
 // keeps Host, sets X-Forwarded-Proto: https, rejects foreign Origin) -> 127.0.0.1:3450.
 // APP_URL and BETTER_AUTH_URL are that tailnet origin, so auth links (password reset,
 // verification) and same-origin checks use it.

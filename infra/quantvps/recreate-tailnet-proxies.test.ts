@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +22,9 @@ const script = here("./recreate-tailnet-proxies.sh");
 const fileMount =
   "/var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock";
 const dirMount = "/var/run/tailscale:/var/run/tailscale:ro";
+// Placeholder host config; the real values live only in /etc/vertex/hosts.env on QuantVPS.
+const validHosts =
+  "VERTEX_TAILNET_HOST=quant-vps-host.example-tailnet.ts.net\nVERTEX_TAILNET_IPV4=100.64.0.10\n";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -35,7 +39,7 @@ const fake = (bin: string, name: string, body: string): void => {
   chmodSync(path, 0o755);
 };
 
-const setup = (containerInode: string) => {
+const setup = (containerInode: string, hosts: string | null) => {
   const root = mkdtempSync(join(tmpdir(), "vtx-tailnet-"));
   dirs.push(root);
   const bin = join(root, "bin");
@@ -47,6 +51,10 @@ const setup = (containerInode: string) => {
   ]) {
     mkdirSync(join(root, file, ".."), { recursive: true });
     writeFileSync(join(root, file), "x\n");
+  }
+  if (hosts !== null) {
+    mkdirSync(join(root, "etc/vertex"), { recursive: true });
+    writeFileSync(join(root, "etc/vertex/hosts.env"), hosts);
   }
   mkdirSync(join(root, "var/run/tailscale"), { recursive: true });
   mkdirSync(join(root, "opt/vertex-status/private-v2"), { recursive: true });
@@ -65,8 +73,8 @@ const setup = (containerInode: string) => {
   return { bin, log, root };
 };
 
-const run = (containerInode: string) => {
-  const env = setup(containerInode);
+const run = (containerInode: string, hosts: string | null = validHosts) => {
+  const env = setup(containerInode, hosts);
   const sock = join(env.root, "var/run/tailscale/tailscaled.sock");
   const bound = spawnSync("python3", [
     "-c",
@@ -84,7 +92,8 @@ const run = (containerInode: string) => {
       VERTEX_TAILNET_SSH: "bash -s",
     },
   });
-  return { ...result, calls: readFileSync(env.log, "utf8"), root: env.root };
+  const calls = existsSync(env.log) ? readFileSync(env.log, "utf8") : "";
+  return { ...result, calls, root: env.root };
 };
 
 describe("recreate-tailnet-proxies", () => {
@@ -113,6 +122,8 @@ describe("recreate-tailnet-proxies", () => {
         expect(line).toContain(flag);
       }
     }
+    const web = runs.find((line) => line.includes("vertex-web-tailnet"));
+    expect(web).toContain("--env-file /etc/vertex/hosts.env");
     const status = runs.find((line) => line.includes("vertex-status-tailnet"));
     for (const flag of [
       "--security-opt no-new-privileges",
@@ -144,6 +155,29 @@ describe("recreate-tailnet-proxies", () => {
     const result = run("999");
     expect(result.stdout).toContain("inode MISMATCH");
     expect(result.status).toBe(4);
+  });
+
+  it.each([
+    ["no host config file", null],
+    [
+      "an empty host name",
+      "VERTEX_TAILNET_HOST=\nVERTEX_TAILNET_IPV4=100.64.0.10\n",
+    ],
+    [
+      "a host outside ts.net",
+      "VERTEX_TAILNET_HOST=evil.example.com\nVERTEX_TAILNET_IPV4=100.64.0.10\n",
+    ],
+    [
+      "a non-tailnet IPv4",
+      "VERTEX_TAILNET_HOST=quant-vps-host.example-tailnet.ts.net\nVERTEX_TAILNET_IPV4=0.0.0.0\n",
+    ],
+  ])("changes nothing (exit 3) with %s", (_name, hosts) => {
+    const result = run("111", hosts);
+    expect(result.status).toBe(3);
+    expect(result.stdout).toMatch(
+      /VERTEX_TAILNET_(HOST|IPV4) missing or malformed in \/etc\/vertex\/hosts\.env; nothing changed/u
+    );
+    expect(result.calls).toBe("");
   });
 
   it("keeps every install script on the directory mount", () => {
