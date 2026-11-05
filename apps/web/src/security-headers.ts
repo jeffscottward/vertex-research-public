@@ -1,8 +1,10 @@
 // Security headers for every page response (audit P1-7).
-// The CSP holds only frame-ancestors so it cannot block app scripts or styles;
-// a full script CSP needs a separate nonce change.
+// The CSP has no script-src or style-src, so it cannot block app scripts or
+// styles; a full script CSP needs a separate nonce change. Keep it equal to the
+// value in infra/quantvps/Caddyfile.
 const SECURITY_HEADERS: Readonly<Record<string, string>> = {
-  "Content-Security-Policy": "frame-ancestors 'none'",
+  "Content-Security-Policy":
+    "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "X-Content-Type-Options": "nosniff",
