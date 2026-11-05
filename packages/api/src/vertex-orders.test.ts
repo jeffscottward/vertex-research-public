@@ -1506,27 +1506,21 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(resting.review.reasons.join(" ")).toMatch(/open order rests/);
   });
 
-  it("live mode runs the same final gate, sends an allowed vertical to the bridge and keeps the env gates", async () => {
+  it("live mode runs the final gate, keeps opening combos close-only and keeps the env gates", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const { store } = intentStore();
     const client = clientFor({ config: on, intents: store });
-    const preview = await client.vertexOrders.preview(order());
-    expect(preview.review.finalGate).toMatchObject({ decision: "allow" });
-    const combo = await client.vertexOrders.comboPreview(vertical());
-    expect(combo.gates.mode).toBe("live");
-    expect(combo.review.finalGate).toMatchObject({
+    const preview = await client.vertexOrders.preview(order({ right: "P" }));
+    expect(preview.gates.mode).toBe("live");
+    expect(preview.review.finalGate).toMatchObject({
       decision: "allow",
-      structure: "debit-vertical",
+      structure: "long-option",
     });
-    const result = await client.vertexOrders.comboSubmit({
-      order: vertical(),
-      confirmToken: combo.confirmToken ?? "",
-      confirm: true,
-    });
-    expect(result.mode).toBe("live");
-    expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
-      "http://127.0.0.1:3470/combos"
-    );
+    // The live order tail accepts exact closes only: an opening vertical is refused here.
+    const combo = await client.vertexOrders.comboPreview(vertical());
+    expect(combo.review.accepted).toBe(false);
+    expect(combo.review.reasons.join(" ")).toMatch(/close-only/);
+    expect(combo.confirmToken).toBeNull();
     // VERTEX_ORDER_SUBMISSION disabled: the mock is used, never the bridge.
     bridgeFetch.mockClear();
     const off = clientFor({ config: { ...on, submission: "disabled" } });
@@ -1536,20 +1530,95 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(bridgeFetch).not.toHaveBeenCalled();
   });
 
-  it("denies a live naked short and a live vertical with no JEV verdict", async () => {
+  it("on live, denies a new position without a JEV verdict or with the kill switch on, but lets a close through", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const { store } = intentStore();
-    const client = clientFor({ config: on, intents: store });
-    const naked = await client.vertexOrders.preview(order({ side: "SELL" }));
-    expect(naked.review.accepted).toBe(false);
-    expect(naked.confirmToken).toBeNull();
     setOrdersDependencies({ mock, bridgeFetch, now: () => at });
-    const nojev = await clientFor({
-      config: on,
-      intents: store,
-    }).vertexOrders.comboPreview(vertical());
-    expect(nojev.review.finalGate?.decision).toBe("deny");
+    const client = clientFor({ config: on, intents: store });
+    const nojev = await client.vertexOrders.preview(order());
+    expect(nojev.review.finalGate).toMatchObject({
+      decision: "deny",
+      jevState: "none",
+    });
     expect(nojev.confirmToken).toBeNull();
+    bridgeFetch.mockImplementation(async (url: string) =>
+      Response.json(
+        url.endsWith("/account")
+          ? {
+              netLiquidation: 100_000,
+              positions: [
+                {
+                  symbol: "MOCKD",
+                  secType: "OPT",
+                  expiry: "20280121",
+                  strike: 100,
+                  right: "C",
+                  quantity: 2,
+                  premium: 2000,
+                },
+              ],
+              openOrders: [],
+              gates: { killSwitch: true, optionsOnly: true },
+              caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
+            }
+          : { state: "submitted", permId: 42, message: "bridge" }
+      )
+    );
+    const open = await client.vertexOrders.preview(order({ quantity: 1 }));
+    expect(open.review.accepted).toBe(false);
+    const close = await client.vertexOrders.preview(order({ side: "SELL" }));
+    expect(close.review.finalGate).toMatchObject({
+      decision: "allow",
+      structure: "risk-reducing",
+      jevState: "none",
+    });
+    expect(close.confirmToken).not.toBeNull();
+  });
+
+  it("audits a refused (aborted) placement as a failure", async () => {
+    const events: SemanticEvent[] = [];
+    setOrdersDependencies({
+      jevVerdict: neutralJev,
+      mock: {
+        ...mock,
+        place: async () => ({
+          state: "aborted",
+          permId: null,
+          message: "refused",
+        }),
+      },
+      now: () => at,
+    });
+    const client = clientFor({ events });
+    const preview = await client.vertexOrders.preview(order());
+    const result = await client.vertexOrders.submit({
+      order: order(),
+      confirmToken: preview.confirmToken ?? "",
+      confirm: true,
+    });
+    expect(result.state).toBe("aborted");
+    const last = events.at(-1);
+    expect(JSON.stringify(last)).toContain("failure");
+    setOrdersDependencies({
+      jevVerdict: neutralJev,
+      mock: {
+        ...mock,
+        placeCombo: async () => ({
+          state: "aborted",
+          permId: null,
+          message: "refused",
+        }),
+      },
+      now: () => at,
+    });
+    const combo = await client.vertexOrders.comboPreview(vertical());
+    const comboResult = await client.vertexOrders.comboSubmit({
+      order: vertical(),
+      confirmToken: combo.confirmToken ?? "",
+      confirm: true,
+    });
+    expect(comboResult.state).toBe("aborted");
+    expect(JSON.stringify(events.at(-1))).toContain("failure");
   });
 
   it("lets a share close through as risk-reducing and logs the gate in the audit", async () => {

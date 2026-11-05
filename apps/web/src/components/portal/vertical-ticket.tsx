@@ -15,7 +15,8 @@ import {
 
 // Vertical spread ticket (merge plan P6): buy one strike, sell another, same expiry and right, as
 // ONE combo order. Net limit: positive = debit paid, negative = credit received. Opening verticals
-// pass only through the final JEV gate (simulated and live).
+// are offered on the simulated (paper) gateway only, because the live order tail accepts exact
+// closes only; the final JEV gate decides.
 
 type VerticalForm = Readonly<{
   symbol: string;

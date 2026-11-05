@@ -248,9 +248,9 @@ describe("VertexOrders screen", () => {
     g.preview.mockResolvedValueOnce({ ...review(true), gates: live });
     g.submit.mockRejectedValueOnce(new Error("Kill switch is on"));
     await render(g);
-    // Live mode (owner approval 2026-11-05): puts and the vertical ticket are offered here too.
+    // Live mode (owner approval 2026-11-05): puts are offered; opening verticals stay paper-only.
     expect(host.querySelector("#order-right")).not.toBeNull();
-    expect(host.textContent).toContain("Vertical spread · defined risk");
+    expect(host.textContent).not.toContain("Vertical spread · defined risk");
     g.cancelPreview.mockResolvedValueOnce({
       gates: live,
       order: option,

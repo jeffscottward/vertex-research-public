@@ -344,7 +344,9 @@ export const VertexOrders = ({
           </div>
         </section>
       )}
-      <VerticalTicket gateway={gateway} onPlaced={refresh} />
+      {status?.gates.mode === "simulated" ? (
+        <VerticalTicket gateway={gateway} onPlaced={refresh} />
+      ) : null}
 
       <div className="space-y-3">
         <h3 className="font-semibold">Open orders</h3>
