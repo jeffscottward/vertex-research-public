@@ -178,6 +178,7 @@ describe("DF-045/051/061-064 real PostgreSQL API integration", {
         return backgroundTasks.push(task);
       },
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
     });
     authHandler = createAuthHandler(auth);
     // Vitest treats a returned function as teardown; this handler requires a Request.

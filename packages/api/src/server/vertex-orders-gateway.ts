@@ -238,7 +238,7 @@ type BridgeFetch = (input: string, init?: RequestInit) => Promise<Response>;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 // One bridge order run makes two IBKR connections (account, then order) plus contract lookups for a
 // combo; the bridge itself stops after 150 s. A timeout here is stored as an unknown outcome.
-const BRIDGE_TIMEOUT_MS = 160_000;
+export const BRIDGE_TIMEOUT_MS = 160_000;
 
 // The bridge places live orders, so every call carries the shared bridge token
 // (VERTEX_ORDER_BRIDGE_TOKEN, header X-Vertex-Bridge-Token). No token: fail closed.

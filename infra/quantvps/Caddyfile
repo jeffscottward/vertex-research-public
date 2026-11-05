@@ -8,6 +8,9 @@
 #  - passes Host and Origin unchanged and sets X-Forwarded-Proto: https (Caddy overwrites any
 #    client value), so the Worker's request URL origin equals APP_URL,
 #  - adds basic security headers (audit P1-7). Vertex uses no frames, so framing is denied.
+# 2026-11-05 (sec-20 items 1 and 7): Better Auth and the contact throttle key on
+#  cf-connecting-ip and no Cloudflare is in front, so the proxy overwrites that header
+#  with the peer address; the CSP adds object-src, base-uri and form-action.
 {
   admin unix//tmp/caddy-admin.sock
   auto_https disable_redirects
@@ -22,7 +25,7 @@ https://quant-vps-host.example-tailnet.ts.net:3451 {
     Strict-Transport-Security "max-age=31536000"
     X-Content-Type-Options "nosniff"
     X-Frame-Options "DENY"
-    Content-Security-Policy "frame-ancestors 'none'"
+    Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
     Referrer-Policy "strict-origin-when-cross-origin"
     -Server
   }
@@ -40,6 +43,7 @@ https://quant-vps-host.example-tailnet.ts.net:3451 {
   handle {
     reverse_proxy 127.0.0.1:3450 {
       header_up -X-Forwarded-Host
+      header_up CF-Connecting-IP {remote_host}
     }
   }
 }
