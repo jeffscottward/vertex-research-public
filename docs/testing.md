@@ -64,6 +64,7 @@ One `playwright test` run covers both projects. Everything uses Playwright built
 - **Per-file isolation:** each database-backed spec calls `resetDatabase` in `test.beforeAll`.
 - **TLS:** there is no `ignoreHTTPSErrors`. Chromium trusts only the portless CA, through an SPKI pin (`--ignore-certificate-errors-spki-list`), and Node-side requests trust it through `NODE_EXTRA_CA_CERTS`.
 - **CI policy:** `forbidOnly`, `retries: 1` and `failOnFlakyTests`. A test that passes only on retry fails the run. Traces are recorded on the first retry.
+- **Evidence screenshots:** E2E screenshots show mock data. Take them with `captureMockEvidence` (`tests/e2e/helpers/evidence.ts`): dark mode, scrolled to the top first (a full-page shot of a scrolled page draws the fixed sidebar and the sticky tab bar in the middle of the image), and a "MOCK DATA" banner. Evidence for the owner of a live page comes from the live app (headless Chrome on the rig), not from E2E. `findLayoutProblems` in the same file lists elements cut off on the right.
 
 Local runs need Postgres and a production build: `bun run verify:browser` builds first. Use `bun scripts/with-test-env.ts pnpm exec playwright test --ui` for an interactive loop with the trace viewer.
 
