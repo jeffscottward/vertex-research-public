@@ -85,7 +85,7 @@ The committed templates name no real host. QuantVPS keeps the values in `/etc/ve
 Rules:
 
 - `recreate-tailnet-proxies.sh` and the four install scripts stop before any change (exit 3) when a value is missing or malformed.
-- The `vertex-web-tailnet` container gets the file with `--env-file /etc/vertex/hosts.env`. An unset value falls back to a name under the reserved `.invalid` domain, so Caddy cannot bind its listener; it never binds every interface.
+- The `vertex-web-tailnet` container gets the file with `--env-file /etc/vertex/hosts.env`. An unset value falls back to a name under the reserved `.invalid` domain, so Caddy cannot bind its listener; an empty value leaves the site without an address, so Caddy starts no listener. In both cases it serves nothing and never binds every interface.
 - Dry render after a change to the file or the template (no container changes; `--network none`):
 
 ```sh

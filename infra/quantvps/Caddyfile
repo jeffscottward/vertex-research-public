@@ -16,8 +16,9 @@
 #  tailnet IPv4) from its environment when it loads this file; the container gets them
 #  with `--env-file /etc/vertex/hosts.env` (infra/quantvps/recreate-tailnet-proxies.sh
 #  refuses to run without them). An unset value falls back to a name under the reserved
-#  .invalid domain, so Caddy cannot bind its listener and serves nothing; it never falls
-#  back to every interface.
+#  .invalid domain, so Caddy cannot bind its listener; an empty value leaves the site
+#  without an address, so Caddy starts no listener. Either way it serves nothing and never
+#  binds every interface (checked on QuantVPS 2026-11-05 with caddy:2-alpine).
 {
   admin unix//tmp/caddy-admin.sock
   auto_https disable_redirects

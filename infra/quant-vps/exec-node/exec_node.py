@@ -35,9 +35,9 @@ import copy
 import datetime as _dt
 import fnmatch
 import hashlib
+import ipaddress
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -784,7 +784,12 @@ def host_config_value(name: str, path: str = HOSTS_ENV) -> str:
 def ibkr_monitor_health_url(path: str = HOSTS_ENV) -> str:
     """ibkr-monitor health URL on the VPS tailnet IPv4 (VERTEX_TAILNET_IPV4 in the host config)."""
     ipv4 = host_config_value("VERTEX_TAILNET_IPV4", path)
-    if not re.fullmatch(r"100\.\d{1,3}\.\d{1,3}\.\d{1,3}", ipv4):
+    try:
+        octets = ipaddress.IPv4Address(ipv4).packed
+    except ValueError:
+        octets = b""
+    tailnet = len(octets) == 4 and octets[0] == 100 and 64 <= octets[1] <= 127  # Tailscale CGNAT range
+    if not tailnet:
         raise ExecNodeError(f"VERTEX_TAILNET_IPV4 missing or malformed in {path}")
     return f"http://{ipv4}:{IBKR_MONITOR_PORT}/api/health"
 

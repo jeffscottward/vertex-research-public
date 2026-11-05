@@ -16,6 +16,7 @@ const SCRIPTS = [
   "recovery/install-recovery.sh",
   "status/install-tailnet.sh",
 ] as const;
+const rigLine = (value: string): string => `VERTEX_RIG_IPS=${value}\n`;
 const TAILNET_LITERAL = /\b100\.\d+\.\d+\.\d+\b|fd7a:|\.ts\.net\b/u;
 
 const source = (rel: string): string =>
@@ -71,6 +72,7 @@ describe.each(SCRIPTS)("%s host config", (rel) => {
     ["an empty value", "VERTEX_RIG_IPS=\n"],
     ["a sed delimiter", "VERTEX_RIG_IPS=100.64.0.20/g\n"],
     ["a quoted value", 'VERTEX_RIG_IPS="100.64.0.20"\n'],
+    ["a token without a digit", rigLine("100.64.0.20 ::")],
   ])("stops with exit 3 before any change with %s", (_name, hosts) => {
     const result = runHostConfig(rel, hosts);
     expect(result.status).toBe(3);

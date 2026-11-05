@@ -9,7 +9,7 @@ TS=__TS__
 # The rig's tailnet IPv4 and IPv6 are host config on QuantVPS (VERTEX_RIG_IPS in /etc/vertex/hosts.env,
 # not in git; public repository 2026-11-05). Missing or malformed: stop before any change.
 RIG_IPS=$(sed -n 's/^VERTEX_RIG_IPS=//p' /etc/vertex/hosts.env 2>/dev/null | tail -1 || true)
-[[ "$RIG_IPS" =~ ^[0-9a-f.:]+( [0-9a-f.:]+)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
+[[ "$RIG_IPS" =~ ^[0-9a-f.:]*[0-9][0-9a-f.:]*( [0-9a-f.:]*[0-9][0-9a-f.:]*)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
 R=/opt/vertex-status/rollback-$TS
 B=/opt/vertex-status/net-baseline-20261003T1140Z
 P=/opt/vertex-status/private-v2

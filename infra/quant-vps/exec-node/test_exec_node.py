@@ -752,7 +752,8 @@ class HostConfigTests(unittest.TestCase):
 
     def test_missing_or_malformed_config_refuses(self):
         for text in (None, "", "VERTEX_TAILNET_IPV4=\n", "VERTEX_TAILNET_IPV4=10.0.0.5\n",
-                     "VERTEX_TAILNET_IPV4=100.64.0.10/evil\n", "OTHER=100.64.0.10\n"):
+                     "VERTEX_TAILNET_IPV4=100.64.0.10/evil\n", "VERTEX_TAILNET_IPV4=100.64.0.1000\n",
+                     "VERTEX_TAILNET_IPV4=100.128.0.1\n", "VERTEX_TAILNET_IPV4=100.\u0664.0.1\n", "OTHER=100.64.0.10\n"):
             if text is not None:
                 self.write(text)
             with self.assertRaises(en.ExecNodeError) as caught:
