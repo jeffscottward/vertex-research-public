@@ -204,8 +204,8 @@ export const PickListImportPanel = ({
                     {`${preview.rejects.length} rejected:`}
                   </p>
                   <ul aria-label="Rejected rows" className="list-disc pl-5">
-                    {preview.rejects.map((reject) => (
-                      <li key={`${reject.line}-${reject.text}`}>
+                    {preview.rejects.map((reject, index) => (
+                      <li key={`${index}-${reject.line}`}>
                         {`Line ${reject.line} "${reject.text}": ${reject.reason}`}
                       </li>
                     ))}

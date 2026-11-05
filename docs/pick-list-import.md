@@ -6,11 +6,11 @@ The owner copies a stock-pick list by hand and imports it on `/pick-lists`. Vert
 
 - **Plain tickers:** tickers separated by spaces or new lines, for example `AAPL MSFT $NVDA NASDAQ:AMD`.
 - **CSV or tab table:** a header row with a `Symbol` or `Ticker` column. Optional columns: `Weight` (`5%`, `5` or `0.05`), `Rank` or `#`, `Date added` (`YYYY-MM-DD` or `M/D/YYYY`), `Rating`, `Sector`, `Target price`.
-- **Table without a header:** the first column is the ticker.
+- **Table without a header:** when every cell looks like a ticker (for example `AAPL, MSFT, NVDA`), each cell is a ticker. Otherwise the first column is the ticker and the other cells are shown as ignored. A weight column uses one scale: when the header or any cell has `%`, or any value is above 1, every value is a percent.
 
 A line that starts with `#` and has no comma, tab or semicolon is a comment. A list holds at most 200 tickers.
 
-**Preview** shows the tickers that are ready and every rejected row with its line and reason (not a ticker, duplicate, bad weight, bad date, bad target price, bad rank, more than 200). Only the ready tickers are saved.
+**Preview** shows the tickers that are ready and every rejected row with its line and reason (not a ticker, duplicate, bad weight, bad date, bad target price, bad rank, an extra column without a header, more than 200). Only the ready tickers are saved.
 
 ## Steps on /pick-lists
 

@@ -86,23 +86,39 @@ export const cleanSymbol = (raw: string): string =>
     .replace(/^\$/u, "")
     .toUpperCase();
 
-/** "5%", "5", "0.05" → 0.05. Values above 1 are percent. Null when not a weight. */
-export const parseWeight = (raw: string): number | null => {
-  const text = raw.replace("%", "").trim();
+/**
+ * One weight cell as a fraction. `percent` is decided once per column (see isPercentColumn), so
+ * "5", "1" and "0.5" in one percent column are 5%, 1% and 0.5%. Null when not a weight.
+ */
+export const parseWeight = (raw: string, percent: boolean): number | null => {
+  const text = raw.replace("%", "").replace(",", ".").trim();
   if (!/^\d+(\.\d+)?$/u.test(text)) return null;
-  const value = Number(text);
-  const fraction = raw.includes("%") || value > 1 ? value / 100 : value;
+  const fraction = percent ? Number(text) / 100 : Number(text);
   return fraction <= 1 ? fraction : null;
 };
 
-/** "2026-11-05" or "11/5/2026" → "2026-11-05". Null when not a date. */
+/** A weight column is percent when its header or any cell has "%", or any value is above 1. */
+export const isPercentColumn = (
+  header: string,
+  cells: readonly string[]
+): boolean =>
+  header.includes("%") ||
+  cells.some((cell) => cell.includes("%") || Number(cell) > 1);
+
+/** "2026-11-05" or "11/5/2026" → "2026-11-05". Null when not a real calendar date. */
 export const parseDate = (raw: string): string | null => {
   const text = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/u.test(text)) return text;
   const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/u.exec(text);
-  if (us === null) return null;
-  const [, month = "", day = "", year = ""] = us;
-  return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  const iso =
+    us === null
+      ? text
+      : `${us[3]}-${us[1]?.padStart(2, "0")}-${us[2]?.padStart(2, "0")}`;
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(iso)) return null;
+  const date = new Date(`${iso}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === iso
+    ? iso
+    : null;
 };
 
 const parsePrice = (raw: string): number | null => {
@@ -126,25 +142,81 @@ type Row = Readonly<{
   line: number;
   text: string;
   fields: Partial<Record<Column, string>>;
+  /** Weight column holds percents. */
+  percent: boolean;
+  /** Set when the cell is reported as rejected without parsing. */
+  reason?: string;
 }>;
+
+/** Cells that look like tickers as typed (upper case, optional "$" or "EXCHANGE:"). */
+const TICKER_CELL = /^(\$|[A-Za-z]+:)?[A-Z][A-Z0-9.-]{0,9}$/u;
+const NO_HEADER_REASON =
+  "Ignored: add a header row (Symbol, Weight, ...) to import this column";
+
+const headerlessRows = (
+  lines: readonly Readonly<{ line: number; text: string }>[],
+  delimiter: string
+): Row[] => {
+  const cells = lines.flatMap(({ line, text }) =>
+    splitCells(text, delimiter).map((cell, index) => ({ cell, index, line }))
+  );
+  const filled = cells.filter(({ cell }) => cell !== "");
+  if (filled.every(({ cell }) => TICKER_CELL.test(cell)))
+    return filled.map(({ cell, line }) => ({
+      fields: { symbol: cell },
+      line,
+      percent: false,
+      text: cell,
+    }));
+  return lines.flatMap(({ line, text }) =>
+    splitCells(text, delimiter)
+      .map((cell, index): Row | null =>
+        index === 0
+          ? { fields: { symbol: cell }, line, percent: false, text }
+          : cell === ""
+            ? null
+            : {
+                fields: {},
+                line,
+                percent: false,
+                reason: NO_HEADER_REASON,
+                text: cell,
+              }
+      )
+      .filter((row): row is Row => row !== null)
+  );
+};
 
 const tableRows = (
   lines: readonly Readonly<{ line: number; text: string }>[],
   delimiter: string
 ): Row[] => {
-  const header = headerColumns(
-    lines.slice(0, 1).flatMap((entry) => splitCells(entry.text, delimiter))
-  );
-  const columns = header ?? new Map<number, Column>([[0, "symbol"]]);
-  const body = header === null ? lines : lines.slice(1);
-  return body.map(({ line, text }) => {
-    const cells = splitCells(text, delimiter);
+  const headerCells = lines
+    .slice(0, 1)
+    .flatMap((entry) => splitCells(entry.text, delimiter));
+  const header = headerColumns(headerCells);
+  if (header === null) return headerlessRows(lines, delimiter);
+  const body = lines
+    .slice(1)
+    .map((entry) => ({ ...entry, cells: splitCells(entry.text, delimiter) }));
+  const weightIndex = [...header].find(
+    ([, column]) => column === "weight"
+  )?.[0];
+  const percent =
+    weightIndex !== undefined &&
+    isPercentColumn(
+      headerCells.slice(weightIndex, weightIndex + 1).join(""),
+      body.map(({ cells }) =>
+        cells.slice(weightIndex, weightIndex + 1).join("")
+      )
+    );
+  return body.map(({ cells, line, text }) => {
     const fields: Partial<Record<Column, string>> = {};
-    for (const [index, column] of columns) {
+    for (const [index, column] of header) {
       const cell = cells[index];
       if (cell !== undefined && cell !== "") fields[column] = cell;
     }
-    return { fields, line, text };
+    return { fields, line, percent, text };
   });
 };
 
@@ -155,11 +227,16 @@ const tokenRows = (
     text
       .split(/\s+/u)
       .filter((token) => token !== "")
-      .map((token) => ({ fields: { symbol: token }, line, text: token }))
+      .map((token) => ({
+        fields: { symbol: token },
+        line,
+        percent: false,
+        text: token,
+      }))
   );
 
 const toMember = (
-  fields: Partial<Record<Column, string>>,
+  { fields, percent }: Row,
   position: number
 ): PickListImportMember | string => {
   const symbol = cleanSymbol(fields.symbol ?? "");
@@ -172,11 +249,12 @@ const toMember = (
   };
   if (fields.rank !== undefined) {
     const rank = Number(fields.rank.replace("#", ""));
-    if (!Number.isInteger(rank) || rank < 1) return "Bad rank";
+    if (!Number.isInteger(rank) || rank < 1 || rank > 1000)
+      return "Bad rank (1-1000)";
     candidate.rank = rank;
   }
   if (fields.weight !== undefined) {
-    const weight = parseWeight(fields.weight);
+    const weight = parseWeight(fields.weight, percent);
     if (weight === null) return "Bad weight";
     candidate.weight = weight;
   }
@@ -202,7 +280,8 @@ const toMember = (
 /**
  * Parse pasted text or a CSV export into pick-list members.
  * Delimited text (tab, comma, semicolon) may have a header row with a Symbol/Ticker column;
- * otherwise the first cell is the ticker. Undelimited text is a list of tickers split on spaces
+ * without a header, cells that all look like tickers are each a ticker; otherwise the first
+ * cell is the ticker and the other cells are reported as ignored. Undelimited text is a list of tickers split on spaces
  * and new lines. A line starting with "#" and holding no delimiter is a comment. Rejected rows are reported, not dropped.
  */
 export const parsePickListText = (text: string): PickListImportParse => {
@@ -214,16 +293,26 @@ export const parsePickListText = (text: string): PickListImportParse => {
         entry.text !== "" &&
         !(entry.text.startsWith("#") && !/[\t,;]/u.test(entry.text))
     );
-  const delimiter = DELIMITERS.find((candidate) =>
-    lines.some((entry) => entry.text.includes(candidate))
+  // The delimiter that splits the first line into the most cells wins, so "5,5%" inside a
+  // semicolon table does not make it a comma table.
+  const first = lines[0]?.text ?? "";
+  const count = (candidate: string) => splitCells(first, candidate).length;
+  const best = DELIMITERS.reduce((current, candidate) =>
+    count(candidate) > count(current) ? candidate : current
   );
+  const delimiter =
+    count(best) > 1
+      ? best
+      : DELIMITERS.find((candidate) =>
+          lines.some((entry) => entry.text.includes(candidate))
+        );
   const rows =
     delimiter === undefined ? tokenRows(lines) : tableRows(lines, delimiter);
   const members: PickListImportMember[] = [];
   const rejects: PickListImportReject[] = [];
   const seen = new Set<string>();
   for (const row of rows) {
-    const result = toMember(row.fields, members.length + 1);
+    const result = row.reason ?? toMember(row, members.length + 1);
     if (typeof result === "string")
       rejects.push({ line: row.line, reason: result, text: row.text });
     else if (seen.has(result.symbol))
