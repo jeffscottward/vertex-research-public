@@ -503,6 +503,56 @@ describe("typed auth operations", () => {
     });
   });
 
+  it("asks for another password when the new one is in a known breach", async () => {
+    const breached = {
+      data: null,
+      error: { code: "PASSWORD_COMPROMISED", status: 400, message: "detail" },
+    };
+    const client = authClient({
+      signUpEmail: vi.fn().mockResolvedValue(breached),
+      resetPassword: vi.fn().mockResolvedValue(breached),
+    });
+    const breachedPassword = {
+      status: "error",
+      message:
+        "This password appears in a known data breach. Choose a different password.",
+    };
+
+    await expect(
+      submitSignUp(client, {
+        name: "Member Example",
+        email: "member@domain.test",
+        password: "CorrectHorseBatteryStaple!42",
+      })
+    ).resolves.toEqual(breachedPassword);
+    return await expect(
+      submitResetPassword(client, {
+        token: "one-time-reset-token",
+        newPassword: "NewCorrectHorseBatteryStaple!84",
+      })
+    ).resolves.toEqual(breachedPassword);
+  });
+
+  it("names a sign-in rate limit instead of a wrong password", async () => {
+    const client = authClient({
+      signInEmail: vi.fn().mockResolvedValue({
+        data: null,
+        error: { status: 429, message: "Too many requests." },
+      }),
+    });
+
+    return await expect(
+      submitSignIn(client, {
+        email: "member@domain.test",
+        password: "CorrectHorseBatteryStaple!42",
+        callbackURL: "/dashboard",
+      })
+    ).resolves.toEqual({
+      status: "error",
+      message: "Too many sign-in attempts. Wait 15 minutes, then try again.",
+    });
+  });
+
   return it("keeps account-email provider denials and transport failures generic", async () => {
     const providerDenial = {
       data: null,

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import http.client
 import ipaddress
 import json
 import os
@@ -49,12 +50,25 @@ class UnsafeUrl(ValueError):
     """A URL that is not plain public HTTPS (SSRF guard)."""
 
 
+# IPv6 forms that carry an IPv4 address (IPv4-compatible, IPv4-mapped, NAT64, 6to4, Teredo).
+# Some count as global although the embedded address is private, so they are refused.
+_EMBEDDED_IPV4_NETWORKS = tuple(ipaddress.ip_network(network) for network in (
+    "::/96", "::ffff:0:0/96", "64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32"))
+
+
+def _is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if address.version == 6 and any(address in network for network in _EMBEDDED_IPV4_NETWORKS):
+        return False
+    return address.is_global
+
+
 def require_public_https(url: str) -> None:
     """Refuse anything but https on port 443 to a name that resolves only to global addresses.
 
     PDF locations come from third-party OpenAlex records, so they are untrusted:
     without this check a record could point the fetcher at file://, the cloud
-    metadata address, loopback services, the LAN or the tailnet.
+    metadata address, loopback services, the LAN or the tailnet. The connection
+    itself checks the peer address again (DNS rebinding).
     """
     parsed = urllib.parse.urlsplit(url)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
@@ -68,8 +82,25 @@ def require_public_https(url: str) -> None:
         except OSError as error:
             raise UnsafeUrl("host does not resolve") from error
         addresses = {ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos}
-    if not addresses or not all(address.is_global for address in addresses):
+    if not addresses or not all(_is_public(address) for address in addresses):
         raise UnsafeUrl("host resolves to a non-public address")
+
+
+class _PublicPeerHTTPSConnection(http.client.HTTPSConnection):
+    """Check the address actually connected to: a name can resolve again to another
+    address between the URL check and the connection (DNS rebinding)."""
+
+    def connect(self) -> None:
+        super().connect()
+        peer = ipaddress.ip_address(str(self.sock.getpeername()[0]).split("%", 1)[0])
+        if not _is_public(peer):
+            self.close()
+            raise UnsafeUrl("connected to a non-public address")
+
+
+class _PublicPeerHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_PublicPeerHTTPSConnection, req, context=self._context)
 
 
 class _CheckedRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -84,9 +115,12 @@ _OPENER: urllib.request.OpenerDirector | None = None
 
 
 def _opener() -> urllib.request.OpenerDirector:
+    """No proxy (the peer check must see the real server), the peer-checked HTTPS
+    connection, and a check of every redirect hop."""
     global _OPENER
     if _OPENER is None:
-        _OPENER = urllib.request.build_opener(_CheckedRedirectHandler())
+        _OPENER = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _PublicPeerHTTPSHandler(), _CheckedRedirectHandler())
     return _OPENER
 
 

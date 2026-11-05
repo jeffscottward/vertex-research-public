@@ -58,9 +58,11 @@ const DEFAULT_SIGN_IN_RATE_LIMIT_MAX = 10;
 // Per-client sign-up limit: each accepted sign-up sends one verification email.
 const SIGN_UP_RATE_LIMIT = { window: 60 * 60, max: 5 } as const;
 // Per-account sign-in limit: a per-IP limit alone does not stop credential
-// stuffing that rotates client addresses against one account.
+// stuffing that rotates client addresses against one account. A successful
+// sign-in clears it, so only attempts since the last success count.
 const ACCOUNT_SIGN_IN_RATE_LIMIT = { window: 15 * 60, max: 10 } as const;
-// Per-recipient limit shared by verification and reset mail (email pumping).
+// Per-recipient mail limit (email pumping). Verification and reset mail use
+// separate buckets, so reset requests cannot use up verification mail.
 const RECIPIENT_EMAIL_RATE_LIMIT = { window: 60 * 60, max: 5 } as const;
 const SAFE_RESET_RESPONSE = {
   status: true,
@@ -183,15 +185,28 @@ const trustedOrigins = (
   return [...new Set([baseURL, ...(configured ?? [])])];
 };
 
-// Rate-limit keys hold a digest, never the address itself.
-const emailDigest = async (email: string): Promise<string> => {
-  const digest = await globalThis.crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(email)
-  );
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+// Rate-limit keys hold an HMAC-SHA-256 of the address keyed with the auth
+// secret, so stored keys cannot be reversed with a list of known addresses.
+const createEmailDigest = (secret: string) => {
+  const encoder = new TextEncoder();
+  let key: Promise<CryptoKey> | undefined;
+  return async (email: string): Promise<string> => {
+    key ??= globalThis.crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signature = await globalThis.crypto.subtle.sign(
+      "HMAC",
+      await key,
+      encoder.encode(email)
+    );
+    return [...new Uint8Array(signature)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  };
 };
 
 const NORMALIZED_EMAIL_PATHS = new Set([
@@ -325,10 +340,16 @@ export const createAuth = (options: AuthFactoryOptions) => {
   const emailSignInRateLimitMax = signInRateLimitMax(options);
   const rateLimitStorage = createAtomicAuthRateLimitStorage(options.database);
   const rateLimitEnabled = options.rateLimitEnabled ?? true;
-  const recipientMayReceiveMail = async (email: string): Promise<boolean> => {
+  const emailDigest = createEmailDigest(options.secret);
+  const accountSignInKey = async (email: string): Promise<string> =>
+    `sign-in-email:${await emailDigest(email.trim().toLowerCase())}`;
+  const recipientMayReceiveMail = async (
+    kind: "verification" | "reset",
+    email: string
+  ): Promise<boolean> => {
     if (!rateLimitEnabled) return true;
     const decision = await rateLimitStorage.consume(
-      `auth-email-recipient:${await emailDigest(email.trim().toLowerCase())}`,
+      `auth-email-${kind}:${await emailDigest(email.trim().toLowerCase())}`,
       RECIPIENT_EMAIL_RATE_LIMIT
     );
     return decision.allowed;
@@ -336,7 +357,7 @@ export const createAuth = (options: AuthFactoryOptions) => {
   const enforceAccountSignInLimit = async (email: string): Promise<void> => {
     if (!rateLimitEnabled) return;
     const decision = await rateLimitStorage.consume(
-      `sign-in-email:${await emailDigest(email)}`,
+      await accountSignInKey(email),
       ACCOUNT_SIGN_IN_RATE_LIMIT
     );
     if (decision.allowed) return;
@@ -345,6 +366,11 @@ export const createAuth = (options: AuthFactoryOptions) => {
       { message: "Too many requests. Please try again later." },
       { "retry-after": String(decision.retryAfter ?? 1) }
     );
+  };
+  const clearAccountSignInLimit = async (email: string): Promise<void> => {
+    if (!rateLimitEnabled) return;
+    const key = await accountSignInKey(email);
+    await rateLimitStorage.set(key, { key, count: 0, lastRequest: Date.now() });
   };
 
   return betterAuth({
@@ -410,10 +436,13 @@ export const createAuth = (options: AuthFactoryOptions) => {
         if (context.path !== "/sign-in/email") return;
         const signedInUser = (
           context.context as {
-            newSession?: { user?: ProvisionableUser } | null;
+            newSession?: {
+              user?: ProvisionableUser & Readonly<{ email: string }>;
+            } | null;
           }
         ).newSession?.user;
         if (signedInUser) {
+          await clearAccountSignInLimit(signedInUser.email);
           await ensureUserResources(options.database, signedInUser);
         }
       }),
@@ -449,7 +478,9 @@ export const createAuth = (options: AuthFactoryOptions) => {
         try {
           // Over the cap: skip silently so the response does not change. A
           // store failure maps to the delivery error the handler normalizes.
-          if (!(await recipientMayReceiveMail(user.email))) return;
+          if (!(await recipientMayReceiveMail("verification", user.email))) {
+            return;
+          }
           const result = await options.email.sendEmailVerification({
             to: user.email,
             recipientName: user.name,
@@ -474,7 +505,7 @@ export const createAuth = (options: AuthFactoryOptions) => {
       sendResetPassword: async ({ user, url }) => {
         let allowed: boolean;
         try {
-          allowed = await recipientMayReceiveMail(user.email);
+          allowed = await recipientMayReceiveMail("reset", user.email);
         } catch {
           throw passwordResetDeliveryError();
         }

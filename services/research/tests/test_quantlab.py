@@ -1,6 +1,8 @@
 import copy
 import hashlib
 import json
+import socket
+import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -264,3 +266,98 @@ def test_redirects_are_checked_at_every_hop(monkeypatch):
         handler.redirect_request(None, None, 302, "Found", {}, "http://169.254.169.254/")
     with pytest.raises(ssrn.UnsafeUrl):
         handler.redirect_request(None, None, 302, "Found", {}, "https://internal.test/")
+
+
+def test_http_fetch_refuses_a_host_that_does_not_resolve(monkeypatch):
+    def unresolvable(*args, **kwargs):
+        raise socket.gaierror("no such host")
+
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", unresolvable)
+    monkeypatch.setattr(ssrn, "_OPENER", NoNetwork())
+    with pytest.raises(ssrn.UnsafeUrl, match="does not resolve"):
+        ssrn.http_fetch("https://oa.test/a.pdf")
+
+
+@pytest.mark.parametrize("address", [
+    "::ffff:127.0.0.1",  # IPv4-mapped
+    "::127.0.0.1",  # IPv4-compatible (global on some Python versions)
+    "64:ff9b::a9fe:a9fe",  # NAT64 of 169.254.169.254
+    "2002:a00:5::1",  # 6to4 of 10.0.0.5
+    "2001:0:4136:e378:8000:63bf:3fff:fdd2",  # Teredo
+])
+def test_http_fetch_refuses_ipv6_forms_that_embed_an_ipv4_address(address, monkeypatch):
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", lambda *a, **k: [(10, 1, 6, "", (address, 443, 0, 0))])
+    monkeypatch.setattr(ssrn, "_OPENER", NoNetwork())
+    with pytest.raises(ssrn.UnsafeUrl):
+        ssrn.http_fetch("https://oa.test/a.pdf")
+
+
+def test_a_safe_redirect_hop_is_followed(monkeypatch):
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))])
+    original = urllib.request.Request("https://oa.test/a.pdf")
+    follow = ssrn._CheckedRedirectHandler().redirect_request(original, None, 302, "Found", {}, "https://oa.test/b.pdf")
+    assert follow is not None and follow.full_url == "https://oa.test/b.pdf"
+
+
+class FakeSocket:
+    def __init__(self, peer: str):
+        self.peer = peer
+        self.closed = False
+
+    def getpeername(self):
+        return (self.peer, 443)
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.mark.parametrize("peer", ["127.0.0.1", "169.254.169.254", "100.64.0.1", "fe80::1%eth0", "::ffff:10.0.0.5"])
+def test_the_connection_refuses_a_non_public_peer_after_dns_rebinding(peer, monkeypatch):
+    # The URL check saw a public address; the connection then reached a private one.
+    sock = FakeSocket(peer)
+
+    def connect(self):
+        self.sock = sock
+
+    monkeypatch.setattr(ssrn.http.client.HTTPSConnection, "connect", connect)
+    connection = ssrn._PublicPeerHTTPSConnection("oa.test", 443)
+    with pytest.raises(ssrn.UnsafeUrl, match="non-public"):
+        connection.connect()
+    assert sock.closed and connection.sock is None
+
+
+def test_the_connection_keeps_a_public_peer(monkeypatch):
+    sock = FakeSocket("93.184.216.34")
+
+    def connect(self):
+        self.sock = sock
+
+    monkeypatch.setattr(ssrn.http.client.HTTPSConnection, "connect", connect)
+    connection = ssrn._PublicPeerHTTPSConnection("oa.test", 443)
+    connection.connect()
+    assert connection.sock is sock and not sock.closed
+
+
+def test_the_opener_uses_no_proxy_and_the_checked_handlers(monkeypatch):
+    monkeypatch.setattr(ssrn, "_OPENER", None)
+    monkeypatch.setenv("https_proxy", "http://10.0.0.5:3128")
+    opener = ssrn._opener()
+    assert ssrn._opener() is opener
+    kinds = {type(handler) for handler in opener.handlers}
+    assert {ssrn._PublicPeerHTTPSHandler, ssrn._CheckedRedirectHandler} <= kinds
+    assert all(not handler.proxies for handler in opener.handlers
+               if isinstance(handler, urllib.request.ProxyHandler))
+    assert urllib.request.HTTPSHandler not in kinds
+
+
+def test_the_https_handler_opens_with_the_peer_checked_connection(monkeypatch):
+    seen = {}
+
+    def do_open(self, connection_class, req, **kwargs):
+        seen["class"] = connection_class
+        return "response"
+
+    monkeypatch.setattr(ssrn._PublicPeerHTTPSHandler, "do_open", do_open)
+    request = urllib.request.Request("https://oa.test/a.pdf")
+    assert ssrn._PublicPeerHTTPSHandler().https_open(request) == "response"
+    assert seen["class"] is ssrn._PublicPeerHTTPSConnection

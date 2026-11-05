@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   betterAuth: vi.fn((options: unknown) => ({ options })),
   drizzleAdapter: vi.fn(() => ({ id: "drizzle-adapter" })),
   consume: vi.fn(),
+  set: vi.fn(),
 }));
 
 vi.mock("better-auth", () => ({ betterAuth: mocks.betterAuth }));
@@ -13,7 +14,7 @@ vi.mock("@better-auth/drizzle-adapter", () => ({
 vi.mock("./rate-limit-storage.ts", () => ({
   createAtomicAuthRateLimitStorage: () => ({
     get: vi.fn(),
-    set: vi.fn(),
+    set: mocks.set,
     consume: mocks.consume,
   }),
 }));
@@ -26,6 +27,7 @@ import {
 } from "./server.ts";
 
 const BASE_URL = "https://darkfactory.localhost";
+const AUTH_SECRET = "auth-test-secret-with-at-least-32-characters";
 const EMAIL = "member@domain.test";
 
 type DeliveryCallback = (
@@ -42,8 +44,13 @@ type BeforeHook = (context: {
   context: unknown;
 }) => Promise<unknown>;
 
+type AfterHook = (context: {
+  path: string;
+  context: unknown;
+}) => Promise<unknown>;
+
 type CapturedAuthOptions = Readonly<{
-  hooks: Readonly<{ before: BeforeHook }>;
+  hooks: Readonly<{ before: BeforeHook; after: AfterHook }>;
   plugins: readonly Readonly<{
     id: string;
     options?: Readonly<{ enabled?: boolean }>;
@@ -71,6 +78,15 @@ const createEmail = () => {
   return email;
 };
 
+const profileDatabase = {
+  insert: () => ({
+    values: () => ({ onConflictDoNothing: async () => undefined }),
+  }),
+  transaction: async (
+    operation: (transaction: unknown) => Promise<unknown>
+  ): Promise<unknown> => await operation(profileDatabase),
+};
+
 const configure = (
   email: EmailPort,
   overrides: Readonly<{
@@ -80,8 +96,9 @@ const configure = (
 ) =>
   (
     createAuth({
-      database: {} as never,
-      secret: "auth-test-secret-with-at-least-32-characters",
+      // Enough of a database for the post-sign-in profile provisioning.
+      database: profileDatabase as never,
+      secret: AUTH_SECRET,
       baseURL: BASE_URL,
       email,
       scheduleBackgroundTask: () => undefined,
@@ -98,9 +115,17 @@ const deliveryInput = {
   token: "t",
 };
 
-const sha256Hex = async (value: string): Promise<string> => {
-  const digest = await globalThis.crypto.subtle.digest(
-    "SHA-256",
+const hmacHex = async (value: string): Promise<string> => {
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(AUTH_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const digest = await globalThis.crypto.subtle.sign(
+    "HMAC",
+    key,
     new TextEncoder().encode(value)
   );
   return [...new Uint8Array(digest)]
@@ -112,6 +137,7 @@ describe("auth abuse limits", () => {
   beforeEach(() => {
     mocks.betterAuth.mockClear();
     mocks.consume.mockReset();
+    mocks.set.mockReset();
     mocks.consume.mockResolvedValue({ allowed: true, retryAfter: null });
   });
 
@@ -140,7 +166,7 @@ describe("auth abuse limits", () => {
     return expect(plugin?.options?.enabled).toBe(false);
   });
 
-  it("limits email sign-in per account with a hashed key", async () => {
+  it("limits email sign-in per account with a keyed digest", async () => {
     const before = configure(createEmail()).hooks.before;
 
     await before({
@@ -151,8 +177,13 @@ describe("auth abuse limits", () => {
 
     expect(mocks.consume).toHaveBeenCalledOnce();
     const [key, rule] = mocks.consume.mock.calls[0] ?? [];
-    expect(key).toBe(`sign-in-email:${await sha256Hex(EMAIL)}`);
+    expect(key).toBe(`sign-in-email:${await hmacHex(EMAIL)}`);
     expect(String(key)).not.toContain(EMAIL);
+    expect(String(key)).not.toContain(
+      await globalThis.crypto.subtle
+        .digest("SHA-256", new TextEncoder().encode(EMAIL))
+        .then((digest) => Buffer.from(digest).toString("hex"))
+    );
     return expect(rule).toEqual({ window: 900, max: 10 });
   });
 
@@ -167,6 +198,62 @@ describe("auth abuse limits", () => {
         context: {},
       })
     ).rejects.toMatchObject({ statusCode: 429 });
+  });
+
+  it("sends a one-second retry-after when the store gives no wait time", async () => {
+    mocks.consume.mockResolvedValue({ allowed: false, retryAfter: null });
+    const before = configure(createEmail()).hooks.before;
+
+    const failure = await before({
+      path: "/sign-in/email",
+      body: { email: EMAIL, password: "pw" },
+      context: {},
+    }).catch((error: unknown) => error);
+
+    return expect(failure).toMatchObject({
+      statusCode: 429,
+      headers: { "retry-after": "1" },
+    });
+  });
+
+  it("clears the account limit after a successful sign-in", async () => {
+    const after = configure(createEmail()).hooks.after;
+    vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+
+    await after({
+      path: "/sign-in/email",
+      context: {
+        newSession: {
+          user: {
+            id: "user-1",
+            name: "Member Example",
+            email: " Member@Domain.TEST",
+          },
+        },
+      },
+    });
+
+    const key = `sign-in-email:${await hmacHex(EMAIL)}`;
+    vi.restoreAllMocks();
+    return expect(mocks.set.mock.calls).toEqual([
+      [key, { key, count: 0, lastRequest: 1_800_000_000_000 }],
+    ]);
+  });
+
+  it("does not touch the account limit after a sign-in when rate limiting is disabled", async () => {
+    const after = configure(createEmail(), { rateLimitEnabled: false }).hooks
+      .after;
+
+    await after({
+      path: "/sign-in/email",
+      context: {
+        newSession: {
+          user: { id: "user-1", name: "Member Example", email: EMAIL },
+        },
+      },
+    });
+
+    return expect(mocks.set).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -184,7 +271,7 @@ describe("auth abuse limits", () => {
     }
   );
 
-  it("caps verification and reset mail per recipient and skips silently", async () => {
+  it("caps verification and reset mail per recipient in separate buckets and skips silently", async () => {
     const email = createEmail();
     const options = configure(email);
     mocks.consume.mockResolvedValue({ allowed: false, retryAfter: 600 });
@@ -198,10 +285,10 @@ describe("auth abuse limits", () => {
 
     expect(email.sendEmailVerification).not.toHaveBeenCalled();
     expect(email.sendPasswordReset).not.toHaveBeenCalled();
-    const recipientKey = `auth-email-recipient:${await sha256Hex(EMAIL)}`;
+    const digest = await hmacHex(EMAIL);
     return expect(mocks.consume.mock.calls).toEqual([
-      [recipientKey, { window: 3600, max: 5 }],
-      [recipientKey, { window: 3600, max: 5 }],
+      [`auth-email-verification:${digest}`, { window: 3600, max: 5 }],
+      [`auth-email-reset:${digest}`, { window: 3600, max: 5 }],
     ]);
   });
 

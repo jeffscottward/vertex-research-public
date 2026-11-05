@@ -430,6 +430,63 @@ describe("vertexOrders procedures", () => {
     }
   });
 
+  it("keeps a newer lease when an expired placement finishes late", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const base = createMockOrderGateway(() => at);
+      const holds = [deferred(), deferred()];
+      const entered = [deferred(), deferred()];
+      let placeCalls = 0;
+      setVertexOrdersDependenciesForTesting({
+        mock: {
+          ...base,
+          place: async (candidate, orderRef) => {
+            const call = placeCalls;
+            placeCalls += 1;
+            const hold = holds[call];
+            if (hold !== undefined) {
+              entered[call]?.resolve();
+              await hold.promise;
+            }
+            return await base.place(candidate, orderRef);
+          },
+        },
+        now: () => at,
+      });
+      const client = clientFor();
+      const orders = [100, 105, 110].map((strike) => order({ strike }));
+      const tokens: string[] = [];
+      for (const candidate of orders)
+        tokens.push(
+          (await client.vertexOrders.preview(candidate)).confirmToken ?? ""
+        );
+      const submitAt = (index: number) =>
+        client.vertexOrders.submit({
+          order: orders[index] ?? order(),
+          confirmToken: tokens[index] ?? "",
+          confirm: true,
+        });
+
+      const first = submitAt(0);
+      await entered[0]?.promise;
+      vi.setSystemTime(Date.now() + 10 * 60_000);
+      const second = submitAt(1);
+      await entered[1]?.promise;
+      holds[0]?.resolve();
+      await first;
+
+      // The first placement ended after its lease expired; the second still holds the newer lease.
+      await expectCode(submitAt(2), "RATE_LIMITED", 429);
+      holds[1]?.resolve();
+      await second;
+      return await expect(submitAt(2)).resolves.toMatchObject({
+        state: "submitted",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rejects share orders and over-cap orders without a token", async () => {
     const client = clientFor();
     const shares = await client.vertexOrders.preview(order({ secType: "STK" }));

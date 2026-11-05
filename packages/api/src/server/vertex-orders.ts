@@ -220,9 +220,11 @@ const requireOwner = api.middleware(async ({ context, next, errors }) => {
 // the max-loss gate together on one stale snapshot. QuantVPS runs one web process; the bridge
 // checks each order again on its own. Cancels are not gated.
 // A lease, not a promise chain: workerd cancels a request whose client disconnects, and a
-// promise shared across requests would then never settle. The lease ends after the bridge
-// timeout even when the cancelled request never reaches `finally`.
-const PLACEMENT_LEASE_MS = BRIDGE_TIMEOUT_MS + 30_000;
+// promise shared across requests would then never settle. A submit makes two bridge calls in a
+// row (account, then place), so the lease ends after two bridge timeouts plus 30 s, even when the
+// cancelled request never reaches `finally`. After that, the live-mode order intent (written
+// before `place`) still refuses new orders while its outcome is unknown.
+const PLACEMENT_LEASE_MS = 2 * BRIDGE_TIMEOUT_MS + 30_000;
 let placingUntil = 0;
 const onePlacementAtATime = api.middleware(async ({ next, errors }) => {
   const now = Date.now();

@@ -49,8 +49,10 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
 - **One placement at a time.** While a `submit` or `comboSubmit` is placing, a second one is
   refused with `RATE_LIMITED` and keeps its confirm token. Each placement reads the account after
   the previous order is placed, so parallel submits cannot pass a per-name cap or the 2% max-loss
-  gate together on one stale snapshot. The guard is a lease that ends after the bridge timeout
-  plus 30 s, so a cancelled request cannot block placements for longer. Cancels are not gated.
+  gate together on one stale snapshot. The guard is a lease that ends after two bridge timeouts
+  (account read and place) plus 30 s, so a cancelled request cannot block placements for longer.
+  After the lease ends, a live order intent whose outcome is still unknown refuses new orders
+  (see "Unknown outcome"). Cancels are not gated.
 - **Replay.** The used-nonce list is per process (per Worker isolate). The nonce is also the
   IBKR `orderRef` (`vertex-<nonce>`). A replay on another isolate is blocked ONLY if the
   bridge refuses an `orderRef` that was already used, as `mode_place_option` does today. This is a

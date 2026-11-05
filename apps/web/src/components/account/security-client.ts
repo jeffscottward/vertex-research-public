@@ -154,6 +154,9 @@ export const safeSecurityFeedback = (error: unknown): string => {
       return "Your session ended. Sign in again to continue.";
     case "FORBIDDEN":
       return "This security action is not permitted for the current account.";
+    // Better Auth haveIBeenPwned: the new password was found in a breach.
+    case "PASSWORD_COMPROMISED":
+      return "This password appears in a known data breach. Choose a different password.";
     default:
       return "The security request could not be completed. Try again.";
   }
