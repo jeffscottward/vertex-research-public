@@ -193,7 +193,7 @@ const signInError = (error: AuthError): AuthFlowResult => {
   if (error?.status === 429) {
     return {
       status: "error",
-      message: "Too many sign-in attempts. Wait 15 minutes, then try again.",
+      message: "Too many sign-in attempts. Wait a few minutes, then try again.",
     };
   }
   if (error?.code === "EMAIL_NOT_VERIFIED") {

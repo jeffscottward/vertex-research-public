@@ -549,7 +549,7 @@ describe("typed auth operations", () => {
       })
     ).resolves.toEqual({
       status: "error",
-      message: "Too many sign-in attempts. Wait 15 minutes, then try again.",
+      message: "Too many sign-in attempts. Wait a few minutes, then try again.",
     });
   });
 
