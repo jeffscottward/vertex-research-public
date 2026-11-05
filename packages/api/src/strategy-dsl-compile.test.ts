@@ -23,9 +23,9 @@ import {
   realizedVolatility,
   relativeStrength,
   relativeVolumeAtTime,
+  rollingZScore,
   runStrategyDefinition,
   SectorQuadrantDataError,
-  rollingZScore,
   type SectorQuadrantPoint,
 } from "./strategy-dsl-compile.ts";
 
@@ -563,6 +563,51 @@ describe("zscore and realizedVol (gs-quant conventions)", () => {
             expect(actual[index], `${key} ${index}`).toBeNaN();
           else expect(actual[index], `${key} ${index}`).toBeCloseTo(value, 9);
         }
+      }
+    }
+  });
+
+  it("match a two-pass brute force with gaps, flat stretches and long windows", () => {
+    // Deterministic noise with a non-finite gap and a flat stretch after a volatile one.
+    let state = 7;
+    const noise = () => {
+      state = (state * 1_103_515_245 + 12_345) % 2 ** 31;
+      return state / 2 ** 31 - 0.5;
+    };
+    const values = Float64Array.from({ length: 3000 }, (_, index) => {
+      if (index >= 1200 && index < 1203) return Number.NaN;
+      if (index >= 2000 && index < 2300) return 123.456;
+      return 100 + 40 * noise();
+    });
+    const exact = (end: number, length: number) => {
+      const window = Array.from(values.subarray(end - length + 1, end + 1));
+      if (window.some((value) => !Number.isFinite(value)))
+        return { deviation: Number.NaN, mean: Number.NaN };
+      const mean = window.reduce((sum, value) => sum + value, 0) / length;
+      const squares = window.reduce(
+        (sum, value) => sum + (value - mean) ** 2,
+        0
+      );
+      return { deviation: Math.sqrt(squares / (length - 1)), mean };
+    };
+    for (const length of [2, 7, 50, 1000]) {
+      const z = rollingZScore(values, length);
+      for (let index = 0; index < values.length; index += 1) {
+        if (index < length - 1) {
+          expect(z[index]).toBeNaN();
+          continue;
+        }
+        const { mean, deviation } = exact(index, length);
+        const flat = values
+          .subarray(index - length + 1, index + 1)
+          .every((value) => value === values[index]);
+        if (Number.isNaN(deviation) || flat)
+          expect(z[index], `${length} ${index}`).toBeNaN();
+        else
+          expect(z[index], `${length} ${index}`).toBeCloseTo(
+            ((values[index] as number) - mean) / deviation,
+            8
+          );
       }
     }
   });
