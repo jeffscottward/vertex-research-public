@@ -60,8 +60,7 @@ export const VertexOrderCapSchema = z.object({
   afterOrderPct: z.number(),
 });
 
-// Final JEV order gate (merge plan P6). Runs on the simulated (paper/mock) gateway only; null in
-// live mode until the owner approves moving the live gates into it.
+// Final JEV order gate (merge plan P6). Runs on every order review, simulated and live.
 export const VertexFinalGateSchema = z.object({
   decision: z.enum(["allow", "deny"]),
   structure: z.enum([
@@ -179,7 +178,7 @@ export const VertexCancelSubmitInputSchema = z
   .strict();
 
 // Spread close (owner 2026-11-04): a spread closes as ONE combo (BAG) order, never leg by leg.
-// Opening verticals (P6) are accepted only on the simulated gateway and only through the final gate.
+// Opening verticals (P6) are accepted only through the final gate.
 // Each leg must reverse a held leg exactly (ratio x quantity == held size). limitPrice is the net
 // per combo: positive = debit paid, negative = credit received.
 export const VertexComboLegSchema = z

@@ -452,7 +452,7 @@ const comboPremiumReasons = (
   return reasons;
 };
 
-// Opening vertical as ONE combo order (merge plan P6). Only the simulated gateway calls this; the
+// Opening vertical as ONE combo order (merge plan P6). Only the simulated gateway calls this (the live order tail accepts exact closes only); the
 // structure, the 2% max loss and the JEV verdict are checked by the final gate
 // (final-order-gate.ts). Here: the account gates and the order-book checks.
 export const evaluateOpeningCombo = (

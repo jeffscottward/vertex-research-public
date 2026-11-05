@@ -62,6 +62,7 @@ import {
   type DashboardServiceErrorCode,
 } from "./dashboard-service.ts";
 import { deploymentRequestsRouter } from "./deployment-requests.ts";
+import { backtestRunEngineRouter } from "./backtest-run-engine.ts";
 import { backtestRunsRouter } from "./backtest-runs.ts";
 import { forwardDriftRouter } from "./forward-drift.ts";
 import { strategyDefinitionsRouter } from "./strategy-definitions.ts";
@@ -1734,6 +1735,7 @@ export const appRouter = api.router({
     ...backtestRunsRouter,
     definitions: strategyDefinitionsRouter,
     drift: forwardDriftRouter,
+    engine: backtestRunEngineRouter,
   },
   autopilot: autopilotRouter,
   researchLenses: researchLensesRouter,

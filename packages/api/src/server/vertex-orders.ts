@@ -379,31 +379,30 @@ const blockedBy = <T extends { accepted: boolean; reasons: string[] }>(
     ? review
     : { ...review, accepted: false, reasons: [...review.reasons, ...reasons] };
 
-// Final JEV order gate (merge plan P6): simulated (paper/mock) gateway only. Live mode keeps its
-// existing gates unchanged until the owner approves moving them into the final gate.
+// Final JEV order gate (merge plan P6): runs on every order, simulated and live (owner approval
+// 2026-11-05). The account gates (kill switch, OPTIONS_ONLY) are inputs to the shared gate.
+// VERTEX_ORDERS_ENABLED and VERTEX_ORDER_SUBMISSION still choose the gateway (liveAllowed).
 const finalGateFor = (
-  gateway: OrderGatewayPort,
   account: OrderAccount,
   order: FinalGateOrder,
   now: Date
-): FinalGateDecision | null =>
-  gateway.mode === "simulated"
-    ? evaluateFinalOrderGate({
-        accountValue: account.netLiquidation,
-        jev: (deps().jevVerdict ?? readCachedJevVerdict)(order.symbol),
-        now,
-        order,
-        positions: account.positions,
-      })
-    : null;
+): FinalGateDecision =>
+  evaluateFinalOrderGate({
+    accountGates: account.gates,
+    accountValue: account.netLiquidation,
+    jev: (deps().jevVerdict ?? readCachedJevVerdict)(order.symbol),
+    now,
+    order,
+    positions: account.positions,
+  });
 
 const withFinalGate = <T extends { accepted: boolean; reasons: string[] }>(
   review: T,
-  gate: FinalGateDecision | null
-): T & { finalGate: FinalGateDecision | null } => ({
+  gate: FinalGateDecision
+): T & { finalGate: FinalGateDecision } => ({
   ...blockedBy(
     review,
-    gate?.decision === "deny"
+    gate.decision === "deny"
       ? gate.reasons.map((reason) => `Final gate: ${reason}`)
       : []
   ),
@@ -413,11 +412,10 @@ const withFinalGate = <T extends { accepted: boolean; reasons: string[] }>(
 // Audit field for the final gate. A risk-reducing order sent without a fresh JEV verdict is
 // recorded here (owner rule: logged and sent).
 const gateAudit = (
-  gate: FinalGateDecision | null
-): Readonly<Record<string, string>> =>
-  gate === null
-    ? {}
-    : { finalGate: `${gate.decision} ${gate.structure} jev=${gate.jevState}` };
+  gate: FinalGateDecision
+): Readonly<Record<string, string>> => ({
+  finalGate: `${gate.decision} ${gate.structure} jev=${gate.jevState}`,
+});
 
 const singleGateOrder = (order: VertexOrderInput): FinalGateOrder => ({
   engine: "platform-ticket",
@@ -446,7 +444,9 @@ const comboGateOrder = (order: VertexComboInput): FinalGateOrder => ({
   symbol: order.symbol,
 });
 
-// Opening verticals exist only on the simulated gateway; live combos stay close-only.
+// A combo that reverses held legs is a close (evaluateCombo). Any other combo opens a vertical
+// (evaluateOpeningCombo, final gate) on the simulated gateway only: the live order tail accepts
+// only exact closes, so on live an opening combo is reviewed by the close-only rule and refused.
 const reviewCombo = (
   order: VertexComboInput,
   gateway: OrderGatewayPort,
@@ -459,7 +459,7 @@ const reviewCombo = (
     !isRiskReducing(gateOrder, account.positions);
   return withFinalGate(
     (opening ? evaluateOpeningCombo : evaluateCombo)(order, account, now),
-    finalGateFor(gateway, account, gateOrder, now)
+    finalGateFor(account, gateOrder, now)
   );
 };
 
@@ -510,7 +510,7 @@ const preview = api.vertexOrders.preview
     const review = blockedBy(
       withFinalGate(
         evaluateOrder(input, account, now),
-        finalGateFor(gateway, account, singleGateOrder(input), now)
+        finalGateFor(account, singleGateOrder(input), now)
       ),
       await reconcileUnknown(
         context,
@@ -587,7 +587,7 @@ const submit = api.vertexOrders.submit
     const review = blockedBy(
       withFinalGate(
         evaluateOrder(input.order, account, now),
-        finalGateFor(gateway, account, singleGateOrder(input.order), now)
+        finalGateFor(account, singleGateOrder(input.order), now)
       ),
       await reconcileUnknown(context, store, account, now.getTime())
     );
@@ -642,12 +642,21 @@ const submit = api.vertexOrders.submit
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    await audit(context, "submit", "success", {
-      ...base,
-      mode: gateway.mode,
-      orderRef,
-      result: result.state,
-    });
+    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
+    // is a refusal and is audited as a failure.
+    await audit(
+      context,
+      "submit",
+      result.state === "submitted" || result.state === "unconfirmed"
+        ? "success"
+        : "failure",
+      {
+        ...base,
+        mode: gateway.mode,
+        orderRef,
+        result: result.state,
+      }
+    );
     return { mode: gateway.mode, orderRef, ...result };
   });
 
@@ -797,12 +806,21 @@ const comboSubmit = api.vertexOrders.comboSubmit
     }
     // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
     await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
-    await audit(context, "comboSubmit", "success", {
-      ...base,
-      mode: gateway.mode,
-      orderRef,
-      result: result.state,
-    });
+    // Only "submitted" and "unconfirmed" reached IBKR; any other state (for example "aborted")
+    // is a refusal and is audited as a failure.
+    await audit(
+      context,
+      "comboSubmit",
+      result.state === "submitted" || result.state === "unconfirmed"
+        ? "success"
+        : "failure",
+      {
+        ...base,
+        mode: gateway.mode,
+        orderRef,
+        result: result.state,
+      }
+    );
     return { mode: gateway.mode, orderRef, ...result };
   });
 

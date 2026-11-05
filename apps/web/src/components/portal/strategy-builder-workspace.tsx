@@ -59,7 +59,9 @@ import {
 // run stores a revision of the definition. Research only; this page has no order path.
 
 const POLL_MS = 1000;
-const POLL_MAX = 300;
+// 20 minutes: a Nautilus run may wait up to 10 minutes for the research worker and then run up to
+// 9 minutes (docs/vertex-rebuild/nautilus-backtest-engine.md).
+const POLL_MAX = 1200;
 const CONTROL = "min-h-11 rounded-md border bg-background px-3 text-sm";
 const LABEL = "font-medium text-sm";
 

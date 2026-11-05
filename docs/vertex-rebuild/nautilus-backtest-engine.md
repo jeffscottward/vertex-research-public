@@ -11,7 +11,7 @@ Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, an
 | Costs | `nautilus_backtest/costs.py`: port of `packages/api/src/backtest-costs.ts` (presets, commission, fees, spread, slippage, sizing). |
 | Parity suite | CLI `scripts/research-nautilus-parity.ts`, logic and tests in `scripts/research/nautilus-parity.ts` and `nautilus-parity.test.ts`. Latest report: [`research/backtests/nautilus-parity/README.md`](../../research/backtests/nautilus-parity/README.md). |
 | CI | `services/research/tests/test_nautilus_backtest_signals.py` (base lane) and `test_nautilus_backtest_engine.py` (Nautilus lane, `VERTEX_REQUIRE_NAUTILUS=1`). |
-| Features on Nautilus | None yet. Each feature switches only after its parity passes; see [Switch plan](#switch-plan). |
+| Features on Nautilus | Backtest runs: switchable by the setting `VERTEX_BACKTEST_RUNS_ENGINE` (`typescript` by default, `nautilus` sends new runs to the research worker); see [Backtest runs on Nautilus](#backtest-runs-on-nautilus). Every other feature still uses the TypeScript engine; each switches only after its parity passes; see [Switch plan](#switch-plan). |
 
 ## Run it
 
@@ -29,6 +29,24 @@ bun run research:nautilus-golden  # scripts/research-nautilus-golden.ts
 ```
 
 The `spec` has the fields of a backtest run spec: `rule` (`smaCross`, `breakout`, `rsiReversion` or `{"kind": "dsl", "definition": ...}`), `stopLossPct`, `takeProfitPct`, `costBps`, `costs` (`{"profile": <CostProfile>, "capital": n}` or null), optional `sectorQuadrants` and `initialCapital`. The result has the shape of the TypeScript `InstantRunResult`: `equity` (unit equity per bar), `trades` and `stats`. So `buildBacktestRunReport` and the analytics (deflated Sharpe, Monte Carlo, walk-forward, gs-quant analytics) read Nautilus results without a change.
+
+## Backtest runs on Nautilus
+
+Backtest runs (Backtest lab, Strategy builder, Autopilot "Run full backtest", library re-runs) run on Nautilus when the web app has `VERTEX_BACKTEST_RUNS_ENGINE=nautilus`. Unset or `typescript` keeps the API engine; nothing else changes. A stored run keeps its own engine id, so switching the setting never moves a stored run to the other engine.
+
+1. `backtestRuns.submit` stores the run with the engine id `nautilus-trader-1.227.0` and does not run it in the API server.
+2. The worker (`scripts/backtest-worker/nautilus-worker.ts`, `bun run vertex:backtest-worker:nautilus`) runs on the research host as a user systemd service ([infra/research-worker/README.md](../../infra/research-worker/README.md)). It calls `backtestRuns.engine.claim` over HTTPS with an operator agent write key. Claim moves the oldest queued run of the engine to `running` with a conditional update, so two workers never run the same run. It returns the spec, the bars of the date range (the same slice the API engine uses; JSON `null` for a missing value), the resolved cost settings and the sector rotation points that the definition's filters need. A run whose inputs cannot be loaded fails at claim with the API engine's message.
+3. The worker runs `python -m nautilus_backtest run -` in `services/research` with `{"bars": ..., "spec": ...}` on stdin. Exit 0: it posts `equity`, `trades` and `stats` with `backtestRuns.engine.complete`. After a network error, a 429 or a 5xx answer it tries `complete` again (4 tries, waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result"; a 409 (the run is no longer running) needs nothing; any other 4xx fails the run with "The API rejected the Nautilus result". Exit 2: it posts the input error message with `backtestRuns.engine.fail` (the same message as the TypeScript engine). Exit 3 (no Nautilus), any other exit, a different engine version, a run over 9 minutes or a worker stop: it fails the run with a short message and logs the engine stderr locally.
+4. `complete` checks the result with the contract: finite numbers, unit equity above 0 at every bar, trade prices and units above 0, `stats.bars` equal to the equity length, trade bar indexes inside the series. It reloads the bars and refuses a result whose bar count or `seriesSha256` differs from the stored bars. It recomputes the stats from the stored bars and the worker's equity and trades with the TypeScript `summarize` and refuses a result whose stats differ by more than 1e-9 (relative); the refused run fails with the reason. It stores the API's own stats and builds the report with `buildBacktestRunReport`, the same code as the API engine. `complete` and `fail` change only a run that is `running` on the same engine; anything else returns `CONFLICT` and changes nothing.
+5. `backtestRuns.get` fails a Nautilus run that waited more than 10 minutes while no Nautilus run was claimed in those 10 minutes, so no worker is active ("Nautilus backtest worker did not pick up the run"). A busy worker never fails its backlog. A run left `running` for more than 10 minutes fails as for API runs. The Backtest runs and Strategy builder pages follow a run for up to 20 minutes.
+
+Monitoring: after 3 failed worker cycles in a row (API errors on claim or fail, a result that could not be delivered or was rejected, an engine crash, timeout or version mismatch; not a run's input error or an empty claim) the worker posts one alert line to the optional `VERTEX_ALERT_POST_URL` / `VERTEX_ALERT_CHANNEL` chat route, and one recovery line on the next normal cycle ([infra/research-worker/README.md](../../infra/research-worker/README.md#settings)).
+
+The engine procedures need an operator agent write key; read keys and agent viewers cannot call them. A unit test (`packages/api/src/backtest-runs.test.ts`) feeds the TypeScript engine's result through `complete` and checks that the report equals the API engine's report. `scripts/backtest-worker/nautilus-worker.e2e.test.ts` runs the worker with the real engine against an in-process fake API when `VERTEX_NAUTILUS_PYTHON` is set:
+
+```sh
+VERTEX_NAUTILUS_PYTHON=<venv>/bin/python pnpm exec vitest run --config vitest.config.ts --project operations scripts/backtest-worker
+```
 
 ## Order and fill model
 
@@ -52,7 +70,7 @@ Every case must give the same trades (entry bar, exit bar, exit reason, same ord
 
 | Feature | Where it runs today | Engine call | Needs |
 | --- | --- | --- | --- |
-| Backtest runs (Backtest lab, Strategy builder, Autopilot "Run full backtest", library re-runs with `strategyId`) | API server, queued run, `executeClaimed` in `packages/api/src/server/backtest-runs.ts` | `runInstantBacktest`, `runStrategyDefinition` | Stored daily or minute bars, cost profile, capital, sector quadrants |
+| Backtest runs (Backtest lab, Strategy builder, Autopilot "Run full backtest", library re-runs with `strategyId`) | API server, queued run, `executeClaimed` in `packages/api/src/server/backtest-runs.ts`; with `VERTEX_BACKTEST_RUNS_ENGINE=nautilus` the research worker | `runInstantBacktest`, `runStrategyDefinition`, or the Nautilus engine | Stored daily or minute bars, cost profile, capital, sector quadrants |
 | Instant backtest | API server, in the request (`packages/api/src/server/instant-backtest.ts`) | `runInstantBacktest` | Stored bars, `costBps` |
 | Parameter sweeps | API server, in the request (`packages/api/src/backtest-sweep.ts`) | `runInstantBacktest` per cell | Stored bars |
 | Autopilot gate | API server (`packages/api/src/server/autopilot-runner.ts`, `autopilot-gate.ts`) | `runStrategyDefinition` on slices | In-sample, out-of-sample, folds, cost stress |
@@ -70,7 +88,7 @@ A feature switches only when its parity cases pass. The TypeScript engine stays 
 | Step | Target date | Pass condition |
 | --- | --- | --- |
 | 1. Engine, golden fixture, parity suite and report (this change) | 2026-11-05 | Parity report: all cases pass; CI green |
-| 2. Backtest runs on a research worker on the rig: the API stores the run with the Nautilus engine id; the worker claims it over the API, runs Nautilus and posts the result; the API builds the report | 2026-11-07 | One live run checked end to end; TS path still available by setting |
+| 2. Backtest runs on a research worker on the rig: the API stores the run with the Nautilus engine id; the worker claims it over the API, runs Nautilus and posts the result; the API builds the report (code done 2026-11-05, see [Backtest runs on Nautilus](#backtest-runs-on-nautilus); production switch pending) | 2026-11-07 | One live run checked end to end; TS path still available by setting |
 | 3. Offline research scripts and Quant Lab default to Nautilus | 2026-11-10 | Core 7 re-run equal to the parity figures |
 | 4. Instant backtest, sweeps and the Autopilot gate as queued worker jobs (they run in the request today) | 2026-11-14 | Parity per feature; response-time budget recorded |
 | 5. Paper forward and setup replay | 2026-11-18 | Parity per feature |
