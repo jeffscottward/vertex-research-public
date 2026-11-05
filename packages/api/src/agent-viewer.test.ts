@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./client.ts";
 import { appContract } from "./contract.ts";
 import {
+  AGENT_VIEWER_PLAN_ONLY_MESSAGE,
   AGENT_VIEWER_READ_ONLY_MESSAGE,
   agentViewerReadOnlyInterceptor,
   isAgentViewerEmail,
@@ -92,13 +93,18 @@ const intercept = async (context: ApiContext, path: string) => {
   return { result, ran: next.mock.calls.length === 1 };
 };
 
+// Owner decision 2026-11-05: a viewer may start its own threads and chat (Plan mode only).
+const VIEWER_CHAT = new Set(["assistant.threads.create", "assistant.send"]);
+
 describe("agent viewer read-only gate", () => {
   it("refuses every write procedure for a viewer and lets every read through", async () => {
     const procedures = allProcedures();
     expect(procedures.length).toBeGreaterThan(100);
     for (const [path, method] of procedures) {
       const { result, ran } = await intercept(contextFor(VIEWER), path);
-      if (isAgentViewerReadProcedure(path.split("."))) {
+      if (VIEWER_CHAT.has(path)) {
+        expect(ran, path).toBe(true);
+      } else if (isAgentViewerReadProcedure(path.split("."))) {
         expect(ran, path).toBe(true);
         expect(
           method === "GET" ||
@@ -142,6 +148,8 @@ describe("agent viewer read-only gate", () => {
     "preferences.theme.update",
     "deploymentRequests.submit",
     "autopilot.campaigns.setStatus",
+    // Confirm cards stay operator-only
+    "assistant.actions.decide",
   ])("refuses %s for a viewer", async (path) => {
     expect(isAgentViewerReadProcedure(path.split("."))).toBe(false);
     const { ran, result } = await intercept(contextFor(VIEWER), path);
@@ -368,6 +376,22 @@ describe("agent viewer through the real handler", () => {
         confirm: true,
       })
     );
+  });
+
+  it("refuses Act mode chat for a viewer with 403", async () => {
+    const viewer = clientFor(VIEWER);
+    const error = await (async () => {
+      const stream = await viewer.assistant.send({
+        threadId: "00000000-0000-4000-8000-000000000000",
+        mode: "act",
+        message: "hi",
+      });
+      for await (const _ of stream) break;
+    })().catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      status: 403,
+      message: AGENT_VIEWER_PLAN_ONLY_MESSAGE,
+    });
   });
 
   it("never passes a role check, even with the admin role in the database", async () => {

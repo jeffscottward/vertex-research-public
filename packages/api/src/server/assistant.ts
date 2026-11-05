@@ -8,7 +8,7 @@ import {
   type AssistantUsageTotals,
 } from "@darkfactory/db/server";
 import type { AssistantMessage, AssistantThread } from "@darkfactory/db/schema";
-import { implement } from "@orpc/server";
+import { ORPCError, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import type {
@@ -29,6 +29,10 @@ import {
   type AssistantTurnResult,
 } from "./assistant-runtime.ts";
 import type { ApiContext } from "./context.ts";
+import {
+  AGENT_VIEWER_PLAN_ONLY_MESSAGE,
+  isAgentViewerEmail,
+} from "./agent-viewer.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // Research assistant procedures: operator session only (any API key is refused before the operator
@@ -372,6 +376,19 @@ export const assistantSend = api.assistant.send
   .use(requireOperator)
   .handler(async ({ context, input, errors, signal }) => {
     const failures = factories(errors);
+    // A read-only agent viewer may chat in Plan mode only (owner decision 2026-11-05).
+    if (
+      input.mode !== "plan" &&
+      (context.agentViewerEmails ?? []).length > 0 &&
+      isAgentViewerEmail(
+        (await context.requireSession()).user.email,
+        context.agentViewerEmails
+      )
+    )
+      throw new ORPCError("FORBIDDEN", {
+        status: 403,
+        message: AGENT_VIEWER_PLAN_ONLY_MESSAGE,
+      });
     const repository = repositoryFor(context, errors);
     const actionsRepository = actionsRepositoryFor(context, errors);
     const runtime = runtimeFor(context, errors);
