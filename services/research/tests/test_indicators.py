@@ -359,3 +359,12 @@ def test_zscore_and_realized_volatility_match_brute_force():
 def test_zscore_and_realized_volatility_guards(call, error):
     with pytest.raises(error):
         call()
+
+
+def test_zscore_and_realized_volatility_match_the_gs_quant_fixture():
+    # gs-quant-reference.json holds gs-quant 2.2.4 output on the fixture closes (make_gs_quant_reference.py).
+    gs = json.loads((Path(__file__).parent / "fixtures" / "gs-quant-reference.json").read_text())["expected"]
+    closes = REFERENCE["bars"]["close"]
+    for window in (5, 20):
+        close_to(zscore(closes, window), gs[f"zscore_{window}"])
+        close_to(realized_volatility(closes, window), gs[f"realized_vol_{window}"])

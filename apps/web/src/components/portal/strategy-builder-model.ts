@@ -37,9 +37,11 @@ export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
   ema: "EMA (exponential average)",
   highest: "Highest (prior bars)",
   lowest: "Lowest (prior bars)",
+  realizedVol: "Realized volatility (annualized %)",
   rsi: "RSI (relative strength)",
   rvol: "Relative volume at time",
   sma: "SMA (simple average)",
+  zscore: "Z-score (against trailing window)",
 };
 
 /** atr, adx and rvol do not read a price source. */

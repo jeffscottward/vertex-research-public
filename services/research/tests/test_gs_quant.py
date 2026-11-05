@@ -117,6 +117,24 @@ def test_exact_conventions_match_gs_quant(data):
     assert worst_relative(bands.upper, theirs.iloc[:, 1]) < 1e-12
 
 
+def test_gs_quant_fixture_is_current():
+    """tests/fixtures/gs-quant-reference.json (used by the Python and DSL kernels) equals live gs-quant output."""
+    import importlib.util
+
+    path = Path(__file__).parent / "fixtures" / "make_gs_quant_reference.py"
+    spec = importlib.util.spec_from_file_location("make_gs_quant_reference", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    stored = json.loads((path.parent / "gs-quant-reference.json").read_text())
+    live = module.reference()
+    assert stored["expected"].keys() == live["expected"].keys()
+    for key, values in live["expected"].items():
+        for left, right in zip(stored["expected"][key], values, strict=True):
+            assert (left is None) == (right is None), key
+            if left is not None:
+                assert math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-15), key
+
+
 def test_recursive_indicators_converge_to_gs_quant():
     """gs-quant seeds SMMA, RSI and MACD at the first bar; Vertex seeds with a full SMA (TA-Lib).
 

@@ -88,6 +88,132 @@ export const relativeStrength = (
   return out;
 };
 
+/** Exact two-pass mean and sum of squared deviations of values[start..end]. */
+const exactWindow = (
+  values: Float64Array,
+  start: number,
+  end: number
+): readonly [average: number, squares: number] => {
+  let sum = 0;
+  for (let at = start; at <= end; at += 1) sum += values[at] as number;
+  const average = sum / (end - start + 1);
+  let squares = 0;
+  for (let at = start; at <= end; at += 1) {
+    const delta = (values[at] as number) - average;
+    squares += delta * delta;
+  }
+  return [average, squares];
+};
+
+/** Welford update of a sliding window: `incoming` replaces `outgoing`. */
+const slideWindow = (
+  average: number,
+  squares: number,
+  incoming: number,
+  outgoing: number,
+  length: number
+): readonly [average: number, squares: number] => {
+  const next = average + (incoming - outgoing) / length;
+  return [
+    next,
+    Math.max(
+      0,
+      squares + (incoming - outgoing) * (incoming - next + outgoing - average)
+    ),
+  ];
+};
+
+/**
+ * Mean and sample standard deviation (ddof 1) of each full window of `length` values, NaN before
+ * bar `length - 1` and for a window with a value that is not finite. Sliding Welford update with an
+ * exact two-pass recompute every `length` bars (and after a gap), so rounding drift stays bounded:
+ * O(bars). A flat window (all values equal) has deviation exactly 0.
+ */
+const rollingMoments = (
+  values: Float64Array,
+  length: number
+): Readonly<{ mean: Float64Array; deviation: Float64Array }> => {
+  const size = values.length;
+  const mean = new Float64Array(size).fill(Number.NaN);
+  const deviation = new Float64Array(size).fill(Number.NaN);
+  let bad = 0; // values in the window that are not finite
+  let run = 0; // equal values ending at the bar
+  let state: readonly [average: number, squares: number] | undefined; // previous window
+  for (let index = 0; index < size; index += 1) {
+    const value = values[index] as number;
+    if (!Number.isFinite(value)) bad += 1;
+    if (index >= length && !Number.isFinite(values[index - length] as number))
+      bad -= 1;
+    run = index > 0 && value === values[index - 1] ? run + 1 : 1;
+    if (index < length - 1) continue;
+    if (bad > 0) {
+      state = undefined;
+      continue;
+    }
+    const start = index - length + 1;
+    state =
+      state === undefined || start % length === 0
+        ? exactWindow(values, start, index)
+        : slideWindow(
+            state[0],
+            state[1],
+            value,
+            values[index - length] as number,
+            length
+          );
+    const flat = run >= length;
+    mean[index] = flat ? value : state[0];
+    deviation[index] = flat ? 0 : Math.sqrt(state[1] / (length - 1));
+  }
+  return { deviation, mean };
+};
+
+/**
+ * Rolling z-score (gs-quant `zscores`): (x - mean) / sample deviation of the `length` values ending
+ * at the bar, the bar included. NaN before bar `length - 1` and for a flat window.
+ */
+export const rollingZScore = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const { mean, deviation } = rollingMoments(values, length);
+  const out = new Float64Array(values.length).fill(Number.NaN);
+  for (let index = length - 1; index < values.length; index += 1) {
+    const spread = deviation[index] as number;
+    if (spread > 0)
+      out[index] =
+        ((values[index] as number) - (mean[index] as number)) / spread;
+  }
+  return out;
+};
+
+/** Bars per year used to annualize realizedVol (daily bars). */
+export const REALIZED_VOL_PERIODS_PER_YEAR = 252;
+
+/**
+ * Annualized realized volatility in percent (gs-quant `volatility`): sample deviation of the
+ * `length` simple returns ending at the bar × √252 × 100. NaN before bar `length` and when a
+ * window contains a return from a non-positive price.
+ */
+export const realizedVolatility = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const size = values.length;
+  const out = new Float64Array(size).fill(Number.NaN);
+  const returns = new Float64Array(size).fill(Number.NaN);
+  for (let index = 1; index < size; index += 1) {
+    const previous = values[index - 1] as number;
+    const current = values[index] as number;
+    if (previous > 0 && current > 0) returns[index] = current / previous - 1;
+  }
+  const scale = 100 * Math.sqrt(REALIZED_VOL_PERIODS_PER_YEAR);
+  const { deviation } = rollingMoments(returns, length);
+  for (let index = length; index < size; index += 1)
+    out[index] = scale * (deviation[index] as number);
+  return out;
+};
+
 /** Wilder average true range. The first bar's true range is high - low. */
 export const averageTrueRange = (
   bars: BarColumns,
@@ -327,6 +453,7 @@ const evaluateCurrent = (
     ema: () => exponentialMean(source, expr.length),
     highest: () => priorExtreme(source, expr.length, 1),
     lowest: () => priorExtreme(source, expr.length, -1),
+    realizedVol: () => realizedVolatility(source, expr.length),
     rsi: () => relativeStrength(source, expr.length),
     rvol: () => {
       if (bars.v === undefined)
@@ -334,6 +461,7 @@ const evaluateCurrent = (
       return relativeVolumeAtTime(bars.t, bars.v, expr.length);
     },
     sma: () => rollingMean(source, expr.length),
+    zscore: () => rollingZScore(source, expr.length),
   }[expr.name]();
   cache.set(key, series);
   return series;
