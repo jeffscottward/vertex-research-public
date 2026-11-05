@@ -128,6 +128,8 @@ describe("agent viewer read-only gate", () => {
     "nautilusArm.arm",
     "nautilusArm.disarm",
     "ibkrRecovery.request",
+    // Paid JEV call
+    "jevVerdict.refresh",
     // Keys and settings
     "agentApiKeys.create",
     "agentApiKeys.revoke",
@@ -248,6 +250,7 @@ const REVIEWED_READS: readonly string[] = [
   "ibkrRecovery.status",
   "instantBacktest.series",
   "instantBacktest.universes",
+  "jevVerdict.get",
   "marketContext.get",
   "marketData.bars",
   "marketNews.watchlist",
