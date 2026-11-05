@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lt,
+  notExists,
+  sql,
+} from "drizzle-orm";
+import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 
 import {
   type BacktestRunSpec,
@@ -96,6 +107,9 @@ const summaryColumns = {
   startedAt: backtestRuns.startedAt,
   finishedAt: backtestRuns.finishedAt,
 };
+
+/** Other runs of the engine in the failIfUnclaimed subquery (an alias, not the updated row). */
+const activeRuns = alias(backtestRuns, "active");
 
 /** Trims an error message to the stored maximum. Never empty. */
 export const boundBacktestRunError = (error: string): string => {
@@ -245,8 +259,17 @@ export const createBacktestRunsRepository = (
           eq(backtestRuns.id, id),
           eq(backtestRuns.status, "queued"),
           lt(backtestRuns.createdAt, before),
-          // The subquery's own backtest_runs shadows the updated row in its where clause.
-          sql`not exists (select 1 from ${backtestRuns} where ${backtestRuns.engineVersion} = ${engineVersion} and ${backtestRuns.startedAt} >= ${before})`
+          notExists(
+            new QueryBuilder()
+              .select({ one: sql`1` })
+              .from(activeRuns)
+              .where(
+                and(
+                  eq(activeRuns.engineVersion, engineVersion),
+                  gte(activeRuns.startedAt, before)
+                )
+              )
+          )
         )
       )
       .returning({ id: backtestRuns.id });

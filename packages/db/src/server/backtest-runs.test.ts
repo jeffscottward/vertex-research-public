@@ -274,9 +274,9 @@ describe("createBacktestRunsRepository", () => {
     expect(where).toContain('"backtest_runs"."created_at"');
     expect(where).toContain('"backtest_runs"."status"');
     expect(where).toContain(
-      'not exists (select 1 from "backtest_runs" where "backtest_runs"."engine_version" = $'
+      'not exists (select 1 from "backtest_runs" "active" where ("active"."engine_version" = $'
     );
-    expect(where).toContain('"backtest_runs"."started_at" >= $');
+    expect(where).toContain('"active"."started_at" >= $');
   });
 
   it("is part of createRepositories", () => {
