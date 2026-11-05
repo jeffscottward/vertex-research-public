@@ -41,6 +41,7 @@ export const createOperatorAuthForDatabase = (
     baseURL: OPERATOR_APP_ORIGIN,
     trustedOrigins: [OPERATOR_APP_ORIGIN],
     rateLimitEnabled: env.APP_ENV !== "test",
+    passwordBreachCheck: env.APP_ENV !== "test",
     scheduleBackgroundTask,
   });
 };

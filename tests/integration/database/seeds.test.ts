@@ -417,6 +417,7 @@ describe("DF-040 and DF-046 through DF-050 development seeds", {
       baseURL: BASE_URL,
       trustedOrigins: [BASE_URL],
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
       scheduleBackgroundTask: (task) => backgroundTasks.push(task),
     });
     for (const emailAddress of [
@@ -442,6 +443,7 @@ describe("DF-040 and DF-046 through DF-050 development seeds", {
       baseURL: BASE_URL,
       trustedOrigins: [BASE_URL],
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
       scheduleBackgroundTask: (task) => backgroundTasks.push(task),
     });
     const authContext = await auth.$context;

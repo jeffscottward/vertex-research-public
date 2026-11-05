@@ -2,7 +2,9 @@ import { rateLimit as rateLimitRows } from "@darkfactory/db/schema";
 import type { DatabaseExecutor } from "@darkfactory/db/server";
 import { eq, sql } from "drizzle-orm";
 
-const MAX_RATE_LIMIT_WINDOW_MILLISECONDS = 60_000;
+// Longest supported rule window (per-account and per-recipient abuse limits).
+// Cleanup keeps every row this long, so shorter windows stay exact.
+const MAX_RATE_LIMIT_WINDOW_MILLISECONDS = 60 * 60 * 1000;
 const CLEANUP_BATCH_SIZE = 100;
 
 export type AuthRateLimitValue = Readonly<{

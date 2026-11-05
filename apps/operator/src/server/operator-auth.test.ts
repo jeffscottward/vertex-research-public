@@ -131,6 +131,7 @@ describe("operator Better Auth policy", () => {
     return expect(mocks.createAuth).toHaveBeenCalledWith(
       expect.objectContaining({
         rateLimitEnabled: false,
+        passwordBreachCheck: false,
       })
     );
   });

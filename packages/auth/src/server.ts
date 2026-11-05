@@ -24,6 +24,7 @@ import type { EmailPort } from "@darkfactory/email";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { hashPassword, verifyPassword } from "better-auth/crypto";
+import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { eq } from "drizzle-orm";
 
 import { createAtomicAuthRateLimitStorage } from "./rate-limit-storage.ts";
@@ -54,6 +55,13 @@ const MIN_VERIFICATION_EMAIL_EXPIRES_IN_SECONDS = 60;
 const MAX_VERIFICATION_EMAIL_EXPIRES_IN_SECONDS = 24 * 60 * 60;
 const DEFAULT_VERIFICATION_RATE_LIMIT_MAX = 5;
 const DEFAULT_SIGN_IN_RATE_LIMIT_MAX = 10;
+// Per-client sign-up limit: each accepted sign-up sends one verification email.
+const SIGN_UP_RATE_LIMIT = { window: 60 * 60, max: 5 } as const;
+// Per-account sign-in limit: a per-IP limit alone does not stop credential
+// stuffing that rotates client addresses against one account.
+const ACCOUNT_SIGN_IN_RATE_LIMIT = { window: 15 * 60, max: 10 } as const;
+// Per-recipient limit shared by verification and reset mail (email pumping).
+const RECIPIENT_EMAIL_RATE_LIMIT = { window: 60 * 60, max: 5 } as const;
 const SAFE_RESET_RESPONSE = {
   status: true,
   message:
@@ -79,6 +87,13 @@ const emailVerificationDeliveryError = (): APIError => {
   });
 };
 
+const passwordResetDeliveryError = (): APIError => {
+  return new APIError("SERVICE_UNAVAILABLE", {
+    code: PASSWORD_RESET_DELIVERY_ERROR_CODE,
+    message: "Password reset delivery is unavailable",
+  });
+};
+
 export type AuthFactoryOptions = Readonly<{
   database: Database;
   secret: string;
@@ -92,6 +107,12 @@ export type AuthFactoryOptions = Readonly<{
   verificationRateLimitMax?: number;
   signInRateLimitMax?: number;
   rateLimitEnabled?: boolean;
+  /**
+   * Rejects new passwords found in the Have I Been Pwned corpus (k-anonymity:
+   * only a 5-character SHA-1 prefix leaves the server). Defaults to true.
+   * Disable only for offline test runtimes.
+   */
+  passwordBreachCheck?: boolean;
   generateId?: (options: {
     model: string;
     size?: number | undefined;
@@ -160,6 +181,17 @@ const trustedOrigins = (
   configured?: readonly string[]
 ): string[] => {
   return [...new Set([baseURL, ...(configured ?? [])])];
+};
+
+// Rate-limit keys hold a digest, never the address itself.
+const emailDigest = async (email: string): Promise<string> => {
+  const digest = await globalThis.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(email)
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 };
 
 const NORMALIZED_EMAIL_PATHS = new Set([
@@ -292,6 +324,28 @@ export const createAuth = (options: AuthFactoryOptions) => {
   const verificationResendRateLimitMax = verificationRateLimitMax(options);
   const emailSignInRateLimitMax = signInRateLimitMax(options);
   const rateLimitStorage = createAtomicAuthRateLimitStorage(options.database);
+  const rateLimitEnabled = options.rateLimitEnabled ?? true;
+  const recipientMayReceiveMail = async (email: string): Promise<boolean> => {
+    if (!rateLimitEnabled) return true;
+    const decision = await rateLimitStorage.consume(
+      `auth-email-recipient:${await emailDigest(email.trim().toLowerCase())}`,
+      RECIPIENT_EMAIL_RATE_LIMIT
+    );
+    return decision.allowed;
+  };
+  const enforceAccountSignInLimit = async (email: string): Promise<void> => {
+    if (!rateLimitEnabled) return;
+    const decision = await rateLimitStorage.consume(
+      `sign-in-email:${await emailDigest(email)}`,
+      ACCOUNT_SIGN_IN_RATE_LIMIT
+    );
+    if (decision.allowed) return;
+    throw new APIError(
+      "TOO_MANY_REQUESTS",
+      { message: "Too many requests. Please try again later." },
+      { "retry-after": String(decision.retryAfter ?? 1) }
+    );
+  };
 
   return betterAuth({
     baseURL,
@@ -317,7 +371,6 @@ export const createAuth = (options: AuthFactoryOptions) => {
         : {}),
     },
     hooks: {
-      // biome-ignore lint/suspicious/useAwait: async keeps the middleware promise contract so inactive-session errors reject instead of throwing.
       before: createAuthMiddleware(async (context) => {
         if (context.path !== "/sign-out") {
           const currentSession = readPlainDataProperty(
@@ -342,6 +395,9 @@ export const createAuth = (options: AuthFactoryOptions) => {
         const body = context.body as Record<string, unknown> | undefined;
         if (typeof body?.["email"] !== "string") return;
         const email = body["email"].trim().toLowerCase();
+        if (context.path === "/sign-in/email") {
+          await enforceAccountSignInLimit(email);
+        }
         if (email === body["email"]) return;
         return {
           context: {
@@ -363,7 +419,7 @@ export const createAuth = (options: AuthFactoryOptions) => {
       }),
     },
     rateLimit: {
-      enabled: options.rateLimitEnabled ?? true,
+      enabled: rateLimitEnabled,
       storage: "database",
       customStorage: rateLimitStorage,
       window: 60,
@@ -377,6 +433,7 @@ export const createAuth = (options: AuthFactoryOptions) => {
           window: 60,
           max: emailSignInRateLimitMax,
         },
+        "/sign-up/email": { ...SIGN_UP_RATE_LIMIT },
         "/send-verification-email": {
           window: 60,
           max: verificationResendRateLimitMax,
@@ -390,6 +447,9 @@ export const createAuth = (options: AuthFactoryOptions) => {
       autoSignInAfterVerification: false,
       sendVerificationEmail: async ({ user, url }) => {
         try {
+          // Over the cap: skip silently so the response does not change. A
+          // store failure maps to the delivery error the handler normalizes.
+          if (!(await recipientMayReceiveMail(user.email))) return;
           const result = await options.email.sendEmailVerification({
             to: user.email,
             recipientName: user.name,
@@ -412,6 +472,13 @@ export const createAuth = (options: AuthFactoryOptions) => {
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: resetPasswordTokenExpiresInSeconds,
       sendResetPassword: async ({ user, url }) => {
+        let allowed: boolean;
+        try {
+          allowed = await recipientMayReceiveMail(user.email);
+        } catch {
+          throw passwordResetDeliveryError();
+        }
+        if (!allowed) return;
         const result = await options.email.sendPasswordReset({
           to: user.email,
           recipientName: user.name,
@@ -419,10 +486,7 @@ export const createAuth = (options: AuthFactoryOptions) => {
           expiresInMinutes: resetPasswordTokenExpiresInSeconds / 60,
         });
         if (result.status === "failed") {
-          throw new APIError("SERVICE_UNAVAILABLE", {
-            code: PASSWORD_RESET_DELIVERY_ERROR_CODE,
-            message: "Password reset delivery is unavailable",
-          });
+          throw passwordResetDeliveryError();
         }
         return;
       },
@@ -472,7 +536,10 @@ export const createAuth = (options: AuthFactoryOptions) => {
         },
       },
     },
-    plugins: [createAgentApiKeyPlugin()],
+    plugins: [
+      createAgentApiKeyPlugin(),
+      haveIBeenPwned({ enabled: options.passwordBreachCheck ?? true }),
+    ],
   });
 };
 
@@ -1081,6 +1148,13 @@ const isResetRequest = (request: Request): boolean => {
   );
 };
 
+const isVerificationResendRequest = (request: Request): boolean => {
+  return (
+    request.method === "POST" &&
+    new URL(request.url).pathname.endsWith("/api/auth/send-verification-email")
+  );
+};
+
 const isSignUpRequest = (request: Request): boolean => {
   return (
     request.method === "POST" &&
@@ -1230,6 +1304,21 @@ export const createAuthHandler = (
         status: 200,
         headers: { "cache-control": "no-store" },
       });
+    }
+    // Better Auth mails only existing unverified users; a delivery failure
+    // must not reveal that such an account exists.
+    if (
+      isVerificationResendRequest(request) &&
+      (response.ok ||
+        (await isDeliveryFailure(
+          response,
+          EMAIL_VERIFICATION_DELIVERY_ERROR_CODE
+        )))
+    ) {
+      response = Response.json(
+        { status: true },
+        { status: 200, headers: { "cache-control": "no-store" } }
+      );
     }
     return await sanitizeTokenResponse(response);
   };
