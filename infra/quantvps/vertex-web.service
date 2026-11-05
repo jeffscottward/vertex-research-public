@@ -1,5 +1,5 @@
 [Unit]
-Description=Vertex Research web app, production build (127.0.0.1:3450; tailnet https://quant-vps-host.example-tailnet.ts.net:3451 via vertex-web-tailnet)
+Description=Vertex Research web app, production build (127.0.0.1:3450; tailnet https://<VERTEX_TAILNET_HOST>:3451 via vertex-web-tailnet)
 Requires=docker.service
 After=docker.service
 StartLimitIntervalSec=0
