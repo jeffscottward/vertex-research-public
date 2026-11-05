@@ -129,7 +129,8 @@ class ProviderClient:
                                 maximum_nodes=self.config.maximum_nodes, maximum_depth=self.config.maximum_depth)
             if not isinstance(parsed, dict):
                 raise BoundaryError("unexpected-provider-shape")
-            for key in ("next", "next_page", "nextPage", "next_cursor", "nextCursor", "next_url", "nextUrl"):
+            # FinancialDatasets documents `next_page_url` for its paged endpoints.
+            for key in ("next", "next_page", "nextPage", "next_page_url", "nextPageUrl", "next_cursor", "nextCursor", "next_url", "nextUrl"):
                 if parsed.get(key):
                     return self.unavailable("unsupported-pagination", "Response needs an unverified continuation; nothing is silently truncated.")
             pagination = parsed.get("pagination")
