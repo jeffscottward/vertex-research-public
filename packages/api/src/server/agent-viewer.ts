@@ -21,6 +21,19 @@ const READ_POST_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.search",
 ]);
 
+// Assistant procedures a viewer may call (owner decision 2026-11-05, card vertex-chat-entry-e2e):
+// the viewer may start its own threads and chat in Plan mode only. assistant.send refuses Act mode
+// for a viewer itself (this interceptor cannot see the input). Tool calls run as new requests with
+// the viewer's cookie, so this interceptor still refuses every write tool. Confirm cards cannot run
+// because assistant.actions.decide stays refused.
+const VIEWER_ASSISTANT_PROCEDURES: ReadonlySet<string> = new Set([
+  "assistant.threads.create",
+  "assistant.send",
+]);
+
+export const AGENT_VIEWER_PLAN_ONLY_MESSAGE =
+  "Agent viewer may chat in Plan mode only";
+
 const collectGetProcedures = (): ReadonlySet<string> => {
   const found = new Set<string>();
   // Every node of the contract tree is an object: a router or a procedure ("~orpc").
@@ -71,7 +84,11 @@ export const agentViewerReadOnlyInterceptor = async (
   options: InterceptorOptions
 ): Promise<unknown> => {
   const viewers = options.context.agentViewerEmails ?? [];
-  if (viewers.length === 0 || isAgentViewerReadProcedure(options.path))
+  if (
+    viewers.length === 0 ||
+    isAgentViewerReadProcedure(options.path) ||
+    VIEWER_ASSISTANT_PROCEDURES.has(options.path.join("."))
+  )
     return await options.next();
   // Checked also when an x-api-key header is present (a viewer cookie plus a made-up key). An
   // auth refusal (no session, suspended, ...) continues to the procedure's own auth, which refuses
