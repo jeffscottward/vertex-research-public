@@ -122,6 +122,18 @@ export const runCommand: RunCommand = (command, args, options) => {
   return promise;
 };
 
+/** A signal that aborts on SIGTERM or SIGINT of `target` (the process), so the worker stops cleanly. */
+export const stopSignal = (
+  target: Readonly<{
+    on: (name: "SIGTERM" | "SIGINT", listener: () => void) => unknown;
+  }>
+): AbortSignal => {
+  const controller = new AbortController();
+  for (const name of ["SIGTERM", "SIGINT"] as const)
+    target.on(name, () => controller.abort());
+  return controller.signal;
+};
+
 /** Waits `ms`, or less when the signal aborts. */
 export const sleep = (ms: number, signal: AbortSignal): Promise<void> => {
   const { promise, resolve } = Promise.withResolvers<void>();

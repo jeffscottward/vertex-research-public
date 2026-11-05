@@ -6,18 +6,15 @@ import {
   runCommand,
   runNautilusWorker,
   sleep,
+  stopSignal,
 } from "./backtest-worker/nautilus-worker.ts";
-
-const controller = new AbortController();
-for (const name of ["SIGTERM", "SIGINT"] as const)
-  process.on(name, () => controller.abort());
 
 process.exitCode = await runNautilusWorker(process.argv.slice(2), {
   env: process.env,
   post: (url, init) => globalThis.fetch(url, init),
   researchDir: fileURLToPath(new URL("../services/research/", import.meta.url)),
   runCommand,
-  signal: controller.signal,
+  signal: stopSignal(process),
   sleep,
   stderr: process.stderr,
   stdout: process.stdout,

@@ -14,6 +14,7 @@ import {
   runCommand,
   runNautilusWorker,
   sleep,
+  stopSignal,
   UNDELIVERED_ERROR,
 } from "./nautilus-worker.ts";
 
@@ -499,6 +500,21 @@ describe("runCommand", () => {
     );
     expect(missing.code).toBeNull();
     expect(missing.stderr).toContain("ENOENT");
+  });
+});
+
+describe("stopSignal", () => {
+  it("aborts on SIGTERM and on SIGINT", () => {
+    for (const name of ["SIGTERM", "SIGINT"] as const) {
+      const listeners = new Map<string, () => void>();
+      const signal = stopSignal({
+        on: (event, listener) => listeners.set(event, listener),
+      });
+      expect([...listeners.keys()]).toEqual(["SIGTERM", "SIGINT"]);
+      expect(signal.aborted).toBe(false);
+      listeners.get(name)?.();
+      expect(signal.aborted).toBe(true);
+    }
   });
 });
 
