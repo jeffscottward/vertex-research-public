@@ -1,8 +1,10 @@
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
+import { captureMockEvidence } from "./helpers/evidence.ts";
 
 // Owner order screen (Portfolio > Orders). The E2E server leaves VERTEX_ORDERS_ENABLED unset, so
 // every call uses the simulated mock gateway and nothing can reach IBKR. Mock data only. The mock
-// account lives in the server process, so each viewport run uses its own symbol.
+// account lives in the server process, so each viewport run uses its own symbol. Screenshots are
+// dark, from the top of the page and carry a MOCK DATA banner (owner 2026-11-05).
 
 for (const viewport of [
   { name: "mobile", symbol: "MOCKM", width: 390, height: 844 },
@@ -59,10 +61,10 @@ for (const viewport of [
     await expect(gate).toContainText("Deny");
     await expect(gate).toContainText("Long option");
     await expect(gate).toContainText("JEV verdict is none");
-    await page.screenshot({
-      path: testInfo.outputPath(`orders-review-${viewport.name}.png`),
-      fullPage: true,
-    });
+    await captureMockEvidence(
+      page,
+      testInfo.outputPath(`mock-orders-review-${viewport.name}.png`)
+    );
     await expect(page.getByRole("button", { name: /Send order/ })).toHaveCount(
       0
     );
@@ -80,10 +82,10 @@ for (const viewport of [
     await expect(vertical).toContainText("Debit vertical");
     await expect(vertical).toContainText("$400");
     await expect(vertical).toContainText("Deny");
-    await page.screenshot({
-      path: testInfo.outputPath(`orders-vertical-${viewport.name}.png`),
-      fullPage: true,
-    });
+    await captureMockEvidence(
+      page,
+      testInfo.outputPath(`mock-orders-vertical-${viewport.name}.png`)
+    );
     await expect(
       page.getByRole("button", { name: /Send vertical/ })
     ).toHaveCount(0);
@@ -107,10 +109,10 @@ for (const viewport of [
     await page.getByRole("button", { name: "Cancel…" }).first().click();
     const cancel = page.getByRole("region", { name: "Cancel review" });
     await expect(cancel).toContainText("BUY");
-    await page.screenshot({
-      path: testInfo.outputPath(`orders-cancel-${viewport.name}.png`),
-      fullPage: true,
-    });
+    await captureMockEvidence(
+      page,
+      testInfo.outputPath(`mock-orders-cancel-${viewport.name}.png`)
+    );
     await page.getByRole("button", { name: "Send cancel (simulated)" }).click();
     await expect(page.getByRole("alert")).toContainText(
       "Cancel cancelled (simulated)"

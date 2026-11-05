@@ -300,6 +300,9 @@
     max-width: var(--content-reading);
   }
 
+  /* Hidden (clipped, still in the accessibility tree) until keyboard focus. Clipping
+     instead of moving it off screen keeps it out of full-page screenshots too
+     (owner 2026-11-05, card vertex-portfolio-layout-bugs). */
   .skip-link {
     position: fixed;
     top: calc(var(--spacing) * 2);
@@ -307,17 +310,26 @@
     z-index: 100;
     min-height: 2.75rem;
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-    transform: translateY(calc(-100% - var(--spacing) * 4));
+    clip-path: inset(50%);
+    opacity: 0;
+    pointer-events: none;
     border-radius: var(--radius-md);
     background: var(--primary);
     color: var(--primary-foreground);
     font-weight: 500;
     font-size: var(--text-sm);
-    transition: transform var(--duration-base) var(--ease-out);
   }
 
   .skip-link:focus-visible {
-    transform: translateY(0);
+    clip-path: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* A page with a sticky tab bar: focus moves and anchor jumps stop below the bar, so
+     the bar never covers a heading or field (min-h-11 bar plus its border, with room). */
+  html:has([data-slot="sticky-tabs-list"]) {
+    scroll-padding-top: 3.5rem;
   }
 
   @media (min-width: 48rem) {
