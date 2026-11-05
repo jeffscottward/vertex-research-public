@@ -30,6 +30,14 @@
 # nautilus-trader it runs that file's error-path tests (missing engine, wrong
 # version, CLI exit 2) and skips its parity tests.
 #
+# Fourth run: the suites in services/research/tests/ci-suites-gsquant.txt run
+# in a separate virtual environment from
+# services/research/requirements-gsquant-linux-py312.lock (base pins plus
+# gs-quant 2.2.4, pandas 3.1.1, scipy and statsmodels) with
+# VERTEX_REQUIRE_GSQUANT=1, so a missing gs-quant fails instead of skipping. The
+# base run also lists tests/test_gs_quant.py and skips it there. The tests block
+# network sockets and use no GsSession: no Goldman Sachs Marquee access.
+#
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
 #
@@ -116,3 +124,5 @@ run_suites tests/ci-suites-numeric.txt "${research}/requirements-numeric-linux-p
   VERTEX_REQUIRE_NUMERIC=1
 run_suites tests/ci-suites-nautilus.txt "${research}/requirements-nautilus-linux-py312.lock" \
   VERTEX_REQUIRE_NAUTILUS=1
+run_suites tests/ci-suites-gsquant.txt "${research}/requirements-gsquant-linux-py312.lock" \
+  VERTEX_REQUIRE_GSQUANT=1
