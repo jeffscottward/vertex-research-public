@@ -19,10 +19,13 @@ import {
   averageTrueRange,
   compileStrategy,
   exponentialMean,
+  REALIZED_VOL_PERIODS_PER_YEAR,
+  realizedVolatility,
   relativeStrength,
   relativeVolumeAtTime,
   runStrategyDefinition,
   SectorQuadrantDataError,
+  rollingZScore,
   type SectorQuadrantPoint,
 } from "./strategy-dsl-compile.ts";
 
@@ -532,6 +535,61 @@ const reference = JSON.parse(
   expected: Readonly<{ adx_14: Readonly<{ adx: ReferenceLine }> }>;
 };
 
+const gsQuantReference = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../services/research/tests/fixtures/gs-quant-reference.json",
+      import.meta.url
+    ),
+    "utf8"
+  )
+) as { expected: Readonly<Record<string, ReferenceLine>> };
+
+describe("zscore and realizedVol (gs-quant conventions)", () => {
+  it("match gs-quant 2.2.4 zscores and volatility on every defined bar", () => {
+    const close = Float64Array.from(reference.bars.close);
+    for (const length of [5, 20]) {
+      const cases = [
+        [rollingZScore(close, length), `zscore_${length}`],
+        [realizedVolatility(close, length), `realized_vol_${length}`],
+      ] as const;
+      for (const [actual, key] of cases) {
+        const expected = gsQuantReference.expected[key] ?? [];
+        expect(
+          expected.filter((value) => value !== null).length
+        ).toBeGreaterThan(0);
+        for (const [index, value] of expected.entries()) {
+          if (value === null)
+            expect(actual[index], `${key} ${index}`).toBeNaN();
+          else expect(actual[index], `${key} ${index}`).toBeCloseTo(value, 9);
+        }
+      }
+    }
+  });
+
+  it("match hand cases, flat windows and non-positive prices", () => {
+    // Windows [1, 2, 4] and [2, 4, 8]: (x - mean) / sample deviation.
+    const z = rollingZScore(Float64Array.of(1, 2, 4, 8), 3);
+    expect(nanToNull(z.slice(0, 2))).toEqual([null, null]);
+    expect(z[2]).toBeCloseTo(5 / Math.sqrt(21), 12);
+    expect(z[3]).toBeCloseTo(10 / Math.sqrt(84), 12);
+    const flat = rollingZScore(Float64Array.of(5, 5, 5, 6), 2);
+    expect(nanToNull(flat.slice(0, 3))).toEqual([null, null, null]);
+    expect(flat[3]).toBeCloseTo(Math.SQRT1_2, 12);
+    const vol = realizedVolatility(Float64Array.of(100, 110, 99, 99), 2);
+    const scale = 100 * Math.sqrt(REALIZED_VOL_PERIODS_PER_YEAR);
+    expect(nanToNull(vol.slice(0, 2))).toEqual([null, null]);
+    expect(vol[2]).toBeCloseTo(scale * Math.sqrt(0.02), 9);
+    expect(vol[3]).toBeCloseTo(scale * Math.sqrt(0.005), 9);
+    expect(
+      nanToNull(realizedVolatility(Float64Array.of(7, 7, 7, 7), 2))
+    ).toEqual([null, null, 0, 0]);
+    expect(
+      nanToNull(realizedVolatility(Float64Array.of(1, 2, 0, 2, 4, 8), 2))
+    ).toEqual([null, null, null, null, null, 0]);
+  });
+});
+
 describe("adx", () => {
   it("matches the TA-Lib ADX 14 reference on every defined bar", () => {
     const { high, low, close } = reference.bars;
@@ -769,6 +827,26 @@ describe("offset and new indicators in definitions", () => {
       )
     );
     expect(falling.some((value) => value === 1)).toBe(true);
+  });
+
+  it("expresses a z-score stretch and a volatility ceiling", () => {
+    const bars = wave(200);
+    const z = { length: 20, name: "zscore", type: "indicator" } as const;
+    const vol = { length: 10, name: "realizedVol", type: "indicator" } as const;
+    const zSeries = rollingZScore(bars.c, 20);
+    const volSeries = realizedVolatility(bars.c, 10);
+    const entry = signals(bars, {
+      all: [
+        { left: z, op: "<", right: { type: "const", value: -1 } },
+        { left: vol, op: "<", right: { type: "const", value: 50 } },
+      ],
+    });
+    expect(entry).toEqual(
+      Array.from(zSeries, (value, index) =>
+        value < -1 && (volSeries[index] as number) < 50 ? 1 : 0
+      )
+    );
+    expect(entry.some((value) => value === 1)).toBe(true);
   });
 
   it("runs rvol from bar volume and rejects bars without volume", () => {

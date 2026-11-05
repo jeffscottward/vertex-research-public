@@ -198,6 +198,29 @@ describe("offset and new indicators", () => {
     });
   });
 
+  it("needs at least 2 bars for zscore and realizedVol", () => {
+    for (const name of ["zscore", "realizedVol"] as const) {
+      expect(
+        validateStrategyDefinition(
+          withLeft({ length: 2, name, source: "high", type: "indicator" })
+        ).ok
+      ).toBe(true);
+      expect(
+        validateStrategyDefinition(
+          withLeft({ length: 1, name, type: "indicator" })
+        )
+      ).toEqual({
+        issues: [
+          {
+            message: "zscore and realizedVol length must be at least 2",
+            path: "entry.all.0.left.length",
+          },
+        ],
+        ok: false,
+      });
+    }
+  });
+
   it("adds no offset key to existing templates, so revisions stay the same", () => {
     for (const template of Object.values(STRATEGY_TEMPLATES)) {
       const parsed = StrategyDefinitionSchema.parse(template);
