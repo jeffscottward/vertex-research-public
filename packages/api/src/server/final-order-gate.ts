@@ -14,7 +14,7 @@ import { daysToExpiry } from "./vertex-orders-rules.ts";
 // This module places no orders and reads no environment.
 
 const MULTIPLIER = 100;
-export const FINAL_GATE_MAX_LOSS_PCT = 2;
+const FINAL_GATE_MAX_LOSS_PCT = 2;
 
 export type FinalGateLeg = Readonly<{
   secType: string;
