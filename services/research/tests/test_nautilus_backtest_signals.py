@@ -1,6 +1,6 @@
 """Python signals and costs match the TypeScript engine (golden fixtures).
 
-The fixture comes from `bun scripts/research/nautilus-golden.ts`. Floats must agree within a
+The fixture comes from `bun scripts/research-nautilus-golden.ts`. Floats must agree within a
 relative and absolute tolerance of 1e-12 (NaN equals NaN); signals and masks must be equal.
 This suite does not import nautilus_trader.
 """

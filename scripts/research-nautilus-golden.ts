@@ -1,6 +1,6 @@
 // Golden fixtures for the Python port of the instant backtest signals and costs.
 // Run from the repo root:
-//   bun scripts/research/nautilus-golden.ts
+//   bun run research:nautilus-golden
 // It writes services/research/tests/fixtures/nautilus_backtest/golden.json. The TypeScript code is
 // the reference; the Python tests (test_nautilus_backtest_signals.py) compare against this file.
 // Output is deterministic: no clock, no random source (a fixed LCG makes the synthetic bars).
@@ -18,7 +18,7 @@ import {
   type CostProfile,
   fillCosts,
   orderCharges,
-} from "../../packages/api/src/backtest-costs.ts";
+} from "../packages/api/src/backtest-costs.ts";
 import {
   type BarColumns,
   type InstantRule,
@@ -27,7 +27,7 @@ import {
   rollingMean,
   runInstantBacktest,
   wilderRsi,
-} from "../../packages/api/src/instant-backtest-engine.ts";
+} from "../packages/api/src/instant-backtest-engine.ts";
 import {
   averageDirectionalIndex,
   averageTrueRange,
@@ -39,13 +39,13 @@ import {
   rollingZScore,
   runStrategyDefinition,
   type SectorQuadrantSeries,
-} from "../../packages/api/src/strategy-dsl-compile.ts";
+} from "../packages/api/src/strategy-dsl-compile.ts";
 import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
-} from "../../packages/api/src/strategy-dsl.ts";
+} from "../packages/api/src/strategy-dsl.ts";
 
-const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OUT = join(
   ROOT,
   "services/research/tests/fixtures/nautilus_backtest/golden.json"

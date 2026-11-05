@@ -9,7 +9,7 @@ Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, an
 | Engine | `services/research/nautilus_backtest/` (Python), `nautilus-trader==1.227.0` from `services/research/requirements-nautilus-linux-py312.lock`. The same pin as Quant Lab (`quantlab/nautilus_engine.py`). |
 | Signals | `nautilus_backtest/signals.py`: Python port of the strategy DSL compiler (`packages/api/src/strategy-dsl-compile.ts`) and the fixed rules (SMA cross, breakout, RSI reversion). Bit-for-bit equal to TypeScript on the golden fixture. |
 | Costs | `nautilus_backtest/costs.py`: port of `packages/api/src/backtest-costs.ts` (presets, commission, fees, spread, slippage, sizing). |
-| Parity suite | `scripts/research/nautilus-parity.ts`. Latest report: [`research/backtests/nautilus-parity/README.md`](../../research/backtests/nautilus-parity/README.md). |
+| Parity suite | CLI `scripts/research-nautilus-parity.ts`, logic and tests in `scripts/research/nautilus-parity.ts` and `nautilus-parity.test.ts`. Latest report: [`research/backtests/nautilus-parity/README.md`](../../research/backtests/nautilus-parity/README.md). |
 | CI | `services/research/tests/test_nautilus_backtest_signals.py` (base lane) and `test_nautilus_backtest_engine.py` (Nautilus lane, `VERTEX_REQUIRE_NAUTILUS=1`). |
 | Features on Nautilus | None yet. Each feature switches only after its parity passes; see [Switch plan](#switch-plan). |
 
@@ -25,7 +25,7 @@ bun run research:nautilus-parity -- --data ~/Documents/reports/vertex-core7/data
   --python <venv>/bin/python --out research/backtests/nautilus-parity
 
 # Golden fixture (TypeScript is the reference for the Python port).
-bun run research:nautilus-golden
+bun run research:nautilus-golden  # scripts/research-nautilus-golden.ts
 ```
 
 The `spec` has the fields of a backtest run spec: `rule` (`smaCross`, `breakout`, `rsiReversion` or `{"kind": "dsl", "definition": ...}`), `stopLossPct`, `takeProfitPct`, `costBps`, `costs` (`{"profile": <CostProfile>, "capital": n}` or null), optional `sectorQuadrants` and `initialCapital`. The result has the shape of the TypeScript `InstantRunResult`: `equity` (unit equity per bar), `trades` and `stats`. So `buildBacktestRunReport` and the analytics (deflated Sharpe, Monte Carlo, walk-forward, gs-quant analytics) read Nautilus results without a change.

@@ -1,5 +1,6 @@
 // Parity suite: the TypeScript backtest engine against the NautilusTrader engine (research only).
-// Nothing here creates, routes or simulates broker orders.
+// Nothing here creates, routes or simulates broker orders. This file holds the logic; the CLI
+// (scripts/research-nautilus-parity.ts) passes in file access and the Python process.
 //
 //   bun run research:nautilus-parity -- --data ~/Documents/reports/vertex-core7/data \
 //     --python /tmp/nbt-venv/bin/python --out research/backtests/nautilus-parity
@@ -16,9 +17,6 @@
 // (python -m nautilus_backtest batch, services/research/nautilus_backtest). The script compares
 // trades, fills, P&L, Sharpe and max drawdown against the tolerances in TOLERANCES, explains
 // each mismatch it can classify, and writes report.json and README.md to --out.
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { COST_PROFILE_PRESETS } from "../../packages/api/src/backtest-costs.ts";
@@ -36,7 +34,7 @@ import {
 import { runStrategyDefinition } from "../../packages/api/src/strategy-dsl-compile.ts";
 import { BACKTEST_UNIVERSES } from "../../packages/shared/src/universes/index.ts";
 
-const PERIODS = [
+export const PERIODS = [
   { from: "2018-01-01", id: "P1", to: "2021-12-31" },
   { from: "2022-01-01", id: "P2", to: "2026-10-31" },
 ] as const;
@@ -45,7 +43,7 @@ const PROFILE_CAPITAL = 100_000;
 const DEFAULT_CAPITAL = 1_000_000;
 
 /** Pass limits per case. Prices and equity are relative; Sharpe and drawdown are absolute. */
-const TOLERANCES = {
+export const TOLERANCES = {
   equityRel: 1e-5,
   maxDrawdownAbs: 1e-5,
   priceRel: 1e-6,
@@ -53,7 +51,7 @@ const TOLERANCES = {
   totalReturnAbs: 1e-5,
 } as const;
 
-type Spec = Readonly<{
+export type Spec = Readonly<{
   rule:
     | Readonly<{ kind: "dsl"; definition: StrategyDefinition }>
     | InstantRunParams["rule"];
@@ -64,9 +62,9 @@ type Spec = Readonly<{
   initialCapital: number;
 }>;
 
-type Case = Readonly<{ id: string; strategy: string; spec: Spec }>;
+export type Case = Readonly<{ id: string; strategy: string; spec: Spec }>;
 
-type PyTrade = Readonly<{
+export type PyTrade = Readonly<{
   entryIndex: number;
   exitIndex: number;
   entryPrice: number;
@@ -74,24 +72,22 @@ type PyTrade = Readonly<{
   exitReason: string;
   pnl: number;
 }>;
-type PyResult = Readonly<{
+export type PyResult = Readonly<{
   equity: number[];
   trades: PyTrade[];
   stats: Record<string, number | null>;
 }>;
 
-const argValue = (args: readonly string[], name: string): string => {
+export const argValue = (args: readonly string[], name: string): string => {
   const index = args.indexOf(name);
   const value = index >= 0 ? args[index + 1] : undefined;
   if (value === undefined) throw new Error(`missing ${name}`);
   return value;
 };
 
-const readBars = (dir: string, symbol: string): BarColumns => {
-  const lines = readFileSync(join(dir, "import", `${symbol}-1d.csv`), "utf8")
-    .trim()
-    .split("\n")
-    .slice(1);
+/** Parses a Vertex importer CSV (t,o,h,l,c,v with a header row). */
+export const parseBarsCsv = (text: string): BarColumns => {
+  const lines = text.trim().split("\n").slice(1);
   const rows = lines.map((line) => line.split(",").map(Number));
   const column = (index: number) =>
     Float64Array.from(rows, (row) => row[index] as number);
@@ -105,7 +101,11 @@ const readBars = (dir: string, symbol: string): BarColumns => {
   };
 };
 
-const slice = (bars: BarColumns, from: string, to: string): BarColumns => {
+export const slice = (
+  bars: BarColumns,
+  from: string,
+  to: string
+): BarColumns => {
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`) + 86_400_000;
   let first = 0;
@@ -123,13 +123,16 @@ const slice = (bars: BarColumns, from: string, to: string): BarColumns => {
   };
 };
 
-const libraryDefinitions = (): readonly Readonly<{
+/** Daily DSL definitions of library.json (`text`); hourly ones are skipped. */
+export const libraryDefinitions = (
+  text: string
+): readonly Readonly<{
   id: string;
   definition: StrategyDefinition;
 }>[] => {
-  const doc = JSON.parse(
-    readFileSync("research/backtests/quantjourney/library.json", "utf8")
-  ) as { strategies: { id: string; dsl: unknown; timeframe?: string }[] };
+  const doc = JSON.parse(text) as {
+    strategies: { id: string; dsl: unknown; timeframe?: string }[];
+  };
   return doc.strategies
     .filter((strategy) => strategy.dsl !== null && strategy.dsl !== undefined)
     .map((strategy) => ({
@@ -139,7 +142,8 @@ const libraryDefinitions = (): readonly Readonly<{
     .filter(({ definition }) => !/hourly/iu.test(definition.name));
 };
 
-const buildCases = (): readonly Case[] => {
+/** Every parity case; `libraryText` is research/backtests/quantjourney/library.json. */
+export const buildCases = (libraryText: string): readonly Case[] => {
   const base = {
     costBps: COST_BPS,
     costs: null,
@@ -148,7 +152,7 @@ const buildCases = (): readonly Case[] => {
     takeProfitPct: 0,
   };
   const dsl = [
-    ...libraryDefinitions(),
+    ...libraryDefinitions(libraryText),
     ...Object.entries(STRATEGY_TEMPLATES).map(([id, input]) => ({
       definition: StrategyDefinitionSchema.parse(input),
       id: `template-${id}`,
@@ -200,18 +204,23 @@ const buildCases = (): readonly Case[] => {
       strategy: `${rule.id}+ibkr-tiered`,
     });
   }
-  const atr = cases.find((entry) => entry.id === "template-atrExpansion");
-  if (atr !== undefined) {
-    cases.push({
-      id: "template-atrExpansion+ibkr-tiered",
-      spec: withProfile(atr.spec),
-      strategy: "template-atrExpansion+ibkr-tiered",
-    });
-  }
+  cases.push({
+    id: "template-atrExpansion+ibkr-tiered",
+    spec: withProfile({
+      ...base,
+      rule: {
+        definition: StrategyDefinitionSchema.parse(
+          STRATEGY_TEMPLATES.atrExpansion
+        ),
+        kind: "dsl",
+      },
+    }),
+    strategy: "template-atrExpansion+ibkr-tiered",
+  });
   return cases;
 };
 
-const runTs = (bars: BarColumns, spec: Spec): InstantRunResult => {
+export const runTs = (bars: BarColumns, spec: Spec): InstantRunResult => {
   const costs = spec.costs ?? undefined;
   if (spec.rule.kind === "dsl")
     return runStrategyDefinition(
@@ -229,10 +238,10 @@ const runTs = (bars: BarColumns, spec: Spec): InstantRunResult => {
   });
 };
 
-const relDiff = (a: number, b: number): number =>
+export const relDiff = (a: number, b: number): number =>
   a === b ? 0 : Math.abs(a - b) / Math.max(Math.abs(a), Math.abs(b), 1e-12);
 
-type Comparison = Readonly<{
+export type Comparison = Readonly<{
   pass: boolean;
   trades: Readonly<{ ts: number; nautilus: number; sequenceEqual: boolean }>;
   maxPriceRel: number;
@@ -248,16 +257,15 @@ type Comparison = Readonly<{
 }>;
 
 /** Classifies the first trade difference by looking at the bar where the engines part. */
-const explain = (
+export const explain = (
   bars: BarColumns,
   ts: InstantRunResult,
   py: PyResult
 ): string | null => {
   const count = Math.min(ts.trades.length, py.trades.length);
   for (let index = 0; index < count; index += 1) {
-    const left = ts.trades[index];
-    const right = py.trades[index];
-    if (left === undefined || right === undefined) break;
+    const left = ts.trades[index] as InstantRunResult["trades"][number];
+    const right = py.trades[index] as PyTrade;
     if (
       left.entryIndex === right.entryIndex &&
       left.exitIndex === right.exitIndex &&
@@ -279,7 +287,7 @@ const explain = (
     : `trade count ${ts.trades.length} vs ${py.trades.length}`;
 };
 
-const compare = (
+export const compare = (
   bars: BarColumns,
   ts: InstantRunResult,
   py: PyResult
@@ -357,7 +365,7 @@ const compare = (
   };
 };
 
-type Row = Readonly<{
+export type Row = Readonly<{
   bars: number;
   caseId: string;
   from: string;
@@ -371,7 +379,7 @@ type Row = Readonly<{
   pass: boolean;
 }>;
 
-type Batch = Readonly<{
+export type Batch = Readonly<{
   engine: string;
   results: readonly Readonly<{
     id: string;
@@ -380,40 +388,63 @@ type Batch = Readonly<{
   }>[];
 }>;
 
+/** Input file of one Nautilus batch: the bars and every case spec. */
+export const batchInput = (bars: BarColumns, cases: readonly Case[]): string =>
+  JSON.stringify({
+    bars: {
+      c: Array.from(bars.c),
+      h: Array.from(bars.h),
+      l: Array.from(bars.l),
+      o: Array.from(bars.o),
+      t: Array.from(bars.t),
+      ...(bars.v === undefined ? {} : { v: Array.from(bars.v) }),
+    },
+    cases: cases.map((entry) => ({ id: entry.id, spec: entry.spec })),
+  });
+
+/** File access, the Python process and the clock, passed in by the CLI (and by tests). */
+export type ParityIo = Readonly<{
+  /** Repo root: library.json and services/research are read from here. */
+  root: string;
+  readText: (path: string) => string;
+  writeText: (path: string, text: string) => void;
+  makeDir: (path: string) => void;
+  /** A new empty folder for the batch files. */
+  tempDir: () => string;
+  /** Runs `python args` in `cwd`; a status other than 0 is a failure. */
+  spawn: (
+    python: string,
+    args: readonly string[],
+    cwd: string
+  ) => Readonly<{ status: number | null; stderr: string }>;
+  now: () => Date;
+  /** Milliseconds, for the per-batch timing line. */
+  clock: () => number;
+  stdout: Readonly<{ write: (text: string) => unknown }>;
+}>;
+
 /** Runs every case on one bar series in one Python process. */
 const runNautilusBatch = (
+  io: ParityIo,
   python: string,
   input: string,
   bars: BarColumns,
   cases: readonly Case[]
 ): Batch => {
   const output = `${input}.out`;
-  writeFileSync(
-    input,
-    JSON.stringify({
-      bars: {
-        c: Array.from(bars.c),
-        h: Array.from(bars.h),
-        l: Array.from(bars.l),
-        o: Array.from(bars.o),
-        t: Array.from(bars.t),
-        ...(bars.v === undefined ? {} : { v: Array.from(bars.v) }),
-      },
-      cases: cases.map((entry) => ({ id: entry.id, spec: entry.spec })),
-    })
-  );
-  const run = spawnSync(
+  io.writeText(input, batchInput(bars, cases));
+  const run = io.spawn(
     python,
     ["-m", "nautilus_backtest", "batch", input, output],
-    { cwd: "services/research", encoding: "utf8" }
+    join(io.root, "services/research")
   );
   if (run.status !== 0)
     throw new Error(`nautilus batch failed for ${input}: ${run.stderr}`);
-  return JSON.parse(readFileSync(output, "utf8")) as Batch;
+  return JSON.parse(io.readText(output)) as Batch;
 };
 
 /** Both engines must agree, also on input errors (the same message). */
-const compareCase = (
+export const compareCase = (
   bars: BarColumns,
   entry: Case,
   py: Batch["results"][number] | undefined
@@ -436,7 +467,7 @@ const compareCase = (
   return { comparison, pass: comparison.pass };
 };
 
-const summarizeStrategies = (
+export const summarizeStrategies = (
   rows: readonly Row[]
 ): Record<string, StrategySummary> => {
   const byStrategy: Record<string, StrategySummary> = {};
@@ -470,12 +501,18 @@ const summarizeStrategies = (
   return byStrategy;
 };
 
-const main = (args: readonly string[]): void => {
+/** Runs the suite and writes report.json and README.md to --out. */
+export const runNautilusParity = (
+  args: readonly string[],
+  io: ParityIo
+): void => {
   const data = resolve(argValue(args, "--data"));
   const python = argValue(args, "--python");
   const out = resolve(argValue(args, "--out"));
-  const cases = buildCases();
-  const work = mkdtempSync(join(tmpdir(), "nautilus-parity-"));
+  const cases = buildCases(
+    io.readText(join(io.root, "research/backtests/quantjourney/library.json"))
+  );
+  const work = io.tempDir();
   const rows: Row[] = [];
   let engine = "";
   const members = BACKTEST_UNIVERSES.flatMap((universe) =>
@@ -485,11 +522,14 @@ const main = (args: readonly string[]): void => {
     }))
   );
   for (const { symbol, universe } of members) {
-    const all = readBars(data, symbol);
+    const all = parseBarsCsv(
+      io.readText(join(data, "import", `${symbol}-1d.csv`))
+    );
     for (const period of PERIODS) {
       const bars = slice(all, period.from, period.to);
-      const started = performance.now();
+      const started = io.clock();
       const batch = runNautilusBatch(
+        io,
         python,
         join(work, `${symbol}-${period.id}.json`),
         bars,
@@ -510,13 +550,13 @@ const main = (args: readonly string[]): void => {
           ...compareCase(bars, entry, py),
         });
       }
-      const seconds = (performance.now() - started) / 1000;
-      process.stdout.write(
+      const seconds = (io.clock() - started) / 1000;
+      io.stdout.write(
         `${symbol} ${period.id}: ${cases.length} cases in ${seconds.toFixed(1)} s\n`
       );
     }
   }
-  mkdirSync(out, { recursive: true });
+  io.makeDir(out);
   const report = {
     costBps: COST_BPS,
     data: "Yahoo Finance daily bars via research/backtests/core7/fetch_data.py (import CSVs, split-adjusted OHLC)",
@@ -524,7 +564,7 @@ const main = (args: readonly string[]): void => {
       nautilus: engine,
       ts: "packages/api/src/instant-backtest-engine.ts (instant-2)",
     },
-    generated: new Date().toISOString(),
+    generated: io.now().toISOString(),
     passed: rows.filter((row) => row.pass).length,
     periods: PERIODS,
     researchOnly: true,
@@ -533,17 +573,17 @@ const main = (args: readonly string[]): void => {
     tolerances: TOLERANCES,
     total: rows.length,
   };
-  writeFileSync(
+  io.writeText(
     join(out, "report.json"),
     `${JSON.stringify(report, null, 1)}\n`
   );
-  writeFileSync(join(out, "README.md"), renderMarkdown(report));
-  process.stdout.write(
+  io.writeText(join(out, "README.md"), renderMarkdown(report));
+  io.stdout.write(
     `parity: ${report.passed}/${report.total} cases pass; report ${join(out, "report.json")}\n`
   );
 };
 
-interface StrategySummary {
+export interface StrategySummary {
   cases: number;
   passed: number;
   trades: number;
@@ -553,7 +593,7 @@ interface StrategySummary {
   maxSharpeAbs: number;
 }
 
-const renderMarkdown = (
+export const renderMarkdown = (
   report: Readonly<{
     engines: Readonly<{ nautilus: string; ts: string }>;
     generated: string;
@@ -604,5 +644,3 @@ const renderMarkdown = (
   );
   return lines.join("\n");
 };
-
-if (import.meta.main) main(process.argv.slice(2));

@@ -1,6 +1,6 @@
 """NautilusTrader backtest engine: parity with the TypeScript engine on the golden cases.
 
-golden.json is written by scripts/research/nautilus-golden.ts from the TS engine
+golden.json is written by scripts/research-nautilus-golden.ts from the TS engine
 (packages/api/src/instant-backtest-engine.ts and strategy-dsl-compile.ts). Every
 engine case must give the same trades (entry bar, exit bar, exit reason) and the
 same fill prices, and unit equity within EQUITY_REL_TOL. The parity tests need
