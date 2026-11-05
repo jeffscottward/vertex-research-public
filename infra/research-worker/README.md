@@ -31,4 +31,8 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
 | `VERTEX_WORKER_IDLE_MS` | Wait between claims when no run is queued. Default 3000. |
 
-One run may take at most 9 minutes; the worker then kills the engine and fails the run. The API fails a run that no worker claimed within 10 minutes ("Nautilus backtest worker did not pick up the run").
+One run may take at most 9 minutes; the worker then kills the engine and fails the run. The API fails a queued run after 10 minutes only when no worker claimed any Nautilus run in that time ("Nautilus backtest worker did not pick up the run"); a busy worker never fails its backlog.
+
+A claim moves the run to `running` before the response reaches the worker. When that response is lost (network drop, worker restart during the request), no worker knows the run: it stays `running` until the API's stale check fails it 10 minutes after the claim ("Backtest stopped before it finished", on the next read of the run). Submit it again after that.
+
+When `complete` fails with a network error or a 5xx answer, the worker tries again 3 times (waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result".

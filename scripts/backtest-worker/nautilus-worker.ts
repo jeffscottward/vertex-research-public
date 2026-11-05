@@ -24,6 +24,11 @@ import {
 /** Engine run limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
 export const NAUTILUS_RUN_TIMEOUT_MS = 9 * 60 * 1000;
 export const DEFAULT_IDLE_MS = 3000;
+/** complete tries after a network error or a 5xx answer, with doubling waits from the first. */
+export const COMPLETE_ATTEMPTS = 4;
+export const COMPLETE_RETRY_MS = 1000;
+export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
+export const REJECTED_ERROR = "The API rejected the Nautilus result";
 /** Engine stderr kept for the worker log. */
 const STDERR_LOG_MAX = 2000;
 
@@ -155,7 +160,16 @@ const readConfig = (env: NautilusWorkerIo["env"]): Config => {
   };
 };
 
-/** Calls one oRPC procedure with the write key. Errors carry the status and a short body only. */
+/** An HTTP error answer of the API: its status and a short body only. */
+class ApiError extends Error {
+  readonly status: number;
+  constructor(path: string, status: number, body: string) {
+    super(`${path} returned HTTP ${status}: ${body.slice(0, 300)}`);
+    this.status = status;
+  }
+}
+
+/** Calls one oRPC procedure with the write key. */
 const call = async (
   config: Config,
   io: NautilusWorkerIo,
@@ -172,10 +186,7 @@ const call = async (
     method: "POST",
   });
   const text = await response.text();
-  if (!response.ok)
-    throw new Error(
-      `${path} returned HTTP ${response.status}: ${text.slice(0, 300)}`
-    );
+  if (!response.ok) throw new ApiError(path, response.status, text);
   const body: unknown = JSON.parse(text);
   return typeof body === "object" && body !== null && "json" in body
     ? body.json
@@ -252,6 +263,37 @@ export const readEngineOutput = (outcome: CommandOutcome): EngineOutput => {
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+/**
+ * Posts the result. Returns null when it was stored, "" when the run is no longer running on this
+ * engine (409: nothing to do), or the error to store. A network error or a 5xx answer is tried
+ * again after a wait; any other 4xx is a rejection (the API fails the run itself when the result
+ * does not fit the bars; a contract rejection leaves it running, so the worker fails it).
+ */
+const deliver = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  run: ClaimedRun,
+  result: unknown
+): Promise<string | null> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await call(config, io, "backtestRuns/engine/complete", {
+        engine: BACKTEST_RUN_NAUTILUS_ENGINE,
+        id: run.id,
+        result,
+        seriesSha256: run.seriesSha256,
+      });
+      return null;
+    } catch (error) {
+      io.stderr.write(`run ${run.id}: ${messageOf(error)}\n`);
+      if (error instanceof ApiError && error.status < 500)
+        return error.status === 409 ? "" : REJECTED_ERROR;
+      if (attempt === COMPLETE_ATTEMPTS) return UNDELIVERED_ERROR;
+      await io.sleep(COMPLETE_RETRY_MS * 2 ** (attempt - 1), io.signal);
+    }
+  }
+};
+
 /** One claim cycle. Returns true when a run was claimed. */
 const workOnce = async (
   config: Config,
@@ -274,26 +316,18 @@ const workOnce = async (
   );
   const output = readEngineOutput(outcome);
   if ("result" in output) {
-    try {
-      await call(config, io, "backtestRuns/engine/complete", {
-        engine,
-        id: run.id,
-        result: output.result,
-        seriesSha256: run.seriesSha256,
-      });
-      io.stdout.write(`run ${run.id}: succeeded\n`);
-      return true;
-    } catch (error) {
-      // The API fails the run itself when the result does not fit the bars; a contract
-      // rejection leaves it running, so fail it here. A CONFLICT on this call is harmless.
-      io.stderr.write(`run ${run.id}: result rejected: ${messageOf(error)}\n`);
+    const error = await deliver(config, io, run, output.result);
+    if (error === null) io.stdout.write(`run ${run.id}: succeeded\n`);
+    // A refused fail (the run already finished) changes nothing; the next claim goes on.
+    else if (error !== "")
       await call(config, io, "backtestRuns/engine/fail", {
         engine,
-        error: "The API rejected the Nautilus result",
+        error,
         id: run.id,
-      }).catch(() => undefined);
-      return true;
-    }
+      }).catch((failure: unknown) =>
+        io.stderr.write(`run ${run.id}: ${messageOf(failure)}\n`)
+      );
+    return true;
   }
   if (output.detail !== undefined && output.detail !== "")
     io.stderr.write(`run ${run.id}: engine stderr: ${output.detail}\n`);

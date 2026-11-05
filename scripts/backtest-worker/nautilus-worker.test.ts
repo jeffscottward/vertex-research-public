@@ -2,15 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BACKTEST_RUN_NAUTILUS_ENGINE } from "../../packages/api/src/contracts/backtest-runs.ts";
 import {
+  COMPLETE_ATTEMPTS,
+  COMPLETE_RETRY_MS,
   type CommandOutcome,
   DEFAULT_IDLE_MS,
   engineRequest,
   NAUTILUS_RUN_TIMEOUT_MS,
   type NautilusWorkerIo,
+  REJECTED_ERROR,
   readEngineOutput,
   runCommand,
   runNautilusWorker,
   sleep,
+  UNDELIVERED_ERROR,
 } from "./nautilus-worker.ts";
 
 const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
@@ -100,7 +104,9 @@ const harness = (
     );
   });
   const runCommandFake = vi.fn(async () => commands.shift() ?? outcome());
-  const sleepFake = vi.fn(async (): Promise<void> => undefined);
+  const sleepFake = vi.fn(
+    async (_ms: number, _signal: AbortSignal): Promise<void> => undefined
+  );
   const io: NautilusWorkerIo = {
     env: options.env ?? env,
     post,
@@ -257,18 +263,72 @@ describe("nautilus worker cycle", () => {
     expect(await runNautilusWorker(["--once"], rejected.io)).toBe(0);
     expect(rejected.calls[2]?.input).toEqual({
       engine,
-      error: "The API rejected the Nautilus result",
+      error: REJECTED_ERROR,
       id: "run-1",
     });
     expect(rejected.err.join("")).toContain(
-      "result rejected: backtestRuns/engine/complete returned HTTP 400"
+      "run run-1: backtestRuns/engine/complete returned HTTP 400"
     );
-    const conflict = harness({
+    expect(rejected.sleep).not.toHaveBeenCalled();
+    const refused = harness({
       claims: [claimedRun],
       complete: () => new Response("bad", { status: 400 }),
       fail: () => new Response("conflict", { status: 409 }),
     });
-    expect(await runNautilusWorker(["--once"], conflict.io)).toBe(0);
+    expect(await runNautilusWorker(["--once"], refused.io)).toBe(0);
+    expect(refused.err.join("")).toContain(
+      "backtestRuns/engine/fail returned HTTP 409: conflict"
+    );
+  });
+
+  it("does not fail a run that is no longer running (409)", async () => {
+    const run = harness({
+      claims: [claimedRun],
+      complete: () => new Response("conflict", { status: 409 }),
+    });
+    expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
+    expect(run.paths()).toEqual([
+      "backtestRuns/engine/claim",
+      "backtestRuns/engine/complete",
+    ]);
+    expect(run.out).toEqual([]);
+  });
+
+  it("tries complete again after network errors and 5xx answers", async () => {
+    const answers = [
+      () => new Response("unavailable", { status: 503 }),
+      () => {
+        throw new Error("socket hang up");
+      },
+    ];
+    const flaky = harness({
+      claims: [claimedRun],
+      complete: () =>
+        (answers.shift() ?? (() => Response.json({ json: {} })))(),
+    });
+    expect(await runNautilusWorker(["--once"], flaky.io)).toBe(0);
+    expect(
+      flaky.paths().filter((path) => path.endsWith("/complete"))
+    ).toHaveLength(3);
+    expect(flaky.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      COMPLETE_RETRY_MS,
+      2 * COMPLETE_RETRY_MS,
+    ]);
+    expect(flaky.out).toEqual(["run run-1: succeeded\n"]);
+
+    const down = harness({
+      claims: [claimedRun],
+      complete: () => new Response("bad gateway", { status: 502 }),
+    });
+    expect(await runNautilusWorker(["--once"], down.io)).toBe(0);
+    expect(
+      down.paths().filter((path) => path.endsWith("/complete"))
+    ).toHaveLength(COMPLETE_ATTEMPTS);
+    expect(down.calls.at(-1)?.input).toEqual({
+      engine,
+      error: UNDELIVERED_ERROR,
+      id: "run-1",
+    });
   });
 
   it("reports API failures with exit 1 in --once mode, never with the key", async () => {
