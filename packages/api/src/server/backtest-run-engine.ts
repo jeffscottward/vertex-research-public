@@ -8,8 +8,11 @@ import {
   type BacktestRunEngineClaimOutput,
 } from "../contracts/backtest-runs.ts";
 import {
+  barsInPositionOf,
   InstantBacktestInputError,
   type InstantRunResult,
+  type InstantStats,
+  summarize,
 } from "../instant-backtest-engine.ts";
 import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
 import { costsForSpec } from "./backtest-run-params.ts";
@@ -34,6 +37,26 @@ import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
 
 /** Runs one claim may fail while it loads inputs before it returns no run. */
 export const ENGINE_CLAIM_ATTEMPTS = 5;
+/** Relative tolerance between the worker's stats and the API's (the Python summary is a port). */
+export const ENGINE_STATS_TOLERANCE = 1e-9;
+
+/** The first stat where the worker differs from the API beyond the tolerance, or null. */
+export const engineStatsMismatch = (
+  sent: InstantStats,
+  computed: InstantStats
+): string | null => {
+  for (const [key, expected] of Object.entries(computed)) {
+    const value = sent[key as keyof InstantStats];
+    const equal =
+      expected === null || value === null
+        ? expected === value
+        : Math.abs(value - expected) <=
+          ENGINE_STATS_TOLERANCE *
+            Math.max(1, Math.abs(value), Math.abs(expected));
+    if (!equal) return key;
+  }
+  return null;
+};
 
 type EngineFailures = Failures &
   Readonly<{ CONFLICT: (options?: { message?: string }) => Error }>;
@@ -159,15 +182,26 @@ const complete = api.backtestRuns.engine.complete
       return await reject(
         `The engine result has ${input.result.equity.length} bars; the date range has ${loaded.bars.t.length}`
       );
+    // The stored stats are the API's own, computed from the worker's equity and trades.
+    const equity = Float64Array.from(input.result.equity);
+    // Same shape; the zod output marks optional fields `| undefined` (exactOptionalPropertyTypes).
+    const trades = input.result.trades as InstantRunResult["trades"];
+    const stats = summarize(
+      loaded.bars,
+      equity,
+      trades,
+      barsInPositionOf(trades)
+    );
+    const mismatch = engineStatsMismatch(input.result.stats, stats);
+    if (mismatch !== null)
+      return await reject(
+        `The engine stats do not match its equity and trades (${mismatch})`
+      );
     const costs = costsForSpec(spec);
     const report = {
       ...buildBacktestRunReport(
         loaded.bars,
-        {
-          equity: Float64Array.from(input.result.equity),
-          stats: input.result.stats,
-          trades: input.result.trades,
-        } as InstantRunResult,
+        { equity, stats, trades },
         spec.initialCapital,
         costs?.profile
       ),

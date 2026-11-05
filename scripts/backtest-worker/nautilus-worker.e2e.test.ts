@@ -8,9 +8,12 @@ import {
   BacktestRunEngineCompleteInputSchema,
 } from "../../packages/api/src/contracts/backtest-runs.ts";
 import {
+  barsInPositionOf,
   type InstantRunResult,
   runInstantBacktest,
+  summarize,
 } from "../../packages/api/src/instant-backtest-engine.ts";
+import { engineStatsMismatch } from "../../packages/api/src/server/backtest-run-engine.ts";
 import {
   type NautilusWorkerIo,
   runCommand,
@@ -20,8 +23,8 @@ import {
 
 // End to end with the real engine: the worker runs `python -m nautilus_backtest run -` from
 // VERTEX_NAUTILUS_PYTHON (a venv with services/research/requirements-nautilus-linux-py312.lock)
-// against an in-process fake API. The fake API checks the posted result with the contract schema
-// and builds the report with the API code. Without VERTEX_NAUTILUS_PYTHON the suite does not run
+// against an in-process fake API. The fake API checks the posted result with the contract schema,
+// recomputes the stats as the API does and builds the report with the API code. Without VERTEX_NAUTILUS_PYTHON the suite does not run
 // (the base CI lane has no Nautilus; the Python Nautilus lane covers the engine itself).
 
 const python = process.env["VERTEX_NAUTILUS_PYTHON"]?.trim() || undefined;
@@ -122,13 +125,23 @@ describe.skipIf(python === undefined)(
       });
       expect(input.result.equity).toHaveLength(SIZE);
 
+      // The API recomputes the stats from the equity and trades; Nautilus must agree.
+      const equity = Float64Array.from(input.result.equity);
+      const trades = input.result.trades as InstantRunResult["trades"];
+      const stats = summarize(
+        columns,
+        equity,
+        trades,
+        barsInPositionOf(trades)
+      );
+      expect(engineStatsMismatch(input.result.stats, stats)).toBeNull();
+      expect(
+        new Set(trades.map((trade) => trade.exitReason)).size
+      ).toBeGreaterThan(1);
+
       const report = buildBacktestRunReport(
         columns,
-        {
-          equity: Float64Array.from(input.result.equity),
-          stats: input.result.stats,
-          trades: input.result.trades,
-        } as InstantRunResult,
+        { equity, stats, trades },
         spec.initialCapital,
         profile
       );

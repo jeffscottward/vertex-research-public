@@ -251,14 +251,19 @@ describe("createBacktestRunsRepository", () => {
     expect(busy.operations).toHaveLength(2 * BACKTEST_RUN_CLAIM_ATTEMPTS);
   });
 
-  it("fails one run still queued after the limit", async () => {
+  it("fails one run still queued after the limit when no run of its engine started since", async () => {
     const { database, operations } = createDouble([[{ id: "a" }], []]);
     const repository = createBacktestRunsRepository(database, dependencies);
     await expect(
-      repository.failIfUnclaimed("a", FIXED_NOW, " not picked up ")
+      repository.failIfUnclaimed(
+        "a",
+        "nautilus-x",
+        FIXED_NOW,
+        " not picked up "
+      )
     ).resolves.toBe(true);
     await expect(
-      repository.failIfUnclaimed("b", FIXED_NOW, "not picked up")
+      repository.failIfUnclaimed("b", "nautilus-x", FIXED_NOW, "not picked up")
     ).resolves.toBe(false);
     expect(operations[0]?.set).toEqual({
       error: "not picked up",
@@ -268,6 +273,10 @@ describe("createBacktestRunsRepository", () => {
     const where = sqlText(operations[0]?.where);
     expect(where).toContain('"backtest_runs"."created_at"');
     expect(where).toContain('"backtest_runs"."status"');
+    expect(where).toContain(
+      'not exists (select 1 from "backtest_runs" where "backtest_runs"."engine_version" = $'
+    );
+    expect(where).toContain('"backtest_runs"."started_at" >= $');
   });
 
   it("is part of createRepositories", () => {

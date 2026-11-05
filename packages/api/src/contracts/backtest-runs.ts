@@ -358,8 +358,8 @@ const combine = backtestRuns
 // to running and returns its spec with the bars of the date range (the same slice the API engine
 // uses), the resolved cost settings and the sector rotation points that the definition's filters
 // need. complete sends the engine result: unit equity per bar, the trades and the stats (the shape
-// of the TypeScript engine result); the API checks it against the stored bars and builds the
-// report. fail stores an error. complete and fail change only a running run of the same engine;
+// of the TypeScript engine result); the API checks it against the stored bars, recomputes the
+// stats from the equity and trades (they must match the sent stats) and builds the report. fail stores an error. complete and fail change only a running run of the same engine;
 // any other run returns CONFLICT. Write keys only; research only, no order path.
 
 const engineName = z.literal(BACKTEST_RUN_NAUTILUS_ENGINE);
@@ -431,7 +431,7 @@ export const BacktestRunEngineTradeSchema = z
     grossPnl: tradeAmount.optional(),
     netReturn: tradeAmount,
     pnl: tradeAmount,
-    units: z.number().min(0),
+    units: z.number().positive(),
   })
   .strict()
   .refine((trade) => trade.exitIndex >= trade.entryIndex, {
@@ -457,8 +457,11 @@ export const BacktestRunEngineStatsSchema = z
 
 export const BacktestRunEngineResultSchema = z
   .object({
-    /** Unit equity (starting equity 1) at every bar of the range. */
-    equity: z.array(z.number()).min(2).max(BACKTEST_RUN_ENGINE_BARS_MAX),
+    /** Unit equity (starting equity 1) at every bar of the range; finite and above 0. */
+    equity: z
+      .array(z.number().positive())
+      .min(2)
+      .max(BACKTEST_RUN_ENGINE_BARS_MAX),
     stats: BacktestRunEngineStatsSchema,
     trades: z
       .array(BacktestRunEngineTradeSchema)

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, sql } from "drizzle-orm";
 
 import {
   type BacktestRunSpec,
@@ -69,10 +69,15 @@ export type BacktestRunsRepository = Readonly<{
     startedBefore: Date,
     error: string
   ) => Promise<boolean>;
-  /** Fails one run when it is still queued and was created before `createdBefore`. */
+  /**
+   * Fails one run when it is still queued, was created before `before`, and no run of
+   * `engineVersion` was claimed since `before` (no worker took any run in that time). A busy
+   * worker therefore never fails the runs waiting behind it.
+   */
   failIfUnclaimed: (
     id: string,
-    createdBefore: Date,
+    engineVersion: string,
+    before: Date,
     error: string
   ) => Promise<boolean>;
 }>;
@@ -227,7 +232,7 @@ export const createBacktestRunsRepository = (
       .returning({ id: backtestRuns.id });
     return rows.length > 0;
   },
-  failIfUnclaimed: async (id, createdBefore, error) => {
+  failIfUnclaimed: async (id, engineVersion, before, error) => {
     const rows = await database
       .update(backtestRuns)
       .set({
@@ -239,7 +244,9 @@ export const createBacktestRunsRepository = (
         and(
           eq(backtestRuns.id, id),
           eq(backtestRuns.status, "queued"),
-          lt(backtestRuns.createdAt, createdBefore)
+          lt(backtestRuns.createdAt, before),
+          // The subquery's own backtest_runs shadows the updated row in its where clause.
+          sql`not exists (select 1 from ${backtestRuns} where ${backtestRuns.engineVersion} = ${engineVersion} and ${backtestRuns.startedAt} >= ${before})`
         )
       )
       .returning({ id: backtestRuns.id });

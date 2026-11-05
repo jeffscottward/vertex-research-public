@@ -62414,6 +62414,7 @@
                     "properties": {
                       "equity": {
                         "items": {
+                          "exclusiveMinimum": 0,
                           "type": "number"
                         },
                         "maxItems": 1000000,
@@ -62588,7 +62589,7 @@
                               "type": "number"
                             },
                             "units": {
-                              "minimum": 0,
+                              "exclusiveMinimum": 0,
                               "type": "number"
                             }
                           },

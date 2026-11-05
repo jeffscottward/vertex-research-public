@@ -410,7 +410,11 @@ const ratioStats = (
   };
 };
 
-const summarize = (
+/**
+ * Run statistics from the unit equity series and the trades. Exported so the API can recompute
+ * the statistics of a result from another engine (the Nautilus worker) instead of trusting them.
+ */
+export const summarize = (
   bars: BarColumns,
   equity: Float64Array,
   trades: readonly InstantTrade[],
@@ -449,6 +453,21 @@ const summarize = (
     winRate: trades.length > 0 ? wins / trades.length : null,
   };
 };
+
+/**
+ * Bars that end with an open position (the `barsInPosition` of summarize), from the trades of a
+ * finished run. Trades never overlap. A trade holds from its entry bar to the bar before its exit
+ * bar (an exit fills during the bar); a trade closed after the last bar (`end`) holds that bar too.
+ */
+export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
+  trades.reduce(
+    (total, trade) =>
+      total +
+      trade.exitIndex -
+      trade.entryIndex +
+      (trade.exitReason === "end" ? 1 : 0),
+    0
+  );
 
 /** Runs one backtest. Starting equity is 1. Throws InstantBacktestInputError on bad input. */
 export const runInstantBacktest = (

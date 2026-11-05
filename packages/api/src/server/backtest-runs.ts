@@ -45,7 +45,8 @@ import {
 // before the response. With the Nautilus engine the run waits for the research worker
 // (backtest-run-engine.ts). get re-schedules a queued TypeScript run, so a run whose scheduled task
 // was lost still completes, fails runs left running longer than the stale limit, and fails a
-// Nautilus run that no worker claimed within the same limit. The claim is a conditional update, so
+// Nautilus run that waited longer than the same limit while no worker claimed any Nautilus run
+// (a busy worker does not fail its backlog). The claim is a conditional update, so
 // a run executes at most once. sweep runs a parameter grid in the request after a cells x bars
 // budget check and stores nothing. Research only; no order path.
 
@@ -342,6 +343,7 @@ const get = api.backtestRuns.get
         run.createdAt < staleBefore &&
         (await dependencies.runs.failIfUnclaimed(
           run.id,
+          run.engineVersion,
           staleBefore,
           NAUTILUS_UNCLAIMED_ERROR
         ))

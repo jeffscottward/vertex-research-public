@@ -28,9 +28,16 @@ import {
   type BacktestRunSubmitInput,
   BacktestRunSubmitInputSchema,
 } from "./contracts/backtest-runs.ts";
-import { runInstantBacktest } from "./instant-backtest-engine.ts";
+import {
+  barsInPositionOf,
+  runInstantBacktest,
+  summarize,
+} from "./instant-backtest-engine.ts";
 import { settledForwardTrades } from "./paper-forward.ts";
-import { ENGINE_CLAIM_ATTEMPTS } from "./server/backtest-run-engine.ts";
+import {
+  ENGINE_CLAIM_ATTEMPTS,
+  ENGINE_STATS_TOLERANCE,
+} from "./server/backtest-run-engine.ts";
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
@@ -184,9 +191,16 @@ const memoryRuns = (): BacktestRunsRepository & {
         return false;
       return update(id, ["running"], { error, status: "failed" }) !== null;
     },
-    failIfUnclaimed: async (id, createdBefore, error) => {
+    failIfUnclaimed: async (id, engineVersion, before, error) => {
       const row = rows.get(id);
-      if (row === undefined || row.createdAt >= createdBefore) return false;
+      const workerActive = [...rows.values()].some(
+        (other) =>
+          other.engineVersion === engineVersion &&
+          other.startedAt !== null &&
+          other.startedAt >= before
+      );
+      if (row === undefined || row.createdAt >= before || workerActive)
+        return false;
       return (
         update(id, ["queued"], { error, finishedAt: at, status: "failed" }) !==
         null
@@ -2090,6 +2104,39 @@ describe("backtest runs on the Nautilus engine", () => {
     expect(runs.rows.get(vanished.id)?.status).toBe("failed");
   });
 
+  it("keeps the backlog queued while a worker is busy", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    await queue(runs, { startedAt: new Date(), status: "running" });
+    const waiting = await queue(runs);
+    expect((await client.backtestRuns.get({ id: waiting.id })).status).toBe(
+      "queued"
+    );
+    // A TypeScript run that started recently is not Nautilus worker activity.
+    const idle = memoryRuns();
+    await idle.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    idle.rows.set("run-1", {
+      ...(idle.rows.get("run-1") as BacktestRunRecord),
+      startedAt: new Date(),
+      status: "running",
+    });
+    const stuck = await queue(idle);
+    expect(
+      (
+        await clientFor({ bars: fakeBars(), runs: idle }).backtestRuns.get({
+          id: stuck.id,
+        })
+      ).error
+    ).toBe(NAUTILUS_UNCLAIMED_ERROR);
+  });
+
   it("claims the oldest queued run of the engine with its bars and costs", async () => {
     const runs = memoryRuns();
     const client = clientFor({ bars: fakeBars(), runs });
@@ -2385,6 +2432,127 @@ describe("backtest runs on the Nautilus engine", () => {
     }, "No stored 1d bars for SPY");
   });
 
+  it("recomputes the same stats from the equity and the trades of every exit kind", () => {
+    const columns = waveColumns(1000);
+    // A rising series stays in its position to the last bar (exit reason "end").
+    const close = Float64Array.from({ length: 50 }, (_, index) => 100 + index);
+    const rising = {
+      c: close,
+      h: close.map((value) => value + 1),
+      l: close.map((value) => value - 1),
+      o: close,
+      t: Float64Array.from({ length: 50 }, (_, index) => index * DAY_MS),
+    };
+    const results = [
+      runInstantBacktest(columns, {
+        costBps: 5,
+        rule: { fast: 5, kind: "smaCross", slow: 30 },
+        stopLossPct: 2,
+        takeProfitPct: 4,
+      }),
+      runInstantBacktest(columns, {
+        costBps: 0,
+        costs: {
+          capital: 50_000,
+          profile: COST_PROFILE_PRESETS["ibkr-pro-fixed-us-stock"],
+        },
+        rule: {
+          entryLookback: 20,
+          exitLookback: 10,
+          kind: "breakout",
+          trendSma: 0,
+        },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+      runInstantBacktest(rising, {
+        costBps: 0,
+        rule: { fast: 2, kind: "smaCross", slow: 5 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+      runInstantBacktest(columns, {
+        costBps: 1,
+        rule: { fast: 5, kind: "smaCross", slow: 30 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+    ];
+    const reasons = new Set<string>();
+    for (const [index, result] of results.entries()) {
+      const bars = index === 2 ? rising : columns;
+      for (const trade of result.trades) reasons.add(trade.exitReason);
+      expect(
+        summarize(
+          bars,
+          result.equity,
+          result.trades,
+          barsInPositionOf(result.trades)
+        )
+      ).toEqual(result.stats);
+    }
+    expect([...reasons].sort()).toEqual(["end", "signal", "stop", "target"]);
+  });
+
+  it("refuses a result whose stats differ from its equity and trades", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const complete = async (
+      change: (
+        result: ReturnType<typeof workerResult>
+      ) => ReturnType<typeof workerResult>
+    ) => {
+      const run = await queue(runs);
+      const claimed = (await client.backtestRuns.engine.claim({ engine }))
+        .run as Claimed;
+      return {
+        outcome: client.backtestRuns.engine.complete({
+          engine,
+          id: run.id,
+          result: change(workerResult(claimed)),
+          seriesSha256: claimed.seriesSha256,
+        }),
+        run,
+      };
+    };
+    for (const [change, key] of [
+      [
+        (result: ReturnType<typeof workerResult>) => ({
+          ...result,
+          stats: {
+            ...result.stats,
+            sharpe: (result.stats.sharpe ?? 0) * 1.000_001,
+          },
+        }),
+        "sharpe",
+      ],
+      [
+        (result: ReturnType<typeof workerResult>) => ({
+          ...result,
+          stats: { ...result.stats, profitFactor: null },
+        }),
+        "profitFactor",
+      ],
+    ] as const) {
+      const { outcome, run } = await complete(change);
+      await expectCode(outcome, "BAD_REQUEST", 400);
+      expect(runs.rows.get(run.id)).toMatchObject({
+        error: `The engine stats do not match its equity and trades (${key})`,
+        status: "failed",
+      });
+    }
+    // Within the tolerance the API stores its own stats.
+    const close = await complete((result) => ({
+      ...result,
+      stats: {
+        ...result.stats,
+        totalReturn:
+          result.stats.totalReturn * (1 + ENGINE_STATS_TOLERANCE / 10),
+      },
+    }));
+    await expect(close.outcome).resolves.toMatchObject({ status: "succeeded" });
+  });
+
   it("checks the result shape at the contract and leaves the run running", async () => {
     const runs = memoryRuns();
     const client = clientFor({ bars: fakeBars(), runs });
@@ -2419,6 +2587,18 @@ describe("backtest runs on the Nautilus engine", () => {
         trades: [{ ...trade, entryIndex: 1, exitIndex: 0 }],
       },
       { ...valid, equity: [1, Number.POSITIVE_INFINITY] },
+      { ...valid, equity: [1, 0] },
+      { ...valid, equity: [1, -0.5] },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, units: 0 }],
+      },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, pnl: Number.NaN }],
+      },
     ];
     for (const result of invalid) {
       expect(BacktestRunEngineResultSchema.safeParse(result).success).toBe(
@@ -2460,6 +2640,7 @@ describe("backtest runs on the Nautilus engine", () => {
 
     // Another caller finished the run between the read and the conditional update.
     const raced = await queue(runs, { startedAt: at, status: "running" });
+    await queue(runs);
     const racing = clientFor({
       bars: fakeBars(),
       runs: { ...runs, complete: async () => null, fail: async () => null },
@@ -2469,16 +2650,13 @@ describe("backtest runs on the Nautilus engine", () => {
       "CONFLICT",
       409
     );
-    const size = rangeBars;
+    const claimed = (await client.backtestRuns.engine.claim({ engine }))
+      .run as Claimed;
     await expectCode(
       racing.backtestRuns.engine.complete({
         engine,
         id: raced.id,
-        result: {
-          equity: Array.from({ length: size }, () => 1),
-          stats: { ...emptyStats, bars: size },
-          trades: [],
-        },
+        result: workerResult(claimed),
         seriesSha256: "b".repeat(64),
       }),
       "CONFLICT",
