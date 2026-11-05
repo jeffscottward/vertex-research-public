@@ -85,8 +85,10 @@ def test_run_cwd_disables_every_user_mcp_server(tmp_path: Path,
                        "rea": {"command": "true", "enabled": False}}  # names only, no copied secrets
 
 
-def test_lean_mcp_config_tolerates_missing_user_config(tmp_path: Path) -> None:
-    target = write_lean_mcp_config(tmp_path, names=[])
+def test_lean_mcp_config_tolerates_missing_user_config(tmp_path: Path,
+                                                      monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "no-home")
+    target = write_lean_mcp_config(tmp_path)
     assert json.loads(target.read_text()) == {"mcpServers": {}}
 
 
