@@ -78,6 +78,31 @@ def default_omp_path() -> str:
     return os.environ.get("VERTEX_OMP_BIN") or str(Path.home() / ".local/bin/omp")
 
 
+def user_mcp_server_names(path: Path | None = None) -> list[str]:
+    """Server names in the user MCP config (``~/.omp/agent/mcp.json``). Only names are read."""
+    source = path or Path.home() / ".omp/agent/mcp.json"
+    try:
+        servers = json.loads(source.read_text(encoding="utf-8")).get("mcpServers", {})
+    except (OSError, ValueError, AttributeError):
+        return []
+    return sorted(servers) if isinstance(servers, dict) else []
+
+
+def write_lean_mcp_config(cwd: str | Path, names: list[str] | None = None) -> Path:
+    """Disable every user MCP server for an ``omp -p`` run in ``cwd``.
+
+    ``--no-tools`` removes only built-in tools. User MCP servers still add their tool
+    schemas (about 430k input tokens per call on the rig, 2026-11-05). A project
+    ``.omp/mcp.json`` entry with ``enabled: false`` overrides the user entry of the same name.
+    """
+    target = Path(cwd, ".omp", "mcp.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    servers = {n: {"command": "true", "enabled": False}
+               for n in (user_mcp_server_names() if names is None else names)}
+    target.write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
+    return target
+
+
 def build_command(omp: str, model: str, thinking: str, system_prompt: str, overlay: str) -> list[str]:
     """Argument vector of one lean, tool-less ``omp -p`` run. The prompt goes on stdin."""
     return [
@@ -202,6 +227,7 @@ class OmpClaudeGenerator:
         with tempfile.TemporaryDirectory(prefix="vertex-omp-") as tmp:
             overlay = Path(tmp, "overlay.yml")
             overlay.write_text(ADVISOR_OFF_OVERLAY, encoding="utf-8")
+            write_lean_mcp_config(tmp)
             try:
                 proc = self.run(self.command(str(overlay)), input=prompt, capture_output=True,
                                 text=True, timeout=self.timeout_s, cwd=tmp, check=False,
