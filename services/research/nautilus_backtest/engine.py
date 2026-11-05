@@ -16,15 +16,19 @@ Model (the same rules as the TypeScript engine):
 - Each bar i is fed as three one-minute LAST bars, 1 ns apart, starting at the
   bar time: the open print (open = high = low = close = open), the path from the
   open to the low (open, open, low, low) and the path from the low to the high
-  and the close (low, high, low, close). The low comes before the high, so a
-  stop and a target in the same bar fill the stop first, like the TS engine.
+  and the close (low, high, low, close). The low comes before the high.
+- Stop first: the TS engine exits at the stop whenever a bar reaches the stop,
+  also when the bar opens beyond the target. So the target order rests during a
+  bar only when that bar's low stays above the stop; the strategy reads the
+  coming bar's low for this execution rule only (signals never read it).
 - Signals use data up to the close of bar i. An entry or a signal exit is a
   market order at the open print of bar i + 1. Resting orders are cancelled at
   the close where an exit is decided, so the exit fills as a signal exit.
 - On an entry fill the strategy places a reduce-only stop-market order at the
-  stop level and a reduce-only market-if-touched order at the target level.
-  Nautilus fills a level touched inside the bar at the level and a level gapped
-  through at the open. When one of them fills, the other is cancelled.
+  stop level and, under the stop-first rule, a reduce-only market-if-touched
+  order at the target level. Nautilus fills a level touched inside the bar at
+  the level and a level gapped through at the open. When one fills, the other
+  is cancelled.
 - An open position closes with a market order at the last close (reason "end").
 - Costs: Nautilus fills at the reference price. The fee model charges the flat
   `costBps` leg plus, with a cost profile, half the spread, the slippage, the
@@ -198,6 +202,8 @@ class _State:
     pending: int = 0
     pending_stop: float = math.nan
     pending_target: float = math.nan
+    # Client order id of the resting target order (see _plan_target)
+    target_order: object | None = None
     position: _Open | None = None
     exit_reason: str = ""
     trades: list = field(default_factory=list)
@@ -340,6 +346,30 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                 state.pending = 0
             elif part == CLOSE:
                 self._close(index, float(nbar.close))
+                if index + 1 < size and state.pending != -1:
+                    self._plan_target(index + 1)
+
+        def _plan_target(self, index: int):
+            """Lets the target rest during bar `index` only when that bar does not reach the stop.
+
+            This reads the low of the coming bar. It applies the TS rule that a bar reaching the
+            stop exits at the stop, also when it opens beyond the target; signals never read it.
+            """
+            position = state.position
+            if position is None or math.isnan(position.target):
+                return
+            stop_hit = not math.isnan(position.stop) and bars.l[index] <= position.stop
+            order = None if state.target_order is None else self.cache.order(state.target_order)
+            live = order is not None and order.is_open
+            if stop_hit and live:
+                self.cancel_order(order)
+                state.target_order = None
+            elif not stop_hit and not live:
+                order = self.order_factory.market_if_touched(
+                    instrument_id, OrderSide.SELL, Quantity(position.qty, PRECISION),
+                    Price(round(position.target, PRECISION), PRECISION), reduce_only=True, tags=["target"])
+                state.target_order = order.client_order_id
+                self.submit_order(order)
 
         def _levels(self, entry_price: float) -> tuple[float, float]:
             if compiled.stop_distance is None:
@@ -435,10 +465,7 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                     self.submit_order(self.order_factory.stop_market(
                         instrument_id, OrderSide.SELL, event.last_qty, Price(round(stop, PRECISION), PRECISION),
                         reduce_only=True, tags=["stop"]))
-                if not math.isnan(target):
-                    self.submit_order(self.order_factory.market_if_touched(
-                        instrument_id, OrderSide.SELL, event.last_qty, Price(round(target, PRECISION), PRECISION),
-                        reduce_only=True, tags=["target"]))
+                self._plan_target(plan["index"])
                 return
             self._record_exit(event, charges, qty)
 

@@ -5,7 +5,7 @@
   "nautilus": "nautilus-trader-1.227.0",
   "ts": "packages/api/src/instant-backtest-engine.ts (instant-2)"
  },
- "generated": "2026-11-05T17:18:31.741Z",
+ "generated": "2026-11-05T17:26:39.289Z",
  "passed": 476,
  "periods": [
   {

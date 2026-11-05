@@ -34,9 +34,10 @@ The `spec` has the fields of a backtest run spec: `rule` (`smaCross`, `breakout`
 
 Nautilus matches every order and keeps the cash and position ledger. The model gives the same rules as the TypeScript engine:
 
-- Each bar is fed as three one-minute bars: the open print, the path from the open to the low, and the path from the low to the high and the close. The low comes before the high, so a stop and a target in the same bar fill the stop first (the TypeScript rule).
+- Each bar is fed as three one-minute bars: the open print, the path from the open to the low, and the path from the low to the high and the close. The low comes before the high.
+- Stop first (the TypeScript rule): a bar that reaches the stop exits at the stop, also when it opens beyond the target. The target order rests during a bar only when that bar's low stays above the stop. The strategy reads the coming bar's low for this execution rule only; signals never read it.
 - Signals use data up to the close of bar i. Entries and signal exits are market orders at the open print of bar i + 1.
-- An entry places a reduce-only stop-market order and a reduce-only market-if-touched order. A level touched inside the bar fills at the level. A level gapped through fills at the open.
+- An entry places a reduce-only stop-market order and, under the stop-first rule, a reduce-only market-if-touched order. A level touched inside the bar fills at the level. A level gapped through fills at the open.
 - An open position closes at the last close (exit reason `end`).
 - The fee model charges the flat `costBps`, half the spread, the slippage, the commission and the fees in USD. Nautilus fills at the reference price; the trade record shows the cost-adjusted price.
 - One CFD instrument with 9-decimal prices and quantities, so fractional units match the TypeScript sizing.

@@ -871,6 +871,48 @@ fixedCase("synthetic:gap-fixed", "gap", {
   takeProfitPct: 10,
 });
 
+// One-gap cases: entry fills at the open of bar 1 (100), so the stop is 95 and the target 110.
+// Bar 2 holds the gap. The generator checks the first trade's exit reason and price.
+const GAP_CASES: {
+  id: string;
+  bar: [number, number, number, number];
+  reason: string;
+  price: number;
+}[] = [
+  // TS checks the stop first, even when the bar opens above the target.
+  {
+    bar: [112, 113, 90, 100],
+    id: "synthetic:gapAboveTargetLowBelowStop",
+    price: 95,
+    reason: "stop",
+  },
+  {
+    bar: [112, 113, 105, 108],
+    id: "synthetic:gapAboveTarget",
+    price: 112,
+    reason: "target",
+  },
+  {
+    bar: [92, 93, 91, 92],
+    id: "synthetic:gapBelowStop",
+    price: 92,
+    reason: "stop",
+  },
+];
+for (const { id, bar, reason, price } of GAP_CASES) {
+  const flat: [number, number, number, number] = [100, 101, 99, 100];
+  datasets[id] = dailyRows([flat, flat, bar, flat, flat]);
+  dslCase(id, id, baseSpec({ definition: alwaysIn(5, 10), kind: "dsl" }));
+  const first = engine.at(-1) as { trades: InstantRunResult["trades"] };
+  const trade = first.trades[0];
+  if (
+    trade?.exitIndex !== 2 ||
+    trade.exitReason !== reason ||
+    trade.exitPrice !== price
+  )
+    throw new Error(`${id}: unexpected first trade ${JSON.stringify(trade)}`);
+}
+
 const golden = {
   barCount: BAR_COUNT,
   bars: Object.fromEntries(
