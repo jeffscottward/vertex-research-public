@@ -100,7 +100,7 @@ python -m analytics report --data ~/Documents/reports/vertex-core7/data/daily \
   --out ~/Documents/reports/web/vertex-gs-quant/index.html
 ```
 
-- Page (tailnet only): <https://omarchy-rig.tail752186.ts.net/reports/vertex-gs-quant/>
+- Page (tailnet only): `https://dev-rig.example-tailnet.ts.net/reports/vertex-gs-quant/`
 - Screenshots on the rig: `~/Documents/reports/vertex-gs-quant/core7-risk-1440.png`, `core7-risk-375.png`
 - The Core 7 data is not in the repository (Yahoo terms). See [Core 7 universe](core7-universe.md) for the fetch.
 
