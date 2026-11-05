@@ -24,7 +24,7 @@ import {
 /** Engine run limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
 export const NAUTILUS_RUN_TIMEOUT_MS = 9 * 60 * 1000;
 export const DEFAULT_IDLE_MS = 3000;
-/** complete tries after a network error or a 5xx answer, with doubling waits from the first. */
+/** complete tries after a network error, a 429 or a 5xx answer, with doubling waits from the first. */
 export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
 export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
@@ -265,7 +265,7 @@ const messageOf = (error: unknown): string =>
 
 /**
  * Posts the result. Returns null when it was stored, "" when the run is no longer running on this
- * engine (409: nothing to do), or the error to store. A network error or a 5xx answer is tried
+ * engine (409: nothing to do), or the error to store. A network error, a 429 or a 5xx answer is tried
  * again after a wait; any other 4xx is a rejection (the API fails the run itself when the result
  * does not fit the bars; a contract rejection leaves it running, so the worker fails it).
  */
@@ -286,7 +286,11 @@ const deliver = async (
       return null;
     } catch (error) {
       io.stderr.write(`run ${run.id}: ${messageOf(error)}\n`);
-      if (error instanceof ApiError && error.status < 500)
+      if (
+        error instanceof ApiError &&
+        error.status < 500 &&
+        error.status !== 429
+      )
         return error.status === 409 ? "" : REJECTED_ERROR;
       if (attempt === COMPLETE_ATTEMPTS) return UNDELIVERED_ERROR;
       await io.sleep(COMPLETE_RETRY_MS * 2 ** (attempt - 1), io.signal);

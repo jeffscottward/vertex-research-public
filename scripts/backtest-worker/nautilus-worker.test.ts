@@ -294,9 +294,10 @@ describe("nautilus worker cycle", () => {
     expect(run.out).toEqual([]);
   });
 
-  it("tries complete again after network errors and 5xx answers", async () => {
+  it("tries complete again after network errors, 429 and 5xx answers", async () => {
     const answers = [
       () => new Response("unavailable", { status: 503 }),
+      () => new Response("slow down", { status: 429 }),
       () => {
         throw new Error("socket hang up");
       },
@@ -309,10 +310,11 @@ describe("nautilus worker cycle", () => {
     expect(await runNautilusWorker(["--once"], flaky.io)).toBe(0);
     expect(
       flaky.paths().filter((path) => path.endsWith("/complete"))
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     expect(flaky.sleep.mock.calls.map(([ms]) => ms)).toEqual([
       COMPLETE_RETRY_MS,
       2 * COMPLETE_RETRY_MS,
+      4 * COMPLETE_RETRY_MS,
     ]);
     expect(flaky.out).toEqual(["run run-1: succeeded\n"]);
 

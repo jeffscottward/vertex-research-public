@@ -35,4 +35,4 @@ One run may take at most 9 minutes; the worker then kills the engine and fails t
 
 A claim moves the run to `running` before the response reaches the worker. When that response is lost (network drop, worker restart during the request), no worker knows the run: it stays `running` until the API's stale check fails it 10 minutes after the claim ("Backtest stopped before it finished", on the next read of the run). Submit it again after that.
 
-When `complete` fails with a network error or a 5xx answer, the worker tries again 3 times (waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result".
+When `complete` fails with a network error, a 429 or a 5xx answer, the worker tries again 3 times (waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result". On SIGTERM during a retry wait, the remaining tries run at once (without waits) before the run fails.
