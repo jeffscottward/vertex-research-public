@@ -7,7 +7,11 @@
 // bars and spec on stdin, and post the result (backtestRuns.engine.complete) or the error
 // (backtestRuns.engine.fail). The API builds the report. After a run it claims again at once;
 // with no run it waits VERTEX_WORKER_IDLE_MS (default 3000). `--once` runs one claim cycle.
-// SIGTERM stops the loop; a running engine process is killed and its run fails. Research only:
+// SIGTERM stops the loop; a running engine process is killed and its run fails. After
+// ALERT_AFTER_FAILURES failed cycles in a row (API errors, a result that could not be delivered,
+// an engine crash or timeout; not an input error or an empty claim) it posts one alert line to
+// VERTEX_ALERT_POST_URL / VERTEX_ALERT_CHANNEL (optional), and one recovery line on the next good
+// cycle. Alert lines carry counts and error classes only, never the key or a payload. Research only:
 // the worker sends HTTP requests to Vertex and starts the engine process, nothing else. The key
 // is never printed.
 
@@ -29,6 +33,8 @@ export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
 export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
 export const REJECTED_ERROR = "The API rejected the Nautilus result";
+/** Failed cycles in a row before the one alert of an incident. */
+const ALERT_AFTER_FAILURES = 3;
 /** Engine stderr kept for the worker log. */
 const STDERR_LOG_MAX = 2000;
 
@@ -231,7 +237,12 @@ type EngineOutput =
   | Readonly<{
       result: Readonly<{ equity: unknown; stats: unknown; trades: unknown }>;
     }>
-  | Readonly<{ error: string; detail?: string }>;
+  | Readonly<{
+      error: string;
+      detail?: string;
+      /** Error class of an engine failure (crash, timeout); absent for input errors and stops. */
+      failure?: string;
+    }>;
 
 const parseJson = (text: string): unknown => {
   try {
@@ -249,6 +260,7 @@ export const readEngineOutput = (outcome: CommandOutcome): EngineOutput => {
   if (outcome.timedOut)
     return {
       error: `The Nautilus backtest took longer than ${NAUTILUS_RUN_TIMEOUT_MS / 60_000} minutes`,
+      failure: "engine timeout",
     };
   const body = parseJson(outcome.stdout);
   const inputError = CliErrorSchema.safeParse(body);
@@ -260,14 +272,20 @@ export const readEngineOutput = (outcome: CommandOutcome): EngineOutput => {
     return {
       detail,
       error: "Nautilus is not installed on the research worker",
+      failure: "Nautilus missing (exit 3)",
     };
   const parsed = CliResultSchema.safeParse(body);
   if (outcome.code !== 0 || !parsed.success)
-    return { detail, error: `Nautilus engine failed (exit ${outcome.code})` };
+    return {
+      detail,
+      error: `Nautilus engine failed (exit ${outcome.code})`,
+      failure: `engine exit ${outcome.code}`,
+    };
   const { engine, equity, stats, trades } = parsed.data;
   if (engine !== BACKTEST_RUN_NAUTILUS_ENGINE)
     return {
       error: `The worker engine ${engine} does not match the run engine ${BACKTEST_RUN_NAUTILUS_ENGINE}`,
+      failure: "engine version mismatch",
     };
   return { result: { equity, stats, trades } };
 };
@@ -310,16 +328,19 @@ const deliver = async (
   }
 };
 
-/** One claim cycle. Returns true when a run was claimed. */
+/** One claim cycle: whether a run was claimed, and the error class when the cycle failed. */
+type Cycle = Readonly<{ found: boolean; failure: string | null }>;
+
+/** One claim cycle. Throws on an API error of claim or fail. */
 const workOnce = async (
   config: Config,
   io: NautilusWorkerIo
-): Promise<boolean> => {
+): Promise<Cycle> => {
   const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
   const { run } = BacktestRunEngineClaimOutputSchema.parse(
     await call(config, io, "backtestRuns/engine/claim", { engine })
   );
-  if (run === null) return false;
+  if (run === null) return { failure: null, found: false };
   const outcome = await io.runCommand(
     config.python,
     ["-m", "nautilus_backtest", "run", "-"],
@@ -340,10 +361,16 @@ const workOnce = async (
         engine,
         error,
         id: run.id,
-      }).catch((failure: unknown) =>
-        io.stderr.write(`run ${run.id}: ${messageOf(failure)}\n`)
+      }).catch((refused: unknown) =>
+        io.stderr.write(`run ${run.id}: ${messageOf(refused)}\n`)
       );
-    return true;
+    const failure =
+      error === null || error === ""
+        ? null
+        : error === UNDELIVERED_ERROR
+          ? "result not delivered"
+          : "result rejected";
+    return { failure, found: true };
   }
   if (output.detail !== undefined && output.detail !== "")
     io.stderr.write(`run ${run.id}: engine stderr: ${output.detail}\n`);
@@ -353,7 +380,39 @@ const workOnce = async (
     id: run.id,
   });
   io.stdout.write(`run ${run.id}: failed: ${output.error}\n`);
-  return true;
+  return { failure: output.failure ?? null, found: true };
+};
+
+/** Class of a thrown cycle error for the alert line: the HTTP status or the error name. */
+const errorClass = (error: unknown): string =>
+  error instanceof ApiError
+    ? `HTTP ${error.status}`
+    : error instanceof Error
+      ? error.name
+      : "unknown error";
+
+/** Posts one line to the optional chat endpoint ({channel, text}); never throws. */
+const postAlert = async (io: NautilusWorkerIo, text: string): Promise<void> => {
+  const url = io.env["VERTEX_ALERT_POST_URL"]?.trim() ?? "";
+  const channel = io.env["VERTEX_ALERT_CHANNEL"]?.trim() ?? "";
+  if (url === "" || channel === "") return;
+  const response = await io
+    .post(url, {
+      body: JSON.stringify({ channel, text }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    })
+    .catch(() => null);
+  const body: unknown =
+    response?.ok === true ? await response.json().catch(() => null) : null;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "ok" in body &&
+    body.ok === true
+  )
+    io.stdout.write(`alert posted to ${channel}\n`);
+  else io.stderr.write("nautilus worker: alert post failed\n");
 };
 
 /** Runs the worker loop (or one cycle with --once) and returns the process exit code. */
@@ -371,16 +430,38 @@ export const runNautilusWorker = async (
     return 1;
   }
   const once = argv.includes("--once");
+  // One alert per incident (ALERT_AFTER_FAILURES failed cycles in a row), one recovery line after.
+  let failures = 0;
+  let alerted = false;
   while (!io.signal.aborted) {
-    let found = false;
+    let cycle: Cycle;
     try {
-      found = await workOnce(config, io);
+      cycle = await workOnce(config, io);
     } catch (error) {
       io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
       if (once) return 1;
+      cycle = { failure: errorClass(error), found: false };
     }
     if (once) return 0;
-    if (!found) await io.sleep(config.idleMs, io.signal);
+    if (cycle.failure === null) {
+      if (alerted)
+        await postAlert(
+          io,
+          `Vertex Nautilus backtest worker recovered after ${failures} failed cycles.`
+        );
+      failures = 0;
+      alerted = false;
+    } else {
+      failures += 1;
+      if (failures === ALERT_AFTER_FAILURES) {
+        alerted = true;
+        await postAlert(
+          io,
+          `Vertex Nautilus backtest worker: ${failures} cycles failed in a row (last: ${cycle.failure}). Research only; see journalctl --user -u vertex-nautilus-worker.`
+        );
+      }
+    }
+    if (!cycle.found) await io.sleep(config.idleMs, io.signal);
   }
   return 0;
 };

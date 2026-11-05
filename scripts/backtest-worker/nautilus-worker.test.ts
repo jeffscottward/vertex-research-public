@@ -71,6 +71,14 @@ const outcome = (overrides: Partial<CommandOutcome> = {}): CommandOutcome => ({
 
 type Call = Readonly<{ path: string; input: unknown; init: RequestInit }>;
 
+const ALERT_URL = "http://127.0.0.1:8790/post";
+const alertEnv = {
+  ...env,
+  VERTEX_ALERT_CHANNEL: "vertex-ops",
+  VERTEX_ALERT_POST_URL: ALERT_URL,
+};
+const unavailable = () => new Response("unavailable", { status: 503 });
+
 /** Fake Vertex API: queued claim responses, then no run; complete and fail answer per test. */
 const harness = (
   options: Readonly<{
@@ -80,20 +88,33 @@ const harness = (
     commands?: CommandOutcome[];
     env?: Record<string, string | undefined>;
     controller?: AbortController;
+    /** Answers by claim number (1-based) that replace the normal claim answer. */
+    claimAnswers?: Readonly<Record<number, () => Response>>;
+    alert?: () => Response;
   }> = {}
 ) => {
   const claims = [...(options.claims ?? [])];
+  const alerts: unknown[] = [];
+  let claimCount = 0;
   const commands = [...(options.commands ?? [])];
   const calls: Call[] = [];
   const out: string[] = [];
   const err: string[] = [];
   const controller = options.controller ?? new AbortController();
   const post = vi.fn(async (url: string, init: RequestInit) => {
+    if (url === ALERT_URL) {
+      alerts.push(JSON.parse(String(init.body)));
+      return options.alert?.() ?? Response.json({ ok: true });
+    }
     const path = new URL(url).pathname.replace("/api/orpc/", "");
     const input = (JSON.parse(String(init.body)) as { json: unknown }).json;
     calls.push({ init, input, path });
-    if (path === "backtestRuns/engine/claim")
+    if (path === "backtestRuns/engine/claim") {
+      claimCount += 1;
+      const answer = options.claimAnswers?.[claimCount];
+      if (answer !== undefined) return answer();
       return Response.json({ json: { run: claims.shift() ?? null } });
+    }
     if (path === "backtestRuns/engine/complete")
       return (
         options.complete?.() ??
@@ -119,7 +140,9 @@ const harness = (
     stdout: { write: (text: string) => out.push(text) },
   };
   return {
+    alerts,
     calls,
+    claimCount: () => claimCount,
     controller,
     err,
     io,
@@ -407,6 +430,12 @@ describe("readEngineOutput", () => {
     });
     expect(readEngineOutput(outcome({ code: null, timedOut: true }))).toEqual({
       error: "The Nautilus backtest took longer than 9 minutes",
+      failure: "engine timeout",
+    });
+    expect(readEngineOutput(outcome({ code: 3, stdout: "" }))).toEqual({
+      detail: "",
+      error: "Nautilus is not installed on the research worker",
+      failure: "Nautilus missing (exit 3)",
     });
     expect(
       readEngineOutput(
@@ -415,10 +444,15 @@ describe("readEngineOutput", () => {
     ).toEqual({ error: "x".repeat(500) });
     expect(
       readEngineOutput(outcome({ code: 2, stderr: "trace", stdout: "{}" }))
-    ).toEqual({ detail: "trace", error: "Nautilus engine failed (exit 2)" });
+    ).toEqual({
+      detail: "trace",
+      error: "Nautilus engine failed (exit 2)",
+      failure: "engine exit 2",
+    });
     expect(readEngineOutput(outcome({ stdout: "not json" }))).toEqual({
       detail: "",
       error: "Nautilus engine failed (exit 0)",
+      failure: "engine exit 0",
     });
     expect(
       readEngineOutput(
@@ -431,7 +465,112 @@ describe("readEngineOutput", () => {
       )
     ).toEqual({
       error: `The worker engine nautilus-trader-2 does not match the run engine ${engine}`,
+      failure: "engine version mismatch",
     });
+  });
+});
+
+describe("nautilus worker alerts", () => {
+  /** Stops the loop once `claims` claims were made. */
+  const stopAfter = (run: ReturnType<typeof harness>, claims: number) =>
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= claims) run.controller.abort();
+    });
+  const texts = (run: ReturnType<typeof harness>) =>
+    run.alerts.map((alert) => (alert as { text: string }).text);
+
+  it("alerts once at the third failed cycle and once on recovery", async () => {
+    const run = harness({
+      claimAnswers: { 1: unavailable, 2: unavailable, 4: unavailable },
+      claims: [claimedRun],
+      commands: [outcome({ code: 1, stderr: "Traceback", stdout: "" })],
+      env: alertEnv,
+    });
+    stopAfter(run, 6);
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(run.claimCount()).toBe(6);
+    expect(texts(run)).toEqual([
+      "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: engine exit 1). Research only; see journalctl --user -u vertex-nautilus-worker.",
+      "Vertex Nautilus backtest worker recovered after 4 failed cycles.",
+    ]);
+    expect(run.alerts[0]).toMatchObject({ channel: "vertex-ops" });
+    expect(JSON.stringify(run.alerts)).not.toContain("secret-key");
+    expect(run.out).toContain("alert posted to vertex-ops\n");
+  });
+
+  it("names the last error class: HTTP status, error name or unknown", async () => {
+    for (const [answer, last] of [
+      [unavailable, "HTTP 503"],
+      [
+        () => {
+          throw new TypeError("fetch failed");
+        },
+        "TypeError",
+      ],
+      [
+        () => {
+          throw "offline";
+        },
+        "unknown error",
+      ],
+    ] as const) {
+      const run = harness({
+        claimAnswers: { 1: answer, 2: answer, 3: answer },
+        env: alertEnv,
+      });
+      stopAfter(run, 3);
+      expect(await runNautilusWorker([], run.io)).toBe(0);
+      expect(texts(run)).toEqual([
+        `Vertex Nautilus backtest worker: 3 cycles failed in a row (last: ${last}). Research only; see journalctl --user -u vertex-nautilus-worker.`,
+      ]);
+    }
+  });
+
+  it("does not count input errors or empty claims, and posts nothing without the settings", async () => {
+    const inputErrors = harness({
+      claims: [claimedRun, claimedRun, claimedRun],
+      commands: [1, 2, 3].map(() =>
+        outcome({ code: 2, stdout: '{"error":"At least 2 bars needed"}' })
+      ),
+      env: alertEnv,
+    });
+    stopAfter(inputErrors, 4);
+    expect(await runNautilusWorker([], inputErrors.io)).toBe(0);
+    expect(inputErrors.alerts).toEqual([]);
+
+    const unset = harness({
+      claimAnswers: { 1: unavailable, 2: unavailable, 3: unavailable },
+    });
+    stopAfter(unset, 4);
+    expect(await runNautilusWorker([], unset.io)).toBe(0);
+    expect(unset.alerts).toEqual([]);
+    expect(unset.err.join("")).not.toContain("alert post failed");
+  });
+
+  it("survives a failing alert post", async () => {
+    for (const alert of [
+      () => new Response("down", { status: 500 }),
+      () => {
+        throw new Error("ECONNREFUSED");
+      },
+      () => Response.json({ ok: false }),
+      () => Response.json({}),
+      () => Response.json("ok"),
+      () => Response.json(null),
+      () => new Response("not json"),
+    ]) {
+      const run = harness({
+        alert,
+        claimAnswers: { 1: unavailable, 2: unavailable, 3: unavailable },
+        env: alertEnv,
+      });
+      stopAfter(run, 4);
+      expect(await runNautilusWorker([], run.io)).toBe(0);
+      expect(run.alerts).toHaveLength(2);
+      expect(
+        run.err.filter((line) => line.includes("alert post failed"))
+      ).toHaveLength(2);
+    }
   });
 });
 

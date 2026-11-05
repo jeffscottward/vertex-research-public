@@ -30,6 +30,10 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | `VERTEX_AGENT_API_KEY` | Operator agent write key (read from the key file by the start script). |
 | `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
 | `VERTEX_WORKER_IDLE_MS` | Wait between claims when no run is queued. Default 3000. |
+| `VERTEX_ALERT_POST_URL` | Optional. Loopback chat endpoint that takes `{channel, text}` (the same route as the sector rotation alerts, for example `http://127.0.0.1:47821/post`). |
+| `VERTEX_ALERT_CHANNEL` | Optional. Channel for the alert lines, for example `trading-alerts`. Without both settings the worker posts no alerts. |
+
+Alerts: a failed cycle is a claim or fail call that got an error (HTTP 401, 429, 5xx, network), a result that could not be delivered or was rejected, or an engine crash, timeout or version mismatch. An input error of a run (the run fails with its message) and an empty claim are normal cycles. After 3 failed cycles in a row the worker posts one alert line with the count and the last error class; it posts no more lines for that incident. On the next normal cycle it posts one recovery line. The lines never contain the key or a payload. A failed alert post is logged and the worker goes on.
 
 One run may take at most 9 minutes; the worker then kills the engine and fails the run. The API fails a queued run after 10 minutes only when no worker claimed any Nautilus run in that time ("Nautilus backtest worker did not pick up the run"); a busy worker never fails its backlog.
 

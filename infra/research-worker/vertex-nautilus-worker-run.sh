@@ -11,8 +11,11 @@ BUN="__BUN__"                          # absolute path of the bun binary
 export VERTEX_ORIGIN="__VERTEX_ORIGIN__"                    # portal origin, https://...
 export VERTEX_NAUTILUS_PYTHON="__NAUTILUS_VENV__/bin/python" # venv with the Nautilus lock
 # export VERTEX_WORKER_IDLE_MS=3000
+# Optional alert route (a loopback chat endpoint that takes {channel, text}); set both to "" for none.
+export VERTEX_ALERT_POST_URL="__ALERT_POST_URL__"  # for example http://127.0.0.1:47821/post
+export VERTEX_ALERT_CHANNEL="__ALERT_CHANNEL__"    # for example trading-alerts
 
-case "$CHECKOUT$KEY_FILE$BUN$VERTEX_ORIGIN$VERTEX_NAUTILUS_PYTHON" in
+case "$CHECKOUT$KEY_FILE$BUN$VERTEX_ORIGIN$VERTEX_NAUTILUS_PYTHON$VERTEX_ALERT_POST_URL$VERTEX_ALERT_CHANNEL" in
   *__*) echo "vertex-nautilus-worker-run: replace the __PLACEHOLDER__ values first" >&2; exit 64 ;;
 esac
 if [ "$(stat -c %a "$KEY_FILE")" != "600" ]; then
