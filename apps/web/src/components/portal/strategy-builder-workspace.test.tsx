@@ -346,6 +346,10 @@ describe("strategy builder model", () => {
       false,
       false,
     ]);
+    expect([usesSource("zscore"), usesSource("realizedVol")]).toEqual([
+      true,
+      true,
+    ]);
     expect([lengthUnit("rvol"), lengthUnit("adx")]).toEqual([
       "sessions",
       "bars",

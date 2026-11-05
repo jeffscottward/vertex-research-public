@@ -61,7 +61,11 @@ export const STRATEGY_INDICATORS = [
   "lowest",
   "adx",
   "rvol",
+  "zscore",
+  "realizedVol",
 ] as const;
+/** zscore and realizedVol use a sample standard deviation, which needs at least two values. */
+export const STRATEGY_DSL_MIN_DEVIATION_LENGTH = 2;
 export const STRATEGY_OPERATORS = [
   ">",
   ">=",
@@ -103,8 +107,8 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
       name: z.enum(STRATEGY_INDICATORS),
       offset: OffsetSchema,
       /**
-       * Input price for sma, ema, rsi, highest and lowest. atr, adx and rvol ignore it. For rvol,
-       * `length` is the number of previous sessions in the average.
+       * Input price for sma, ema, rsi, highest, lowest, zscore and realizedVol. atr, adx and rvol
+       * ignore it. For rvol, `length` is the number of previous sessions in the average.
        */
       source: z.enum(STRATEGY_PRICE_FIELDS).default("close"),
       type: z.literal("indicator"),
@@ -115,6 +119,15 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
         expr.name !== "rvol" || expr.length <= STRATEGY_DSL_MAX_RVOL_SESSIONS,
       {
         message: `rvol length must be at most ${STRATEGY_DSL_MAX_RVOL_SESSIONS} sessions`,
+        path: ["length"],
+      }
+    )
+    .refine(
+      (expr) =>
+        (expr.name !== "zscore" && expr.name !== "realizedVol") ||
+        expr.length >= STRATEGY_DSL_MIN_DEVIATION_LENGTH,
+      {
+        message: `zscore and realizedVol length must be at least ${STRATEGY_DSL_MIN_DEVIATION_LENGTH}`,
         path: ["length"],
       }
     ),

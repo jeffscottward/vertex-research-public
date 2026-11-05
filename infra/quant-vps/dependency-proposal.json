@@ -15,7 +15,7 @@
   "native": {
     "python": "3.12.11",
     "pythonAbi": "cp312",
-    "setuptools": "82.0.1",
+    "setuptools": "84.2.1",
     "cryptography": "46.0.3",
     "kernelTransport": "ctypes-c-abi-v1",
     "pyo3": null,

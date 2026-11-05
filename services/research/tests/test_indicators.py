@@ -17,12 +17,14 @@ from indicators import (
     lwma,
     macd,
     parabolic_sar,
+    realized_volatility,
     rolling_vwap,
     rsi,
     sma,
     smma,
     stochastic,
     true_range,
+    zscore,
 )
 
 REFERENCE = json.loads((Path(__file__).parent / "fixtures" / "indicator-reference.json").read_text())
@@ -286,3 +288,83 @@ def test_running_window_kernels_match_brute_force():
             top = max(highs[index - span + 1 : index + 1])
             bottom = min(lows[index - span + 1 : index + 1])
             assert math.isclose(stoch.k[index], 100 * (closes[index] - bottom) / (top - bottom), rel_tol=1e-9)
+
+
+def test_zscore_hand_cases():
+    # Windows [1, 2, 4] and [2, 4, 8]: (x - mean) / sample deviation (ddof 1).
+    close_to(zscore([1, 2, 4, 8], 3), [N, N, 5 / math.sqrt(21), 10 / math.sqrt(84)])
+    close_to(zscore([3, 1], 2), [N, -1 / math.sqrt(2)])
+    # A flat window has no defined z-score.
+    close_to(zscore([5, 5, 5, 6], 2), [N, N, N, 0.5 / math.sqrt(0.5)])
+
+
+def test_realized_volatility_hand_cases():
+    # Returns 0.1, -0.1, 0.0; sample deviation of each 2-return window, times 100 * sqrt(1).
+    close_to(realized_volatility([100, 110, 99, 99], 2, periods_per_year=1), [N, N, 100 * math.sqrt(0.02), 100 * math.sqrt(0.005)])
+    close_to(realized_volatility([100, 110, 99], 2), [N, N, 100 * math.sqrt(0.02) * math.sqrt(252)])
+    assert realized_volatility([10, 10, 10, 10], 2) == [N, N, 0.0, 0.0]
+    assert realized_volatility([10, 11], 2) == [N, N]
+
+
+def test_flat_windows_after_a_volatile_stretch():
+    # A volatile stretch leaves rounding residue in a running variance; a flat window must still be exact.
+    import random
+
+    rng = random.Random(5)
+    closes = [100.0 + rng.uniform(-30, 30) for _ in range(97)] + [123.456] * 40
+    for span in (2, 7, 20):
+        z = zscore(closes, span)
+        assert all(value is None for value in z[97 + span - 1 :])
+        assert all(value is not None for value in z[span - 1 : 97])
+    growth = [100.0 * 1.5**index for index in range(5)] + [7.0] * 30
+    vol = realized_volatility([100.0 + rng.uniform(-30, 30) for _ in range(50)] + [42.0] * 30, 10)
+    assert vol[-20:] == [0.0] * 20 and vol[50] > 0
+    assert realized_volatility(growth, 3)[-1] == 0.0
+
+
+def test_zscore_and_realized_volatility_match_brute_force():
+    import random
+
+    rng = random.Random(11)
+    closes = [100.0]
+    for _ in range(499):
+        closes.append(closes[-1] * (1 + rng.uniform(-0.03, 0.03)))
+    simple = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
+    for span in (2, 5, 63):
+        z = zscore(closes, span)
+        vol = realized_volatility(closes, span)
+        for index in range(span - 1, len(closes)):
+            window = closes[index - span + 1 : index + 1]
+            mean = math.fsum(window) / span
+            deviation = math.sqrt(math.fsum((value - mean) ** 2 for value in window) / (span - 1))
+            assert math.isclose(z[index], (closes[index] - mean) / deviation, rel_tol=1e-8, abs_tol=1e-8)
+            if index >= span:
+                returns = simple[index - span : index]
+                r_mean = math.fsum(returns) / span
+                r_dev = math.sqrt(math.fsum((r - r_mean) ** 2 for r in returns) / (span - 1))
+                assert math.isclose(vol[index], 100 * math.sqrt(252) * r_dev, rel_tol=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("call", "error"),
+    [
+        (lambda: zscore([1, 2, 3], 1), ValueError),
+        (lambda: realized_volatility([1, 2, 3], 1), ValueError),
+        (lambda: realized_volatility([1, 0, 3], 2), ValueError),
+        (lambda: realized_volatility([1, 2, 3], 2, periods_per_year=0), ValueError),
+        (lambda: realized_volatility([1, 2, 3], 2, periods_per_year=True), ValueError),
+        (lambda: zscore([1, float("nan")], 2), ValueError),
+    ],
+)
+def test_zscore_and_realized_volatility_guards(call, error):
+    with pytest.raises(error):
+        call()
+
+
+def test_zscore_and_realized_volatility_match_the_gs_quant_fixture():
+    # gs-quant-reference.json holds gs-quant 2.2.4 output on the fixture closes (make_gs_quant_reference.py).
+    gs = json.loads((Path(__file__).parent / "fixtures" / "gs-quant-reference.json").read_text())["expected"]
+    closes = REFERENCE["bars"]["close"]
+    for window in (5, 20):
+        close_to(zscore(closes, window), gs[f"zscore_{window}"])
+        close_to(realized_volatility(closes, window), gs[f"realized_vol_{window}"])

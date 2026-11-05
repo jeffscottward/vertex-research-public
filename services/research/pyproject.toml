@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==82.0.1"]
+requires = ["setuptools==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,10 +12,11 @@ dependencies = ["pydantic==2.13.4", "tzdata==2026.2"]
 [project.optional-dependencies]
 test = ["pytest==9.0.3"]
 numeric = ["numpy==2.4.6", "scipy==1.18.1"]
+gsquant = ["gs-quant==2.2.4"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*", "quantlab", "quantlab.*"]
+include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*", "quantlab", "quantlab.*", "analytics", "analytics.*"]
 exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]
@@ -31,6 +32,17 @@ extra = "numeric"
 requirements-lock = "requirements-numeric-linux-py312.lock"
 runtime-qualified = false
 reason = "Main-approved exact CPython 3.12 Linux x86_64 artifact metadata; optional numerical runtime is unavailable until composed and accepted. Existing base lock is unchanged. Since 2026-11-05 CI installs the lock and runs the optional-backend event-study tests (VERTEX_REQUIRE_NUMERIC=1); no production runtime uses it."
+
+# gs-quant (Goldman Sachs, Apache-2.0) for the offline analytics adapter analytics/gs_quant_backend.py.
+# CI (scripts/ci/research-python.sh, fourth run) installs this lock with hash checks in a temporary venv
+# and runs tests/test_gs_quant.py with VERTEX_REQUIRE_GSQUANT=1. Never install it together with the
+# numeric extra: numpy differs (2.5.4 here, 2.4.6 there).
+[tool.vertex.optional-backends.gs-quant-analytics]
+state = "pinned-ci-tested-runtime-unqualified"
+extra = "gsquant"
+requirements-lock = "requirements-gsquant-linux-py312.lock"
+runtime-qualified = false
+reason = "Offline gs_quant.timeseries and the PredefinedAssetEngine only; no GsSession or Marquee credential. Used by python -m analytics report on the rig; no deployed runtime uses it."
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

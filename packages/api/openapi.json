@@ -49990,7 +49990,9 @@
                                               "highest",
                                               "lowest",
                                               "adx",
-                                              "rvol"
+                                              "rvol",
+                                              "zscore",
+                                              "realizedVol"
                                             ],
                                             "type": "string"
                                           },
@@ -50097,7 +50099,9 @@
                                               "highest",
                                               "lowest",
                                               "adx",
-                                              "rvol"
+                                              "rvol",
+                                              "zscore",
+                                              "realizedVol"
                                             ],
                                             "type": "string"
                                           },
@@ -50222,7 +50226,9 @@
                                               "highest",
                                               "lowest",
                                               "adx",
-                                              "rvol"
+                                              "rvol",
+                                              "zscore",
+                                              "realizedVol"
                                             ],
                                             "type": "string"
                                           },
@@ -50329,7 +50335,9 @@
                                               "highest",
                                               "lowest",
                                               "adx",
-                                              "rvol"
+                                              "rvol",
+                                              "zscore",
+                                              "realizedVol"
                                             ],
                                             "type": "string"
                                           },
@@ -50789,7 +50797,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -50896,7 +50906,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -51021,7 +51033,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -51128,7 +51142,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -55657,7 +55673,9 @@
                                                     "highest",
                                                     "lowest",
                                                     "adx",
-                                                    "rvol"
+                                                    "rvol",
+                                                    "zscore",
+                                                    "realizedVol"
                                                   ],
                                                   "type": "string"
                                                 },
@@ -55764,7 +55782,9 @@
                                                     "highest",
                                                     "lowest",
                                                     "adx",
-                                                    "rvol"
+                                                    "rvol",
+                                                    "zscore",
+                                                    "realizedVol"
                                                   ],
                                                   "type": "string"
                                                 },
@@ -55889,7 +55909,9 @@
                                                     "highest",
                                                     "lowest",
                                                     "adx",
-                                                    "rvol"
+                                                    "rvol",
+                                                    "zscore",
+                                                    "realizedVol"
                                                   ],
                                                   "type": "string"
                                                 },
@@ -55996,7 +56018,9 @@
                                                     "highest",
                                                     "lowest",
                                                     "adx",
-                                                    "rvol"
+                                                    "rvol",
+                                                    "zscore",
+                                                    "realizedVol"
                                                   ],
                                                   "type": "string"
                                                 },
@@ -57146,7 +57170,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -57253,7 +57279,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -57378,7 +57406,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -57485,7 +57515,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -59056,7 +59088,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -59163,7 +59197,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -59288,7 +59324,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -59395,7 +59433,9 @@
                                                           "highest",
                                                           "lowest",
                                                           "adx",
-                                                          "rvol"
+                                                          "rvol",
+                                                          "zscore",
+                                                          "realizedVol"
                                                         ],
                                                         "type": "string"
                                                       },
@@ -112846,7 +112886,9 @@
                                             "highest",
                                             "lowest",
                                             "adx",
-                                            "rvol"
+                                            "rvol",
+                                            "zscore",
+                                            "realizedVol"
                                           ],
                                           "type": "string"
                                         },
@@ -112953,7 +112995,9 @@
                                             "highest",
                                             "lowest",
                                             "adx",
-                                            "rvol"
+                                            "rvol",
+                                            "zscore",
+                                            "realizedVol"
                                           ],
                                           "type": "string"
                                         },
@@ -113078,7 +113122,9 @@
                                             "highest",
                                             "lowest",
                                             "adx",
-                                            "rvol"
+                                            "rvol",
+                                            "zscore",
+                                            "realizedVol"
                                           ],
                                           "type": "string"
                                         },
@@ -113185,7 +113231,9 @@
                                             "highest",
                                             "lowest",
                                             "adx",
-                                            "rvol"
+                                            "rvol",
+                                            "zscore",
+                                            "realizedVol"
                                           ],
                                           "type": "string"
                                         },
@@ -113580,7 +113628,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -113687,7 +113737,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -113812,7 +113864,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -113919,7 +113973,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -114776,7 +114832,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -114883,7 +114941,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -115008,7 +115068,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -115115,7 +115177,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -115915,7 +115979,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -116022,7 +116088,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -116147,7 +116215,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },
@@ -116254,7 +116324,9 @@
                                                   "highest",
                                                   "lowest",
                                                   "adx",
-                                                  "rvol"
+                                                  "rvol",
+                                                  "zscore",
+                                                  "realizedVol"
                                                 ],
                                                 "type": "string"
                                               },

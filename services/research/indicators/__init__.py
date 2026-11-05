@@ -20,6 +20,7 @@ from indicators.core import (
     lwma,
     macd,
     parabolic_sar,
+    realized_volatility,
     rolling_vwap,
     rsi,
     rvol_at_time,
@@ -27,6 +28,7 @@ from indicators.core import (
     smma,
     stochastic,
     true_range,
+    zscore,
 )
 
 __all__ = [
@@ -43,6 +45,7 @@ __all__ = [
     "lwma",
     "macd",
     "parabolic_sar",
+    "realized_volatility",
     "rolling_vwap",
     "rsi",
     "rvol_at_time",
@@ -50,4 +53,5 @@ __all__ = [
     "smma",
     "stochastic",
     "true_range",
+    "zscore",
 ]
