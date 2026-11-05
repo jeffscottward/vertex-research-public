@@ -279,7 +279,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "b9ef8614a13611fa9d5e455690880781c935d8f33a136a3e9f74c9f6f34f9a6c",
+        "docker-compose.yml": "edd2aee5de72abc617d9ec30c5f53f5644e1966c191021d70c1468dc30a21289",
     }
 
     def test_compose_has_no_retired_environment(self):
