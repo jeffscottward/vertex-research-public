@@ -11,21 +11,31 @@ analytics package imports without it, and every call raises
 ``GsQuantUnavailable`` with an install hint when it is missing or a different
 version. Install it from services/research/requirements-gsquant-linux-py312.lock.
 
-Conventions (gs-quant 2.2.4):
-- Volatility is the sample standard deviation (ddof 1) of simple returns,
-  annualized with the factor gs-quant infers from the date spacing (252 for
-  daily data) and multiplied by 100.
-- Exponential volatility uses gs-quant's exponentially weighted standard
-  deviation of simple returns with decay ``beta`` (weight of the past).
-- Beta and correlation use simple returns on the dates both series share.
-- Values over partial windows are returned by gs-quant; this adapter replaces
-  them with ``None`` so every value uses a full window.
+Conventions (gs-quant 2.2.4 functions, daily bars):
+- Volatility is gs-quant ``volatility``: the sample standard deviation (ddof 1)
+  of simple returns, times sqrt(252) and 100. The factor 252 is passed
+  explicitly; gs-quant would otherwise infer it from the date spacing and stop
+  on spacings it does not recognize.
+- Exponential volatility is gs-quant ``exponential_std`` of simple returns
+  (pandas ``ewm(alpha=1-beta, adjust=False).std()``), times sqrt(252) and 100.
+  For daily dates this equals gs-quant ``exponential_volatility``.
+- Z-score is gs-quant ``zscores``. A flat window (all values equal) gives
+  ``None``; gs-quant returns NaN or rounding noise there.
+- Beta and correlation are gs-quant ``beta`` and ``correlation`` of simple
+  returns on the dates both series share.
+- Windowed maximum drawdown is gs-quant ``max_drawdown(x, w)``: the lowest
+  ``close / running peak - 1`` of the last ``w`` bars, where each running peak is
+  the highest close of the ``w`` bars up to that bar (so a peak up to ``2w - 2``
+  bars back counts). Without a window it is the drawdown since the first bar.
+- gs-quant returns values over partial windows; this adapter replaces them with
+  ``None`` so every value uses a full window. Series too short for one full
+  window give only ``None``.
 """
 from __future__ import annotations
 
 import importlib
 import math
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from datetime import date
 
 from .ports import Series
@@ -36,6 +46,7 @@ INSTALL_HINT = ("install the pinned lock: python -m pip install --no-deps --requ
                 "-r services/research/requirements-gsquant-linux-py312.lock")
 MAX_ROWS = 200_000
 MAX_WINDOW = 2_000
+PERIODS_PER_YEAR = 252
 
 
 class GsQuantUnavailable(RuntimeError):
@@ -67,7 +78,6 @@ def _modules() -> dict:
         "Window": importlib.import_module("gs_quant.timeseries.helper").Window,
         "econometrics": importlib.import_module("gs_quant.timeseries.econometrics"),
         "statistics": importlib.import_module("gs_quant.timeseries.statistics"),
-        "technicals": importlib.import_module("gs_quant.timeseries.technicals"),
     }
 
 
@@ -117,15 +127,9 @@ def _aligned(result, days: list[date], first_full: int) -> Series:
     return out
 
 
-def _pair(m: dict, dates, closes, benchmark_dates, benchmark_closes):
+def _prices(m: dict, dates, closes, name: str = "closes"):
     days = _dates("dates", dates)
-    values = _numbers("closes", closes, len(days), positive=True)
-    bench_days = _dates("benchmark_dates", benchmark_dates)
-    bench = dict(zip(bench_days, _numbers("benchmark_closes", benchmark_closes, len(bench_days), positive=True)))
-    common = [(day, value) for day, value in zip(days, values) if day in bench]
-    common_days = [day for day, _ in common]
-    return (days, _series(m, common_days, [value for _, value in common]),
-            _series(m, common_days, [bench[day] for day in common_days]), common_days)
+    return days, _series(m, days, _numbers(name, closes, len(days), positive=name == "closes"))
 
 
 class GsQuantAnalytics:
@@ -135,31 +139,44 @@ class GsQuantAnalytics:
 
     def realized_volatility(self, dates: Sequence[str], closes: Sequence[float], window: int) -> Series:
         m, w = _modules(), _window(window)
-        days = _dates("dates", dates)
-        x = _series(m, days, _numbers("closes", closes, len(days), positive=True))
-        return _aligned(m["econometrics"].volatility(x, m["Window"](w, 0)), days, w)
+        days, x = _prices(m, dates, closes)
+        if len(days) <= w:
+            return [None] * len(days)
+        result = m["econometrics"].volatility(x, m["Window"](w, 0), annualization_factor=PERIODS_PER_YEAR)
+        return _aligned(result, days, w)
 
     def exponential_volatility(self, dates: Sequence[str], closes: Sequence[float], beta: float) -> Series:
         if isinstance(beta, bool) or not isinstance(beta, (int, float)) or not 0 <= beta < 1:
             raise ValueError("beta must be a number in [0, 1)")
         m = _modules()
-        days = _dates("dates", dates)
-        x = _series(m, days, _numbers("closes", closes, len(days), positive=True))
-        return _aligned(m["technicals"].exponential_volatility(x, float(beta)), days, 2)
+        days, x = _prices(m, dates, closes)
+        if len(days) < 3:
+            return [None] * len(days)
+        deviation = m["statistics"].exponential_std(m["econometrics"].returns(x), float(beta))
+        return _aligned(deviation * (100 * math.sqrt(PERIODS_PER_YEAR)), days, 2)
 
     def zscore(self, dates: Sequence[str], values: Sequence[float], window: int) -> Series:
         m, w = _modules(), _window(window)
-        days = _dates("dates", dates)
-        x = _series(m, days, _numbers("values", values, len(days), positive=False))
-        return _aligned(m["statistics"].zscores(x, m["Window"](w, 0)), days, w - 1)
+        days, x = _prices(m, dates, values, "values")
+        if len(days) < w:
+            return [None] * len(days)
+        out = _aligned(m["statistics"].zscores(x, m["Window"](w, 0)), days, w - 1)
+        flat = (x.rolling(w).max() == x.rolling(w).min()).tolist()
+        return [None if is_flat else value for value, is_flat in zip(out, flat)]
 
     def _relative(self, name: str, dates, closes, benchmark_dates, benchmark_closes, window: int) -> Series:
         m, w = _modules(), _window(window)
-        days, x, b, common = _pair(m, dates, closes, benchmark_dates, benchmark_closes)
+        days = _dates("dates", dates)
+        values = _numbers("closes", closes, len(days), positive=True)
+        bench_days = _dates("benchmark_dates", benchmark_dates)
+        bench = dict(zip(bench_days, _numbers("benchmark_closes", benchmark_closes, len(bench_days), positive=True)))
+        common = [day for day in days if day in bench]
         if len(common) <= w:
             return [None] * len(days)
-        function: Callable = getattr(m["econometrics"], name)
-        result = _aligned(function(x, b, m["Window"](w, 0)), common, w)
+        own = dict(zip(days, values))
+        x = _series(m, common, [own[day] for day in common])
+        b = _series(m, common, [bench[day] for day in common])
+        result = _aligned(getattr(m["econometrics"], name)(x, b, m["Window"](w, 0)), common, w)
         by_day = dict(zip(common, result))
         return [by_day.get(day) for day in days]
 
@@ -173,9 +190,12 @@ class GsQuantAnalytics:
 
     def max_drawdown(self, dates: Sequence[str], closes: Sequence[float], window: int | None) -> Series:
         m = _modules()
-        days = _dates("dates", dates)
-        x = _series(m, days, _numbers("closes", closes, len(days), positive=True))
+        days, x = _prices(m, dates, closes)
+        if not days:
+            return []
         if window is None:
             return _aligned(m["econometrics"].max_drawdown(x), days, 0)
         w = _window(window)
+        if len(days) < w:
+            return [None] * len(days)
         return _aligned(m["econometrics"].max_drawdown(x, m["Window"](w, 0)), days, w - 1)

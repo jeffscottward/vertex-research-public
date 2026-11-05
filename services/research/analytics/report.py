@@ -45,9 +45,9 @@ COLUMNS = (
     ("vol60", "Vol 60d %", "Annualized realized volatility of simple returns, 60 returns."),
     ("ewvol", "EW vol %", "Exponentially weighted volatility, decay 0.94."),
     ("z50", "Z 50d", "Z-score of the close against the last 50 closes."),
-    ("dd1y", "Max DD 1y %", "Worst peak-to-trough fall in the last 252 bars."),
+    ("dd1y", "Max DD 1y %", "Lowest close against its 252-bar running peak during the last 252 bars."),
     ("ddall", "Max DD all %", "Worst peak-to-trough fall since the first bar."),
-    ("beta60", "Beta 60d", "Beta of daily returns to the benchmark (ES=F for futures, SPY for ETFs)."),
+    ("beta60", "Beta 60d", "Beta of daily returns to the benchmark (ES=F for futures, SPY for ETFs). n/a when the benchmark has no bar on the last date."),
     ("corr60", "Corr 60d", "Correlation of daily returns with the benchmark."),
     ("twin60", "Twin corr 60d", "Correlation of the future with its ETF twin (roll gaps lower it)."),
 )
@@ -77,15 +77,15 @@ def load_core7(directory: Path) -> dict[str, tuple[list[str], list[float]]]:
         for symbol in (future, twin):
             path = directory / f"{symbol}.csv"
             if path.is_file():
-                out[symbol] = load_daily_csv(path)
+                dates, closes = load_daily_csv(path)
+                if dates:
+                    out[symbol] = (dates, closes)
     return out
 
 
 def _last(values: Sequence[float | None]) -> float | None:
-    for value in reversed(values):
-        if value is not None:
-            return value
-    return None
+    """Value on the last date (None when it is not defined there; never an older value)."""
+    return values[-1] if values else None
 
 
 def _scaled(value: float | None, factor: float) -> float | None:

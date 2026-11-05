@@ -5,7 +5,8 @@ Commands
 
 The default output is <repo>/private/analytics/core7-risk.html. Research only:
 no orders, no broker, no Marquee and no network access. Exit code 2 means the
-pinned gs-quant is not installed or a GsSession is set.
+pinned gs-quant is not installed or a GsSession is set. Exit code 1 means no
+data or bad data.
 """
 from __future__ import annotations
 
@@ -38,6 +39,9 @@ def main(argv: list[str] | None = None) -> int:
     except (GsQuantUnavailable, GsQuantSessionActive) as error:
         print(json.dumps({"error": str(error)}), file=sys.stderr)
         return 2
+    except ValueError as error:
+        print(json.dumps({"error": f"bad input data: {error}"}), file=sys.stderr)
+        return 1
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render_html(report))

@@ -64,7 +64,7 @@ Safety rules in the adapter:
 - `test_only_the_adapter_imports_gs_quant` fails when any other non-test module imports `gs_quant`.
 - When gs-quant is missing or a different version, the adapter raises `GsQuantUnavailable` with the install command, and `python -m analytics report` exits with code 2.
 
-Conventions (gs-quant 2.2.4): volatility is the sample standard deviation (ddof 1) of simple returns, annualized (gs-quant infers 252 for daily dates) and multiplied by 100. Beta and correlation use simple returns on the dates both series share. The adapter returns `None` for partial windows, where gs-quant returns values from fewer points.
+Conventions (gs-quant 2.2.4 functions, daily bars): volatility is the sample standard deviation (ddof 1) of simple returns × √252 × 100; the adapter passes the factor 252, so gs-quant does not infer it from the date spacing. Exponential volatility is gs-quant `exponential_std` of simple returns × √252 × 100 (equal to gs-quant `exponential_volatility` for daily dates). Beta and correlation use simple returns on the dates both series share. Windowed maximum drawdown is gs-quant `max_drawdown(x, w)`: the lowest close / running peak − 1 of the last w bars, each running peak taken over the w bars up to that bar, so a peak up to 2w − 2 bars back counts. The adapter returns `None` for partial windows (gs-quant returns values from fewer points), for series shorter than one window, and for a flat z-score window (gs-quant returns NaN or rounding noise there).
 
 ## Parity results
 
@@ -79,7 +79,7 @@ Conventions (gs-quant 2.2.4): volatility is the sample standard deviation (ddof 
 |`smma`, `rsi`|`smoothed_moving_average`, `relative_strength_index`|gs-quant seeds the recursion at the first bar; Vertex seeds with a full SMA (TA-Lib). Equal within 1e-8 after 300 bars; different before|
 |`macd` (line, signal)|`macd(x, 12, 26, 1)`, `macd(x, 12, 26, 9)`|Same seeding difference; equal within 1e-9 after 400 bars. gs-quant `macd` with s = 9 returns the signal line|
 
-The adapter's beta, correlation and maximum drawdown are checked against a brute-force calculation on a series with missing benchmark days.
+The adapter's beta, correlation and maximum drawdown (full history and windowed) are checked against a brute-force calculation on a series with missing benchmark days. Exponential volatility equals gs-quant `exponential_volatility` within 1e-12.
 
 ## Backtest engine comparison
 
@@ -89,7 +89,7 @@ Decision: the gs-quant engine is not added as a third Quant Lab engine. For dail
 
 ## Demo
 
-`python -m analytics report --data <dir> --out <file.html> [--json <file.json>]` computes, for each Core 7 future and ETF twin: realized volatility (20 and 60 returns), exponentially weighted volatility (decay 0.94), the 50-day z-score of the close, maximum drawdown over 252 bars and since the first bar, 60-day beta and correlation to the benchmark (ES=F for futures, SPY for ETFs), the 60-day correlation of each future with its ETF twin, and a sparkline of 20-day volatility. The page has no script and makes no external request.
+`python -m analytics report --data <dir> --out <file.html> [--json <file.json>]` computes, for each Core 7 future and ETF twin: realized volatility (20 and 60 returns), exponentially weighted volatility (decay 0.94), the 50-day z-score of the close, maximum drawdown (the gs-quant 252-bar window, and since the first bar), 60-day beta and correlation to the benchmark (ES=F for futures, SPY for ETFs), the 60-day correlation of each future with its ETF twin, and a sparkline of 20-day volatility. The page has no script and makes no external request.
 
 Run on the rig (2026-11-05, data through 2026-11-03):
 

@@ -306,6 +306,22 @@ def test_realized_volatility_hand_cases():
     assert realized_volatility([10, 11], 2) == [N, N]
 
 
+def test_flat_windows_after_a_volatile_stretch():
+    # A volatile stretch leaves rounding residue in a running variance; a flat window must still be exact.
+    import random
+
+    rng = random.Random(5)
+    closes = [100.0 + rng.uniform(-30, 30) for _ in range(97)] + [123.456] * 40
+    for span in (2, 7, 20):
+        z = zscore(closes, span)
+        assert all(value is None for value in z[97 + span - 1 :])
+        assert all(value is not None for value in z[span - 1 : 97])
+    growth = [100.0 * 1.5**index for index in range(5)] + [7.0] * 30
+    vol = realized_volatility([100.0 + rng.uniform(-30, 30) for _ in range(50)] + [42.0] * 30, 10)
+    assert vol[-20:] == [0.0] * 20 and vol[50] > 0
+    assert realized_volatility(growth, 3)[-1] == 0.0
+
+
 def test_zscore_and_realized_volatility_match_brute_force():
     import random
 

@@ -122,7 +122,8 @@ def test_only_the_adapter_imports_gs_quant():
     importers = []
     for path in RESEARCH.rglob("*.py"):
         relative = path.relative_to(RESEARCH)
-        if relative.parts[0] == "tests" or "__pycache__" in relative.parts:
+        skipped = {"tests", "__pycache__", "build", "dist", "node_modules"}
+        if any(part in skipped or part.startswith(".") for part in relative.parts):
             continue
         tree = ast.parse(path.read_text(), filename=str(path))
         for node in ast.walk(tree):
@@ -164,3 +165,16 @@ def test_missing_or_wrong_gs_quant_is_a_clear_error(monkeypatch, tmp_path):
 def test_cli_without_data_files(tmp_path, capsys):
     assert cli.main(["report", "--data", str(tmp_path)]) == 1
     assert "no Core 7 CSV files" in capsys.readouterr().err
+    write_csv(tmp_path / "SPY.csv", [])  # header only: skipped, not a crash
+    assert load_core7(tmp_path) == {}
+    assert cli.main(["report", "--data", str(tmp_path)]) == 1
+
+
+def test_report_shows_no_stale_relative_value():
+    class LastMissing(KernelAnalytics):
+        def beta(self, dates, closes, benchmark_dates, benchmark_closes, window):
+            return [1.0] * (len(closes) - 1) + [None]
+
+    data = {"ES=F": series(100, 100), "NQ=F": series(100, 90)}
+    row = build_report(data, LastMissing())["markets"][1]["future"]
+    assert row["beta60"] is None and row["corr60"] == 0.5

@@ -563,19 +563,22 @@ def rvol_at_time(
     return out
 
 
-# Relative spread under which a window counts as flat (sample deviation treated as 0).
-_FLAT_WINDOW = 1e-12
-
-
 def _rolling_sample_moments(data: list[float], span: int) -> list[tuple[float, float] | None]:
-    """(mean, sample standard deviation) of each full trailing window; None before the first one."""
+    """(mean, sample standard deviation) of each full trailing window; None before the first one.
+
+    A flat window (all ``span`` values equal) has deviation exactly 0.
+    """
     out: list[tuple[float, float] | None] = [None] * len(data)
     if len(data) < span:
         return out
     # Sliding-window Welford update, as in bollinger_bands, recomputed exactly once every
     # ``span`` bars so rounding drift cannot build up (z-scores divide by a small deviation): O(rows).
     mean = squares = 0.0
-    for index in range(span - 1, len(data)):
+    run = 0  # number of equal values ending at the current bar
+    for index in range(len(data)):
+        run = run + 1 if index and data[index] == data[index - 1] else 1
+        if index < span - 1:
+            continue
         if (index - span + 1) % span == 0:
             window = data[index - span + 1 : index + 1]
             mean = math.fsum(window) / span
@@ -585,10 +588,10 @@ def _rolling_sample_moments(data: list[float], span: int) -> list[tuple[float, f
             previous_mean = mean
             mean += (incoming - outgoing) / span
             squares = max(0.0, squares + (incoming - outgoing) * (incoming - mean + outgoing - previous_mean))
-        deviation = math.sqrt(squares / (span - 1))
-        if deviation <= _FLAT_WINDOW * max(1.0, abs(mean)):
-            deviation = 0.0
-        out[index] = (mean, deviation)
+        if run >= span:
+            out[index] = (data[index], 0.0)
+        else:
+            out[index] = (mean, math.sqrt(squares / (span - 1)))
     return out
 
 
@@ -604,8 +607,8 @@ def zscore(values: Sequence[float], period: int = 20) -> Series:
 
     z(i) = (x(i) - mean) / sample standard deviation (ddof 1) of the ``period``
     values ending at bar i, the bar itself included. The first value is at bar
-    ``period - 1``. A flat window has no defined z-score and gives ``None``
-    (gs-quant gives NaN).
+    ``period - 1``. A flat window (all values equal) has no defined z-score and
+    gives ``None``; gs-quant 2.2.4 returns NaN or rounding noise there.
     """
     data = _values("values", values)
     span = _window_period("period", period)
@@ -623,7 +626,7 @@ def realized_volatility(values: Sequence[float], period: int = 20, periods_per_y
     the ``period`` simple returns ending at bar i. The first value is at bar
     ``period`` (``period`` returns need ``period + 1`` prices). Prices must be
     positive. gs-quant infers the annualization factor from the dates (252 for
-    daily data); here it is explicit. A flat window gives 0.
+    daily data); here it is explicit. A flat window (all returns equal) gives 0.
     """
     data = _values("values", values)
     span = _window_period("period", period)

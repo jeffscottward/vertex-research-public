@@ -28,7 +28,7 @@ Vertex has one indicator formula set in two places. Both are for research, backt
 |Stochastic|`stochastic`|Stochastic 14, 3, 3|TA-Lib STOCH with SMA smoothing. %K starts at bar k+s−2; TA-Lib hides it until %D starts. A zero high-low range gives raw %K 50.|
 |ADX, +DI, −DI|`adx`|ADX 14|TA-Lib ADX, PLUS_DI and MINUS_DI smoothing. DX is 0 when +DI and −DI are both 0.|
 |Relative volume at time (RVOL)|`rvol_at_time`|RVOL at time 20|Volume so far in the session divided by the mean volume of the previous n sessions up to the same time of day. Undefined while fewer than n earlier sessions exist or when that mean is 0.|
-|Rolling z-score|`zscore`|none|(x − mean) / sample standard deviation (ddof 1) of the trailing n values, the bar included. A flat window has no value. Same convention as gs-quant `zscores`.|
+|Rolling z-score|`zscore`|none|(x − mean) / sample standard deviation (ddof 1) of the trailing n values, the bar included. A flat window (all values equal) has no value. Same convention as gs-quant `zscores`.|
 |Realized volatility|`realized_volatility`|none|Sample standard deviation (ddof 1) of the trailing n simple returns × √252 × 100 (annualized percent; the factor is a parameter). Same convention as gs-quant `volatility`.|
 
 ### Relative volume at time

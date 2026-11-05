@@ -171,7 +171,8 @@ def test_adapter_beta_correlation_and_drawdown_against_brute_force():
     assert all(beta[index] is None for index in range(0, 300, 10))  # no benchmark on those days
     common = [index for index in range(300) if index % 10]
     position = {index: k for k, index in enumerate(common)}
-    for index in common[61:]:
+    assert all(beta[index] is None and corr[index] is None for index in common[:60])
+    for index in common[60:]:
         k = position[index]
         window = common[k - 59 : k + 1]
         ra = [asset[i] / asset[common[position[i] - 1]] - 1 for i in window]
@@ -191,7 +192,40 @@ def test_adapter_beta_correlation_and_drawdown_against_brute_force():
         worst = min(worst, value / peak - 1)
         assert math.isclose(drawdown[index], worst, abs_tol=1e-12)
     window = gs.max_drawdown(days, asset, 20)
-    assert window[:19] == [None] * 19 and all(-1 < value <= 0 for value in window[19:])
+    assert window[:19] == [None] * 19
+    # gs-quant convention: lowest close / (highest close of the 20 bars up to it) - 1 over the last 20 bars.
+    falls = [asset[i] / max(asset[max(0, i - 19) : i + 1]) - 1 for i in range(300)]
+    for index in range(19, 300):
+        assert math.isclose(window[index], min(falls[index - 19 : index + 1]), abs_tol=1e-12)
+
+
+def test_adapter_exponential_volatility_matches_gs_quant_daily():
+    from gs_quant.timeseries import technicals
+
+    data, days = closes(300), business_days(300)
+    ours = GsQuantAnalytics().exponential_volatility(days, data, 0.94)
+    theirs = technicals.exponential_volatility(gs_series(data), 0.94)
+    assert ours[:2] == [None, None]
+    assert worst_relative(ours, theirs, 2) < 1e-12
+
+
+def test_adapter_short_and_flat_series():
+    gs = GsQuantAnalytics()
+    for n in range(0, 21):
+        days, data = business_days(n), closes(n) if n else []
+        assert gs.realized_volatility(days, data, 20) == [None] * n
+        assert gs.zscore(days, data, 21) == [None] * n
+        assert gs.max_drawdown(days, data, 21) == [None] * n
+        assert gs.beta(days, data, days, data, 20) == [None] * n
+        if n < 3:
+            assert gs.exponential_volatility(days, data, 0.94) == [None] * n
+    # A flat window after a volatile stretch: gs-quant returns rounding noise; the adapter returns None.
+    data = closes(80, step=0.2)[:40] + [123.456] * 40
+    z = gs.zscore(business_days(80), data, 20)
+    assert all(value is None for value in z[59:]) and all(value is not None for value in z[19:40])
+    # Weekly spacing: the factor is fixed at 252 per bar, so no inference error.
+    weekly = [(date(2020, 1, 3) + timedelta(days=7 * i)).isoformat() for i in range(30)]
+    assert gs.realized_volatility(weekly, closes(30), 10)[-1] > 0
 
 
 @pytest.mark.parametrize(
@@ -244,7 +278,7 @@ def test_report_cli_end_to_end(tmp_path):
     for market in report["markets"]:
         for kind in ("future", "etf"):
             row = market[kind]
-            assert row["vol20"] > 0 and row["vol60"] > 0 and row["ddall"] <= 0
+            assert row["vol20"] > 0 and row["vol60"] > 0 and row["ewvol"] > 0 and row["ddall"] <= 0
     assert report["markets"][0]["future"]["beta60"] is None  # ES=F is the futures benchmark
     assert report["markets"][1]["future"]["beta60"] is not None
     page = out.read_text()

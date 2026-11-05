@@ -43,5 +43,10 @@ class SeriesAnalytics(Protocol):
         ...
 
     def max_drawdown(self, dates: Sequence[str], closes: Sequence[float], window: int | None) -> Series:
-        """Worst peak-to-trough fall (a fraction, 0 or negative) over a trailing window, or since the start."""
+        """Worst fall from a running peak (a fraction, 0 or negative).
+
+        With ``window=None`` it is the worst fall since the first bar. With a window it is the lowest
+        ``close / running peak - 1`` of the last ``window`` bars, each running peak taken over the
+        ``window`` bars up to that bar (the gs-quant ``max_drawdown`` convention).
+        """
         ...
