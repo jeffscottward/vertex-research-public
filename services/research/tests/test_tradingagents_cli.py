@@ -170,3 +170,20 @@ def test_bad_ticker_and_disallowed_model_exit_2(tmp_path: Path) -> None:
     assert main(["--ticker", "NVDA", "--as-of", "2026-11-04", "--model", "openai/gpt-5.2",
                  "--out", str(tmp_path / "x.json")], run=fake) == 2
     assert fake.prompts == []
+
+
+def test_failed_run_keeps_events_of_finished_desks(tmp_path: Path) -> None:
+    fake = FakeOmp({"setup debate desk": brief(strike=950)})
+    code, out = run_cli(tmp_path, fake, "--themes")
+    assert code == 1 and not out.exists()
+    payload = json.loads(out.with_name("NVDA-2026-11-04.record.json").read_text())
+    record, events = payload["record"], payload["appendEvents"]["events"]
+    calls = [e for e in events if e["kind"] == "llm_call"]
+    assert [e["title"] for e in calls] == ["theme_discovery", "bull_bear_research_brief", "trade_setup_debate"]
+    assert len(calls) == len(fake.prompts) == record["llmCalls"] == 3
+    assert record["inputTokens"] == sum(e["inputTokens"] for e in calls) == 300
+    assert [e["kind"] for e in events] == [
+        "llm_call", "message", "llm_call", "message", "llm_call", "status", "flag"]
+    assert [e["seq"] for e in events] == list(range(len(events)))
+    assert record["analysts"] == ["Theme Desk", "Bull/Bear Desk", "Setup Debate Desk"]
+    assert record["status"] == "failed" and "order fields" in record["error"]

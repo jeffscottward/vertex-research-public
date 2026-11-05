@@ -140,3 +140,18 @@ def test_generator_plugs_into_tradingagents_adapter_and_order_output_is_rejected
         OmpClaudeGenerator(omp_path="omp", run=FakeRun(omp_stdout(json.dumps({**brief, "strike": 900})))))
     with pytest.raises(ExternalResearchError, match="order fields"):
         bad.analyze_candidate("NVDA", [])
+
+
+def test_omp_runs_without_per_token_provider_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+                 "OPENROUTER_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY", "SOME_VENDOR_API_KEY"):
+        monkeypatch.setenv(name, "secret-value")
+    monkeypatch.setenv("HOME", "/home/test")
+    monkeypatch.setenv("VERTEX_KEEP_ME", "1")
+    run = FakeRun(omp_stdout("{}"))
+    OmpClaudeGenerator(omp_path="omp", run=run).generate("n", "p")
+    env = run.calls[0]["env"]
+    assert env["HOME"] == "/home/test" and env["VERTEX_KEEP_ME"] == "1"
+    assert not [k for k in env if k.endswith("_API_KEY")]
+    assert not {"ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"} & set(env)
+    assert "secret-value" not in env.values()

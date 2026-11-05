@@ -156,9 +156,14 @@ def _timed(clock: Callable[[], float], name: PromptName, call: Callable[[], Any]
 
 
 def run_desks(adapter: TradingAgentsResearchAdapter, ticker: str, context: Mapping[str, Any], *,
-              with_themes: bool, clock: Callable[[], float] = time.monotonic) -> list[DeskRun]:
-    """Theme discovery (optional), then the bull/bear brief, then the setup debate."""
-    runs: list[DeskRun] = []
+              with_themes: bool, clock: Callable[[], float] = time.monotonic,
+              runs: list[DeskRun] | None = None) -> list[DeskRun]:
+    """Theme discovery (optional), then the bull/bear brief, then the setup debate.
+
+    Finished desks are appended to ``runs`` as they finish, so a caller that passes its own
+    list keeps them when a later desk fails.
+    """
+    runs = [] if runs is None else runs
     themes: list[ThemeThesis] = []
     if with_themes:
         runs.append(_timed(clock, "theme_discovery", lambda: adapter.discover_themes(context)))
@@ -252,6 +257,11 @@ def build_dossier(*, ticker: str, as_of: date, run_key: str, context: Mapping[st
     }
 
 
+def _desk(prompt_name: str) -> str:
+    names: Mapping[str, str] = DESK_NAMES
+    return names.get(prompt_name, prompt_name)[:64]
+
+
 def _split_model(model: str) -> tuple[str, str]:
     provider, _, name = model.partition("/")
     return (provider, name) if name else ("anthropic", model)
@@ -272,7 +282,9 @@ def build_record_payload(*, ticker: str, as_of: date, run_key: str, generator: O
         "modelsServed": [{"requested": model, "served": served} for served in _served(generator)][:16],
         "ticker": ticker,
         "decisionDate": as_of.isoformat(),
-        "analysts": [DESK_NAMES[r.prompt_name] for r in runs][:16],
+        "analysts": list(dict.fromkeys(
+            [DESK_NAMES[r.prompt_name] for r in runs]
+            + [_desk(c.name) for c in generator.calls]))[:16],
         "status": "failed" if error else "succeeded",
         "ratingSource": "missing",
         "flags": ["research_only"],
@@ -303,7 +315,7 @@ def build_record_payload(*, ticker: str, as_of: date, run_key: str, generator: O
             "outputTokens": call.output_tokens if call else 0,
             "costUsd": round(call.cost_usd, 6) if call else 0, "durationMs": run.duration_ms,
         })
-        last = index == len(runs) - 1
+        last = index == len(runs) - 1 and not error  # a failed run has no decision
         output = run.output
         if isinstance(output, ResearchBrief):
             title = f"{desk}: confidence {output.confidence:.2f} (research only)"
@@ -313,6 +325,17 @@ def build_record_payload(*, ticker: str, as_of: date, run_key: str, generator: O
             "seq": len(events), "agent": desk, "kind": "decision" if last else "message",
             "title": title[:300],
             "body": json.dumps(_dump(output), ensure_ascii=False)[:EVENT_BODY_MAX],
+        })
+    # A desk whose model call returned but whose output was refused (failed run): keep its call.
+    finished = {r.prompt_name for r in runs}
+    for call in generator.calls:
+        if call.name in finished:
+            continue
+        events.append({
+            "seq": len(events), "agent": _desk(call.name),
+            "kind": "llm_call", "title": call.name[:300], "model": call.model or model,
+            "inputTokens": call.input_tokens, "outputTokens": call.output_tokens,
+            "costUsd": round(call.cost_usd, 6), "durationMs": int(round(call.latency_s * 1000)),
         })
     if error:
         events.append({"seq": len(events), "agent": FRAMEWORK, "kind": "status",
@@ -378,7 +401,7 @@ def main(argv: Sequence[str] | None = None, *, run: Runner | None = None,
     adapter = TradingAgentsResearchAdapter(generator)
     runs: list[DeskRun] = []
     try:
-        runs = run_desks(adapter, ticker, context, with_themes=args.themes, clock=clock)
+        run_desks(adapter, ticker, context, with_themes=args.themes, clock=clock, runs=runs)
     except ExternalResearchError as exc:
         cause = f" ({exc.__cause__})" if exc.__cause__ else ""
         error = f"{exc}{cause}"

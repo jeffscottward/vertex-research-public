@@ -12,6 +12,8 @@ Each call runs one lean, tool-less ``omp`` process (pattern of market-watch-bot
 - an advisor-off config overlay written to a temporary directory, which is also the working
   directory of the process;
 - the prompt on stdin, a wall-clock timeout, and a model allow-list.
+- an environment without per-token provider keys (``subscription_env``), so omp always
+  uses the subscription login.
 
 The answer is the text of the last assistant message of the ``agent_end`` JSON event.
 ``OmpClaudeGenerator.generate`` implements the ``ResearchGenerator`` protocol of
@@ -28,7 +30,7 @@ import re
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -50,6 +52,25 @@ DEFAULT_SYSTEM_PROMPT = (
 _FENCE = re.compile(r"```(?:json|JSON)?[ \t]*\r?\n(.*?)```", re.DOTALL)
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
+# Per-token provider credentials and endpoint overrides. They are removed from the omp
+# environment so omp always uses the subscription login. Every ``*_API_KEY`` goes too:
+# a tool-less research call needs none.
+_PROVIDER_ENV = frozenset({
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "OPENROUTER_API_KEY",
+    "OPENAI_API_KEY", "OPENAI_BASE_URL",
+    "AZURE_OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY",
+    "MISTRAL_API_KEY", "DEEPSEEK_API_KEY", "XAI_API_KEY", "TOGETHER_API_KEY",
+    "FIREWORKS_API_KEY", "CEREBRAS_API_KEY", "PERPLEXITY_API_KEY", "COHERE_API_KEY",
+    "VENICE_API_KEY", "HF_TOKEN", "HUGGINGFACE_API_KEY", "AWS_BEARER_TOKEN_BEDROCK",
+})
+
+
+def subscription_env(base: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Copy of ``base`` (default ``os.environ``) without per-token provider credentials."""
+    source = os.environ if base is None else base
+    return {k: v for k, v in source.items()
+            if k.upper() not in _PROVIDER_ENV and not k.upper().endswith("_API_KEY")}
+
 
 
 def default_omp_path() -> str:
@@ -183,7 +204,8 @@ class OmpClaudeGenerator:
             overlay.write_text(ADVISOR_OFF_OVERLAY, encoding="utf-8")
             try:
                 proc = self.run(self.command(str(overlay)), input=prompt, capture_output=True,
-                                text=True, timeout=self.timeout_s, cwd=tmp, check=False)
+                                text=True, timeout=self.timeout_s, cwd=tmp, check=False,
+                                env=subscription_env())
             except subprocess.TimeoutExpired as exc:
                 raise ExternalResearchError(
                     f"omp {name}: no reply in {self.timeout_s:g} s.") from exc
@@ -219,5 +241,5 @@ class OmpClaudeGenerator:
 __all__: Sequence[str] = [
     "ADVISOR_OFF_OVERLAY", "DEFAULT_ALLOWED_MODELS", "DEFAULT_MODEL", "DEFAULT_SYSTEM_PROMPT",
     "OmpClaudeGenerator", "OmpReply", "THINKING_LEVELS", "build_command", "default_omp_path",
-    "extract_json", "final_assistant_message", "message_text",
+    "extract_json", "final_assistant_message", "message_text", "subscription_env",
 ]
