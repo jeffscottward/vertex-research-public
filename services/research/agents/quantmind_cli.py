@@ -5,12 +5,16 @@ Commands
           rank captured papers for a topic (QuantMind knowledge search); prints JSON
   mine    --topic TEXT [--captures DIR] [--papers DIR] [--out DIR] [--top N]
           [--min-confidence X] [--instrument SPY] [--in-sample-end DATE] [--preregistered-at TS]
-          rank papers and write Quant Lab draft spec inputs and report.json under OUT/<topic-slug>/
+          rank papers and write Quant Lab draft spec inputs and report.json under
+          OUT/<topic-slug>-<topic-sha8>/
 
-Defaults: captures $QUANTLAB_HOME/captures, papers $QUANTLAB_HOME/papers, out
-$QUANTLAB_HOME/mined ($QUANTLAB_HOME defaults to <repo>/private/quantlab). A
-relative path is resolved against the repository root, so output stays under
-the git-ignored private/ folder. Deterministic: no model, no network.
+Defaults: captures $QUANTLAB_HOME/captures, out $QUANTLAB_HOME/mined, papers
+$QUANTLAB_HOME/papers, or <captures>/../papers when --captures is given.
+$QUANTLAB_HOME defaults to <repo>/private/quantlab; a relative $QUANTLAB_HOME
+resolves from the current directory (as in python -m quantlab). A relative
+--captures, --papers or --out path resolves against the repository root, so
+output stays under the git-ignored private/ folder. Deterministic: no model,
+no network.
 Research only: no orders, no broker access, no credentials.
 
 Exit codes: 0 success (also when every candidate is rejected), 2 usage error or
@@ -59,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = home()
     captures = _path(args.captures, root / "captures")
-    papers = _path(args.papers, captures.parent / "papers")
+    papers = _path(args.papers, captures.parent / "papers" if args.captures else root / "papers")
     try:
         client = LocalCaptureClient(captures, papers)
     except FileNotFoundError as error:

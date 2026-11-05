@@ -8,7 +8,7 @@ from agents import quantmind_cli
 from agents.external_research import _order_keys
 from agents.quantmind_mining import (
     LocalCaptureClient, MineOptions, build_knowledge, capture_sha256, detect, lookback_from_text, mine,
-    write_outputs,
+    topic_folder_name, write_outputs,
 )
 from quantlab import __main__ as quantlab_cli
 from quantlab.spec import build_spec, validate
@@ -197,7 +197,8 @@ def test_cli_mine_writes_report_and_drafts(captures, tmp_path, capsys):
     assert code == 0
     summary = json.loads(capsys.readouterr().out)
     assert (summary["drafted"], summary["rejected"]) == (2, 2)
-    folder = out / "moving-average-momentum-market-timing"
+    folder = out / topic_folder_name("moving average momentum market timing")
+    assert folder.name.startswith("moving-average-momentum-market-timing-") and len(folder.name) == 46
     assert summary["out"] == str(folder)
     report = json.loads((folder / "report.json").read_text())
     assert len(list((folder / "drafts").glob("*.json"))) == 2 and _order_keys(report) == set()
@@ -217,3 +218,11 @@ def test_cli_search_lists_ranked_captures(captures, capsys):
     assert quantmind_cli.main(["search", "--topic", "moving average", "--captures", str(captures), "--top", "2"]) == 0
     results = json.loads(capsys.readouterr().out)["results"]
     assert results[0]["doi"] == SMA["doi"] and len(results) <= 2
+
+
+def test_topics_with_the_same_slug_keep_separate_folders(captures, tmp_path):
+    client = LocalCaptureClient(captures)
+    first, _ = write_outputs(mine(client, "Moving Average", MineOptions()), tmp_path)
+    second, _ = write_outputs(mine(client, "moving  average", MineOptions()), tmp_path)
+    assert first != second and first.name[:-9] == second.name[:-9] == "moving-average"
+    assert list((first / "drafts").glob("*.json")) and list((second / "drafts").glob("*.json"))

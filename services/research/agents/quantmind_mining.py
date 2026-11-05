@@ -292,6 +292,11 @@ def _claims(title: str, abstract: str, signal_hit: str) -> list[dict]:
     return claims[:MAX_CLAIMS]
 
 
+def topic_folder_name(topic: str) -> str:
+    """Slug plus a short hash of the exact topic, so topics with the same slug never share a folder."""
+    return f"{_slug(topic)}-{hashlib.sha256(topic.encode('utf-8')).hexdigest()[:8]}"
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60] or "topic"
 
@@ -460,14 +465,14 @@ def mine(client: LocalCaptureClient, topic: str, options: MineOptions = MineOpti
 
 
 def write_outputs(result: dict, out: Path) -> tuple[Path, dict]:
-    """Write drafts, single-capture copies and the report under ``out/<topic-slug>/``.
+    """Write drafts, single-capture copies and the report under ``out/<topic-slug>-<sha8>/``.
 
     Drafts and capture copies from an earlier run of the same topic are removed
     first, so the folder always matches its report. File names in the report are
     relative to the topic folder. Returns (topic folder, report).
     """
     report = json.loads(json.dumps(result["report"]))
-    folder = out / _slug(report["topic"])
+    folder = out / topic_folder_name(report["topic"])
     for stale in [*folder.glob("drafts/qm-*.json"), *folder.glob("captures/ssrn-*.json")]:
         stale.unlink()
     for capture_id, capture in sorted(result["captures"].items()):
@@ -489,4 +494,5 @@ def _write(path: Path, value: Any) -> None:
 
 
 __all__ = ["CaptureRecord", "Detection", "LocalCaptureClient", "MineOptions", "build_knowledge",
-           "capture_sha256", "detect", "draft_for", "lookback_from_text", "mine", "sentences", "write_outputs"]
+           "capture_sha256", "detect", "draft_for", "lookback_from_text", "mine", "sentences", "topic_folder_name",
+           "write_outputs"]

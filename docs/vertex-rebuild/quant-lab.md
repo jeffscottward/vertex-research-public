@@ -72,7 +72,7 @@ Strategy mining runs the QuantMind knowledge boundary (`QuantMindKnowledgeAdapte
 - Draft: one instrument (`--instrument`, default `SPY`) or T-bills, monthly decision, next-open fill, the same costs and rejection criteria as the Zakamulin draft. A lookback stated in the abstract (for example "200-day moving average") is used and added to the walk-forward grid; otherwise the default is 10 months (SMA) or 12 months (momentum), recorded as an assumption. `paper_claims` are verbatim abstract sentences or the title; every choice we made is in `our_reading`. `mining` holds the topic, rank, search score, knowledge source id, capture id and capture SHA-256. `preregistered_at` is the capture time unless `--preregistered-at` is given, so a rerun gives the same bytes. Drafts carry no order fields.
 - Gate: each draft goes through `quantlab.spec.build_spec` before it is written. A draft that fails is reported as rejected with the validation message.
 
-From `services/research` (relative `--captures` and `--out` paths are resolved against the repository root):
+From `services/research`. Relative `--captures`, `--papers` and `--out` paths resolve against the repository root; a relative `QUANTLAB_HOME` resolves from the current directory. Defaults: captures `$QUANTLAB_HOME/captures`, out `$QUANTLAB_HOME/mined`, papers `$QUANTLAB_HOME/papers`, or `<captures>/../papers` when `--captures` is given.
 
 ```sh
 python -m agents.quantmind_cli search --topic "moving average market timing"
@@ -80,7 +80,7 @@ python -m agents.quantmind_cli mine --topic "moving average market timing" --out
 python -m quantlab spec --capture <topic folder>/captures/<capture id>.json --draft <topic folder>/drafts/<draft id>.json
 ```
 
-`mine` writes `private/quantlab/mined/<topic-slug>/report.json` (counts, every candidate with its status and reason), `drafts/qm-*.json` and single-capture copies in `captures/` for `quantlab spec`. A rerun of the same topic replaces the earlier drafts. A mined draft is a starting point: review `our_reading` before the spec is frozen and backtested. Tests: `services/research/tests/test_quantmind_mining.py`.
+`mine` writes `private/quantlab/mined/<topic-slug>-<sha8>/report.json` (the suffix is the first 8 hex digits of the SHA-256 of the exact topic, so topics with the same slug do not share a folder) (counts, every candidate with its status and reason), `drafts/qm-*.json` and single-capture copies in `captures/` for `quantlab spec`. A rerun of the same topic replaces the earlier drafts. A mined draft is a starting point: review `our_reading` before the spec is frozen and backtested. Tests: `services/research/tests/test_quantmind_mining.py`.
 
 ## Read view
 
