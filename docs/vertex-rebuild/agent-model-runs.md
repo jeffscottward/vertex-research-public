@@ -182,3 +182,21 @@ python -m agents.tradingagents_cli --ticker NVDA --as-of 2026-11-04 --thinking l
 - Guards: every desk output is validated against its typed contract, and output with an order-like key at any depth (for example `strike`, `orderType`, `price`) fails the run. A failed run writes no dossier, only a `failed` record payload with the error and the events of every model call made so far, and exits 1. Bad input exits 2.
 
 Tests: `services/research/tests/test_omp_claude.py` and `services/research/tests/test_tradingagents_cli.py` (fake `omp`, no network or model).
+
+## AI Hedge Fund persona committee over OMP Claude
+
+Research only. `services/research/agents/hedgefund_committee_cli.py` runs the AI Hedge Fund investor personas (Buffett, Munger, Graham, Lynch, Druckenmiller; `agents/hedgefund_committee.py`) for one ticker on demand. All selected personas run in **one** model call: one prompt with a block per persona and one JSON answer with a section per persona. Every `omp -p` call carries a large fixed OMP prompt, so one call per persona would multiply the cost. The transport is the same `OmpClaudeGenerator` as the TradingAgents desks (Claude through the OMP subscription only).
+
+```sh
+cd services/research
+python -m agents.hedgefund_committee_cli --ticker AAPL --as-of 2026-11-05 --thinking low \
+  --context aapl-company-facts.json --context aapl-financial-metrics.json \
+  [--personas buffett,munger,graham,lynch,druckenmiller] [--out <path>]
+```
+
+- Provenance: only the persona instructions (checklist, signal rules, confidence guide) are adapted from AI Hedge Fund (MIT, `backtesting/AI_HEDGE_FUND_LICENSE.txt`); the module docstring names the upstream commit and the SHA-256 of each persona file. Position, short and sizing wording became research signals; AI Hedge Fund's data clients, LLM clients, portfolio manager, brokers and graph are not used. The personas are stylized approximations, not the actual individuals and not endorsements. The `frameworks` sheet still describes only the event-study adaptation.
+- Context: each `--context` file (at most 8) is a caller-supplied research JSON object, for example Financial Datasets CLI output, placed under its file stem. Nothing is fetched. Account, position, balance, credential and order-like keys are refused before the model call, as for TradingAgents.
+- Output: the dossier (default `private/research/hedgefund/<TICKER>-<date>.json`, git-ignored) holds per persona `signal` (`bullish`, `neutral`, `bearish`), `confidence` (0-1), `reasoning`, `key_metrics` (cited context keys and values), `risks`, `missing_evidence` and a `citation_check` (cited metrics, and how many are key names in the context); plus the committee summary computed locally: votes, majority signal (or `split`), agreement, mean confidence and `net_score` = mean of signal (+1, 0, -1) times confidence. The net score maps to the five-tier rating: buy at 0.5 or more, overweight at 0.2 or more, hold between -0.2 and 0.2, underweight at -0.2 or less, sell at -0.5 or less, so one confident dissenter among five neutral personas stays hold. `<TICKER>-<date>.record.json` holds the `agentModelRuns.record` body (framework `ai_hedge_fund`, version `personas+<upstream commit>`, the persona names as analysts, `rating` with `ratingSource` `mapped`, flags `research_only` and `single_call`, no levels) and the `appendEvents` events (one `llm_call`, one `message` per persona, one `decision` for the committee). The command sends nothing; post it as for TradingAgents.
+- Guards: the answer must name the requested ticker and each requested persona exactly once and match the typed contract; an order-like key at any depth fails the run. A failed run writes no dossier, only a `failed` record payload (no rating) with the model call events, and exits 1. Bad input exits 2.
+
+Tests: `services/research/tests/test_hedgefund_committee.py` (fake `omp`, no network or model).
