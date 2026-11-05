@@ -632,6 +632,16 @@ describe("zscore and realizedVol (gs-quant conventions)", () => {
     expect(
       nanToNull(realizedVolatility(Float64Array.of(1, 2, 0, 2, 4, 8), 2))
     ).toEqual([null, null, null, null, null, 0]);
+    // Too few bars for one full window: nothing is available.
+    expect(nanToNull(realizedVolatility(Float64Array.of(1, 2, 3), 3))).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect(nanToNull(rollingZScore(Float64Array.of(1, 2), 3))).toEqual([
+      null,
+      null,
+    ]);
   });
 });
 

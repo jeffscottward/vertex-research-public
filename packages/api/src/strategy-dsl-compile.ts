@@ -201,7 +201,6 @@ export const realizedVolatility = (
 ): Float64Array => {
   const size = values.length;
   const out = new Float64Array(size).fill(Number.NaN);
-  if (size <= length) return out;
   const returns = new Float64Array(size).fill(Number.NaN);
   for (let index = 1; index < size; index += 1) {
     const previous = values[index - 1] as number;
