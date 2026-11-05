@@ -128,6 +128,10 @@ export const runCommand: RunCommand = (command, args, options) => {
   return promise;
 };
 
+/** Longest wait for one API request and for one alert post. */
+const API_TIMEOUT_MS = 60_000;
+const ALERT_TIMEOUT_MS = 5000;
+
 /** A signal that aborts on SIGTERM or SIGINT of `target` (the process), so the worker stops cleanly. */
 export const stopSignal = (
   target: Readonly<{
@@ -202,6 +206,8 @@ const call = async (
       "x-api-key": config.apiKey,
     },
     method: "POST",
+    // A hung API request must not stop the claim loop.
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
   });
   const text = await response.text();
   if (!response.ok) throw new ApiError(path, response.status, text);
@@ -401,6 +407,7 @@ const postAlert = async (io: NautilusWorkerIo, text: string): Promise<void> => {
       body: JSON.stringify({ channel, text }),
       headers: { "content-type": "application/json" },
       method: "POST",
+      signal: AbortSignal.timeout(ALERT_TIMEOUT_MS),
     })
     .catch(() => null);
   const body: unknown =
