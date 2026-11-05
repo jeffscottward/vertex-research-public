@@ -62,6 +62,26 @@ bun run vertex:quantlab:record -- --capture <capture.json> --spec <spec.json> --
 
 `--dry-run` prints the paper, capture, strategy, spec and backtest rows and needs no database. The recorder checks each input file with a Zod schema. Exit codes: 0 success, 2 usage error, a file that fails its schema, or an input mismatch (for example a result that does not belong to the spec, or a spec whose paper is not recorded), 1 any other failure (unreadable file, database error).
 
+## QuantMind mining
+
+Strategy mining runs the QuantMind knowledge boundary (`QuantMindKnowledgeAdapter` in `services/research/agents/external_research.py`) on our own paper captures and writes draft spec inputs for the strategy library. Code: `services/research/agents/quantmind_mining.py` and `agents/quantmind_cli.py`. Research only, standard library plus the existing adapter. No QuantMind (LLMQuant) code is copied.
+
+- Client: `LocalCaptureClient` reads `captures/*.json` (one capture per file, or a `search-*.json` bundle). A capture is unique by DOI and version; the earliest `captured_at` wins. Its id is `ssrn-<id>-<sha12>`, where the hash is the canonical SHA-256 of the capture record. The searchable text is the title, DOI and abstract, plus retained text when a `.txt` file with the stem of the retained PDF is in `papers/` (for example made with `pdftotext`). Text is read only from that folder.
+- Ranking: the adapter scores each paper by the share of topic terms it contains. `--min-confidence` (default 0.5) and `--top` (default 10) limit the candidates.
+- Rules: deterministic keyword rules on the title and abstract, no model and no network. A moving-average rule becomes `price_above_sma`; time-series momentum, absolute momentum or trend following becomes `momentum`. Rejected with a reason: no supported signal, "moving average" only inside a model or indicator name (ARIMA, MACD), a title that names a rule built from several averages (crossover, triple, combination, distance), and cross-sectional or long-short momentum. Other unsupported parts in the abstract (options, leverage, many portfolios) are listed in `our_reading.deviations`.
+- Draft: one instrument (`--instrument`, default `SPY`) or T-bills, monthly decision, next-open fill, the same costs and rejection criteria as the Zakamulin draft. A lookback stated in the abstract (for example "200-day moving average") is used and added to the walk-forward grid; otherwise the default is 10 months (SMA) or 12 months (momentum), recorded as an assumption. `paper_claims` are verbatim abstract sentences or the title; every choice we made is in `our_reading`. `mining` holds the topic, rank, search score, knowledge source id, capture id and capture SHA-256. `preregistered_at` is the capture time unless `--preregistered-at` is given, so a rerun gives the same bytes. Drafts carry no order fields.
+- Gate: each draft goes through `quantlab.spec.build_spec` before it is written. A draft that fails is reported as rejected with the validation message.
+
+From `services/research` (relative `--captures` and `--out` paths are resolved against the repository root):
+
+```sh
+python -m agents.quantmind_cli search --topic "moving average market timing"
+python -m agents.quantmind_cli mine --topic "moving average market timing" --out private/quantlab/mined/
+python -m quantlab spec --capture <topic folder>/captures/<capture id>.json --draft <topic folder>/drafts/<draft id>.json
+```
+
+`mine` writes `private/quantlab/mined/<topic-slug>/report.json` (counts, every candidate with its status and reason), `drafts/qm-*.json` and single-capture copies in `captures/` for `quantlab spec`. A rerun of the same topic replaces the earlier drafts. A mined draft is a starting point: review `our_reading` before the spec is frozen and backtested. Tests: `services/research/tests/test_quantmind_mining.py`.
+
 ## Read view
 
 The recorded studies show in the Quant Lab section of the Backtests page (`/backtests`). The page reads them through the oRPC procedure `quantLab.list`. The view is operator-only and read-only: it cannot record, change or delete anything. A study is one frozen spec. It shows the newest backtest recorded for that exact spec, matched by the spec hash in the backtest id (`bt-quantlab-<spec_sha256[0:12]>-…`).
@@ -87,4 +107,4 @@ Tests:
 - Unit: `packages/db/src/server/quant-lab-store.test.ts`, `packages/db/src/server/quant-lab-migration.test.ts`, `packages/db/src/server/quant-lab-read.test.ts`, `packages/api/src/quant-lab.test.ts`, `apps/web/src/components/portal/quant-lab-panel.test.tsx`.
 - Recorder: `scripts/quant-lab/record.test.ts`, `scripts/quant-lab/record-rows.test.ts`.
 - Real Postgres (CI): `tests/integration/database/quant-lab-store.test.ts`, `tests/integration/database/quant-lab-read.test.ts`.
-- Python: `services/research/tests/test_quantlab.py`.
+- Python: `services/research/tests/test_quantlab.py`, `services/research/tests/test_quantmind_mining.py`.
