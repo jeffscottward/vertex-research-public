@@ -267,7 +267,7 @@ jobs:
       # The Python research and execution suites (services/research, services/execution).
       # The step installs the hash-pinned locks into temporary venvs and runs the suites
       # listed in services/research/tests/ci-suites*.txt. Fakes only; no network or broker.
-      - name: Research tooling Python tests
+      - name: Python research and execution tests
         if: matrix.lane == 'core'
         run: bash scripts/ci/research-python.sh
 

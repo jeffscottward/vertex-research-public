@@ -1,6 +1,6 @@
 # Python suites that CI runs (scripts/ci/research-python.sh, core lane).
 # One path per line, relative to services/research. This file must list every
-# test file in tests/, providers/tests/ and ../execution/tests/; the script
+# test_*.py file in a tests/ folder here and in ../execution/tests/; the script
 # stops when a test file is missing here. Remove a line only when its file is
 # removed. Suites that also need an optional backend are listed again in
 # ci-suites-numeric.txt or ci-suites-nautilus.txt.
@@ -75,3 +75,12 @@ tests/test_setup_parity.py
 tests/test_sma_timing.py
 tests/test_study_runners.py
 tests/test_vertex_run_recorder.py
+adapters/tests/test_chat_consumer.py
+adapters/tests/test_chat_debate.py
+adapters/tests/test_chat_inputs.py
+adapters/tests/test_chat_output.py
+adapters/tests/test_effect_boundaries.py
+adapters/tests/test_host_and_model_use.py
+adapters/tests/test_model_and_review.py
+adapters/tests/test_privacy_rendezvous.py
+knowledge/tests/test_knowledge_boundaries.py

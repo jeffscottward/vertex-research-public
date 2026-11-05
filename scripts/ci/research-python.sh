@@ -8,10 +8,10 @@
 # suites. Nothing is installed outside the temporary virtual environment, and
 # the tests use fakes only: no network, model or broker call.
 #
-# Completeness: ci-suites.txt must list every test file in
-# services/research/tests, services/research/providers/tests and
-# services/execution/tests. A test file that is not listed stops the run, so a
-# new suite cannot silently stay out of CI.
+# Completeness: ci-suites.txt must list every test_*.py file in a tests/
+# folder under services/research and in services/execution/tests. A test file
+# that is not listed stops the run, so a new suite cannot silently stay out of
+# CI.
 #
 # Second run: the suites in services/research/tests/ci-suites-numeric.txt run
 # in a separate virtual environment from
@@ -24,8 +24,9 @@
 # in a separate virtual environment from
 # services/research/requirements-nautilus-linux-py312.lock (base pins plus
 # nautilus-trader 1.227.0 and pandas, glibc >= 2.35) with
-# VERTEX_REQUIRE_NAUTILUS=1, so a missing engine fails instead of skipping. The
-# base run also lists tests/test_quantlab_nautilus.py, so without
+# VERTEX_REQUIRE_NAUTILUS=1, so a missing engine fails instead of skipping (the
+# pandas suites use importorskip; pandas is pinned in that lock). The base run
+# also lists tests/test_quantlab_nautilus.py, so without
 # nautilus-trader it runs that file's error-path tests (missing engine, wrong
 # version, CLI exit 2) and skips its parity tests.
 #
@@ -64,8 +65,9 @@ manifest_lines() {
   while IFS= read -r line; do
     line="${line%%#*}"
     line="${line//[[:space:]]/}"
-    [[ -n "${line}" ]] && printf '%s\n' "${line}"
+    [[ -z "${line}" ]] || printf '%s\n' "${line}"
   done <"${research}/$1"
+  return 0
 }
 
 # Every test file must be listed in the base manifest.
@@ -76,7 +78,7 @@ while IFS= read -r suite; do
     echo "::error::${suite} is not listed in services/research/tests/ci-suites.txt." >&2
     missing=1
   fi
-done < <(cd "${research}" && ls tests/test_*.py providers/tests/test_*.py ../execution/tests/test_*.py)
+done < <(cd "${research}" && find . ../execution/tests -name 'test_*.py' -path '*/tests/*' | sed 's#^\./##' | sort)
 if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
