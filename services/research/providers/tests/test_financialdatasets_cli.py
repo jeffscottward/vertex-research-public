@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from providers.financialdatasets_cli import EXIT_GUARD, EXIT_OK, EXIT_UNAVAILABLE, EXIT_USAGE, UrllibTransport, main
+from providers.financialdatasets_cli import EXIT_GUARD, EXIT_OK, EXIT_UNAVAILABLE, EXIT_USAGE, PRIVATE_ROOT, UrllibTransport, main
 from providers.ports import HttpRequest, HttpResponse
 from providers.tests._fixtures import FixedClock, NOW
 
@@ -43,16 +43,19 @@ class FakeOpener:
 class FinancialDatasetsCliCases(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.private = Path(self.tmp.name) / "private" / "fd"
+        self.private_root = Path(self.tmp.name) / "private"
+        self.private = self.private_root / "fd"
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_cli(self, argv, transport=None, environ=None):
+    def run_cli(self, argv, transport=None, environ=None, private_root="tmp"):
         transport = transport or FakeTransport()
         out, err = io.StringIO(), io.StringIO()
         env = {"FINANCIAL_DATASETS_API_KEY": KEY} if environ is None else environ
-        code = main(argv, environ=env, transport_factory=transport.factory, clock=FixedClock(), stdout=out, stderr=err)
+        root = self.private_root if private_root == "tmp" else private_root
+        code = main(argv, environ=env, transport_factory=transport.factory, clock=FixedClock(), stdout=out, stderr=err,
+                    private_root=root)
         return code, out.getvalue(), err.getvalue(), transport
 
     def assert_no_key(self, *texts):
@@ -170,6 +173,22 @@ class FinancialDatasetsCliCases(unittest.TestCase):
         self.assertEqual(code, EXIT_USAGE)
         self.assertEqual(fake.requests, [])
         self.assertFalse(outside.exists())
+
+    def test_out_file_must_be_under_repo_root_private(self):
+        repo_root = Path(__file__).resolve().parents[4]
+        self.assertEqual(PRIVATE_ROOT, repo_root / "private")
+        refused = (repo_root / "services" / "research" / "private" / "fd" / "aapl.json",  # not git-ignored
+                   Path("/private/tmp/fd/aapl.json"),
+                   Path(self.tmp.name) / "private" / "aapl.json",  # a "private" folder outside the repo root
+                   repo_root / "private" / ".." / "docs" / "aapl.json",
+                   repo_root / "private")
+        for target in refused:
+            with self.subTest(target=str(target)):
+                code, out, err, fake = self.run_cli(["company-facts", "--ticker", "AAPL", "--out", str(target)], private_root=None)
+                self.assertEqual(code, EXIT_USAGE)
+                self.assertIn("--out must be inside", err)
+                self.assertEqual(fake.requests, [])
+                self.assertFalse(target.is_file())
 
     def test_invalid_arguments_make_no_request(self):
         for argv in (["financial-statements", "--ticker", "AAPL", "--limit", "11"],

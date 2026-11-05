@@ -9,7 +9,7 @@ Use (from services/research):
     python -m providers.financialdatasets_cli company-facts --ticker AAPL
     python -m providers.financialdatasets_cli financial-metrics --ticker AAPL
     python -m providers.financialdatasets_cli financial-statements --ticker AAPL --period annual --limit 4
-    python -m providers.financialdatasets_cli prices --ticker AAPL --days 7 --out private/fd/aapl-prices.json
+    python -m providers.financialdatasets_cli prices --ticker AAPL --days 7 --out ../../private/fd/aapl-prices.json
 
 Rules:
 - The API key comes only from the environment: FINANCIAL_DATASETS_API_KEY, else
@@ -22,8 +22,9 @@ Rules:
   caller must wait before the next run.
 - Redirects and pagination are not followed. A response that needs another
   page is reported as unavailable, not truncated.
-- The only storage is the --out file, which must be inside a folder named
-  "private" (git-ignored). Without --out the JSON goes to stdout.
+- The only storage is the --out file, which must be inside <repo root>/private/
+  (git-ignored; from services/research that is ../../private/). Without --out
+  the JSON goes to stdout.
 - Rights mode is "research-only". Vendor storage, redistribution and model-use
   rights are unverified.
 """
@@ -53,6 +54,8 @@ POLICY_ID = "research-only-cli"
 RIGHTS_REVISION = "financialdatasets-research-only-cli-v1"
 OUTPUT_SCHEMA = "vertex.research.financialdatasets-cli.v1"
 MAXIMUM_PRICE_DAYS = 366
+# Repository root is three levels above this file (services/research/providers). Only <root>/private/ is git-ignored.
+PRIVATE_ROOT = Path(__file__).resolve().parents[3] / "private"
 
 # CLI endpoint name -> adapter operation.
 ENDPOINTS = {
@@ -185,16 +188,16 @@ def _parser() -> _Parser:
                         help=f"prices only: calendar days in the window when --start-date is absent, 1-{MAXIMUM_PRICE_DAYS} (default 5)")
     parser.add_argument("--rights-mode", choices=(RIGHTS_MODE,), default=RIGHTS_MODE,
                         help="the only mode: research-only reads; storage/redistribution rights are unverified")
-    parser.add_argument("--out", help="write the JSON here; the path must be inside a folder named 'private'")
+    parser.add_argument("--out", help="write the JSON here; the path must be inside <repo root>/private/ (../../private/ from services/research)")
     return parser
 
 
-def _out_path(value: str | None) -> Path | None:
+def _out_path(value: str | None, private_root: Path) -> Path | None:
     if value is None:
         return None
     path = Path(value).expanduser().resolve()
-    if "private" not in path.parent.parts:
-        raise UsageError("--out must be inside a folder named 'private' (git-ignored vendor data)")
+    if not path.is_relative_to(private_root) or path == private_root:
+        raise UsageError(f"--out must be inside {private_root} (git-ignored vendor data)")
     if path.exists() and not path.is_file():
         raise UsageError("--out must name a file")
     return path
@@ -235,7 +238,7 @@ def _emit(text: str, key: str | None, stream: TextIO) -> None:
 
 def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = None,
          transport_factory: Callable[[str, Any], Any] | None = None, clock: Any = None,
-         stdout: TextIO | None = None, stderr: TextIO | None = None) -> int:
+         stdout: TextIO | None = None, stderr: TextIO | None = None, private_root: Path | None = None) -> int:
     environ = os.environ if environ is None else environ
     stdout = sys.stdout if stdout is None else stdout
     stderr = sys.stderr if stderr is None else stderr
@@ -244,7 +247,7 @@ def main(argv: list[str] | None = None, *, environ: Mapping[str, str] | None = N
     try:
         args = _parser().parse_args(argv)
         symbol = ticker(args.ticker)
-        out = _out_path(args.out)
+        out = _out_path(args.out, (PRIVATE_ROOT if private_root is None else private_root).resolve())
         try:
             origin = origin_url(environ.get(BASE_URL_ENV_NAME) or DEFAULT_ORIGIN)
         except BoundaryError as error:
