@@ -1,7 +1,7 @@
 {
   "rule": "fixed on 2026-10-30 before the first full run (card vertex-30dma-timing):\nthe 30-day rule (signal at the close of day t, position on day t+1) passes only if, after 0.1% per\ntrade, it has a higher Sharpe ratio AND a smaller maximum drawdown than buy-and-hold in BOTH halves\nof the Ken French sample AND on the SPY + T-bill ETF proxy since 1993. Return alone is not the bar.",
   "creator_claims": {
-    "source": "Instagram @alanintelligence (untrusted claims); owner message https://discord.com/channels/1511468532876185770/1559295973912477737/1565916282996400218",
+    "source": "Instagram @alanintelligence (untrusted claims); owner Discord message (private)",
     "period": "1926-07 to 2026-06",
     "start_usd": 1000,
     "timing_final_usd": 339900000.0,
