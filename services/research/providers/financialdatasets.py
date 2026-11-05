@@ -8,6 +8,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from typing import Any
+from urllib.parse import urlsplit
 
 from .boundary import BoundaryError
 from .client import Endpoint, ProviderClient, required_rows
@@ -36,15 +37,30 @@ def ticker(value: str) -> str:
     return value.upper()
 
 
+DEFAULT_ORIGIN = "https://api.financialdatasets.ai"
+# The documented statements endpoint returns at most 10 records per page; pages are never followed here.
+MAXIMUM_STATEMENT_LIMIT = 10
+
+
+def origin_url(value: str) -> str:
+    """Accept only a bare HTTPS origin, so a configured base URL cannot carry a path, query or credentials."""
+    parts = urlsplit(value) if isinstance(value, str) else None
+    if (parts is None or len(value) > 256 or parts.scheme != "https" or not parts.hostname or parts.username
+            or parts.password or parts.path not in ("", "/") or parts.query or parts.fragment
+            or any(ord(char) < 33 or ord(char) == 127 for char in value)):
+        raise BoundaryError("invalid-provider-origin")
+    return value.rstrip("/")
+
+
 class FinancialDatasets:
-    def __init__(self, **ports: Any):
-        self.client = ProviderClient(origin="https://api.financialdatasets.ai", endpoints=ENDPOINTS, **ports)
+    def __init__(self, *, origin: str = DEFAULT_ORIGIN, **ports: Any):
+        self.client = ProviderClient(origin=origin_url(origin), endpoints=ENDPOINTS, **ports)
         if self.client.config.provider != "financialdatasets":
             raise BoundaryError("provider-identity-mismatch")
 
     def request_plan(self, operation: str, symbol: str, *, start_date: str | None = None, end_date: str | None = None,
                      interval: str | None = None, period: str = "ttm", filing_type: str | None = None,
-                     accession_number: str | None = None, item: str | None = None) -> PagePlan | Unavailable:
+                     accession_number: str | None = None, item: str | None = None, limit: int | None = None) -> PagePlan | Unavailable:
         try:
             query = [("holding" if operation == "index-funds" else "ticker", ticker(symbol))]
             if operation == "equity-bars":
@@ -58,6 +74,10 @@ class FinancialDatasets:
                 if period not in ("ttm", "annual", "quarterly"):
                     raise BoundaryError("unsupported-period")
                 query.append(("period", period))
+                if limit is not None:
+                    if type(limit) is not int or not 1 <= limit <= MAXIMUM_STATEMENT_LIMIT:
+                        raise BoundaryError("unsupported-limit")
+                    query.append(("limit", str(limit)))
             elif operation == "filings" and filing_type is not None:
                 query.append(("filing_type", filing_type))
             elif operation == "filing-item":
