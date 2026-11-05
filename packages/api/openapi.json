@@ -60849,6 +60849,2616 @@
         ]
       }
     },
+    "/backtest-runs/engine/claim": {
+      "post": {
+        "operationId": "backtestRuns.engine.claim",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "engine": {
+                    "const": "nautilus-trader-1.227.0"
+                  }
+                },
+                "required": [
+                  "engine"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "run": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "bars": {
+                              "properties": {
+                                "c": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "h": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "l": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "o": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "t": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "v": {
+                                  "items": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "c",
+                                "h",
+                                "l",
+                                "o",
+                                "t"
+                              ],
+                              "type": "object"
+                            },
+                            "costs": {
+                              "anyOf": [
+                                {
+                                  "properties": {
+                                    "capital": {
+                                      "type": "number"
+                                    },
+                                    "profile": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "borrowFeeAnnualPct": {
+                                          "maximum": 1000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "commission": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "maxPercentOfValue": {
+                                              "anyOf": [
+                                                {
+                                                  "maximum": 100,
+                                                  "minimum": 0,
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "maxPerOrder": {
+                                              "anyOf": [
+                                                {
+                                                  "maximum": 1000000,
+                                                  "minimum": 0,
+                                                  "type": "number"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "minPerOrder": {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "percentOfValue": {
+                                              "maximum": 100,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "perContract": {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "perShare": {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "premiumTiers": {
+                                              "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "belowPremium": {
+                                                    "exclusiveMinimum": 0,
+                                                    "type": "number"
+                                                  },
+                                                  "perContract": {
+                                                    "maximum": 1000000,
+                                                    "minimum": 0,
+                                                    "type": "number"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "belowPremium",
+                                                  "perContract"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "maxItems": 10,
+                                              "readOnly": true,
+                                              "type": "array"
+                                            }
+                                          },
+                                          "required": [
+                                            "maxPercentOfValue",
+                                            "maxPerOrder",
+                                            "minPerOrder",
+                                            "perContract",
+                                            "percentOfValue",
+                                            "perShare",
+                                            "premiumTiers"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "fees": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "ofCommission": {
+                                              "maximum": 1,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "ofSaleValue": {
+                                              "maximum": 1,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "perUnit": {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "ofCommission",
+                                            "ofSaleValue",
+                                            "perUnit"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "id": {
+                                          "maxLength": 64,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "instrument": {
+                                          "enum": [
+                                            "stock",
+                                            "option"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "label": {
+                                          "maxLength": 120,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "multiplier": {
+                                          "exclusiveMinimum": 0,
+                                          "maximum": 100000,
+                                          "type": "number"
+                                        },
+                                        "slippage": {
+                                          "anyOf": [
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "bps": {
+                                                  "maximum": 1000,
+                                                  "minimum": 0,
+                                                  "type": "number"
+                                                },
+                                                "kind": {
+                                                  "const": "bps"
+                                                }
+                                              },
+                                              "required": [
+                                                "bps",
+                                                "kind"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "fraction": {
+                                                  "maximum": 10,
+                                                  "minimum": 0,
+                                                  "type": "number"
+                                                },
+                                                "kind": {
+                                                  "const": "atr"
+                                                },
+                                                "period": {
+                                                  "maximum": 500,
+                                                  "minimum": 1,
+                                                  "type": "integer"
+                                                }
+                                              },
+                                              "required": [
+                                                "fraction",
+                                                "kind",
+                                                "period"
+                                              ],
+                                              "type": "object"
+                                            }
+                                          ]
+                                        },
+                                        "source": {
+                                          "maxLength": 300,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "spreadBps": {
+                                          "maximum": 2000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "borrowFeeAnnualPct",
+                                        "commission",
+                                        "fees",
+                                        "id",
+                                        "instrument",
+                                        "label",
+                                        "multiplier",
+                                        "slippage",
+                                        "source",
+                                        "spreadBps"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  },
+                                  "required": [
+                                    "capital",
+                                    "profile"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "sectorQuadrants": {
+                              "anyOf": [
+                                {
+                                  "additionalProperties": {
+                                    "items": {
+                                      "properties": {
+                                        "date": {
+                                          "type": "string"
+                                        },
+                                        "quadrant": {
+                                          "enum": [
+                                            "leading",
+                                            "weakening",
+                                            "lagging",
+                                            "improving"
+                                          ],
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "date",
+                                        "quadrant"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "type": "object"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "seriesSha256": {
+                              "pattern": "^[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "spec": {
+                              "properties": {
+                                "costBps": {
+                                  "type": "number"
+                                },
+                                "costProfile": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "borrowFeeAnnualPct": {
+                                      "maximum": 1000,
+                                      "minimum": 0,
+                                      "type": "number"
+                                    },
+                                    "commission": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "maxPercentOfValue": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 100,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "maxPerOrder": {
+                                          "anyOf": [
+                                            {
+                                              "maximum": 1000000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "minPerOrder": {
+                                          "maximum": 1000000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "percentOfValue": {
+                                          "maximum": 100,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "perContract": {
+                                          "maximum": 1000000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "perShare": {
+                                          "maximum": 1000000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "premiumTiers": {
+                                          "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "belowPremium": {
+                                                "exclusiveMinimum": 0,
+                                                "type": "number"
+                                              },
+                                              "perContract": {
+                                                "maximum": 1000000,
+                                                "minimum": 0,
+                                                "type": "number"
+                                              }
+                                            },
+                                            "required": [
+                                              "belowPremium",
+                                              "perContract"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "maxItems": 10,
+                                          "readOnly": true,
+                                          "type": "array"
+                                        }
+                                      },
+                                      "required": [
+                                        "maxPercentOfValue",
+                                        "maxPerOrder",
+                                        "minPerOrder",
+                                        "perContract",
+                                        "percentOfValue",
+                                        "perShare",
+                                        "premiumTiers"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "fees": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "ofCommission": {
+                                          "maximum": 1,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "ofSaleValue": {
+                                          "maximum": 1,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "perUnit": {
+                                          "maximum": 1000000,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "ofCommission",
+                                        "ofSaleValue",
+                                        "perUnit"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "id": {
+                                      "maxLength": 64,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "instrument": {
+                                      "enum": [
+                                        "stock",
+                                        "option"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "maxLength": 120,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "multiplier": {
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 100000,
+                                      "type": "number"
+                                    },
+                                    "slippage": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "bps": {
+                                              "maximum": 1000,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "kind": {
+                                              "const": "bps"
+                                            }
+                                          },
+                                          "required": [
+                                            "bps",
+                                            "kind"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "fraction": {
+                                              "maximum": 10,
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            "kind": {
+                                              "const": "atr"
+                                            },
+                                            "period": {
+                                              "maximum": 500,
+                                              "minimum": 1,
+                                              "type": "integer"
+                                            }
+                                          },
+                                          "required": [
+                                            "fraction",
+                                            "kind",
+                                            "period"
+                                          ],
+                                          "type": "object"
+                                        }
+                                      ]
+                                    },
+                                    "source": {
+                                      "maxLength": 300,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "spreadBps": {
+                                      "maximum": 2000,
+                                      "minimum": 0,
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "borrowFeeAnnualPct",
+                                    "commission",
+                                    "fees",
+                                    "id",
+                                    "instrument",
+                                    "label",
+                                    "multiplier",
+                                    "slippage",
+                                    "source",
+                                    "spreadBps"
+                                  ],
+                                  "type": "object"
+                                },
+                                "from": {
+                                  "type": "string"
+                                },
+                                "initialCapital": {
+                                  "type": "number"
+                                },
+                                "rule": {
+                                  "anyOf": [
+                                    {
+                                      "properties": {
+                                        "fast": {
+                                          "type": "number"
+                                        },
+                                        "kind": {
+                                          "const": "smaCross"
+                                        },
+                                        "slow": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "fast",
+                                        "kind",
+                                        "slow"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "properties": {
+                                        "entryLookback": {
+                                          "type": "number"
+                                        },
+                                        "exitLookback": {
+                                          "type": "number"
+                                        },
+                                        "kind": {
+                                          "const": "breakout"
+                                        },
+                                        "trendSma": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "entryLookback",
+                                        "exitLookback",
+                                        "kind",
+                                        "trendSma"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "properties": {
+                                        "definition": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "description": {
+                                              "maxLength": 2000,
+                                              "type": "string"
+                                            },
+                                            "entry": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "all": {
+                                                  "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "left": {
+                                                        "anyOf": [
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "field": {},
+                                                              "offset": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "type": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "length": {},
+                                                              "name": {},
+                                                              "offset": {},
+                                                              "source": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          }
+                                                        ]
+                                                      },
+                                                      "op": {
+                                                        "enum": [
+                                                          ">",
+                                                          ">=",
+                                                          "<",
+                                                          "<=",
+                                                          "crossesAbove",
+                                                          "crossesBelow"
+                                                        ],
+                                                        "type": "string"
+                                                      },
+                                                      "right": {
+                                                        "anyOf": [
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "field": {},
+                                                              "offset": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "type": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "length": {},
+                                                              "name": {},
+                                                              "offset": {},
+                                                              "source": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "left",
+                                                      "op",
+                                                      "right"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  "maxItems": 8,
+                                                  "minItems": 1,
+                                                  "type": "array"
+                                                }
+                                              },
+                                              "required": [
+                                                "all"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "exit": {
+                                              "additionalProperties": false,
+                                              "default": {
+                                                "any": []
+                                              },
+                                              "properties": {
+                                                "any": {
+                                                  "default": [],
+                                                  "items": {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "left": {
+                                                        "anyOf": [
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "field": {},
+                                                              "offset": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "type": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "length": {},
+                                                              "name": {},
+                                                              "offset": {},
+                                                              "source": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          }
+                                                        ]
+                                                      },
+                                                      "op": {
+                                                        "enum": [
+                                                          ">",
+                                                          ">=",
+                                                          "<",
+                                                          "<=",
+                                                          "crossesAbove",
+                                                          "crossesBelow"
+                                                        ],
+                                                        "type": "string"
+                                                      },
+                                                      "right": {
+                                                        "anyOf": [
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "field": {},
+                                                              "offset": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "type": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "length": {},
+                                                              "name": {},
+                                                              "offset": {},
+                                                              "source": {},
+                                                              "type": {}
+                                                            },
+                                                            "type": "object"
+                                                          }
+                                                        ]
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "left",
+                                                      "op",
+                                                      "right"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  "maxItems": 8,
+                                                  "type": "array"
+                                                }
+                                              },
+                                              "type": "object"
+                                            },
+                                            "filters": {
+                                              "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "quadrants": {
+                                                    "items": {
+                                                      "enum": [
+                                                        "leading",
+                                                        "weakening",
+                                                        "lagging",
+                                                        "improving"
+                                                      ],
+                                                      "type": "string"
+                                                    },
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "sector": {
+                                                    "type": "string"
+                                                  },
+                                                  "timeframe": {
+                                                    "default": "weekly",
+                                                    "enum": [
+                                                      "daily",
+                                                      "weekly"
+                                                    ],
+                                                    "type": "string"
+                                                  },
+                                                  "type": {
+                                                    "const": "sectorQuadrant"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "quadrants",
+                                                  "sector",
+                                                  "type"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "maxItems": 4,
+                                              "minItems": 1,
+                                              "type": "array"
+                                            },
+                                            "name": {
+                                              "maxLength": 120,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "session": {
+                                              "additionalProperties": false,
+                                              "properties": {
+                                                "endUtc": {
+                                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                                  "type": "string"
+                                                },
+                                                "startUtc": {
+                                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "endUtc",
+                                                "startUtc"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "sizing": {
+                                              "anyOf": [
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "mode": {
+                                                      "const": "allIn"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "mode"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "mode": {
+                                                      "const": "riskPct"
+                                                    },
+                                                    "riskPct": {
+                                                      "exclusiveMinimum": 0,
+                                                      "maximum": 100,
+                                                      "type": "number"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "mode",
+                                                    "riskPct"
+                                                  ],
+                                                  "type": "object"
+                                                }
+                                              ],
+                                              "default": {
+                                                "mode": "allIn"
+                                              }
+                                            },
+                                            "stopLoss": {
+                                              "anyOf": [
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "none"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "pct"
+                                                    },
+                                                    "pct": {
+                                                      "exclusiveMinimum": 0,
+                                                      "maximum": 99,
+                                                      "type": "number"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind",
+                                                    "pct"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "atr"
+                                                    },
+                                                    "length": {
+                                                      "maximum": 1000,
+                                                      "minimum": 1,
+                                                      "type": "integer"
+                                                    },
+                                                    "multiple": {
+                                                      "exclusiveMinimum": 0,
+                                                      "maximum": 100,
+                                                      "type": "number"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind",
+                                                    "length",
+                                                    "multiple"
+                                                  ],
+                                                  "type": "object"
+                                                }
+                                              ],
+                                              "default": {
+                                                "kind": "none"
+                                              }
+                                            },
+                                            "takeProfit": {
+                                              "anyOf": [
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "none"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "pct"
+                                                    },
+                                                    "pct": {
+                                                      "exclusiveMinimum": 0,
+                                                      "maximum": 99,
+                                                      "type": "number"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind",
+                                                    "pct"
+                                                  ],
+                                                  "type": "object"
+                                                },
+                                                {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "kind": {
+                                                      "const": "atr"
+                                                    },
+                                                    "length": {
+                                                      "maximum": 1000,
+                                                      "minimum": 1,
+                                                      "type": "integer"
+                                                    },
+                                                    "multiple": {
+                                                      "exclusiveMinimum": 0,
+                                                      "maximum": 100,
+                                                      "type": "number"
+                                                    }
+                                                  },
+                                                  "required": [
+                                                    "kind",
+                                                    "length",
+                                                    "multiple"
+                                                  ],
+                                                  "type": "object"
+                                                }
+                                              ],
+                                              "default": {
+                                                "kind": "none"
+                                              }
+                                            },
+                                            "version": {
+                                              "const": 1
+                                            }
+                                          },
+                                          "required": [
+                                            "entry",
+                                            "name",
+                                            "version"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "kind": {
+                                          "const": "dsl"
+                                        }
+                                      },
+                                      "required": [
+                                        "definition",
+                                        "kind"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
+                                "stopLossPct": {
+                                  "type": "number"
+                                },
+                                "symbol": {
+                                  "type": "string"
+                                },
+                                "takeProfitPct": {
+                                  "type": "number"
+                                },
+                                "timeframe": {
+                                  "enum": [
+                                    "1d",
+                                    "1m"
+                                  ],
+                                  "type": "string"
+                                },
+                                "to": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "costBps",
+                                "from",
+                                "initialCapital",
+                                "rule",
+                                "stopLossPct",
+                                "symbol",
+                                "takeProfitPct",
+                                "timeframe",
+                                "to"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "bars",
+                            "costs",
+                            "id",
+                            "sectorQuadrants",
+                            "seriesSha256",
+                            "spec"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "run"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid backtest run",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest run or strategy not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "The backtest run is not running on this engine",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Research worker: claim the oldest queued backtest run of an engine, with its bars (no orders)",
+        "tags": [
+          "Backtest runs"
+        ]
+      }
+    },
+    "/backtest-runs/engine/complete": {
+      "post": {
+        "operationId": "backtestRuns.engine.complete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "engine": {
+                    "const": "nautilus-trader-1.227.0"
+                  },
+                  "id": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "result": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "equity": {
+                        "items": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "maxItems": 1000000,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "stats": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bars": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "buyHoldMaxDrawdown": {
+                            "type": "number"
+                          },
+                          "buyHoldReturn": {
+                            "type": "number"
+                          },
+                          "cagr": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "exposure": {
+                            "type": "number"
+                          },
+                          "maxDrawdown": {
+                            "type": "number"
+                          },
+                          "profitFactor": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sharpe": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sortino": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "totalReturn": {
+                            "type": "number"
+                          },
+                          "trades": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "winRate": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "bars",
+                          "buyHoldMaxDrawdown",
+                          "buyHoldReturn",
+                          "cagr",
+                          "exposure",
+                          "maxDrawdown",
+                          "profitFactor",
+                          "sharpe",
+                          "sortino",
+                          "totalReturn",
+                          "trades",
+                          "winRate"
+                        ],
+                        "type": "object"
+                      },
+                      "trades": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "costs": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "bps": {
+                                  "type": "number"
+                                },
+                                "commission": {
+                                  "type": "number"
+                                },
+                                "fees": {
+                                  "type": "number"
+                                },
+                                "slippage": {
+                                  "type": "number"
+                                },
+                                "spread": {
+                                  "type": "number"
+                                },
+                                "total": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "bps",
+                                "commission",
+                                "fees",
+                                "slippage",
+                                "spread",
+                                "total"
+                              ],
+                              "type": "object"
+                            },
+                            "entryIndex": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "entryPrice": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "exitIndex": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "exitPrice": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            },
+                            "exitReason": {
+                              "enum": [
+                                "signal",
+                                "stop",
+                                "target",
+                                "end"
+                              ],
+                              "type": "string"
+                            },
+                            "grossPnl": {
+                              "type": "number"
+                            },
+                            "netReturn": {
+                              "type": "number"
+                            },
+                            "pnl": {
+                              "type": "number"
+                            },
+                            "units": {
+                              "exclusiveMinimum": 0,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "entryIndex",
+                            "entryPrice",
+                            "exitIndex",
+                            "exitPrice",
+                            "exitReason",
+                            "netReturn",
+                            "pnl",
+                            "units"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 1000000,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "equity",
+                      "stats",
+                      "trades"
+                    ],
+                    "type": "object"
+                  },
+                  "seriesSha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "engine",
+                  "id",
+                  "result",
+                  "seriesSha256"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid backtest run",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest run or strategy not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "The backtest run is not running on this engine",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Research worker: store the engine result of a claimed run; the API builds the report",
+        "tags": [
+          "Backtest runs"
+        ]
+      }
+    },
+    "/backtest-runs/engine/fail": {
+      "post": {
+        "operationId": "backtestRuns.engine.fail",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "engine": {
+                    "const": "nautilus-trader-1.227.0"
+                  },
+                  "error": {
+                    "maxLength": 500,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "id": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "engine",
+                  "error",
+                  "id"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "succeeded",
+                        "failed"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid backtest run",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest run or strategy not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "The backtest run is not running on this engine",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Backtest storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Research worker: store the error of a claimed run",
+        "tags": [
+          "Backtest runs"
+        ]
+      }
+    },
     "/backtest-runs/sweep": {
       "post": {
         "operationId": "backtestRuns.sweep",

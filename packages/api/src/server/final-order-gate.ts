@@ -166,6 +166,9 @@ export const isRiskReducing = (
 
 export type FinalGateInput = Readonly<{
   order: FinalGateOrder;
+  // Account gates from the same snapshot. Kill switch on or OPTIONS_ONLY not confirmed: no new
+  // positions; risk-reducing orders still pass (owner 2026-11-04: close no matter what).
+  accountGates?: Readonly<{ killSwitch: boolean; optionsOnly: boolean }>;
   // Held positions from the same fresh snapshot; decides whether the order is risk-reducing.
   positions: readonly OrderPosition[];
   // Account value (NLV) from a fresh snapshot; null when unknown.
@@ -238,6 +241,10 @@ export const evaluateFinalOrderGate = (
 
   const structure = classifyStructure(order);
   reasons.push(...structure.reasons);
+  if (input.accountGates?.killSwitch === true)
+    reasons.push("Kill switch is on: no new positions.");
+  if (input.accountGates?.optionsOnly === false)
+    reasons.push("OPTIONS_ONLY is not confirmed on: no new positions.");
 
   let maxLossPct: number | null = null;
   if (accountValue === null || !(accountValue > 0))

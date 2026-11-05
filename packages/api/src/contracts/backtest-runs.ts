@@ -16,14 +16,24 @@ import {
   InstantBacktestBreakoutSchema,
   InstantBacktestSmaCrossSchema,
 } from "./instant-backtest.ts";
+import { SECTOR_ROTATION_QUADRANTS } from "./sector-rotation.ts";
 
-// Backtest runs: a queued job that runs the instant backtest engine over a date range of stored
-// bars and stores an account-currency report tied to an immutable strategy revision (a SHA-256 of
-// the strategy snapshot taken at submit time). `sweep` runs a parameter grid in the request and
-// stores nothing (see ./backtest-sweep.ts). Operator-only; agent keys may call it (read keys
-// only list, get and sweep). Research only; there is no order or broker path.
+// Backtest runs: a queued job that runs a backtest engine over a date range of stored bars and
+// stores an account-currency report tied to an immutable strategy revision (a SHA-256 of the
+// strategy snapshot taken at submit time). The API server runs `instant-2` runs (TypeScript
+// engine) itself. A research worker runs `nautilus-trader-*` runs: it claims a run with
+// `engine.claim`, runs NautilusTrader and posts the result with `engine.complete` (or
+// `engine.fail`); the API builds the report. `sweep` runs a parameter grid in the request and
+// stores nothing (see ./backtest-sweep.ts). Operator-only; agent keys may call it (read keys only
+// list, get and sweep; the engine procedures need a write key). Research only; there is no order
+// or broker path.
 
 export const BACKTEST_RUN_ENGINE_VERSION = "instant-2";
+/** Engine id of runs that the Nautilus research worker runs (services/research/nautilus_backtest). */
+export const BACKTEST_RUN_NAUTILUS_ENGINE = "nautilus-trader-1.227.0";
+/** Most bars one worker run may have (claim fails a longer run; complete rejects longer results). */
+export const BACKTEST_RUN_ENGINE_BARS_MAX = 1_000_000;
+export const BACKTEST_RUN_ENGINE_ERROR_MAX = 500;
 export const BACKTEST_RUN_STATUS_VALUES = [
   "queued",
   "running",
@@ -344,10 +354,221 @@ const combine = backtestRuns
   .input(BacktestComboInputSchema)
   .output(BacktestComboSchema);
 
+// Engine worker procedures (backtestRuns.engine.*). claim moves the oldest queued run of the engine
+// to running and returns its spec with the bars of the date range (the same slice the API engine
+// uses), the resolved cost settings and the sector rotation points that the definition's filters
+// need. complete sends the engine result: unit equity per bar, the trades and the stats (the shape
+// of the TypeScript engine result); the API checks it against the stored bars, recomputes the
+// stats from the equity and trades (they must match the sent stats) and builds the report. fail stores an error. complete and fail change only a running run of the same engine;
+// any other run returns CONFLICT. Write keys only; research only, no order path.
+
+const engineName = z.literal(BACKTEST_RUN_NAUTILUS_ENGINE);
+const engineRunId = z.string().trim().min(1).max(128);
+const sha256 = z.string().regex(/^[0-9a-f]{64}$/u);
+/** JSON has no NaN, so a missing value (NaN in the stored columns, such as an unknown volume) is null. */
+const values = z.array(z.number().nullable());
+
+export const BacktestRunEngineBarsSchema = z.object({
+  c: values,
+  h: values,
+  l: values,
+  o: values,
+  t: values,
+  v: values.optional(),
+});
+
+export const BacktestRunEngineClaimInputSchema = z
+  .object({ engine: engineName })
+  .strict();
+
+export const BacktestRunEngineClaimOutputSchema = z.object({
+  run: z
+    .object({
+      bars: BacktestRunEngineBarsSchema,
+      /** Cost profile and capital for the engine; null without a profile. */
+      costs: z
+        .object({ capital: z.number(), profile: CostProfileSchema })
+        .nullable(),
+      id: z.string(),
+      /** Sector rotation points by `${sector}:${timeframe}`; null without sector filters. */
+      sectorQuadrants: z
+        .record(
+          z.string(),
+          z.array(
+            z.object({
+              date: z.string(),
+              quadrant: z.enum(SECTOR_ROTATION_QUADRANTS),
+            })
+          )
+        )
+        .nullable(),
+      seriesSha256: sha256,
+      spec: BacktestRunSpecSchema,
+    })
+    .nullable(),
+});
+
+const tradeAmount = z.number();
+
+export const BacktestRunEngineTradeSchema = z
+  .object({
+    costs: z
+      .object({
+        bps: tradeAmount,
+        commission: tradeAmount,
+        fees: tradeAmount,
+        slippage: tradeAmount,
+        spread: tradeAmount,
+        total: tradeAmount,
+      })
+      .strict()
+      .optional(),
+    entryIndex: z.number().int().min(0),
+    entryPrice: z.number().positive(),
+    exitIndex: z.number().int().min(0),
+    exitPrice: z.number().positive(),
+    exitReason: z.enum(["signal", "stop", "target", "end"]),
+    grossPnl: tradeAmount.optional(),
+    netReturn: tradeAmount,
+    pnl: tradeAmount,
+    units: z.number().positive(),
+  })
+  .strict()
+  .refine((trade) => trade.exitIndex >= trade.entryIndex, {
+    message: "A trade must exit on or after its entry bar",
+  });
+
+export const BacktestRunEngineStatsSchema = z
+  .object({
+    bars: z.number().int().min(0),
+    buyHoldMaxDrawdown: z.number(),
+    buyHoldReturn: z.number(),
+    cagr: z.number().nullable(),
+    exposure: z.number(),
+    maxDrawdown: z.number(),
+    profitFactor: z.number().nullable(),
+    sharpe: z.number().nullable(),
+    sortino: z.number().nullable(),
+    totalReturn: z.number(),
+    trades: z.number().int().min(0),
+    winRate: z.number().nullable(),
+  })
+  .strict();
+
+export const BacktestRunEngineResultSchema = z
+  .object({
+    /** Unit equity (starting equity 1) at every bar of the range; finite and above 0. */
+    equity: z
+      .array(z.number().positive())
+      .min(2)
+      .max(BACKTEST_RUN_ENGINE_BARS_MAX),
+    stats: BacktestRunEngineStatsSchema,
+    trades: z
+      .array(BacktestRunEngineTradeSchema)
+      .max(BACKTEST_RUN_ENGINE_BARS_MAX),
+  })
+  .strict()
+  .superRefine((result, context) => {
+    const size = result.equity.length;
+    if (result.stats.bars !== size)
+      context.addIssue({
+        code: "custom",
+        message: "stats.bars must equal the equity length",
+        path: ["stats", "bars"],
+      });
+    if (result.stats.trades !== result.trades.length)
+      context.addIssue({
+        code: "custom",
+        message: "stats.trades must equal the number of trades",
+        path: ["stats", "trades"],
+      });
+    result.trades.forEach((trade, index) => {
+      if (trade.exitIndex >= size)
+        context.addIssue({
+          code: "custom",
+          message: "Trade bar index is outside the equity series",
+          path: ["trades", index, "exitIndex"],
+        });
+    });
+  });
+
+export const BacktestRunEngineCompleteInputSchema = z
+  .object({
+    engine: engineName,
+    id: engineRunId,
+    result: BacktestRunEngineResultSchema,
+    /** The seriesSha256 returned by claim; the API refuses a result for changed bars. */
+    seriesSha256: sha256,
+  })
+  .strict();
+
+export const BacktestRunEngineFailInputSchema = z
+  .object({
+    engine: engineName,
+    error: z.string().trim().min(1).max(BACKTEST_RUN_ENGINE_ERROR_MAX),
+    id: engineRunId,
+  })
+  .strict();
+
+export const BacktestRunEngineOutcomeSchema = z.object({
+  id: z.string(),
+  status: z.enum(BACKTEST_RUN_STATUS_VALUES),
+});
+
+export const BACKTEST_RUN_ENGINE_ERRORS = {
+  ...BACKTEST_RUN_ERRORS,
+  CONFLICT: {
+    message: "The backtest run is not running on this engine",
+    status: 409,
+  },
+} as const;
+
+const engine = oc.errors(BACKTEST_RUN_ENGINE_ERRORS);
+
+const engineClaim = engine
+  .route({
+    method: "POST",
+    operationId: "backtestRuns.engine.claim",
+    path: "/backtest-runs/engine/claim",
+    summary:
+      "Research worker: claim the oldest queued backtest run of an engine, with its bars (no orders)",
+    tags: ["Backtest runs"],
+  })
+  .input(BacktestRunEngineClaimInputSchema)
+  .output(BacktestRunEngineClaimOutputSchema);
+
+const engineComplete = engine
+  .route({
+    method: "POST",
+    operationId: "backtestRuns.engine.complete",
+    path: "/backtest-runs/engine/complete",
+    summary:
+      "Research worker: store the engine result of a claimed run; the API builds the report",
+    tags: ["Backtest runs"],
+  })
+  .input(BacktestRunEngineCompleteInputSchema)
+  .output(BacktestRunEngineOutcomeSchema);
+
+const engineFail = engine
+  .route({
+    method: "POST",
+    operationId: "backtestRuns.engine.fail",
+    path: "/backtest-runs/engine/fail",
+    summary: "Research worker: store the error of a claimed run",
+    tags: ["Backtest runs"],
+  })
+  .input(BacktestRunEngineFailInputSchema)
+  .output(BacktestRunEngineOutcomeSchema);
+
 export const backtestRunsContract = {
   combine,
   definitions: strategyDefinitionsContract,
   drift: forwardDriftContract,
+  engine: {
+    claim: engineClaim,
+    complete: engineComplete,
+    fail: engineFail,
+  },
   get,
   list,
   submit,
@@ -362,3 +583,9 @@ export type BacktestCombo = z.infer<typeof BacktestComboSchema>;
 export type BacktestRun = z.infer<typeof BacktestRunSchema>;
 export type BacktestRunSummary = z.infer<typeof BacktestRunSummarySchema>;
 export type BacktestRunReportOutput = z.infer<typeof BacktestRunReportSchema>;
+export type BacktestRunEngineClaimOutput = z.infer<
+  typeof BacktestRunEngineClaimOutputSchema
+>;
+export type BacktestRunEngineResult = z.infer<
+  typeof BacktestRunEngineResultSchema
+>;

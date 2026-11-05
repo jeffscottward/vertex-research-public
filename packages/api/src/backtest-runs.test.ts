@@ -21,16 +21,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { COST_PROFILE_PRESETS, ZERO_COST_PROFILE } from "./backtest-costs.ts";
 import { createApiClient } from "./client.ts";
 import {
+  BACKTEST_RUN_ENGINE_BARS_MAX,
   BACKTEST_RUN_ENGINE_VERSION,
+  BACKTEST_RUN_NAUTILUS_ENGINE,
+  BacktestRunEngineResultSchema,
   type BacktestRunSubmitInput,
   BacktestRunSubmitInputSchema,
 } from "./contracts/backtest-runs.ts";
-import { runInstantBacktest } from "./instant-backtest-engine.ts";
+import {
+  barsInPositionOf,
+  runInstantBacktest,
+  summarize,
+} from "./instant-backtest-engine.ts";
 import { settledForwardTrades } from "./paper-forward.ts";
+import {
+  ENGINE_CLAIM_ATTEMPTS,
+  ENGINE_STATS_TOLERANCE,
+} from "./server/backtest-run-engine.ts";
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
 import {
+  BACKTEST_RUN_STORAGE_ERROR,
   canonicalJson,
   executeBacktestRun,
+  NAUTILUS_UNCLAIMED_ERROR,
   sha256Hex,
   sliceColumnsByDate,
 } from "./server/backtest-runs.ts";
@@ -129,6 +142,22 @@ const memoryRuns = (): BacktestRunsRepository & {
   return {
     claim: async (id) =>
       update(id, ["queued"], { startedAt: new Date(), status: "running" }),
+    claimNext: async (engineVersion) => {
+      const [oldest] = [...rows.values()]
+        .filter(
+          (row) =>
+            row.status === "queued" && row.engineVersion === engineVersion
+        )
+        .sort(
+          (left, right) => left.createdAt.getTime() - right.createdAt.getTime()
+        );
+      return oldest === undefined
+        ? null
+        : update(oldest.id, ["queued"], {
+            startedAt: new Date(),
+            status: "running",
+          });
+    },
     complete: async (id, report) =>
       update(id, ["running"], { finishedAt: at, report, status: "succeeded" }),
     create: async (input) => {
@@ -161,6 +190,21 @@ const memoryRuns = (): BacktestRunsRepository & {
       )
         return false;
       return update(id, ["running"], { error, status: "failed" }) !== null;
+    },
+    failIfUnclaimed: async (id, engineVersion, before, error) => {
+      const row = rows.get(id);
+      const workerActive = [...rows.values()].some(
+        (other) =>
+          other.engineVersion === engineVersion &&
+          other.startedAt !== null &&
+          other.startedAt >= before
+      );
+      if (row === undefined || row.createdAt >= before || workerActive)
+        return false;
+      return (
+        update(id, ["queued"], { error, finishedAt: at, status: "failed" }) !==
+        null
+      );
     },
     get: async (id) => rows.get(id) ?? null,
     list: async (filter) =>
@@ -318,6 +362,7 @@ type Harness = Readonly<{
   library?: StrategyLibraryRepository | undefined;
   drift?: ForwardDriftRepository | undefined;
   sectorRotation?: SectorQuadrantSource;
+  engine?: "typescript" | "nautilus";
 }>;
 
 const clientFor = (harness: Harness) => {
@@ -349,6 +394,9 @@ const clientFor = (harness: Harness) => {
       operatorEmails: ["operator@domain.test"],
       repositories,
       requestId: "request-1",
+      ...(harness.engine === undefined
+        ? {}
+        : { backtestRunsEngine: harness.engine }),
       requireRole: async () => {
         throw denied();
       },
@@ -1896,6 +1944,744 @@ describe("backtestRuns.drift paper forward runner", () => {
     for (const name of ["paperSet", "paperTick"])
       expect(
         AGENT_API_KEY_READ_PROCEDURES.has(`backtestRuns.drift.${name}`)
+      ).toBe(false);
+  });
+});
+
+describe("backtest runs on the Nautilus engine", () => {
+  const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
+  const spec = BacktestRunSubmitInputSchema.parse(
+    submitInput
+  ) as BacktestRunRecord["spec"];
+  const rangeBars = sliceColumnsByDate(waveColumns(1000), spec.from, spec.to).t
+    .length;
+  const emptyStats = {
+    bars: 0,
+    buyHoldMaxDrawdown: 0,
+    buyHoldReturn: 0,
+    cagr: null,
+    exposure: 0,
+    maxDrawdown: 0,
+    profitFactor: null,
+    sharpe: null,
+    sortino: null,
+    totalReturn: 0,
+    trades: 0,
+    winRate: null,
+  };
+  const sectorDefinition = StrategyDefinitionSchema.parse({
+    ...STRATEGY_TEMPLATES.smaCross,
+    filters: [
+      { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+    ],
+  });
+
+  const queue = async (
+    runs: ReturnType<typeof memoryRuns>,
+    overrides: Partial<BacktestRunRecord> = {}
+  ): Promise<BacktestRunRecord> => {
+    const created = await runs.create({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    const row = { ...created, ...overrides };
+    runs.rows.set(row.id, row);
+    return row;
+  };
+
+  type Claimed = NonNullable<
+    Awaited<
+      ReturnType<
+        ReturnType<typeof clientFor>["backtestRuns"]["engine"]["claim"]
+      >
+    >["run"]
+  >;
+
+  /** The TypeScript engine result for a claimed run, in the JSON shape the worker posts. */
+  const workerResult = (claimed: Claimed) => {
+    const column = (values: readonly (number | null)[]) =>
+      Float64Array.from(values, (value) => value ?? Number.NaN);
+    const result = runInstantBacktest(
+      {
+        c: column(claimed.bars.c),
+        h: column(claimed.bars.h),
+        l: column(claimed.bars.l),
+        o: column(claimed.bars.o),
+        t: column(claimed.bars.t),
+      },
+      runParamsForSpec(claimed.spec as BacktestRunRecord["spec"])
+    );
+    return {
+      equity: Array.from(result.equity),
+      stats: result.stats,
+      trades: [...result.trades],
+    };
+  };
+
+  it("queues a submitted run for the worker and never runs it in the server", async () => {
+    const runs = memoryRuns();
+    const scheduled: Promise<unknown>[] = [];
+    const bars = fakeBars();
+    const client = clientFor({ bars, engine: "nautilus", runs, scheduled });
+    const run = await client.backtestRuns.submit(submitInput);
+    expect(run).toMatchObject({
+      engineVersion: engine,
+      report: null,
+      status: "queued",
+    });
+    expect(scheduled).toHaveLength(0);
+    // A fresh queued Nautilus run stays queued on read with either setting.
+    runs.rows.set(run.id, {
+      ...(runs.rows.get(run.id) as BacktestRunRecord),
+      createdAt: new Date(),
+    });
+    expect((await client.backtestRuns.get({ id: run.id })).status).toBe(
+      "queued"
+    );
+    const typescript = clientFor({ bars, runs, scheduled });
+    expect((await typescript.backtestRuns.get({ id: run.id })).status).toBe(
+      "queued"
+    );
+    expect(scheduled).toHaveLength(0);
+    expect(bars.loadColumns).not.toHaveBeenCalled();
+
+    // A stored TypeScript run keeps its engine under the Nautilus setting.
+    const stored = await runs.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    expect((await client.backtestRuns.get({ id: stored.id })).status).toBe(
+      "queued"
+    );
+    expect(scheduled).toHaveLength(1);
+    await Promise.all(scheduled);
+    expect(runs.rows.get(stored.id)?.status).toBe("succeeded");
+  });
+
+  it("fails a run that no worker claimed within the limit", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const old = await queue(runs);
+    expect(await client.backtestRuns.get({ id: old.id })).toMatchObject({
+      error: NAUTILUS_UNCLAIMED_ERROR,
+      status: "failed",
+    });
+
+    // A worker claimed the run between the read and the conditional update.
+    const raced = await queue(runs);
+    const racing = clientFor({
+      bars: fakeBars(),
+      runs: { ...runs, failIfUnclaimed: async () => false },
+    });
+    expect((await racing.backtestRuns.get({ id: raced.id })).status).toBe(
+      "queued"
+    );
+
+    // The re-read finds nothing: the first read is returned.
+    const vanished = await queue(runs);
+    let reads = 0;
+    const vanishing = clientFor({
+      bars: fakeBars(),
+      runs: {
+        ...runs,
+        get: async (id) => {
+          reads += 1;
+          return reads === 1 ? (runs.rows.get(id) ?? null) : null;
+        },
+      },
+    });
+    expect((await vanishing.backtestRuns.get({ id: vanished.id })).id).toBe(
+      vanished.id
+    );
+    expect(runs.rows.get(vanished.id)?.status).toBe("failed");
+  });
+
+  it("keeps the backlog queued while a worker is busy", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    await queue(runs, { startedAt: new Date(), status: "running" });
+    const waiting = await queue(runs);
+    expect((await client.backtestRuns.get({ id: waiting.id })).status).toBe(
+      "queued"
+    );
+    // A TypeScript run that started recently is not Nautilus worker activity.
+    const idle = memoryRuns();
+    await idle.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    idle.rows.set("run-1", {
+      ...(idle.rows.get("run-1") as BacktestRunRecord),
+      startedAt: new Date(),
+      status: "running",
+    });
+    const stuck = await queue(idle);
+    expect(
+      (
+        await clientFor({ bars: fakeBars(), runs: idle }).backtestRuns.get({
+          id: stuck.id,
+        })
+      ).error
+    ).toBe(NAUTILUS_UNCLAIMED_ERROR);
+  });
+
+  it("claims the oldest queued run of the engine with its bars and costs", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    await expect(client.backtestRuns.engine.claim({ engine })).resolves.toEqual(
+      { run: null }
+    );
+    const typescript = await runs.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    const first = await queue(runs);
+    const profile = COST_PROFILE_PRESETS["ibkr-pro-fixed-us-stock"];
+    const second = await queue(runs, {
+      spec: { ...spec, costProfile: profile },
+    });
+
+    const claimed = await client.backtestRuns.engine.claim({ engine });
+    const expected = sliceColumnsByDate(waveColumns(1000), spec.from, spec.to);
+    expect(claimed.run).toMatchObject({
+      costs: null,
+      id: first.id,
+      sectorQuadrants: null,
+      seriesSha256: "b".repeat(64),
+      spec: { initialCapital: 50_000, symbol: "SPY" },
+    });
+    expect(claimed.run?.bars.t).toEqual(Array.from(expected.t));
+    expect(claimed.run?.bars.c).toEqual(Array.from(expected.c));
+    expect(claimed.run?.bars).not.toHaveProperty("v");
+    expect(runs.rows.get(first.id)?.status).toBe("running");
+
+    const withCosts = await client.backtestRuns.engine.claim({ engine });
+    expect(withCosts.run).toMatchObject({
+      costs: { capital: 50_000, profile },
+      id: second.id,
+    });
+    await expect(client.backtestRuns.engine.claim({ engine })).resolves.toEqual(
+      { run: null }
+    );
+    expect(runs.rows.get(typescript.id)?.status).toBe("queued");
+  });
+
+  it("sends sector rotation points and volume, with null for a missing value", async () => {
+    const runs = memoryRuns();
+    const columns = waveColumns(1000);
+    const volume = Float64Array.from({ length: 1000 }, (_, index) =>
+      index === 0 ? Number.NaN : 1000 + index
+    );
+    const listPoints = vi.fn(async () => [
+      {
+        benchmark: "SPY",
+        computedAt: at,
+        date: "1970-01-02",
+        momentum: 101,
+        quadrant: "leading" as const,
+        ratio: 101,
+        symbol: "XLK",
+        timeframe: "weekly" as const,
+      },
+    ]);
+    const client = clientFor({
+      bars: fakeBars({
+        loadColumns: vi.fn(async () => ({ ...columns, v: volume })),
+      }),
+      runs,
+      sectorRotation: { listPoints },
+    });
+    await queue(runs, {
+      spec: { ...spec, rule: { definition: sectorDefinition, kind: "dsl" } },
+    });
+    const claimed = await client.backtestRuns.engine.claim({ engine });
+    expect(claimed.run?.sectorQuadrants).toEqual({
+      "XLK:weekly": [{ date: "1970-01-02", quadrant: "leading" }],
+    });
+    expect(claimed.run?.bars.v?.slice(0, 2)).toEqual([null, 1001]);
+  });
+
+  it("fails runs whose inputs cannot be loaded and claims the next one", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async (symbol: string) =>
+          symbol === "SPY" ? seriesRow : null
+        ),
+      }),
+      runs,
+    });
+    const missing = await queue(runs, { spec: { ...spec, symbol: "QQQ" } });
+    const empty = await queue(runs, {
+      spec: { ...spec, from: "1990-01-01", to: "1990-12-31" },
+    });
+    const filtered = await queue(runs, {
+      spec: { ...spec, rule: { definition: sectorDefinition, kind: "dsl" } },
+    });
+    const good = await queue(runs);
+    expect((await client.backtestRuns.engine.claim({ engine })).run?.id).toBe(
+      good.id
+    );
+    expect(runs.rows.get(missing.id)?.error).toBe("No stored 1d bars for QQQ");
+    expect(runs.rows.get(empty.id)?.error).toBe(
+      "Fewer than 2 bars for SPY between 1990-01-01 and 1990-12-31"
+    );
+    expect(runs.rows.get(filtered.id)?.error).toBe(
+      "Sector quadrant data is not available for XLK (weekly)"
+    );
+  });
+
+  it("stores a generic error for storage failures and stops after the attempt limit", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({
+      bars: fakeBars({
+        loadColumns: vi.fn(async () => Promise.reject(new Error("db down"))),
+      }),
+      runs,
+    });
+    const queued = await Promise.all(
+      Array.from({ length: ENGINE_CLAIM_ATTEMPTS + 1 }, () => queue(runs))
+    );
+    await expect(client.backtestRuns.engine.claim({ engine })).resolves.toEqual(
+      { run: null }
+    );
+    const errors = queued.map((run) => runs.rows.get(run.id)?.error ?? null);
+    expect(errors.slice(0, ENGINE_CLAIM_ATTEMPTS)).toEqual(
+      Array.from(
+        { length: ENGINE_CLAIM_ATTEMPTS },
+        () => BACKTEST_RUN_STORAGE_ERROR
+      )
+    );
+    expect(runs.rows.get(queued[ENGINE_CLAIM_ATTEMPTS]?.id ?? "")?.status).toBe(
+      "queued"
+    );
+  });
+
+  it("fails a run with more bars than the worker takes", async () => {
+    const runs = memoryRuns();
+    const size = BACKTEST_RUN_ENGINE_BARS_MAX + 1;
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async () => ({ ...seriesRow, barCount: size })),
+        loadColumns: vi.fn(async () => {
+          const t = Float64Array.from({ length: size }, (_, index) => index);
+          return { c: t, h: t, l: t, o: t, t };
+        }),
+      }),
+      runs,
+    });
+    const long = await queue(runs);
+    await expect(client.backtestRuns.engine.claim({ engine })).resolves.toEqual(
+      { run: null }
+    );
+    expect(runs.rows.get(long.id)?.error).toBe(
+      `The date range has ${size} bars; the Nautilus worker takes at most ${BACKTEST_RUN_ENGINE_BARS_MAX}`
+    );
+  });
+
+  it("builds the same report as the server engine from a worker result", async () => {
+    const runs = memoryRuns();
+    const profile = COST_PROFILE_PRESETS["ibkr-pro-fixed-us-stock"];
+    const client = clientFor({ bars: fakeBars(), runs });
+    const reference = await client.backtestRuns.submit({
+      ...submitInput,
+      costProfile: "ibkr-pro-fixed-us-stock",
+    });
+    const run = await queue(runs, { spec: { ...spec, costProfile: profile } });
+    const claimed = (await client.backtestRuns.engine.claim({ engine }))
+      .run as Claimed;
+    const outcome = await client.backtestRuns.engine.complete({
+      engine,
+      id: run.id,
+      result: workerResult(claimed),
+      seriesSha256: claimed.seriesSha256,
+    });
+    expect(outcome).toEqual({ id: run.id, status: "succeeded" });
+    const read = await client.backtestRuns.get({ id: run.id });
+    expect(read.report).toEqual(reference.report);
+    expect(read.report?.costs?.profileId).toBe("ibkr-pro-fixed-us-stock");
+  });
+
+  it("rejects a result for a run that is not running on the engine, without a change", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const queued = await queue(runs);
+    const running = await queue(runs, {
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      startedAt: at,
+      status: "running",
+    });
+    const result = {
+      equity: [1, 1],
+      stats: { ...emptyStats, bars: 2 },
+      trades: [],
+    };
+    const seriesSha256 = "b".repeat(64);
+    for (const id of [queued.id, running.id]) {
+      await expectCode(
+        client.backtestRuns.engine.complete({
+          engine,
+          id,
+          result,
+          seriesSha256,
+        }),
+        "CONFLICT",
+        409
+      );
+      await expectCode(
+        client.backtestRuns.engine.fail({ engine, error: "boom", id }),
+        "CONFLICT",
+        409
+      );
+    }
+    await expectCode(
+      client.backtestRuns.engine.complete({
+        engine,
+        id: "missing",
+        result,
+        seriesSha256,
+      }),
+      "NOT_FOUND",
+      404
+    );
+    await expectCode(
+      client.backtestRuns.engine.fail({ engine, error: "boom", id: "missing" }),
+      "NOT_FOUND",
+      404
+    );
+    expect(runs.rows.get(queued.id)?.status).toBe("queued");
+    expect(runs.rows.get(running.id)?.status).toBe("running");
+  });
+
+  it("fails the run when the result does not fit the stored bars", async () => {
+    const runs = memoryRuns();
+    let symbol = "SPY";
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async () => (symbol === "SPY" ? seriesRow : null)),
+      }),
+      runs,
+    });
+    const reject = async (
+      change: (claimed: Claimed) => Readonly<{
+        result: ReturnType<typeof workerResult>;
+        seriesSha256: string;
+      }>,
+      message: string
+    ) => {
+      const run = await queue(runs);
+      symbol = "SPY";
+      const claimed = (await client.backtestRuns.engine.claim({ engine }))
+        .run as Claimed;
+      const input = change(claimed);
+      await expectCode(
+        client.backtestRuns.engine.complete({ engine, id: run.id, ...input }),
+        "BAD_REQUEST",
+        400
+      );
+      expect(runs.rows.get(run.id)).toMatchObject({
+        error: message,
+        status: "failed",
+      });
+    };
+    await reject(
+      (claimed) => ({
+        result: workerResult(claimed),
+        seriesSha256: "c".repeat(64),
+      }),
+      "The stored bars changed while the backtest was running"
+    );
+    await reject(
+      (claimed) => {
+        const result = workerResult(claimed);
+        const equity = result.equity.slice(1);
+        return {
+          result: {
+            ...result,
+            equity,
+            stats: { ...result.stats, bars: equity.length, trades: 0 },
+            trades: [],
+          },
+          seriesSha256: claimed.seriesSha256,
+        };
+      },
+      `The engine result has ${rangeBars - 1} bars; the date range has ${rangeBars}`
+    );
+    await reject((claimed) => {
+      symbol = "QQQ";
+      return {
+        result: workerResult(claimed),
+        seriesSha256: claimed.seriesSha256,
+      };
+    }, "No stored 1d bars for SPY");
+  });
+
+  it("recomputes the same stats from the equity and the trades of every exit kind", () => {
+    const columns = waveColumns(1000);
+    // A rising series stays in its position to the last bar (exit reason "end").
+    const close = Float64Array.from({ length: 50 }, (_, index) => 100 + index);
+    const rising = {
+      c: close,
+      h: close.map((value) => value + 1),
+      l: close.map((value) => value - 1),
+      o: close,
+      t: Float64Array.from({ length: 50 }, (_, index) => index * DAY_MS),
+    };
+    const results = [
+      runInstantBacktest(columns, {
+        costBps: 5,
+        rule: { fast: 5, kind: "smaCross", slow: 30 },
+        stopLossPct: 2,
+        takeProfitPct: 4,
+      }),
+      runInstantBacktest(columns, {
+        costBps: 0,
+        costs: {
+          capital: 50_000,
+          profile: COST_PROFILE_PRESETS["ibkr-pro-fixed-us-stock"],
+        },
+        rule: {
+          entryLookback: 20,
+          exitLookback: 10,
+          kind: "breakout",
+          trendSma: 0,
+        },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+      runInstantBacktest(rising, {
+        costBps: 0,
+        rule: { fast: 2, kind: "smaCross", slow: 5 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+      runInstantBacktest(columns, {
+        costBps: 1,
+        rule: { fast: 5, kind: "smaCross", slow: 30 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }),
+    ];
+    const reasons = new Set<string>();
+    for (const [index, result] of results.entries()) {
+      const bars = index === 2 ? rising : columns;
+      for (const trade of result.trades) reasons.add(trade.exitReason);
+      expect(
+        summarize(
+          bars,
+          result.equity,
+          result.trades,
+          barsInPositionOf(result.trades)
+        )
+      ).toEqual(result.stats);
+    }
+    expect([...reasons].sort()).toEqual(["end", "signal", "stop", "target"]);
+  });
+
+  it("refuses a result whose stats differ from its equity and trades", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const complete = async (
+      change: (
+        result: ReturnType<typeof workerResult>
+      ) => ReturnType<typeof workerResult>
+    ) => {
+      const run = await queue(runs);
+      const claimed = (await client.backtestRuns.engine.claim({ engine }))
+        .run as Claimed;
+      return {
+        outcome: client.backtestRuns.engine.complete({
+          engine,
+          id: run.id,
+          result: change(workerResult(claimed)),
+          seriesSha256: claimed.seriesSha256,
+        }),
+        run,
+      };
+    };
+    for (const [change, key] of [
+      [
+        (result: ReturnType<typeof workerResult>) => ({
+          ...result,
+          stats: {
+            ...result.stats,
+            sharpe: (result.stats.sharpe ?? 0) * 1.000_001,
+          },
+        }),
+        "sharpe",
+      ],
+      [
+        (result: ReturnType<typeof workerResult>) => ({
+          ...result,
+          stats: { ...result.stats, profitFactor: null },
+        }),
+        "profitFactor",
+      ],
+    ] as const) {
+      const { outcome, run } = await complete(change);
+      await expectCode(outcome, "BAD_REQUEST", 400);
+      expect(runs.rows.get(run.id)).toMatchObject({
+        error: `The engine stats do not match its equity and trades (${key})`,
+        status: "failed",
+      });
+    }
+    // Within the tolerance the API stores its own stats.
+    const close = await complete((result) => ({
+      ...result,
+      stats: {
+        ...result.stats,
+        totalReturn:
+          result.stats.totalReturn * (1 + ENGINE_STATS_TOLERANCE / 10),
+      },
+    }));
+    await expect(close.outcome).resolves.toMatchObject({ status: "succeeded" });
+  });
+
+  it("checks the result shape at the contract and leaves the run running", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const run = await queue(runs, { startedAt: at, status: "running" });
+    const valid = {
+      equity: [1, 1.01],
+      stats: { ...emptyStats, bars: 2 },
+      trades: [],
+    };
+    const trade = {
+      entryIndex: 0,
+      entryPrice: 100,
+      exitIndex: 1,
+      exitPrice: 101,
+      exitReason: "signal" as const,
+      netReturn: 0.01,
+      pnl: 0.01,
+      units: 0.01,
+    };
+    const invalid = [
+      { ...valid, equity: [1] },
+      { ...valid, stats: { ...valid.stats, bars: 3 } },
+      { ...valid, trades: [trade] },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, exitIndex: 2 }],
+      },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, entryIndex: 1, exitIndex: 0 }],
+      },
+      { ...valid, equity: [1, Number.POSITIVE_INFINITY] },
+      { ...valid, equity: [1, 0] },
+      { ...valid, equity: [1, -0.5] },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, units: 0 }],
+      },
+      {
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [{ ...trade, pnl: Number.NaN }],
+      },
+    ];
+    for (const result of invalid) {
+      expect(BacktestRunEngineResultSchema.safeParse(result).success).toBe(
+        false
+      );
+      await expectCode(
+        client.backtestRuns.engine.complete({
+          engine,
+          id: run.id,
+          result,
+          seriesSha256: "b".repeat(64),
+        }),
+        "BAD_REQUEST",
+        400
+      );
+    }
+    expect(
+      BacktestRunEngineResultSchema.safeParse({
+        ...valid,
+        stats: { ...valid.stats, trades: 1 },
+        trades: [trade],
+      }).success
+    ).toBe(true);
+    expect(runs.rows.get(run.id)?.status).toBe("running");
+  });
+
+  it("stores a worker error and refuses a lost update", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const run = await queue(runs, { startedAt: at, status: "running" });
+    await expect(
+      client.backtestRuns.engine.fail({
+        engine,
+        error: " rvol needs bar volume ",
+        id: run.id,
+      })
+    ).resolves.toEqual({ id: run.id, status: "failed" });
+    expect(runs.rows.get(run.id)?.error).toBe("rvol needs bar volume");
+
+    // Another caller finished the run between the read and the conditional update.
+    const raced = await queue(runs, { startedAt: at, status: "running" });
+    await queue(runs);
+    const racing = clientFor({
+      bars: fakeBars(),
+      runs: { ...runs, complete: async () => null, fail: async () => null },
+    });
+    await expectCode(
+      racing.backtestRuns.engine.fail({ engine, error: "boom", id: raced.id }),
+      "CONFLICT",
+      409
+    );
+    const claimed = (await client.backtestRuns.engine.claim({ engine }))
+      .run as Claimed;
+    await expectCode(
+      racing.backtestRuns.engine.complete({
+        engine,
+        id: raced.id,
+        result: workerResult(claimed),
+        seriesSha256: "b".repeat(64),
+      }),
+      "CONFLICT",
+      409
+    );
+  });
+
+  it("needs storage, an operator and a write key", async () => {
+    await expectCode(
+      clientFor({ bars: fakeBars() }).backtestRuns.engine.claim({ engine }),
+      "STORAGE_ERROR",
+      503
+    );
+    await expectCode(
+      clientFor({
+        bars: fakeBars(),
+        runs: memoryRuns(),
+        session: session("member"),
+      }).backtestRuns.engine.claim({ engine }),
+      "FORBIDDEN",
+      403
+    );
+    for (const name of ["claim", "complete", "fail"])
+      expect(
+        AGENT_API_KEY_READ_PROCEDURES.has(`backtestRuns.engine.${name}`)
       ).toBe(false);
   });
 });
