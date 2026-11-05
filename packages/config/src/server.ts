@@ -417,6 +417,20 @@ const DEVELOPMENT_SECRETS: Readonly<Record<string, true>> = {
   "vertex-local-development-only-contact-throttle-secret": true,
 };
 
+// A development build that serves a non-local origin (the QuantVPS
+// self-hosted app) is deployed too, so it must not use the public template
+// secrets. Returns the diagnostic scope, or undefined for local runtimes.
+const deployedSecretScope = (
+  appEnv: string,
+  appUrl: string
+): string | undefined => {
+  if (appEnv === "production") return "in production";
+  const host = parseUrl(appUrl)?.hostname;
+  return host !== undefined && !isLocalHostname(host)
+    ? "on a non-local APP_URL"
+    : undefined;
+};
+
 // Configuration cannot claim operational readiness or authorize a live order.
 const pendingRuntimeState = z.enum(PENDING_RUNTIME_STATES).default("disabled");
 
@@ -667,18 +681,21 @@ export const serverEnvSchema = baseServerEnvSchema
       });
     }
 
+    const secretScope = deployedSecretScope(env.APP_ENV, env.APP_URL);
+    for (const name of [
+      "BETTER_AUTH_SECRET",
+      "CONTACT_THROTTLE_SECRET",
+    ] as const) {
+      if (secretScope === undefined) break;
+      if (DEVELOPMENT_SECRETS[env[name].trim()] !== true) continue;
+      context.addIssue({
+        code: "custom",
+        path: [name],
+        message: `${name} cannot use a development or public-template secret ${secretScope}`,
+      });
+    }
+
     if (env.APP_ENV === "production") {
-      for (const name of [
-        "BETTER_AUTH_SECRET",
-        "CONTACT_THROTTLE_SECRET",
-      ] as const) {
-        if (DEVELOPMENT_SECRETS[env[name].trim()] !== true) continue;
-        context.addIssue({
-          code: "custom",
-          path: [name],
-          message: `${name} cannot use a development or public-template secret in production`,
-        });
-      }
       for (const [name, value] of [
         ["APP_URL", env.APP_URL],
         ["BETTER_AUTH_URL", env.BETTER_AUTH_URL],
