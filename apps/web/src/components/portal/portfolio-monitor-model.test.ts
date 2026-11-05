@@ -29,6 +29,8 @@ import {
   isOptionPosition,
   ladderScale,
   localDayKey,
+  failureGraceMs,
+  failureVisible,
   monitorHealth,
   moveColumn,
   nextSort,
@@ -170,6 +172,22 @@ describe("portfolio monitor health rule", () => {
     expect(health({})).toBe("Live");
     expect(staleAfterSeconds(5)).toBe(30);
     return expect(staleAfterSeconds(30)).toBe(90);
+  });
+
+  it("says Updating during a retry and shows a failure only after its grace window", () => {
+    expect(health({ retrying: true })).toBe("Updating…");
+    expect(health({ retrying: true, snapshot: null })).toBe("Loading");
+    expect(failureGraceMs(5)).toBe(20_000);
+    expect(failureGraceMs(30)).toBe(60_000);
+    const visible = (
+      kind: string,
+      failingSince: number | null,
+      nowMs: number
+    ) => failureVisible({ kind, failingSince, nowMs, intervalS: 10 });
+    expect(visible("error", NOW, NOW + 19_999)).toBe(false);
+    expect(visible("unavailable", NOW, NOW + 20_000)).toBe(true);
+    expect(visible("error", null, NOW)).toBe(true);
+    return expect(visible("unauthorized", NOW, NOW)).toBe(true);
   });
 
   return it("labels the account mode without any account id", () => {

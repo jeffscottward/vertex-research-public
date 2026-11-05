@@ -142,17 +142,41 @@ export type HealthInput = Readonly<{
   failureKind: string | null;
   nowMs: number;
   intervalS: number;
+  // A request failed, but the failure is still inside its grace window (see failureVisible).
+  retrying?: boolean;
 }>;
 
 // Data older than this is stale (same rule as the reference monitor).
 export const staleAfterSeconds = (intervalS: number): number =>
   Math.max(30, intervalS * 3);
 
+// A failed snapshot request is often transient: iOS Safari aborts fetches ("Load failed") when
+// the page is suspended or the network changes, e.g. while the owner places an order in another
+// app (2026-11-05). The server answered every request it got. So a failure is shown only after
+// requests keep failing for this long; until then the page says "Updating" with the last data.
+export const failureGraceMs = (intervalS: number): number =>
+  Math.max(20_000, intervalS * 2000);
+
+// Terminal failures (access, configuration, session) show at once; others after the grace window.
+export const failureVisible = (
+  input: Readonly<{
+    kind: string;
+    failingSince: number | null;
+    nowMs: number;
+    intervalS: number;
+  }>
+): boolean => {
+  if (input.kind !== "unavailable" && input.kind !== "error") return true;
+  if (input.failingSince === null) return true;
+  return input.nowMs - input.failingSince >= failureGraceMs(input.intervalS);
+};
+
 export const monitorHealth = ({
   snapshot,
   failureKind,
   nowMs,
   intervalS,
+  retrying = false,
 }: HealthInput): Health => {
   if (failureKind === "not-configured")
     return { key: "not-configured", label: "Not configured", tone: "neutral" };
@@ -170,6 +194,7 @@ export const monitorHealth = ({
     };
   if (snapshot === null)
     return { key: "loading", label: "Loading", tone: "neutral" };
+  if (retrying) return { key: "updating", label: "Updating…", tone: "warning" };
   const { status } = snapshot;
   if (status.gateway === "starting")
     return { key: "starting", label: "Gateway starting", tone: "warning" };
