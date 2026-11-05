@@ -124,7 +124,7 @@ jobs:
           path: .vitest-reports/
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 3
 
   verification:
     name: Verification (${{ matrix.lane }})
@@ -362,6 +362,14 @@ jobs:
           pattern: coverage-blob-*
           path: .vitest-reports
           merge-multiple: true
+
+      # Every shard must be present: a partial merge could pass on partial data.
+      - name: Require all 13 coverage shard reports
+        shell: bash
+        run: |
+          count=$(find .vitest-reports -maxdepth 1 -type f | wc -l)
+          echo "Coverage shard reports: ${count}"
+          if (( count != 13 )); then echo "Expected 13 shard reports; use Re-run all jobs."; exit 1; fi
 
       - name: Run verification lane
         run: bun run "verify:${{ matrix.lane }}"
