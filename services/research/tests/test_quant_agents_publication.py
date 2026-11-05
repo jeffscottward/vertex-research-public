@@ -194,7 +194,10 @@ def joined(monkeypatch, *, scopes=(Scope("collection-1", "snapshot-1"),), mode="
         chat_events=None, secret_resolver=None)
     composed = []
 
-    def compose(*, client, bridge, context):
+    def compose(*, client, bridge, context, rights_mode):
+        # Same keyword contract as vertex_control.create_research_adapters. The
+        # fixture uses the default (non-observation) adapter profile.
+        assert rights_mode == "legacy"
         rights = JoinedRights(context)
         bundle = SimpleNamespace(rights=rights, retrieval=JoinedRetrieval(),
             artifacts=ArtifactAdapter(client, bridge, context, rights),
