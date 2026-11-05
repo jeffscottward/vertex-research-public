@@ -15,6 +15,7 @@ from agents.omp_claude import (
     OmpClaudeGenerator,
     extract_json,
     final_assistant_message,
+    write_lean_mcp_config,
 )
 
 
@@ -38,7 +39,9 @@ class FakeRun:
 
     def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         overlay = Path(argv[argv.index("--config") + 1])
+        mcp = Path(kwargs["cwd"], ".omp", "mcp.json")
         self.calls.append({"argv": argv, "overlay_text": overlay.read_text(encoding="utf-8"),
+                           "mcp_config": json.loads(mcp.read_text(encoding="utf-8")),
                            "overlay_in_cwd": overlay.parent == Path(kwargs["cwd"]), **kwargs})
         if self.raises is not None:
             raise self.raises
@@ -65,6 +68,28 @@ def test_command_is_lean_tool_less_and_prompt_goes_on_stdin() -> None:
     reply = generator.calls[0]
     assert (reply.model, reply.provider, reply.input_tokens, reply.output_tokens, reply.cost_usd) == (
         "claude-opus-5-5", "anthropic", 16, 20, 0.25)
+
+
+def test_run_cwd_disables_every_user_mcp_server(tmp_path: Path,
+                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    # --no-tools keeps MCP tools; without this each call carried ~430k tokens of schemas.
+    home = tmp_path / "home"
+    (home / ".omp/agent").mkdir(parents=True)
+    (home / ".omp/agent/mcp.json").write_text(json.dumps(
+        {"mcpServers": {"rea": {"command": "rea", "env": {"TOKEN": "secret"}}, "jev": {"url": "x"}}}))
+    monkeypatch.setattr(Path, "home", lambda: home)
+    run = FakeRun(omp_stdout("{}"))
+    OmpClaudeGenerator(omp_path="/opt/omp", run=run).generate("n", "P")
+    servers = run.calls[0]["mcp_config"]["mcpServers"]
+    assert servers == {"jev": {"command": "true", "enabled": False},
+                       "rea": {"command": "true", "enabled": False}}  # names only, no copied secrets
+
+
+def test_lean_mcp_config_tolerates_missing_user_config(tmp_path: Path,
+                                                      monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "no-home")
+    target = write_lean_mcp_config(tmp_path)
+    assert json.loads(target.read_text()) == {"mcpServers": {}}
 
 
 def test_model_allow_list_and_settings_are_checked_before_any_run() -> None:
