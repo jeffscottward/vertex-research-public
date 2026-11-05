@@ -9,6 +9,10 @@ keeps the original import.
 Exceptions:
 - backtesting/event_stats.py and backtesting/event_study.py adapt AI Hedge Fund
   code under the MIT license (backtesting/AI_HEDGE_FUND_LICENSE.txt).
+- agents/hedgefund_committee.py adapts the AI Hedge Fund persona instruction
+  text (hedge_fund/signals/{buffett,munger,graham,lynch,druckenmiller}.py,
+  upstream commit 29b32f71) under the same MIT license
+  (backtesting/AI_HEDGE_FUND_LICENSE.txt).
 - adapters/vibe_trading_framework.py adapts Glassbench code under the Apache
   License 2.0 (repository root NOTICE and licenses/glassbench-APACHE-2.0.txt).
 
