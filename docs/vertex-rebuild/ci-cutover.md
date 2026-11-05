@@ -4,7 +4,7 @@ Card: `vertex-ci-github-hosted`. Date: 2026-11-04.
 
 ## Decision
 
-Owner pick 2026-11-04 ([message](https://discord.com/channels/1511468532876185770/1563315691879407676/1567651185832235099)): mechanism (a), work directly in the public repository.
+Owner pick 2026-11-04 (owner Discord message, private): mechanism (a), work directly in the public repository.
 
 - `vertex-research-public` is the development repository. Pull requests open there. CI runs there on GitHub-hosted `ubuntu-latest` runners, which are free for public repositories.
 - `vertex-research` (private) is a read-only backup. Archive it later. Never delete it on GitHub.
