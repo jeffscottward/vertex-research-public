@@ -29,7 +29,8 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | `VERTEX_ORIGIN` | Portal origin (https). |
 | `VERTEX_AGENT_API_KEY` | Operator agent write key (read from the key file by the start script). |
 | `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
-| `VERTEX_WORKER_IDLE_MS` | Wait between claims when no run is queued. Default 3000. |
+| `VERTEX_WORKER_IDLE_MS` | First wait after an empty claim. Default 3000. Each further empty claim doubles the wait; a claim that returns work resets it. |
+| `VERTEX_WORKER_IDLE_MAX_MS` | Longest wait between empty claims. Default 40000 (not below `VERTEX_WORKER_IDLE_MS`). Keep it above 35000: see [Request budget](#request-budget). |
 | `VERTEX_ALERT_POST_URL` | Optional. Loopback chat endpoint that takes `{channel, text}` (the same route as the sector rotation alerts, for example `http://127.0.0.1:47821/post`). |
 | `VERTEX_ALERT_CHANNEL` | Optional. Channel for the alert lines, for example `trading-alerts`. Without both settings the worker posts no alerts. |
 
@@ -39,4 +40,16 @@ One run may take at most 9 minutes; the worker then kills the engine and fails t
 
 A claim moves the run to `running` before the response reaches the worker. When that response is lost (network drop, worker restart during the request), no worker knows the run: it stays `running` until the API's stale check fails it 10 minutes after the claim ("Backtest stopped before it finished", on the next read of the run). Submit it again after that.
 
-When `complete` fails with a network error, a 429 or a 5xx answer, the worker tries again 3 times (waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result". On SIGTERM during a retry wait, the remaining tries run at once (without waits) before the run fails.
+When `complete` fails with a network error or a 5xx answer, the worker tries again 3 times (waits of 1, 2 and 4 seconds) and then fails the run with "Could not deliver the Nautilus result". A 429 answer waits for the key limiter instead (see below). On SIGTERM during a retry wait, the remaining tries run at once (without waits) before the run fails.
+
+## Request budget
+
+The agent key limiter (better-auth api-key plugin, `rate_limit_max` 600 and `rate_limit_time_window` 60000 on the key row) counts accepted requests per key. It resets the count only after 60 s with no accepted request on that key. It is not 600 per minute: clients that call the key at least once every 60 s never reset it, so the key refuses every request after 600 accepted ones until 60 s pass without an accepted request. On 2026-11-05 the worker (3 s polling) and the QuantVPS Autopilot tick (1/min) shared one key: after 600 requests (30 min) the next 19 requests of the worker and the tick got HTTP 429. A unit test of the plugin with these settings shows the same numbers.
+
+The worker therefore:
+
+- Backs off when idle: 3 s after an empty claim, then 6, 12 and 24 s up to `VERTEX_WORKER_IDLE_MAX_MS` (40 s). A claim that returns work resets the wait to 3 s.
+- Sends at most 150 requests (a quarter of the limit) and then nothing for 125 s. A pause of more than two limiter windows contains a gap of more than 60 s even when another client of the key calls once a minute inside it, so the count resets. With the Autopilot tick on the same key the count stays below 300 (half of the limit).
+- On a 429 answer, waits 125 s, or the `Retry-After` time when the answer has a longer one, and then starts with the 40 s idle wait.
+
+Coupling with `infra/quantvps/restart-when-idle.sh`: the restart waits for 30 s without a `vertex-web` journal line or TCP traffic, seen on two polls 5 s apart. Every worker request logs a line, so the idle wait must stay longer than 35 s; the 40 s default leaves 5 s. Do not set `VERTEX_WORKER_IDLE_MAX_MS` below 35000 while the restart script uses these defaults.

@@ -6,7 +6,15 @@
 // agent WRITE key, run `python -m nautilus_backtest run -` in services/research with the run's
 // bars and spec on stdin, and post the result (backtestRuns.engine.complete) or the error
 // (backtestRuns.engine.fail). The API builds the report. After a run it claims again at once;
-// with no run it waits VERTEX_WORKER_IDLE_MS (default 3000). `--once` runs one claim cycle.
+// after an empty claim it waits VERTEX_WORKER_IDLE_MS (default 3000), then twice as long after
+// each further empty claim up to VERTEX_WORKER_IDLE_MAX_MS (default 40000). `--once` runs one
+// claim cycle.
+// Request budget: the agent key limiter (better-auth api-key plugin) allows 600 accepted requests
+// per key and resets the count only after 60 s with no accepted request on that key; requests
+// that come less than 60 s apart never reset it. The worker therefore sends at most
+// REQUEST_BUDGET requests (a quarter of the limit, so the shared key stays below half of it with
+// the other clients), then sends nothing for QUIET_PAUSE_MS so the count can reset. A 429 answer
+// pauses the same way, or for its Retry-After when that is longer.
 // SIGTERM stops the loop; a running engine process is killed and its run fails. After
 // ALERT_AFTER_FAILURES failed cycles in a row (API errors, a result that could not be delivered,
 // an engine crash or timeout; not an input error or an empty claim) it posts one alert line to
@@ -28,6 +36,19 @@ import {
 /** Engine run limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
 export const NAUTILUS_RUN_TIMEOUT_MS = 9 * 60 * 1000;
 export const DEFAULT_IDLE_MS = 3000;
+/** Longest idle wait. Above the 30 s quiet window plus the two-poll check of restart-when-idle.sh. */
+export const DEFAULT_IDLE_MAX_MS = 40_000;
+/** Accepted requests per key before the limiter refuses (better-auth api-key plugin default). */
+export const AGENT_KEY_LIMIT = 600;
+/** The limiter resets a key's count after this long with no accepted request. */
+export const AGENT_KEY_WINDOW_MS = 60_000;
+/** Requests the worker sends before a quiet pause: a quarter of the key limit. */
+export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
+/**
+ * Quiet pause: longer than two limiter windows, so even with one request of another client
+ * (at most one per window) inside it there is a gap of more than one window, which resets the count.
+ */
+export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
 /** complete tries after a network error, a 429 or a 5xx answer, with doubling waits from the first. */
 export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
@@ -79,6 +100,9 @@ type Config = Readonly<{
   apiKey: string;
   python: string;
   idleMs: number;
+  idleMaxMs: number;
+  /** API requests sent since the last quiet pause. */
+  budget: { requests: number };
 }>;
 
 type ClaimedRun = NonNullable<BacktestRunEngineClaimOutput["run"]>;
@@ -168,28 +192,71 @@ const required = (
   return value;
 };
 
+/** A positive whole number of milliseconds from the environment, or the default. */
+const milliseconds = (
+  env: NautilusWorkerIo["env"],
+  name: "VERTEX_WORKER_IDLE_MS" | "VERTEX_WORKER_IDLE_MAX_MS",
+  fallback: number
+): number => {
+  const text = env[name]?.trim();
+  const value = text === undefined || text === "" ? fallback : Number(text);
+  if (!Number.isInteger(value) || value < 1)
+    throw new Error(`${name} must be a positive whole number`);
+  return value;
+};
+
 const readConfig = (env: NautilusWorkerIo["env"]): Config => {
-  const idle = env["VERTEX_WORKER_IDLE_MS"]?.trim();
-  const idleMs =
-    idle === undefined || idle === "" ? DEFAULT_IDLE_MS : Number(idle);
-  if (!Number.isInteger(idleMs) || idleMs < 1)
-    throw new Error("VERTEX_WORKER_IDLE_MS must be a positive whole number");
+  const idleMs = milliseconds(env, "VERTEX_WORKER_IDLE_MS", DEFAULT_IDLE_MS);
+  const idleMaxMs = milliseconds(
+    env,
+    "VERTEX_WORKER_IDLE_MAX_MS",
+    Math.max(DEFAULT_IDLE_MAX_MS, idleMs)
+  );
+  if (idleMaxMs < idleMs)
+    throw new Error(
+      "VERTEX_WORKER_IDLE_MAX_MS must not be below VERTEX_WORKER_IDLE_MS"
+    );
   return {
     apiKey: required(env, "VERTEX_AGENT_API_KEY"),
+    budget: { requests: 0 },
+    idleMaxMs,
     idleMs,
     origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
     python: required(env, "VERTEX_NAUTILUS_PYTHON"),
   };
 };
 
-/** An HTTP error answer of the API: its status and a short body only. */
+/** Retry-After as milliseconds (delta seconds or an HTTP date), or null when absent or invalid. */
+export const retryAfterMs = (
+  value: string | null,
+  now: number
+): number | null => {
+  const text = value?.trim() ?? "";
+  if (text === "") return null;
+  if (/^\d+$/u.test(text)) return Number(text) * 1000;
+  const date = Date.parse(text);
+  return Number.isNaN(date) ? null : Math.max(0, date - now);
+};
+
+/** An HTTP error answer of the API: its status, its Retry-After and a short body only. */
 class ApiError extends Error {
   readonly status: number;
-  constructor(path: string, status: number, body: string) {
+  readonly retryAfterMs: number | null;
+  constructor(
+    path: string,
+    status: number,
+    body: string,
+    retryAfter: number | null
+  ) {
     super(`${path} returned HTTP ${status}: ${body.slice(0, 300)}`);
     this.status = status;
+    this.retryAfterMs = retryAfter;
   }
 }
+
+/** The wait after a 429 answer: the quiet pause, or Retry-After when longer. */
+const rateLimitWait = (error: ApiError): number =>
+  Math.max(QUIET_PAUSE_MS, error.retryAfterMs ?? 0);
 
 /** Calls one oRPC procedure with the write key. */
 const call = async (
@@ -198,6 +265,7 @@ const call = async (
   path: string,
   input: unknown
 ): Promise<unknown> => {
+  config.budget.requests += 1;
   const response = await io.post(`${config.origin}/api/orpc/${path}`, {
     body: JSON.stringify({ json: input }),
     headers: {
@@ -210,7 +278,13 @@ const call = async (
     signal: AbortSignal.timeout(API_TIMEOUT_MS),
   });
   const text = await response.text();
-  if (!response.ok) throw new ApiError(path, response.status, text);
+  if (!response.ok)
+    throw new ApiError(
+      path,
+      response.status,
+      text,
+      retryAfterMs(response.headers.get("retry-after"), Date.now())
+    );
   const body: unknown = JSON.parse(text);
   return typeof body === "object" && body !== null && "json" in body
     ? body.json
@@ -329,13 +403,24 @@ const deliver = async (
       )
         return error.status === 409 ? "" : REJECTED_ERROR;
       if (attempt === COMPLETE_ATTEMPTS) return UNDELIVERED_ERROR;
-      await io.sleep(COMPLETE_RETRY_MS * 2 ** (attempt - 1), io.signal);
+      // A 429 waits for the limiter (the quiet pause resets the request budget too).
+      if (error instanceof ApiError && error.status === 429) {
+        await io.sleep(rateLimitWait(error), io.signal);
+        config.budget.requests = 0;
+      } else await io.sleep(COMPLETE_RETRY_MS * 2 ** (attempt - 1), io.signal);
     }
   }
 };
 
-/** One claim cycle: whether a run was claimed, and the error class when the cycle failed. */
-type Cycle = Readonly<{ found: boolean; failure: string | null }>;
+/**
+ * One claim cycle: whether a run was claimed, the error class when the cycle failed, and the wait
+ * a 429 answer asks for.
+ */
+type Cycle = Readonly<{
+  found: boolean;
+  failure: string | null;
+  rateLimitMs?: number;
+}>;
 
 /** One claim cycle. Throws on an API error of claim or fail. */
 const workOnce = async (
@@ -422,6 +507,79 @@ const postAlert = async (io: NautilusWorkerIo, text: string): Promise<void> => {
   else io.stderr.write("nautilus worker: alert post failed\n");
 };
 
+/** Sends nothing for `ms`, then starts a new request budget. */
+const quiet = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  ms: number
+): Promise<void> => {
+  await io.sleep(ms, io.signal);
+  config.budget.requests = 0;
+};
+
+/** Failed cycles in a row and whether this incident was alerted. */
+interface AlertState {
+  failures: number;
+  alerted: boolean;
+}
+
+/** One alert per incident (ALERT_AFTER_FAILURES failed cycles in a row), one recovery line after. */
+const noteCycle = async (
+  io: NautilusWorkerIo,
+  state: AlertState,
+  failure: string | null
+): Promise<void> => {
+  if (failure === null) {
+    if (state.alerted)
+      await postAlert(
+        io,
+        `Vertex Nautilus backtest worker recovered after ${state.failures} failed cycles.`
+      );
+    state.failures = 0;
+    state.alerted = false;
+    return;
+  }
+  state.failures += 1;
+  if (state.failures !== ALERT_AFTER_FAILURES) return;
+  state.alerted = true;
+  await postAlert(
+    io,
+    `Vertex Nautilus backtest worker: ${state.failures} cycles failed in a row (last: ${failure}). Research only; see journalctl --user -u vertex-nautilus-worker.`
+  );
+};
+
+/**
+ * Waits after a cycle and returns the next idle wait: the limiter wait after a 429, none after
+ * work, else the idle wait (doubled for the next empty claim, up to the cap); then a quiet pause
+ * when the request budget is used.
+ */
+const waitAfter = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  cycle: Cycle,
+  idleMs: number
+): Promise<number> => {
+  let next = idleMs;
+  if (cycle.rateLimitMs !== undefined) {
+    io.stderr.write(
+      `nautilus worker: agent key rate limited; quiet for ${Math.round(cycle.rateLimitMs / 1000)} s\n`
+    );
+    await quiet(config, io, cycle.rateLimitMs);
+    next = config.idleMaxMs;
+  } else if (cycle.found) next = config.idleMs;
+  else {
+    await io.sleep(idleMs, io.signal);
+    next = Math.min(idleMs * 2, config.idleMaxMs);
+  }
+  if (config.budget.requests >= REQUEST_BUDGET) {
+    io.stdout.write(
+      `nautilus worker: ${config.budget.requests} requests sent; quiet for ${QUIET_PAUSE_MS / 1000} s so the agent key limiter resets\n`
+    );
+    await quiet(config, io, QUIET_PAUSE_MS);
+  }
+  return next;
+};
+
 /** Runs the worker loop (or one cycle with --once) and returns the process exit code. */
 export const runNautilusWorker = async (
   argv: readonly string[],
@@ -437,9 +595,8 @@ export const runNautilusWorker = async (
     return 1;
   }
   const once = argv.includes("--once");
-  // One alert per incident (ALERT_AFTER_FAILURES failed cycles in a row), one recovery line after.
-  let failures = 0;
-  let alerted = false;
+  const alerts: AlertState = { alerted: false, failures: 0 };
+  let idleMs = config.idleMs;
   while (!io.signal.aborted) {
     let cycle: Cycle;
     try {
@@ -447,28 +604,17 @@ export const runNautilusWorker = async (
     } catch (error) {
       io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
       if (once) return 1;
-      cycle = { failure: errorClass(error), found: false };
+      cycle = {
+        failure: errorClass(error),
+        found: false,
+        ...(error instanceof ApiError && error.status === 429
+          ? { rateLimitMs: rateLimitWait(error) }
+          : {}),
+      };
     }
     if (once) return 0;
-    if (cycle.failure === null) {
-      if (alerted)
-        await postAlert(
-          io,
-          `Vertex Nautilus backtest worker recovered after ${failures} failed cycles.`
-        );
-      failures = 0;
-      alerted = false;
-    } else {
-      failures += 1;
-      if (failures === ALERT_AFTER_FAILURES) {
-        alerted = true;
-        await postAlert(
-          io,
-          `Vertex Nautilus backtest worker: ${failures} cycles failed in a row (last: ${cycle.failure}). Research only; see journalctl --user -u vertex-nautilus-worker.`
-        );
-      }
-    }
-    if (!cycle.found) await io.sleep(config.idleMs, io.signal);
+    await noteCycle(io, alerts, cycle.failure);
+    idleMs = await waitAfter(config, io, cycle, idleMs);
   }
   return 0;
 };
