@@ -77,7 +77,7 @@ The browser lane (`bun run verify:browser`) needs the same two variables.
 
 | Lane | Script | What it proves |
 | --- | --- | --- |
-| core | `verify:core` | format, lint, generated artifacts (OpenAPI, auth schema, docs), typecheck |
+| core | `verify:core` | format, lint, generated artifacts (OpenAPI, auth schema, docs), typecheck; in CI also the research tooling Python suites (`scripts/ci/research-python.sh`) |
 | coverage | `verify:coverage` | unit, contract, operations and E2E-helper tests at 100% coverage |
 | integration | `verify:integration` | repositories, migrations, auth and API against real Postgres |
 | browser | `verify:browser` | production build, Playwright `e2e` and `a11y` |
@@ -89,6 +89,8 @@ Coverage ratchet: every measured file must reach 100% lines, branches, functions
 `bun run verify` runs all four locally. `bun run verify:prepush` runs the fast subset on every push: everything except the tests that need Postgres, a build, or a fresh install (integration, browser, acceptance). When the browser lane fails, CI uploads the Playwright report and traces as the run artifact `playwright-failure-<run>-<attempt>`. In CI the browser lane runs through `scripts/ci/browser-lane.sh`: it runs `verify:browser` and its own PostgreSQL in a private network namespace with only loopback. Chromium fails in-flight requests with `net::ERR_NETWORK_CHANGED` when a host network interface changes (a Wi-Fi drop, or a Docker network of another job on the shared rig), so the namespace keeps those changes away from the browser. Where unprivileged user namespaces are not available (GitHub-hosted Ubuntu), the script warns and uses the host network.
 
 On pull requests the browser lane can run fewer specs. The CI step `Choose browser specs` runs `scripts/browser-specs.ts` on the change of the merge commit against the base branch tip. When every changed path is outside the web build, the app and the browser suite (`.agents/`, `.claude/`, `.vscode/`, `docs/`, `infra/`, `research/`, `services/`, `tests/generator/`, `tests/integration/`, root Markdown files and `LICENSE`), the lane runs `tests/e2e/smoke.spec.ts` and every changed spec file. Any other changed path, a git error, and every push or manual run use the full suite. Add a folder to `NO_BROWSER_INPUT` in `scripts/lib/browser-specs.ts` only when no import or file read of the app, the build or the suite reaches it.
+
+The core lane also runs `scripts/ci/research-python.sh`. It makes a temporary virtual environment with CPython 3.12 from the hash-pinned lock `services/research/requirements-linux-py312.lock` and runs pytest on the suites in `services/research/tests/ci-suites.txt`. These are the research tooling suites: the TradingAgents, QuantMind, Financial Datasets, framework-bench and Quant Lab entry points. Add the suite of every new research tooling entry point to that file. The rest of the Python research suite still runs locally only. Local run: `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`.
 
 ## Writing good tests
 

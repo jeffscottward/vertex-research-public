@@ -1,0 +1,9 @@
+# Research tooling suites that CI runs (scripts/ci/research-python.sh, core lane).
+# One path per line, relative to services/research. Add the suite of every new
+# research tooling entry point here. Remove a line only when its file is removed.
+tests/test_external_research.py
+tests/test_framework_bench.py
+tests/test_vibe_trading_framework.py
+tests/test_sector_rotation_input.py
+tests/test_quantlab.py
+providers/tests/test_provider_boundaries.py

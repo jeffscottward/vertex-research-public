@@ -264,6 +264,13 @@ jobs:
         if: matrix.lane == 'core'
         run: node --test research/master-rules/check-master-rules.mjs
 
+      # Research tooling (P4 upstream tools) is Python in services/research. The step
+      # installs the hash-pinned lock into a temporary venv and runs the suites listed
+      # in services/research/tests/ci-suites.txt. Fakes only; no network or broker.
+      - name: Research tooling Python tests
+        if: matrix.lane == 'core'
+        run: bash scripts/ci/research-python.sh
+
       - name: Run verification lane
         if: matrix.lane != 'browser'
         run: bun run "verify:${{ matrix.lane }}"
