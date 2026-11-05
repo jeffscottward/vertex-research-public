@@ -7,6 +7,7 @@ tests/test_vibe_trading_framework.py
 tests/test_sector_rotation_input.py
 tests/test_quantlab.py
 providers/tests/test_provider_boundaries.py
+tests/test_quantmind_mining.py
 tests/test_quantlab_nautilus.py
 tests/test_omp_claude.py
 tests/test_tradingagents_cli.py
