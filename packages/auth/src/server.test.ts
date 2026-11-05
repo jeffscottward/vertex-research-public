@@ -31,6 +31,7 @@ import {
   createAuthHandler,
   type DarkFactoryAuth,
   type DevelopmentSeedIdentity,
+  EMAIL_VERIFICATION_DELIVERY_ERROR_CODE,
   ensureDevelopmentSeedIdentity,
   PASSWORD_RESET_DELIVERY_ERROR_CODE,
   requireRole,
@@ -1282,6 +1283,59 @@ describe("fetch-native auth response normalization", () => {
       return await expect(jsonBody(response)).resolves.toEqual(body);
     }
   );
+
+  it("makes a verification resend delivery outage indistinguishable from success", async () => {
+    // Better Auth sends only to existing unverified users, so a delivery 503
+    // would reveal that such an account exists.
+    const { auth: ordinaryAuth } = handlerAuth(
+      Response.json(
+        { status: true },
+        { status: 200, headers: { etag: '"ordinary"' } }
+      )
+    );
+    const { auth: outageAuth } = handlerAuth(
+      Response.json(
+        {
+          code: EMAIL_VERIFICATION_DELIVERY_ERROR_CODE,
+          message: "private provider details",
+        },
+        { status: 503, headers: { "retry-after": "30" } }
+      )
+    );
+
+    const ordinary = await createAuthHandler(ordinaryAuth)(
+      request("/api/auth/send-verification-email")
+    );
+    const normalized = await createAuthHandler(outageAuth)(
+      request("/api/auth/send-verification-email")
+    );
+
+    expect({
+      status: normalized.status,
+      body: await normalized.text(),
+      headers: Object.fromEntries(normalized.headers),
+    }).toEqual({
+      status: ordinary.status,
+      body: await ordinary.text(),
+      headers: Object.fromEntries(ordinary.headers),
+    });
+    return expect(Object.fromEntries(normalized.headers)).toEqual({
+      "cache-control": "no-store",
+      "content-type": "application/json",
+    });
+  });
+
+  it("preserves a verification resend rejection that is not a delivery outage", async () => {
+    const body = { code: "VALIDATION_ERROR", message: "Invalid email" };
+    const { auth } = handlerAuth(Response.json(body, { status: 400 }));
+
+    const response = await createAuthHandler(auth)(
+      request("/api/auth/send-verification-email")
+    );
+
+    expect(response.status).toBe(400);
+    return await expect(jsonBody(response)).resolves.toEqual(body);
+  });
 
   it("preserves a non-JSON reset delivery response", async () => {
     const { auth } = handlerAuth(

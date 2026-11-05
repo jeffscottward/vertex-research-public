@@ -33,6 +33,7 @@ import type { VertexResearchChatConversationService } from "./vertex-research-ch
 import type { ResearchChatModelPrivacyOperations } from "./vertex-research-chat-model-privacy.ts";
 import type { VertexReadDependencies } from "./vertex-service.ts";
 import type { VertexWorkerServiceDependencies } from "./vertex-worker-service.ts";
+import type { JevConfig } from "./jev-client.ts";
 import type { QuantDataConfig } from "./quantdata-client.ts";
 import type { VertexWorkerRequestContext } from "./vertex-worker-auth.ts";
 import type { VertexOrdersConfig } from "./vertex-orders.ts";
@@ -79,6 +80,8 @@ export type ApiContext = Readonly<{
   marketHistory?: DeployStatusConfig | null;
   // QuantData options analytics (QUANTDATA_API_BASE_URL/KEY). Server-only; null => not configured.
   quantData?: QuantDataConfig | null;
+  // JEV decisions model over OpenRouter (OPENROUTER_API_KEY). Server-only; null => not configured.
+  jev?: JevConfig | null;
   // Tailnet-only research lens documents (VERTEX_RESEARCH_LENSES_URL, same token). Server-only; null => not configured.
   researchLenses?: DeployStatusConfig | null;
   // Price alert ntfy destination (VERTEX_PRICE_ALERTS_NTFY_*). Server-only, never logged; null => not configured.
@@ -137,6 +140,7 @@ export type ApiContextDependencies = Readonly<{
   deployStatusV2?: DeployStatusConfig | null;
   marketHistory?: DeployStatusConfig | null;
   quantData?: QuantDataConfig | null;
+  jev?: JevConfig | null;
   researchLenses?: DeployStatusConfig | null;
   priceAlertsNtfy?: PriceAlertsNtfyConfig | null;
   portfolioMonitor?: DeployStatusConfig | null;
@@ -235,6 +239,7 @@ export const createApiContext = (
     deployStatusV2: dependencies.deployStatusV2 ?? null,
     marketHistory: dependencies.marketHistory ?? null,
     quantData: dependencies.quantData ?? null,
+    jev: dependencies.jev ?? null,
     researchLenses: dependencies.researchLenses ?? null,
     priceAlertsNtfy: dependencies.priceAlertsNtfy ?? null,
     portfolioMonitor: dependencies.portfolioMonitor ?? null,

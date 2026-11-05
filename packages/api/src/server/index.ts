@@ -76,6 +76,7 @@ export type {
 export type { DeployStatusConfig } from "./deploy-status.ts";
 export { resolveDeployStatusConfig } from "./deploy-status.ts";
 export { resolveQuantDataConfig } from "./quantdata-client.ts";
+export { resolveJevConfig } from "./jev-client.ts";
 export {
   type PriceAlertsNtfyConfig,
   resolvePriceAlertsNtfyConfig,

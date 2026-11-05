@@ -155,7 +155,7 @@ describe("atomic auth rate-limit decisions", () => {
     expect(cleanupQuery.sql).toContain("delete from rate_limit");
     expect(cleanupQuery.sql).toContain("for update skip locked");
     return expect(cleanupQuery.params).toEqual([
-      1_700_000_000_000 - 60_000,
+      1_700_000_000_000 - 3_600_000,
       100,
     ]);
   });
@@ -211,7 +211,7 @@ describe("atomic auth rate-limit decisions", () => {
     ["minimum window and max", { window: 1, max: 1 }],
     [
       "maximum window and safe max",
-      { window: 60, max: Number.MAX_SAFE_INTEGER },
+      { window: 3600, max: Number.MAX_SAFE_INTEGER },
     ],
   ] as const)("accepts the %s boundary", async (_case, rule) => {
     const execute = vi
@@ -231,7 +231,7 @@ describe("atomic auth rate-limit decisions", () => {
     ["zero window", { window: 0, max: 1 }],
     ["negative window", { window: -1, max: 1 }],
     ["fractional window", { window: 1.5, max: 1 }],
-    ["window over one minute", { window: 61, max: 1 }],
+    ["window over one hour", { window: 3601, max: 1 }],
     ["unsafe window", { window: Number.MAX_SAFE_INTEGER + 1, max: 1 }],
     ["zero max", { window: 1, max: 0 }],
     ["negative max", { window: 1, max: -1 }],

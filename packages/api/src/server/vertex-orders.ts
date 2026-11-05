@@ -17,6 +17,7 @@ import {
 } from "./vertex-orders-confirm.ts";
 import {
   createBridgeOrderGateway,
+  BRIDGE_TIMEOUT_MS,
   createMockOrderGateway,
   OrderGatewayError,
   type OrderGatewayPort,
@@ -62,6 +63,7 @@ export const setVertexOrdersDependenciesForTesting = (
 ): void => {
   dependencies = next;
   limits.clear();
+  placingUntil = 0;
 };
 
 const DISABLED: VertexOrdersConfig = {
@@ -212,6 +214,34 @@ const requireOwner = api.middleware(async ({ context, next, errors }) => {
   return next();
 });
 
+// Order placements run one at a time in this process: a submit that arrives while another is
+// placing is refused (RATE_LIMITED) without using its confirm token. Each placement then reads the
+// account after the previous order is placed, so parallel submits cannot pass a per-name cap or
+// the max-loss gate together on one stale snapshot. QuantVPS runs one web process; the bridge
+// checks each order again on its own. Cancels are not gated.
+// A lease, not a promise chain: workerd cancels a request whose client disconnects, and a
+// promise shared across requests would then never settle. A submit makes two bridge calls in a
+// row (account, then place), so the lease ends after two bridge timeouts plus 30 s, even when the
+// cancelled request never reaches `finally`. After that, the live-mode order intent (written
+// before `place`) still refuses new orders while its outcome is unknown.
+const PLACEMENT_LEASE_MS = 2 * BRIDGE_TIMEOUT_MS + 30_000;
+let placingUntil = 0;
+const onePlacementAtATime = api.middleware(async ({ next, errors }) => {
+  const now = Date.now();
+  if (placingUntil > now)
+    throw (errors as unknown as Failures).RATE_LIMITED({
+      message: "Another order is being placed. Try again when it finishes.",
+    });
+  const lease = now + PLACEMENT_LEASE_MS;
+  placingUntil = lease;
+  try {
+    return await next();
+  } finally {
+    // A late finish of an expired lease must not end a newer one.
+    if (placingUntil === lease) placingUntil = 0;
+  }
+});
+
 // Runs a gateway call and maps adapter failures to contract errors. On submit and cancel,
 // `onFailure` writes the audit record before the error leaves the handler.
 const guarded = async <T>(
@@ -276,7 +306,7 @@ const heldIn = (
     .reduce((sum, p) => sum + p.quantity, 0);
 
 // Resolves earlier intents with an unknown outcome against the account. Returns one refusal reason
-// for each intent that is still unknown. Concurrent submits are not serialized here.
+// for each intent that is still unknown. Placements are gated by onePlacementAtATime.
 const reconcileUnknown = async (
   context: ApiContext,
   store: IntentStore | undefined,
@@ -420,6 +450,7 @@ const preview = api.vertexOrders.preview
 const submit = api.vertexOrders.submit
   .use(requireOperator)
   .use(requireOwner)
+  .use(onePlacementAtATime)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     rateCheck(context, failures, "submit");
@@ -569,6 +600,7 @@ const comboPreview = api.vertexOrders.comboPreview
 const comboSubmit = api.vertexOrders.comboSubmit
   .use(requireOperator)
   .use(requireOwner)
+  .use(onePlacementAtATime)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     rateCheck(context, failures, "submit");

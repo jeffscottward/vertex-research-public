@@ -214,6 +214,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
       resetPasswordTokenExpiresInSeconds: 60,
       resetRateLimitMax: 100,
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
     });
     handler = createAuthHandler(auth);
   });
@@ -695,6 +696,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
       resetPasswordTokenExpiresInSeconds: 60,
       resetRateLimitMax: 100,
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
     });
     const delayedHandler = createAuthHandler(delayedAuth);
 
@@ -808,6 +810,7 @@ describe("DF-041 through DF-045 Better Auth integration", {
       resetPasswordTokenExpiresInSeconds: 60,
       resetRateLimitMax: 100,
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
     });
 
     const resetHook = failingAuth.options.emailAndPassword?.sendResetPassword;
@@ -854,6 +857,49 @@ describe("DF-041 through DF-045 Better Auth integration", {
     expect(unknown.status).toBe(200);
     expect(await known.json()).toEqual(SAFE_RESET_RESPONSE);
     return expect(await unknown.json()).toEqual(SAFE_RESET_RESPONSE);
+  });
+
+  it("limits email sign-in per account across rotating client addresses with the real rate-limit store", async () => {
+    await signUp("stuffing-target@example.test");
+    const limitedAuth = createAuth({
+      database: databaseResource.db,
+      secret: AUTH_SECRET,
+      baseURL: BASE_URL,
+      trustedOrigins: [BASE_URL],
+      email,
+      scheduleBackgroundTask: (task) => {
+        return backgroundTasks.push(task);
+      },
+      signInRateLimitMax: 1000,
+      rateLimitEnabled: true,
+      passwordBreachCheck: false,
+    });
+    const limitedHandler = createAuthHandler(limitedAuth);
+    const attempt = (index: number) =>
+      limitedHandler(
+        jsonRequest(
+          "/sign-in/email",
+          {
+            email: "Stuffing-Target@Example.test",
+            password: `wrong-password-${index}`,
+          },
+          { "cf-connecting-ip": `203.0.113.${index + 1}` }
+        )
+      );
+
+    const statuses: number[] = [];
+    for (let index = 0; index < 10; index += 1) {
+      statuses.push((await attempt(index)).status);
+    }
+    const blocked = await attempt(10);
+
+    expect(statuses.every((status) => status === 401)).toBe(true);
+    expect(blocked.status).toBe(429);
+    const keys = await testDatabase.query<{ key: string }>(
+      "SELECT key FROM rate_limit WHERE key LIKE 'sign-in-email:%'"
+    );
+    expect(keys).toHaveLength(1);
+    return expect(keys[0]?.key).not.toContain("stuffing-target");
   });
 
   it("DF-041 repairs partially missing provisioning idempotently without claiming signup atomicity", async () => {

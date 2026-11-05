@@ -7,7 +7,7 @@ describe("security headers (audit P1-7)", () => {
     applySecurityHeaders(headers, "http:", null);
     expect(headers.get("X-Frame-Options")).toBe("DENY");
     expect(headers.get("Content-Security-Policy")).toBe(
-      "frame-ancestors 'none'"
+      "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
     );
     expect(headers.get("Referrer-Policy")).toBe(
       "strict-origin-when-cross-origin"

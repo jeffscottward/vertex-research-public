@@ -83,6 +83,31 @@ describe("parseServerEnv", () => {
     }
   );
 
+  it.each(["BETTER_AUTH_SECRET", "CONTACT_THROTTLE_SECRET"] as const)(
+    "rejects known development secrets in %s when a development build serves a non-local origin",
+    (name) => {
+      // QuantVPS serves the production build with APP_ENV=development on a
+      // tailnet origin; public template secrets must not sign its sessions.
+      const deployedOrigin = "https://vertex-host.example.test";
+      for (const secret of developmentSecrets) {
+        const error = captureValidationError({
+          ...validCoreEnv(),
+          APP_ENV: "development",
+          APP_URL: deployedOrigin,
+          BETTER_AUTH_URL: deployedOrigin,
+          [name]: secret,
+        });
+        expect(error.issues).toEqual([
+          {
+            path: name,
+            message: `${name} cannot use a development or public-template secret on a non-local APP_URL`,
+          },
+        ]);
+        expect(error.message).not.toContain(secret);
+      }
+    }
+  );
+
   it("accepts independent non-default synthetic production keys without enabling providers", () => {
     const source = productionEnv();
     const env = parseServerEnv(source);

@@ -136,6 +136,7 @@ describe("withRequestScope composition", () => {
       baseURL: mocks.env.BETTER_AUTH_URL,
       trustedOrigins: [mocks.env.APP_URL],
       rateLimitEnabled: false,
+      passwordBreachCheck: false,
       scheduleBackgroundTask: mocks.trackedSchedule,
     });
     expect(okRun).toHaveBeenCalledWith({
@@ -148,7 +149,7 @@ describe("withRequestScope composition", () => {
     });
   });
 
-  it("enables Better Auth rate limiting outside the test environment", async () => {
+  it("enables Better Auth rate limiting and the breached-password check outside the test environment", async () => {
     mocks.parseServerEnv.mockReturnValueOnce({
       ...mocks.env,
       APP_ENV: "production",
@@ -157,7 +158,10 @@ describe("withRequestScope composition", () => {
     await withRequestScope(request(), vi.fn(), okRun);
 
     expect(mocks.createAuth).toHaveBeenCalledWith(
-      expect.objectContaining({ rateLimitEnabled: true })
+      expect.objectContaining({
+        rateLimitEnabled: true,
+        passwordBreachCheck: true,
+      })
     );
   });
 

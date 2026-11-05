@@ -211,6 +211,7 @@ describe("supported Better Auth security gateway", () => {
     [{ status: 401 }, "unauthorized", "Sign in again"],
     [{ code: "FORBIDDEN" }, "forbidden", "not permitted"],
     [{ status: 403 }, "forbidden", "not permitted"],
+    [{ code: "PASSWORD_COMPROMISED" }, "retryable", "known data breach"],
     [{ code: 401 }, "retryable", "Try again"],
     [null, "retryable", "Try again"],
   ] as const)(

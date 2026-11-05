@@ -65,6 +65,8 @@ import {
   type MarketDataFailure,
   type MarketDataGateway,
 } from "./market-data-client.ts";
+import type { JevVerdictGateway } from "./jev-verdict-client.ts";
+import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
 import {
@@ -570,6 +572,7 @@ const Analysis = ({ data }: { readonly data: MarketBarsOutput }) => {
 export interface ChartsWorkspaceProps {
   readonly marketData?: MarketDataGateway;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly jevVerdict?: JevVerdictGateway;
   readonly backtests?: BacktestsGateway;
   readonly autoLoad?: boolean;
 }
@@ -610,6 +613,7 @@ const IndicatorToggles = ({
 export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
+  jevVerdict,
   backtests: suppliedBacktests,
   autoLoad = true,
 }: ChartsWorkspaceProps) => {
@@ -878,12 +882,18 @@ export const ChartsWorkspace = ({
             </ChartRendererBoundary>
           )}
           <Analysis data={data} />
-          {/* QuantData covers US-listed equities only. */}
+          {/* QuantData covers US-listed equities only; the JEV verdict uses the same scope. */}
           {data.request.secType === "STK" && data.request.currency === "USD" ? (
-            <OptionsAnalyticsPanel
-              gateway={optionsAnalytics}
-              symbol={data.request.symbol}
-            />
+            <>
+              <JevVerdictPanel
+                gateway={jevVerdict}
+                symbol={data.request.symbol}
+              />
+              <OptionsAnalyticsPanel
+                gateway={optionsAnalytics}
+                symbol={data.request.symbol}
+              />
+            </>
           ) : null}
         </div>
       ) : null}
