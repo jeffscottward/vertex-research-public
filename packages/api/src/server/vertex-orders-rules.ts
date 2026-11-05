@@ -1,4 +1,6 @@
 import type {
+  VertexComboInput,
+  VertexComboReview,
   VertexOrderInput,
   VertexOrderReview,
 } from "../contracts/vertex-orders.ts";
@@ -8,7 +10,7 @@ import type {
 // only; premium per name, including premium already open in that name, <= 6% NLV for LEAPS
 // (expiry >= 365 days) and <= 2% NLV for shorter-dated options. A short-dated buy must also keep
 // the name's total option premium within 6%. SELL only closes held contracts (no naked short).
-// Puts are refused because the IBKR gateway places calls only.
+// Calls and puts are allowed (Vertex order tail, own client id, 2026-11-04).
 
 // Premium caps are not set here. They arrive with each account snapshot (OrderAccount.caps): the
 // live bridge reports the IBKR gateway's effective caps (market_watch/premium_caps.py), so this
@@ -141,11 +143,74 @@ export const openPremium = (
   return round2(held + resting);
 };
 
+// A working combo (BAG) on the name may already be closing it: no second order until it is done.
+const workingCombo = (account: OrderAccount, name: string): boolean =>
+  account.openOrders.some((o) => o.secType === "BAG" && o.symbol === name);
+
+const WORKING_COMBO = (name: string) =>
+  `A combo order on ${name} is still working: wait for it or cancel it first.`;
+
+// Shares can only be closed or reduced here (owner 2026-11-04: every held position has a working
+// Close; options only applies to NEW positions). Only the kill switch, a non-limit order, a size
+// beyond the holding or a resting order on the shares (for example a stop) blocks it.
+const evaluateShareClose = (
+  order: VertexOrderInput,
+  account: OrderAccount
+): VertexOrderReview => {
+  const reasons: string[] = [];
+  const held = account.positions
+    .filter((p) => p.secType === "STK" && p.symbol === order.symbol)
+    .reduce((sum, p) => sum + p.quantity, 0);
+  const buy = order.side === "BUY";
+  const reduces = buy ? order.quantity <= -held : order.quantity <= held;
+  if (order.orderType !== "LMT")
+    reasons.push("Limit orders only: set orderType LMT with a limit price.");
+  if (!reduces)
+    reasons.push(
+      `${order.side} ${order.quantity} with ${held} shares held: shares can only be closed or reduced here (options only for new positions).`
+    );
+  if (
+    account.openOrders.some(
+      (o) => o.symbol === order.symbol && o.secType === "STK"
+    )
+  )
+    reasons.push(
+      `An open order (for example a stop) rests on ${order.symbol} shares: cancel it first.`
+    );
+  const notional = round2(order.quantity * order.limitPrice);
+  return {
+    order,
+    contractLabel: `${order.symbol} shares`,
+    daysToExpiry: 0,
+    premium: notional,
+    premiumPctNlv:
+      account.netLiquidation !== null && account.netLiquidation > 0
+        ? round2((notional / account.netLiquidation) * 100)
+        : null,
+    netLiquidation: account.netLiquidation,
+    heldContracts: held,
+    cap: {
+      kind: "none",
+      label: buy
+        ? "No cap: closing buy (covers a short)"
+        : "No cap: closing sale",
+      limitPct: 0,
+      limitAmount: 0,
+      openPremium: 0,
+      afterOrder: 0,
+      afterOrderPct: 0,
+    },
+    accepted: reasons.length === 0,
+    reasons,
+  };
+};
+
 export const evaluateOrder = (
   order: VertexOrderInput,
   account: OrderAccount,
   now: Date
 ): VertexOrderReview => {
+  if (order.secType === "STK") return evaluateShareClose(order, account);
   const reasons: string[] = [];
   const nlv = account.netLiquidation;
   const premium = round2(
@@ -166,12 +231,13 @@ export const evaluateOrder = (
 
   if (order.secType !== "OPT")
     reasons.push(
-      "Options only: share and ETF orders are not allowed (owner rule)."
+      "Options only for new positions: only option (OPT) or share-close (STK) orders are allowed."
     );
+  if (order.right !== "C" && order.right !== "P")
+    reasons.push("Option right must be C (call) or P (put).");
+  if (!(order.strike > 0)) reasons.push("Option strike must be positive.");
   if (order.orderType !== "LMT")
     reasons.push("Limit orders only: set orderType LMT with a limit price.");
-  if (order.right !== "C")
-    reasons.push("Calls only: the IBKR order gateway does not place puts.");
   if (days === null) reasons.push("Expiry is not a valid date.");
   else if (days < 0 || (days < 1 && !closing))
     reasons.push(
@@ -179,21 +245,37 @@ export const evaluateOrder = (
         ? "Expiry must be after today."
         : "Expiry must be after today (only a closing order may trade on expiry day)."
     );
-  if (account.gates.killSwitch)
-    reasons.push("Kill switch is on: no new orders.");
-  if (!account.gates.optionsOnly)
-    reasons.push("Trading gate OPTIONS_ONLY is not confirmed on: no orders.");
-  if (nlv === null || !(nlv > 0))
+  // The kill switch blocks opening and increasing only (owner 2026-11-04: Close no matter what).
+  if (opening && account.gates.killSwitch)
+    reasons.push(
+      "Kill switch is on: no opening or increasing orders (closing stays allowed)."
+    );
+  // Closing and reducing is never blocked by the options-only or max-loss gates (owner 2026-11-04).
+  if (opening && !account.gates.optionsOnly)
+    reasons.push(
+      "Trading gate OPTIONS_ONLY is not confirmed on: no new positions."
+    );
+  if (opening && (nlv === null || !(nlv > 0)))
     reasons.push("Net liquidation is unknown: cannot check the premium caps.");
+  if (workingCombo(account, order.symbol))
+    reasons.push(WORKING_COMBO(order.symbol));
   if (
     account.openOrders.some(
       (o) => sameContract(order, o) && o.secType === "OPT"
     )
   )
     reasons.push("An open order for this contract already exists.");
+  // Never leg out of a spread (owner 2026-11-04): a name with a short option leg is a spread; its
+  // legs close together as one combo order (evaluateCombo), not one by one.
+  if (closing && isSpreadName(account, order.symbol))
+    reasons.push(
+      `${order.symbol} options form a spread: close it as one combo order (Close), not leg by leg.`
+    );
+  // No naked shorts (standing rule 2026-11-04): a SELL that opens a short is refused. Sell-to-open is
+  // only allowed as a leg of a defined-width spread, which a single order never is.
   if (!buy && order.quantity > held)
     reasons.push(
-      `Sell ${order.quantity} > held ${held} contracts: SELL only closes held contracts (no short).`
+      `Sell ${order.quantity} > held ${held} contracts: SELL only closes held contracts. Sell-to-open is only allowed as a leg of a defined-width spread (no naked short).`
     );
 
   const kind = opening ? (leaps ? "leaps" : "short-dated") : "none";
@@ -267,6 +349,71 @@ export const evaluateOrder = (
       afterOrder,
       afterOrderPct,
     },
+    accepted: reasons.length === 0,
+    reasons,
+  };
+};
+
+// A name with two or more option legs, at least one of them short, is treated as a spread.
+const isSpreadName = (account: OrderAccount, name: string): boolean => {
+  const legs = account.positions.filter(
+    (p) => p.secType === "OPT" && p.symbol === name && p.quantity !== 0
+  );
+  return legs.length >= 2 && legs.some((p) => p.quantity < 0);
+};
+
+const comboLabel = (order: VertexComboInput): string =>
+  `${order.symbol} combo x${order.quantity}: ${order.legs
+    .map(
+      (leg) =>
+        `${leg.side} ${leg.ratio > 1 ? `${leg.ratio}x ` : ""}${leg.expiry} ${leg.strike}${leg.right}`
+    )
+    .join(" / ")}`;
+
+// Spread close as ONE combo order. Close-only: every leg must reverse a held leg exactly
+// (ratio x quantity == held size), so the order removes the whole spread and opens nothing.
+export const evaluateCombo = (
+  order: VertexComboInput,
+  account: OrderAccount,
+  now: Date
+): VertexComboReview => {
+  const reasons: string[] = [];
+  // Close-only by construction, so the kill switch does not block it (owner 2026-11-04).
+  if (workingCombo(account, order.symbol))
+    reasons.push(WORKING_COMBO(order.symbol));
+  const keys = order.legs.map(
+    (leg) => `${leg.expiry}:${leg.strike}:${leg.right}`
+  );
+  if (new Set(keys).size !== keys.length)
+    reasons.push("Each leg must be a different contract.");
+  for (const leg of order.legs) {
+    const contract = { symbol: order.symbol, ...leg };
+    const label = `${leg.expiry} ${leg.strike}${leg.right}`;
+    const held = account.positions
+      .filter((p) => p.secType === "OPT" && sameContract(contract, p))
+      .reduce((sum, p) => sum + p.quantity, 0);
+    const size = leg.ratio * order.quantity;
+    const reverses = leg.side === "SELL" ? held === size : -held === size;
+    if (!reverses)
+      reasons.push(
+        `Leg ${leg.side} ${size} ${label} does not close the held ${held} exactly (close-only, no legging out).`
+      );
+    const days = daysToExpiry(leg.expiry, now);
+    if (days === null || days < 0)
+      reasons.push(`Leg ${label}: expiry is not a valid future date.`);
+    if (
+      account.openOrders.some(
+        (o) => o.secType === "OPT" && sameContract(contract, o)
+      )
+    )
+      reasons.push(
+        `Leg ${label}: an open order rests on this contract; cancel it first.`
+      );
+  }
+  return {
+    order,
+    label: comboLabel(order),
+    netAmount: round2(order.limitPrice * order.quantity * CONTRACT_MULTIPLIER),
     accepted: reasons.length === 0,
     reasons,
   };

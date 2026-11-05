@@ -334,6 +334,7 @@ const vertexContextDependencies = (
     // Owner order screen: off by default (mock gateway only). The auth secret signs confirm tokens.
     vertexOrders: {
       bridgeUrl: env.VERTEX_ORDER_BRIDGE_URL ?? null,
+      bridgeToken: env.VERTEX_ORDER_BRIDGE_TOKEN ?? null,
       confirmSecret: `vertex-orders-confirm:${env.BETTER_AUTH_SECRET}`,
       enabled: env.VERTEX_ORDERS_ENABLED,
       submission: env.VERTEX_ORDER_SUBMISSION,

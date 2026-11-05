@@ -8,7 +8,11 @@ import { describe, expect, it } from "vitest";
 // runs them so CI and pre-push cover them. They use temporary directories and
 // fake clients only; nothing reaches a broker or QuantVPS.
 const here = fileURLToPath(new URL(".", import.meta.url));
-const SUITES = ["test_arm_killswitch.py", "test_order_policy.py"] as const;
+const SUITES = [
+  "test_arm_killswitch.py",
+  "test_order_policy.py",
+  "test_no_signal_intake.py",
+] as const;
 const PYTHON_TIMEOUT_MS = 120_000;
 
 describe.each(SUITES)("exec-node %s", (suite) => {

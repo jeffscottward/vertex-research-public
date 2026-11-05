@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import type {
+  VertexComboInput,
+  VertexComboPreviewOutput,
   VertexOrderPreviewOutput,
   VertexOrdersStatus,
 } from "@darkfactory/api";
@@ -14,10 +16,15 @@ import {
   actionQuantity,
   actionSide,
   actionsUnavailableReason,
+  comboDraft,
+  comboLimit,
   defaultLimit,
   draftFor,
   estimatedAmount,
   parseOptionContract,
+  shareContract,
+  spreadGroup,
+  toComboInput,
   toPositionOrderInput,
 } from "./position-actions-model.ts";
 import type { VertexOrdersGateway } from "./vertex-orders-client.ts";
@@ -38,15 +45,55 @@ const call = fixturePosition({
 const shortCall = fixturePosition({
   ...call,
   id: "2002",
+  symbol: "MOCKB",
+  description: "MOCKB 20261218 50 C",
   position: -2,
 });
 const shares = fixturePosition();
 const odd = fixturePosition({ id: "2003", secType: "OPT", description: "odd" });
-const noMark = fixturePosition({ ...call, id: "2004", last: null });
+const noMark = fixturePosition({
+  ...call,
+  id: "2004",
+  symbol: "MOCKC",
+  description: "MOCKC 20261218 50 C",
+  last: null,
+});
 const put = fixturePosition({
   ...call,
   id: "2005",
-  description: "MOCKA 20261218 50 P",
+  symbol: "MOCKD",
+  description: "MOCKD 20261218 50 P",
+});
+// A vertical spread (long 50 call, short 60 call) closes as one combo.
+const spreadLong = fixturePosition({
+  ...call,
+  id: "2006",
+  symbol: "MOCKS",
+  description: "MOCKS 20261218 50 C",
+  position: 2,
+  last: 3,
+});
+const spreadShort = fixturePosition({
+  ...call,
+  id: "2007",
+  symbol: "MOCKS",
+  description: "MOCKS 20261218 60 C",
+  position: -2,
+  last: 1,
+});
+// A spread with a leg that cannot be parsed gets no buttons at all.
+const brokenLong = fixturePosition({
+  ...call,
+  id: "2008",
+  symbol: "MOCKU",
+  description: "MOCKU 20261218 50 C",
+});
+const brokenShort = fixturePosition({
+  ...call,
+  id: "2009",
+  symbol: "MOCKU",
+  description: "weird",
+  position: -1,
 });
 
 const gates = (killSwitch = false): VertexOrdersStatus["gates"] => ({
@@ -102,6 +149,27 @@ const gateway = (killSwitch = false, accepted = true) => {
     })),
     cancelPreview: vi.fn(),
     cancelSubmit: vi.fn(),
+    comboPreview: vi.fn(
+      async (order: VertexComboInput): Promise<VertexComboPreviewOutput> => ({
+        gates: gates(),
+        review: {
+          order,
+          label: "MOCKS combo",
+          netAmount: order.limitPrice * order.quantity * 100,
+          accepted,
+          reasons: accepted ? [] : ["Leg does not close the held 0 exactly."],
+        },
+        confirmToken: accepted ? "token-combo-0123456789" : null,
+        expiresAt: accepted ? "2026-11-04T15:02:00.000Z" : null,
+      })
+    ),
+    comboSubmit: vi.fn(async () => ({
+      mode: "simulated" as const,
+      state: "submitted",
+      orderRef: "vertex-c",
+      permId: 2,
+      message: "combo mock",
+    })),
   };
   return g as typeof g & VertexOrdersGateway;
 };
@@ -113,7 +181,18 @@ const Harness = ({ g }: Readonly<{ g: VertexOrdersGateway }>) => {
       <PositionsPanel
         actions={actions?.cell}
         live
-        positions={[call, shortCall, shares, odd, noMark, put]}
+        positions={[
+          call,
+          shortCall,
+          shares,
+          odd,
+          noMark,
+          put,
+          spreadLong,
+          spreadShort,
+          brokenLong,
+          brokenShort,
+        ]}
       />
       {actions?.dialog}
     </>
@@ -158,7 +237,7 @@ const click = async (el: HTMLElement) => {
 };
 
 describe("position action model", () => {
-  it("parses the server feed form and OCC symbols; refuses puts and other rows", () => {
+  it("parses the server feed form and OCC symbols; refuses other rows", () => {
     // Exact form built by describePosition in packages/api/src/server/portfolio-monitor.ts.
     expect(parseOptionContract(call)).toEqual({
       symbol: "MOCKA",
@@ -181,17 +260,41 @@ describe("position action model", () => {
       strike: 12.5,
       right: "C",
     });
-    expect(parseOptionContract(put)).toBeNull();
+    expect(parseOptionContract(put)).toMatchObject({ right: "P" });
     expect(
       parseOptionContract({ ...call, description: "MOCKO 270115P00012500" })
-    ).toBeNull();
+    ).toMatchObject({ right: "P", strike: 12.5 });
     expect(parseOptionContract(shares)).toBeNull();
     expect(parseOptionContract(odd)).toBeNull();
-    expect(actionsUnavailableReason(shares)).toBe("Options only here");
-    expect(actionsUnavailableReason(odd)).toBe("Contract not recognized");
-    expect(actionsUnavailableReason(put)).toBe(
-      "Puts: not supported by the order gateway"
+    expect(actionsUnavailableReason({ secType: "FUT" })).toBe(
+      "Not supported here (FUT)"
     );
+    expect(actionsUnavailableReason({ secType: " " })).toBe(
+      "Not supported here (unknown)"
+    );
+    expect(shareContract(shares)).toEqual({
+      symbol: "ALPHA",
+      expiry: "",
+      strike: 0,
+      right: "",
+    });
+    expect(shareContract(call)).toBeNull();
+    // Structured IBKR fields win over an unrecognized description.
+    expect(
+      parseOptionContract({
+        ...odd,
+        symbol: "SOXX",
+        option: { expiry: "20261120", strike: 240, right: "P" },
+      })
+    ).toEqual({ symbol: "SOXX", expiry: "20261120", strike: 240, right: "P" });
+    expect(
+      parseOptionContract({
+        ...odd,
+        option: { expiry: "", strike: 240, right: "P" },
+      })
+    ).toBeNull();
+    expect(estimatedAmount(10, 9.5, 1)).toBe(95);
+    expect(actionsUnavailableReason(odd)).toBe("Contract not recognized");
   });
 
   it("builds close, buy and sell defaults", () => {
@@ -226,13 +329,246 @@ describe("position action model", () => {
   });
 });
 
+describe("spread (combo) model", () => {
+  it("groups spread legs and builds a full close", () => {
+    const all = [call, spreadLong, spreadShort, brokenLong, brokenShort];
+    expect(spreadGroup(call, all)).toBeNull();
+    expect(spreadGroup(brokenLong, all)).toBe("unparsed");
+    const group = spreadGroup(spreadShort, all);
+    if (group === null || group === "unparsed") throw new Error("group");
+    expect(group.map((p) => p.id)).toEqual(["2006", "2007"]);
+    const ratio = comboDraft(
+      "MOCKS",
+      [
+        { ...spreadLong, position: 4 },
+        { ...spreadShort, position: -2 },
+      ],
+      false
+    );
+    expect(ratio).toMatchObject({
+      symbol: "MOCKS",
+      quantity: 2,
+      limitPrice: -5,
+    });
+    expect(ratio.legs.map((leg) => [leg.side, leg.ratio])).toEqual([
+      ["SELL", 2],
+      ["BUY", 1],
+    ]);
+    expect(comboLimit(ratio.legs, true)).toBe(-4.75);
+    expect(
+      comboLimit(
+        [{ ...ratio.legs[0], mark: null } as (typeof ratio.legs)[0]],
+        false
+      )
+    ).toBeNull();
+    expect(toComboInput(ratio, -4.75)).toEqual({
+      symbol: "MOCKS",
+      quantity: 2,
+      limitPrice: -4.75,
+      legs: [
+        { expiry: "20261218", strike: 50, right: "C", side: "SELL", ratio: 2 },
+        { expiry: "20261218", strike: 60, right: "C", side: "BUY", ratio: 1 },
+      ],
+    });
+  });
+});
+
+describe("spread close dialog", () => {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )?.set;
+  const type = async (input: HTMLInputElement | undefined, value: string) => {
+    await act(async () => {
+      setter?.call(input, value);
+      input?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  };
+
+  it("spread rows: Buy/Sell disabled, Close sends ONE combo after review and confirm", async () => {
+    const g = gateway();
+    await act(async () => root.render(<Harness g={g} />));
+    await flush();
+    expect(
+      button('[data-position-id="2006"] [data-position-action="sell"]').disabled
+    ).toBe(true);
+    expect(
+      button('[data-position-id="2007"] [data-position-action="buy"]').title
+    ).toBe("Part of a spread: use Close (one combo order)");
+    expect(
+      host.querySelector('[data-position-id="2009"]')?.textContent
+    ).toContain("Contract not recognized");
+    await click(
+      button('[data-position-id="2007"] [data-position-action="close"]')
+    );
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe(
+      "Close MOCKS spread (one combo order)"
+    );
+    expect(dialog?.textContent).toContain("20261218 60 call");
+    // Marketable by default: net -2.00 at the marks -> -1.90 credit per combo, x2 combos.
+    expect(dialog?.textContent).toContain("Estimated net credit: $380.00");
+    expect(document.activeElement?.textContent).toBe("Cancel");
+    await click(byText("Review order"));
+    expect(g.comboPreview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: "MOCKS",
+        quantity: 2,
+        limitPrice: -1.9,
+      })
+    );
+    expect(g.comboSubmit).not.toHaveBeenCalled();
+    await click(byText("Confirm: send combo (simulated)"));
+    expect(g.comboSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmToken: "token-combo-0123456789",
+        confirm: true,
+      })
+    );
+    expect(host.textContent).toContain(
+      "Order submitted (simulated): combo mock"
+    );
+    await click(button('[role="dialog"] button'));
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("edits the net limit, shows refusals, errors and live mode; Escape closes", async () => {
+    const g = gateway(false, false);
+    await act(async () => root.render(<Harness g={g} />));
+    await flush();
+    await click(
+      button('[data-position-id="2006"] [data-position-action="close"]')
+    );
+    const inputs = host.querySelectorAll<HTMLInputElement>(
+      '[role="dialog"] input'
+    );
+    const [limit, marketable] = [...inputs];
+    await click(marketable as HTMLInputElement);
+    expect(limit?.value).toBe("-2");
+    await type(limit, "");
+    expect(host.textContent).toContain("Enter a net limit.");
+    expect(byText("Review order").disabled).toBe(true);
+    await type(limit, "0.5");
+    expect(host.textContent).toContain("Estimated net debit: $100.00");
+    await click(byText("Review order"));
+    expect(host.textContent).toContain("does not close the held 0 exactly");
+    expect(host.textContent).not.toContain("Confirm:");
+    g.comboPreview.mockRejectedValueOnce(new Error("Rate limit"));
+    await type(limit, "0.6");
+    await click(byText("Review order"));
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(
+      "Rate limit"
+    );
+    g.comboPreview.mockImplementationOnce(async (order) => ({
+      gates: { ...gates(), ordersEnabled: true, mode: "live" },
+      review: { order, label: "x", netAmount: 1, accepted: true, reasons: [] },
+      confirmToken: "token-combo-live-0123",
+      expiresAt: "x",
+    }));
+    await click(byText("Review order"));
+    expect(host.textContent).toContain("LIVE IBKR");
+    expect(byText("Confirm: send combo to IBKR")).toBeDefined();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("a spread with a missing mark starts with an empty limit", async () => {
+    const g = gateway();
+    const NoMark = () => {
+      const actions = usePositionActions(g);
+      return (
+        <>
+          <PositionsPanel
+            actions={actions?.cell}
+            live
+            positions={[
+              spreadLong,
+              {
+                ...spreadShort,
+                last: null,
+                description: "MOCKS 20261218 60 P",
+              },
+            ]}
+          />
+          {actions?.dialog}
+        </>
+      );
+    };
+    await act(async () => root.render(<NoMark />));
+    await flush();
+    await click(
+      button('[data-position-id="2006"] [data-position-action="close"]')
+    );
+    const [limit, marketable] = [
+      ...host.querySelectorAll<HTMLInputElement>('[role="dialog"] input'),
+    ];
+    expect(limit?.value).toBe("");
+    expect(host.textContent).toContain("20261218 60 put");
+    await click(marketable as HTMLInputElement);
+    expect(limit?.value).toBe("");
+    await click(button('[role="dialog"] button'));
+    // A single put opens the single-order dialog.
+  });
+
+  it("a share row has a Close that sends a share close after review", async () => {
+    const g = gateway();
+    await act(async () => root.render(<Harness g={g} />));
+    await flush();
+    expect(
+      host.querySelectorAll('[data-position-id="1001"] [data-position-action]')
+    ).toHaveLength(1);
+    await click(
+      button('[data-position-id="1001"] [data-position-action="close"]')
+    );
+    const dialog = host.querySelector('[role="dialog"]');
+    expect(dialog?.querySelector("h2")?.textContent).toBe("Close ALPHA shares");
+    expect(dialog?.textContent).toContain("Held shares");
+    // 100 shares, mark 60, marketable 1% -> 59.40 x 100 = $5,940.00.
+    expect(dialog?.textContent).toContain("$5,940.00");
+    const [, , marketable] = [
+      ...host.querySelectorAll<HTMLInputElement>('[role="dialog"] input'),
+    ];
+    await click(marketable as HTMLInputElement);
+    await click(marketable as HTMLInputElement);
+    await click(byText("Review order"));
+    expect(g.preview).toHaveBeenCalledWith({
+      symbol: "ALPHA",
+      secType: "STK",
+      expiry: "",
+      strike: 0,
+      right: "",
+      side: "SELL",
+      quantity: 100,
+      orderType: "LMT",
+      limitPrice: 59.4,
+    });
+  });
+
+  it("a single put row opens the order dialog", async () => {
+    const g = gateway();
+    await act(async () => root.render(<Harness g={g} />));
+    await flush();
+    await click(
+      button('[data-position-id="2005"] [data-position-action="close"]')
+    );
+    expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe(
+      "Close MOCKD 20261218 50 put"
+    );
+  });
+});
+
 describe("position action buttons", () => {
   it("adds an Actions column; Close opens a dialog that Cancel closes without sending", async () => {
     const g = gateway();
     await act(async () => root.render(<Harness g={g} />));
     await flush();
     expect(host.querySelector("th:last-child")?.textContent).toBe("Actions");
-    expect(host.textContent).toContain("Options only here");
+    expect(
+      button('[data-position-id="1001"] [data-position-action="close"]')
+    ).toBeDefined();
     await click(
       button('[data-position-id="2001"] [data-position-action="close"]')
     );
@@ -332,7 +668,7 @@ describe("position action buttons", () => {
     )[1];
     expect(limit?.value).toBe("");
     expect(host.querySelector("h2")?.textContent).toBe(
-      "Buy MOCKA 20261218 50 call"
+      "Buy MOCKC 20261218 50 call"
     );
     expect(byText("Review order").disabled).toBe(true);
     await click(button('[role="dialog"] input[type="checkbox"]'));
@@ -364,19 +700,22 @@ describe("position action buttons", () => {
     );
   });
 
-  it("disables every button when the kill switch is on or the gates are unknown", async () => {
+  it("kill switch on or gates unknown: Close stays enabled, Buy and Sell are disabled", async () => {
     const g = gateway(true);
     await act(async () => root.render(<Harness g={g} />));
     await flush();
-    const buttons = host.querySelectorAll<HTMLButtonElement>(
-      "[data-position-action]"
+    const buttons = [
+      ...host.querySelectorAll<HTMLButtonElement>("[data-position-action]"),
+    ];
+    expect(buttons.length).toBe(19);
+    for (const b of buttons)
+      expect(b.disabled).toBe(b.dataset["positionAction"] !== "close");
+    expect(host.innerHTML).toContain("Kill switch on: Close only");
+    // A close still opens its dialog with the kill switch on.
+    await click(
+      button('[data-position-id="2001"] [data-position-action="close"]')
     );
-    expect(buttons.length).toBe(9);
-    expect(host.textContent).toContain(
-      "Puts: not supported by the order gateway"
-    );
-    for (const b of buttons) expect(b.disabled).toBe(true);
-    expect(host.innerHTML).toContain("Kill switch on: no new orders");
+    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
     act(() => root.unmount());
     root = createRoot(host);
     const failing = gateway();
@@ -384,6 +723,10 @@ describe("position action buttons", () => {
     await act(async () => root.render(<Harness g={failing} />));
     await flush();
     expect(host.innerHTML).toContain("Order gates unknown");
+    expect(
+      button('[data-position-id="2007"] [data-position-action="close"]')
+        .disabled
+    ).toBe(false);
   });
 
   it("renders nothing extra without a gateway", async () => {

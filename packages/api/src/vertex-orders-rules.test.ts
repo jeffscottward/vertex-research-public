@@ -15,12 +15,14 @@ import {
 import {
   type OrderAccount,
   daysToExpiry,
+  evaluateCombo,
   evaluateOrder,
   openPremium,
   parseExpiry,
 } from "./server/vertex-orders-rules.ts";
 
 // Fictional account values only.
+const TOKEN = "t".repeat(40);
 const now = new Date("2026-10-22T15:00:00.000Z");
 const LEAPS = "20280121"; // > 365 days
 const SHORT = "20261218"; // < 365 days
@@ -104,15 +106,247 @@ describe("vertex order rules", () => {
     expect(buyBack).toMatchObject({ accepted: true, cap: { kind: "none" } });
   });
 
-  it("rejects share orders (options only) and non-limit orders", () => {
+  it("rejects other security types, bad option fields and non-limit orders", () => {
     const review = evaluateOrder(
-      order({ secType: "STK", orderType: "MKT" }),
+      order({ secType: "FUT", orderType: "MKT", right: "", strike: 0 }),
       account(),
       now
     );
     expect(review.accepted).toBe(false);
-    expect(review.reasons.join(" ")).toContain("Options only");
-    expect(review.reasons.join(" ")).toContain("Limit orders only");
+    const text = review.reasons.join(" ");
+    for (const part of [
+      "Options only for new positions",
+      "Limit orders only",
+      "right must be C",
+      "strike must be positive",
+    ])
+      expect(text).toContain(part);
+  });
+
+  it("closes or reduces shares; never opens shares (owner 2026-11-04)", () => {
+    const shares = (
+      quantity: number,
+      openOrders: OrderAccount["openOrders"] = []
+    ) =>
+      account({
+        positions: [
+          {
+            symbol: "ABC",
+            secType: "STK",
+            expiry: "",
+            strike: 0,
+            right: "",
+            quantity,
+            premium: 0,
+          },
+        ],
+        openOrders,
+      });
+    const stk = (over: Partial<VertexOrderInput> = {}) =>
+      order({
+        secType: "STK",
+        expiry: "",
+        strike: 0,
+        right: "",
+        side: "SELL",
+        quantity: 100,
+        limitPrice: 9.5,
+        ...over,
+      });
+    // An option order on the same name does not block a share close.
+    const optionOrder = { ...restingBuy(LEAPS, 1), strike: 100 };
+    expect(evaluateOrder(stk(), shares(100, [optionOrder]), now)).toMatchObject(
+      {
+        accepted: true,
+        contractLabel: "ABC shares",
+        premium: 950,
+        premiumPctNlv: 0.95,
+        heldContracts: 100,
+        cap: { kind: "none", label: "No cap: closing sale" },
+      }
+    );
+    expect(
+      evaluateOrder(stk({ side: "BUY", quantity: 50 }), shares(-50), now)
+    ).toMatchObject({
+      accepted: true,
+      cap: { label: "No cap: closing buy (covers a short)" },
+    });
+    expect(
+      evaluateOrder(stk({ side: "BUY", quantity: 1 }), shares(100), now)
+        .reasons[0]
+    ).toContain("options only for new positions");
+    expect(
+      evaluateOrder(stk({ quantity: 101 }), shares(100), now).accepted
+    ).toBe(false);
+    const stop = {
+      ...restingBuy(LEAPS, null),
+      secType: "STK",
+      side: "SELL",
+      expiry: null,
+      strike: null,
+      right: null,
+    };
+    const blocked = evaluateOrder(
+      stk({ orderType: "MKT" }),
+      {
+        ...shares(100, [stop]),
+        gates: { killSwitch: true, optionsOnly: false },
+        netLiquidation: null,
+      },
+      now
+    );
+    expect(blocked.premiumPctNlv).toBeNull();
+    for (const part of ["Limit orders only", "cancel it first"])
+      expect(blocked.reasons.join(" ")).toContain(part);
+    // The kill switch never blocks a close (owner 2026-11-04).
+    expect(blocked.reasons.join(" ")).not.toContain("Kill switch");
+    // OPTIONS_ONLY off does not block a share close.
+    expect(
+      evaluateOrder(
+        stk(),
+        { ...shares(100), gates: { killSwitch: false, optionsOnly: false } },
+        now
+      ).accepted
+    ).toBe(true);
+  });
+
+  it("kill switch blocks opening and increasing only; every close passes", () => {
+    const killed = (positions: OrderAccount["positions"]) =>
+      account({ positions, gates: { killSwitch: true, optionsOnly: true } });
+    const long = killed([
+      {
+        symbol: "ABC",
+        secType: "OPT",
+        expiry: LEAPS,
+        strike: 100,
+        right: "C",
+        quantity: 2,
+        premium: 1000,
+      },
+    ]);
+    expect(
+      evaluateOrder(order({ side: "SELL", quantity: 2 }), long, now).accepted
+    ).toBe(true);
+    expect(
+      evaluateOrder(order({ quantity: 1 }), long, now).reasons.join(" ")
+    ).toContain("Kill switch is on: no opening or increasing orders");
+    const short = killed([
+      {
+        symbol: "ABC",
+        secType: "OPT",
+        expiry: LEAPS,
+        strike: 100,
+        right: "P",
+        quantity: -1,
+        premium: 0,
+      },
+    ]);
+    expect(
+      evaluateOrder(order({ right: "P", quantity: 1 }), short, now).accepted
+    ).toBe(true);
+    const spread = killed([
+      {
+        symbol: "ABC",
+        secType: "OPT",
+        expiry: LEAPS,
+        strike: 100,
+        right: "C",
+        quantity: 1,
+        premium: 500,
+      },
+      {
+        symbol: "ABC",
+        secType: "OPT",
+        expiry: LEAPS,
+        strike: 120,
+        right: "C",
+        quantity: -1,
+        premium: 0,
+      },
+    ]);
+    expect(
+      evaluateCombo(
+        {
+          symbol: "ABC",
+          quantity: 1,
+          limitPrice: -1,
+          legs: [
+            { expiry: LEAPS, strike: 100, right: "C", side: "SELL", ratio: 1 },
+            { expiry: LEAPS, strike: 120, right: "C", side: "BUY", ratio: 1 },
+          ],
+        },
+        spread,
+        now
+      ).accepted
+    ).toBe(true);
+  });
+
+  it("closes puts and calls even when OPTIONS_ONLY is off or NLV is unknown; refuses sell-to-open", () => {
+    const put = account({
+      positions: [
+        {
+          symbol: "ABC",
+          secType: "OPT",
+          expiry: SHORT,
+          strike: 90,
+          right: "P",
+          quantity: 3,
+          premium: 900,
+        },
+      ],
+      gates: { killSwitch: false, optionsOnly: false },
+      netLiquidation: null,
+    });
+    expect(
+      evaluateOrder(
+        order({
+          expiry: SHORT,
+          strike: 90,
+          right: "P",
+          side: "SELL",
+          quantity: 3,
+        }),
+        put,
+        now
+      ).accepted
+    ).toBe(true);
+    // Opening on the same account is blocked by those gates.
+    const open = evaluateOrder(order({ quantity: 1 }), put, now).reasons.join(
+      " "
+    );
+    expect(open).toContain("OPTIONS_ONLY");
+    expect(open).toContain("Net liquidation is unknown");
+    // Sell-to-open of an option not held: refused (no naked short).
+    expect(
+      evaluateOrder(
+        order({ side: "SELL", quantity: 1, strike: 130 }),
+        account(),
+        now
+      ).reasons.join(" ")
+    ).toContain(
+      "Sell-to-open is only allowed as a leg of a defined-width spread"
+    );
+    // A working combo on the name blocks a second order.
+    const bag = {
+      ...restingBuy(SHORT, 1),
+      secType: "BAG",
+      expiry: null,
+      strike: null,
+      right: null,
+    };
+    expect(
+      evaluateOrder(
+        order({
+          expiry: SHORT,
+          strike: 90,
+          right: "P",
+          side: "SELL",
+          quantity: 3,
+        }),
+        { ...put, openOrders: [bag] },
+        now
+      ).reasons.join(" ")
+    ).toContain("combo order on ABC is still working");
   });
 
   it("applies the 6% LEAPS cap and counts open premium in the name", () => {
@@ -211,7 +445,6 @@ describe("vertex order rules", () => {
     );
     const text = review.reasons.join(" ");
     for (const part of [
-      "Calls only",
       "not a valid date",
       "Kill switch",
       "OPTIONS_ONLY",
@@ -291,7 +524,7 @@ describe("vertex order rules", () => {
     });
     expect(
       evaluateOrder(order({ side: "SELL", quantity: 3 }), held, now).reasons[0]
-    ).toContain("no short");
+    ).toContain("no naked short");
     const duplicate = account({
       openOrders: [
         { ...restingBuy(LEAPS, 1), strike: 100 },
@@ -301,6 +534,144 @@ describe("vertex order rules", () => {
     expect(evaluateOrder(order(), duplicate, now).reasons).toContain(
       "An open order for this contract already exists."
     );
+    // A resting exit on the contract (any client) blocks a close too: cancel it first.
+    const exit = account({
+      positions: held.positions,
+      openOrders: [{ ...restingBuy(LEAPS, 1), strike: 100, side: "SELL" }],
+    });
+    expect(
+      evaluateOrder(order({ side: "SELL", quantity: 2 }), exit, now).reasons
+    ).toContain("An open order for this contract already exists.");
+  });
+
+  it("evaluates a spread close as one combo and refuses legging out", () => {
+    const spread = account({
+      positions: [
+        {
+          symbol: "ABC",
+          secType: "OPT",
+          expiry: LEAPS,
+          strike: 100,
+          right: "C",
+          quantity: 4,
+          premium: 4000,
+        },
+        {
+          symbol: "ABC",
+          secType: "OPT",
+          expiry: LEAPS,
+          strike: 120,
+          right: "C",
+          quantity: -2,
+          premium: 0,
+        },
+      ],
+    });
+    const combo = (over = {}) => ({
+      symbol: "ABC",
+      quantity: 2,
+      limitPrice: -2,
+      legs: [
+        {
+          expiry: LEAPS,
+          strike: 100,
+          right: "C" as const,
+          side: "SELL" as const,
+          ratio: 2,
+        },
+        {
+          expiry: LEAPS,
+          strike: 120,
+          right: "C" as const,
+          side: "BUY" as const,
+          ratio: 1,
+        },
+      ],
+      ...over,
+    });
+    expect(evaluateCombo(combo(), spread, now)).toMatchObject({
+      accepted: true,
+      netAmount: -400,
+      label: "ABC combo x2: SELL 2x 20280121 100C / BUY 20280121 120C",
+    });
+    const bad = evaluateCombo(
+      combo({
+        quantity: 1,
+        legs: [
+          {
+            expiry: "20261021",
+            strike: 100,
+            right: "C" as const,
+            side: "SELL" as const,
+            ratio: 1,
+          },
+          {
+            expiry: "20261021",
+            strike: 100,
+            right: "C" as const,
+            side: "SELL" as const,
+            ratio: 1,
+          },
+        ],
+      }),
+      account({
+        gates: { killSwitch: true, optionsOnly: false },
+        openOrders: [
+          { ...restingBuy("20261021", 1), strike: 100 },
+          { ...restingBuy("20261021", 1), secType: "BAG" },
+        ],
+      }),
+      now
+    );
+    expect(bad.accepted).toBe(false);
+    const text = bad.reasons.join(" ");
+    expect(text).not.toContain("Kill switch");
+    for (const part of [
+      "different contract",
+      "does not close the held 0 exactly",
+      "expiry is not a valid future date",
+      "cancel it first",
+      "still working",
+    ])
+      expect(text).toContain(part);
+    // Leg-out guard: a single-leg close on a spread name is refused.
+    const legOut = evaluateOrder(
+      order({ side: "SELL", quantity: 4 }),
+      spread,
+      now
+    );
+    expect(legOut.reasons.join(" ")).toContain("close it as one combo order");
+    expect(
+      evaluateOrder(
+        order({ quantity: 2, strike: 120 }),
+        spread,
+        now
+      ).reasons.join(" ")
+    ).toContain("close it as one combo order");
+    expect(
+      evaluateCombo(
+        combo({
+          legs: [
+            {
+              expiry: LEAPS,
+              strike: 100,
+              right: "C" as const,
+              side: "BUY" as const,
+              ratio: 2,
+            },
+            {
+              expiry: LEAPS,
+              strike: 120,
+              right: "C" as const,
+              side: "SELL" as const,
+              ratio: 1,
+            },
+          ],
+        }),
+        spread,
+        now
+      ).accepted
+    ).toBe(false);
   });
 
   it("uses the caps the gateway reports (pre-deploy gateway: 2% for LEAPS too)", () => {
@@ -472,7 +843,8 @@ describe("vertex order gateways", () => {
               }
             : reply
         );
-      }
+      },
+      TOKEN
     );
     expect(gateway.mode).toBe("live");
     expect((await gateway.account()).netLiquidation).toBe(1);
@@ -486,6 +858,9 @@ describe("vertex order gateways", () => {
     expect(JSON.parse(String(calls[1]?.[1]?.body))).toMatchObject({
       orderRef: "vertex-2",
     });
+    expect(calls[0]?.[1]?.headers).toMatchObject({
+      "x-vertex-bridge-token": TOKEN,
+    });
   });
 
   it("bridge gateway fails closed on bad config, network errors and bad replies", async () => {
@@ -493,30 +868,49 @@ describe("vertex order gateways", () => {
       await expect(gateway.account()).rejects.toMatchObject({ code });
     };
     await fail(createBridgeOrderGateway(null), "NOT_CONFIGURED");
+    // No or short token: nothing is sent.
+    const unsent = async () => {
+      throw new Error("must not be called");
+    };
     await fail(
-      createBridgeOrderGateway("http://127.0.0.1:1"),
-      "UPSTREAM_ERROR"
-    );
-    await fail(
-      createBridgeOrderGateway("https://example.test"),
+      createBridgeOrderGateway("http://127.0.0.1:1", unsent),
       "NOT_CONFIGURED"
     );
     await fail(
-      createBridgeOrderGateway("http://localhost:1", async () => {
-        throw new Error("down");
-      }),
+      createBridgeOrderGateway("http://127.0.0.1:1", unsent, "short"),
+      "NOT_CONFIGURED"
+    );
+    await fail(
+      createBridgeOrderGateway("http://127.0.0.1:1", undefined, TOKEN),
+      "UPSTREAM_ERROR"
+    );
+    await fail(
+      createBridgeOrderGateway("https://example.test", undefined, TOKEN),
+      "NOT_CONFIGURED"
+    );
+    await fail(
+      createBridgeOrderGateway(
+        "http://localhost:1",
+        async () => {
+          throw new Error("down");
+        },
+        TOKEN
+      ),
       "UPSTREAM_ERROR"
     );
     await fail(
       createBridgeOrderGateway(
         "http://localhost:1",
-        async () => new Response("nope", { status: 500 })
+        async () => new Response("nope", { status: 500 }),
+        TOKEN
       ),
       "UPSTREAM_ERROR"
     );
     await fail(
-      createBridgeOrderGateway("http://localhost:1", async () =>
-        Response.json({ netLiquidation: "x" })
+      createBridgeOrderGateway(
+        "http://localhost:1",
+        async () => Response.json({ netLiquidation: "x" }),
+        TOKEN
       ),
       "UPSTREAM_ERROR"
     );

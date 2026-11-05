@@ -480,7 +480,9 @@ const baseServerEnvSchema = z.object({
   // Vertex safety literals: research/paper only, read-only, no order submission.
   VERTEX_MODE: z.enum(["research", "paper"]).default("research"),
   VERTEX_ACCESS_MODE: z.literal("read-only").default("read-only"),
-  VERTEX_ORDER_SUBMISSION: z.literal("disabled").default("disabled"),
+  // Repo-wide order submission gate. "enabled" (with VERTEX_ORDERS_ENABLED=true) lets the owner order
+  // screen send real orders through the bridge (owner decision 2026-11-04). Default "disabled".
+  VERTEX_ORDER_SUBMISSION: z.enum(["disabled", "enabled"]).default("disabled"),
   VERTEX_OPERATOR_EMAILS: operatorEmailsSchema,
   VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
   // Tailnet-only v2 session snapshot (same token and URL rules).
@@ -509,6 +511,8 @@ const baseServerEnvSchema = z.object({
   VERTEX_ORDERS_ENABLED: environmentBoolean("VERTEX_ORDERS_ENABLED", false),
   // Loopback order bridge that wraps the market-watch-bot IBKR gateway (used only when enabled).
   VERTEX_ORDER_BRIDGE_URL: loopbackHttpUrl("VERTEX_ORDER_BRIDGE_URL"),
+  // Shared secret for the order bridge (header X-Vertex-Bridge-Token). Server-only; never logged.
+  VERTEX_ORDER_BRIDGE_TOKEN: serviceTokenSchema("VERTEX_ORDER_BRIDGE_TOKEN"),
   // Tailnet-only media URL base for Academy video, caption and thumbnail files.
   VERTEX_ACADEMY_MEDIA_BASE_URL: academyMediaBaseUrlSchema,
   // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).

@@ -8,6 +8,8 @@ export type VertexOrdersGateway = Readonly<{
   status: ApiClient["vertexOrders"]["status"];
   preview: ApiClient["vertexOrders"]["preview"];
   submit: ApiClient["vertexOrders"]["submit"];
+  comboPreview: ApiClient["vertexOrders"]["comboPreview"];
+  comboSubmit: ApiClient["vertexOrders"]["comboSubmit"];
   cancelPreview: ApiClient["vertexOrders"]["cancelPreview"];
   cancelSubmit: ApiClient["vertexOrders"]["cancelSubmit"];
 }>;
@@ -22,6 +24,8 @@ export const createBrowserVertexOrdersGateway = (): VertexOrdersGateway => {
     status: (input) => orders().status(input),
     preview: (input) => orders().preview(input),
     submit: (input) => orders().submit(input),
+    comboPreview: (input) => orders().comboPreview(input),
+    comboSubmit: (input) => orders().comboSubmit(input),
     cancelPreview: (input) => orders().cancelPreview(input),
     cancelSubmit: (input) => orders().cancelSubmit(input),
   });

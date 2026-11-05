@@ -252,10 +252,12 @@ describe("portfolioMonitor derivation", () => {
       dailyPnl: 25,
     });
     expect(stock?.weightPct).toBeCloseTo(27.5);
+    expect(stock?.option).toBeUndefined();
     // Options: price per share divides by the multiplier; no fresh P&L so account values are used.
     expect(option).toMatchObject({
       id: "2002",
       description: "BBB 20261120 40 C",
+      option: { expiry: "20261120", strike: 40, right: "C" },
       marketValue: 700,
       last: 3.5,
       avgPrice: 3,

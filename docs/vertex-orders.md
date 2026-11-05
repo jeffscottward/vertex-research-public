@@ -6,15 +6,22 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
 ## Safety model
 
 - **Off by default.** Live orders need BOTH `VERTEX_ORDERS_ENABLED=true` and the repo-wide
-  submission gate `VERTEX_ORDER_SUBMISSION` open (a config literal `"disabled"` today, so a
-  reviewed code change is also needed). Otherwise the server selects the in-memory mock
-  gateway for every call. Nothing reaches IBKR. The screen shows "Orders disabled".
-  Turning the flag on in production is the owner's decision.
+  submission gate `VERTEX_ORDER_SUBMISSION=enabled` (default `disabled`), plus
+  `VERTEX_ORDER_BRIDGE_URL` and `VERTEX_ORDER_BRIDGE_TOKEN`. Otherwise the server selects the
+  in-memory mock gateway for every call. Nothing reaches IBKR. The screen shows "Orders
+  disabled". Turning the flags on in production is the owner's decision (owner chose the live
+  path on 2026-11-04; the flip itself needs one more FIRSTMATE ask).
 - **Server-side rules** (`packages/api/src/server/vertex-orders-rules.ts`), applied on preview
   and again on submit from a fresh account snapshot:
-  - options only (share and ETF orders are refused);
+  - options only for NEW positions; held shares (STK, which includes ETFs) can always be closed or
+    reduced (owner 2026-11-04: every held position has a working Close); closing and reducing is
+    never blocked by `OPTIONS_ONLY`, unknown NLV, the max-loss gate or the kill switch, only by a
+    resting order on the same contract or shares (for example a stop or a conditional exit: cancel
+    it first) or a working combo on the name;
   - limit orders only;
-  - calls only (the IBKR gateway `place_option` mode places calls only);
+  - calls and puts (the Vertex order tail places both);
+  - no legging out: on a name with two or more option legs and at least one short leg (a
+    spread), a single-leg closing order is refused; the spread closes as one combo;
   - premium per name, including held option premium and resting BUY option orders (share
     positions are not counted): the LEAPS cap for LEAPS and the short-dated cap for shorter
     expiries; a short-dated buy must also keep the name's total option premium within the LEAPS
@@ -25,8 +32,11 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
     reports 365 days / 6% / 2%;
   - max loss (owner hard gate 2026-11-02): an opening BUY whose premium is above 2% NLV is
     refused, even inside the per-name cap; closing orders are exempt;
-  - SELL only closes held contracts (no naked short);
-  - the kill switch blocks all new orders; `OPTIONS_ONLY` must be reported on;
+  - SELL only closes held contracts (no naked short): sell-to-open is only allowed as a leg of a
+    defined-width spread, which a single order never is;
+  - the kill switch blocks opening and increasing orders only; every close (single, share or
+    combo) stays available (owner 2026-11-04: "close button no matter what"); `OPTIONS_ONLY`
+    must be reported on for new positions;
   - unknown net liquidation, an expired date or a duplicate open order for the contract block
     the order.
 - **Confirm step.** `vertexOrders.preview` returns the review and a signed confirm token (HMAC,
@@ -37,7 +47,7 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   cannot reach `vertexOrders.*`. The oRPC handler origin check blocks cross-site POSTs (CSRF).
 - **Rate limit.** Per user and per minute: 20 previews, 5 submits or cancels (in-process).
 - **Replay.** The used-nonce list is per process (per Worker isolate). The nonce is also the
-  IBKR `orderRef` (`leaps-vertex-<nonce>`). A replay on another isolate is blocked ONLY if the
+  IBKR `orderRef` (`vertex-<nonce>`). A replay on another isolate is blocked ONLY if the
   bridge refuses an `orderRef` that was already used, as `mode_place_option` does today. This is a
   hard requirement for the bridge.
 - **Audit.** Previews and results are emitted as `vertex.orders.*` semantic events (user id,
@@ -70,28 +80,41 @@ Owner decision 2026-11-04: each position row has an Actions column with Close, B
 - **Confirm.** A click opens a dialog with symbol, side, quantity, order type, limit and the
   estimated cost or proceeds. "Review order" runs the server rules. Only an accepted review shows
   the send button. Cancel (focused first) or Escape closes the dialog and sends nothing.
-- **Gates.** The kill switch (from `vertexOrders.status`) disables every button. Unknown gates also
-  disable them. Rows that are not OPT contracts show "Options only here". Put rows show
-  "Puts: not supported by the order gateway" (the gateway places calls only).
+- **Gates.** The kill switch (from `vertexOrders.status`) and unknown gates disable Buy and Sell.
+  Close always stays enabled. Share rows (STK) have Close only (full holding, mark − 1% for a sale). Rows of
+  other security types (for example futures) show "Not supported here". Spread legs: see below.
 - **Closing orders** (rules change, same date): a SELL against a long or a BUY that covers a short
   is a closing order. It has no premium cap and may trade on expiry day. Opening orders still need
   an expiry after today and keep every cap.
 
-## Live bridge (used only when the flag is on)
+## Spread close: one combo order (owner 2026-11-04)
 
-`VERTEX_ORDER_BRIDGE_URL` must be a plain `http` loopback URL. The bridge wraps the
-market-watch-bot IBKR gateway and is not part of this repository. Its contract:
+A Close click on any leg of a spread opens one combo dialog for all legs of that name. Buy and
+Sell are disabled on spread legs. The dialog closes the whole spread: each leg reverses its held
+size (quantity = the greatest common divisor of the leg sizes, ratio = leg size / quantity). Only
+the net limit per combo can be edited (+ debit / − credit; default the net of the marks, with
+"Marketable" 5% toward a fill). `vertexOrders.comboPreview` and `vertexOrders.comboSubmit` follow
+the same confirm, intent and unknown-outcome rules as single orders. `evaluateCombo` refuses any
+leg that does not close its held size exactly, duplicate legs, past expiries, a resting order on
+a leg or a working combo on the name; the kill switch does not block it. Options are never exercised.
+
+## Live bridge (used only when the flags are on)
+
+The bridge is `market_watch/vertexbridge.py` in market-watch-bot (`python -m market_watch.vertexbridge`,
+127.0.0.1:3470 on QuantVPS, unit `vertex-order-bridge.service`). It runs
+`ops/vertex_order_tail.py` (appended to `ops/ibkr_reentry_gateway.py` after the 2% max-loss gate
+source) in the IBKR container as its own client id 211 (never 194/196/197/198). Every request
+needs header `X-Vertex-Bridge-Token` equal to its 0600 token file; no token file refuses all. The
+kill switch is the execution engine stop file (`/opt/vertex-exec-node/data/KILL_SWITCH`); it
+blocks opening and increasing orders only. Closes and cancels stay allowed. Before a close, any live order of any client on the
+same contract (for example a client-196 conditional LEAPS exit) must be cancelled first; the tail
+refuses otherwise, so a resting exit cannot later open a short.
 
 |Request|Body|Reply|
 |---|---|---|
-|`GET /account`|none|`{netLiquidation, positions[{symbol, secType, expiry, strike, right, quantity, premium}], openOrders[...], gates{killSwitch, optionsOnly}, caps{leapsMinDays, leapsPct, shortPct}}`|
-|`POST /orders`|order fields plus `orderRef` (`vertex-<nonce>`)|`{state, permId, message}`|
-|`POST /cancel`|`{permId}`|`{state, permId, message}`|
+|`GET /account`|none|`{netLiquidation, positions[...], openOrders[...], gates{killSwitch, optionsOnly}, caps{...}}`|
+|`POST /orders`|single order fields plus `orderRef` (`vertex-<nonce>`)|`{state, permId, message}`|
+|`POST /combos`|combo fields (`symbol`, `quantity`, `limitPrice`, `legs[]`) plus `orderRef`|`{state, permId, message}`|
+|`POST /cancel`|`{permId}` (Vertex orders of client 211 only)|`{state, permId, message}`|
 
-**Not built yet (follow-up).** No bridge exists, so there is no live transport. The bridge must
-map a Vertex order to `ibkr_reentry_gateway.py place_option`: keep the `leaps-vertex-<nonce>`
-orderRef, set `maxPremium` from the cap check, and supply the fields a BUY needs there (`stop`,
-`undLast`, `atr14`, `rungs` exit ladder, `killSwitchClear`). The stop and exit-ladder policy is an
-owner decision that is still open. The bridge must read the bot's kill switch (`state/REENTRY_DISABLED`) and `OPTIONS_ONLY`, never
-change them, and apply the gateway's own guards. Until the bridge is deployed and reviewed, the
-flag stays off.
+`state` `unconfirmed` (sent, IBKR has not acknowledged) is stored as an unknown outcome.

@@ -171,6 +171,47 @@ describe("chart workstation", () => {
     expect(storage.data.get("vx.charts.drawings.SPY")).toBe("[]");
     return expect(host.querySelector("[data-drawing-id]")).toBeNull();
   });
+  it("resets the data window on pointer leave, a symbol change and an unknown time", async () => {
+    const fake = fakeRenderer();
+    const { host, render } = await mount(fake.renderer, memoryStorage());
+    const dataWindow = host.querySelector("[data-data-window]");
+    const latest = "1970-01-01T00:00:02.000Z";
+    const first = "1970-01-01T00:00:01.000Z";
+    await act(async () => fake.hover(1000));
+    expect(dataWindow?.textContent).toContain(first);
+    // KLineCharts sends no crosshair event when the pointer leaves the chart.
+    // React builds onPointerLeave from pointerout with a target outside the element.
+    const canvasHost = host.querySelector("figure")?.parentElement;
+    const leave = async (pointerType: string) =>
+      await act(async () => {
+        const event = new MouseEvent("pointerout", {
+          bubbles: true,
+          relatedTarget: document.body,
+        });
+        Object.defineProperty(event, "pointerType", { value: pointerType });
+        canvasHost?.dispatchEvent(event);
+      });
+    // A lifted touch keeps the tapped bar, as KLineCharts keeps its crosshair there.
+    await leave("touch");
+    expect(host.querySelector("[data-data-window]")?.textContent).toContain(
+      first
+    );
+    await leave("mouse");
+    expect(host.querySelector("[data-data-window]")?.textContent).toContain(
+      latest
+    );
+    // A hovered time that is not in the series falls back to the latest bar.
+    await act(async () => fake.hover(5000));
+    expect(host.querySelector("[data-data-window]")?.textContent).toContain(
+      latest
+    );
+    // A hover from the previous symbol does not carry over.
+    await act(async () => fake.hover(1000));
+    await render("QQQ");
+    expect(host.querySelector("[data-data-window]")?.textContent).toContain(
+      latest
+    );
+  });
   it("switches chart type to Heikin Ashi and draws tools", async () => {
     const fake = fakeRenderer();
     const storage = memoryStorage();

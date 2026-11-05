@@ -36,11 +36,12 @@ const symbol = z
 export const VertexOrderInputSchema = z
   .object({
     symbol,
-    // Share and ETF orders are refused by the rules with a clear reason (options only).
+    // OPT (options) or STK (shares). Shares may only be closed or reduced (rules); for shares,
+    // expiry is "", strike 0 and right "".
     secType: z.string().trim().toUpperCase().max(8),
-    expiry: z.string().regex(/^\d{8}$/, "Expiry must be YYYYMMDD"),
-    strike: z.number().finite().positive().max(100_000),
-    right: z.enum(["C", "P"]),
+    expiry: z.string().regex(/^(\d{8})?$/, "Expiry must be YYYYMMDD"),
+    strike: z.number().finite().min(0).max(100_000),
+    right: z.enum(["C", "P", ""]),
     side: z.enum(["BUY", "SELL"]),
     quantity: z.number().int().positive().max(10_000),
     orderType: z.string().trim().toUpperCase().max(8),
@@ -157,6 +158,63 @@ export const VertexCancelSubmitInputSchema = z
   })
   .strict();
 
+// Spread close (owner 2026-11-04): a spread closes as ONE combo (BAG) order, never leg by leg.
+// Each leg must reverse a held leg exactly (ratio x quantity == held size). limitPrice is the net
+// per combo: positive = debit paid, negative = credit received.
+export const VertexComboLegSchema = z
+  .object({
+    expiry: z.string().regex(/^\d{8}$/, "Expiry must be YYYYMMDD"),
+    strike: z.number().finite().positive().max(100_000),
+    right: z.enum(["C", "P"]),
+    side: z.enum(["BUY", "SELL"]),
+    ratio: z.number().int().min(1).max(10),
+  })
+  .strict();
+export type VertexComboLeg = z.infer<typeof VertexComboLegSchema>;
+
+export const VertexComboInputSchema = z
+  .object({
+    symbol,
+    quantity: z.number().int().positive().max(10_000),
+    limitPrice: z
+      .number()
+      .finite()
+      .min(-100_000)
+      .max(100_000)
+      .refine((value) => value !== 0, "Net limit must not be zero"),
+    legs: z.array(VertexComboLegSchema).min(2).max(6),
+  })
+  .strict();
+export type VertexComboInput = z.infer<typeof VertexComboInputSchema>;
+
+export const VertexComboReviewSchema = z.object({
+  order: VertexComboInputSchema,
+  label: z.string(),
+  // limitPrice x quantity x 100: positive = debit paid, negative = credit received.
+  netAmount: z.number(),
+  accepted: z.boolean(),
+  reasons: z.array(z.string()),
+});
+export type VertexComboReview = z.infer<typeof VertexComboReviewSchema>;
+
+export const VertexComboPreviewOutputSchema = z.object({
+  gates: VertexOrderGatesSchema,
+  review: VertexComboReviewSchema,
+  confirmToken: z.string().nullable(),
+  expiresAt: z.string().nullable(),
+});
+export type VertexComboPreviewOutput = z.infer<
+  typeof VertexComboPreviewOutputSchema
+>;
+
+export const VertexComboSubmitInputSchema = z
+  .object({
+    order: VertexComboInputSchema,
+    confirmToken,
+    confirm: z.literal(true),
+  })
+  .strict();
+
 const orders = oc.errors(VERTEX_ORDERS_ERRORS);
 const tags = ["Orders"];
 
@@ -216,10 +274,35 @@ const cancelSubmit = orders
   .input(VertexCancelSubmitInputSchema)
   .output(VertexOrderResultSchema);
 
+const comboPreview = orders
+  .route({
+    method: "POST",
+    path: "/vertex-orders/combo-preview",
+    operationId: "vertexOrders.comboPreview",
+    summary:
+      "Check one spread close (one combo order) against the rules and issue a confirm token",
+    tags,
+  })
+  .input(VertexComboInputSchema)
+  .output(VertexComboPreviewOutputSchema);
+
+const comboSubmit = orders
+  .route({
+    method: "POST",
+    path: "/vertex-orders/combo-submit",
+    operationId: "vertexOrders.comboSubmit",
+    summary: "Send one previewed and confirmed spread close as one combo order",
+    tags,
+  })
+  .input(VertexComboSubmitInputSchema)
+  .output(VertexOrderResultSchema);
+
 export const vertexOrdersContract = {
   status,
   preview,
   submit,
+  comboPreview,
+  comboSubmit,
   cancelPreview,
   cancelSubmit,
 };

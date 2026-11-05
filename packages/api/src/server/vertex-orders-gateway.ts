@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import type { VertexOrderInput } from "../contracts/vertex-orders.ts";
+import type {
+  VertexComboInput,
+  VertexOrderInput,
+} from "../contracts/vertex-orders.ts";
 import type {
   GatewayOpenOrder,
   OrderAccount,
@@ -33,6 +36,11 @@ export interface OrderGatewayPort {
   readonly account: () => Promise<OrderAccount>;
   readonly place: (
     order: VertexOrderInput,
+    orderRef: string
+  ) => Promise<PlaceOrderResult>;
+  // One combo (BAG) order that closes a spread; the bridge refuses anything that is not an exact close.
+  readonly placeCombo: (
+    order: VertexComboInput,
     orderRef: string
   ) => Promise<PlaceOrderResult>;
   readonly cancel: (permId: number) => Promise<PlaceOrderResult>;
@@ -154,6 +162,20 @@ export const createMockOrderGateway = (
         message: "Simulated order: mock gateway, nothing sent to IBKR.",
       });
     },
+    placeCombo: (order, orderRef) => {
+      if (usedRefs.has(orderRef))
+        return Promise.resolve({
+          state: "aborted",
+          permId: null,
+          message: `orderRef ${orderRef} already used`,
+        });
+      usedRefs.add(orderRef);
+      return Promise.resolve({
+        state: "submitted",
+        permId: nextPermId++,
+        message: `Simulated combo close (${order.legs.length} legs): mock gateway, nothing sent to IBKR.`,
+      });
+    },
     cancel: (permId) => {
       const index = openOrders.findIndex((o) => o.permId === permId);
       if (index >= 0) openOrders.splice(index, 1);
@@ -214,11 +236,16 @@ const BridgeResultSchema = z.object({
 
 type BridgeFetch = (input: string, init?: RequestInit) => Promise<Response>;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const BRIDGE_TIMEOUT_MS = 30_000;
+// One bridge order run makes two IBKR connections (account, then order) plus contract lookups for a
+// combo; the bridge itself stops after 150 s. A timeout here is stored as an unknown outcome.
+const BRIDGE_TIMEOUT_MS = 160_000;
 
+// The bridge places live orders, so every call carries the shared bridge token
+// (VERTEX_ORDER_BRIDGE_TOKEN, header X-Vertex-Bridge-Token). No token: fail closed.
 export const createBridgeOrderGateway = (
   base: string | null,
-  fetchImpl: BridgeFetch = (input, init) => fetch(input, init)
+  fetchImpl: BridgeFetch = (input, init) => fetch(input, init),
+  token: string | null = null
 ): OrderGatewayPort => {
   const root = (): string => {
     const url = base === null ? null : URL.parse(base);
@@ -233,17 +260,29 @@ export const createBridgeOrderGateway = (
       );
     return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
   };
+  const secret = (): string => {
+    if (token === null || token.length < 32)
+      throw new OrderGatewayError(
+        "NOT_CONFIGURED",
+        "Order bridge token is not configured (VERTEX_ORDER_BRIDGE_TOKEN)"
+      );
+    return token;
+  };
   const call = async <T>(
     path: string,
     schema: z.ZodType<T>,
     body?: unknown
   ): Promise<T> => {
     const url = `${root()}${path}`;
+    const key = secret();
     let response: Response;
     try {
       response = await fetchImpl(url, {
         method: body === undefined ? "GET" : "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "x-vertex-bridge-token": key,
+        },
         signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS),
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
@@ -266,6 +305,8 @@ export const createBridgeOrderGateway = (
     account: () => call("/account", BridgeAccountSchema),
     place: (order, orderRef) =>
       call("/orders", BridgeResultSchema, { ...order, orderRef }),
+    placeCombo: (order, orderRef) =>
+      call("/combos", BridgeResultSchema, { ...order, orderRef }),
     cancel: (permId) => call("/cancel", BridgeResultSchema, { permId }),
   };
 };

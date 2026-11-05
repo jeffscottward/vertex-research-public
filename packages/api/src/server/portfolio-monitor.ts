@@ -284,6 +284,15 @@ const derivePortfolioPositions = (
           : null,
       realized: nn(row.realized),
       weightPct: marketValue !== null && nlv ? (marketValue / nlv) * 100 : null,
+      ...(row.secType === "OPT"
+        ? {
+            option: {
+              expiry: scrubPortfolioText(row.expiry, 16),
+              strike: row.strike,
+              right: scrubPortfolioText(row.right, 8),
+            },
+          }
+        : {}),
     };
     return position;
   });

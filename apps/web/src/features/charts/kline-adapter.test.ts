@@ -20,7 +20,10 @@ import {
   DRAWING_GROUP_ID,
   MARKER_GROUP_ID,
   RECTANGLE_OVERLAY,
+  barSpacing,
   drawingFromOverlay,
+  overlayPoint,
+  timestampAtIndex,
   rectangleFigures,
   VOLUME_PANE_ID,
   createKLineRenderer,
@@ -388,7 +391,7 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         points: [{ timestamp: 1000, value: 10 }],
       })?.text
     ).toBe("note");
-    return expect(
+    expect(
       drawingFromOverlay({
         extendData: null,
         id: "o3",
@@ -396,6 +399,145 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
         points: [],
       })
     ).toBeUndefined();
+    // Past the last bar KLineCharts gives only a dataIndex: extend the bar spacing.
+    expect(
+      drawingFromOverlay(
+        {
+          extendData: "",
+          id: "o4",
+          name: "segment",
+          points: [
+            { dataIndex: 1, value: 10 },
+            { dataIndex: 4, value: 12 },
+          ],
+        },
+        [1000, 2000, 3000]
+      )?.points
+    ).toEqual([
+      { timestamp: 2000, value: 10 },
+      { timestamp: 5000, value: 12 },
+    ]);
+    return expect(
+      drawingFromOverlay({
+        extendData: "",
+        id: "o5",
+        name: "horizontalStraightLine",
+        points: [{ dataIndex: 3, value: 10 }],
+      })
+    ).toBeUndefined();
+  });
+  it("places saved points after the last bar by data index and keeps them there", async () => {
+    expect(overlayPoint({ timestamp: 2000, value: 1 }, [1000, 2000])).toEqual({
+      timestamp: 2000,
+      value: 1,
+    });
+    expect(overlayPoint({ timestamp: 5000, value: 1 }, [1000, 2000])).toEqual({
+      dataIndex: 4,
+      value: 1,
+    });
+    expect(overlayPoint({ timestamp: 5000, value: 1 }, [])).toEqual({
+      timestamp: 5000,
+      value: 1,
+    });
+    stubBrowser();
+    const instance = studyChart();
+    mocks.init.mockReturnValue(instance);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const bars = [1000, 2000, 3000].map((timestamp, index) => ({
+      ...bar,
+      id: `b${index}`,
+      timestamp,
+    }));
+    renderer.replace(bars);
+    const onChange = vi.fn();
+    const future = {
+      id: "f1",
+      points: [
+        { timestamp: 2000, value: 10 },
+        { timestamp: 6000, value: 12 },
+      ],
+      text: "",
+      tool: "trend" as const,
+    };
+    renderer.setDrawings!([future], onChange);
+    type Created = {
+      points: unknown[];
+      onPressedMoveEnd: (event: unknown) => boolean;
+    }[];
+    const createdAt = (call: number) =>
+      (instance.createOverlay.mock.calls as unknown as unknown[][])[
+        call
+      ]?.[0] as Created;
+    expect(createdAt(0)[0]?.points).toEqual([
+      { timestamp: 2000, value: 10 },
+      { dataIndex: 5, value: 12 },
+    ]);
+    // A new last bar moves the data index so the point keeps its time.
+    renderer.replace([...bars, { ...bar, id: "b3", timestamp: 4000 }]);
+    expect(createdAt(1)[0]?.points).toEqual([
+      { timestamp: 2000, value: 10 },
+      { dataIndex: 5, value: 12 },
+    ]);
+    // A same-time tail update does not place the drawings again.
+    renderer.replace([
+      ...bars,
+      { ...bar, close: 10.6, high: 11, id: "b3", timestamp: 4000 },
+    ]);
+    expect(instance.createOverlay).toHaveBeenCalledTimes(2);
+    // Older history prepended with the same last bar shifts every data index.
+    renderer.replace([
+      { ...bar, id: "b-1", timestamp: 0 },
+      ...bars,
+      { ...bar, id: "b3", timestamp: 4000 },
+    ]);
+    expect(createdAt(2)[0]?.points).toEqual([
+      { timestamp: 2000, value: 10 },
+      { dataIndex: 6, value: 12 },
+    ]);
+    // A shorter series ending earlier places points between the two last bars again.
+    renderer.replace(bars.slice(0, 2));
+    expect(createdAt(3)[0]?.points).toEqual([
+      { timestamp: 2000, value: 10 },
+      { dataIndex: 5, value: 12 },
+    ]);
+    // A saved drawing dragged into an unstorable state goes back to its stored place.
+    createdAt(1)[0]?.onPressedMoveEnd({
+      overlay: { extendData: "", id: "f1", name: "segment", points: [] },
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(instance.createOverlay).toHaveBeenCalledTimes(5);
+    expect(instance.removeOverlay).not.toHaveBeenCalledWith({ id: "f1" });
+  });
+  it("estimates bar spacing from the median recent gap, not a weekend gap", () => {
+    const day = 86_400_000;
+    // Monday to Friday, then the next Monday: the last gap is three days.
+    const week = [0, 1, 2, 3, 4, 7].map((offset) => offset * day);
+    expect(barSpacing(week)).toBe(day);
+    expect(timestampAtIndex(week, 6)).toBe(8 * day);
+    expect(overlayPoint({ timestamp: 9 * day, value: 1 }, week)).toEqual({
+      dataIndex: 7,
+      value: 1,
+    });
+    // Only the last 20 gaps count: older hourly bars do not change daily spacing.
+    const mixed = [
+      ...Array.from({ length: 30 }, (_, index) => index * 3_600_000),
+      ...Array.from({ length: 21 }, (_, index) => (index + 2) * day),
+    ];
+    expect(barSpacing(mixed)).toBe(day);
+    expect(barSpacing([1000])).toBe(day);
+    expect(barSpacing([])).toBe(day);
+    expect(barSpacing([1000, 3000, 4000])).toBe(1000);
+  });
+  it("maps a data index to a bar time, extending past the last bar", () => {
+    expect(timestampAtIndex([1000, 2000], 1)).toBe(2000);
+    expect(timestampAtIndex([1000, 2000], 3)).toBe(4000);
+    expect(timestampAtIndex([1000], 2)).toBe(1000 + 2 * 86_400_000);
+    expect(timestampAtIndex([], 0)).toBeUndefined();
+    expect(timestampAtIndex([1000], -1)).toBeUndefined();
+    expect(timestampAtIndex([1000], 1.5)).toBeUndefined();
   });
   it("sets chart types, drawings, crosshair listener and snapshots", async () => {
     stubBrowser();
@@ -446,8 +588,34 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
       overlay: { extendData: "", id: "x", name: "brush", points: [] },
     });
     expect(onChange).toHaveBeenCalledTimes(1);
+    // A drawing that cannot be stored is removed, not left on the chart unsaved.
+    expect(instance.removeOverlay).toHaveBeenCalledWith({ id: "x" });
+    renderer.replace([
+      { ...bar, id: "b1", timestamp: 1000 },
+      { ...bar, id: "b2", timestamp: 2000 },
+    ]);
+    created[0]?.onPressedMoveEnd({
+      overlay: {
+        extendData: "",
+        id: "d1",
+        name: "segment",
+        points: [
+          { timestamp: 1000, value: 10 },
+          { dataIndex: 3, value: 11 },
+        ],
+      },
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...drawing,
+      points: [
+        { timestamp: 1000, value: 10 },
+        { timestamp: 4000, value: 11 },
+      ],
+    });
+    // The first bars place the saved drawings again (their points may follow the last bar).
+    expect(instance.createOverlay).toHaveBeenCalledTimes(2);
     renderer.setDrawings!([], onChange);
-    expect(instance.createOverlay).toHaveBeenCalledTimes(1);
+    expect(instance.createOverlay).toHaveBeenCalledTimes(2);
     expect(() =>
       renderer.setDrawings!([{ ...drawing, id: "" }], onChange)
     ).toThrow("Invalid");
