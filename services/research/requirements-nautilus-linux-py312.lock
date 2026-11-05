@@ -5,6 +5,8 @@
 #   requirements-linux-py312.lock), then reduced to the one cp312 / py3 Linux x86_64 wheel per pin.
 # Base pins and hashes are identical to requirements-linux-py312.lock.
 # nautilus-trader is LGPL-3.0: used as a pinned dependency only, never vendored.
+# Known advisory exception: fsspec 2026.2.0 has PYSEC-2026-4217 (ReferenceFileSystem); nautilus-trader
+#   1.227.0-1.231.0 require fsspec<=2026.2.0. Not reachable from Vertex code; see docs/vertex-rebuild/quant-lab.md.
 # Install: python -m pip install --no-deps --require-hashes --only-binary=:all: -r requirements-nautilus-linux-py312.lock
 annotated-types==0.7.0 --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53
 click==8.5.0 --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360
