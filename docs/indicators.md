@@ -28,6 +28,8 @@ Vertex has one indicator formula set in two places. Both are for research, backt
 |Stochastic|`stochastic`|Stochastic 14, 3, 3|TA-Lib STOCH with SMA smoothing. %K starts at bar k+s−2; TA-Lib hides it until %D starts. A zero high-low range gives raw %K 50.|
 |ADX, +DI, −DI|`adx`|ADX 14|TA-Lib ADX, PLUS_DI and MINUS_DI smoothing. DX is 0 when +DI and −DI are both 0.|
 |Relative volume at time (RVOL)|`rvol_at_time`|RVOL at time 20|Volume so far in the session divided by the mean volume of the previous n sessions up to the same time of day. Undefined while fewer than n earlier sessions exist or when that mean is 0.|
+|Rolling z-score|`zscore`|none|(x − mean) / sample standard deviation (ddof 1) of the trailing n values, the bar included. A flat window has no value. Same convention as gs-quant `zscores`.|
+|Realized volatility|`realized_volatility`|none|Sample standard deviation (ddof 1) of the trailing n simple returns × √252 × 100 (annualized percent; the factor is a parameter). Same convention as gs-quant `volatility`.|
 
 ### Relative volume at time
 
@@ -53,5 +55,7 @@ The reference fixture was generated with TA-Lib C 0.8.1 through Python TA-Lib 0.
 - To regenerate the fixture, follow the steps in `services/research/tests/fixtures/make_indicator_reference.py`. TA-Lib is not a project dependency; use a throwaway virtual environment.
 - Run the Python tests from `services/research` with `python -m pytest tests/test_indicators.py`. The CI lanes do not run the Python research suite, so RSI parity, the SMMA, VWAP and ATR(1) hand cases and the Python input guards are checked only by local runs. The web tests cover the same formulas except RSI and rolling VWAP.
 - The Python Bollinger, rolling VWAP and Stochastic kernels use running windows (O(rows)). A brute-force test checks them on 600 random bars.
+- Z-score and realized volatility: hand cases and a brute-force check in `services/research/tests/test_indicators.py`.
+- gs-quant parity (`services/research/tests/test_gs_quant.py`, CI gs-quant run): SMA, z-score and realized volatility equal gs-quant 2.2.4 within 1e-9. gs-quant Bollinger Bands use the sample deviation, so they equal ours with k·√(n/(n−1)). gs-quant seeds SMMA, RSI and MACD at the first bar instead of with a full SMA; the values converge and agree within 1e-8 after 300 bars. gs-quant `macd(x, 12, 26, 9)` is our MACD `signal`. See [gs-quant](vertex-rebuild/gs-quant.md).
 - RVOL: `services/research/tests/test_rvol_at_time.py` has hand cases (also used by the chart tests), a brute-force check on random sessions, an identity check on the golden SPY daily bars (RVOL 20 = volume / SMA 20 of volume on the previous bar) and an independent pandas reference that runs when pandas is installed.
 - Real-data check: the [golden battery](golden-battery/README.md) runs the chart math, the Python library and the backtest engine's SMA and RSI over 10 years of SPY and QQQ daily bars and compares them with TA-Lib (pandas for SMMA) within 1e-9. The chart-math part runs in CI through `scripts/golden-battery/battery.test.ts`.

@@ -15,6 +15,10 @@ Conventions (all outputs are aligned to the input; ``None`` is warmup or undefin
     previous ADX).
 * SMMA (Wilder smoothing, also called RMA), the rolling candle VWAP and relative
   volume at time are not TA-Lib functions; their tests use hand-computed values.
+* Rolling z-score and realized volatility follow the gs-quant 2.2.4 conventions
+  of ``gs_quant.timeseries.zscores`` and ``gs_quant.timeseries.volatility`` (sample
+  standard deviation, ddof 1; volatility of simple returns, annualized, in
+  percent). The optional gs-quant suite compares them with gs-quant output.
 * Input is plain finite numbers in chronological order. Input is never sorted.
 """
 
@@ -556,4 +560,83 @@ def rvol_at_time(
         )
         if reference > 0:
             out[index] = cumulative / (reference / span)
+    return out
+
+
+# Relative spread under which a window counts as flat (sample deviation treated as 0).
+_FLAT_WINDOW = 1e-12
+
+
+def _rolling_sample_moments(data: list[float], span: int) -> list[tuple[float, float] | None]:
+    """(mean, sample standard deviation) of each full trailing window; None before the first one."""
+    out: list[tuple[float, float] | None] = [None] * len(data)
+    if len(data) < span:
+        return out
+    # Sliding-window Welford update, as in bollinger_bands, recomputed exactly once every
+    # ``span`` bars so rounding drift cannot build up (z-scores divide by a small deviation): O(rows).
+    mean = squares = 0.0
+    for index in range(span - 1, len(data)):
+        if (index - span + 1) % span == 0:
+            window = data[index - span + 1 : index + 1]
+            mean = math.fsum(window) / span
+            squares = math.fsum((value - mean) ** 2 for value in window)
+        else:
+            incoming, outgoing = data[index], data[index - span]
+            previous_mean = mean
+            mean += (incoming - outgoing) / span
+            squares = max(0.0, squares + (incoming - outgoing) * (incoming - mean + outgoing - previous_mean))
+        deviation = math.sqrt(squares / (span - 1))
+        if deviation <= _FLAT_WINDOW * max(1.0, abs(mean)):
+            deviation = 0.0
+        out[index] = (mean, deviation)
+    return out
+
+
+def _window_period(name: str, value: int) -> int:
+    span = _period(name, value)
+    if span < 2:
+        raise ValueError(f"{name} must be 2..{MAX_PERIOD}; a sample deviation needs two values")
+    return span
+
+
+def zscore(values: Sequence[float], period: int = 20) -> Series:
+    """Rolling z-score of each value against its trailing ``period`` window (gs-quant ``zscores``).
+
+    z(i) = (x(i) - mean) / sample standard deviation (ddof 1) of the ``period``
+    values ending at bar i, the bar itself included. The first value is at bar
+    ``period - 1``. A flat window has no defined z-score and gives ``None``
+    (gs-quant gives NaN).
+    """
+    data = _values("values", values)
+    span = _window_period("period", period)
+    out = _empty(len(data))
+    for index, moments in enumerate(_rolling_sample_moments(data, span)):
+        if moments is not None and moments[1] > 0:
+            out[index] = (data[index] - moments[0]) / moments[1]
+    return out
+
+
+def realized_volatility(values: Sequence[float], period: int = 20, periods_per_year: int = 252) -> Series:
+    """Annualized realized volatility in percent (gs-quant ``volatility`` with simple returns).
+
+    vol(i) = 100 * sqrt(periods_per_year) * sample standard deviation (ddof 1) of
+    the ``period`` simple returns ending at bar i. The first value is at bar
+    ``period`` (``period`` returns need ``period + 1`` prices). Prices must be
+    positive. gs-quant infers the annualization factor from the dates (252 for
+    daily data); here it is explicit. A flat window gives 0.
+    """
+    data = _values("values", values)
+    span = _window_period("period", period)
+    if isinstance(periods_per_year, bool) or not isinstance(periods_per_year, int) or not 1 <= periods_per_year <= 100_000:
+        raise ValueError("periods_per_year must be an integer 1..100000")
+    if any(value <= 0 for value in data):
+        raise ValueError("values must be positive prices")
+    out = _empty(len(data))
+    if len(data) <= span:
+        return out
+    simple = [data[index] / data[index - 1] - 1.0 for index in range(1, len(data))]
+    scale = 100.0 * math.sqrt(periods_per_year)
+    for index, moments in enumerate(_rolling_sample_moments(simple, span), start=1):
+        if moments is not None:
+            out[index] = scale * moments[1]
     return out

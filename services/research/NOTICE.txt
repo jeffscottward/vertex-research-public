@@ -30,3 +30,12 @@ NautilusTrader (LGPL-3.0) is an optional, separately installed dependency of
 the Quant Lab engine quantlab/nautilus_engine.py, pinned at 1.227.0 with its
 dependency closure in requirements-nautilus-linux-py312.lock. No NautilusTrader
 code is copied, vendored, modified or relinked into this package.
+
+gs-quant (Copyright 2018 Goldman Sachs, Apache-2.0) is an optional, separately
+installed dependency of the analytics adapter analytics/gs_quant_backend.py,
+pinned at 2.2.4 with its dependency closure in
+requirements-gsquant-linux-py312.lock. No gs-quant code is copied, vendored or
+modified into this package. indicators.zscore and indicators.realized_volatility
+are independent implementations of standard formulas that follow the gs-quant
+conventions documented in docs/vertex-rebuild/gs-quant.md. Preserve the gs-quant
+distribution's NOTICE and LICENSE files when it is installed.
