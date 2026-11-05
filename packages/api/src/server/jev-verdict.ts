@@ -33,12 +33,14 @@ import { type FetchMarketBarsOptions, fetchMarketBars } from "./market-data.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // Display-only JEV verdict (jevVerdict.get / jevVerdict.refresh, merge plan P5).
-// refresh: 1 history request (1 Y daily bars, public prices) and at most 1 JEV call.
+// refresh: 1 history request (1 Y daily bars, public prices) and at most 1 JEV call. A
+// failure before the JEV call gives the reservation back and waits 60 s before the next try.
 // Only allow-listed public price fields reach JEV. Nothing here can place, change or
 // cancel orders; merge plan P6 (the order gate) reads this verdict separately.
 
 const LIMITS: JevStoreLimits & { staleAfterMs: number } = {
   maxCallsPerHour: JEV_MAX_CALLS_PER_HOUR,
+  failureCooldownMs: 60_000,
   maxEntries: 200,
   minIntervalMs: JEV_MIN_INTERVAL_SECONDS * 1000,
   staleAfterMs: JEV_STALE_AFTER_SECONDS * 1000,
@@ -71,31 +73,33 @@ export const refreshJevVerdict = async (
       refreshed,
       throttled,
     });
-  const fail = (code: JevFailureCode, detail = "") => {
-    deps.store.fail(symbol, {
-      at: deps.now().toISOString(),
-      code,
-      message: `${FAILURE_TEXT[code]}${detail}`,
-    });
+  const failure = (code: JevFailureCode, detail = "") => ({
+    at: deps.now().toISOString(),
+    code,
+    message: `${FAILURE_TEXT[code]}${detail}`,
+  });
+  // Before the JEV call: give the reservation back (short cooldown, no JEV budget used).
+  const cancel = (code: JevFailureCode) => {
+    deps.store.cancel(symbol, failure(code), deps.now().getTime());
     return output(false, false);
   };
-  // Check the throttle before loading bars; tryStart re-checks it before the JEV call.
-  if (deps.store.nextAllowedMs(symbol, deps.now().getTime()) !== null)
+  // After the JEV call: the call counts against both limits.
+  const fail = (code: JevFailureCode, detail = "") => {
+    deps.store.fail(symbol, failure(code, detail));
+    return output(false, false);
+  };
+  const barsInput = MarketBarsInputSchema.parse({ symbol });
+  // Reserve before loading bars, so one refresh per symbol runs at a time.
+  if (!deps.store.tryStart(symbol, deps.now().getTime()).ok)
     return output(false, true);
   let bars: MarketBarsOutput;
   try {
-    bars = await fetchMarketBars(
-      deps.history,
-      MarketBarsInputSchema.parse({ symbol }),
-      deps.barsOptions
-    );
+    bars = await fetchMarketBars(deps.history, barsInput, deps.barsOptions);
   } catch {
-    return fail("MARKET_DATA");
+    return cancel("MARKET_DATA");
   }
   const state = buildPublicFeatures(symbol, bars.bars, bars.asOf);
-  if (state === null) return fail("INSUFFICIENT_DATA");
-  if (!deps.store.tryStart(symbol, deps.now().getTime()).ok)
-    return output(false, true);
+  if (state === null) return cancel("INSUFFICIENT_DATA");
   const result = await callJev(
     deps.jev,
     buildJevRequestBody(deps.jev.model, state),

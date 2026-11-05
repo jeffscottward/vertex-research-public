@@ -300,11 +300,17 @@ export const parseJevReply = (document: unknown): ParsedJevReply | null => {
 };
 
 // Per-symbol cache and throttle. One store per server process (the QuantVPS web app runs
-// one `vite preview` process); a restart clears it.
+// one `vite preview` process); a restart clears it. A refresh reserves its call with
+// tryStart before it loads bars, so only one refresh per symbol runs at a time. A failure
+// before the JEV call (bars, too little data) gives the reservation back with cancel() and
+// starts a short cooldown; a failure of the JEV call itself keeps the reservation (fail()).
 export type JevStoreEntry = Readonly<{
   verdict: JevVerdict | null;
   lastFailure: JevFailure | null;
   lastAttemptMs: number | null;
+  // lastAttemptMs before the current reservation; cancel() restores it.
+  previousAttemptMs: number | null;
+  cooldownUntilMs: number | null;
   inFlight: boolean;
 }>;
 
@@ -312,6 +318,8 @@ export type JevStoreLimits = Readonly<{
   minIntervalMs: number;
   maxCallsPerHour: number;
   maxEntries: number;
+  // Wait after a failure before the JEV call (protects the history service pacing).
+  failureCooldownMs: number;
 }>;
 
 export type JevStartResult =
@@ -319,8 +327,11 @@ export type JevStartResult =
   | Readonly<{ ok: false; nextAtMs: number }>;
 
 export interface JevVerdictStore {
+  // Gives back a reservation that never reached JEV and starts the failure cooldown.
+  readonly cancel: (symbol: string, failure: JevFailure, nowMs: number) => void;
+  // Ends a reservation whose JEV call failed; the call still counts against both limits.
   readonly fail: (symbol: string, failure: JevFailure) => void;
-  // Earliest time a JEV call for this symbol is allowed; null = allowed now.
+  // Earliest time a refresh for this symbol is allowed; null = allowed now.
   readonly nextAllowedMs: (symbol: string, nowMs: number) => number | null;
   readonly read: (symbol: string) => JevStoreEntry | null;
   readonly succeed: (symbol: string, verdict: JevVerdict) => void;
@@ -330,9 +341,11 @@ export interface JevVerdictStore {
 
 const HOUR_MS = 3_600_000;
 const EMPTY: JevStoreEntry = {
+  cooldownUntilMs: null,
   inFlight: false,
   lastAttemptMs: null,
   lastFailure: null,
+  previousAttemptMs: null,
   verdict: null,
 };
 
@@ -367,6 +380,8 @@ export const createJevVerdictStore = (
       nowMs - entry.lastAttemptMs < limits.minIntervalMs
     )
       waits.push(entry.lastAttemptMs + limits.minIntervalMs);
+    if (entry.cooldownUntilMs !== null && entry.cooldownUntilMs > nowMs)
+      waits.push(entry.cooldownUntilMs);
     const oldest = calls[0];
     if (calls.length >= limits.maxCallsPerHour && oldest !== undefined)
       waits.push(oldest + HOUR_MS);
@@ -374,6 +389,23 @@ export const createJevVerdictStore = (
   };
 
   return Object.freeze({
+    cancel: (symbol: string, failure: JevFailure, nowMs: number) => {
+      const entry = entries.get(symbol) ?? EMPTY;
+      // The reservation's own timestamp in the hourly window, if this entry holds one.
+      const reserved = calls.findIndex(
+        (at) => entry.inFlight && at === entry.lastAttemptMs
+      );
+      if (reserved >= 0) calls.splice(reserved, 1);
+      write(symbol, {
+        ...entry,
+        cooldownUntilMs: nowMs + limits.failureCooldownMs,
+        inFlight: false,
+        lastAttemptMs: entry.inFlight
+          ? entry.previousAttemptMs
+          : entry.lastAttemptMs,
+        lastFailure: failure,
+      });
+    },
     fail: (symbol: string, failure: JevFailure) => {
       const entry = entries.get(symbol) ?? EMPTY;
       write(symbol, { ...entry, inFlight: false, lastFailure: failure });
@@ -389,7 +421,12 @@ export const createJevVerdictStore = (
       if (next !== null) return { nextAtMs: next, ok: false };
       calls.push(nowMs);
       const entry = entries.get(symbol) ?? EMPTY;
-      write(symbol, { ...entry, inFlight: true, lastAttemptMs: nowMs });
+      write(symbol, {
+        ...entry,
+        inFlight: true,
+        lastAttemptMs: nowMs,
+        previousAttemptMs: entry.lastAttemptMs,
+      });
       return { ok: true };
     },
   });

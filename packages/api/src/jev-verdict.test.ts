@@ -318,6 +318,7 @@ const verdict = (decidedAt: string): JevVerdict => ({
 
 describe("JEV verdict store and throttle", () => {
   const limits = {
+    failureCooldownMs: MINUTE,
     maxCallsPerHour: 3,
     maxEntries: 2,
     minIntervalMs: 30 * MINUTE,
@@ -393,6 +394,40 @@ describe("JEV verdict store and throttle", () => {
     });
     expect(store.read("A")).not.toBeNull();
     expect(store.read("B")).not.toBeNull();
+  });
+
+  it("gives back a reservation that never reached JEV and waits the cooldown", () => {
+    const store = createJevVerdictStore(limits);
+    const t0 = NOW.getTime();
+    const failure = {
+      at: NOW.toISOString(),
+      code: "MARKET_DATA" as const,
+      message: "x",
+    };
+    // A finished call at t0, then a reservation at t0 + 40 min that fails before JEV.
+    expect(store.tryStart("SPY", t0).ok).toBe(true);
+    store.succeed("SPY", verdict(NOW.toISOString()));
+    expect(store.tryStart("SPY", t0 + 40 * MINUTE).ok).toBe(true);
+    store.cancel("SPY", failure, t0 + 41 * MINUTE);
+    expect(store.read("SPY")).toMatchObject({
+      cooldownUntilMs: t0 + 42 * MINUTE,
+      inFlight: false,
+      lastAttemptMs: t0,
+      lastFailure: { code: "MARKET_DATA" },
+      verdict: { stance: "BULLISH" },
+    });
+    expect(store.nextAllowedMs("SPY", t0 + 41 * MINUTE)).toBe(t0 + 42 * MINUTE);
+    expect(store.nextAllowedMs("SPY", t0 + 42 * MINUTE)).toBeNull();
+    // The refunded reservation does not count against the hourly cap (3).
+    expect(store.tryStart("B", t0 + 42 * MINUTE).ok).toBe(true);
+    expect(store.tryStart("C", t0 + 42 * MINUTE).ok).toBe(true);
+    expect(store.tryStart("D", t0 + 42 * MINUTE).ok).toBe(false);
+    // cancel without a reservation only records the failure and the cooldown.
+    store.cancel("E", failure, t0);
+    expect(store.read("E")).toMatchObject({
+      cooldownUntilMs: t0 + MINUTE,
+      lastAttemptMs: null,
+    });
   });
 
   it("marks verdicts stale after the stale window", () => {
@@ -545,6 +580,7 @@ describe("refreshJevVerdict", () => {
     jevOptions: { fetch: fetched.jev },
     now,
     store: createJevVerdictStore({
+      failureCooldownMs: MINUTE,
       maxCallsPerHour: 12,
       maxEntries: 10,
       minIntervalMs: 30 * MINUTE,
@@ -623,10 +659,11 @@ describe("refreshJevVerdict", () => {
     );
     const noBars = fetchers(async () => json(jevReply()));
     noBars.bars.mockImplementation(async () => json({}, { status: 503 }));
-    expect(
-      (await refreshJevVerdict("SPY", deps(noBars))).lastFailure
-    ).toMatchObject({
-      code: "MARKET_DATA",
+    const noBarsOutput = await refreshJevVerdict("SPY", deps(noBars));
+    expect(noBarsOutput).toMatchObject({
+      lastFailure: { code: "MARKET_DATA" },
+      nextRefreshAt: "2026-11-05T15:01:00.000Z",
+      throttled: false,
     });
     const oneBar = fetchers(async () => json(jevReply()));
     oneBar.bars.mockImplementation(async () => json(historyDoc(risingBars(1))));
@@ -637,7 +674,7 @@ describe("refreshJevVerdict", () => {
     expect(oneBar.jev).not.toHaveBeenCalled();
   });
 
-  it("refuses the JEV call when another refresh reserved it meanwhile", async () => {
+  it("lets only one refresh per symbol load bars and call JEV at a time", async () => {
     const fetched = fetchers(async () => json(jevReply()));
     const shared = deps(fetched);
     const [first, second] = await Promise.all([
@@ -646,6 +683,7 @@ describe("refreshJevVerdict", () => {
     ]);
     expect([first.refreshed, second.refreshed].sort()).toEqual([false, true]);
     expect([first.throttled, second.throttled].sort()).toEqual([false, true]);
+    expect(fetched.bars).toHaveBeenCalledTimes(1);
     expect(fetched.jev).toHaveBeenCalledTimes(1);
   });
 

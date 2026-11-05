@@ -87,7 +87,10 @@ const VerdictView = ({
   </div>
 );
 
-const ReadyBody = ({ data }: Readonly<{ data: JevVerdictOutput }>) => (
+const ReadyBody = ({
+  data,
+  stale,
+}: Readonly<{ data: JevVerdictOutput; stale: boolean }>) => (
   <>
     {data.configured ? null : (
       <p className="text-sm" data-jev-unconfigured="">
@@ -113,7 +116,7 @@ const ReadyBody = ({ data }: Readonly<{ data: JevVerdictOutput }>) => (
         </p>
       ) : null
     ) : (
-      <VerdictView stale={data.state === "stale"} verdict={data.verdict} />
+      <VerdictView stale={stale} verdict={data.verdict} />
     )}
     <details className="text-muted-foreground text-xs">
       <summary className="min-h-11 cursor-pointer py-3">Data limits</summary>
@@ -171,16 +174,30 @@ export const JevVerdictPanel = ({
     };
   }, [gateway, symbol]);
 
-  const nextRefreshAt =
-    state.type === "ready" ? state.data.nextRefreshAt : null;
-  const waitMs = nextRefreshAt === null ? 0 : Date.parse(nextRefreshAt) - now();
+  const ready = state.type === "ready" ? state.data : null;
+  const nextRefreshAt = ready?.nextRefreshAt ?? null;
+  const nowMs = now();
+  const waitMs = nextRefreshAt === null ? 0 : Date.parse(nextRefreshAt) - nowMs;
+  // The server marks staleness when it answers; the page also marks it while it stays open.
+  const staleAtMs =
+    ready === null || ready.verdict === null
+      ? null
+      : Date.parse(ready.verdict.decidedAt) + ready.staleAfterSeconds * 1000;
+  const staleInMs = staleAtMs === null ? 0 : staleAtMs - nowMs;
+  const stale =
+    ready?.state === "stale" || (staleAtMs !== null && staleInMs < 0);
+  const wakes = [waitMs, staleInMs].filter(
+    (ms) => ms > 0 && ms <= MAX_TIMER_MS
+  );
+  const wakeMs = wakes.length === 0 ? 0 : Math.min(...wakes);
 
-  // Re-render when the throttle window ends so the button enables itself.
+  // Re-render when the throttle window ends (the button enables itself) or the verdict
+  // turns stale.
   useEffect(() => {
-    if (waitMs <= 0 || waitMs > MAX_TIMER_MS) return;
-    const timer = setTimeout(() => setTick((tick) => tick + 1), waitMs);
+    if (wakeMs <= 0) return;
+    const timer = setTimeout(() => setTick((tick) => tick + 1), wakeMs);
     return () => clearTimeout(timer);
-  }, [waitMs]);
+  }, [wakeMs]);
 
   const refresh = useCallback(async () => {
     const mine = generation.current;
@@ -256,7 +273,7 @@ export const JevVerdictPanel = ({
           <p className="text-sm">{state.message}</p>
         </div>
       ) : (
-        <ReadyBody data={state.data} />
+        <ReadyBody data={state.data} stale={stale} />
       )}
     </section>
   );

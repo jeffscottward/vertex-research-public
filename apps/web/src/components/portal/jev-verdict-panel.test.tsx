@@ -191,6 +191,25 @@ describe("JevVerdictPanel", () => {
     expect(button(view).disabled).toBe(false);
   });
 
+  it("marks a fresh verdict stale while the page stays open", async () => {
+    vi.useFakeTimers();
+    let clock = NOW_MS;
+    const fake = gateway(async () =>
+      output({ state: "fresh", verdict: verdict() })
+    );
+    const view = await mount(
+      <JevVerdictPanel gateway={fake} now={() => clock} symbol="SPY" />
+    );
+    expect(view.querySelector("[data-jev-stale]")).toBeNull();
+    // decidedAt 14:50 + 60 min = 15:50; the page renders at 15:00.
+    clock += 50 * 60_000 + 1;
+    await act(async () => {
+      vi.advanceTimersByTime(50 * 60_000);
+    });
+    expect(view.querySelector("[data-jev-stale]")).not.toBeNull();
+    expect(fake.get).toHaveBeenCalledTimes(1);
+  });
+
   it("does not arm a timer past the setTimeout limit", async () => {
     const timer = vi.spyOn(globalThis, "setTimeout");
     const fake = gateway(async () =>
