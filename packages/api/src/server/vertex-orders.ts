@@ -379,31 +379,30 @@ const blockedBy = <T extends { accepted: boolean; reasons: string[] }>(
     ? review
     : { ...review, accepted: false, reasons: [...review.reasons, ...reasons] };
 
-// Final JEV order gate (merge plan P6): simulated (paper/mock) gateway only. Live mode keeps its
-// existing gates unchanged until the owner approves moving them into the final gate.
+// Final JEV order gate (merge plan P6): runs on every order, simulated and live (owner approval
+// 2026-11-05). The account gates (kill switch, OPTIONS_ONLY) are inputs to the shared gate.
+// VERTEX_ORDERS_ENABLED and VERTEX_ORDER_SUBMISSION still choose the gateway (liveAllowed).
 const finalGateFor = (
-  gateway: OrderGatewayPort,
   account: OrderAccount,
   order: FinalGateOrder,
   now: Date
-): FinalGateDecision | null =>
-  gateway.mode === "simulated"
-    ? evaluateFinalOrderGate({
-        accountValue: account.netLiquidation,
-        jev: (deps().jevVerdict ?? readCachedJevVerdict)(order.symbol),
-        now,
-        order,
-        positions: account.positions,
-      })
-    : null;
+): FinalGateDecision =>
+  evaluateFinalOrderGate({
+    accountGates: account.gates,
+    accountValue: account.netLiquidation,
+    jev: (deps().jevVerdict ?? readCachedJevVerdict)(order.symbol),
+    now,
+    order,
+    positions: account.positions,
+  });
 
 const withFinalGate = <T extends { accepted: boolean; reasons: string[] }>(
   review: T,
-  gate: FinalGateDecision | null
-): T & { finalGate: FinalGateDecision | null } => ({
+  gate: FinalGateDecision
+): T & { finalGate: FinalGateDecision } => ({
   ...blockedBy(
     review,
-    gate?.decision === "deny"
+    gate.decision === "deny"
       ? gate.reasons.map((reason) => `Final gate: ${reason}`)
       : []
   ),
@@ -413,11 +412,10 @@ const withFinalGate = <T extends { accepted: boolean; reasons: string[] }>(
 // Audit field for the final gate. A risk-reducing order sent without a fresh JEV verdict is
 // recorded here (owner rule: logged and sent).
 const gateAudit = (
-  gate: FinalGateDecision | null
-): Readonly<Record<string, string>> =>
-  gate === null
-    ? {}
-    : { finalGate: `${gate.decision} ${gate.structure} jev=${gate.jevState}` };
+  gate: FinalGateDecision
+): Readonly<Record<string, string>> => ({
+  finalGate: `${gate.decision} ${gate.structure} jev=${gate.jevState}`,
+});
 
 const singleGateOrder = (order: VertexOrderInput): FinalGateOrder => ({
   engine: "platform-ticket",
@@ -446,20 +444,18 @@ const comboGateOrder = (order: VertexComboInput): FinalGateOrder => ({
   symbol: order.symbol,
 });
 
-// Opening verticals exist only on the simulated gateway; live combos stay close-only.
+// A combo that reverses held legs is a close (evaluateCombo); any other combo opens a vertical
+// (evaluateOpeningCombo) and must pass the final gate. Same on simulated and live.
 const reviewCombo = (
   order: VertexComboInput,
-  gateway: OrderGatewayPort,
   account: OrderAccount,
   now: Date
 ) => {
   const gateOrder = comboGateOrder(order);
-  const opening =
-    gateway.mode === "simulated" &&
-    !isRiskReducing(gateOrder, account.positions);
+  const opening = !isRiskReducing(gateOrder, account.positions);
   return withFinalGate(
     (opening ? evaluateOpeningCombo : evaluateCombo)(order, account, now),
-    finalGateFor(gateway, account, gateOrder, now)
+    finalGateFor(account, gateOrder, now)
   );
 };
 
@@ -510,7 +506,7 @@ const preview = api.vertexOrders.preview
     const review = blockedBy(
       withFinalGate(
         evaluateOrder(input, account, now),
-        finalGateFor(gateway, account, singleGateOrder(input), now)
+        finalGateFor(account, singleGateOrder(input), now)
       ),
       await reconcileUnknown(
         context,
@@ -587,7 +583,7 @@ const submit = api.vertexOrders.submit
     const review = blockedBy(
       withFinalGate(
         evaluateOrder(input.order, account, now),
-        finalGateFor(gateway, account, singleGateOrder(input.order), now)
+        finalGateFor(account, singleGateOrder(input.order), now)
       ),
       await reconcileUnknown(context, store, account, now.getTime())
     );
@@ -662,7 +658,7 @@ const comboPreview = api.vertexOrders.comboPreview
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
     const review = blockedBy(
-      reviewCombo(input, gateway, account, now),
+      reviewCombo(input, account, now),
       await reconcileUnknown(
         context,
         intentStoreOf(context, gateway, failures),
@@ -739,7 +735,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
     const store = intentStoreOf(context, gateway, failures);
     const account = await guarded(failures, gateway.account, auditFailure);
     const review = blockedBy(
-      reviewCombo(order, gateway, account, now),
+      reviewCombo(order, account, now),
       await reconcileUnknown(context, store, account, now.getTime())
     );
     if (!review.accepted) {

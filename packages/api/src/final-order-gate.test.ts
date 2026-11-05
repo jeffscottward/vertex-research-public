@@ -370,3 +370,20 @@ it("reads a share sale against held shares as risk-reducing", () => {
   expect(isRiskReducing(sale, [shares])).toBe(true);
   expect(isRiskReducing(sale, [])).toBe(false);
 });
+
+it("applies the account gates to new positions but never to closes", () => {
+  const open = gate({
+    accountGates: { killSwitch: true, optionsOnly: false },
+    jev: verdict("BULLISH"),
+    order: order([leg("BUY", 400)], 1),
+  });
+  expect(open.decision).toBe("deny");
+  expect(open.reasons.join(" ")).toMatch(/Kill switch/);
+  expect(open.reasons.join(" ")).toMatch(/OPTIONS_ONLY/);
+  const close = gate({
+    accountGates: { killSwitch: true, optionsOnly: false },
+    order: order([leg("SELL", 400)], 2, 1),
+    positions: HELD,
+  });
+  expect(close.decision).toBe("allow");
+});

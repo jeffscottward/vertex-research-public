@@ -1506,15 +1506,50 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(resting.review.reasons.join(" ")).toMatch(/open order rests/);
   });
 
-  it("live mode keeps the existing gates: no final gate and close-only combos", async () => {
+  it("live mode runs the same final gate, sends an allowed vertical to the bridge and keeps the env gates", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const { store } = intentStore();
     const client = clientFor({ config: on, intents: store });
     const preview = await client.vertexOrders.preview(order());
-    expect(preview.review.finalGate).toBeNull();
+    expect(preview.review.finalGate).toMatchObject({ decision: "allow" });
     const combo = await client.vertexOrders.comboPreview(vertical());
-    expect(combo.review.finalGate).toBeNull();
-    expect(combo.review.accepted).toBe(false);
+    expect(combo.gates.mode).toBe("live");
+    expect(combo.review.finalGate).toMatchObject({
+      decision: "allow",
+      structure: "debit-vertical",
+    });
+    const result = await client.vertexOrders.comboSubmit({
+      order: vertical(),
+      confirmToken: combo.confirmToken ?? "",
+      confirm: true,
+    });
+    expect(result.mode).toBe("live");
+    expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
+      "http://127.0.0.1:3470/combos"
+    );
+    // VERTEX_ORDER_SUBMISSION disabled: the mock is used, never the bridge.
+    bridgeFetch.mockClear();
+    const off = clientFor({ config: { ...on, submission: "disabled" } });
+    expect((await off.vertexOrders.comboPreview(vertical())).gates.mode).toBe(
+      "simulated"
+    );
+    expect(bridgeFetch).not.toHaveBeenCalled();
+  });
+
+  it("denies a live naked short and a live vertical with no JEV verdict", async () => {
+    const on = { ...OFF, enabled: true, submission: "enabled" };
+    const { store } = intentStore();
+    const client = clientFor({ config: on, intents: store });
+    const naked = await client.vertexOrders.preview(order({ side: "SELL" }));
+    expect(naked.review.accepted).toBe(false);
+    expect(naked.confirmToken).toBeNull();
+    setOrdersDependencies({ mock, bridgeFetch, now: () => at });
+    const nojev = await clientFor({
+      config: on,
+      intents: store,
+    }).vertexOrders.comboPreview(vertical());
+    expect(nojev.review.finalGate?.decision).toBe("deny");
+    expect(nojev.confirmToken).toBeNull();
   });
 
   it("lets a share close through as risk-reducing and logs the gate in the audit", async () => {
