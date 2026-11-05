@@ -9,16 +9,20 @@ import { describe, expect, it } from "vitest";
 // signal-intake removal (test_no_signal_intake.py), the disabled
 // direct-placeOrder host script (test_transmit_disabled.py), plus the
 // file-only checks of test_exec_node.py that pin those owned files against the
-// frozen manifest. This test runs them so CI and pre-push cover them. They use
+// frozen manifest and read host values from a host config file
+// (HostConfigTests). This test runs them so CI and pre-push cover them. They use
 // temporary directories and fake clients only; nothing reaches a broker,
 // Docker or QuantVPS.
 const here = fileURLToPath(new URL(".", import.meta.url));
 const SUITES: ReadonlyArray<{ name: string; args: readonly string[] }> = [
-  { name: "test_arm_killswitch.py", args: [] },
-  { name: "test_order_policy.py", args: [] },
-  { name: "test_no_signal_intake.py", args: [] },
-  { name: "test_transmit_disabled.py", args: [] },
-  { name: "test_exec_node.py", args: ["OwnedRuntimeTests", "ManifestTests"] },
+  { args: [], name: "test_arm_killswitch.py" },
+  { args: [], name: "test_order_policy.py" },
+  { args: [], name: "test_no_signal_intake.py" },
+  { args: [], name: "test_transmit_disabled.py" },
+  {
+    args: ["OwnedRuntimeTests", "ManifestTests", "HostConfigTests"],
+    name: "test_exec_node.py",
+  },
 ];
 const PYTHON_TIMEOUT_MS = 120_000;
 

@@ -6,7 +6,10 @@
 # Never touches ib-gateway, nautilus-trader, watchdog, portfolio-ui, postgres, redis, compose or main Caddy.
 set -euo pipefail
 TS=__TS__
-RIG_IPS="100.64.0.20 fd7a:115c:a1e0::20"
+# The rig's tailnet IPv4 and IPv6 are host config on QuantVPS (VERTEX_RIG_IPS in /etc/vertex/hosts.env,
+# not in git; public repository 2026-11-05). Missing or malformed: stop before any change.
+RIG_IPS=$(sed -n 's/^VERTEX_RIG_IPS=//p' /etc/vertex/hosts.env 2>/dev/null | tail -1 || true)
+[[ "$RIG_IPS" =~ ^[0-9a-f.:]+( [0-9a-f.:]+)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
 H=/opt/vertex-history
 R=$H/rollback-$TS
 IBAPI_URL=https://files.pythonhosted.org/packages/cc/78/8f1322aa1be1fe7d747d06d445ede80141e873525120bde809ccae5484fa/ibapi-9.81.1.post1.tar.gz

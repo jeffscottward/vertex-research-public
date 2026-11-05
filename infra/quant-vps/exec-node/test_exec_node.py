@@ -279,7 +279,7 @@ class OwnedRuntimeTests(unittest.TestCase):
     # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
-        "docker-compose.yml": "edd2aee5de72abc617d9ec30c5f53f5644e1966c191021d70c1468dc30a21289",
+        "docker-compose.yml": "32f2d6d7c677cc89081ffd41db671445dd44812e317d89cd067ee672031543e6",
     }
 
     def test_compose_has_no_retired_environment(self):
@@ -731,6 +731,37 @@ class VerifyLogicTests(unittest.TestCase):
         self.assertEqual(en.diff_paths({"a": [1, 2]}, {"a": [1, 3], "b": 1}), ["a[1]", "b"])
         self.assertEqual(en.diff_paths([1], [1, 2]), ["$"])
         self.assertEqual(en.replace_strings(copy.deepcopy({"a": [OLD + "/x", 1]}), OLD, NEW), {"a": [NEW + "/x", 1]})
+
+
+
+class HostConfigTests(unittest.TestCase):
+    """Host values come from the host-local /etc/vertex/hosts.env, never from the committed tree."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.path = str(self.tmp / "hosts.env")
+
+    def write(self, text):
+        Path(self.path).write_text(text)
+
+    def test_monitor_url_uses_the_configured_tailnet_ipv4(self):
+        self.write("# host config\nVERTEX_TAILNET_HOST=quant-vps-host.example-tailnet.ts.net\n"
+                   "VERTEX_TAILNET_IPV4=100.64.0.1\nVERTEX_TAILNET_IPV4=100.64.0.10\n")
+        self.assertEqual(en.ibkr_monitor_health_url(self.path), "http://100.64.0.10:3461/api/health")
+
+    def test_missing_or_malformed_config_refuses(self):
+        for text in (None, "", "VERTEX_TAILNET_IPV4=\n", "VERTEX_TAILNET_IPV4=10.0.0.5\n",
+                     "VERTEX_TAILNET_IPV4=100.64.0.10/evil\n", "OTHER=100.64.0.10\n"):
+            if text is not None:
+                self.write(text)
+            with self.assertRaises(en.ExecNodeError) as caught:
+                en.ibkr_monitor_health_url(self.path)
+            self.assertEqual(str(caught.exception), f"VERTEX_TAILNET_IPV4 missing or malformed in {self.path}")
+
+    def test_committed_tool_names_no_tailnet_address(self):
+        source = (HERE / "exec_node.py").read_text()
+        self.assertNotRegex(source, r"\b100\.\d+\.\d+\.\d+\b|fd7a:|\.ts\.net\b")
 
 
 if __name__ == "__main__":

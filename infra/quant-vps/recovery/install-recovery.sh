@@ -12,7 +12,10 @@
 # systemctl disable --now vertex-ibkr-recovery; restore $R/Caddyfile.tailnet.before in place and reload.
 set -euo pipefail
 TS=__TS__
-RIG_IPS="100.64.0.20 fd7a:115c:a1e0::20"
+# The rig's tailnet IPv4 and IPv6 are host config on QuantVPS (VERTEX_RIG_IPS in /etc/vertex/hosts.env,
+# not in git; public repository 2026-11-05). Missing or malformed: stop before any change.
+RIG_IPS=$(sed -n 's/^VERTEX_RIG_IPS=//p' /etc/vertex/hosts.env 2>/dev/null | tail -1 || true)
+[[ "$RIG_IPS" =~ ^[0-9a-f.:]+( [0-9a-f.:]+)*$ ]] || { echo "VERTEX_RIG_IPS missing or malformed in /etc/vertex/hosts.env; nothing changed"; exit 3; }
 H=/opt/vertex-ibkr-recovery
 R=$H/rollback-$TS
 PORT=8793

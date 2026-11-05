@@ -57,6 +57,8 @@ python3 exec-node/exec_node.py rollback --switch-dir <switchDir>   # only when v
 
 `verify` checks: all nine containers running and healthy, the eight recreated ones from the new root; the gateway container and network unchanged; IBKR account snapshot (the 2FA script with `--check-only`; skipped for the old root, whose reader is broken); vertex-portfolio `state=live`; ibkr-monitor `bridge=live`; Nautilus `armed=false`, no `ARMED` file and an unchanged `arm-audit.jsonl`; no `REMOVED` file in the root; watchdog health; recovery health schema and script path; `vertex-nautilus-node`, the alert timer and recovery active; the 8am gate timer unchanged; the pm2 heartbeat online in the root; no live unit, cron entry, consumer or pm2 entry naming the other root.
 
+Host config (public repository, 2026-11-05): the committed tree names no real host or e-mail. `verify` builds the ibkr-monitor health URL from `VERTEX_TAILNET_IPV4` in the host-local `/etc/vertex/hosts.env` (see `infra/quantvps/README.md`, "Host config"); a missing or malformed value fails the `ibkr_monitor_live` check with the key and file name. The compose file takes the 2FA notice address only from `IBKR_2FA_NOTIFY_EMAIL` in the root `.env` (empty default). The live `/opt/vertex-exec-node` compose still carries its own default, and its `.env` has no `IBKR_2FA_NOTIFY_EMAIL` line (checked 2026-11-05, names only). Add that line to the root `.env` before a root is next built from this tree; `gate` refuses while the two configs differ.
+
 Known gap: `vertex-quant-ibkr-gate-8am.service` runs the script open_ibkr_trading_gate_8am.sh, which does not exist in the live tree. Its timer is disabled, and the switch keeps it disabled.
 
 ## Switch record

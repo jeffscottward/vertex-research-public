@@ -37,6 +37,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -164,7 +165,10 @@ RECOVERY_TOKEN_FILE = "/opt/vertex-ibkr-recovery/token.env"
 PORTFOLIO_HEALTH_URL = "http://127.0.0.1:8792/vertex-portfolio/v1/health"
 RECOVERY_HEALTH_URL = "http://127.0.0.1:8793/vertex-ibkr-recovery/v1/health"
 RECOVERY_HEALTH_SCHEMA = "vertex-ibkr-recovery-health-v1"
-IBKR_MONITOR_HEALTH_URL = "http://100.64.0.10:3461/api/health"
+# Host values are server-side config (public repository 2026-11-05): KEY=value lines in the host-local
+# /etc/vertex/hosts.env on QuantVPS, never committed. ibkr-monitor listens on the VPS tailnet IPv4.
+HOSTS_ENV = "/etc/vertex/hosts.env"
+IBKR_MONITOR_PORT = 3461
 WATCHDOG_HEALTH = "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=3).read().decode())"
 TWO_FA_SCRIPT = "request-ibkr-2fa-until-ready.sh"
 MOVE = "@move-state"
@@ -763,6 +767,28 @@ def token_header(path: str, key: str) -> Dict[str, str]:
     raise ExecNodeError(f"{key} not found in {path}")
 
 
+def host_config_value(name: str, path: str = HOSTS_ENV) -> str:
+    """Last `name=value` line of the host config file; "" when the file or the key is missing."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return ""
+    value = ""
+    for line in lines:
+        if line.startswith(f"{name}="):
+            value = line[len(name) + 1 :].strip()
+    return value
+
+
+def ibkr_monitor_health_url(path: str = HOSTS_ENV) -> str:
+    """ibkr-monitor health URL on the VPS tailnet IPv4 (VERTEX_TAILNET_IPV4 in the host config)."""
+    ipv4 = host_config_value("VERTEX_TAILNET_IPV4", path)
+    if not re.fullmatch(r"100\.\d{1,3}\.\d{1,3}\.\d{1,3}", ipv4):
+        raise ExecNodeError(f"VERTEX_TAILNET_IPV4 missing or malformed in {path}")
+    return f"http://{ipv4}:{IBKR_MONITOR_PORT}/api/health"
+
+
 def http_json(url: str, headers: Optional[Dict[str, str]] = None, timeout: float = 8) -> Any:
     request = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec - fixed loopback/tailnet URLs
@@ -884,11 +910,13 @@ def verify(runner: Runner, root: str, before: Optional[Dict[str, Any]] = None) -
     except Exception as exc:  # noqa: BLE001 - reported as a failed check
         checks["vertex_portfolio_live"] = (False, type(exc).__name__)
     try:
-        monitor = http_json(IBKR_MONITOR_HEALTH_URL)
+        monitor = http_json(ibkr_monitor_health_url())
         checks["ibkr_monitor_live"] = (
             monitor.get("bridge") == "live" and monitor.get("stale") is False,
             f"bridge={monitor.get('bridge')} stale={monitor.get('stale')}",
         )
+    except ExecNodeError as exc:  # host config missing: names the key and file, no values
+        checks["ibkr_monitor_live"] = (False, str(exc))
     except Exception as exc:  # noqa: BLE001
         checks["ibkr_monitor_live"] = (False, type(exc).__name__)
     try:
