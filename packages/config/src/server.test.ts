@@ -185,6 +185,29 @@ describe("parseServerEnv", () => {
     return expect(error.issues.some(({ path }) => path === key)).toBe(true);
   });
 
+  it("defaults the backtest runs engine to typescript and accepts nautilus", () => {
+    expect(parseServerEnv(validCoreEnv()).VERTEX_BACKTEST_RUNS_ENGINE).toBe(
+      "typescript"
+    );
+    expect(
+      parseServerEnv({ ...validCoreEnv(), VERTEX_BACKTEST_RUNS_ENGINE: " " })
+        .VERTEX_BACKTEST_RUNS_ENGINE
+    ).toBe("typescript");
+    expect(
+      parseServerEnv({
+        ...validCoreEnv(),
+        VERTEX_BACKTEST_RUNS_ENGINE: "nautilus",
+      }).VERTEX_BACKTEST_RUNS_ENGINE
+    ).toBe("nautilus");
+    const error = captureValidationError({
+      ...validCoreEnv(),
+      VERTEX_BACKTEST_RUNS_ENGINE: "python",
+    });
+    expect(
+      error.issues.some(({ path }) => path === "VERTEX_BACKTEST_RUNS_ENGINE")
+    ).toBe(true);
+  });
+
   it("parses VERTEX_AGENT_VIEWER_EMAILS and refuses overlap with operators", () => {
     expect(
       parseServerEnv({

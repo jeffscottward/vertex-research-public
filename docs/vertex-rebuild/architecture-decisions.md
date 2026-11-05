@@ -102,6 +102,14 @@ Vertex Research software/brand does not establish a legal investment fund, regul
 
 **Consequence/gate:** all work remains research/read-only unless a verified narrowly scoped later receipt says otherwise. Never rewrite old evidence, reset/clean original repos, restart legacy writers against unresolved state, or cancel subscriptions to make consolidation appear complete. Parent owns gates/checkpoint/final verification; sibling no-gate scheduling is not a waiver.
 
+## ADR-V12 — Nautilus is the backtest engine of record
+
+**Owner decision (2026-11-05):** move every Vertex backtest onto NautilusTrader, parity tests first.
+
+**Decision:** the research engine `services/research/nautilus_backtest` runs fixed rules and strategy DSL definitions in a Nautilus `BacktestEngine` pinned to `nautilus-trader==1.227.0` (the research lock, shared with Quant Lab). It returns the existing result shape, so reports and analytics do not change. It runs on the rig or in a research container, never on the live trading node. This does not change the execution pins of ADR-V06.
+
+**Consequence/gate:** each feature switches only after its parity cases pass (`scripts/research/nautilus-parity.ts`, tolerances in [nautilus-backtest-engine.md](nautilus-backtest-engine.md)). The TypeScript engine stays behind a per-feature setting until the last feature switches, then a separate PR removes it.
+
 ## Canonical vocabulary
 
 | Term | Meaning |

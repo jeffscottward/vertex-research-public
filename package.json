@@ -77,6 +77,7 @@
     "vertex:golden-battery": "bun --no-env-file scripts/vertex-golden-battery.ts",
     "vertex:paper:tick": "bun --no-env-file scripts/vertex-paper-forward-tick.ts",
     "vertex:autopilot:tick": "bun --no-env-file scripts/vertex-autopilot-tick.ts",
+    "vertex:backtest-worker:nautilus": "bun --no-env-file scripts/vertex-backtest-worker-nautilus.ts",
     "vertex:alerts:tick": "bun --no-env-file scripts/vertex-price-alerts-tick.ts",
     "vertex:sector-rotation:tick": "bun --no-env-file scripts/vertex-sector-rotation-tick.ts",
     "vertex:pick-lists": "bun --no-env-file scripts/vertex-pick-lists.ts",
@@ -107,6 +108,8 @@
     "research:backtest-151": "bun scripts/research-backtest-151.ts",
     "research:quantjourney": "bun scripts/research-quantjourney.ts",
     "research:core7": "bun scripts/vertex-core7-rerun.ts",
+    "research:nautilus-golden": "bun scripts/research-nautilus-golden.ts",
+    "research:nautilus-parity": "bun scripts/research-nautilus-parity.ts",
     "academy:sources": "bun scripts/academy/build-sources.ts",
     "academy:lessons": "bun scripts/academy/build-lesson-index.ts",
     "academy:lessons:check": "bun scripts/academy/build-lesson-index.ts --check"

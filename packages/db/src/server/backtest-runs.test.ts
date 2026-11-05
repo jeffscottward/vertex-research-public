@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { type BacktestRunSpec, backtestRuns } from "../schema/index.ts";
 import {
+  BACKTEST_RUN_CLAIM_ATTEMPTS,
   BACKTEST_RUN_ERROR_MAX_LENGTH,
   boundBacktestRunError,
   createBacktestRunsRepository,
@@ -197,6 +198,85 @@ describe("createBacktestRunsRepository", () => {
     const where = sqlText(operations[0]?.where);
     expect(where).toContain('"backtest_runs"."started_at"');
     expect(where).toContain('"backtest_runs"."id"');
+  });
+
+  it("claims the oldest queued run of one engine version with a conditional update", async () => {
+    const { database, operations } = createDouble([
+      [{ id: "run-1" }],
+      [{ id: "run-1", status: "running" }],
+    ]);
+    const repository = createBacktestRunsRepository(database, dependencies);
+    await expect(repository.claimNext("nautilus-x")).resolves.toEqual({
+      id: "run-1",
+      status: "running",
+    });
+    const select = sqlText(operations[0]?.where);
+    expect(select).toContain('"backtest_runs"."status"');
+    expect(select).toContain('"backtest_runs"."engine_version"');
+    expect(operations[0]?.limit).toBe(1);
+    expect(operations[1]?.set).toEqual({
+      startedAt: FIXED_NOW,
+      status: "running",
+    });
+    const update = sqlText(operations[1]?.where);
+    expect(update).toContain('"backtest_runs"."id"');
+    expect(update).toContain('"backtest_runs"."status"');
+    expect(update).toContain('"backtest_runs"."engine_version"');
+  });
+
+  it("tries the next candidate when another worker wins, and stops when none is queued", async () => {
+    const lost = createDouble([
+      [{ id: "a" }],
+      [],
+      [{ id: "b" }],
+      [{ id: "b" }],
+    ]);
+    await expect(
+      createBacktestRunsRepository(lost.database, dependencies).claimNext("e")
+    ).resolves.toEqual({ id: "b" });
+    const empty = createDouble([[]]);
+    await expect(
+      createBacktestRunsRepository(empty.database, dependencies).claimNext("e")
+    ).resolves.toBeNull();
+    expect(empty.operations).toHaveLength(1);
+    const busy = createDouble(
+      Array.from({ length: BACKTEST_RUN_CLAIM_ATTEMPTS }, () => [
+        [{ id: "a" }],
+        [],
+      ]).flat()
+    );
+    await expect(
+      createBacktestRunsRepository(busy.database, dependencies).claimNext("e")
+    ).resolves.toBeNull();
+    expect(busy.operations).toHaveLength(2 * BACKTEST_RUN_CLAIM_ATTEMPTS);
+  });
+
+  it("fails one run still queued after the limit when no run of its engine started since", async () => {
+    const { database, operations } = createDouble([[{ id: "a" }], []]);
+    const repository = createBacktestRunsRepository(database, dependencies);
+    await expect(
+      repository.failIfUnclaimed(
+        "a",
+        "nautilus-x",
+        FIXED_NOW,
+        " not picked up "
+      )
+    ).resolves.toBe(true);
+    await expect(
+      repository.failIfUnclaimed("b", "nautilus-x", FIXED_NOW, "not picked up")
+    ).resolves.toBe(false);
+    expect(operations[0]?.set).toEqual({
+      error: "not picked up",
+      finishedAt: FIXED_NOW,
+      status: "failed",
+    });
+    const where = sqlText(operations[0]?.where);
+    expect(where).toContain('"backtest_runs"."created_at"');
+    expect(where).toContain('"backtest_runs"."status"');
+    expect(where).toContain(
+      'not exists (select 1 from "backtest_runs" "active" where ("active"."engine_version" = $'
+    );
+    expect(where).toContain('"active"."started_at" >= $');
   });
 
   it("is part of createRepositories", () => {

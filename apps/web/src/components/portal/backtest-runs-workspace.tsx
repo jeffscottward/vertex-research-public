@@ -65,7 +65,9 @@ const LazyBacktestSeriesChart = lazy(async () => ({
 }));
 
 const POLL_MS = 1000;
-const POLL_MAX = 300;
+// 20 minutes: a Nautilus run may wait up to 10 minutes for the research worker and then run up to
+// 9 minutes (docs/vertex-rebuild/nautilus-backtest-engine.md).
+const POLL_MAX = 1200;
 const STILL_RUNNING =
   "The run has not finished yet. Select it in Recent runs to check again.";
 const REPLAY_WIDTH = 960;
