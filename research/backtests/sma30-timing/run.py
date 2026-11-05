@@ -26,8 +26,8 @@ from pathlib import Path
 from strategies import sma_timing as st
 
 CREATOR = {
-    "source": "Instagram @alanintelligence (untrusted claims); owner message "
-              "https://discord.com/channels/1511468532876185770/1559295973912477737/1565916282996400218",
+    "source": "Instagram @alanintelligence (untrusted claims); "
+              "owner Discord message (private)",
     "period": "1926-07 to 2026-06",
     "start_usd": 1000,
     "timing_final_usd": 339.9e6,

@@ -4,7 +4,7 @@ Status: research only. No live or paper orders. No broker changes. No engine is 
 
 ## Source
 
-- Instagram post by @alanintelligence, sent by the owner on 2026-10-30 as a screenshot: <https://discord.com/channels/1511468532876185770/1559295973912477737/1565916282996400218> (card vertex-30dma-timing). The claims below are the creator's; they were not trusted before they were reproduced.
+- Instagram post by @alanintelligence, sent by the owner on 2026-10-30 as a screenshot: owner Discord message (private) (card vertex-30dma-timing). The claims below are the creator's; they were not trusted before they were reproduced.
 - Rule as stated: exit the US stock market when it closes below its 30-day moving average; re-enter when it closes above; hold Treasury bills while out.
 - Claimed result, 1926-07 to 2026-06, from USD 1,000: USD 339.9 million with the rule vs USD 17.7 million buy-and-hold (19x), 1,936 trades, out of the market 36.12% of days, maximum drawdown 39.52% vs 84.07%, no costs. At 0.2% per trade the rule ends 60.13% behind buy-and-hold.
 - Stated data: CRSP US market total return from the Kenneth R. French Data Library; nominal; before tax.
