@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "approved-optional-numeric-source-plan",
-  "state": "pinned-source-plan-runtime-unavailable",
+  "state": "pinned-ci-tested-runtime-unqualified",
+  "ciUse": "Since 2026-11-05 scripts/ci/research-python.sh installs requirements-numeric-linux-py312.lock with --require-hashes in a temporary venv and runs tests/test_quant_replay_event_study.py with VERTEX_REQUIRE_NUMERIC=1 (card vertex-research-py-suite-rot). Test use only; no runtime qualification. The approval record below is kept as written.",
   "proposal": {
     "path": "private/verification/foundation/VertexNumericRuntimeClosureProposal-v1.json",
     "sha256": "a7284645dae0626e027cfa516f520a2ebef7e72063c13ac81080844324b5cb07"
