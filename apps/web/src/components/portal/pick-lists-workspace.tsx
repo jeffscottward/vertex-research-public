@@ -47,6 +47,7 @@ import {
   type PickListGateway,
   STATUS_LABELS,
 } from "./pick-lists-client.ts";
+import { PickListImportPanel } from "./pick-list-import-panel.tsx";
 import { QUADRANT_CHIP, QUADRANT_LABELS } from "./sector-rotation-chart.tsx";
 
 export interface PickListsWorkspaceProps {
@@ -457,14 +458,10 @@ export const PickListsWorkspace = ({
           Loading pick lists…
         </p>
       ) : null}
+      <PickListImportPanel gateway={gateway} onImported={() => void load()} />
       {loaded && items.length === 0 ? (
         <p className="text-muted-foreground text-sm">
-          No pick lists. Import one with{" "}
-          <code className="font-mono">
-            bun run vertex:pick-lists -- import --adapter json --file
-            &lt;path&gt;
-          </code>
-          .
+          No pick lists. Import one above.
         </p>
       ) : null}
       {items.map((list) => (

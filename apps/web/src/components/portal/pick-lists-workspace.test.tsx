@@ -172,6 +172,7 @@ const screenResult: PickListScreenOutput = {
 
 const fakeGateway = (overrides: Partial<PickListGateway> = {}) => {
   const gateway = {
+    import: vi.fn<PickListGateway["import"]>(async () => pickList()),
     list: vi.fn<PickListGateway["list"]>(async () => [pickList()]),
     screen: vi.fn<PickListGateway["screen"]>(async () => screenResult),
     syncBucket: vi.fn<PickListGateway["syncBucket"]>(
@@ -213,6 +214,7 @@ describe("pick lists client", () => {
   it("maps gateway calls to the oRPC client", async () => {
     const client = {
       pickLists: {
+        import: vi.fn(async () => pickList()),
         list: vi.fn(async () => ({ items: [pickList()] })),
         screen: vi.fn(async () => screenResult),
         syncBucket: vi.fn(async () => ({
@@ -227,6 +229,16 @@ describe("pick lists client", () => {
       client as unknown as Parameters<typeof createPickListGateway>[0]
     );
     expect(await gateway.list()).toHaveLength(1);
+    const input = {
+      asOf: "2026-11-05",
+      list: { name: "Top", slug: "top" },
+      members: [{ symbol: "AAPL" }],
+      method: "manual" as const,
+      source: "moby",
+      sourceLabel: "Moby",
+    };
+    await gateway.import(input);
+    expect(client.pickLists.import).toHaveBeenCalledWith(input);
     await gateway.screen("list-1");
     await gateway.syncBucket("list-1", "WISH");
     expect(client.pickLists.list).toHaveBeenCalledWith({});
@@ -245,6 +257,15 @@ describe("pick lists client", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     for (const call of [
       () => gateway.list(),
+      () =>
+        gateway.import({
+          asOf: "2026-11-05",
+          list: { name: "Top", slug: "top" },
+          members: [{ symbol: "AAPL" }],
+          method: "manual",
+          source: "moby",
+          sourceLabel: "Moby",
+        }),
       () => gateway.screen("x"),
       () => gateway.syncBucket("x", "WISH"),
     ]) {
@@ -315,10 +336,26 @@ describe("PickListsWorkspace", () => {
     const container = await render(
       <PickListsWorkspace gateway={fakeGateway({ list: async () => [] })} />
     );
-    expect(container.textContent).toContain(
-      "No pick lists. Import one with bun run vertex:pick-lists -- import"
-    );
+    expect(container.textContent).toContain("No pick lists. Import one above.");
     expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("reloads the lists after a manual import", async () => {
+    const gateway = fakeGateway({ list: vi.fn(async () => []) });
+    const container = await render(<PickListsWorkspace gateway={gateway} />);
+    await setValue(container.querySelector('input[maxlength="80"]'), "Wish");
+    const area = container.querySelector("textarea") as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set?.call(area, "AAPL");
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await click(buttonByText(container, "Preview"));
+    await click(buttonByText(container, "Save list"));
+    expect(gateway.import).toHaveBeenCalledTimes(1);
+    expect(gateway.list).toHaveBeenCalledTimes(2);
   });
 
   it("reports a list failure and retries", async () => {
