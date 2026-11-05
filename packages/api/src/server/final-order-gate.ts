@@ -195,21 +195,21 @@ const jevReasons = (
   return [];
 };
 
+const expiryReasons = (order: FinalGateOrder, now: Date): string[] =>
+  order.legs
+    .filter((l) => {
+      const days = l.secType === "OPT" ? daysToExpiry(l.expiry, now) : 0;
+      return days === null || days < 0;
+    })
+    .map((l) => `Leg ${l.expiry} ${l.strike}${l.right}: expiry is not valid.`);
+
 export const evaluateFinalOrderGate = (
   input: FinalGateInput
 ): FinalGateDecision => {
   const { order, accountValue, jev, now } = input;
-  const reasons: string[] = [];
   const jevState = jev === null ? "unreachable" : jev.state;
   const jevStance = jev?.verdict?.stance ?? null;
-
-  for (const l of order.legs) {
-    const days = l.secType === "OPT" ? daysToExpiry(l.expiry, now) : 0;
-    if (days === null || days < 0)
-      reasons.push(
-        `Leg ${l.expiry} ${l.strike}${l.right}: expiry is not valid.`
-      );
-  }
+  const reasons: string[] = expiryReasons(order, now);
   if (input.jevDenied === true) reasons.push("JEV denied this order.");
 
   if (isRiskReducing(order, input.positions)) {
