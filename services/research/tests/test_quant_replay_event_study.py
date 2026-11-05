@@ -1,8 +1,13 @@
-"""Synthetic event-study regression source only; optional numeric tests unexecuted.
+"""Synthetic event-study regression tests.
 
-Full numerical cases require separately approved numpy/scipy optional dependencies.
-No installs, provider inputs, source execution or test runs were performed.
+The pure-Python cases run everywhere. The optional-backend cases need numpy and
+scipy (lock: requirements-numeric-linux-py312.lock). Without them they skip,
+unless VERTEX_REQUIRE_NUMERIC=1 (set by scripts/ci/research-python.sh for the
+numeric run), where a missing backend is a failure. Synthetic data only: no
+installs, provider inputs or network.
 """
+import importlib
+import os
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -14,6 +19,26 @@ from backtesting.event_stats import (
 )
 from backtesting.event_study import EventInput, ReturnObservation, event_study, study_event
 from backtesting.lineage import Pin
+
+
+def _numeric_installed() -> bool:
+    if os.environ.get("VERTEX_REQUIRE_NUMERIC") == "1":
+        importlib.import_module("numpy")  # the numeric CI run fails here instead of skipping
+        importlib.import_module("scipy")
+        return True
+    try:
+        importlib.import_module("numpy")
+        importlib.import_module("scipy")
+    except ImportError:
+        return False
+    return True
+
+
+needs_numeric = pytest.mark.skipif(
+    not _numeric_installed(),
+    reason="optional numeric backend (numpy==2.4.6, scipy==1.18.1) not installed; "
+    "CI runs these in the numeric venv with VERTEX_REQUIRE_NUMERIC=1",
+)
 
 
 def synthetic_event(source_type="8-K", policy="first-close-after-availability"):
@@ -92,9 +117,10 @@ def test_missing_optional_backend_preserves_unavailable_event(monkeypatch):
     assert result.economics_simulated is False
 
 
+@needs_numeric
 def test_optional_backend_ols_abnormal_returns_and_bootstrap_reproducibility():
-    # Requires the optional numerical dependencies; no implicit installation or
-    # skip disguises their absence as verification in the deferred full gate.
+    # Requires the optional numerical dependencies. The CI numeric run sets
+    # VERTEX_REQUIRE_NUMERIC=1, so a missing backend fails there, not skips.
     market = (-0.02, -0.01, 0, 0.01, 0.02)
     model = fit_market_model(tuple(0.001 + 1.5 * value for value in market), market)
     assert model.alpha == pytest.approx(0.001)
@@ -108,6 +134,7 @@ def test_optional_backend_ols_abnormal_returns_and_bootstrap_reproducibility():
         fit_market_model((0.01, 0.02, 0.03), (0, 0, 0))
 
 
+@needs_numeric
 def test_optional_backend_after_close_anchor_and_late_eps_segmentation():
     event = synthetic_event()
     after_close = event.returns[250].session_close + timedelta(minutes=2)
@@ -120,6 +147,7 @@ def test_optional_backend_after_close_anchor_and_late_eps_segmentation():
     assert "later-eps-label-not-used-for-segmentation" in result.reasons
 
 
+@needs_numeric
 def test_optional_backend_source_types_and_anchor_policies_never_pooled():
     event = synthetic_event()
     second = replace(synthetic_event("10-Q"), event_id="event-b")

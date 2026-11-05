@@ -181,10 +181,18 @@ class DurablePaperTransportTests(unittest.TestCase):
             self.journal.append("paper-event", DurablePaperTransport._event_data(event),
                                 now_ns=event.occurred_ns, event_id="fixture-ingest-" + event.event_id)
 
+    def committed(self, sql):
+        # Independent read-only view of committed bytes. A SQLite failure inside
+        # Journal.transaction poisons the owner instance, so failure-path checks
+        # must not read through it.
+        connection = sqlite3.connect(f"file:{self.path}?mode=ro", uri=True)
+        try:
+            return connection.execute(sql).fetchone()
+        finally:
+            connection.close()
+
     def row(self):
-        return self.journal._db().execute(
-            "SELECT generation,owner_epoch,sha256,payload FROM paper_simulator_checkpoint WHERE slot=1"
-        ).fetchone()
+        return self.committed("SELECT generation,owner_epoch,sha256,payload FROM paper_simulator_checkpoint WHERE slot=1")
 
     def restore_row(self, row):
         with self.journal.transaction():
@@ -459,9 +467,9 @@ class DurablePaperTransportTests(unittest.TestCase):
         with self.assertRaises(sqlite3.OperationalError):
             self.bridge.restore()
         self.assertFalse(self.bridge.reconcile(KEY, PAYLOAD, now_ns=100).recovered_state_proven)
-        self.assertIsNone(self.journal._db().execute(
-            "SELECT name FROM sqlite_master WHERE name='paper_simulator_checkpoint'"
-        ).fetchone())
+        self.assertIsNone(self.committed("SELECT name FROM sqlite_master WHERE name='paper_simulator_checkpoint'"))
+        with self.assertRaisesRegex(ExecutionError, "closed-forked-or-uncertain-owner"):
+            self.journal._db()
 
     def test_existing_checkpoint_cannot_be_initialized_over(self):
         self.bridge.initialize()

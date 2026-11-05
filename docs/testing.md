@@ -77,7 +77,7 @@ The browser lane (`bun run verify:browser`) needs the same two variables.
 
 | Lane | Script | What it proves |
 | --- | --- | --- |
-| core | `verify:core` | format, lint, generated artifacts (OpenAPI, auth schema, docs), typecheck; in CI also the research tooling Python suites (`scripts/ci/research-python.sh`) |
+| core | `verify:core` | format, lint, generated artifacts (OpenAPI, auth schema, docs), typecheck; in CI also the Python research and execution suites (`scripts/ci/research-python.sh`) |
 | coverage | `verify:coverage` | unit, contract, operations and E2E-helper tests at 100% coverage |
 | integration | `verify:integration` | repositories, migrations, auth and API against real Postgres |
 | browser | `verify:browser` | production build, Playwright `e2e` and `a11y` |
@@ -90,9 +90,9 @@ Coverage ratchet: every measured file must reach 100% lines, branches, functions
 
 On pull requests the browser lane can run fewer specs. The CI step `Choose browser specs` runs `scripts/browser-specs.ts` on the change of the merge commit against the base branch tip. When every changed path is outside the web build, the app and the browser suite (`.agents/`, `.claude/`, `.vscode/`, `docs/`, `infra/`, `research/`, `services/`, `tests/generator/`, `tests/integration/`, root Markdown files and `LICENSE`), the lane runs `tests/e2e/smoke.spec.ts` and every changed spec file. Any other changed path, a git error, and every push or manual run use the full suite. Add a folder to `NO_BROWSER_INPUT` in `scripts/lib/browser-specs.ts` only when no import or file read of the app, the build or the suite reaches it.
 
-The core lane also runs `scripts/ci/research-python.sh`. It makes a temporary virtual environment with CPython 3.12 from the hash-pinned lock `services/research/requirements-linux-py312.lock` and runs pytest on the suites in `services/research/tests/ci-suites.txt`. These are the research tooling suites: the TradingAgents, QuantMind, Financial Datasets, framework-bench and Quant Lab entry points. Add the suite of every new research tooling entry point to that file. The rest of the Python research suite still runs locally only. Local run: `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`.
+The core lane also runs `scripts/ci/research-python.sh`. It makes a temporary virtual environment with CPython 3.12 from the hash-pinned lock `services/research/requirements-linux-py312.lock` and runs pytest on the suites in `services/research/tests/ci-suites.txt`. That file lists every `test_*.py` file in a `tests` folder under `services/research` and in `services/execution/tests`. The script stops when a test file is not listed, so add every new test file to it. Local run: `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`.
 
-A second run in the same script installs `services/research/requirements-nautilus-linux-py312.lock` (the base pins plus `nautilus-trader==1.227.0`; glibc 2.35 or later) into its own temporary virtual environment and runs the suites in `services/research/tests/ci-suites-nautilus.txt` with `VERTEX_REQUIRE_NAUTILUS=1`, so a missing engine fails instead of skipping. The base run does not change.
+Two more runs in the same script use their own temporary virtual environments. The numeric run installs `services/research/requirements-numeric-linux-py312.lock` (the base pins plus `numpy==2.4.6` and `scipy==1.18.1`) and runs the suites in `services/research/tests/ci-suites-numeric.txt` with `VERTEX_REQUIRE_NUMERIC=1`. The Nautilus run installs `services/research/requirements-nautilus-linux-py312.lock` (the base pins plus `nautilus-trader==1.227.0` and pandas; glibc 2.35 or later) and runs the suites in `services/research/tests/ci-suites-nautilus.txt` with `VERTEX_REQUIRE_NAUTILUS=1`. In these runs a missing numeric backend or engine fails instead of skipping. The pandas suites use `importorskip`; pandas is pinned in the Nautilus lock. In the base run the tests that need numpy, scipy, pandas or nautilus-trader skip.
 
 ## Writing good tests
 

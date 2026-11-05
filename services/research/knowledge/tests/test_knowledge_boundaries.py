@@ -135,10 +135,21 @@ class KnowledgeBoundaryCases(unittest.TestCase):
         summary = replace(self.source("test:summary"), content_class="editorial-summary", source_type="derived-analysis")
         self.assertIsInstance(self.plan(sources=(self.source(), summary)), Unavailable)
 
-    def test_unresolved_define_your_risk_is_not_relabelled(self):
-        self.assertEqual(self.plan("define-your-risk").reason, "collection-identity-unavailable")
+    def test_unresolved_collection_identity_is_not_relabelled(self):
+        # define-your-risk now has a documented identity; an unregistered
+        # collection must still fail closed instead of borrowing one.
+        unknown = self.plan("unregistered-collection")
+        self.assertIsInstance(unknown, Unavailable)
+        self.assertEqual(unknown.reason, "collection-identity-unavailable")
+        self.assertEqual(unknown.source_id, "unregistered-collection")
         adapters = CollectionAdapters(self.boundary, clock=FixedClock(), rights=self.rights)
-        self.assertEqual(adapters.define_your_risk().reason, "canonical-identity-rights-unavailable")
+        calls = []
+        other = b'{"schema_version":1,"profile_handle":"someone-else","profile_url":"https://www.instagram.com/someone-else/"}'
+        result = adapters.define_your_risk(other, lambda identity: calls.append(identity), captured_at=NOW,
+                                           rights_policy_id="test-policy")
+        self.assertIsInstance(result, Unavailable)
+        self.assertEqual((result.reason, result.source_id), ("define-your-risk-input-unavailable", "define-your-risk"))
+        self.assertEqual(calls, [])
 
     def test_delta_denied_rights_never_call_loader(self):
         adapters = CollectionAdapters(self.boundary, clock=FixedClock(), rights=self.rights)

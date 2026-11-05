@@ -51,6 +51,8 @@ INSTRUMENT = "qualified-EQ-1"
 class TestAuthority:
     """NON-CONFORMANCE test double: no public validation/codec guarantees."""
 
+    __test__ = False  # a test double, not a pytest test class
+
     def __init__(self):
         self.calls = []
 
@@ -58,7 +60,7 @@ class TestAuthority:
         self.calls.append((contract_name, schema_version))
         if contract_name not in {
             "TradeIntent", "PaperSimulationAdmission", "AcceptedReview",
-            "StrategySpec", "ExecutionProjection", "ExecutionReceipt", "PortfolioSnapshot",
+            "StrategySpec", "ExecutionProjection", "ExecutionReceipt", "PortfolioSnapshot", "PortfolioGenesis",
             "NativeFactProjection", "NativeJournalProof",
         }:
             raise AssertionError("unexpected contract in non-conformance fixture")
