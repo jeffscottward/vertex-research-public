@@ -103,9 +103,9 @@ Last 50, newest first: `{time, symbol, side (buy|sell), qty, price, order_id_mas
 | --- | --- |
 | `kill_switch` | `engaged` if any kill-switch file exists or watchdog `live_flags.kill_switch_active` is true. `clear` if every file is confirmed absent. `unknown` otherwise. |
 | `kill_switch_indicators[]` | `{source, engaged (bool\|null), as_of}`: files `data/KILL_SWITCH` and `portfolio-ui/data/KILL_SWITCH` (stat only), the watchdog flag, and the health.json flag. |
-| `limits` | block: allow-listed nautilus-trader env as lower-case keys, typed. Examples: `nautilus_risk_max_order_quantity`, `nautilus_risk_max_position_notional_usd`, `nautilus_risk_max_daily_loss_usd`, `nautilus_risk_allowed_instruments[]`, `risk_denied_instruments[]`, `nautilus_risk_orders_enabled`, `nautilus_risk_dry_run`, `trading_mode`, `enable_live_trading`, `charan_*`, `synthetic_*`. |
+| `limits` | block: allow-listed nautilus-trader env as lower-case keys, typed. Examples: `nautilus_risk_max_order_quantity`, `nautilus_risk_max_position_notional_usd`, `nautilus_risk_max_daily_loss_usd`, `nautilus_risk_allowed_instruments[]`, `risk_denied_instruments[]`, `nautilus_risk_orders_enabled`, `nautilus_risk_dry_run`, `trading_mode`, `enable_live_trading`, `synthetic_*`. |
 | `last_risk_check` | most recent Postgres `risk_events` row: `{time, event, allowed, dry_run, reason, strategy, requested_symbol, max_*}` or `null`. |
-| `watchdog` | `{as_of, status, safe_mode, orders_enabled, nautilus_orders_enabled, required_failures[], kill_switch_created_at, kill_switch_reason, live_flags{}, checks{name: {ok, required, consecutive_failures, detail, checked_at}}}`, from the last `watchdog_status` line of `watchdog.log`. |
+| `watchdog` | `{as_of, status, safe_mode, orders_enabled, nautilus_orders_enabled, required_failures[], kill_switch_created_at, kill_switch_reason, live_flags{}, checks{name: {ok, required, consecutive_failures, detail, checked_at}}}`, from the last `watchdog_status` line of `watchdog.log`. `live_flags` carries only `trading_mode`, `enable_live_trading`, `live_risk_acknowledged`, `nautilus_risk_orders_enabled`, `nautilus_risk_dry_run` and `kill_switch_active`; other flags are dropped. |
 
 ### `logs`
 

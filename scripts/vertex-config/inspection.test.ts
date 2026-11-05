@@ -41,8 +41,13 @@ const input = (
 
 describe("explicit source-selection manifest", () => {
   it("derives IDs from the existing reviewed root registry", () => {
+    // The retired signal bot keeps its registry row (migration history) but is
+    // never read (owner 2026-11-04).
+    const retired = ["charan-discord-bot"];
     expect(inspectionRepositoryIds).toEqual(
-      registry.roots.map((entry) => entry.id)
+      registry.roots
+        .map((entry) => entry.id)
+        .filter((id) => !retired.includes(id))
     );
     expect(Object.isFrozen(inspectionRepositoryIds)).toBe(true);
     return expect(

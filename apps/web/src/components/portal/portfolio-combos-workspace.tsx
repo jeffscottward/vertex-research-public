@@ -1,6 +1,18 @@
 "use client";
 
 import {
+  type ApiClient,
+  BACKTEST_COMBO_SLOTS_MAX,
+  type BacktestCombo,
+  type BacktestComboInput,
+  type BacktestRunSummary,
+  createApiClient,
+} from "@darkfactory/api";
+import {
+  backtestUniverse,
+  DEFAULT_BACKTEST_UNIVERSE_ID,
+} from "@darkfactory/shared/universes";
+import {
   Table,
   TableBody,
   TableCaption,
@@ -9,25 +21,34 @@ import {
   TableHeader,
   TableRow,
 } from "@darkfactory/ui";
-
 import {
-  type ApiClient,
-  type BacktestCombo,
-  type BacktestComboInput,
-  type BacktestRunSummary,
-  createApiClient,
-} from "@darkfactory/api";
-import { useCallback, useEffect, useId, useMemo, useState } from "react";
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   isOperatorAccessDenied,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import {
+  cacheKey,
+  createResultCache,
+  currentSearch,
+  readListParam,
+  useDebouncedValue,
+  writeQuery,
+} from "./backtest-lab-query.ts";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 
 // Portfolio combos: pick finished backtest runs, give each a weight of one shared deposit and read
 // the combined equity, drawdown overlap, return correlation and a robust/degrading verdict per slot.
 // Each slot is pinned to its run's strategy revision. Research only; no order path.
+// The page opens with a default set of runs already combined. The chosen runs live in the URL
+// (`?runs=id,id`). Changes re-combine after a short pause; repeat requests come from a cache.
 
 export interface PortfolioCombosGateway {
   readonly combine: (input: BacktestComboInput) => Promise<BacktestCombo>;
@@ -100,11 +121,117 @@ export const equityPath = (
     .join(" ");
 };
 
+/** How many runs the page combines when no runs are chosen. */
+const DEFAULT_COMBO_SIZE = 4;
+/** Fewest runs a combination takes (the combine contract needs one slot). */
+const MIN_COMBO_RUNS = 1;
+/** Pause after the last change before the page combines again. */
+export const COMBO_DEBOUNCE_MS = 350;
+const DEPOSIT_MAX = 1_000_000_000;
+const WEIGHT_TOLERANCE = 1e-9;
+
+const CORE7_MEMBERS = backtestUniverse(DEFAULT_BACKTEST_UNIVERSE_ID).members;
+const CORE7_FUTURES = new Set(CORE7_MEMBERS.map((member) => member.symbol));
+const CORE7_TWINS = new Set(CORE7_MEMBERS.map((member) => member.twin));
+
+/** 0 for a Core 7 future, 1 for its ETF twin, 2 for any other symbol. */
+export const symbolRank = (symbol: string): number => {
+  if (CORE7_FUTURES.has(symbol)) return 0;
+  return CORE7_TWINS.has(symbol) ? 1 : 2;
+};
+
+/**
+ * The default runs: the newest finished runs (`runs` is newest first), Core 7 futures first,
+ * then their ETF twins, then any symbol. Each symbol gets one run before a symbol repeats.
+ */
+export const defaultComboRunIds = (
+  runs: readonly BacktestRunSummary[],
+  size: number = DEFAULT_COMBO_SIZE
+): string[] => {
+  const ranked = [0, 1, 2].flatMap((rank) =>
+    runs.filter((run) => symbolRank(run.spec.symbol) === rank)
+  );
+  const seen = new Set<string>();
+  const firsts = ranked.filter((run) => {
+    if (seen.has(run.spec.symbol)) return false;
+    seen.add(run.spec.symbol);
+    return true;
+  });
+  return [...firsts, ...ranked.filter((run) => !firsts.includes(run))]
+    .slice(0, size)
+    .map((run) => run.id);
+};
+
+/** Known run ids from `?runs=`; the default runs when fewer than the minimum remain. */
+export const parseComboRuns = (
+  search: string,
+  runs: readonly BacktestRunSummary[]
+): string[] => {
+  const known = new Set(runs.map((run) => run.id));
+  const ids = readListParam(search, "runs", BACKTEST_COMBO_SLOTS_MAX).filter(
+    (id) => known.has(id)
+  );
+  return ids.length >= MIN_COMBO_RUNS ? ids : defaultComboRunIds(runs);
+};
+
+/** An equal share of the deposit for each run, rounded down to the 0.05 weight step. */
+export const equalWeights = (
+  ids: readonly string[]
+): Record<string, number> => {
+  const weight = Math.floor(20 / Math.max(1, ids.length)) / 20;
+  return Object.fromEntries(ids.map((id) => [id, weight]));
+};
+
+/** The combine request for the weighted runs, in list order. */
+export const comboRequest = (
+  runs: readonly BacktestRunSummary[],
+  weights: Readonly<Record<string, number>>,
+  deposit: number
+): BacktestComboInput => ({
+  deposit,
+  slots: runs
+    .filter((run) => weights[run.id] !== undefined)
+    .map((run) => ({
+      expectedRevision: run.strategyRevision,
+      runId: run.id,
+      weight: weights[run.id] as number,
+    })),
+});
+
+/** Total weight of the request's slots. */
+export const weightTotal = (input: BacktestComboInput): number =>
+  input.slots.reduce((sum, slot) => sum + slot.weight, 0);
+
+/** A plain reason the server would refuse the slots (too many runs or a weight outside 0..1), or null. */
+export const slotLimitMessage = (input: BacktestComboInput): string | null => {
+  if (input.slots.length > BACKTEST_COMBO_SLOTS_MAX)
+    return `Pick at most ${BACKTEST_COMBO_SLOTS_MAX} runs.`;
+  return input.slots.every((slot) => slot.weight >= 0 && slot.weight <= 1)
+    ? null
+    : "Each weight must be between 0 and 1.";
+};
+
+/** True when the request has 1 to 10 slots, weights in 0..1 adding to at most 100% and a valid deposit. */
+export const canCombine = (input: BacktestComboInput): boolean =>
+  input.slots.length > 0 &&
+  slotLimitMessage(input) === null &&
+  input.deposit >= 1 &&
+  input.deposit <= DEPOSIT_MAX &&
+  weightTotal(input) <= 1 + WEIGHT_TOLERANCE;
+
 type LoadState =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "forbidden" }>
   | Readonly<{ type: "error"; message: string }>
-  | Readonly<{ type: "ready"; runs: readonly BacktestRunSummary[] }>;
+  | Readonly<{
+      type: "ready";
+      runs: readonly BacktestRunSummary[];
+      /** The default run ids in list order, joined with commas. */
+      defaultRuns: string;
+    }>;
+
+const NO_RUNS: readonly BacktestRunSummary[] = [];
+const CACHE_LIMIT = 20;
 
 const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
   <section aria-label="Combined portfolio" className="grid gap-4">
@@ -257,8 +384,12 @@ const ComboReport = ({ combo }: Readonly<{ combo: BacktestCombo }>) => (
 export const PortfolioCombosWorkspace = ({
   gateway,
 }: Readonly<{ gateway?: PortfolioCombosGateway }>) => {
-  const api = useMemo(
-    () => gateway ?? createBrowserPortfolioCombosGateway(),
+  // One result cache per gateway: picking an earlier mix again shows it without a new request.
+  const { api, cache } = useMemo(
+    () => ({
+      api: gateway ?? createBrowserPortfolioCombosGateway(),
+      cache: createResultCache<BacktestCombo>(CACHE_LIMIT),
+    }),
     [gateway]
   );
   const [state, setState] = useState<LoadState>({ type: "loading" });
@@ -273,11 +404,18 @@ export const PortfolioCombosWorkspace = ({
     let active = true;
     api.list().then(
       (loaded) => {
-        if (active)
-          setState({
-            runs: loaded.filter((run) => run.status === "succeeded"),
-            type: "ready",
-          });
+        if (!active) return;
+        const finished = loaded.filter((run) => run.status === "succeeded");
+        const defaults = new Set(defaultComboRunIds(finished));
+        setState({
+          defaultRuns: finished
+            .filter((run) => defaults.has(run.id))
+            .map((run) => run.id)
+            .join(","),
+          runs: finished,
+          type: "ready",
+        });
+        setWeights(equalWeights(parseComboRuns(currentSearch(), finished)));
       },
       (error: unknown) => {
         if (!active) return;
@@ -296,30 +434,61 @@ export const PortfolioCombosWorkspace = ({
     };
   }, [api]);
 
-  const runs = state.type === "ready" ? state.runs : [];
-  const selected = runs.filter((run) => weights[run.id] !== undefined);
+  const runs = state.type === "ready" ? state.runs : NO_RUNS;
+  const request = useMemo(
+    () => comboRequest(runs, weights, deposit),
+    [runs, weights, deposit]
+  );
+  const settled = useDebouncedValue(request, COMBO_DEBOUNCE_MS);
+  const selectedRuns = request.slots.map((slot) => slot.runId).join(",");
+  const defaultRuns = state.type === "ready" ? state.defaultRuns : null;
 
-  const evaluate = useCallback(async () => {
-    setBusy(true);
-    setFailure(null);
-    try {
-      setCombo(
-        await api.combine({
-          deposit,
-          slots: selected.map((run) => ({
-            expectedRevision: run.strategyRevision,
-            runId: run.id,
-            weight: weights[run.id] as number,
-          })),
-        })
+  useEffect(() => {
+    if (defaultRuns === null) return;
+    writeQuery({ runs: selectedRuns }, { runs: defaultRuns });
+  }, [defaultRuns, selectedRuns]);
+
+  // Every request takes a new ticket; an answer whose ticket is no longer the latest (a newer
+  // automatic or manual combine, a cache hit, or a closed page) is cached but never shown.
+  const latest = useRef(0);
+  const send = useCallback(
+    (input: BacktestComboInput) => {
+      latest.current += 1;
+      const ticket = latest.current;
+      setBusy(true);
+      setFailure(null);
+      api.combine(input).then(
+        (result) => {
+          cache.set(cacheKey(input), result);
+          if (latest.current !== ticket) return;
+          setCombo(result);
+          setBusy(false);
+        },
+        (error: unknown) => {
+          if (latest.current !== ticket) return;
+          setCombo(null);
+          setFailure(describeMarketDataFailure(error).message);
+          setBusy(false);
+        }
       );
-    } catch (error) {
-      setCombo(null);
-      setFailure(describeMarketDataFailure(error).message);
-    } finally {
+    },
+    [api, cache]
+  );
+
+  // Combines the settled choice automatically: stored results only, never a new backtest.
+  useEffect(() => {
+    const hit = canCombine(settled) ? cache.get(cacheKey(settled)) : null;
+    if (hit === undefined) send(settled);
+    else {
+      latest.current += 1;
+      setFailure(null);
       setBusy(false);
+      setCombo(hit);
     }
-  }, [api, deposit, selected, weights]);
+    return () => {
+      latest.current += 1;
+    };
+  }, [cache, send, settled]);
 
   if (state.type === "loading")
     return (
@@ -336,10 +505,8 @@ export const PortfolioCombosWorkspace = ({
       </p>
     );
 
-  const weightSum = selected.reduce(
-    (sum, run) => sum + (weights[run.id] as number),
-    0
-  );
+  const weightSum = weightTotal(request);
+  const slotLimit = slotLimitMessage(request);
   return (
     <div className="grid gap-6">
       <section aria-label="Slots" className="grid gap-3">
@@ -354,49 +521,58 @@ export const PortfolioCombosWorkspace = ({
             first.
           </p>
         ) : (
-          <ul className="grid gap-2" data-click-private="">
-            {runs.map((run) => {
-              const label = describeRun(run);
-              const weight = weights[run.id];
-              return (
-                <li className="flex flex-wrap items-center gap-3" key={run.id}>
-                  <label className="flex min-h-11 items-center gap-2 text-sm">
-                    <input
-                      checked={weight !== undefined}
-                      className="size-5"
-                      onChange={(event) =>
-                        setWeights((current) => {
-                          const next = { ...current };
-                          if (event.target.checked) next[run.id] = 0.25;
-                          else delete next[run.id];
-                          return next;
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    {label}
-                  </label>
-                  {weight === undefined ? null : (
-                    <input
-                      aria-label={`Weight for ${label}`}
-                      className="min-h-11 w-24 rounded-md border bg-background px-3 text-sm"
-                      max={1}
-                      min={0}
-                      onChange={(event) =>
-                        setWeights((current) => ({
-                          ...current,
-                          [run.id]: Number(event.target.value),
-                        }))
-                      }
-                      step={0.05}
-                      type="number"
-                      value={weight}
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <p className="text-muted-foreground text-sm">
+              The page starts with the newest finished runs, Core 7 futures
+              first. Tick runs or change weights to combine another mix.
+            </p>
+            <ul className="grid gap-2" data-click-private="">
+              {runs.map((run) => {
+                const label = describeRun(run);
+                const weight = weights[run.id];
+                return (
+                  <li
+                    className="flex flex-wrap items-center gap-3"
+                    key={run.id}
+                  >
+                    <label className="flex min-h-11 items-center gap-2 text-sm">
+                      <input
+                        checked={weight !== undefined}
+                        className="size-5"
+                        onChange={(event) =>
+                          setWeights((current) => {
+                            const next = { ...current };
+                            if (event.target.checked) next[run.id] = 0.25;
+                            else delete next[run.id];
+                            return next;
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      {label}
+                    </label>
+                    {weight === undefined ? null : (
+                      <input
+                        aria-label={`Weight for ${label}`}
+                        className="min-h-11 w-24 rounded-md border bg-background px-3 text-sm"
+                        max={1}
+                        min={0}
+                        onChange={(event) =>
+                          setWeights((current) => ({
+                            ...current,
+                            [run.id]: Number(event.target.value),
+                          }))
+                        }
+                        step={0.05}
+                        type="number"
+                        value={weight}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
         <div className="flex flex-wrap items-end gap-3">
           <div className="grid gap-1">
@@ -414,18 +590,24 @@ export const PortfolioCombosWorkspace = ({
           </div>
           <button
             className="min-h-11 rounded-md border px-4 font-medium text-sm"
-            disabled={busy || selected.length === 0 || weightSum > 1 + 1e-9}
-            onClick={() => {
-              void evaluate();
-            }}
+            disabled={busy || !canCombine(request)}
+            onClick={() => send(request)}
             type="button"
           >
             Combine
           </button>
           <span className="text-sm">
             Weights total {percent(weightSum)}
-            {weightSum > 1 + 1e-9 ? " (above 100%)" : ""}
+            {weightSum > 1 + WEIGHT_TOLERANCE ? " (above 100%)" : ""}
           </span>
+          {slotLimit === null ? null : (
+            <span className="text-sm">{slotLimit}</span>
+          )}
+          {busy ? (
+            <span className="text-sm" role="status">
+              Combining runs
+            </span>
+          ) : null}
         </div>
         {failure === null ? null : (
           <p className="text-destructive text-sm" role="alert">

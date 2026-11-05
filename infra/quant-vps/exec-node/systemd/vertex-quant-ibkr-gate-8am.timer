@@ -1,5 +1,5 @@
 [Unit]
-Description=Run Vertex Quant IBKR/Charan trading gate at 8AM New York time
+Description=Run Vertex Quant IBKR trading gate at 8AM New York time
 
 [Timer]
 OnCalendar=*-*-* 08:00:00 America/New_York

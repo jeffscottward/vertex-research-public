@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  BACKTEST_COMBO_SLOTS_MAX,
   type BacktestCombo,
   type BacktestRunSummary,
   STRATEGY_TEMPLATES,
@@ -11,6 +12,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -18,12 +20,21 @@ import {
 } from "vitest";
 
 import {
+  COMBO_DEBOUNCE_MS,
+  canCombine,
+  comboRequest,
   createBrowserPortfolioCombosGateway,
   createPortfolioCombosGateway,
+  defaultComboRunIds,
   describeRun,
+  equalWeights,
   equityPath,
   type PortfolioCombosGateway,
   PortfolioCombosWorkspace,
+  parseComboRuns,
+  slotLimitMessage,
+  symbolRank,
+  weightTotal,
 } from "./portfolio-combos-workspace.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -148,36 +159,78 @@ const comboOf = (overrides: Partial<BacktestCombo> = {}): BacktestCombo => ({
   ...overrides,
 });
 
+const runAt = (
+  id: string,
+  symbol: string,
+  overrides: Partial<BacktestRunSummary> = {}
+): BacktestRunSummary => {
+  const run = runOf(id, overrides);
+  return { ...run, spec: { ...run.spec, symbol } };
+};
+
+// Newest first. Default set: the four newest Core 7 futures runs (e, n, g, y).
+const labRuns = (): BacktestRunSummary[] => [
+  runAt("t", "TEST", {
+    strategySnapshot: {
+      id: "s",
+      kind: "native",
+      name: "Alpha",
+      params: [],
+      slug: "alpha",
+      sourceRef: null,
+      updatedAt: "x",
+    },
+  }),
+  runAt("e", "ES=F", { strategyRevision: "a".repeat(64) }),
+  runAt("s", "SPY"),
+  runAt("n", "NQ=F"),
+  runAt("g", "GC=F"),
+  runAt("y", "YM=F"),
+  runAt("f", "ES=F", { status: "failed" }),
+];
+
 const gatewayOf = (
   overrides: Partial<PortfolioCombosGateway> = {}
 ): PortfolioCombosGateway => ({
   combine: vi.fn(async () => comboOf()),
-  list: vi.fn(async () => [
-    runOf("a", {
-      strategyRevision: "a".repeat(64),
-      strategySnapshot: {
-        id: "s",
-        kind: "native",
-        name: "Alpha",
-        params: [],
-        slug: "alpha",
-        sourceRef: null,
-        updatedAt: "x",
-      },
-    }),
-    runOf("b"),
-    runOf("c", { status: "failed" }),
-  ]),
+  list: vi.fn(async () => labRuns()),
   ...overrides,
 });
 
+const slotOf = (runId: string, weight: number) => ({
+  expectedRevision: runId === "e" ? "a".repeat(64) : null,
+  runId,
+  weight,
+});
+const DEFAULT_SLOTS = ["e", "n", "g", "y"].map((id) => slotOf(id, 0.25));
+
 const boxes = () => [
   ...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+];
+const box = (label: string) =>
+  boxes().find((node) =>
+    node.parentElement?.textContent?.includes(label)
+  ) as HTMLInputElement;
+const checked = () =>
+  boxes()
+    .filter((node) => node.checked)
+    .map((node) => node.parentElement?.textContent?.split(" ")[0]);
+const weightInputs = () => [
+  ...document.querySelectorAll<HTMLInputElement>('input[aria-label^="Weight"]'),
 ];
 const button = () =>
   [...document.querySelectorAll("button")].find(
     (node) => node.textContent === "Combine"
   ) as HTMLButtonElement;
+const report = () =>
+  document.querySelector('[aria-label="Combined portfolio"]');
+const runsParam = () => new URLSearchParams(window.location.search).get("runs");
+const visit = (search: string) =>
+  window.history.replaceState(null, "", `/portfolio-combos${search}`);
+const wait = (ms = COMBO_DEBOUNCE_MS) =>
+  settle(() => {
+    vi.advanceTimersByTime(ms);
+  });
 
 describe("helpers", () => {
   it("builds the gateway, labels and the equity path", async () => {
@@ -236,57 +289,257 @@ describe("helpers", () => {
       )
     ).toBe("M0.0,10.0 L0.0,10.0");
   });
+
+  it("ranks Core 7 symbols and picks the default runs", () => {
+    expect([symbolRank("ES=F"), symbolRank("SPY"), symbolRank("TEST")]).toEqual(
+      [0, 1, 2]
+    );
+    const runs = [
+      runAt("t", "TEST"),
+      runAt("s", "SPY"),
+      runAt("e1", "ES=F"),
+      runAt("e2", "ES=F"),
+      runAt("n", "NQ=F"),
+      runAt("g", "GC=F"),
+    ];
+    // Futures first (one per symbol), then the ETF twin, then any symbol, then repeats.
+    expect(defaultComboRunIds(runs)).toEqual(["e1", "n", "g", "s"]);
+    expect(defaultComboRunIds(runs, 6)).toEqual([
+      "e1",
+      "n",
+      "g",
+      "s",
+      "t",
+      "e2",
+    ]);
+    expect(defaultComboRunIds([runAt("t", "TEST")])).toEqual(["t"]);
+    expect(defaultComboRunIds([])).toEqual([]);
+  });
+
+  it("reads ?runs=, dropping unknown ids", () => {
+    const runs = labRuns();
+    expect(parseComboRuns("?runs=n,zz,t", runs)).toEqual(["n", "t"]);
+    expect(parseComboRuns("?runs=zz", runs)).toEqual(["e", "n", "g", "y"]);
+    expect(parseComboRuns("", runs)).toEqual(["e", "n", "g", "y"]);
+  });
+
+  it("splits weights and checks a request", () => {
+    expect(equalWeights([])).toEqual({});
+    expect(equalWeights(["a"])).toEqual({ a: 1 });
+    expect(equalWeights(["a", "b", "c"])).toEqual({ a: 0.3, b: 0.3, c: 0.3 });
+    expect(equalWeights(["a", "b", "c", "d"])).toEqual({
+      a: 0.25,
+      b: 0.25,
+      c: 0.25,
+      d: 0.25,
+    });
+    const request = comboRequest(labRuns(), { e: 0.5, t: 0.25 }, 1000);
+    expect(request).toEqual({
+      deposit: 1000,
+      slots: [
+        { expectedRevision: null, runId: "t", weight: 0.25 },
+        slotOf("e", 0.5),
+      ],
+    });
+    expect(weightTotal(request)).toBe(0.75);
+    expect(canCombine(request)).toBe(true);
+    expect(canCombine({ ...request, slots: [] })).toBe(false);
+    expect(canCombine({ ...request, deposit: 0 })).toBe(false);
+    expect(canCombine({ ...request, deposit: 2_000_000_000 })).toBe(false);
+    expect(canCombine(comboRequest(labRuns(), { e: 0.8, t: 0.25 }, 1000))).toBe(
+      false
+    );
+    expect(slotLimitMessage(request)).toBeNull();
+    const many = Array.from(
+      { length: BACKTEST_COMBO_SLOTS_MAX + 1 },
+      (_, index) => ({ runId: `r${index}`, weight: 0.05 })
+    );
+    expect(slotLimitMessage({ deposit: 1000, slots: many })).toBe(
+      "Pick at most 10 runs."
+    );
+    expect(canCombine({ deposit: 1000, slots: many })).toBe(false);
+    for (const weight of [-0.1, 1.5, Number.NaN]) {
+      const bad = { deposit: 1000, slots: [{ runId: "e", weight }] };
+      expect(slotLimitMessage(bad)).toBe(
+        "Each weight must be between 0 and 1."
+      );
+      expect(canCombine(bad)).toBe(false);
+    }
+  });
 });
 
 describe("PortfolioCombosWorkspace", () => {
-  it("combines selected runs pinned to their revision and shows the report", async () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    visit("");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    visit("");
+  });
+
+  it("opens with the default Core 7 runs combined, with no input", async () => {
     const gateway = gatewayOf();
     await mount(<PortfolioCombosWorkspace gateway={gateway} />);
-    expect(boxes()).toHaveLength(2);
+    expect(boxes()).toHaveLength(6);
     expect(document.body.textContent).toContain("Alpha TEST 1d SMA 5/20");
+    expect(checked()).toEqual(["ES=F", "NQ=F", "GC=F", "YM=F"]);
+    expect(weightInputs().map((input) => input.value)).toEqual([
+      "0.25",
+      "0.25",
+      "0.25",
+      "0.25",
+    ]);
+    expect(document.body.textContent).toContain("Weights total 100.00%");
+    // Debounced: nothing is sent until the choice settles.
+    expect(gateway.combine).not.toHaveBeenCalled();
+    await wait();
+    expect(gateway.list).toHaveBeenCalledTimes(1);
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+    expect(gateway.combine).toHaveBeenCalledWith({
+      deposit: 100_000,
+      slots: DEFAULT_SLOTS,
+    });
+    expect(report()?.textContent).toContain("110,000.00");
+    expect(report()?.textContent).toContain("diversified");
+    expect(report()?.textContent).toContain("robust");
+    expect(report()?.textContent).toContain(`Revision ${"a".repeat(12)}`);
+    expect(report()?.textContent).toContain("none (no linked strategy)");
+    expect(report()?.textContent).toContain("ok");
+    expect(report()?.textContent).toContain("n/a");
+    // The default view keeps a clean URL.
+    expect(window.location.search).toBe("");
+  });
+
+  it("applies a ?runs= deep link and drops unknown ids", async () => {
+    visit("?runs=t,zz,s,f");
+    const gateway = gatewayOf();
+    await mount(<PortfolioCombosWorkspace gateway={gateway} />);
+    expect(checked()).toEqual(["Alpha", "SPY"]);
+    expect(runsParam()).toBe("t,s");
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledWith({
+      deposit: 100_000,
+      slots: [
+        { expectedRevision: null, runId: "t", weight: 0.5 },
+        { expectedRevision: null, runId: "s", weight: 0.5 },
+      ],
+    });
+  });
+
+  it("falls back to the default runs when ?runs= names none", async () => {
+    visit("?runs=zz&other=1");
+    const gateway = gatewayOf();
+    await mount(<PortfolioCombosWorkspace gateway={gateway} />);
+    expect(checked()).toEqual(["ES=F", "NQ=F", "GC=F", "YM=F"]);
+    expect(window.location.search).toBe("?other=1");
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledWith({
+      deposit: 100_000,
+      slots: DEFAULT_SLOTS,
+    });
+  });
+
+  it("writes changes to the URL and re-combines once, from the cache on return", async () => {
+    const gateway = gatewayOf();
+    await mount(<PortfolioCombosWorkspace gateway={gateway} />);
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+
+    await click(box("GC=F"));
+    expect(runsParam()).toBe("e,n,y");
+    expect(weightInputs()).toHaveLength(3);
+    // A quick change back inside the pause sends nothing.
+    await click(box("GC=F"));
+    expect(window.location.search).toBe("");
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+
+    await click(box("GC=F"));
+    await wait(COMBO_DEBOUNCE_MS - 1);
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+    await wait(1);
+    expect(gateway.combine).toHaveBeenCalledTimes(2);
+    expect(gateway.combine).toHaveBeenLastCalledWith({
+      deposit: 100_000,
+      slots: ["e", "n", "y"].map((id) => slotOf(id, 0.25)),
+    });
+
+    // Back to the default mix: served from the cache, no third request.
+    await click(box("GC=F"));
+    expect(window.location.search).toBe("");
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(2);
+    expect(report()).not.toBeNull();
+  });
+
+  it("never sends more than 10 runs or a weight outside 0..1", async () => {
+    const many = Array.from(
+      { length: BACKTEST_COMBO_SLOTS_MAX + 1 },
+      (_, index) => runAt(`m${index}`, "TEST")
+    );
+    const gateway = gatewayOf({ list: async () => many });
+    await mount(<PortfolioCombosWorkspace gateway={gateway} />);
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+    expect(document.body.textContent).not.toContain("Pick at most");
+
+    for (const node of boxes().filter((input) => !input.checked))
+      await click(node);
+    for (const input of weightInputs()) await setNative(input, "0");
+    expect(document.body.textContent).toContain("Pick at most 10 runs.");
     expect(button().disabled).toBe(true);
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+    expect(report()).toBeNull();
+
     await click(boxes()[0]);
-    await click(boxes()[1]);
-    const weights = [
-      ...document.querySelectorAll<HTMLInputElement>(
-        'input[aria-label^="Weight"]'
-      ),
-    ];
-    await setNative(weights[0] as HTMLInputElement, "0.8");
+    expect(document.body.textContent).not.toContain("Pick at most");
+    await setNative(weightInputs()[0] as HTMLInputElement, "-0.5");
+    expect(document.body.textContent).toContain(
+      "Each weight must be between 0 and 1."
+    );
+    expect(document.body.textContent).not.toContain("above 100%");
+    expect(button().disabled).toBe(true);
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks weights above 100% and combines on demand", async () => {
+    const gateway = gatewayOf();
+    await mount(<PortfolioCombosWorkspace gateway={gateway} />);
+    await wait();
+    await setNative(weightInputs()[0] as HTMLInputElement, "0.8");
     expect(document.body.textContent).toContain("above 100%");
     expect(button().disabled).toBe(true);
-    await setNative(weights[0] as HTMLInputElement, "0.6");
+    await wait();
+    expect(report()).toBeNull();
+    expect(gateway.combine).toHaveBeenCalledTimes(1);
+
+    await setNative(weightInputs()[0] as HTMLInputElement, "0.1");
     await setNative(
       document.querySelector<HTMLInputElement>(
         'input[type="number"][min="1"]'
       ) as HTMLInputElement,
       "50000"
     );
+    expect(button().disabled).toBe(false);
     await click(button());
-    expect(gateway.combine).toHaveBeenCalledWith({
+    const slots = [slotOf("e", 0.1), ...DEFAULT_SLOTS.slice(1)];
+    expect(gateway.combine).toHaveBeenLastCalledWith({
       deposit: 50_000,
-      slots: [
-        { expectedRevision: "a".repeat(64), runId: "a", weight: 0.6 },
-        { expectedRevision: null, runId: "b", weight: 0.25 },
-      ],
+      slots,
     });
-    const report = document.querySelector('[aria-label="Combined portfolio"]');
-    expect(report?.textContent).toContain("110,000.00");
-    expect(report?.textContent).toContain("diversified");
-    expect(report?.textContent).toContain("robust");
-    expect(report?.textContent).toContain(`Revision ${"a".repeat(12)}`);
-    expect(report?.textContent).toContain("none (no linked strategy)");
-    expect(report?.textContent).toContain("ok");
-    expect(report?.textContent).toContain("n/a");
-    await click(boxes()[1]);
-    expect(
-      document.querySelectorAll('input[aria-label^="Weight"]')
-    ).toHaveLength(1);
+    expect(report()?.textContent).toContain("110,000.00");
+    // The settled choice equals the one just combined, so the cache answers it.
+    await wait();
+    expect(gateway.combine).toHaveBeenCalledTimes(2);
   });
 
-  it("shows a not-diversified result and combine failures", async () => {
+  it("shows combine failures and a retry result", async () => {
     const combine = vi
       .fn()
+      .mockRejectedValueOnce({ code: "BAD_REQUEST", message: "pin mismatch" })
       .mockResolvedValueOnce(
         comboOf({
           diversification: {
@@ -298,18 +551,94 @@ describe("PortfolioCombosWorkspace", () => {
           stats: { ...stats, cagr: null },
         })
       )
-      .mockRejectedValueOnce({ code: "BAD_REQUEST", message: "pin mismatch" });
+      .mockRejectedValueOnce({ code: "ERROR", message: "down" });
     await mount(<PortfolioCombosWorkspace gateway={gatewayOf({ combine })} />);
-    await click(boxes()[0]);
-    await click(button());
-    expect(document.body.textContent).toContain("not diversified");
-    await click(button());
+    await wait();
     expect(document.querySelector('[role="alert"]')?.textContent).toBe(
       "pin mismatch"
     );
-    expect(
-      document.querySelector('[aria-label="Combined portfolio"]')
-    ).toBeNull();
+    expect(report()).toBeNull();
+    await click(button());
+    expect(document.body.textContent).toContain("not diversified");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    await click(button());
+    expect(document.querySelector('[role="alert"]')?.textContent).toBe("down");
+    expect(report()).toBeNull();
+  });
+
+  it("shows progress and ignores a result for an older choice", async () => {
+    const done: Array<(combo: BacktestCombo) => void> = [];
+    const fail: Array<(error: unknown) => void> = [];
+    // The web tsconfig lib predates Promise.withResolvers.
+    const combine = vi.fn(
+      () =>
+        new Promise<BacktestCombo>((resolve, reject) => {
+          done.push(resolve);
+          fail.push(reject);
+        })
+    );
+    const { root } = await mount(
+      <PortfolioCombosWorkspace gateway={gatewayOf({ combine })} />
+    );
+    await wait();
+    expect(document.body.textContent).toContain("Combining runs");
+    expect(button().disabled).toBe(true);
+    await click(box("GC=F"));
+    await wait();
+    expect(combine).toHaveBeenCalledTimes(2);
+    // The first answer arrives late: it is cached but not shown.
+    await settle(() => done[0]?.(comboOf({ finalEquity: 1 })));
+    expect(report()).toBeNull();
+    expect(document.body.textContent).toContain("Combining runs");
+    await settle(() => done[1]?.(comboOf()));
+    expect(report()?.textContent).toContain("110,000.00");
+    expect(document.body.textContent).not.toContain("Combining runs");
+
+    // Back to the first choice: its late answer comes from the cache.
+    await click(box("GC=F"));
+    await wait();
+    expect(combine).toHaveBeenCalledTimes(2);
+    expect(report()?.textContent).not.toContain("110,000.00");
+
+    // A failure after the page closes is ignored.
+    await click(box("YM=F"));
+    await wait();
+    expect(combine).toHaveBeenCalledTimes(3);
+    await act(async () => root.unmount());
+    roots.splice(roots.indexOf(root), 1);
+    await settle(() => fail[2]?.(new Error("late")));
+  });
+
+  it("drops a slow manual combine once a newer automatic one starts", async () => {
+    const done: Array<(combo: BacktestCombo) => void> = [];
+    // The web tsconfig lib predates Promise.withResolvers.
+    const combine = vi.fn(
+      () =>
+        new Promise<BacktestCombo>((resolve) => {
+          done.push(resolve);
+        })
+    );
+    await mount(<PortfolioCombosWorkspace gateway={gatewayOf({ combine })} />);
+    await wait();
+    await settle(() => done[0]?.(comboOf()));
+    expect(report()?.textContent).toContain("110,000.00");
+
+    // Manual combine right away, then the settled change starts an automatic one.
+    await setNative(weightInputs()[0] as HTMLInputElement, "0.2");
+    await click(button());
+    expect(combine).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).toContain("Combining runs");
+    await wait();
+    expect(combine).toHaveBeenCalledTimes(3);
+
+    await settle(() => done[2]?.(comboOf({ finalEquity: 333_333 })));
+    expect(report()?.textContent).toContain("333,333.00");
+    expect(document.body.textContent).not.toContain("Combining runs");
+    // The manual answer arrives last: it neither replaces the newer result nor the idle state.
+    await settle(() => done[1]?.(comboOf({ finalEquity: 222_222 })));
+    expect(report()?.textContent).toContain("333,333.00");
+    expect(report()?.textContent).not.toContain("222,222.00");
+    expect(document.body.textContent).not.toContain("Combining runs");
   });
 
   it("shows loading, empty, forbidden and error states", async () => {
@@ -326,10 +655,13 @@ describe("PortfolioCombosWorkspace", () => {
     roots.splice(roots.indexOf(root), 1);
     await settle(() => resolve([]));
 
-    await mount(
-      <PortfolioCombosWorkspace gateway={gatewayOf({ list: async () => [] })} />
-    );
+    const empty = gatewayOf({ list: async () => [] });
+    await mount(<PortfolioCombosWorkspace gateway={empty} />);
     expect(document.body.textContent).toContain("No finished backtest runs");
+    expect(button().disabled).toBe(true);
+    await wait();
+    expect(empty.combine).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
     document.body.replaceChildren();
 
     await mount(
@@ -363,16 +695,21 @@ describe("PortfolioCombosWorkspace", () => {
     await settle(() => reject(new Error("late")));
   });
 
-  it("uses the browser client when no gateway is given", async () => {
+  it("uses the browser client when no gateway is given and never submits", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("{}", { status: 500 }));
     await mount(<PortfolioCombosWorkspace />);
+    await wait();
     expect(fetchSpy).toHaveBeenCalled();
     await expect(
       createBrowserPortfolioCombosGateway().combine({ deposit: 1, slots: [] })
     ).rejects.toBeDefined();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const urls = fetchSpy.mock.calls.map(([input]) =>
+      input instanceof Request ? input.url : String(input)
+    );
+    expect(urls.some((url) => url.includes("submit"))).toBe(false);
     fetchSpy.mockRestore();
   });
 });

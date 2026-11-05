@@ -24,7 +24,29 @@ import {
   TableRow,
 } from "@darkfactory/ui";
 import { Play } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  cacheKey,
+  createResultCache,
+  currentSearch,
+  pickNumberParam,
+  pickParam,
+  readParam,
+  useDebouncedValue,
+  writeQuery,
+} from "./backtest-lab-query.ts";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 
 import {
   createBrowserSetupReplayGateway,
@@ -34,7 +56,8 @@ import {
 
 // Setup replay ("time machine"): pick a stored daily series and a setup, then see every past
 // occurrence with its outcome and a seeded Monte Carlo over those outcomes. A simulation over past
-// bars, not a prediction. Research only; no orders.
+// bars, not a prediction. Research only; no orders. The page opens on the first stored Core 7
+// futures daily series and the first setup and replays it at once; every change replays again.
 
 export const formatR = (value: number | null): string =>
   value === null ? "n/a" : `${value > 0 ? "+" : ""}${value.toFixed(2)}R`;
@@ -45,23 +68,73 @@ export const formatShare = (value: number | null): string =>
 export const formatReturnPct = (value: number): string =>
   `${value > 0 ? "+" : ""}${value.toFixed(2)}%`;
 
-type Choices = Readonly<{
-  setup: number;
-  series: number;
+export type SetupReplayChoices = Readonly<{
+  setup: string;
+  symbol: string;
   stop: (typeof SETUP_REPLAY_STOP_ATR_MULTIPLES)[number];
   targetR: (typeof SETUP_REPLAY_TARGET_RS)[number];
   maxHoldBars: (typeof SETUP_REPLAY_MAX_HOLD_BARS)[number];
   paths: (typeof SETUP_REPLAY_PATHS)[number];
 }>;
 
-const DEFAULT_CHOICES: Choices = {
+type Choices = SetupReplayChoices;
+
+/** Wait after the last change before a replay runs. */
+const SETUP_REPLAY_DEBOUNCE_MS = 300;
+
+/** Defaults: the first stored Core 7 futures daily series (else the first stored) and the first setup. */
+export const defaultSetupReplayChoices = (
+  series: readonly Readonly<{ symbol: string }>[],
+  presets: readonly Readonly<{ id: string }>[]
+): Choices => ({
   maxHoldBars: 10,
   paths: 5000,
-  series: 0,
-  setup: 0,
+  setup: presets[0]?.id ?? "",
   stop: 1.5,
+  symbol:
+    visibleSeries(series, DEFAULT_UNIVERSE_CHOICE).series[0]?.symbol ?? "",
   targetR: 2,
-};
+});
+
+/** Choices from the URL; a missing or unknown value keeps its default. */
+export const parseSetupReplayQuery = (
+  search: string,
+  defaults: Choices,
+  symbols: readonly string[],
+  setups: readonly string[]
+): Choices => ({
+  maxHoldBars: pickNumberParam(
+    readParam(search, "hold"),
+    SETUP_REPLAY_MAX_HOLD_BARS,
+    defaults.maxHoldBars
+  ),
+  paths: pickNumberParam(
+    readParam(search, "paths"),
+    SETUP_REPLAY_PATHS,
+    defaults.paths
+  ),
+  setup: pickParam(readParam(search, "setup"), setups, defaults.setup),
+  stop: pickNumberParam(
+    readParam(search, "stop"),
+    SETUP_REPLAY_STOP_ATR_MULTIPLES,
+    defaults.stop
+  ),
+  symbol: pickParam(readParam(search, "symbol"), symbols, defaults.symbol),
+  targetR: pickNumberParam(
+    readParam(search, "target"),
+    SETUP_REPLAY_TARGET_RS,
+    defaults.targetR
+  ),
+});
+
+const queryOf = (choices: Choices) => ({
+  hold: choices.maxHoldBars,
+  paths: choices.paths,
+  setup: choices.setup,
+  stop: choices.stop,
+  symbol: choices.symbol,
+  target: choices.targetR,
+});
 
 type LoadState =
   | Readonly<{ type: "loading" }>
@@ -70,6 +143,8 @@ type LoadState =
       type: "ready";
       series: readonly InstantBacktestSeries[];
       presets: readonly SetupReplayPreset[];
+      defaults: Choices;
+      choices: Choices;
     }>;
 
 type Ran = Readonly<{
@@ -80,7 +155,7 @@ type Ran = Readonly<{
 
 type RunState =
   | Readonly<{ type: "idle" }>
-  | Readonly<{ type: "running" }>
+  | Readonly<{ type: "running"; ran: Ran | null }>
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "done"; ran: Ran }>;
 
@@ -366,17 +441,30 @@ export const SetupReplayWorkspace = ({
     () => suppliedGateway ?? createBrowserSetupReplayGateway()
   );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
-  const [choices, setChoices] = useState<Choices>(DEFAULT_CHOICES);
+  const [cache] = useState(() => createResultCache<SetupReplayRunOutput>(20));
   const [run, setRun] = useState<RunState>({ type: "idle" });
+  const latest = useRef(0);
 
   useEffect(() => {
     let active = true;
     Promise.all([gateway.series(), gateway.presets()]).then(
       ([seriesList, presetList]) => {
         if (!active) return;
+        const series = seriesList.series.filter(
+          (entry) => entry.timeframe === "1d"
+        );
+        const presets = presetList.presets;
+        const defaults = defaultSetupReplayChoices(series, presets);
         setLoad({
-          presets: presetList.presets,
-          series: seriesList.series.filter((entry) => entry.timeframe === "1d"),
+          choices: parseSetupReplayQuery(
+            currentSearch(),
+            defaults,
+            series.map((entry) => entry.symbol),
+            presets.map((entry) => entry.id)
+          ),
+          defaults,
+          presets,
+          series,
           type: "ready",
         });
       },
@@ -390,6 +478,77 @@ export const SetupReplayWorkspace = ({
     };
   }, [gateway]);
 
+  const ready = load.type === "ready" ? load : null;
+  const choices = ready?.choices;
+  const series = ready?.series.find(
+    (entry) => entry.symbol === choices?.symbol
+  );
+  const preset = ready?.presets.find((entry) => entry.id === choices?.setup);
+  const request = useMemo(
+    () =>
+      choices === undefined || series === undefined || preset === undefined
+        ? null
+        : {
+            input: {
+              maxHoldBars: choices.maxHoldBars,
+              paths: choices.paths,
+              seriesId: setupReplaySeriesId(series.symbol),
+              setup: preset.id,
+              stop: { kind: "atr", multiple: choices.stop },
+              targetR: choices.targetR,
+            } satisfies SetupReplayRunInput,
+            preset,
+          },
+    [choices, series, preset]
+  );
+  const key = request === null ? "" : cacheKey(request.input);
+  const settledKey = useDebouncedValue(key, SETUP_REPLAY_DEBOUNCE_MS);
+
+  const replay = async (
+    target: NonNullable<typeof request>,
+    useCache: boolean
+  ): Promise<void> => {
+    const { input } = target;
+    const id = cacheKey(input);
+    latest.current += 1;
+    const ticket = latest.current;
+    const cached = useCache ? cache.get(id) : undefined;
+    if (cached !== undefined) {
+      setRun({
+        ran: { input, output: cached, preset: target.preset },
+        type: "done",
+      });
+      return;
+    }
+    setRun((previous) => ({
+      ran: previous.type === "done" ? previous.ran : null,
+      type: "running",
+    }));
+    try {
+      const output = await gateway.run(input);
+      cache.set(id, output);
+      if (ticket !== latest.current) return;
+      setRun({ ran: { input, output, preset: target.preset }, type: "done" });
+    } catch (error) {
+      if (ticket !== latest.current) return;
+      setRun({ message: describeSetupReplayFailure(error), type: "error" });
+    }
+  };
+  const replayRef = useRef(replay);
+  replayRef.current = replay;
+
+  // Replays once the choices settle; a cached result shows without a server call.
+  useEffect(() => {
+    if (request === null || key !== settledKey) return;
+    void replayRef.current(request, true);
+  }, [request, key, settledKey]);
+
+  // Keeps the address bar in step with the choices; defaults are left out.
+  useEffect(() => {
+    if (ready === null) return;
+    writeQuery(queryOf(ready.choices), queryOf(ready.defaults));
+  }, [ready]);
+
   if (load.type === "loading") return <Notice>Loading stored series…</Notice>;
   if (load.type === "error") {
     return (
@@ -398,9 +557,7 @@ export const SetupReplayWorkspace = ({
       </p>
     );
   }
-  const series = load.series[choices.series];
-  const preset = load.presets[choices.setup];
-  if (series === undefined || preset === undefined) {
+  if (series === undefined || preset === undefined || request === null) {
     return (
       <Notice>
         No stored daily bar series yet. Import one with
@@ -408,29 +565,15 @@ export const SetupReplayWorkspace = ({
       </Notice>
     );
   }
+  const current = load.choices;
 
   const set =
-    <K extends keyof Choices>(key: K) =>
+    <K extends keyof Choices>(name: K) =>
     (value: Choices[K]) =>
-      setChoices((previous) => ({ ...previous, [key]: value }));
+      setLoad({ ...load, choices: { ...current, [name]: value } });
 
-  const replay = async (): Promise<void> => {
-    const input: SetupReplayRunInput = {
-      maxHoldBars: choices.maxHoldBars,
-      paths: choices.paths,
-      seriesId: setupReplaySeriesId(series.symbol),
-      setup: preset.id,
-      stop: { kind: "atr", multiple: choices.stop },
-      targetR: choices.targetR,
-    };
-    setRun({ type: "running" });
-    try {
-      const output = await gateway.run(input);
-      setRun({ ran: { input, output, preset }, type: "done" });
-    } catch (error) {
-      setRun({ message: describeSetupReplayFailure(error), type: "error" });
-    }
-  };
+  const shown =
+    run.type === "done" ? run.ran : run.type === "running" ? run.ran : null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
@@ -439,7 +582,7 @@ export const SetupReplayWorkspace = ({
         className="space-y-4 rounded-xl border p-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void replay();
+          void replay(request, false);
         }}
       >
         <ChoiceSelect
@@ -447,14 +590,14 @@ export const SetupReplayWorkspace = ({
             `${entry.symbol} daily (${entry.barCount.toLocaleString("en-US")} bars)`
           }
           label="Daily series"
-          onChange={(entry) => set("series")(load.series.indexOf(entry))}
+          onChange={(entry) => set("symbol")(entry.symbol)}
           options={load.series}
           value={series}
         />
         <ChoiceSelect
           format={(entry) => entry.label}
           label="Setup"
-          onChange={(entry) => set("setup")(load.presets.indexOf(entry))}
+          onChange={(entry) => set("setup")(entry.id)}
           options={load.presets}
           value={preset}
         />
@@ -464,28 +607,28 @@ export const SetupReplayWorkspace = ({
           label="Stop distance"
           onChange={set("stop")}
           options={SETUP_REPLAY_STOP_ATR_MULTIPLES}
-          value={choices.stop}
+          value={current.stop}
         />
         <ChoiceSelect
           format={(value) => `${value}R`}
           label="Target"
           onChange={set("targetR")}
           options={SETUP_REPLAY_TARGET_RS}
-          value={choices.targetR}
+          value={current.targetR}
         />
         <ChoiceSelect
           format={(value) => `${value} bars`}
           label="Time exit after"
           onChange={set("maxHoldBars")}
           options={SETUP_REPLAY_MAX_HOLD_BARS}
-          value={choices.maxHoldBars}
+          value={current.maxHoldBars}
         />
         <ChoiceSelect
           format={(value) => `${value.toLocaleString("en-US")} paths`}
           label="Monte Carlo paths"
           onChange={set("paths")}
           options={SETUP_REPLAY_PATHS}
-          value={choices.paths}
+          value={current.paths}
         />
         <Button
           className="min-h-11 w-full"
@@ -493,7 +636,7 @@ export const SetupReplayWorkspace = ({
           type="submit"
         >
           <Play aria-hidden="true" className="size-4" />
-          {run.type === "running" ? "Running…" : "Run replay"}
+          {run.type === "running" ? "Running…" : "Run again"}
         </Button>
         <p className="text-muted-foreground text-xs">
           Long only. A signal on a daily close enters at the next open. The stop
@@ -507,16 +650,14 @@ export const SetupReplayWorkspace = ({
           and events the stored history never saw can do something different.
           Research only; no orders.
         </p>
-        {run.type === "idle" ? (
-          <Notice>Choose a series and a setup, then run the replay.</Notice>
-        ) : null}
+        {run.type === "idle" ? <Notice>Preparing the replay…</Notice> : null}
         {run.type === "running" ? <Notice>Replaying…</Notice> : null}
         {run.type === "error" ? (
           <p className="text-destructive text-sm" role="alert">
             {run.message}
           </p>
         ) : null}
-        {run.type === "done" ? <Results ran={run.ran} /> : null}
+        {shown === null ? null : <Results ran={shown} />}
       </section>
     </div>
   );

@@ -31,7 +31,7 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 3. Execution claims the row with a conditional update (`queued` to `running`), so a run executes at most once. It loads the bars (shared in-process cache), keeps the bars between `from` 00:00 UTC and the end of `to`, runs the engine and stores the report (`succeeded`) or a short error (`failed`). Storage errors store a generic message only.
 4. `get` re-schedules a run that is still `queued`, so a lost background task still completes. The page polls `get` once a second for at most 300 reads. It fails the requested run when it stayed `running` for more than 10 minutes.
 
-The page opens the run named in `?run=<id>`; the parameter sweep page links there after "Run full backtest".
+The page opens the run named in `?run=<id>`, else the newest succeeded run; the parameter sweep page links there after "Run full backtest".
 
 The repository changes only `status`, timing, `error` and `report`. The spec, the strategy snapshot and the revision are written once.
 

@@ -6,8 +6,11 @@ export const metadata = { title: "Todos" };
 
 export default function TodosPage() {
   return (
-    <div className="space-y-8">
-      <PageHeader title="Todos" />
+    <div className="space-y-6">
+      <PageHeader
+        description="Your open research and trading to-dos, with due dates and tags."
+        title="Todos"
+      />
       <TodosWorkspace />
     </div>
   );

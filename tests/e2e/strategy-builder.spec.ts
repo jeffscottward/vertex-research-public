@@ -60,11 +60,25 @@ test("an operator builds a strategy visually and backtests it", async ({
 }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
   await page.emulateMedia({ colorScheme: "dark" });
+  // Opening the page never queues a run.
+  const submits: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/orpc/backtestRuns/submit")
+      submits.push(request.url());
+  });
   await page.goto("/strategy-builder");
   await expect(
     page.getByRole("heading", { level: 1, name: "Strategy builder" })
   ).toBeVisible();
   const text = page.getByLabel("Definition text", { exact: true });
+
+  // Default state: the SMA cross template, the first stored series and a plain notice.
+  await expect(page.getByText("The definition is valid.")).toBeVisible();
+  await expect(page.getByText(/No builder run exists yet\./u)).toBeVisible();
+  await expect(
+    page.getByLabel("Symbol and timeframe", { exact: true })
+  ).toHaveValue("TEST:1d");
+  expect(submits).toHaveLength(0);
 
   // Text edits are validated at once.
   await text.fill("{ broken");
@@ -115,6 +129,28 @@ test("an operator builds a strategy visually and backtests it", async ({
     fullPage: true,
     path: test.info().outputPath("strategy-builder-dark.png"),
   });
+  await expect(page).toHaveURL(/[?&]run=/u);
+  const runUrl = page.url();
+
+  // Reopening the page shows the latest builder run without a new submit.
+  await page.goto("/strategy-builder");
+  await expect(
+    page
+      .getByRole("region", { name: "Backtest result" })
+      .getByText("The backtest finished.")
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByLabel("Strategy name", { exact: true })).toHaveValue(
+    "Builder cross"
+  );
+  await expect(page.getByLabel("From", { exact: true })).toHaveValue(
+    "1970-06-01"
+  );
+  // The run deep link opens the same run.
+  await page.goto(runUrl);
+  await expect(
+    page.getByRole("region", { name: "Backtest result" })
+  ).toBeVisible({ timeout: 30_000 });
+  expect(submits).toHaveLength(1);
 
   const netProfit = await metric(result, "Total net profit").textContent();
   const totalTrades = await metric(result, "Total trades").textContent();

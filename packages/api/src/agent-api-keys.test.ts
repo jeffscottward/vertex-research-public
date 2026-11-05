@@ -265,8 +265,12 @@ describe("agent API key scope", () => {
     expect(AGENT_API_KEY_PROCEDURE_PATHS).toEqual([
       "autopilot.campaigns.tick",
       "sectorRotation.collect",
+      "sectorRotation.recordChatDelivery",
       "sectorRotation.snapshot",
       "clickLog.query",
+      "pickLists.import",
+      "pickLists.list",
+      "pickLists.screen",
     ]);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(
       true

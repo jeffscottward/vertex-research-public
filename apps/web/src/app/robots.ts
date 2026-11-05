@@ -24,6 +24,7 @@ export default function robots() {
         "/price-alerts",
         "/news",
         "/baskets",
+        "/pick-lists",
         "/todos",
         "/papers",
         "/library",

@@ -119,5 +119,15 @@ describe("portalOperatorEmails", () =>
     expect(
       portalOperatorEmails({ VERTEX_OPERATOR_EMAILS: "not-an-email" })
     ).toEqual([]);
+    // Read-only agent viewers also see the operator pages (the API refuses their writes).
+    expect(
+      portalOperatorEmails({
+        VERTEX_OPERATOR_EMAILS: "a@example.test",
+        VERTEX_AGENT_VIEWER_EMAILS: "Viewer@Example.test",
+      })
+    ).toEqual(["a@example.test", "viewer@example.test"]);
+    expect(
+      portalOperatorEmails({ VERTEX_AGENT_VIEWER_EMAILS: "not-an-email" })
+    ).toEqual([]);
     return expect(portalOperatorEmails()).toEqual(expect.any(Array));
   }));

@@ -17,11 +17,11 @@ const syntheticBars = (size: number): MarketBarRow[] =>
   Array.from({ length: size }, (_, index) => {
     const close = 100 + index * 0.05 + 10 * Math.sin(index / 20);
     return {
-      t: index * DAY_MS,
-      o: close,
+      c: close,
       h: close + 1,
       l: close - 1,
-      c: close,
+      o: close,
+      t: index * DAY_MS,
       v: null,
     };
   });
@@ -35,10 +35,10 @@ test.beforeAll(async () => {
   try {
     await createMarketBarsRepository(resource.db).replaceSeries(
       {
-        symbol: "TEST",
-        timeframe: "1d",
         source: "Synthetic E2E bars (fictional)",
         sourceSha256: "f".repeat(64),
+        symbol: "TEST",
+        timeframe: "1d",
       },
       syntheticBars(1500)
     );
@@ -85,4 +85,28 @@ test("an operator runs a backtest and replays its trades", async ({ page }) => {
 
   const recent = page.getByRole("region", { name: "Recent runs" });
   await expect(recent.getByText(/TEST 1d .* succeeded/u).first()).toBeVisible();
+});
+
+test("the page opens the latest succeeded run with no clicks", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  const submits: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/orpc/backtestRuns/submit")
+      submits.push(request.url());
+  });
+  await page.goto("/backtest-runs");
+  const report = page.getByRole("region", { name: "Backtest report" });
+  await expect(report.getByText("Total net profit")).toBeVisible({
+    timeout: 30_000,
+  });
+  expect(new URL(page.url()).search).toBe("");
+
+  // An unknown ?run= falls back to the latest succeeded run.
+  await page.goto("/backtest-runs?run=missing-run");
+  await expect(report.getByText("Total net profit")).toBeVisible({
+    timeout: 30_000,
+  });
+  expect(submits).toHaveLength(0);
 });

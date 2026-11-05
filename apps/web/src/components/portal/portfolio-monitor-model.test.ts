@@ -34,6 +34,7 @@ import {
   nextSort,
   normalizeColumnConfig,
   holdingKind,
+  holdingBadge,
   holdingLabel,
   normalizeInterval,
   normalizeSort,
@@ -641,5 +642,50 @@ describe("isOptionPosition", () => {
         isOptionPosition({ secType })
       )
     ).toEqual([true, true, true, false, false, false, false]);
+  });
+
+  it("builds compact coloured Type badges with the full words as label", () => {
+    expect(
+      holdingBadge(fixturePosition({ position: 10, secType: "STK" }))
+    ).toEqual({ label: "Long shares", text: "STK +L", tone: "long" });
+    expect(
+      holdingBadge(fixturePosition({ position: -5, secType: "STK" }))
+    ).toEqual({ label: "Short shares", text: "STK -S", tone: "short" });
+    expect(
+      holdingBadge(fixturePosition({ position: 0, secType: "STK" }))
+    ).toEqual({ label: "Flat shares", text: "STK", tone: "flat" });
+    expect(
+      holdingBadge(
+        fixturePosition({
+          description: "SPY   261218C00500000",
+          position: 2,
+          secType: "OPT",
+        })
+      )
+    ).toEqual({ label: "Long Call 2026-12-18", text: "+C", tone: "long" });
+    expect(
+      holdingBadge(
+        fixturePosition({
+          description: "IWM 20261113 285 P",
+          position: -1,
+          secType: "OPT",
+        })
+      )
+    ).toEqual({ label: "Short Put", text: "-P", tone: "short" });
+    expect(
+      holdingBadge(
+        fixturePosition({ description: "ESZ6", position: 1, secType: "FUT" })
+      )
+    ).toEqual({ label: "Long Contract", text: "+FUT", tone: "long" });
+    return expect(
+      holdingBadge(
+        fixturePosition({
+          description: "",
+          position: 0,
+          secType: "",
+          symbol: "X",
+        })
+      )
+    ).toEqual({ label: "Flat —", text: "—", tone: "flat" });
   });
 });

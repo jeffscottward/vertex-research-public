@@ -1,6 +1,7 @@
 import {
   applySweepParams,
   assessSweepRobustness,
+  BACKTEST_SWEEP_METRICS,
   type BacktestRunSubmitInput,
   type BacktestSweepCell,
   type BacktestSweepInput,
@@ -15,7 +16,15 @@ import {
   sweepIndex,
 } from "@darkfactory/api";
 
+import { cacheKey, pickParam, readParam } from "./backtest-lab-query.ts";
+import { isoDate } from "./backtest-runs-model.ts";
 import {
+  parseUniverseChoice,
+  type UniverseChoice,
+  visibleSeries,
+} from "./backtest-universe.tsx";
+import {
+  DEFAULT_INSTANT_PARAMS,
   formatPercent,
   formatRatio,
   type InstantParams,
@@ -24,8 +33,8 @@ import {
 import { finiteRange, heatClass } from "./optimizations-model.ts";
 
 // Pure helpers for the parameter sweep page: request building, client-side re-ranking for the
-// selected metric (same code as the server), the heatmap slice and the "run full backtest"
-// request for one cell. Research only; no order path.
+// selected metric (same code as the server), the heatmap slice, the "run full backtest" request
+// for one cell and the URL query. Research only; no order path.
 
 export type SweepDimensionForm = Readonly<{
   param: BacktestSweepParam;
@@ -81,19 +90,108 @@ export const formatSweepMetric = (
 ): string =>
   PERCENT_METRIC[metric] ? formatPercent(value) : formatRatio(value);
 
-/** Default grid for a rule: two dimensions, 6 x 9 or 6 x 6 cells. */
+/** Default grid for a rule: two dimensions, 6 x 8 or 6 x 6 cells (small, so it can run on open). */
 export const defaultDimensions = (
   kind: InstantParams["ruleKind"]
 ): SweepDimensionForm[] =>
   kind === "smaCross"
     ? [
         { from: 5, param: "fast", step: 5, to: 30 },
-        { from: 40, param: "slow", step: 20, to: 200 },
+        { from: 60, param: "slow", step: 20, to: 200 },
       ]
     : [
         { from: 10, param: "entryLookback", step: 10, to: 60 },
         { from: 5, param: "exitLookback", step: 5, to: 30 },
       ];
+
+export const DEFAULT_SWEEP_METRIC: BacktestSweepMetric = "totalReturn";
+
+const SWEEP_RULES: readonly InstantParams["ruleKind"][] = [
+  "smaCross",
+  "breakout",
+];
+
+/** "SYMBOL:timeframe", the series key used by the select and the `symbol` URL parameter. */
+export const seriesKey = (series: InstantBacktestSeries): string =>
+  `${series.symbol}:${series.timeframe}`;
+
+/** The default form for a series: default grid and settings over its whole stored range. */
+export const defaultSweepForm = (
+  series: InstantBacktestSeries,
+  ruleKind: InstantParams["ruleKind"],
+  metric: BacktestSweepMetric
+): SweepForm => ({
+  dimensions: defaultDimensions(ruleKind),
+  from: isoDate(series.firstT),
+  metric,
+  params: { ...DEFAULT_INSTANT_PARAMS, ruleKind },
+  to: isoDate(series.lastT),
+});
+
+export type SweepQuery = Readonly<{
+  universe: UniverseChoice;
+  /** Series key or bare symbol; checked against the stored series later. */
+  symbol: string | null;
+  metric: BacktestSweepMetric;
+  rule: InstantParams["ruleKind"];
+}>;
+
+/** Reads the page choices from a query string; unknown values fall back to the defaults. */
+export const parseSweepQuery = (search: string): SweepQuery => ({
+  metric: pickParam(
+    readParam(search, "metric"),
+    BACKTEST_SWEEP_METRICS,
+    DEFAULT_SWEEP_METRIC
+  ),
+  rule: pickParam(
+    readParam(search, "rule"),
+    SWEEP_RULES,
+    DEFAULT_INSTANT_PARAMS.ruleKind
+  ),
+  symbol: readParam(search, "symbol"),
+  universe: parseUniverseChoice(readParam(search, "universe")),
+});
+
+/**
+ * The series the universe lists that matches `wanted` (a series key, else a symbol), or the
+ * first one it lists. Undefined when nothing is stored.
+ */
+export const pickSeries = (
+  series: readonly InstantBacktestSeries[],
+  choice: UniverseChoice,
+  wanted: string | null
+): InstantBacktestSeries | undefined => {
+  const listed = visibleSeries(series, choice).series;
+  return (
+    listed.find((entry) => seriesKey(entry) === wanted) ??
+    listed.find((entry) => entry.symbol === wanted) ??
+    listed[0]
+  );
+};
+
+/** Key for a request with the metric left out: the metric only re-ranks a finished sweep. */
+export const sweepRunKey = (input: BacktestSweepRequest): string =>
+  cacheKey({ ...input, metric: null });
+
+/**
+ * The run key when the form is the default grid and settings over the series' whole range, so
+ * the page may run it without a click; null for an edited grid or a form that cannot run.
+ */
+export const autoSweepKey = (
+  form: SweepForm,
+  series: InstantBacktestSeries | undefined
+): string | null => {
+  if (series === undefined) return null;
+  const built = toSweepInput(form, series);
+  if ("error" in built) return null;
+  const standard = toSweepInput(
+    defaultSweepForm(series, form.params.ruleKind, form.metric),
+    series
+  );
+  return cacheKey(built) === cacheKey(standard)
+    ? sweepRunKey(built.input)
+    : null;
+};
 
 /** Builds the sweep request (defaults applied), or returns the first reason it cannot run. */
 export const toSweepInput = (
@@ -156,10 +254,15 @@ export type HeatmapAxes = Readonly<{
   fixed: readonly number[];
 }>;
 
-/** Columns = last dimension, rows = first, other dimensions fixed at the best-ranked cell. */
-export const defaultAxes = (output: BacktestSweepOutput): HeatmapAxes => {
+/**
+ * Columns = last dimension, rows = first, other dimensions fixed at the best cell (the server's
+ * best by default; pass the best for another metric when the sweep was ranked for a different one).
+ */
+export const defaultAxes = (
+  output: BacktestSweepOutput,
+  best: number | undefined = output.ranking[0]
+): HeatmapAxes => {
   const count = output.dimensions.length;
-  const best = output.ranking[0];
   return {
     fixed:
       best === undefined

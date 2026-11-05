@@ -1,8 +1,7 @@
 "use client";
 
 import { PageHeader } from "@darkfactory/ui";
-import type { ReactNode } from "react";
-import { useLayoutEffect, useState } from "react";
+import { type ReactNode, useLayoutEffect, useState } from "react";
 
 import { PortfolioMonitor } from "./portfolio-monitor.tsx";
 import {
@@ -15,16 +14,17 @@ import {
   type VertexOrdersGateway,
 } from "./vertex-orders-client.ts";
 import {
-  TabPanel,
-  TabStrip,
   readStored,
   useStoredState,
+  writeStored,
 } from "./portfolio-monitor-controls.tsx";
 import { MONITOR_SECTIONS } from "./portfolio-monitor-model.ts";
 
 export const PORTFOLIO_VIEW_STORAGE_KEY = "vertex.portfolio.view.v2";
 /** The v1 key ("ibkr" | "projection" | "orders"); read once as a fallback. */
 export const LEGACY_PORTFOLIO_VIEW_STORAGE_KEY = "vertex.portfolio.view.v1";
+/** Query parameter of the open view (StickyTabs default). */
+const PORTFOLIO_VIEW_PARAM = "tab";
 
 const PORTFOLIO_VIEWS = [...MONITOR_SECTIONS, "projection", "orders"] as const;
 export type PortfolioView = (typeof PORTFOLIO_VIEWS)[number];
@@ -45,31 +45,35 @@ export const migrateLegacyPortfolioView = (): PortfolioView | null => {
   return legacy === undefined ? null : normalizePortfolioView(legacy);
 };
 
-const VIEW_TABS = [
-  { id: "positions" as const, label: "Positions" },
-  { id: "orders-stops" as const, label: "Orders & stops" },
-  { id: "pnl" as const, label: "P&L" },
-  { id: "allocation" as const, label: "Allocation" },
-  { id: "options" as const, label: "Options" },
-  { id: "projection" as const, label: "Projection" },
-  { id: "orders" as const, label: "Vertex orders" },
-];
+// Called when a view opens. It saves the view only when ?tab= names it (a tab click or a
+// link), so the fallback view on a plain /portfolio visit never overwrites the saved one.
+const rememberView = (view: string): void => {
+  if (
+    new URLSearchParams(window.location.search).get(PORTFOLIO_VIEW_PARAM) ===
+    view
+  )
+    writeStored(PORTFOLIO_VIEW_STORAGE_KEY, normalizePortfolioView(view));
+};
 
 interface PortfolioTabsProps {
   readonly projection: ReactNode;
+  /** ?tab= from the server request (the page's searchParams). */
+  readonly initialTab?: string | undefined;
   readonly gateway?: PortfolioMonitorGateway;
   readonly ordersGateway?: VertexOrdersGateway;
   /** From the server session. The ibkr-monitor sections are operator-only. */
   readonly operator?: boolean;
 }
 
-// Portfolio home: one tab strip over the read-only ibkr-monitor sections, the research
-// projection and the Vertex orders view.
-// The choice is saved in this browser. Non-operators get the projection only.
+// Portfolio home (owner 2026-11-04): page header -> collapsible account Summary -> one sticky
+// tab bar over the read-only ibkr-monitor sections, the research projection and the Vertex
+// orders view. The open view is in ?tab=; without it the last chosen view (this browser)
+// opens. Non-operators get the projection only.
 export const PortfolioTabs = ({
   projection,
   gateway: suppliedGateway,
   ordersGateway: suppliedOrdersGateway,
+  initialTab,
   operator = false,
 }: PortfolioTabsProps) => {
   const [view, setView] = useStoredState(
@@ -96,27 +100,26 @@ export const PortfolioTabs = ({
   return (
     <div className="space-y-4">
       <PageHeader title="Portfolio" />
-      <TabStrip
-        idPrefix="portfolio"
-        label="Portfolio views"
-        onChange={setView}
-        tabs={VIEW_TABS}
-        value={view}
+      <PortfolioMonitor
+        defaultTab={view}
+        extraTabs={[
+          {
+            value: "projection",
+            label: "Projection",
+            content: projection,
+          },
+          {
+            value: "orders",
+            label: "Vertex orders",
+            content: <VertexOrders gateway={ordersGateway} />,
+          },
+        ]}
+        gateway={gateway}
+        initialTab={initialTab}
+        onTabShown={rememberView}
+        ordersGateway={ordersGateway}
+        title="Portfolio · IBKR (via ibkr-monitor)"
       />
-      <TabPanel id={view} idPrefix="portfolio">
-        {view === "projection" ? (
-          projection
-        ) : view === "orders" ? (
-          <VertexOrders gateway={ordersGateway} />
-        ) : (
-          <PortfolioMonitor
-            gateway={gateway}
-            ordersGateway={ordersGateway}
-            section={view}
-            title="Portfolio · IBKR (via ibkr-monitor)"
-          />
-        )}
-      </TabPanel>
     </div>
   );
 };

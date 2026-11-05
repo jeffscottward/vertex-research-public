@@ -21,9 +21,12 @@ import {
 
 import {
   budgetSummary,
+  CAMPAIGN_PARAM,
+  campaignFromSearch,
   checksSummary,
   curveGeometry,
   DEFAULT_AUTOPILOT_FORM,
+  defaultCampaignId,
   formatCpu,
   formatNumber,
   formatPercent,
@@ -53,6 +56,7 @@ const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  window.history.replaceState(null, "", "/autopilot");
   vi.useRealTimers();
 });
 
@@ -450,6 +454,44 @@ describe("autopilot model", () => {
         ?.timeframe
     ).toBe("1m");
   });
+
+  it("opens the latest completed campaign, else the latest of any status", () => {
+    const later = new Date("2026-10-31T12:00:00.000Z");
+    expect(defaultCampaignId([])).toBeNull();
+    // No completed campaign: the latest created one; a tie keeps the list order.
+    expect(
+      defaultCampaignId([
+        campaign({ id: "a" }),
+        campaign({ createdAt: later, id: "b", status: "stopped" }),
+        campaign({ id: "c", status: "failed" }),
+      ])
+    ).toBe("b");
+    // A completed campaign wins over a newer running one, by finish time.
+    expect(
+      defaultCampaignId([
+        campaign({ createdAt: later, id: "new" }),
+        campaign({ finishedAt: at, id: "done-early", status: "completed" }),
+        campaign({ finishedAt: later, id: "done-late", status: "completed" }),
+      ])
+    ).toBe("done-late");
+    // A completed row without a finish time falls back to its creation time.
+    expect(
+      defaultCampaignId([
+        campaign({ finishedAt: at, id: "done", status: "completed" }),
+        campaign({ createdAt: later, id: "undated", status: "completed" }),
+      ])
+    ).toBe("undated");
+  });
+
+  it("reads the campaign from the URL and falls back to the default", () => {
+    const rows = [campaign(), campaign({ id: "c2", status: "stopped" })];
+    expect(CAMPAIGN_PARAM).toBe("campaign");
+    expect(campaignFromSearch("?campaign=c2", rows)).toBe("c2");
+    expect(campaignFromSearch("?campaign=missing", rows)).toBe("c1");
+    expect(campaignFromSearch("?campaign=", rows)).toBe("c1");
+    expect(campaignFromSearch("", rows)).toBe("c1");
+    expect(campaignFromSearch("?campaign=c2", [])).toBeNull();
+  });
 });
 
 describe("autopilot gateway", () => {
@@ -518,6 +560,62 @@ describe("AutopilotWorkspace", () => {
     expect(text()).toContain("Rejected");
     await click(button("Old"));
     expect(gateway.get).toHaveBeenLastCalledWith("c2");
+  });
+
+  it("opens the latest completed campaign with no input and starts nothing", async () => {
+    const done = campaign({
+      finishedAt: at,
+      id: "c2",
+      name: "Done",
+      status: "completed",
+    });
+    const get = vi.fn(async (id: string) =>
+      detailOf({ campaign: id === "c2" ? done : campaign() })
+    );
+    const gateway = gatewayOf({
+      get,
+      list: vi.fn(async () => [campaign(), done]),
+    });
+    await mount(<AutopilotWorkspace gateway={gateway} />);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledWith("c2");
+    const detail = document.querySelector("section[aria-label='Campaign']");
+    expect(detail?.querySelector("h2")?.textContent).toBe("Done");
+    expect(detail?.textContent).toContain("Verified one");
+    expect(detail?.textContent).toContain("Rejected one");
+    // The default view keeps a clean URL.
+    expect(window.location.search).toBe("");
+    // Opening the page never creates, starts, ticks or submits anything.
+    expect(gateway.create).not.toHaveBeenCalled();
+    expect(gateway.setStatus).not.toHaveBeenCalled();
+    expect(gateway.tick).not.toHaveBeenCalled();
+    expect(gateway.submitBacktest).not.toHaveBeenCalled();
+    expect(gateway.sendToPaper).not.toHaveBeenCalled();
+  });
+
+  it("opens the campaign in the URL and writes selection changes", async () => {
+    window.history.replaceState(null, "", "/autopilot?campaign=c2&keep=1");
+    const gateway = gatewayOf();
+    await mount(<AutopilotWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledTimes(1);
+    expect(gateway.get).toHaveBeenCalledWith("c2");
+    expect(window.location.search).toBe("?campaign=c2&keep=1");
+    await click(button("SPY daily"));
+    expect(gateway.get).toHaveBeenLastCalledWith("c1");
+    // c1 is the default, so the parameter goes away.
+    expect(window.location.search).toBe("?keep=1");
+    await click(button("Old"));
+    expect(window.location.search).toBe("?keep=1&campaign=c2");
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the default campaign for an unknown id in the URL", async () => {
+    window.history.replaceState(null, "", "/autopilot?campaign=gone");
+    const gateway = gatewayOf();
+    await mount(<AutopilotWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledTimes(1);
+    expect(gateway.get).toHaveBeenCalledWith("c1");
+    expect(window.location.search).toBe("");
   });
 
   it("starts a campaign and reports create failures", async () => {

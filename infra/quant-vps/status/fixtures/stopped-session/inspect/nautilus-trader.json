@@ -20,12 +20,11 @@
       "NAUTILUS_RISK_MAX_DAILY_LOSS_USD=1000",
       "NAUTILUS_RISK_ALLOWED_INSTRUMENTS=*",
       "RISK_DENIED_INSTRUMENTS=",
-      "CHARAN_LIVE_TRANSMIT_ENABLED=true",
       "SYNTHETIC_STOP_MODE=disabled",
       "IBKR_ACCOUNT_ID=U7654321",
       "TWS_PASSWORD=fixture-not-a-real-password",
       "POSTGRES_URL=postgresql://vq:fixturepw@postgres:5432/vq",
-      "CHARAN_API_TOKEN=FixtureTok3nAbCdEfGhIjKlMnOpQrStUvWxYz0123"
+      "VENDOR_API_TOKEN=FixtureTok3nAbCdEfGhIjKlMnOpQrStUvWxYz0123"
     ]
   }
 }

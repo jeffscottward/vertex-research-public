@@ -14,7 +14,6 @@ import {
 // registry with the exact already-reviewed local root bindings; no externalSources.
 const reviewedRepositoryIds: readonly string[] = [
   "ibkr-vertex-ai-fund",
-  "charan-discord-bot",
   "AI-Cornell-bots",
   "vertex-research",
   "vertex-quant-trail-capability",

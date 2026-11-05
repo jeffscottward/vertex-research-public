@@ -53,6 +53,10 @@
       "import": "./src/input.tsx",
       "default": "./src/input.tsx"
     },
+    "./kpi": {
+      "import": "./src/kpi.tsx",
+      "default": "./src/kpi.tsx"
+    },
     "./label": {
       "import": "./src/label.tsx",
       "default": "./src/label.tsx"
@@ -96,6 +100,10 @@
     "./client/data-table": {
       "import": "./src/client/data-table.tsx",
       "default": "./src/client/data-table.tsx"
+    },
+    "./client/page-sections": {
+      "import": "./src/client/page-sections.tsx",
+      "default": "./src/client/page-sections.tsx"
     },
     "./client/dialog": {
       "import": "./src/client/dialog.ts",

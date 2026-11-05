@@ -8,8 +8,9 @@ import { e2eEnvironment } from "./env.ts";
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
-// Portfolio combos: an operator runs two backtests, combines them on one deposit and reads the
-// combined report. Synthetic, clearly fictional daily bars; research only.
+// Portfolio combos: an operator runs two backtests; the combos page opens with them already
+// combined on one deposit (no clicks), re-combines on a change and keeps the choice in the URL
+// (`?runs=`). Synthetic, clearly fictional daily bars; research only.
 
 const DAY_MS = 86_400_000;
 
@@ -72,23 +73,34 @@ test("an operator combines two backtest runs on one deposit", async ({
     await expect(succeeded).toHaveCount(before + 1, { timeout: 30_000 });
   }
 
+  // Opening the page must never queue a new backtest.
+  const submits: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/backtestRuns/submit"))
+      submits.push(request.url());
+  });
   await page.goto("/portfolio-combos");
   await expect(
     page.getByRole("heading", { level: 1, name: "Portfolio combos" })
   ).toBeVisible();
   const boxes = page.getByRole("checkbox");
-  // Newest first: the two runs made above are the first two rows.
+  // Newest first: the two runs made above are the first two rows, both picked by default
+  // with an equal share each, and combined without pressing a button.
   await expect(boxes.nth(1)).toBeVisible({ timeout: 30_000 });
-  await boxes.nth(0).check();
-  await boxes.nth(1).check();
+  await expect(boxes.nth(0)).toBeChecked();
+  await expect(boxes.nth(1)).toBeChecked();
   const weights = page.getByLabel(/^Weight for /u);
-  await weights.nth(0).fill("0.5");
-  await weights.nth(1).fill("0.5");
-  await page.getByLabel("Shared deposit", { exact: true }).fill("200000");
-  await page.getByRole("button", { name: "Combine" }).click();
-
+  await expect(weights.nth(0)).toHaveValue("0.5");
+  await expect(weights.nth(1)).toHaveValue("0.5");
   const report = page.getByRole("region", { name: "Combined portfolio" });
-  await expect(report.getByText("Final equity")).toBeVisible();
+  await expect(report.getByText("Final equity")).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(report.getByText("100,000.00").first()).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("runs")).toBeNull();
+
+  // A new deposit re-combines on its own after a short pause.
+  await page.getByLabel("Shared deposit", { exact: true }).fill("200000");
   await expect(report.getByText("200,000.00")).toBeVisible();
   await expect(
     report.getByRole("img", { name: "Combined equity curve" })
@@ -97,6 +109,30 @@ test("an operator combines two backtest runs on one deposit", async ({
   await expect(
     report.getByText(/robust|degrading|insufficient/u).first()
   ).toBeVisible();
+  expect(submits).toEqual([]);
+
+  // Dropping a run writes the choice to the URL; the link restores it.
+  await boxes.nth(1).uncheck();
+  await expect(page).toHaveURL(/[?&]runs=[^&]+/u);
+  const link = page.url();
+  await page.goto(link);
+  await expect(page.getByRole("checkbox").nth(1)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("checkbox").nth(0)).toBeChecked();
+  await expect(page.getByRole("checkbox").nth(1)).not.toBeChecked();
+  await expect(page.getByLabel(/^Weight for /u)).toHaveValue("1");
+  await expect(
+    page
+      .getByRole("region", { name: "Combined portfolio" })
+      .getByText("Final equity")
+  ).toBeVisible({ timeout: 30_000 });
+  expect(submits).toEqual([]);
+
+  await page.goto("/portfolio-combos");
+  await expect(
+    page.getByRole("region", { name: "Combined portfolio" })
+  ).toBeVisible({ timeout: 30_000 });
   await page.screenshot({
     fullPage: true,
     path: "test-results/portfolio-combos-dark.png",

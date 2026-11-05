@@ -1,0 +1,27 @@
+# Vertex sector rotation collection (research only, no orders). Owner 2026-11-04 (FIRSTMATE msg
+# 1567584551277043733): runs on QuantVPS with the Autopilot operator write key file; the key stays here.
+[Unit]
+Description=Vertex sector rotation collection (research only)
+After=network-online.target vertex-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/vertex-autopilot/autopilot.env
+WorkingDirectory=/opt/vertex-sector-rotation
+ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs
+TimeoutStartSec=300
+Nice=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes

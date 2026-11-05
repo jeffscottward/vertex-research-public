@@ -20,3 +20,29 @@ export const portalPageTitle = (pathname: string): string =>
   TITLE_SOURCES.filter((item) => isNavigationItemActive(pathname, item)).sort(
     (left, right) => right.href.length - left.href.length
   )[0]?.label ?? "Vertex Research";
+
+export interface PortalBreadcrumb {
+  /** Sidebar group of the page ("Settings" for settings pages); undefined when unknown. */
+  readonly section: string | undefined;
+  readonly title: string;
+}
+
+const SETTINGS_ITEMS: readonly NavigationItem[] = [
+  ...SETTINGS_NAVIGATION,
+  SETTINGS_ENTRY,
+];
+
+/** Breadcrumb for the top bar: the page's sidebar group, then the page title. */
+export const portalBreadcrumb = (pathname: string): PortalBreadcrumb => {
+  const title = portalPageTitle(pathname);
+  const group = PORTAL_SIDEBAR_GROUPS.find((candidate) =>
+    candidate.items.some(
+      (item) => item.label === title && isNavigationItemActive(pathname, item)
+    )
+  );
+  if (group !== undefined) return { section: group.label, title };
+  const settings = SETTINGS_ITEMS.some((item) =>
+    isNavigationItemActive(pathname, item)
+  );
+  return { section: settings ? "Settings" : undefined, title };
+};

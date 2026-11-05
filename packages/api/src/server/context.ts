@@ -6,7 +6,11 @@ import type {
   SafeAuthSession,
   UserRole,
 } from "@darkfactory/auth/types";
-import { AGENT_API_KEY_HEADER } from "@darkfactory/auth/types";
+import {
+  AGENT_API_KEY_HEADER,
+  AUTHORIZATION_ERROR_CODES,
+  AuthAuthorizationError,
+} from "@darkfactory/auth/types";
 import type { Repositories } from "@darkfactory/db/server";
 import type {
   SemanticEventPort,
@@ -72,6 +76,9 @@ export type ApiContext = Readonly<{
   // Lower-cased operator allow-list (VERTEX_OPERATOR_EMAILS). Absent/empty => no
   // operators; agentOps.*, papers.* and agentApiKeys.* then deny everyone.
   operatorEmails?: readonly string[];
+  // Lower-cased read-only agent viewer list (VERTEX_AGENT_VIEWER_EMAILS). These sessions pass the
+  // operator gate but may call only read procedures (agent-viewer.ts).
+  agentViewerEmails?: readonly string[];
   // Read-only QuantVPS status endpoint (VERTEX_DEPLOY_STATUS_URL/TOKEN). Server-only; null => not configured.
   deployStatus?: DeployStatusConfig | null;
   // Tailnet-only v2 snapshot (VERTEX_DEPLOY_STATUS_V2_URL, same token). Server-only; null => v1 only.
@@ -136,6 +143,7 @@ export type ApiContextDependencies = Readonly<{
   requireRole: (headers: Headers, role: UserRole) => Promise<SafeAuthSession>;
   agentApiKeys?: AgentApiKeyService;
   operatorEmails?: readonly string[];
+  agentViewerEmails?: readonly string[];
   deployStatus?: DeployStatusConfig | null;
   deployStatusV2?: DeployStatusConfig | null;
   marketHistory?: DeployStatusConfig | null;
@@ -235,6 +243,11 @@ export const createApiContext = (
         email.trim().toLowerCase()
       )
     ),
+    agentViewerEmails: Object.freeze(
+      (dependencies.agentViewerEmails ?? []).map((email) =>
+        email.trim().toLowerCase()
+      )
+    ),
     deployStatus: dependencies.deployStatus ?? null,
     deployStatusV2: dependencies.deployStatusV2 ?? null,
     marketHistory: dependencies.marketHistory ?? null,
@@ -270,7 +283,20 @@ export const createApiContext = (
     repositories: dependencies.repositories,
     capabilities: dependencies.capabilities,
     requireSession: () => dependencies.requireSession(request.headers),
-    requireRole: (role) => dependencies.requireRole(request.headers, role),
+    // A read-only agent viewer never passes a role check (no admin or owner access), even if its
+    // account has the admin role in the database.
+    requireRole: async (role) => {
+      const session = await dependencies.requireRole(request.headers, role);
+      const viewers = (dependencies.agentViewerEmails ?? []).map((email) =>
+        email.trim().toLowerCase()
+      );
+      if (viewers.includes(session.user.email.trim().toLowerCase()))
+        throw new AuthAuthorizationError(
+          AUTHORIZATION_ERROR_CODES.FORBIDDEN,
+          403
+        );
+      return session;
+    },
     ...(dependencies.vertexOrders === undefined
       ? {}
       : { vertexOrders: dependencies.vertexOrders }),

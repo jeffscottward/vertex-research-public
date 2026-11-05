@@ -7,8 +7,11 @@ export const metadata = { title: "Watchlist" };
 
 export default function WatchlistPage() {
   return (
-    <div className="space-y-8">
-      <PageHeader title="Watchlist" />
+    <div className="space-y-6">
+      <PageHeader
+        description="Tickers you track, with buy zones and notes."
+        title="Watchlist"
+      />
       <BasketWatchlistSection />
       <WatchlistWorkspace />
     </div>

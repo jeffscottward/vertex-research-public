@@ -70,7 +70,7 @@ The sidebar is defined in `apps/web/src/lib/navigation.ts`. Pages live in `apps/
 | Agents and automation | Agent runs (`/agents`), Deployments (`/deployments`) |
 | Data and operations | Data and evidence, Audit, Modules, Connections |
 
-Operator-only pages are hidden from other users, and the API enforces the same rule with `requireOperator`. The operator list is `VERTEX_OPERATOR_EMAILS`. The public site has Home, Platform, Method, Field guide and About pages.
+Operator-only pages are hidden from other users, and the API enforces the same rule with `requireOperator`. The operator list is `VERTEX_OPERATOR_EMAILS`. Read-only agent viewers (`VERTEX_AGENT_VIEWER_EMAILS`, owner decision 2026-11-04) see the operator pages for live checks, but the server refuses every non-read procedure and every account change for them with 403 (`packages/api/src/server/agent-viewer.ts`, `apps/web/src/server/agent-viewer-auth.ts`). Their sign-ins are audit-logged as `vertex.agent-viewer.sign-in`. The list must not overlap the operator list. The public site has Home, Platform, Method, Field guide and About pages.
 
 Other apps:
 
@@ -215,6 +215,7 @@ The always-on copy at `http://vertex.localhost` is a separate setup: rig user un
 | `bun run vertex:paper:tick` | Ticks the paper-forward monitors ([docs/vertex-rebuild/paper-forward.md](docs/vertex-rebuild/paper-forward.md)) |
 | `bun run vertex:alerts:tick` | Evaluates active price alerts and sends ntfy notifications ([docs/vertex-rebuild/price-alerts.md](docs/vertex-rebuild/price-alerts.md)) |
 | `bun run vertex:baskets:seed` | Seeds the owner's custom baskets, without changing existing ones ([docs/vertex-rebuild/baskets.md](docs/vertex-rebuild/baskets.md)) |
+| `bun run vertex:pick-lists -- import` | Imports dated pick-list snapshots from a JSON file or the owner's wish list ([docs/vertex-rebuild/pick-lists.md](docs/vertex-rebuild/pick-lists.md)) |
 | `bun run deploy:web:check` | Validates the Worker deploy inputs ([docs/deploy.md](docs/deploy.md)) |
 
 The other native services keep their tests next to their code. The CI lanes do not run them.

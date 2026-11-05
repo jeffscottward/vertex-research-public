@@ -9,9 +9,9 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
+import { portalBreadcrumb, portalPageTitle } from "../lib/portal-page-title.ts";
 import { DEFAULT_ANONYMOUS_THEME } from "../lib/theme.ts";
 import { UiStateProvider } from "../lib/ui-store.tsx";
-import { portalPageTitle } from "../lib/portal-page-title.ts";
 import type { AssistantGateway } from "./portal/assistant-client.ts";
 import { PortalShell } from "./portal-shell.tsx";
 
@@ -54,7 +54,8 @@ const assistantGateway = {
 
 const renderShell = (
   availableRoutes?: readonly string[],
-  initialAssistantPanelOpen?: boolean
+  initialAssistantPanelOpen?: boolean,
+  sessionScopeKey?: string
 ) => {
   host = document.createElement("div");
   document.body.append(host);
@@ -66,6 +67,7 @@ const renderShell = (
           assistantGateway={assistantGateway}
           initialAssistantPanelOpen={initialAssistantPanelOpen}
           userName="Ada Lovelace"
+          {...(sessionScopeKey === undefined ? {} : { sessionScopeKey })}
           {...(availableRoutes === undefined ? {} : { availableRoutes })}
         >
           <p>Body</p>
@@ -87,16 +89,76 @@ describe("PortalShell", () => {
     return expect(portalPageTitle("/elsewhere")).toBe("Vertex Research");
   });
 
-  it("lets the page title take the free header width on small screens", () => {
+  it("shows a breadcrumb that truncates and gives way first on small screens", () => {
     renderShell();
     const title = document.querySelector('[data-slot="portal-page-title"]');
     expect(title?.textContent).toBe("Research");
+    expect(title?.getAttribute("aria-current")).toBe("page");
     expect(title?.className.split(" ")).toEqual(
       expect.arrayContaining(["min-w-0", "flex-1", "truncate"])
     );
-    return expect(title?.nextElementSibling?.className.split(" ")).toContain(
-      "shrink-0"
+    const crumb = document.querySelector('nav[aria-label="Breadcrumb"]');
+    expect(crumb?.className.split(" ")).toContain("min-w-0");
+    expect(crumb?.querySelectorAll("li")).toHaveLength(2);
+    return expect(
+      document
+        .querySelector('[data-slot="portal-quick-actions"]')
+        ?.className.split(" ")
+    ).toContain("shrink-0");
+  });
+
+  it("shows the top bar search and quick actions on every portal page", () => {
+    HTMLDialogElement.prototype.showModal ??= function (
+      this: HTMLDialogElement
+    ) {
+      return this.setAttribute("open", "");
+    };
+    renderShell();
+    const search = document.querySelector<HTMLButtonElement>(
+      '[data-slot="portal-search"]'
     );
+    expect(search?.textContent).toContain("Search ticker or page");
+    const settings = document.querySelector('a[aria-label="Settings"]');
+    expect(settings?.getAttribute("href")).toBe("/settings");
+    expect(
+      document
+        .querySelector('a[aria-label="Notifications"]')
+        ?.getAttribute("href")
+    ).toBe("/price-alerts");
+    expect(button("Toggle assistant panel")).not.toBeNull();
+    act(() => search?.click());
+    return expect(
+      document
+        .querySelector('dialog[aria-label="Jump to a page"]')
+        ?.hasAttribute("open")
+    ).toBe(true);
+  });
+
+  it("hides quick links whose routes are not exposed and has no section off the map", () => {
+    const previous = navigation.pathname;
+    navigation.pathname = "/elsewhere";
+    renderShell(["/dashboard"]);
+    navigation.pathname = previous;
+    expect(document.querySelector('a[aria-label="Settings"]')).toBeNull();
+    expect(document.querySelector('a[aria-label="Notifications"]')).toBeNull();
+    return expect(
+      document.querySelectorAll('nav[aria-label="Breadcrumb"] li')
+    ).toHaveLength(1);
+  });
+
+  it("renders with a trusted session scope key", () => {
+    renderShell(undefined, undefined, "user-1:member:0");
+    return expect(
+      document.querySelector('[data-slot="portal-topbar"]')
+    ).not.toBeNull();
+  });
+
+  it("labels settings pages with the Settings section", () => {
+    expect(portalBreadcrumb("/settings/appearance")).toEqual({
+      section: "Settings",
+      title: "Appearance",
+    });
+    return expect(portalBreadcrumb("/dashboard").section).toBeDefined();
   });
 
   it("collapses the desktop sidebar into icon mode through the UI store", () => {

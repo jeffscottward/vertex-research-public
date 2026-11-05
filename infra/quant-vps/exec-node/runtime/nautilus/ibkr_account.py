@@ -14,6 +14,9 @@ from typing import Any, Callable
 ACCOUNT_SUMMARY_TAGS = (
     "AvailableFunds,BuyingPower,CashBalance,NetLiquidation,TotalCashValue"
 )
+# Written beside each snapshot as ibkr-account-classes.json (newest snapshot only).
+CLASS_SIDECAR_SCHEMA = "ibkr-account-classes/v1"
+CLASS_SIDECAR_NAME = "ibkr-account-classes.json"
 # 2172 = "application version will be desupported" warning; informational, not a request failure.
 IBKR_IGNORED_STATUS_CODES = {399, 2104, 2106, 2107, 2108, 2119, 2158, 2172}
 
@@ -55,6 +58,9 @@ class IbkrPosition:
     # IBKR contract id; used only to join reqPositions rows with
     # updatePortfolio market values. Not part of the snapshot JSON shape.
     con_id: int = 0
+    # IBKR tradingClass (SPX vs SPXW, adjusted classes). Not part of the
+    # snapshot JSON shape; see IbkrAccountSnapshot.class_sidecar.
+    trading_class: str = ""
 
 
 @dataclass(frozen=True)
@@ -79,6 +85,28 @@ class IbkrAccountSnapshot:
             return float(value)
         except ValueError:
             return None
+
+    def class_sidecar(self, snapshot_name: str) -> dict[str, Any]:
+        """conId and tradingClass per position, in to_dict() position order.
+
+        The v1 position shape is checked key for key (staged protection), so
+        the order policy in arm_gate.py reads these from a file beside it.
+        """
+        return {
+            "schemaVersion": CLASS_SIDECAR_SCHEMA,
+            "snapshot": snapshot_name,
+            "captured_at_epoch": self.captured_at,
+            "positions": [
+                {
+                    "symbol": position.symbol,
+                    "sec_type": position.sec_type,
+                    "quantity": position.quantity,
+                    "conId": position.con_id,
+                    "tradingClass": position.trading_class,
+                }
+                for position in self.positions
+            ],
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -273,6 +301,7 @@ def _snapshot_position(
         unrealized_pnl=_opt_float(unrealized_pnl),
         realized_pnl=_opt_float(realized_pnl),
         con_id=_api_int(getattr(contract, "conId", 0)) or 0,
+        trading_class=str(getattr(contract, "tradingClass", "") or ""),
     )
 
 

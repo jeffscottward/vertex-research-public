@@ -15,7 +15,7 @@ FIXTURE = os.path.join(HERE, "fixtures", "stopped-session")
 PLANTED = ["U1234567", "U7654321", "DU7654321", "hunter2fixture", "fixture-not-a-real-password", "fixturepw",
            "FixtureTok3nAbCdEfGhIjKlMnOpQrStUvWxYz0123", "FixtureBearerAbCdEf0123456789", "abc123fixture",
            "FixtureKey1234", "jeff@example.com", "FixtureStatusTokenAbCdEfGhIjKlMnOpQrStUv0123456789", "fixture-secret",
-           "IBKR_ACCOUNT_ID", "TWS_PASSWORD", "POSTGRES_URL", "CHARAN_API_TOKEN", "0000000000000000000000000000000000000000"]
+           "IBKR_ACCOUNT_ID", "TWS_PASSWORD", "POSTGRES_URL", "VENDOR_API_TOKEN", "0000000000000000000000000000000000000000"]
 
 
 def run_fixture():
@@ -102,6 +102,15 @@ class CollectorFixtureTest(unittest.TestCase):
         self.assertEqual(r["watchdog"]["status"], "degraded")
         self.assertEqual(r["watchdog"]["required_failures"], ["ib_gateway", "nautilus_health"])
         self.assertEqual(r["last_risk_check"]["max_position_notional_usd"], 3000)
+
+    def test_watchdog_flags_and_limits_are_allow_listed(self):
+        r = self.v2["risk"]
+        # The fixture's watchdog also reports a retired flag; only the allow-listed flags pass.
+        self.assertEqual(r["watchdog"]["live_flags"], {"enable_live_trading": True, "kill_switch_active": False,
+                                                       "nautilus_risk_dry_run": False, "trading_mode": "live"})
+        self.assertNotIn("retired_order_feed_enabled", self.v2_text)
+        self.assertTrue(set(r["limits"]) - {"available", "source", "as_of"} <= {k.lower() for k in collect.RISK_ENV_KEYS})
+        self.assertNotIn("vendor_api_token", r["limits"])
 
     def test_logs_filtered_scrubbed_bounded(self):
         logs = self.v2["logs"]

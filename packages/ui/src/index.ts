@@ -20,6 +20,12 @@ export {
   CardHeader,
   CardTitle,
 } from "./card.tsx";
+export type { SortDirection, SortValue } from "./data-table-sort.ts";
+export {
+  compareSortValues,
+  isEmptySortValue,
+  numericSortKey,
+} from "./data-table-sort.ts";
 export type {
   EmptyStateHeadingLevel,
   EmptyStateProps,
@@ -35,6 +41,8 @@ export type { IconButtonProps } from "./icon-button.tsx";
 export { IconButton } from "./icon-button.tsx";
 export type { InputProps } from "./input.tsx";
 export { Input } from "./input.tsx";
+export type { KpiCardProps, KpiRowProps } from "./kpi.tsx";
+export { KpiCard, KpiRow } from "./kpi.tsx";
 export type { LabelProps } from "./label.tsx";
 export { Label } from "./label.tsx";
 export type { PanelHeadingLevel, PanelProps } from "./panel.tsx";
@@ -47,13 +55,13 @@ export type { StatCardProps } from "./stat-card.tsx";
 export { StatCard } from "./stat-card.tsx";
 export type { StatusBadgeProps } from "./status-badge.tsx";
 export { StatusBadge, statusBadgeVariants } from "./status-badge.tsx";
-export type { SortDirection, SortValue } from "./data-table-sort.ts";
-export {
-  compareSortValues,
-  isEmptySortValue,
-  numericSortKey,
-} from "./data-table-sort.ts";
-export type { TableProps, TableScrollTextProps } from "./table.tsx";
+export type {
+  TableCellProps,
+  TableHeadProps,
+  TableProps,
+  TableScrollProps,
+  TableScrollTextProps,
+} from "./table.tsx";
 export {
   Table,
   TableBody,
@@ -63,6 +71,7 @@ export {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
   TableScrollText,
 } from "./table.tsx";
 export type { TextareaProps } from "./textarea.tsx";

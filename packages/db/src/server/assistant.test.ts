@@ -118,6 +118,7 @@ describe("0022 assistant migration", () => {
       "0045_market_bar_futures_symbols",
       "0046_click_log",
       "0047_sector_rotation",
+      "0048_pick_lists",
     ]);
   });
 

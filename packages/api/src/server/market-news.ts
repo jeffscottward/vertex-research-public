@@ -26,9 +26,9 @@ import {
   ResearchLensError,
   type ResearchLensErrorCode,
   type ResearchLensOptions,
-  SEC_USER_AGENT,
   type SecTicker,
   secTickers,
+  secUserAgent,
 } from "./research-lenses.ts";
 
 // Watchlist news monitor: Yahoo Finance headline RSS and SEC EDGAR 8-K Atom per ticker, for the
@@ -240,7 +240,7 @@ export const loadTickerFeeds = async (
       return parseSecAtom(
         await fetchBoundedText(
           {
-            headers: { "user-agent": SEC_USER_AGENT },
+            headers: { "user-agent": secUserAgent() },
             label: "SEC 8-K feed",
             url: `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${String(hit.cik).padStart(10, "0")}&type=8-K&dateb=&owner=include&count=10&output=atom`,
           },

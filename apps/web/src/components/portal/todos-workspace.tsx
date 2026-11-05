@@ -5,10 +5,13 @@ import {
   TODO_TITLE_MAX_LENGTH,
   type TodoItemOutput,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import { Button, Input, KpiCard, KpiRow, Panel } from "@darkfactory/ui";
 import {
+  CalendarClock,
   Check,
+  CircleCheck,
   ExternalLink,
+  ListTodo,
   Pencil,
   Plus,
   RotateCcw,
@@ -446,23 +449,41 @@ export const TodosWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <section
-        aria-labelledby="todos-add-heading"
-        className="space-y-3 rounded-lg border border-border p-3 sm:p-4"
-      >
-        <h2 className="font-medium text-sm" id="todos-add-heading">
-          Add a to-do
-        </h2>
-        <DraftForm
-          draft={newDraft}
-          idPrefix="todo-new"
-          onChange={setNewDraft}
-        />
-        <Button disabled={adding} onClick={() => void add()} type="button">
-          <Plus aria-hidden="true" className="size-4" />
-          Add to-do
-        </Button>
-      </section>
+      {state.type === "ready" ? (
+        <KpiRow label="To-do summary">
+          <KpiCard
+            hint="Still to do"
+            icon={<ListTodo />}
+            label="Open"
+            value={openCount}
+          />
+          <KpiCard
+            hint="Open and past the due date"
+            icon={<CalendarClock />}
+            label="Overdue"
+            value={items.filter((item) => isOverdue(item, today)).length}
+          />
+          <KpiCard
+            hint="Marked done"
+            icon={<CircleCheck />}
+            label="Done"
+            value={items.length - openCount}
+          />
+        </KpiRow>
+      ) : null}
+      <Panel headingId="todos-add-heading" title="Add a to-do">
+        <div className="space-y-3">
+          <DraftForm
+            draft={newDraft}
+            idPrefix="todo-new"
+            onChange={setNewDraft}
+          />
+          <Button disabled={adding} onClick={() => void add()} type="button">
+            <Plus aria-hidden="true" className="size-4" />
+            Add to-do
+          </Button>
+        </div>
+      </Panel>
 
       <div aria-live="polite" className="min-h-5 text-sm" role="status">
         {feedback}
@@ -480,12 +501,9 @@ export const TodosWorkspace = ({
           </Button>
         </div>
       ) : (
-        <section aria-labelledby="todos-list-heading" className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-medium text-sm" id="todos-list-heading">
-              {openCount} open · {items.length - openCount} done
-            </h2>
-            <label className="ml-auto inline-flex items-center gap-1 text-muted-foreground text-xs">
+        <Panel
+          actions={
+            <label className="inline-flex min-h-11 items-center gap-1 text-muted-foreground text-xs">
               <input
                 checked={showDone}
                 onChange={(event) => setShowDone(event.target.checked)}
@@ -493,7 +511,11 @@ export const TodosWorkspace = ({
               />
               Show done
             </label>
-          </div>
+          }
+          contentClassName="space-y-3"
+          headingId="todos-list-heading"
+          title={`${openCount} open · ${items.length - openCount} done`}
+        >
           {tags.length > 0 && (
             <nav
               aria-label="Filter by tag"
@@ -567,7 +589,7 @@ export const TodosWorkspace = ({
               ))}
             </ul>
           )}
-        </section>
+        </Panel>
       )}
     </div>
   );

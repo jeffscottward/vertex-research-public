@@ -7,12 +7,14 @@ the arm record survived the kill switch.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "runtime" / "nautilus"))
@@ -105,6 +107,49 @@ class WatchdogKillSwitchTest(unittest.TestCase):
     def test_armed_path_comes_from_env(self) -> None:
         config = wd.WatchdogConfig.from_env({"NAUTILUS_ARMED_PATH": "/app/data/nautilus/ARMED"})
         self.assertEqual(config.nautilus_armed_path, Path("/app/data/nautilus/ARMED"))
+
+
+class WatchdogGatewayRequirementTest(unittest.TestCase):
+    """A live Nautilus order path (live mode plus live trading or risk orders) needs the IB gateway."""
+
+    LIVE = {
+        "TRADING_MODE": "live",
+        "ENABLE_LIVE_TRADING": "true",
+        "I_UNDERSTAND_LIVE_TRADING_RISK": "true",
+        "IBKR_ACCOUNT_ID": "U0000001",
+        "LIVE_TRADING_ACCOUNT_ALLOWLIST": "U0000001",
+    }
+
+    def required(self, **env: str) -> bool:
+        return wd.WatchdogConfig.from_env({"WATCHDOG_HEALTH_PORT": "8081", **env}).ib_gateway_required
+
+    def required_unvalidated(self, **env: str) -> bool:
+        # Each term of the live order path alone, without the live-mode safety validation.
+        with mock.patch.object(wd, "validate_safe_mode"):
+            return self.required(**env)
+
+    def test_valid_live_config_requires_the_gateway(self) -> None:
+        self.assertTrue(self.required(**self.LIVE))
+        self.assertTrue(self.required(**self.LIVE, NAUTILUS_RISK_ORDERS_ENABLED="true"))
+
+    def test_each_live_order_term_requires_the_gateway(self) -> None:
+        self.assertTrue(self.required_unvalidated(TRADING_MODE="live", ENABLE_LIVE_TRADING="true"))
+        self.assertTrue(self.required_unvalidated(TRADING_MODE="live", NAUTILUS_RISK_ORDERS_ENABLED="true"))
+        self.assertFalse(self.required_unvalidated(TRADING_MODE="live"))
+
+    def test_paper_mode_does_not_require_the_gateway(self) -> None:
+        self.assertFalse(self.required(TRADING_MODE="paper"))
+        self.assertFalse(self.required(TRADING_MODE="paper", NAUTILUS_RISK_ORDERS_ENABLED="true"))
+
+    def test_explicit_gateway_flags_still_require_it(self) -> None:
+        self.assertTrue(self.required(IB_GATEWAY_REQUIRED="true"))
+        self.assertTrue(self.required(WATCHDOG_REQUIRE_IB_GATEWAY="true"))
+        self.assertTrue(self.required(IBKR_GATEWAY_ENABLED="true"))
+
+    def test_config_has_no_signal_intake_settings(self) -> None:
+        names = {field.name for field in dataclasses.fields(wd.WatchdogConfig)}
+        self.assertFalse([name for name in names if "charan" in name or "trade_intent" in name])
+
 
 if __name__ == "__main__":
     unittest.main()

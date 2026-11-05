@@ -27,6 +27,7 @@ The universes are defined in `packages/shared/src/universes/index.ts` (`CORE7_MA
 ## Where the default applies
 
 - Forms: `/instant-backtest`, `/backtest-runs`, `/backtest-sweeps` and `/autopilot` open with the Universe select on "Core 7 futures" and preselect its first stored member (`ES=F` when its bars are stored). The other choices are "Core 7 ETF twins" and "All stored series". When no member of the chosen universe has stored bars, the form says so and lists all stored series.
+- Pages without a universe select: `/setup-replay` and `/strategy-builder` open on the first stored Core 7 futures series (`ES=F` when stored). Default states and URL parameters of every Backtest lab page: [backtest-lab-defaults.md](backtest-lab-defaults.md).
 - `/backtest-runs` can queue one run per stored member of the chosen universe, and it reads `?universe=<id>&strategy=<id>`. The library strategy page links "Re-run on Core 7 futures" to that form.
 - API (for agents and other API clients; the forms read the shared module directly): `instantBacktest.universes` returns both universes, `defaultUniverseId: "core7-futures"` and the stored timeframes of each member (test: `packages/api/src/instant-backtest.test.ts`).
 - Autopilot refuses to hand a campaign on any `=F` future to paper. For a Core 7 future the refusal names the ETF twin.

@@ -185,6 +185,33 @@ describe("parseServerEnv", () => {
     return expect(error.issues.some(({ path }) => path === key)).toBe(true);
   });
 
+  it("parses VERTEX_AGENT_VIEWER_EMAILS and refuses overlap with operators", () => {
+    expect(
+      parseServerEnv({
+        ...validCoreEnv(),
+        VERTEX_AGENT_VIEWER_EMAILS: "Viewer@Domain.test",
+      }).VERTEX_AGENT_VIEWER_EMAILS
+    ).toEqual(["viewer@domain.test"]);
+    expect(parseServerEnv(validCoreEnv()).VERTEX_AGENT_VIEWER_EMAILS).toEqual(
+      []
+    );
+    const overlap = captureValidationError({
+      ...validCoreEnv(),
+      VERTEX_OPERATOR_EMAILS: "op@domain.test",
+      VERTEX_AGENT_VIEWER_EMAILS: "OP@domain.test",
+    });
+    expect(
+      overlap.issues.some(({ path }) => path === "VERTEX_AGENT_VIEWER_EMAILS")
+    ).toBe(true);
+    const invalid = captureValidationError({
+      ...validCoreEnv(),
+      VERTEX_AGENT_VIEWER_EMAILS: "not-an-email",
+    });
+    return expect(
+      invalid.issues.some(({ path }) => path === "VERTEX_AGENT_VIEWER_EMAILS")
+    ).toBe(true);
+  });
+
   it.each(["disabled", "unknown", "incompatible"])(
     "retains explicit runtime state %s without enabling providers",
     (runtimeState) => {

@@ -175,6 +175,26 @@ export const SectorRotationCollectOutputSchema = z.object({
   transitions: z.array(SectorRotationTransitionSchema),
 });
 
+/** Results the scheduler may record after it posted an undelivered alert line to chat. */
+export const SECTOR_ROTATION_CHAT_DELIVERIES = ["sent", "failed"] as const;
+
+export const SectorRotationChatDeliveryInputSchema = z
+  .object({
+    /** YYYY-MM-DD of the first period in the new quadrant (the alert's `date`). */
+    enteredOn: date,
+    /** "sent" = the chat endpoint accepted the line; "failed" = it did not. */
+    delivery: z.enum(SECTOR_ROTATION_CHAT_DELIVERIES),
+    /** The quadrant entered (the alert's `to`). */
+    quadrant,
+    symbol: inputSymbol,
+  })
+  .strict();
+
+export const SectorRotationChatDeliveryOutputSchema = z.object({
+  /** True when a not-configured or failed alert row changed; false = no such row (nothing inserted). */
+  updated: z.boolean(),
+});
+
 export const SectorRotationSnapshotInputSchema = z
   .object({
     timeframe: z.enum(SECTOR_ROTATION_TIMEFRAMES).default("daily"),
@@ -248,6 +268,18 @@ const collect = sectorRotation
   .input(SectorRotationCollectInputSchema)
   .output(SectorRotationCollectOutputSchema);
 
+const recordChatDelivery = sectorRotation
+  .route({
+    method: "POST",
+    operationId: "sectorRotation.recordChatDelivery",
+    path: "/sector-rotation/chat-delivery",
+    summary:
+      "Scheduler: record the chat post result of an alert the server could not deliver",
+    tags,
+  })
+  .input(SectorRotationChatDeliveryInputSchema)
+  .output(SectorRotationChatDeliveryOutputSchema);
+
 const snapshot = sectorRotation
   .route({
     method: "GET",
@@ -259,7 +291,12 @@ const snapshot = sectorRotation
   .input(SectorRotationSnapshotInputSchema)
   .output(SectorRotationSnapshotSchema);
 
-export const sectorRotationContract = { collect, map, snapshot };
+export const sectorRotationContract = {
+  collect,
+  map,
+  recordChatDelivery,
+  snapshot,
+};
 
 export type SectorRotationParams = z.infer<typeof SectorRotationParamsSchema>;
 export type SectorRotationPoint = z.infer<typeof SectorRotationPointSchema>;
@@ -279,6 +316,9 @@ export type SectorRotationAlertDelivery =
   (typeof SECTOR_ROTATION_ALERT_DELIVERIES)[number];
 export type SectorRotationCollectOutput = z.infer<
   typeof SectorRotationCollectOutputSchema
+>;
+export type SectorRotationChatDeliveryInput = z.input<
+  typeof SectorRotationChatDeliveryInputSchema
 >;
 export type SectorRotationSnapshot = z.infer<
   typeof SectorRotationSnapshotSchema

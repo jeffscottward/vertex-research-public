@@ -439,6 +439,41 @@ export const holdingLabel = (position: PortfolioMonitorPosition): string => {
   return `${right === "C" ? "Call" : "Put"} 20${yy}-${mm}-${dd}`;
 };
 
+// Any option right at the end of the name: OCC tail or the feed form "IWM 20261113 285 C".
+const TRAILING_RIGHT = /(?:\d{6}([CP])\d{8}|\s([CP]))\s*$/u;
+
+export type HoldingBadge = Readonly<{
+  text: string;
+  label: string;
+  tone: "long" | "short" | "flat";
+}>;
+
+// Compact Type badge: shares "STK +L" / "STK -S", options "+C" / "-P"; the full words stay in label.
+export const holdingBadge = (
+  position: PortfolioMonitorPosition
+): HoldingBadge => {
+  const qtyValue = position.position;
+  const tone = qtyValue > 0 ? "long" : qtyValue < 0 ? "short" : "flat";
+  const sideWord =
+    tone === "long" ? "Long" : tone === "short" ? "Short" : "Flat";
+  const sign = tone === "long" ? "+" : tone === "short" ? "-" : "";
+  const kind = holdingKind(position.secType);
+  const full = holdingLabel(position);
+  if (kind === "Shares") {
+    const tag = tone === "long" ? " +L" : tone === "short" ? " -S" : "";
+    return { text: `STK${tag}`, label: `${sideWord} shares`, tone };
+  }
+  const match = TRAILING_RIGHT.exec(positionName(position));
+  const right = match?.[1] ?? match?.[2];
+  if (kind === "Contract" && right !== undefined) {
+    const rightWord = right === "C" ? "Call" : "Put";
+    const word = full.startsWith(rightWord) ? full : rightWord;
+    return { text: `${sign}${right}`, label: `${sideWord} ${word}`, tone };
+  }
+  const code = position.secType.trim().toUpperCase() || DASH;
+  return { text: `${sign}${code}`, label: `${sideWord} ${full}`, tone };
+};
+
 const sortValue = (
   position: PortfolioMonitorPosition,
   id: PositionColumnId

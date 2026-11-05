@@ -71,6 +71,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/price-alerts",
   "/news",
   "/baskets",
+  "/pick-lists",
   "/papers",
   "/rotation-matrix",
   "/sector-rotation",

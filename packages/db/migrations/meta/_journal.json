@@ -337,6 +337,13 @@
       "when": 1793804712766,
       "tag": "0047_sector_rotation",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793857835081,
+      "tag": "0048_pick_lists",
+      "breakpoints": true
     }
   ]
 }

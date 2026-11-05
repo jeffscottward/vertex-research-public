@@ -221,6 +221,10 @@ import {
   createBasketRepository,
 } from "./basket-repository.ts";
 import {
+  createPickListRepository,
+  type PickListRepository,
+} from "./pick-list-repository.ts";
+import {
   createQuantLabReadRepository,
   type QuantLabReadRepository,
 } from "./quant-lab-read.ts";
@@ -4306,6 +4310,7 @@ export type Repositories = Readonly<{
   generated?: GeneratedFeatureRepositories;
   watchlist?: WatchlistRepository;
   baskets?: BasketRepository;
+  pickLists?: PickListRepository;
   todos?: TodoRepository;
   agentOps?: AgentOpsRepository;
   researchPapers?: ResearchPapersRepository;
@@ -4344,6 +4349,7 @@ export const createRepositories = (
   generated: createGeneratedFeatureRepositories(database),
   watchlist: createWatchlistRepository(database, dependencies),
   baskets: createBasketRepository(database, dependencies),
+  pickLists: createPickListRepository(database, dependencies),
   todos: createTodoRepository(database, dependencies),
   agentOps: createAgentOpsRepository(database, dependencies),
   researchPapers: createResearchPapersRepository(database, dependencies),

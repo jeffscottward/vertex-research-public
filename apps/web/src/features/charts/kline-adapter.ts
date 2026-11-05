@@ -23,7 +23,7 @@ import {
 const KLINECHARTS_VERSION = "9.8.12" as const;
 // API source: https://unpkg.com/klinecharts@9.8.12/dist/index.d.ts
 // Library remains Apache-2.0; preserve its bundled LICENSE/NOTICE on distribution.
-// This adapter is independent source, not copied from Charan's chart component.
+// This adapter is independent source, not copied from another project's chart component.
 const sameBar = (left: DisplayCandle, right: DisplayCandle): boolean => {
   return (
     left.id === right.id &&

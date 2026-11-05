@@ -71,6 +71,14 @@ export type SectorRotationRepository = Readonly<{
         delivery: Exclude<SectorRotationAlertDeliveryValue, "pending">;
       }>
   ) => Promise<void>;
+  /**
+   * Records the result of the scheduler's chat post for an alert the server could not deliver.
+   * Updates only a row whose delivery is "not-configured" or "failed"; never inserts. True only
+   * when a row changed.
+   */
+  recordChatDelivery: (
+    input: SectorRotationAlertKey & Readonly<{ delivery: "sent" | "failed" }>
+  ) => Promise<boolean>;
 }>;
 
 export type SectorRotationRepositoryDependencies = Readonly<{
@@ -142,6 +150,21 @@ export const createSectorRotationRepository = (
             eq(sectorRotationAlerts.enteredOn, input.enteredOn)
           )
         );
+    },
+    recordChatDelivery: async (input) => {
+      const updated = await database
+        .update(sectorRotationAlerts)
+        .set({ delivery: input.delivery, updatedAt: now() })
+        .where(
+          and(
+            eq(sectorRotationAlerts.symbol, input.symbol),
+            eq(sectorRotationAlerts.quadrant, input.quadrant),
+            eq(sectorRotationAlerts.enteredOn, input.enteredOn),
+            inArray(sectorRotationAlerts.delivery, ["not-configured", "failed"])
+          )
+        )
+        .returning({ symbol: sectorRotationAlerts.symbol });
+      return updated.length > 0;
     },
     upsertPoints: async (points) => {
       let written = 0;

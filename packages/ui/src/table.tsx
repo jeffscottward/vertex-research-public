@@ -84,13 +84,20 @@ export const TableRow = ({
   />
 );
 
+export interface TableHeadProps extends ComponentPropsWithRef<"th"> {
+  /** Number column: right-aligned label to match right-aligned figures. */
+  numeric?: boolean;
+}
+
 export const TableHead = ({
   className,
+  numeric = false,
   ...props
-}: ComponentPropsWithRef<"th">) => (
+}: TableHeadProps) => (
   <th
     className={cn(
       "h-10 whitespace-nowrap px-3 text-left align-middle font-medium text-foreground",
+      numeric && "text-right",
       className
     )}
     data-slot="table-head"
@@ -98,12 +105,22 @@ export const TableHead = ({
   />
 );
 
+export interface TableCellProps extends ComponentPropsWithRef<"td"> {
+  /** Number cell: right-aligned tabular figures. */
+  numeric?: boolean;
+}
+
 export const TableCell = ({
   className,
+  numeric = false,
   ...props
-}: ComponentPropsWithRef<"td">) => (
+}: TableCellProps) => (
   <td
-    className={cn("whitespace-nowrap px-3 py-2.5 align-middle", className)}
+    className={cn(
+      "whitespace-nowrap px-3 py-2.5 align-middle",
+      numeric && "text-right tabular-nums",
+      className
+    )}
     data-slot="table-cell"
     {...props}
   />
@@ -127,7 +144,8 @@ export interface TableScrollTextProps
 }
 
 /**
- * Narrow cell text for identifier columns (symbols): a fixed width of about 5 characters. Longer
+ * Narrow cell text for identifier columns (symbols): a fixed width of about 7 characters.
+ * Touch users pan it sideways with a finger (touch-action: pan-x). Longer
  * text, such as an option contract name with expiry and strike, scrolls inside the cell instead of
  * widening the column and squashing the other columns. Keyboard users can focus it to scroll.
  */
@@ -138,7 +156,7 @@ export const TableScrollText = ({
 }: TableScrollTextProps) => (
   <span
     className={cn(
-      "block w-[5ch] overflow-x-auto whitespace-nowrap [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      "block w-[7ch] overflow-x-auto overscroll-x-contain whitespace-nowrap py-1 [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       className
     )}
     data-slot="table-scroll-text"
@@ -149,4 +167,40 @@ export const TableScrollText = ({
   >
     {text}
   </span>
+);
+
+export interface TableScrollProps extends ComponentPropsWithRef<"div"> {
+  /** Accessible name for the scroll region (keyboard users focus it to scroll). */
+  label: string;
+  /** Minimum table width before the region scrolls, as a CSS length. Default 40rem. */
+  minWidth?: string;
+}
+
+/**
+ * Mobile wrapper for a wide table: below the table's minimum width the region scrolls
+ * horizontally, so columns keep a readable width (never one character per line).
+ */
+export const TableScroll = ({
+  children,
+  className,
+  label,
+  minWidth = "40rem",
+  style,
+  ...props
+}: TableScrollProps) => (
+  <div
+    aria-label={label}
+    className={cn(
+      "relative w-full overflow-x-auto [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&_[data-slot=table-container]]:overflow-visible [&_[data-slot=table]]:min-w-(--table-min-width)",
+      className
+    )}
+    data-slot="table-scroll"
+    role="region"
+    style={{ ...style, ["--table-min-width" as string]: minWidth }}
+    // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable: keyboard users must be able to scroll a wide table.
+    tabIndex={0}
+    {...props}
+  >
+    {children}
+  </div>
 );

@@ -308,7 +308,6 @@
       "nautilus_risk_max_daily_loss_usd": 1000,
       "nautilus_risk_allowed_instruments": ["*"],
       "risk_denied_instruments": [],
-      "charan_live_transmit_enabled": true,
       "synthetic_stop_mode": "disabled"
     },
     "last_risk_check": {
@@ -321,7 +320,7 @@
       "max_position_notional_usd": 3000,
       "requested_quantity": 2,
       "reason": "risk_limits_satisfied",
-      "strategy": "charan_trade_intent",
+      "strategy": "nautilus_risk_probe",
       "requested_symbol": "AAPL",
       "allowed_instruments": ["*"]
     },
@@ -335,7 +334,6 @@
       "kill_switch_created_at": null,
       "kill_switch_reason": null,
       "live_flags": {
-        "charan_live_transmit_enabled": true,
         "enable_live_trading": true,
         "kill_switch_active": false,
         "nautilus_risk_dry_run": false,
@@ -439,7 +437,7 @@
         "time": "2026-09-18T16:20:00Z",
         "level": "ERROR",
         "source": "nautilus-trader",
-        "message": "charan_live_order_submit_failed account ****4321 rejected order api_key=[redacted]",
+        "message": "live_order_submit_failed account ****4321 rejected order api_key=[redacted]",
         "count": 1
       }
     ],

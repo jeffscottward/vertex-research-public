@@ -269,6 +269,7 @@ describe("portal route manifests", () =>
       "/price-alerts",
       "/news",
       "/baskets",
+      "/pick-lists",
       "/todos",
       "/today",
       "/portfolio",

@@ -127,6 +127,8 @@ export * from "./contracts/watchlist.ts";
 export * from "./contracts/price-alerts.ts";
 export * from "./contracts/market-news.ts";
 export * from "./contracts/baskets.ts";
+export * from "./contracts/pick-lists.ts";
+export * from "./pick-list-sources.ts";
 export * from "./contracts/todos.ts";
 export * from "./contracts/agent-model-runs.ts";
 export {

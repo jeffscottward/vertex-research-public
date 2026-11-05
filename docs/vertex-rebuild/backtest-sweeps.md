@@ -47,7 +47,7 @@ The server ranks the cells for the requested metric. The page re-ranks a finishe
 
 ## Page
 
-1. Choose the series, rule, date range, fixed settings and 1 to 4 dimensions, then select **Run sweep**.
+1. On open the page runs the default grid on the first Core 7 futures series ([backtest-lab-defaults.md](backtest-lab-defaults.md)). To change it, choose the series, rule, date range, fixed settings and 1 to 4 dimensions, then select **Run sweep**.
 2. The heatmap shows one metric over two swept parameters (columns and rows). Other swept parameters are held at a chosen value; the default is the best-ranked cell. **Colour by** switches between the cell value and the worst value in its neighbourhood. Cells with a stronger colour are better within the shown slice. Isolated spikes carry a warning icon.
 3. Select a cell to see its value, worst in neighbourhood, neighbour average, neighbour count, robust rank and trade count. **Run full backtest** queues a backtest run with the cell's settings and links to `/backtest-runs?run=<id>`, which opens that run's report.
 4. **Most robust cells** lists the 20 best-ranked cells for the selected metric.

@@ -1,5 +1,4 @@
 import { implement } from "@orpc/server";
-
 import {
   CongressIndexError,
   distinctMembers,
@@ -19,6 +18,7 @@ import type {
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
+import { researchUserAgent } from "./research-contact.ts";
 
 // Read-only House STOCK Act PTR filing feed. GET only to the public House Clerk index
 // (<YEAR>FD.zip), bounded time and size, redirects never followed, ZIP and XML read by the pure
@@ -28,8 +28,6 @@ const CLERK_TIMEOUT_MS = 30_000;
 const CLERK_ZIP_MAX_BYTES = 8 * 1024 * 1024;
 const CLERK_XML_MAX_BYTES = 32 * 1024 * 1024;
 const CLERK_CACHE_TTL_MS = 15 * 60 * 1000;
-const CLERK_USER_AGENT =
-  "vertex-research congress-trades (personal research; owner@example.com)";
 
 export type CongressTradesErrorCode =
   | "NOT_FOUND"
@@ -103,7 +101,7 @@ export const fetchHouseIndex = async (
       response = await doFetch(houseIndexUrl(year), {
         headers: {
           accept: "application/zip, application/octet-stream",
-          "user-agent": CLERK_USER_AGENT,
+          "user-agent": researchUserAgent("congress-trades"),
         },
         method: "GET",
         redirect: "manual",
