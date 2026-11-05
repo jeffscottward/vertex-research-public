@@ -849,7 +849,7 @@
         {
           "path": "services/execution/tests/test_adapters.py",
           "symbols": [
-            "NautilusAdapterTests.test_exact_stable_version_and_separate_quarantine",
+            "NautilusAdapterTests.test_exact_rc5_version_without_v1_fallback",
             "NautilusAdapterTests.test_factory_failure_is_not_automatically_retried"
           ],
           "purpose": "Pinned engine metadata and explicit single activation, not scheduler rollback acceptance",

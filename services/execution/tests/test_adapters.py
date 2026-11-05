@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib
 import json
 import sys
 import unittest
@@ -30,7 +31,8 @@ from vertex_execution.adapters import (
     EngineVersionMismatch,
     KERNEL_REQUEST_VERSION,
     KernelTransportUnavailable,
-    Nautilus1231Adapter,
+    NAUTILUS_VERSION,
+    Nautilus200rc5Adapter,
     OfflineEngineScope,
     PreparedKernelCommand,
     ResearchEngineUnavailable,
@@ -40,12 +42,6 @@ from vertex_execution.adapters import (
     SupervisedResult,
     TickContinuityLost,
     TickEvent,
-)
-from vertex_execution.adapters.quarantine.v2_0_0rc5 import (
-    ABI_COMPATIBLE_WITH_1231,
-    ACTIVATION_SUPPORTED,
-    Nautilus200rc5Adapter,
-    QuarantinedEngineError,
 )
 
 
@@ -140,7 +136,7 @@ class TickBufferTests(unittest.TestCase):
     def test_callback_never_invokes_observers_or_engine(self):
         buffer = BoundedTickBuffer(2)
         loader, factory = Mock(), Mock()
-        adapter = Nautilus1231Adapter(mode="paper", buffer=buffer, load_module=loader, factory=factory)
+        adapter = Nautilus200rc5Adapter(mode="paper", buffer=buffer, load_module=loader, factory=factory)
         self.assertTrue(adapter.on_tick(tick()))
         self.assertFalse(adapter.active)
         self.assertEqual(buffer.state().pending, 1)
@@ -403,9 +399,9 @@ class NautilusAdapterTests(unittest.IsolatedAsyncioTestCase):
                 owner.events.append("closed")
 
         self.factory = Mock(return_value=Engine())
-        self.loader = Mock(return_value=SimpleNamespace(__version__="1.231.0"))
+        self.loader = Mock(return_value=SimpleNamespace(__version__="2.0.0rc5"))
         self.buffer = BoundedTickBuffer(2)
-        self.adapter = Nautilus1231Adapter(mode="paper", buffer=self.buffer, load_module=self.loader, factory=self.factory)
+        self.adapter = Nautilus200rc5Adapter(mode="paper", buffer=self.buffer, load_module=self.loader, factory=self.factory)
 
     async def test_activation_is_lazy_and_callbacks_only_buffer(self):
         self.loader.assert_not_called()
@@ -428,23 +424,25 @@ class NautilusAdapterTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(EngineUnavailable):
             self.adapter.activate()
 
-    def test_exact_stable_version_and_separate_quarantine(self):
-        for version in ("1.231", "1.231.0+local", "1.231.1", "2.0.0rc5", None):
+    def test_exact_rc5_version_without_v1_fallback(self):
+        self.assertEqual(NAUTILUS_VERSION, "2.0.0rc5")
+        for version in ("2.0.0rc4", "2.0.0rc5+local", "2.0.0rc6", "2.0.0", "1.231.0", None):
             loader = Mock(return_value=SimpleNamespace(__version__=version))
-            adapter = Nautilus1231Adapter(mode="research", buffer=BoundedTickBuffer(), load_module=loader, factory=self.factory)
+            adapter = Nautilus200rc5Adapter(mode="research", buffer=BoundedTickBuffer(), load_module=loader, factory=self.factory)
             with self.subTest(version=version), self.assertRaises(EngineVersionMismatch):
                 adapter.activate()
             with self.assertRaises(EngineUnavailable):
                 adapter.activate()
             loader.assert_called_once()
         self.factory.assert_not_called()
-        with self.assertRaises(QuarantinedEngineError):
-            Nautilus200rc5Adapter().activate()
-        self.assertIs(ABI_COMPATIBLE_WITH_1231, False)
-        self.assertIs(ACTIVATION_SUPPORTED, False)
+        # interfaces-v1.json: no v1 module, quarantine placeholder or version fallback.
+        adapters = importlib.import_module("vertex_execution.adapters")
+        self.assertFalse(hasattr(adapters, "Nautilus1231Adapter"))
+        with self.assertRaises(ModuleNotFoundError):
+            importlib.import_module("vertex_execution.adapters.quarantine")
 
     async def test_missing_factory_stays_unavailable(self):
-        adapter = Nautilus1231Adapter(mode="paper", buffer=BoundedTickBuffer())
+        adapter = Nautilus200rc5Adapter(mode="paper", buffer=BoundedTickBuffer())
         with self.assertRaises(EngineUnavailable):
             adapter.activate()
         with self.assertRaises(EngineUnavailable):
@@ -453,7 +451,7 @@ class NautilusAdapterTests(unittest.IsolatedAsyncioTestCase):
     def test_live_mode_and_authority_overrides_are_not_configurable(self):
         for mode in ("live", "broker", "paper-broker", True):
             with self.subTest(mode=mode), self.assertRaises(ValueError):
-                Nautilus1231Adapter(mode=mode, buffer=BoundedTickBuffer())
+                Nautilus200rc5Adapter(mode=mode, buffer=BoundedTickBuffer())
         with self.assertRaises(TypeError):
             OfflineEngineScope("paper", live_authorization=True)
         self.assertFalse(hasattr(self.adapter, "submit"))

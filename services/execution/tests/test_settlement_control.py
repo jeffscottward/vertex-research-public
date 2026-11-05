@@ -55,6 +55,12 @@ class LocalAuthority:
     def digest(self, value):
         return sha256(self.encode(value)).hexdigest()
 
+    def validate(self, contract_name, payload, schema_version="1.0.0"):
+        # NativeRiskPort validates each reviewed leg before native evaluation.
+        if contract_name not in {"TradeIntent", "PaperSimulationAdmission"} or schema_version != "1.0.0":
+            raise AssertionError("unexpected contract in non-conformance fixture")
+        return True
+
 
 class ReducerJournal:
     def __init__(self, state):
@@ -126,7 +132,16 @@ def new_owner(*, cash="30000", shares="200"):
     return owner
 
 
+def command_leg(instrument_id, *, option):
+    """Qualified simulator command leg identity, as the owner records it at reserve."""
+    instrument = {"instrument_id": instrument_id, "kind": "option" if option else "equity"}
+    if option:
+        instrument["option"] = {"underlying_id": instrument_id.split(":")[0]}
+    return {"instrument": instrument}
+
+
 def order_record(instrument_id, *, side="sell", quantity="2", settlement_required=True, cash_reserve="0", shares=None):
+    # settlementRequired is true exactly when a leg is an option (NativeRiskPort).
     return {
         "submissionKey": KEY,
         "payloadSha256": PAYLOAD,
@@ -144,6 +159,7 @@ def order_record(instrument_id, *, side="sell", quantity="2", settlement_require
         "events": {},
         "fills": {},
         "kernelReservation": None,
+        "command": {"legs": [command_leg(instrument_id, option=settlement_required)]},
         "legs": {instrument_id: {"side": side, "filled": "0", "maximumQuantity": quantity}},
     }
 
@@ -647,9 +663,10 @@ class SettlementControllerTests(unittest.TestCase):
 class NativeSettlementSpendabilityTests(unittest.TestCase):
     def risk_fixture(self, owner, positions):
         authority = owner.authority
-        intent = {"side": "buy"}
-        admission = {"accountAlias": "paper-account", "idempotencyKey": "risk-check:1", "strategyVersion": "immutable-strategy:1"}
-        inputs = QualifiedRiskInputs({}, ({"intent_hash": authority.digest(intent)},), tuple(positions), HASH)
+        intent = {"side": "buy", "strategyVersion": "immutable-strategy:1"}
+        admission = {"accountAlias": "paper-account", "idempotencyKey": "risk-check:1", "strategyVersion": "immutable-strategy:1",
+                     "policyVersion": "policy:1", "intentSha256": authority.digest(intent)}
+        inputs = QualifiedRiskInputs({"version": "policy:1"}, ({"intent_hash": authority.digest(intent)},), tuple(positions), HASH)
 
         class Evidence:
             def resolve(self, **kwargs):
