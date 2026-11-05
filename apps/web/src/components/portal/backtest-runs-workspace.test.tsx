@@ -19,15 +19,18 @@ import {
 } from "vitest";
 
 import {
+  COST_PROFILE_OPTIONS,
+  costRows,
   describeRevision,
   describeUniverseBatch,
   describeUniversePlan,
-  isFinished,
-  isoDate,
-  COST_PROFILE_OPTIONS,
-  costRows,
   isCostProfilePresetId,
+  isFinished,
+  isNotFound,
+  isoDate,
+  latestSucceededRunId,
   metricRows,
+  pickInitialRunId,
   replayGeometry,
   toSubmitInput,
   toUniverseSubmitInputs,
@@ -65,6 +68,7 @@ const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  window.history.replaceState(null, "", "/");
 });
 
 const flush = async () => {
@@ -122,106 +126,106 @@ const deferred = <T,>() => {
     resolve = onResolve;
     reject = onReject;
   });
-  return { promise, resolve, reject };
+  return { promise, reject, resolve };
 };
 
 const DAY_MS = 86_400_000;
 const SPY: InstantBacktestSeries = {
-  symbol: "SPY",
-  timeframe: "1d",
-  source: "Test daily source",
-  sourceSha256: "e".repeat(64),
   barCount: 100,
   firstT: 0,
-  lastT: 99 * DAY_MS,
   importedAt: "2026-10-18T00:00:00.000Z",
+  lastT: 99 * DAY_MS,
+  source: "Test daily source",
+  sourceSha256: "e".repeat(64),
+  symbol: "SPY",
+  timeframe: "1d",
 };
 const ES: InstantBacktestSeries = { ...SPY, symbol: "ES=F" };
 const NQ: InstantBacktestSeries = {
   ...SPY,
-  symbol: "NQ=F",
   firstT: 10 * DAY_MS,
   lastT: 20 * DAY_MS,
+  symbol: "NQ=F",
 };
 const CL: InstantBacktestSeries = {
   ...SPY,
-  symbol: "CL=F",
   firstT: 200 * DAY_MS,
   lastT: 300 * DAY_MS,
+  symbol: "CL=F",
 };
 const TEST: InstantBacktestSeries = { ...SPY, symbol: "TEST" };
 
 const report: BacktestRunReportOutput = {
   bars: 3,
+  equity: [
+    { drawdownPct: 0, equity: 10_000, t: 0 },
+    { drawdownPct: 0.02, equity: 9800, t: DAY_MS },
+    { drawdownPct: 0, equity: 10_500, t: 2 * DAY_MS },
+  ],
   firstT: 0,
   lastT: 2 * DAY_MS,
-  seriesSha256: "e".repeat(64),
   metrics: {
-    initialDeposit: 10_000,
-    finalEquity: 10_500,
-    netProfit: 500,
-    grossProfit: 700,
-    grossLoss: -200,
-    profitFactor: 3.5,
-    expectedPayoff: 250,
-    totalTrades: 2,
-    profitTrades: 1,
-    lossTrades: 1,
-    winRate: 0.5,
-    largestProfitTrade: 700,
-    largestLossTrade: -200,
-    averageProfitTrade: 700,
+    absoluteDrawdown: 0,
     averageLossTrade: -200,
-    maxConsecutiveWins: 1,
+    averageProfitTrade: 700,
+    buyHoldReturn: 0.1,
+    cagr: null,
+    expectedPayoff: 250,
+    exposure: 0.5,
+    finalEquity: 10_500,
+    grossLoss: -200,
+    grossProfit: 700,
+    initialDeposit: 10_000,
+    largestLossTrade: -200,
+    largestProfitTrade: 700,
+    lossTrades: 1,
     maxConsecutiveLosses: 1,
     maxConsecutiveLossesMoney: -200,
-    maximalConsecutiveLoss: -200,
-    maximalConsecutiveLossCount: 1,
-    absoluteDrawdown: 0,
+    maxConsecutiveWins: 1,
     maxDrawdownAbs: 200,
     maxDrawdownPct: 0.02,
+    maximalConsecutiveLoss: -200,
+    maximalConsecutiveLossCount: 1,
+    netProfit: 500,
+    profitFactor: 3.5,
+    profitTrades: 1,
     recoveryFactor: 2.5,
     sharpe: null,
     sortino: 1.2,
     totalReturn: 0.05,
-    cagr: null,
-    exposure: 0.5,
-    buyHoldReturn: 0.1,
+    totalTrades: 2,
+    winRate: 0.5,
   },
-  equity: [
-    { t: 0, equity: 10_000, drawdownPct: 0 },
-    { t: DAY_MS, equity: 9800, drawdownPct: 0.02 },
-    { t: 2 * DAY_MS, equity: 10_500, drawdownPct: 0 },
-  ],
   prices: [
-    { t: 0, o: 10, h: 11, l: 9, c: 10 },
-    { t: DAY_MS, o: 10, h: 12, l: 9, c: 11 },
-    { t: 2 * DAY_MS, o: 11, h: 13, l: 10, c: 12 },
+    { c: 10, h: 11, l: 9, o: 10, t: 0 },
+    { c: 11, h: 12, l: 9, o: 10, t: DAY_MS },
+    { c: 12, h: 13, l: 10, o: 11, t: 2 * DAY_MS },
   ],
+  seriesSha256: "e".repeat(64),
   trades: [
     {
-      n: 1,
-      entryT: 0,
-      exitT: DAY_MS,
-      entryPrice: 10,
-      exitPrice: 9.8,
-      units: 1000,
-      pnl: -200,
-      netReturn: -0.02,
-      exitReason: "stop",
       balanceAfter: 9800,
+      entryPrice: 10,
+      entryT: 0,
+      exitPrice: 9.8,
+      exitReason: "stop",
+      exitT: DAY_MS,
+      n: 1,
+      netReturn: -0.02,
+      pnl: -200,
+      units: 1000,
     },
     {
-      n: 2,
-      entryT: DAY_MS,
-      exitT: 2 * DAY_MS,
-      entryPrice: 11,
-      exitPrice: 12,
-      units: 700,
-      pnl: 700,
-      netReturn: 0.07,
-      exitReason: "signal",
       balanceAfter: 10_500,
+      entryPrice: 11,
+      entryT: DAY_MS,
+      exitPrice: 12,
+      exitReason: "signal",
+      exitT: 2 * DAY_MS,
+      n: 2,
+      netReturn: 0.07,
+      pnl: 700,
+      units: 700,
     },
   ],
   tradesTruncated: false,
@@ -240,60 +244,79 @@ const COSTS = {
 };
 
 const runOf = (overrides: Partial<BacktestRun> = {}): BacktestRun => ({
+  createdAt: new Date(0),
+  engineVersion: "instant-1",
+  error: null,
+  finishedAt: null,
   id: "run-1",
+  report,
+  spec: {
+    costBps: 2,
+    from: "1970-01-01",
+    initialCapital: 10_000,
+    rule: { fast: 50, kind: "smaCross", slow: 200 },
+    stopLossPct: 0,
+    symbol: "SPY",
+    takeProfitPct: 0,
+    timeframe: "1d",
+    to: "1970-04-10",
+  },
+  startedAt: null,
   status: "succeeded",
   strategyId: null,
   strategyRevision: null,
   strategySnapshot: null,
-  spec: {
-    symbol: "SPY",
-    timeframe: "1d",
-    from: "1970-01-01",
-    to: "1970-04-10",
-    rule: { kind: "smaCross", fast: 50, slow: 200 },
-    stopLossPct: 0,
-    takeProfitPct: 0,
-    costBps: 2,
-    initialCapital: 10_000,
-  },
-  engineVersion: "instant-1",
-  error: null,
-  createdAt: new Date(0),
-  startedAt: null,
-  finishedAt: null,
-  report,
   ...overrides,
 });
 
 const gatewayOf = (
   overrides: Partial<BacktestRunsGateway> = {}
 ): BacktestRunsGateway => ({
-  series: vi.fn(async () => [SPY]),
-  strategies: vi.fn(async () => [{ id: "s-1", name: "SMA cross" }]),
-  submit: vi.fn(async () => runOf({ status: "queued", report: null })),
   get: vi.fn(async () => runOf()),
   list: vi.fn(async () => [runOf()]),
+  series: vi.fn(async () => [SPY]),
+  strategies: vi.fn(async () => [{ id: "s-1", name: "SMA cross" }]),
+  submit: vi.fn(async () => runOf({ report: null, status: "queued" })),
   ...overrides,
 });
 
 describe("backtest runs model", () => {
+  it("picks the run to open on load", () => {
+    const runs = [
+      { id: "a", status: "running" },
+      { id: "b", status: "succeeded" },
+      { id: "c", status: "succeeded" },
+    ];
+    expect(latestSucceededRunId(runs)).toBe("b");
+    expect(latestSucceededRunId([])).toBeNull();
+    expect(pickInitialRunId("c", runs)).toBe("c");
+    expect(pickInitialRunId("a", runs)).toBe("a");
+    expect(pickInitialRunId("zz", runs)).toBe("b");
+    expect(pickInitialRunId(null, runs)).toBe("b");
+    expect(isNotFound({ code: "NOT_FOUND" })).toBe(true);
+    expect(isNotFound({ code: "STORAGE_ERROR" })).toBe(false);
+    expect(isNotFound({})).toBe(false);
+    expect(isNotFound(null)).toBe(false);
+    expect(isNotFound("NOT_FOUND")).toBe(false);
+  });
+
   const form = {
-    params: DEFAULT_INSTANT_PARAMS,
-    from: "1970-01-01",
-    to: "1970-04-10",
-    initialCapital: 5000,
-    strategyId: "",
     costProfile: "" as const,
+    from: "1970-01-01",
+    initialCapital: 5000,
+    params: DEFAULT_INSTANT_PARAMS,
+    strategyId: "",
+    to: "1970-04-10",
   };
 
   it("builds the submit request or explains the error", () => {
     expect(toSubmitInput(form, SPY)).toEqual({
       input: expect.objectContaining({
-        symbol: "SPY",
         from: "1970-01-01",
-        to: "1970-04-10",
         initialCapital: 5000,
         strategyId: null,
+        symbol: "SPY",
+        to: "1970-04-10",
       }) as unknown,
     });
     expect(toSubmitInput(form, SPY)).not.toHaveProperty("input.costProfile");
@@ -453,11 +476,11 @@ describe("backtest runs model", () => {
         strategyRevision: "abcdef0123456789",
         strategySnapshot: {
           id: "s",
-          slug: "s",
-          name: "SMA",
           kind: "native",
-          sourceRef: null,
+          name: "SMA",
           params: [],
+          slug: "s",
+          sourceRef: null,
           updatedAt: "x",
         },
       })
@@ -473,25 +496,25 @@ describe("backtest runs model", () => {
     expect(geometry.path.startsWith("M0.0,")).toBe(true);
     expect(geometry.markers).toEqual([
       expect.objectContaining({
+        current: true,
         n: 1,
+        win: false,
         x1: 0,
         x2: 50,
-        win: false,
-        current: true,
       }),
     ]);
     expect(geometry.cursorX).toBe(50);
     expect(replayGeometry(report, 0, 100, 40).cursorX).toBeNull();
     expect(replayGeometry({ prices: [], trades: [] }, 1, 100, 40)).toEqual({
-      path: "",
-      markers: [],
       cursorX: null,
+      markers: [],
+      path: "",
     });
     const flat = replayGeometry(
       {
         prices: [
-          { t: 0, o: 1, h: 1, l: 1, c: 1 },
-          { t: 1, o: 1, h: 1, l: 1, c: 1 },
+          { c: 1, h: 1, l: 1, o: 1, t: 0 },
+          { c: 1, h: 1, l: 1, o: 1, t: 1 },
         ],
         trades: [],
       },
@@ -504,16 +527,16 @@ describe("backtest runs model", () => {
 
   it("maps the API client calls", async () => {
     const client = {
+      backtestRuns: {
+        get: vi.fn(async () => runOf()),
+        list: vi.fn(async () => ({ runs: [runOf()] })),
+        submit: vi.fn(async () => runOf()),
+      },
       instantBacktest: { series: vi.fn(async () => ({ series: [SPY] })) },
       strategyLibrary: {
         list: vi.fn(async () => ({
           strategies: [{ id: "s-1", name: "A", slug: "a" }],
         })),
-      },
-      backtestRuns: {
-        submit: vi.fn(async () => runOf()),
-        get: vi.fn(async () => runOf()),
-        list: vi.fn(async () => ({ runs: [runOf()] })),
       },
     };
     const gateway = createBacktestRunsGateway(client as never);
@@ -536,9 +559,10 @@ describe("BacktestRunsWorkspace", () => {
       get: vi.fn(async () => {
         reads += 1;
         return reads === 1
-          ? runOf({ status: "running", report: null })
+          ? runOf({ report: null, status: "running" })
           : runOf({ report: { ...report, costs: COSTS } });
       }),
+      list: vi.fn(async () => []),
     });
     await mount(<BacktestRunsWorkspace gateway={gateway} pollMs={1} />);
     expect(field("From").value).toBe("1970-01-01");
@@ -549,9 +573,9 @@ describe("BacktestRunsWorkspace", () => {
     await settle(() => button("Run backtest").click());
     expect(gateway.submit).toHaveBeenCalledWith(
       expect.objectContaining({
-        strategyId: "s-1",
-        initialCapital: 25_000,
         costProfile: "ibkr-pro-fixed-us-stock",
+        initialCapital: 25_000,
+        strategyId: "s-1",
       })
     );
     await act(async () => {
@@ -604,58 +628,165 @@ describe("BacktestRunsWorkspace", () => {
     await settle(() => button("Run backtest").click());
     expect(gateway.submit).toHaveBeenCalledWith(
       expect.objectContaining({
+        costBps: 1,
         from: "1970-01-05",
-        to: "1970-02-01",
+        rule: { fast: 250, kind: "smaCross", slow: 300 },
         stopLossPct: 5,
         takeProfitPct: 10,
-        costBps: 1,
-        rule: { kind: "smaCross", fast: 250, slow: 300 },
+        to: "1970-02-01",
       })
     );
     expect(document.querySelector('[role="alert"]')?.textContent).toBeTruthy();
   });
 
-  it("opens the run named in the URL", async () => {
-    const gateway = gatewayOf();
-    window.history.replaceState(null, "", "/backtest-runs?run=run-9");
-    try {
-      await mount(<BacktestRunsWorkspace gateway={gateway} />);
-    } finally {
-      window.history.replaceState(null, "", "/");
+  it("opens the latest succeeded run with no input and keeps the URL clean", async () => {
+    const gateway = gatewayOf({
+      list: vi.fn(async () => [
+        runOf({ id: "run-3", report: null, status: "running" }),
+        runOf({ id: "run-2" }),
+        runOf({ id: "run-1" }),
+      ]),
+    });
+    await mount(<BacktestRunsWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("run-2");
+    expect(gateway.get).toHaveBeenCalledTimes(1);
+    expect(gateway.submit).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Total net profit");
+    expect(window.location.search).toBe("");
+    const listed = document.querySelectorAll<HTMLButtonElement>(
+      'section[aria-label="Recent runs"] button'
+    );
+    await settle(() => listed[2]?.click());
+    expect(window.location.search).toBe("?run=run-1");
+    await setNative(field("Universe"), "all");
+    expect(window.location.search).toBe("?run=run-1&universe=all");
+    await setNative(field("Universe"), "core7-futures");
+    expect(window.location.search).toBe("?run=run-1");
+  });
+
+  it("opens the run named in the URL, or the latest succeeded run", async () => {
+    const list = vi.fn(async () => [
+      runOf({ id: "run-9" }),
+      runOf({ id: "run-1" }),
+    ]);
+    window.history.replaceState(null, "", "/backtest-runs?run=run-1");
+    const gateway = gatewayOf({ list });
+    await mount(<BacktestRunsWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("run-1");
+    expect(window.location.search).toBe("?run=run-1");
+    window.history.replaceState(null, "", "/backtest-runs?run=gone");
+    const unknown = gatewayOf({ list });
+    await mount(<BacktestRunsWorkspace gateway={unknown} />);
+    expect(unknown.get).toHaveBeenCalledWith("run-9");
+    expect(unknown.get).not.toHaveBeenCalledWith("gone");
+    expect(window.location.search).toBe("");
+  });
+
+  it("falls back to the latest succeeded run when the page links an unknown run", async () => {
+    const notFound = { code: "NOT_FOUND", message: "Backtest run not found" };
+    window.history.replaceState(null, "", "/backtest-runs?run=missing-run");
+    const get = vi.fn(async (id: string) =>
+      id === "missing-run" ? Promise.reject(notFound) : runOf({ id })
+    );
+    const gateway = gatewayOf({
+      get,
+      list: vi.fn(async () => [runOf({ id: "run-2" })]),
+    });
+    // The real page passes any well-formed ?run= id as initialRunId.
+    await mount(
+      <BacktestRunsWorkspace gateway={gateway} initialRunId="missing-run" />
+    );
+    expect(get).toHaveBeenCalledWith("run-2");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.body.textContent).toContain("Total net profit");
+    expect(window.location.search).toBe("");
+    expect(gateway.submit).not.toHaveBeenCalled();
+
+    // No other succeeded run, or no list: the error stays.
+    for (const list of [
+      vi.fn(async () => [runOf({ id: "missing-run" })]),
+      vi.fn(async () => [runOf({ report: null, status: "failed" })]),
+      vi.fn(async () => Promise.reject(new Error("down"))),
+    ]) {
+      document.body.replaceChildren();
+      await mount(
+        <BacktestRunsWorkspace
+          gateway={gatewayOf({ get, list })}
+          initialRunId="missing-run"
+        />
+      );
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        "Select the run in Recent runs"
+      );
     }
-    expect(gateway.get).toHaveBeenCalledWith("run-9");
-    window.history.replaceState(null, "", "/backtest-runs?run=");
-    const empty = gatewayOf();
-    try {
-      await mount(<BacktestRunsWorkspace gateway={empty} />);
-    } finally {
-      window.history.replaceState(null, "", "/");
+  });
+
+  it("ignores a fallback list that answers after the page closed", async () => {
+    const notFound = { code: "NOT_FOUND", message: "Backtest run not found" };
+    for (const outcome of ["resolve", "reject"] as const) {
+      const late = deferred<BacktestRun[]>();
+      const list = vi
+        .fn<BacktestRunsGateway["list"]>()
+        .mockResolvedValueOnce([runOf({ id: "run-2" })])
+        .mockReturnValueOnce(late.promise);
+      const get = vi.fn(async () => Promise.reject(notFound));
+      await mount(
+        <BacktestRunsWorkspace
+          gateway={gatewayOf({ get, list })}
+          initialRunId="missing-run"
+        />
+      );
+      expect(list).toHaveBeenCalledTimes(2);
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      await settle(() =>
+        outcome === "resolve"
+          ? late.resolve([runOf({ id: "run-3" })])
+          : late.reject(new Error("down"))
+      );
+      expect(get).not.toHaveBeenCalledWith("run-3");
     }
-    expect(empty.get).not.toHaveBeenCalled();
+  });
+
+  it("opens nothing when no run succeeded", async () => {
+    const gateway = gatewayOf({
+      list: vi.fn(async () => [runOf({ report: null, status: "failed" })]),
+    });
+    await mount(<BacktestRunsWorkspace gateway={gateway} />);
+    expect(gateway.get).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Recent runs");
   });
 
   it("opens a listed run and shows failed and pending runs", async () => {
     const gateway = gatewayOf({
+      get: vi.fn(async (id: string) =>
+        id === "run-2"
+          ? runOf({
+              error: "No stored 1d bars",
+              report: null,
+              status: "failed",
+            })
+          : runOf({ report: null, status: "queued" })
+      ),
       list: vi.fn(async () => [
         runOf({
           id: "run-2",
-          strategySnapshot: {
-            id: "s-1",
-            slug: "a",
-            name: "Breakout A",
-            kind: "native",
-            sourceRef: null,
-            params: [],
-            updatedAt: "x",
-          },
           spec: {
             ...runOf().spec,
             rule: {
-              kind: "breakout",
               entryLookback: 20,
               exitLookback: 10,
+              kind: "breakout",
               trendSma: 50,
             },
+          },
+          strategySnapshot: {
+            id: "s-1",
+            kind: "native",
+            name: "Breakout A",
+            params: [],
+            slug: "a",
+            sourceRef: null,
+            updatedAt: "x",
           },
         }),
         runOf({
@@ -663,9 +794,9 @@ describe("BacktestRunsWorkspace", () => {
           spec: {
             ...runOf().spec,
             rule: {
-              kind: "breakout",
               entryLookback: 5,
               exitLookback: 3,
+              kind: "breakout",
               trendSma: 0,
             },
           },
@@ -675,23 +806,14 @@ describe("BacktestRunsWorkspace", () => {
           spec: {
             ...runOf().spec,
             rule: {
-              kind: "dsl",
               definition: StrategyDefinitionSchema.parse(
                 STRATEGY_TEMPLATES.smaCross
               ),
+              kind: "dsl",
             },
           },
         }),
       ]),
-      get: vi.fn(async (id: string) =>
-        id === "run-2"
-          ? runOf({
-              status: "failed",
-              error: "No stored 1d bars",
-              report: null,
-            })
-          : runOf({ status: "queued", report: null })
-      ),
     });
     await mount(
       <BacktestRunsWorkspace
@@ -723,9 +845,9 @@ describe("BacktestRunsWorkspace", () => {
   it("resets the date range when another series is chosen", async () => {
     const QQQ = {
       ...SPY,
-      symbol: "QQQ",
       firstT: 10 * DAY_MS,
       lastT: 20 * DAY_MS,
+      symbol: "QQQ",
     };
     await mount(
       <BacktestRunsWorkspace
@@ -828,7 +950,7 @@ describe("BacktestRunsWorkspace", () => {
   });
 
   it("submits one run per series of the universe with clipped dates", async () => {
-    const submit = vi.fn(async () => runOf({ status: "queued", report: null }));
+    const submit = vi.fn(async () => runOf({ report: null, status: "queued" }));
     const list = vi.fn(async () => [runOf()]);
     await mount(
       <BacktestRunsWorkspace
@@ -887,7 +1009,7 @@ describe("BacktestRunsWorkspace", () => {
           code: "STORAGE_ERROR",
           message: "Bar storage unavailable",
         });
-      return runOf({ status: "queued", report: null });
+      return runOf({ report: null, status: "queued" });
     });
     await mount(
       <BacktestRunsWorkspace
@@ -919,8 +1041,8 @@ describe("BacktestRunsWorkspace", () => {
   it("stops polling at the read limit and shows truncated trade lists", async () => {
     const get = vi.fn(async () =>
       runOf({
-        status: "running",
         report: { ...report, tradesTruncated: true },
+        status: "running",
       })
     );
     await mount(
@@ -955,11 +1077,11 @@ describe("BacktestRunsWorkspace", () => {
     const failedRead = deferred<BacktestRun>();
     let calls = 0;
     const gateway = gatewayOf({
-      series: vi.fn(() => series.promise),
       get: vi.fn(() => {
         calls += 1;
         return calls === 1 ? read.promise : failedRead.promise;
       }),
+      series: vi.fn(() => series.promise),
     });
     await mount(
       <BacktestRunsWorkspace gateway={gateway} initialRunId="run-1" />
@@ -1006,8 +1128,8 @@ describe("BacktestRunsWorkspace", () => {
     await mount(
       <BacktestRunsWorkspace
         gateway={gatewayOf({
-          series: vi.fn(async () => []),
           list: vi.fn(async () => Promise.reject(new Error("x"))),
+          series: vi.fn(async () => []),
         })}
       />
     );

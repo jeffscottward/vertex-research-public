@@ -22,6 +22,7 @@ import { watchlistContract } from "./contracts/watchlist.ts";
 import { priceAlertsContract } from "./contracts/price-alerts.ts";
 import { marketNewsContract } from "./contracts/market-news.ts";
 import { basketsContract } from "./contracts/baskets.ts";
+import { pickListsContract } from "./contracts/pick-lists.ts";
 import { agentOpsContract, papersContract } from "./contracts/agent-ops.ts";
 import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
 import { optimizationsContract } from "./contracts/optimizations.ts";
@@ -292,6 +293,7 @@ export const appContract = {
   priceAlerts: priceAlertsContract,
   marketNews: marketNewsContract,
   baskets: basketsContract,
+  pickLists: pickListsContract,
   todos: todosContract,
   agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
   quantLab: quantLabContract,

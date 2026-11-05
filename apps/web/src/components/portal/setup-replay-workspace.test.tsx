@@ -33,9 +33,11 @@ vi.mock("./setup-replay-client.ts", async (importOriginal) => {
 });
 
 import {
+  defaultSetupReplayChoices,
   formatR,
   formatReturnPct,
   formatShare,
+  parseSetupReplayQuery,
   SetupReplayWorkspace,
 } from "./setup-replay-workspace.tsx";
 
@@ -54,7 +56,16 @@ const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  window.history.replaceState(null, "", "/setup-replay");
 });
+
+/** Waits past the replay debounce. */
+const settle = async () => {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await flush();
+  });
+};
 
 const flush = async () => {
   for (let index = 0; index < 20; index += 1) await Promise.resolve();
@@ -111,16 +122,16 @@ const occurrence = (
   exitDate: `2026-01-${String(day + 2).padStart(2, "0")}`,
   exitPrice: 100 + rMultiple * 2,
   outcome,
-  rMultiple,
   returnPct: rMultiple * 2,
+  rMultiple,
 });
 
 const output = (
   overrides: Partial<SetupReplayRunOutput> = {}
 ): SetupReplayRunOutput => ({
   monteCarlo: {
-    pProfit: 0.73,
     paths: 1000,
+    pProfit: 0.73,
     seed: 4242,
     totalR: { p5: -2, p25: 0.5, p50: 1.5, p75: 3, p95: 5 },
     totalReturnPct: { p5: -4, p25: 1, p50: 3.1, p75: 6, p95: 10 },
@@ -208,7 +219,7 @@ describe("setup replay formatting", () => {
 });
 
 describe("SetupReplayWorkspace", () => {
-  it("picks from lists, runs the replay and shows cards, outcomes and occurrences", async () => {
+  it("replays the default series and setup with no clicks, then replays each change", async () => {
     let finish: (value: SetupReplayRunOutput) => void = () => undefined;
     const run = vi.fn(
       () =>
@@ -224,9 +235,8 @@ describe("SetupReplayWorkspace", () => {
     expect(container.textContent).toContain(
       "This is a simulation over past bars, not a prediction."
     );
-    expect(container.textContent).toContain(
-      "Choose a series and a setup, then run the replay."
-    );
+    expect(container.textContent).toContain("Preparing the replay…");
+    expect(window.location.search).toBe("");
     const seriesOptions = [
       ...(container.querySelector("select")?.options ?? []),
     ].map((option) => option.textContent);
@@ -237,6 +247,21 @@ describe("SetupReplayWorkspace", () => {
     expect(container.textContent).toContain(
       "Opens above the prior high and holds."
     );
+    await settle();
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenLastCalledWith({
+      maxHoldBars: 10,
+      paths: 5000,
+      seriesId: "SPY:1d",
+      setup: "gapUpHold",
+      stop: { kind: "atr", multiple: 1.5 },
+      targetR: 2,
+    });
+    await act(async () => {
+      finish(output());
+      await flush();
+    });
+    expect(stat(container, "Occurrences")).toContain("4");
 
     await choose(container, "Daily series", 1);
     await choose(container, "Setup", 1);
@@ -245,9 +270,14 @@ describe("SetupReplayWorkspace", () => {
     await choose(container, "Target", 0);
     await choose(container, "Time exit after", 2);
     await choose(container, "Monte Carlo paths", 2);
-    await submit(container);
+    expect(window.location.search).toBe(
+      "?symbol=QQQ&setup=breakout20&stop=3&target=1&hold=20&paths=10000"
+    );
+    expect(run).toHaveBeenCalledTimes(1);
+    await settle();
 
-    expect(run).toHaveBeenCalledWith({
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(run).toHaveBeenLastCalledWith({
       maxHoldBars: 20,
       paths: 10_000,
       seriesId: "QQQ:1d",
@@ -259,6 +289,7 @@ describe("SetupReplayWorkspace", () => {
     expect(button?.disabled).toBe(true);
     expect(button?.textContent).toBe("Running…");
     expect(container.textContent).toContain("Replaying…");
+    expect(stat(container, "Occurrences")).toContain("4");
 
     await act(async () => {
       finish(output());
@@ -314,6 +345,124 @@ describe("SetupReplayWorkspace", () => {
     );
   });
 
+  it("opens on the first stored Core 7 futures series", async () => {
+    const run = vi.fn(async () => output());
+    const { container } = await mount(
+      <SetupReplayWorkspace
+        gateway={gatewayWith({
+          run,
+          series: vi.fn(async () => ({
+            series: [
+              series("SPY", "1d"),
+              series("NQ=F", "1d"),
+              series("ES=F", "1d"),
+            ],
+          })),
+        })}
+      />
+    );
+    expect(container.querySelector("select")?.value).toBe("2");
+    await settle();
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({ seriesId: "ES=F:1d" })
+    );
+    expect(window.location.search).toBe("");
+  });
+
+  it("applies valid URL choices and falls back for unknown ones", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/setup-replay?symbol=QQQ&setup=breakout20&stop=9&target=3&hold=nope&paths=1000"
+    );
+    const run = vi.fn(async () => output());
+    await mount(<SetupReplayWorkspace gateway={gatewayWith({ run })} />);
+    await settle();
+    expect(run).toHaveBeenCalledWith({
+      maxHoldBars: 10,
+      paths: 1000,
+      seriesId: "QQQ:1d",
+      setup: "breakout20",
+      stop: { kind: "atr", multiple: 1.5 },
+      targetR: 3,
+    });
+    expect(window.location.search).toBe(
+      "?symbol=QQQ&setup=breakout20&target=3&paths=1000"
+    );
+  });
+
+  it("parses the query and builds defaults as pure functions", () => {
+    const defaults = defaultSetupReplayChoices([], []);
+    expect(defaults).toEqual({
+      maxHoldBars: 10,
+      paths: 5000,
+      setup: "",
+      stop: 1.5,
+      symbol: "",
+      targetR: 2,
+    });
+    expect(
+      parseSetupReplayQuery(
+        "?symbol=ZZZ&setup=x&stop=3",
+        defaults,
+        ["A"],
+        ["s"]
+      )
+    ).toEqual({ ...defaults, stop: 3 });
+  });
+
+  it("reuses a cached result when a choice comes back, and Run again calls the server", async () => {
+    const run = vi.fn(async () => output());
+    const { container } = await mount(
+      <SetupReplayWorkspace gateway={gatewayWith({ run })} />
+    );
+    await settle();
+    expect(run).toHaveBeenCalledTimes(1);
+    await choose(container, "Target", 0);
+    await settle();
+    expect(run).toHaveBeenCalledTimes(2);
+    await choose(container, "Target", 2);
+    await settle();
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(stat(container, "Occurrences")).toContain("4");
+    expect(window.location.search).toBe("");
+    await submit(container);
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
+  it("ignores an older replay that settles after a newer one", async () => {
+    const finishers: ((value: SetupReplayRunOutput) => void)[] = [];
+    const failers: ((error: unknown) => void)[] = [];
+    const run = vi.fn(
+      () =>
+        new Promise<SetupReplayRunOutput>((resolve, reject) => {
+          finishers.push(resolve);
+          failers.push(reject);
+        })
+    );
+    const { container } = await mount(
+      <SetupReplayWorkspace gateway={gatewayWith({ run })} />
+    );
+    await settle();
+    await choose(container, "Target", 0);
+    await settle();
+    await choose(container, "Target", 3);
+    await settle();
+    expect(run).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      finishers[2]?.(output({ summary: { ...output().summary, count: 9 } }));
+      await flush();
+    });
+    expect(stat(container, "Occurrences")).toContain("9");
+    await act(async () => {
+      finishers[0]?.(output());
+      failers[1]?.(new Error("late"));
+      await flush();
+    });
+    expect(stat(container, "Occurrences")).toContain("9");
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it("uses the browser gateway when none is supplied", async () => {
     const gateway = gatewayWith();
     browser.gateway = gateway;
@@ -343,7 +492,7 @@ describe("SetupReplayWorkspace", () => {
         gateway={gatewayWith({ run: vi.fn(async () => empty) })}
       />
     );
-    await submit(container);
+    await settle();
     expect(stat(container, "Paths in profit")).toContain("n/a");
     expect(stat(container, "Total R, 5th to 95th")).toContain("n/a");
     expect(stat(container, "Median compounded return")).toContain("n/a");
@@ -363,7 +512,7 @@ describe("SetupReplayWorkspace", () => {
         gateway={gatewayWith({ run: vi.fn(async () => all) })}
       />
     );
-    await submit(container);
+    await settle();
     expect(container.querySelectorAll("tbody tr")).toHaveLength(3);
     expect(container.textContent).not.toContain("Showing the newest");
   });
@@ -378,7 +527,7 @@ describe("SetupReplayWorkspace", () => {
         })}
       />
     );
-    await submit(container);
+    await settle();
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "Series too short"
     );

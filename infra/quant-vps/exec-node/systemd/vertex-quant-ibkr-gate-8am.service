@@ -1,5 +1,5 @@
 [Unit]
-Description=Vertex Quant 8AM IBKR/Charan trading gate
+Description=Vertex Quant 8AM IBKR trading gate
 Wants=docker.service network-online.target
 After=docker.service network-online.target
 

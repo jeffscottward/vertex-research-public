@@ -2,12 +2,24 @@ import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { scaledTimeout } from "../../../scripts/lib/test-timeout-scale.ts";
 
 import {
   type PreviewCaptureServer,
   startPreviewCaptureServer,
 } from "./preview-capture.ts";
+
+// A capture publishes three preview files, each with a physical fsync
+// (FileHandle.sync) in TMPDIR. CI runners keep TMPDIR on the shared btrfs
+// /var/tmp, where fsync waits for other jobs' writeback; CPU load does not
+// show it, so the load scale stays at x1 (card
+// vertex-ci-rig-load-timeouts-1104). Measured: the capture test took 10.6 s
+// in CI coverage shard 4/12 (run 41827093229); a sibling fsync test reached
+// 15 s in run 41816221283. Locally with 8 dirty-page writers plus syncfs on
+// /var/tmp: up to 2.0 s. Budget: 2x the 15 s CI worst case.
+vi.setConfig({ testTimeout: scaledTimeout(30_000) });
 
 const temporaryDirectories = new Set<string>();
 const servers = new Set<PreviewCaptureServer>();

@@ -10,6 +10,8 @@ import type {
 } from "@darkfactory/api";
 import { SECTOR_ROTATION_QUADRANTS } from "@darkfactory/api";
 
+import { readParam } from "./backtest-lab-query.ts";
+
 // Autopilot view-model: pure formatting and request building for the Autopilot page. Research only.
 
 export type AutopilotForm = Readonly<{
@@ -39,6 +41,46 @@ export const DEFAULT_AUTOPILOT_FORM: AutopilotForm = {
   seed: "",
   seriesKey: "",
   tickSeconds: 20,
+};
+
+/** URL parameter that holds the selected campaign id. */
+export const CAMPAIGN_PARAM = "campaign";
+
+/** The row with the latest `dateOf`; ties keep the earlier row (the list is newest first). */
+const latestBy = (
+  campaigns: readonly AutopilotCampaignOutput[],
+  dateOf: (campaign: AutopilotCampaignOutput) => Date
+): AutopilotCampaignOutput | null =>
+  campaigns.reduce<AutopilotCampaignOutput | null>(
+    (best, row) =>
+      best === null ||
+      new Date(dateOf(row)).getTime() > new Date(dateOf(best)).getTime()
+        ? row
+        : best,
+    null
+  );
+
+/** The campaign shown on open: the latest completed one, else the latest of any status. */
+export const defaultCampaignId = (
+  campaigns: readonly AutopilotCampaignOutput[]
+): string | null => {
+  const completed = latestBy(
+    campaigns.filter((row) => row.status === "completed"),
+    (row) => row.finishedAt ?? row.createdAt
+  );
+  return (completed ?? latestBy(campaigns, (row) => row.createdAt))?.id ?? null;
+};
+
+/** The listed campaign named in the `campaign` URL parameter, else the default one. */
+export const campaignFromSearch = (
+  search: string,
+  campaigns: readonly AutopilotCampaignOutput[]
+): string | null => {
+  const requested = readParam(search, CAMPAIGN_PARAM);
+  return (
+    campaigns.find((row) => row.id === requested)?.id ??
+    defaultCampaignId(campaigns)
+  );
 };
 
 export const seriesKeyOf = (series: InstantBacktestSeries): string =>

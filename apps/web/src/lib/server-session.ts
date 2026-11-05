@@ -67,6 +67,7 @@ const PORTAL_PATH_ROOTS = [
   "/price-alerts",
   "/news",
   "/baskets",
+  "/pick-lists",
   "/todos",
   "/today",
   "/portfolio",

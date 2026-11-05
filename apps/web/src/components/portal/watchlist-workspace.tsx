@@ -1,14 +1,23 @@
 "use client";
 
 import {
-  WATCHLIST_MAX_SYMBOLS_PER_ADD,
   splitWatchlistPaste,
+  WATCHLIST_MAX_SYMBOLS_PER_ADD,
   type WatchlistItemOutput,
 } from "@darkfactory/api";
-import { Button, Input, Panel } from "@darkfactory/ui";
+import { Button, Input, KpiCard, KpiRow, Panel } from "@darkfactory/ui";
 import { DataTable } from "@darkfactory/ui/client/data-table";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  ListChecks,
+  NotebookPen,
+  Pencil,
+  Plus,
+  Target,
+  Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+
+import { TickerLink } from "../ticker-link.tsx";
 
 import {
   createBrowserWatchlistGateway,
@@ -68,11 +77,11 @@ export const WatchlistWorkspace = ({
   const load = useCallback(async () => {
     setState({ type: "loading" });
     try {
-      return setState({ type: "ready", items: await gateway.list() });
+      return setState({ items: await gateway.list(), type: "ready" });
     } catch (error) {
       return setState({
-        type: "error",
         message: describeWatchlistFailure(error),
+        type: "error",
       });
     }
   }, [gateway]);
@@ -99,7 +108,7 @@ export const WatchlistWorkspace = ({
     setAdding(true);
     try {
       const result = await gateway.add(tokens);
-      setState({ type: "ready", items: result.items });
+      setState({ items: result.items, type: "ready" });
       const parts = [
         `Added ${result.added.length}`,
         `already listed ${result.existing.length}`,
@@ -126,12 +135,12 @@ export const WatchlistWorkspace = ({
     setBusyId(draft.id);
     try {
       const item = await gateway.update(draft.id, {
+        buyZone: { high: blankToNull(draft.high), low: blankToNull(draft.low) },
         note: blankToNull(draft.note),
-        buyZone: { low: blankToNull(draft.low), high: blankToNull(draft.high) },
       });
       setState((current) =>
         current.type === "ready"
-          ? { type: "ready", items: upsertWatchlistRow(current.items, item) }
+          ? { items: upsertWatchlistRow(current.items, item), type: "ready" }
           : current
       );
       setDraft(null);
@@ -151,8 +160,8 @@ export const WatchlistWorkspace = ({
       setState((current) =>
         current.type === "ready"
           ? {
-              type: "ready",
               items: current.items.filter((row) => row.id !== item.id),
+              type: "ready",
             }
           : current
       );
@@ -167,6 +176,36 @@ export const WatchlistWorkspace = ({
 
   return (
     <div className="space-y-6">
+      {state.type === "ready" ? (
+        <KpiRow label="Watchlist summary">
+          <KpiCard
+            hint="Tracked tickers"
+            icon={<ListChecks />}
+            label="Symbols"
+            value={state.items.length}
+          />
+          <KpiCard
+            hint="Symbols with a buy zone set"
+            icon={<Target />}
+            label="Buy zones"
+            value={
+              state.items.filter(
+                (item) => item.buyZoneLow !== null || item.buyZoneHigh !== null
+              ).length
+            }
+          />
+          <KpiCard
+            hint="Symbols with a note"
+            icon={<NotebookPen />}
+            label="Notes"
+            value={
+              state.items.filter(
+                (item) => item.note !== null && item.note.trim() !== ""
+              ).length
+            }
+          />
+        </KpiRow>
+      ) : null}
       <Panel headingId="watchlist-add-heading" title="Add symbols">
         <div className="space-y-3">
           <textarea
@@ -223,9 +262,7 @@ export const WatchlistWorkspace = ({
             className="text-sm"
             columns={[
               {
-                cell: (item) => (
-                  <span className="font-mono">{item.symbol}</span>
-                ),
+                cell: (item) => <TickerLink symbol={item.symbol} />,
                 header: "Symbol",
                 id: "symbol",
                 rowHeader: true,

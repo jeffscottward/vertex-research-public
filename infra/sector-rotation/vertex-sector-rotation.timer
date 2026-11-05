@@ -1,3 +1,4 @@
+# NOT USED: the live timer is quantvps/vertex-sector-rotation.timer (same schedule).
 # Runs the sector rotation collection twice on weekdays after the US close (New York time): 16:50, and
 # 18:40 as a retry for late or corrected bars. Alerts are insert-once, so the second run never
 # repeats an alert. Persistent=true runs a missed collection after the machine wakes; a run during

@@ -58,6 +58,8 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.benchmark",
   "agentModelRuns.frameworks",
   "clickLog.query",
+  "pickLists.list",
+  "pickLists.screen",
 ]);
 
 type OperatorErrorFactories = Readonly<{
@@ -103,8 +105,12 @@ export const requireOperator = api.middleware(
         principal = await agentKeyOwnerPrincipal(context, path, errors);
       } else {
         const session = await context.requireSession();
-        if (!isOperatorIdentity(session.user, context.operatorEmails))
-          throw denied();
+        // A read-only agent viewer passes here; agentViewerReadOnlyInterceptor already refused
+        // every non-read procedure for it.
+        const allowed =
+          isOperatorIdentity(session.user, context.operatorEmails) ||
+          isOperatorIdentity(session.user, context.agentViewerEmails);
+        if (!allowed) throw denied();
         principal = session.principal;
       }
     } catch (error) {

@@ -1,6 +1,6 @@
 # Sector rotation map
 
-Updated: 2026-11-02. Research only. The sector rotation map shows how strong each sector (or each symbol of a custom list) is against a benchmark, and whether that strength is rising or falling. A quadrant describes past prices. It is not an instruction to trade, it places no order and it has no broker client.
+Updated: 2026-11-04. Research only. The sector rotation map shows how strong each sector (or each symbol of a custom list) is against a benchmark, and whether that strength is rising or falling. A quadrant describes past prices. It is not an instruction to trade, it places no order and it has no broker client.
 
 ## Purpose
 
@@ -44,12 +44,13 @@ Every map response returns the parameters it used (`params`).
 
 | Part | File |
 | --- | --- |
-| oRPC contract `sectorRotation.map`, `.collect`, `.snapshot` | `packages/api/src/contracts/sector-rotation.ts` |
+| oRPC contract `sectorRotation.map`, `.collect`, `.recordChatDelivery`, `.snapshot` | `packages/api/src/contracts/sector-rotation.ts` |
 | Pure math (formula, weekly bars, quadrants, streaks, changes) | `packages/api/src/sector-rotation.ts` |
 | Procedures, Yahoo fetch, cache and alert delivery | `packages/api/src/server/sector-rotation.ts` |
 | Tables `sector_rotation_points` and `sector_rotation_alerts`, repository | `packages/db/src/schema/index.ts`, `packages/db/src/server/sector-rotation.ts`, migration `0047_sector_rotation`, rollback `packages/db/rollback/0047_sector_rotation.down.sql` |
 | Scheduler client | `scripts/sector-rotation/tick.ts`, `bun run vertex:sector-rotation:tick` |
-| User systemd units (not enabled) | `infra/sector-rotation/vertex-sector-rotation.{service,timer}` |
+| QuantVPS system units and install script (live) | `infra/sector-rotation/quantvps/` |
+| Rig user units (not used) | `infra/sector-rotation/vertex-sector-rotation.{service,timer}` |
 | Snapshot compatibility fixture | `packages/api/src/fixtures/sector-rotation-snapshot.v1.json` |
 
 ## Data path
@@ -68,6 +69,7 @@ All procedures require an operator (`VERTEX_OPERATOR_EMAILS`).
 | --- | --- | --- |
 | `sectorRotation.map` | yes | no (session only) |
 | `sectorRotation.collect` | no (`FORBIDDEN`) | write key only (the scheduler) |
+| `sectorRotation.recordChatDelivery` | no (`FORBIDDEN`) | write key only (the scheduler) |
 | `sectorRotation.snapshot` | yes | read or write key |
 
 Errors: `BAD_REQUEST`, `FORBIDDEN`, `NOT_FOUND` ("Sector rotation not yet collected"), `STORAGE_ERROR` (no repository), `UNAUTHORIZED`, `UNAVAILABLE` (SPY or every sector failed in collect; benchmark outage in a computed map). In collect, a single sector that fails is reported in `fetchErrors` and the others are still stored.
@@ -97,21 +99,40 @@ A strategy definition may list up to 4 filters `{ "type": "sectorQuadrant", "sec
 
 `bun run vertex:sector-rotation:tick` calls `sectorRotation.collect`. The client reads `VERTEX_ORIGIN` and `VERTEX_AGENT_API_KEY` (an operator write key), prints the JSON result and one line per alert, and never prints the key. `bun run vertex:sector-rotation:tick -- --dry-run` sends `dryRun: true`.
 
-Second alert route (optional): when `VERTEX_ALERT_POST_URL` (a loopback chat bot endpoint that takes `{channel, text}`, for example the rig Discord bot at `http://127.0.0.1:47821/post`) and `VERTEX_ALERT_CHANNEL` (for example `trading-alerts`) are both set, the client posts each alert line that the server could not deliver (`not-configured` or `failed`) to that channel. The server returns an alert only in the run that recorded it, so each line is posted once. A failed post makes the run exit with code 1 after it tries every line. A dry run posts nothing.
+Second alert route (optional): when `VERTEX_ALERT_POST_URL` (a loopback chat bot endpoint that takes `{channel, text}`, for example the rig Discord bot at `http://127.0.0.1:47821/post`) and `VERTEX_ALERT_CHANNEL` (for example `trading-alerts`) are both set, the client posts each alert line that the server could not deliver (`not-configured` or `failed`) to that channel. The server returns an alert only in the run that recorded it, so each line is posted once. A failed post makes the run exit with code 1 after it tries every line. A dry run posts nothing. After each post the client calls `sectorRotation.recordChatDelivery` with the alert key (`symbol`, `quadrant` = the alert's `to`, `enteredOn` = the alert's `date`) and `delivery`: `sent` when the endpoint replied 2xx with `{"ok":true}`, otherwise `failed`. The server updates the row only when its delivery is `not-configured` or `failed` and never inserts a row; it returns `{updated}`. A failed write-back is printed and makes the run exit with code 1, but the line is not posted again: the next run does not return that alert.
 
-The units in `infra/sector-rotation/` are not installed or enabled. The timer runs Monday to Friday at 16:50 and 18:40 New York time (the second run picks up late or corrected bars) with `Persistent=true`:
+### QuantVPS deployment (live)
+
+The live scheduler runs on QuantVPS as the system units `vertex-sector-rotation.service` and `vertex-sector-rotation.timer` (owner decision 2026-11-04). The repository copies are in `infra/sector-rotation/quantvps/`; they are byte-identical to the files in `/etc/systemd/system/`. The timer runs Monday to Friday at 16:50 and 18:40 New York time (the second run picks up late or corrected bars) with `Persistent=true`.
+
+QuantVPS has no bun and no source checkout. `bun build --target=node` bundles `scripts/vertex-sector-rotation-tick.ts` into one file, `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs`, with the source commit in `/opt/vertex-sector-rotation/SOURCE_SHA`. The service runs it with the Autopilot Node (`/opt/vertex-autopilot/bin/node`, Node 24) and the systemd sandbox settings of the Autopilot unit.
+
+Settings come from root-only (mode 0600) environment files that stay on QuantVPS and are never in the repository:
+
+| File | Keys | Used by |
+| --- | --- | --- |
+| `/etc/vertex-autopilot/autopilot.env` | `VERTEX_ORIGIN`, `VERTEX_AGENT_API_KEY` (the Autopilot operator write key) | the service |
+| `/etc/vertex-sector-rotation/alert.env` | `VERTEX_ALERT_POST_URL=http://127.0.0.1:47821/post`, `VERTEX_ALERT_CHANNEL=trading-alerts` | the drop-in `vertex-sector-rotation.service.d/alert-route.conf` |
+
+The web app has no ntfy settings, so the server stores each alert as `not-configured`, and the client posts the line through the chat route. Port 47821 on QuantVPS is the reverse SSH tunnel to the rig Discord bot; `vertex-nautilus-health-alert` uses the same route for `#omp-alerts`. Since card vertex-rrg-alert-writeback (2026-11-04), the client writes the chat result back, so a posted line moves its row from `not-configured` to `sent` (or `failed`). The three alerts stored before the route existed (XLB 2026-10-27, XLF 2026-10-30, XLRE 2026-11-02) were posted once by hand on 2026-11-04 and their rows were set to `sent`.
+
+To install or update, run the install script on the rig from a clean checkout of the commit to deploy, with dependencies installed:
 
 ```sh
-install -m 0600 /dev/null ~/.config/vertex/sector-rotation.env   # then add VERTEX_ORIGIN, VERTEX_AGENT_API_KEY and, optionally, VERTEX_ALERT_POST_URL and VERTEX_ALERT_CHANNEL
-cp infra/sector-rotation/vertex-sector-rotation.{service,timer} ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now vertex-sector-rotation.timer
+infra/sector-rotation/quantvps/install.sh                   # build, copy over `ssh quantvps`, install, enable the timer
+infra/sector-rotation/quantvps/install.sh --build-only DIR   # build the files into DIR only
 ```
 
-The service expects the checkout at `~/Github/trading/vertex-research-platform`; edit `WorkingDirectory` for another path.
+The script refuses uncommitted changes and stops before any change when the Autopilot Node or `autopilot.env` is missing. It checks that Node can parse the bundle. When the bundle changes, it keeps the replaced bundle and `SOURCE_SHA` as `*.prev`; a repeated install of the same build keeps the earlier `*.prev`. Then it installs the units, installs the chat route drop-in only when `alert.env` exists, then runs `systemctl daemon-reload` and `systemctl enable --now vertex-sector-rotation.timer`. It does not start a collection. To compare a checkout with the live bundle, run `--build-only` and compare `sha256sum` with `/opt/vertex-sector-rotation/vertex-sector-rotation-tick.mjs` (on 2026-11-04 the build of the base commit was byte-identical to the live file).
+
+To remove the chat route: delete the drop-in and `alert.env`, then run `systemctl daemon-reload`.
+
+### Rig user units (not used)
+
+The user units `infra/sector-rotation/vertex-sector-rotation.{service,timer}` were the first plan for the rig. They are not installed or enabled anywhere. Do not enable them beside the QuantVPS timer: two schedulers would run the same collection. They run `bun run vertex:sector-rotation:tick` from a checkout at `~/Github/trading/vertex-research-platform` with `~/.config/vertex/sector-rotation.env` (mode 0600, the same keys as above).
 
 ## Rollback
 
-1. Stop the timer: `systemctl --user disable --now vertex-sector-rotation.timer`.
+1. Stop the timer on QuantVPS: `systemctl disable --now vertex-sector-rotation.timer`. To go back to the previous bundle instead, copy `vertex-sector-rotation-tick.mjs.prev` and `SOURCE_SHA.prev` in `/opt/vertex-sector-rotation` over the current files.
 2. Revert the application change.
 3. Run `packages/db/rollback/0047_sector_rotation.down.sql`. It refuses while `sector_rotation_alerts` has rows, because that table is the record that stops repeat alerts; export or delete those rows on purpose first. Stored points are derived from market bars and do not block the rollback. Reconcile the Drizzle migration ledger separately before re-applying `0047`.

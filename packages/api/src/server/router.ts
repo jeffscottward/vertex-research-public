@@ -1,6 +1,6 @@
 // What: oRPC implementation of appContract: binds each procedure to feature, account, theme and contact services,
 // plus the Vertex research surface (vertex.*, vertexWorker.*, agentOps.*, papers.*, agentApiKeys.*,
-// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, jevVerdict.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, baskets.*, assistant.*).
+// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, jevVerdict.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, baskets.*, pickLists.*, assistant.*).
 // Used by: packages/api/src/server/handler.ts, packages/api/src/server/index.ts (appRouter).
 // See: packages/api/src/contract.ts#appContract; docs/getting-started.md#add-your-first-feature.
 import {
@@ -136,6 +136,7 @@ import { priceAlertsRouter } from "./price-alerts.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { marketNewsRouter } from "./market-news.ts";
 import { basketsRouter } from "./baskets.ts";
+import { pickListsRouter } from "./pick-lists.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -1712,6 +1713,7 @@ export const appRouter = api.router({
   sectorRotation: sectorRotationRouter,
   marketNews: marketNewsRouter,
   baskets: basketsRouter,
+  pickLists: pickListsRouter,
   todos: todosRouter,
   agentOps: { ...agentOpsRouter, optimizations: optimizationsRouter },
   quantLab: quantLabRouter,

@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { EnvironmentValidationError } from "@darkfactory/config/server";
 import {
@@ -21,6 +21,17 @@ import {
   runWorkerBindingsCli,
   writeWorkerBindings,
 } from "./bindings.ts";
+import { scaledTimeout } from "../lib/test-timeout-scale.ts";
+
+// Most tests here publish a file with a physical fsync (FileHandle.sync) in
+// TMPDIR. CI runners keep TMPDIR on the shared btrfs /var/tmp, where fsync
+// waits for other jobs' writeback; CPU load does not show it, so the load
+// scale stays at x1 (card vertex-ci-rig-load-timeouts-1104). Measured: three
+// tests timed out at 5 s in CI coverage shard 4/12 (run 41827093229, 5.0-6.3 s
+// when cut off); a sibling fsync test reached 15 s in run 41816221283. Locally
+// with 8 dirty-page writers plus syncfs on /var/tmp: up to 1.9 s. Budget: 2x
+// the 15 s CI worst case.
+vi.setConfig({ testTimeout: scaledTimeout(30_000) });
 
 const directories: string[] = [];
 // Sorted, as resolveWorkerBindings writes them.

@@ -446,6 +446,21 @@ const collect = api.sectorRotation.collect
     };
   });
 
+const recordChatDelivery = api.sectorRotation.recordChatDelivery
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    // Scheduler only: the tick client reports its chat post result for an undelivered alert.
+    if (context.agentApiKeyPresented !== true)
+      throw failures.FORBIDDEN({
+        message: "sectorRotation.recordChatDelivery needs an agent API key",
+      });
+    const updated = await repositoryFor(context, failures).recordChatDelivery(
+      input
+    );
+    return { updated };
+  });
+
 const seriesOf = (
   symbol: string,
   name: string | null,
@@ -631,4 +646,9 @@ const snapshot = api.sectorRotation.snapshot
     };
   });
 
-export const sectorRotationRouter = { collect, map, snapshot };
+export const sectorRotationRouter = {
+  collect,
+  map,
+  recordChatDelivery,
+  snapshot,
+};

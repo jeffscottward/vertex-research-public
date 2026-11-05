@@ -4,6 +4,7 @@ import { appContract } from "./contract.ts";
 import {
   SECTOR_ROTATION_MAX_CUSTOM_SYMBOLS,
   SECTOR_ROTATION_SECTORS,
+  SectorRotationChatDeliveryInputSchema,
   SectorRotationCollectInputSchema,
   SectorRotationCollectOutputSchema,
   SectorRotationMapInputSchema,
@@ -12,12 +13,45 @@ import {
 } from "./contracts/sector-rotation.ts";
 
 describe("sectorRotation contract", () => {
-  it("is registered with three procedures", () => {
+  it("is registered with four procedures", () => {
     expect(Object.keys(appContract.sectorRotation).sort()).toEqual([
       "collect",
       "map",
+      "recordChatDelivery",
       "snapshot",
     ]);
+  });
+
+  it("accepts a chat delivery result for one alert key and rejects anything else", () => {
+    expect(
+      SectorRotationChatDeliveryInputSchema.parse({
+        delivery: "sent",
+        enteredOn: "2026-11-02",
+        quadrant: "leading",
+        symbol: " xlk ",
+      })
+    ).toEqual({
+      delivery: "sent",
+      enteredOn: "2026-11-02",
+      quadrant: "leading",
+      symbol: "XLK",
+    });
+    const base = {
+      delivery: "failed",
+      enteredOn: "2026-11-02",
+      quadrant: "lagging",
+      symbol: "XLE",
+    };
+    for (const bad of [
+      { ...base, delivery: "not-configured" },
+      { ...base, delivery: "dry-run" },
+      { ...base, enteredOn: "11/02/2026" },
+      { ...base, quadrant: "sideways" },
+      { ...base, line: "x" },
+    ])
+      expect(SectorRotationChatDeliveryInputSchema.safeParse(bad).success).toBe(
+        false
+      );
   });
 
   it("lists the 11 Select Sector SPDR ETFs once each", () => {

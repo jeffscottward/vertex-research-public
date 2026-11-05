@@ -33,9 +33,17 @@ import {
   isOperatorAccessDenied,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import {
+  createResultCache,
+  currentSearch,
+  useDebouncedValue,
+  writeQuery,
+} from "./backtest-lab-query.ts";
 import { isoDate } from "./backtest-runs-model.ts";
 import {
+  autoSweepKey,
   cellSubmitInput,
+  DEFAULT_SWEEP_METRIC,
   defaultAxes,
   defaultDimensions,
   describeCell,
@@ -43,15 +51,20 @@ import {
   type HeatmapAxes,
   heatmapView,
   moveAxis,
+  parseSweepQuery,
+  pickSeries,
   robustnessFor,
   SWEEP_METRIC_LABELS,
   SWEEP_PARAM_LABELS,
   type SweepDimensionForm,
   type SweepForm,
+  seriesKey,
+  sweepRunKey,
   toSweepInput,
 } from "./backtest-sweeps-model.ts";
 import {
   DEFAULT_UNIVERSE_CHOICE,
+  firstSeriesKey,
   UniverseSelect,
   visibleSeries,
 } from "./backtest-universe.tsx";
@@ -61,15 +74,19 @@ import { NumberField } from "./number-field.tsx";
 
 // Parameter sweep: run a grid of backtests, read the heatmap of any two swept parameters for a
 // selected metric, compare each cell with its neighbours (robust rank, isolated spikes) and queue
-// a full backtest run for one cell. Research only; no order path exists on this page or its API.
+// a full backtest run for one cell. The default grid runs on open on stored bars (a sweep stores
+// nothing); an edited grid waits for "Run sweep". Research only; no order path exists on this page
+// or its API.
 
 const RANKED_ROWS = 20;
+const AUTO_RUN_DELAY_MS = 350;
+const CACHED_SWEEPS = 20;
 const selectClass = "min-h-11 rounded-md border bg-background px-3 text-sm";
 
 export interface BacktestSweepsGateway {
   readonly series: () => Promise<readonly InstantBacktestSeries[]>;
-  readonly sweep: (input: BacktestSweepInput) => Promise<BacktestSweepOutput>;
   readonly submit: (input: BacktestRunSubmitInput) => Promise<BacktestRun>;
+  readonly sweep: (input: BacktestSweepInput) => Promise<BacktestSweepOutput>;
 }
 
 export const createBacktestSweepsGateway = (
@@ -92,9 +109,6 @@ export const createBrowserBacktestSweepsGateway = (): BacktestSweepsGateway => {
     sweep: (input) => current().sweep(input),
   };
 };
-
-const seriesKey = (series: InstantBacktestSeries): string =>
-  `${series.symbol}:${series.timeframe}`;
 
 type LoadState =
   | Readonly<{ type: "loading" }>
@@ -265,13 +279,16 @@ const SweepResults = ({
 }>) => {
   const { output } = result;
   const [mode, setMode] = useState<"value" | "worst">("value");
-  const [axes, setAxes] = useState<HeatmapAxes>(() => defaultAxes(output));
-  const [selected, setSelected] = useState<number | null>(
-    output.ranking[0] ?? null
-  );
   const robustness = useMemo(
     () => robustnessFor(output, metric),
     [output, metric]
+  );
+  // A cached sweep may be ranked for another metric, so start at the best cell for this one.
+  const [axes, setAxes] = useState<HeatmapAxes>(() =>
+    defaultAxes(output, robustness.ranking[0])
+  );
+  const [selected, setSelected] = useState<number | null>(
+    robustness.ranking[0] ?? null
   );
   const view = heatmapView(output, robustness, metric, mode, axes);
   const shape = output.dimensions.map((dimension) => dimension.values.length);
@@ -566,10 +583,12 @@ export const BacktestSweepsWorkspace = ({
   const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
   const universeRef = useRef(universe);
   universeRef.current = universe;
+  // The URL is read once, on the first series load; a later reload keeps the user's choices.
+  const queryRead = useRef(false);
   const [form, setForm] = useState<SweepForm>({
     dimensions: defaultDimensions(DEFAULT_INSTANT_PARAMS.ruleKind),
     from: "",
-    metric: "totalReturn",
+    metric: DEFAULT_SWEEP_METRIC,
     params: DEFAULT_INSTANT_PARAMS,
     to: "",
   });
@@ -577,6 +596,13 @@ export const BacktestSweepsWorkspace = ({
   const [sweeps, setSweeps] = useState(0);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Finished sweeps for this visit, so going back to a choice does not run it again.
+  const [cache] = useState(() =>
+    createResultCache<BacktestSweepOutput>(CACHED_SWEEPS)
+  );
+  // Run key of the last sweep started, and a counter so only the latest answer is shown.
+  const lastRun = useRef<string | null>(null);
+  const latest = useRef(0);
   const fromId = useId();
   const toId = useId();
 
@@ -597,8 +623,21 @@ export const BacktestSweepsWorkspace = ({
       (loaded) => {
         if (!active) return;
         setLoad({ series: loaded, type: "ready" });
-        // A reload keeps the user's universe choice.
-        applySeries(visibleSeries(loaded, universeRef.current).series[0]);
+        if (queryRead.current) {
+          // A reload keeps the user's universe choice.
+          applySeries(visibleSeries(loaded, universeRef.current).series[0]);
+          return;
+        }
+        queryRead.current = true;
+        const query = parseSweepQuery(currentSearch());
+        setUniverse(query.universe);
+        setForm((current) => ({
+          ...current,
+          dimensions: defaultDimensions(query.rule),
+          metric: query.metric,
+          params: { ...current.params, ruleKind: query.rule },
+        }));
+        applySeries(pickSeries(loaded, query.universe, query.symbol));
       },
       (error: unknown) => {
         if (!active) return;
@@ -617,6 +656,82 @@ export const BacktestSweepsWorkspace = ({
     };
   }, [gateway, applySeries]);
 
+  // Runs one sweep (a read: it computes on stored bars and stores nothing), from the cache when
+  // the same request already ran. The metric is not part of the key: it only re-ranks.
+  const run = useCallback(
+    async (input: BacktestSweepRequest) => {
+      const key = sweepRunKey(input);
+      lastRun.current = key;
+      latest.current += 1;
+      const ticket = latest.current;
+      let outcome:
+        | Readonly<{ output: BacktestSweepOutput }>
+        | Readonly<{ message: string }>;
+      const cached = cache.get(key);
+      if (cached === undefined) {
+        setRunning(true);
+        setMessage(null);
+        try {
+          const output = await gateway.sweep(input);
+          cache.set(key, output);
+          outcome = { output };
+        } catch (error) {
+          outcome = { message: describeMarketDataFailure(error).message };
+        }
+        // A newer sweep started meanwhile; its answer wins.
+        if (ticket !== latest.current) return;
+      } else outcome = { output: cached };
+      setRunning(false);
+      if ("message" in outcome) {
+        setMessage(outcome.message);
+        return;
+      }
+      setMessage(null);
+      setResult({ output: outcome.output, request: input });
+      setSweeps((count) => count + 1);
+    },
+    [cache, gateway]
+  );
+
+  const stored = load.type === "ready" ? load.series : [];
+  const series = stored.find((entry) => seriesKey(entry) === selectedSeries);
+  const request = series === undefined ? null : toSweepInput(form, series);
+  const requestRef = useRef(request);
+  requestRef.current = request;
+  const autoKey = autoSweepKey(form, series);
+  const settledKey = useDebouncedValue(autoKey, AUTO_RUN_DELAY_MS);
+
+  // The default grid runs without a click: at once on open, then (debounced) after a universe,
+  // series or rule change while the grid is still the default. An edited grid waits for
+  // "Run sweep", and nothing here queues a stored job.
+  useEffect(() => {
+    const key = lastRun.current === null ? autoKey : settledKey;
+    if (key === null || key !== autoKey || key === lastRun.current) return;
+    const current = requestRef.current as Readonly<{
+      input: BacktestSweepRequest;
+    }>;
+    void run(current.input);
+  }, [autoKey, settledKey, run]);
+
+  // Keeps the choices in the address bar; default values stay out of it.
+  useEffect(() => {
+    if (load.type !== "ready") return;
+    writeQuery(
+      {
+        metric: form.metric,
+        rule: form.params.ruleKind,
+        symbol: selectedSeries,
+        universe,
+      },
+      {
+        metric: DEFAULT_SWEEP_METRIC,
+        rule: DEFAULT_INSTANT_PARAMS.ruleKind,
+        symbol: firstSeriesKey(load.series, universe),
+        universe: DEFAULT_UNIVERSE_CHOICE,
+      }
+    );
+  }, [load, universe, selectedSeries, form.metric, form.params.ruleKind]);
+
   if (load.type === "forbidden")
     return <OperatorAccessRequired feature="backtests" />;
   if (load.type === "loading")
@@ -628,10 +743,6 @@ export const BacktestSweepsWorkspace = ({
       </p>
     );
 
-  const series = load.series.find(
-    (entry) => seriesKey(entry) === selectedSeries
-  );
-  const request = series === undefined ? null : toSweepInput(form, series);
   const visible = visibleSeries(load.series, universe);
   const { params } = form;
   const used = new Set(form.dimensions.map((dimension) => dimension.param));
@@ -646,21 +757,6 @@ export const BacktestSweepsWorkspace = ({
     }));
   const setDimensions = (dimensions: readonly SweepDimensionForm[]) =>
     setForm((current) => ({ ...current, dimensions }));
-
-  const run = async () => {
-    if (request === null || "error" in request) return;
-    setRunning(true);
-    setMessage(null);
-    try {
-      const output = await gateway.sweep(request.input);
-      setResult({ output, request: request.input });
-      setSweeps((count) => count + 1);
-    } catch (error) {
-      setMessage(describeMarketDataFailure(error).message);
-    } finally {
-      setRunning(false);
-    }
-  };
 
   const ruleFields =
     params.ruleKind === "smaCross"
@@ -686,7 +782,7 @@ export const BacktestSweepsWorkspace = ({
         className="grid gap-4 rounded-md border p-4"
         onSubmit={(event) => {
           event.preventDefault();
-          void run();
+          if (request !== null && "input" in request) void run(request.input);
         }}
       >
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

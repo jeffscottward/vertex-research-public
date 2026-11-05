@@ -9,6 +9,7 @@ import hmac
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -68,6 +69,34 @@ def sanitize_error_detail(detail: str, account_id: str) -> str:
     return sanitize_account_references(detail, account_id)
 
 
+def write_class_sidecar(snapshot: object, path: Path) -> None:
+    """conId/tradingClass per position for the order policy (nautilus/arm_gate.py).
+
+    Older reader copies (poll-order-notify stages this script without
+    nautilus/) have no class_sidecar; the gate then refuses option orders it
+    cannot tell apart, so a missing sidecar only fails closed.
+    """
+    build = getattr(snapshot, "class_sidecar", None)
+    if not callable(build):
+        return
+    target = path.parent / "ibkr-account-classes.json"
+    try:
+        fd, temporary = tempfile.mkstemp(prefix=".ibkr-account-classes.", dir=path.parent)
+        try:
+            # mkstemp creates 0600; the gate (uid 10001) must read sidecars that
+            # a root writer (portfolio-ui) leaves. It holds no secret.
+            os.fchmod(fd, 0o644)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(build(path.name), handle, indent=2, sort_keys=True)
+                handle.write("\n")
+            os.replace(temporary, target)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
+    except OSError as exc:
+        print(f"IBKR class sidecar not written: {type(exc).__name__}", file=sys.stderr)
+
+
 def main() -> int:
     args = parse_args()
     env = read_env(Path(args.env_file))
@@ -111,6 +140,7 @@ def main() -> int:
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    write_class_sidecar(snapshot, path)
     print(
         json.dumps(
             {

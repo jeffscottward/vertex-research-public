@@ -1091,6 +1091,7 @@ describe("feature item mutation repository", () => {
       "generated",
       "watchlist",
       "baskets",
+      "pickLists",
       "todos",
       "agentOps",
       "researchPapers",

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
     EMAIL_FROM: "DarkFactory <noreply@domain.test>",
     RESEND_API_KEY: undefined,
     OTEL_SERVICE_NAME: "darkfactory-web",
+    VERTEX_AGENT_VIEWER_EMAILS: [] as string[],
   };
   return {
     env,

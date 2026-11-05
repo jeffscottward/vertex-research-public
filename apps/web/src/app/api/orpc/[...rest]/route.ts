@@ -14,9 +14,10 @@ import {
   createVertexPlatformRequestDependencies,
   createVertexRuntimeConfiguredOptions,
   resolveDeployStatusConfig,
-  resolvePriceAlertsNtfyConfig,
   resolveJevConfig,
+  resolvePriceAlertsNtfyConfig,
   resolveQuantDataConfig,
+  setResearchContactEmail,
 } from "@darkfactory/api/server";
 import {
   createAgentApiKeyService,
@@ -271,6 +272,8 @@ const vertexContextDependencies = (
     // Agent API keys: verified only by agentOps.*/papers.*; the handler
     // interceptor rejects x-api-key requests on every other procedure.
     agentApiKeys: createAgentApiKeyService(scope.auth, scope.db),
+    // Read-only agent viewers: operator pages, read procedures only (agent-viewer.ts).
+    agentViewerEmails: env.VERTEX_AGENT_VIEWER_EMAILS,
     // Research assistant: the OpenRouter key stays server-side. Tool calls are internal oRPC
     // requests on this origin carrying only this request's session cookie.
     assistant: {
@@ -290,11 +293,18 @@ const vertexContextDependencies = (
       env.VERTEX_DEPLOY_STATUS_V2_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN
     ),
-    // Portfolio tab: read-only proxy to ibkr-monitor on loopback (allow-listed GET endpoints only).
-    ibkrMonitor: env.IBKR_MONITOR_URL ?? null,
     // Engines and Market context views: rig status files pushed to QuantVPS, served on loopback
     // (engines.status, marketContext.get).
     engineStatus: env.ENGINE_STATUS_URL ?? null,
+    // Portfolio tab: read-only proxy to ibkr-monitor on loopback (allow-listed GET endpoints only).
+    ibkrMonitor: env.IBKR_MONITOR_URL ?? null,
+    // Human IBKR 2FA recovery (ibkrRecovery.*); operator-only, never agent keys. Own token.
+    ibkrRecovery: resolveDeployStatusConfig(
+      env.VERTEX_IBKR_RECOVERY_URL,
+      env.VERTEX_IBKR_RECOVERY_TOKEN
+    ),
+    // Display-only JEV verdict on /charts (jevVerdict.*); the OpenRouter key stays server-side.
+    jev: resolveJevConfig(env.OPENROUTER_API_KEY),
     marketHistory: resolveDeployStatusConfig(
       env.VERTEX_HISTORY_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN,
@@ -308,8 +318,12 @@ const vertexContextDependencies = (
       env.VERTEX_DEPLOY_STATUS_TOKEN,
       { allowLoopbackHttp: true }
     ),
-    // Display-only JEV verdict on /charts (jevVerdict.*); the OpenRouter key stays server-side.
-    jev: resolveJevConfig(env.OPENROUTER_API_KEY),
+    // Price alert ntfy delivery (priceAlerts.*); topic and token stay server-side, never logged.
+    priceAlertsNtfy: resolvePriceAlertsNtfyConfig(
+      env.VERTEX_PRICE_ALERTS_NTFY_ORIGIN,
+      env.VERTEX_PRICE_ALERTS_NTFY_TOPIC,
+      env.VERTEX_PRICE_ALERTS_NTFY_TOKEN
+    ),
     // Read-only QuantData options analytics (optionsAnalytics.snapshot); key stays server-side.
     quantData: resolveQuantDataConfig(
       env.QUANTDATA_API_BASE_URL,
@@ -320,24 +334,13 @@ const vertexContextDependencies = (
       env.VERTEX_RESEARCH_LENSES_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN
     ),
-    // Price alert ntfy delivery (priceAlerts.*); topic and token stay server-side, never logged.
-    priceAlertsNtfy: resolvePriceAlertsNtfyConfig(
-      env.VERTEX_PRICE_ALERTS_NTFY_ORIGIN,
-      env.VERTEX_PRICE_ALERTS_NTFY_TOPIC,
-      env.VERTEX_PRICE_ALERTS_NTFY_TOKEN
-    ),
-    // Human IBKR 2FA recovery (ibkrRecovery.*); operator-only, never agent keys. Own token.
-    ibkrRecovery: resolveDeployStatusConfig(
-      env.VERTEX_IBKR_RECOVERY_URL,
-      env.VERTEX_IBKR_RECOVERY_TOKEN
-    ),
     // Academy rule overrides: Better Auth checks the signed-in user's own password (session-bound).
     verifyPassword: async (headers, password) =>
       await verifyOwnPassword(scope.auth.api, headers, password),
     // Owner order screen: off by default (mock gateway only). The auth secret signs confirm tokens.
     vertexOrders: {
-      bridgeUrl: env.VERTEX_ORDER_BRIDGE_URL ?? null,
       bridgeToken: env.VERTEX_ORDER_BRIDGE_TOKEN ?? null,
+      bridgeUrl: env.VERTEX_ORDER_BRIDGE_URL ?? null,
       confirmSecret: `vertex-orders-confirm:${env.BETTER_AUTH_SECRET}`,
       enabled: env.VERTEX_ORDERS_ENABLED,
       submission: env.VERTEX_ORDER_SUBMISSION,
@@ -351,6 +354,7 @@ const handleOrpcRuntimeRequestInner = async (
   internalParentRequestId?: string
 ): Promise<Response> => {
   const env = parseServerEnv(process.env);
+  setResearchContactEmail(env.VERTEX_RESEARCH_CONTACT_EMAIL);
   const method = request.method.toUpperCase();
   if (!SUPPORTED_ORPC_METHODS.includes(method))
     return methodNotAllowedResponse();

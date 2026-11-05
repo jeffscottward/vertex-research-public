@@ -8,9 +8,10 @@ import { e2eEnvironment } from "./env.ts";
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
-// Parameter sweep: an operator runs a grid, reads the heatmap for another metric, picks a cell and
-// queues a full backtest run for it, which reports the same total return. Synthetic, clearly
-// fictional daily bars; research only.
+// Parameter sweep: the page opens with the default grid already run on the first stored series
+// (no click). An operator then runs a custom grid, reads the heatmap for another metric, picks a
+// cell and queues a full backtest run for it, which reports the same total return. A URL deep
+// link opens a chosen rule and metric. Synthetic, clearly fictional daily bars; research only.
 
 const DAY_MS = 86_400_000;
 
@@ -56,10 +57,30 @@ test("an operator sweeps two parameters and runs the full backtest for one cell"
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await signInAs(page, E2E_IDENTITIES.alice);
+  const submits: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/orpc/backtestRuns/submit")
+      submits.push(request.url());
+  });
+  const opened = page.waitForResponse(
+    (candidate) =>
+      new URL(candidate.url()).pathname === "/api/orpc/backtestRuns/sweep"
+  );
   await page.goto("/backtest-sweeps");
   await expect(
     page.getByRole("heading", { level: 1, name: "Parameter sweeps" })
   ).toBeVisible();
+  // The default 6 x 8 grid runs on open; no Core 7 future is stored, so TEST is used.
+  expect((await opened).ok()).toBe(true);
+  const results = page.getByRole("region", { name: "Sweep results" });
+  await expect(results.getByText(/^48 cells over/u)).toBeVisible();
+  await expect(
+    results.locator("[data-sweep-heatmap] tbody button")
+  ).toHaveCount(48);
+  await expect(page.getByLabel("Symbol and timeframe")).toHaveValue("TEST:1d");
+  await expect(page).toHaveURL(/\/backtest-sweeps$/u);
+  expect(submits).toHaveLength(0);
+
   await page.getByLabel("Dimension 1 from", { exact: true }).fill("5");
   await page.getByLabel("Dimension 1 to", { exact: true }).fill("30");
   await page.getByLabel("Dimension 1 step", { exact: true }).fill("5");
@@ -75,7 +96,6 @@ test("an operator sweeps two parameters and runs the full backtest for one cell"
   await page.getByRole("button", { name: "Run sweep" }).click();
   expect((await swept).ok()).toBe(true);
 
-  const results = page.getByRole("region", { name: "Sweep results" });
   await expect(results.getByText(/^30 cells over/u)).toBeVisible();
   const heatmap = results.locator("[data-sweep-heatmap]");
   await expect(heatmap.locator("tbody button")).toHaveCount(30);
@@ -84,6 +104,7 @@ test("an operator sweeps two parameters and runs the full backtest for one cell"
 
   await results.getByLabel("Metric", { exact: true }).selectOption("sharpe");
   await expect(results.getByText(/for sharpe ratio\./u)).toBeVisible();
+  await expect(page).toHaveURL(/\?metric=sharpe$/u);
   await results
     .getByLabel("Metric", { exact: true })
     .selectOption("totalReturn");
@@ -145,4 +166,32 @@ test("an operator sweeps two parameters and runs the full backtest for one cell"
   );
   // The sweep shows one decimal, the report two; both come from the same engine run.
   expect(Math.abs(fullReturn - sweepReturn)).toBeLessThanOrEqual(0.05);
+});
+
+test("a URL deep link opens the chosen rule and metric with the sweep already run", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.goto(
+    "/backtest-sweeps?rule=breakout&metric=sharpe&universe=bogus"
+  );
+  await expect(page.getByLabel("Rule", { exact: true })).toHaveValue(
+    "breakout"
+  );
+  await expect(page.getByLabel("Universe", { exact: true })).toHaveValue(
+    "core7-futures"
+  );
+  const results = page.getByRole("region", { name: "Sweep results" });
+  // Breakout default grid: 6 x 6 cells, ranked by Sharpe.
+  await expect(results.getByText(/^36 cells over/u)).toBeVisible();
+  await expect(results.getByLabel("Metric", { exact: true })).toHaveValue(
+    "sharpe"
+  );
+  await expect(results.getByText(/for sharpe ratio\./u)).toBeVisible();
+  // The unknown universe leaves the URL; the default metric does too.
+  await expect(page).toHaveURL(/\?rule=breakout&metric=sharpe$/u);
+  await results
+    .getByLabel("Metric", { exact: true })
+    .selectOption("totalReturn");
+  await expect(page).toHaveURL(/\?rule=breakout$/u);
 });

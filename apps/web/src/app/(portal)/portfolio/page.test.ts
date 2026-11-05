@@ -30,10 +30,13 @@ describe("PortfolioPage", () => {
 
   it("gives operators the ibkr-monitor tabs from the cached request session", async () => {
     mocks.getRequestPortalSession.mockResolvedValueOnce({ isOperator: true });
-    const page = await PortfolioPage();
+    const page = await PortfolioPage({
+      searchParams: Promise.resolve({ tab: "pnl" }),
+    });
     expect(metadata).toEqual({ title: "Portfolio" });
     expect(page.type).toBe("portfolio-tabs");
     expect(page.props.operator).toBe(true);
+    expect(page.props.initialTab).toBe("pnl");
     expect(
       isValidElement(page.props.projection) &&
         page.props.projection.type === "portfolio-workspace"
@@ -48,7 +51,10 @@ describe("PortfolioPage", () => {
     "gives a non-operator (or no session) the projection only: %o",
     async (session) => {
       mocks.getRequestPortalSession.mockResolvedValueOnce(session);
-      const page = await PortfolioPage();
+      const page = await PortfolioPage({
+        searchParams: Promise.resolve({ tab: ["pnl", "orders"] }),
+      });
+      expect(page.props.initialTab).toBeUndefined();
       return expect(page.props.operator).toBe(false);
     }
   );

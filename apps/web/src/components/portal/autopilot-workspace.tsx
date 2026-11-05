@@ -36,11 +36,14 @@ import {
 import {
   type AutopilotForm,
   budgetSummary,
+  CAMPAIGN_PARAM,
   CAMPAIGN_STATUS_LABELS,
   CANDIDATE_STATUS_LABELS,
+  campaignFromSearch,
   checksSummary,
   curveGeometry,
   DEFAULT_AUTOPILOT_FORM,
+  defaultCampaignId,
   formatCpu,
   formatNumber,
   formatPercent,
@@ -50,10 +53,11 @@ import {
   seriesLabel,
   toCampaignInput,
 } from "./autopilot-model.ts";
+import { currentSearch, writeQuery } from "./backtest-lab-query.ts";
 import {
   DEFAULT_UNIVERSE_CHOICE,
-  UniverseSelect,
   firstSeriesKey,
+  UniverseSelect,
   visibleSeries,
 } from "./backtest-universe.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
@@ -1007,19 +1011,28 @@ export const AutopilotWorkspace = ({
     useState<AutopilotCandidateDetailOutput | null>(null);
   const [candidateError, setCandidateError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      const [series, campaigns] = await Promise.all([api.series(), api.list()]);
-      setLoad({ campaigns, series, type: "ready" });
-      setSelected((current) => current ?? campaigns[0]?.id ?? null);
-    } catch (error) {
-      setLoad(
-        isOperatorAccessDenied(error)
-          ? { type: "forbidden" }
-          : { message: messageOf(error), type: "error" }
-      );
-    }
-  }, [api]);
+  // `search` is read once on open; later reloads keep the current selection.
+  const reload = useCallback(
+    async (search = "") => {
+      try {
+        const [series, campaigns] = await Promise.all([
+          api.series(),
+          api.list(),
+        ]);
+        setLoad({ campaigns, series, type: "ready" });
+        setSelected(
+          (current) => current ?? campaignFromSearch(search, campaigns)
+        );
+      } catch (error) {
+        setLoad(
+          isOperatorAccessDenied(error)
+            ? { type: "forbidden" }
+            : { message: messageOf(error), type: "error" }
+        );
+      }
+    },
+    [api]
+  );
 
   const refreshDetail = useCallback(async () => {
     if (selected === null) return;
@@ -1031,8 +1044,16 @@ export const AutopilotWorkspace = ({
   }, [api, selected]);
 
   useEffect(() => {
-    void reload();
+    void reload(currentSearch());
   }, [reload]);
+  // The selection lives in the address bar; the default campaign keeps a clean URL.
+  useEffect(() => {
+    if (load.type !== "ready") return;
+    writeQuery(
+      { [CAMPAIGN_PARAM]: selected },
+      { [CAMPAIGN_PARAM]: defaultCampaignId(load.campaigns) }
+    );
+  }, [load, selected]);
   useEffect(() => {
     void refreshDetail();
   }, [refreshDetail]);

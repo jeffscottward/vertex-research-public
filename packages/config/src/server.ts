@@ -120,20 +120,23 @@ export const isOperatorIdentity = (
   );
 };
 
-const operatorEmailsSchema = z
-  .string()
-  .optional()
-  .transform((value, context): readonly string[] => {
-    const parsed = parseOperatorEmails(value);
-    if (parsed === null) {
-      context.addIssue({
-        code: "custom",
-        message: `VERTEX_OPERATOR_EMAILS must be at most ${OPERATOR_EMAILS_MAX} comma-separated email addresses`,
-      });
-      return z.NEVER;
-    }
-    return parsed;
-  });
+const emailListSchema = (name: string) =>
+  z
+    .string()
+    .optional()
+    .transform((value, context): readonly string[] => {
+      const parsed = parseOperatorEmails(value);
+      if (parsed === null) {
+        context.addIssue({
+          code: "custom",
+          message: `${name} must be at most ${OPERATOR_EMAILS_MAX} comma-separated email addresses`,
+        });
+        return z.NEVER;
+      }
+      return parsed;
+    });
+
+const operatorEmailsSchema = emailListSchema("VERTEX_OPERATOR_EMAILS");
 
 const hasNoUrlSecrets = (value: string): boolean => {
   if (/[?#]/.test(value)) return false;
@@ -413,8 +416,8 @@ const secretSchema = (name: string) => {
 // Public local-only defaults are never suitable production signing/HMAC keys.
 // Apply the same denylist to both fields so swapping their defaults cannot bypass it.
 const DEVELOPMENT_SECRETS: Readonly<Record<string, true>> = {
-  "vertex-local-development-only-not-a-production-secret": true,
   "vertex-local-development-only-contact-throttle-secret": true,
+  "vertex-local-development-only-not-a-production-secret": true,
 };
 
 // A development build that serves a non-local origin (the QuantVPS
@@ -442,154 +445,162 @@ const STORAGE_REQUIRED_KEYS = [
 ] as const;
 
 const DEVELOPMENT_CAPTURE_APP_HOSTS: Readonly<Record<string, true>> = {
-  localhost: true,
-  "127.0.0.1": true,
   "[::1]": true,
+  "127.0.0.1": true,
+  localhost: true,
 };
 
 const baseServerEnvSchema = z.object({
-  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
-  APP_URL: appOriginUrl("APP_URL").default(CANONICAL_APP_URL),
-  APP_NAME: z.string().trim().min(1).default("Vertex Research"),
+  AGNO_API_TOKEN: optionalString,
+  AGNO_API_URL: optionalUrl("AGNO_API_URL"),
+  AGNO_RUNTIME_STATE: pendingRuntimeState,
 
-  DATABASE_PROVIDER: z.enum(DATABASE_PROVIDERS).default("postgres"),
-  DATABASE_URL: databaseUrlSchema,
-  DATABASE_ALLOWED_HOSTS: databaseAllowedHostsSchema,
+  AI_PROVIDER: z.enum(AI_ADAPTERS).default("groq"),
+
+  ANALYTICS_PROVIDER: z.enum(ANALYTICS_ADAPTERS).default("posthog"),
+  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
+  APP_NAME: z.string().trim().min(1).default("Vertex Research"),
+  APP_URL: appOriginUrl("APP_URL").default(CANONICAL_APP_URL),
 
   BETTER_AUTH_SECRET: secretSchema("BETTER_AUTH_SECRET"),
   BETTER_AUTH_URL: appOriginUrl("BETTER_AUTH_URL").default(CANONICAL_APP_URL),
+  CHART_RENDERER: z
+    .literal("tanstack-charts-alpha")
+    .default("tanstack-charts-alpha"),
+  CHART_RUNTIME_STATE: pendingRuntimeState,
+  CONTACT_EMAIL_TO: optionalContactRecipient,
   CONTACT_THROTTLE_SECRET: secretSchema("CONTACT_THROTTLE_SECRET"),
-  WORKFLOW_REPOSITORY_GRANTS: optionalString,
+  CROWN_CORPUS_PATH: optionalString,
+  DATABASE_ALLOWED_HOSTS: databaseAllowedHostsSchema,
 
-  AI_PROVIDER: z.enum(AI_ADAPTERS).default("groq"),
-  GROQ_API_KEY: optionalString,
-  GROQ_MODEL: optionalString,
+  DATABASE_PROVIDER: z.enum(DATABASE_PROVIDERS).default("postgres"),
+  DATABASE_URL: databaseUrlSchema,
+  DEFINE_YOUR_RISK_CORPUS_PATH: optionalString,
+  DELTATREND_CORPUS_PATH: optionalString,
+  DEV_EMAIL_PREVIEW_ENDPOINT: optionalString,
+  DEV_EMAIL_PREVIEW_KEY: optionalString,
+  EMAIL_FROM: emailFromSchema.default("Vertex Research <noreply@domain.test>"),
 
   EMAIL_PROVIDER: z.enum([...EMAIL_ADAPTERS, "disabled"]).default("resend"),
   EMAIL_TRANSPORT: z
     .enum(["preview", ...EMAIL_ADAPTERS, "disabled"])
     .default("preview"),
-  DEV_EMAIL_PREVIEW_ENDPOINT: optionalString,
-  DEV_EMAIL_PREVIEW_KEY: optionalString,
-  RESEND_API_KEY: optionalString,
-  EMAIL_FROM: emailFromSchema.default("Vertex Research <noreply@domain.test>"),
-  CONTACT_EMAIL_TO: optionalContactRecipient,
-
-  ANALYTICS_PROVIDER: z.enum(ANALYTICS_ADAPTERS).default("posthog"),
-  POSTHOG_KEY: optionalString,
-  POSTHOG_HOST: optionalUrl("POSTHOG_HOST"),
+  ENGINE_STATUS_URL: engineStatusUrlSchema,
+  FINANCIAL_DATASETS_API_BASE_URL: optionalUrl(
+    "FINANCIAL_DATASETS_API_BASE_URL"
+  ),
+  FINANCIAL_DATASETS_API_KEY: optionalString,
+  GAMMA_RESEARCH_API_TOKEN: optionalString,
+  GAMMA_RESEARCH_API_URL: optionalUrl("GAMMA_RESEARCH_API_URL"),
+  GROQ_API_KEY: optionalString,
+  GROQ_MODEL: optionalString,
+  IBKR_ACCOUNT_ID: optionalString,
+  IBKR_CLIENT_ID: optionalString,
+  IBKR_HOST: optionalString,
+  IBKR_MONITOR_URL: ibkrMonitorUrlSchema,
+  IBKR_PORT: optionalString,
+  IBKR_READ_ONLY: z.literal("true").default("true"),
+  IBKR_RECOVERY_POLICY: z
+    .literal("human-trigger-only")
+    .default("human-trigger-only"),
+  IBKR_RUNTIME_STATE: pendingRuntimeState,
+  IBKR_TRADING_MODE: z.literal("paper").default("paper"),
+  JEV_ALLOWED_ORIGINS: optionalString,
+  JEV_API_TOKEN: optionalString,
+  JEV_API_URL: optionalUrl("JEV_API_URL"),
+  JEV_RUNTIME_STATE: pendingRuntimeState,
+  MARKET_DATA_RUNTIME_STATE: pendingRuntimeState,
+  NAUTILUS_RUNTIME_STATE: pendingRuntimeState,
+  NAUTILUS_TRADING_MODE: z.literal("paper").default("paper"),
+  NOTIFICATION_EMAIL_TO: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().max(254).pipe(z.email()).optional()
+  ),
+  NOTIFICATION_PROVIDER: z
+    .enum(["disabled", "ntfy", "email"])
+    .default("disabled"),
+  NOTIFICATION_RUNTIME_STATE: pendingRuntimeState,
+  NTFY_ACCESS_TOKEN: optionalString,
+  NTFY_SERVER_URL: optionalUrl("NTFY_SERVER_URL"),
+  NTFY_TOPIC: optionalString,
+  OPENROUTER_API_KEY: openRouterApiKeySchema,
 
   OTEL_ENABLED: environmentBoolean("OTEL_ENABLED", true),
-  OTEL_SERVICE_NAME: z.string().trim().min(1).default("darkfactory-web"),
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl("OTEL_EXPORTER_OTLP_ENDPOINT"),
+  OTEL_SERVICE_NAME: z.string().trim().min(1).default("darkfactory-web"),
+  POSTHOG_HOST: optionalUrl("POSTHOG_HOST"),
+  POSTHOG_KEY: optionalString,
+  QUANT_RUNTIME_STATE: pendingRuntimeState,
+  QUANT_VPS_API_TOKEN: optionalString,
+  QUANT_VPS_API_URL: optionalUrl("QUANT_VPS_API_URL"),
+  QUANTDATA_API_BASE_URL: optionalUrl("QUANTDATA_API_BASE_URL"),
+  QUANTDATA_API_KEY: optionalString,
+  R2_ACCESS_KEY_ID: optionalString,
+  R2_ACCOUNT_ID: optionalString,
+  R2_BUCKET: optionalString,
+  R2_SECRET_ACCESS_KEY: optionalString,
+  RESEARCH_CORPUS_ROOT: optionalString,
+  RESEARCH_RUNTIME_STATE: pendingRuntimeState,
+  RESEND_API_KEY: optionalString,
+  RUST_KERNEL_API_TOKEN: optionalString,
+  RUST_KERNEL_API_URL: optionalUrl("RUST_KERNEL_API_URL"),
+  RUST_KERNEL_RUNTIME_STATE: pendingRuntimeState,
+  SSRN_CORPUS_PATH: optionalString,
 
   // Vertex restores @darkfactory/storage (R2); disabled unless every R2 key is set.
   STORAGE_ENABLED: environmentBoolean("STORAGE_ENABLED", false),
   STORAGE_PROVIDER: z.enum(["r2"]).default("r2"),
-  R2_ACCOUNT_ID: optionalString,
-  R2_ACCESS_KEY_ID: optionalString,
-  R2_SECRET_ACCESS_KEY: optionalString,
-  R2_BUCKET: optionalString,
-
-  // Vertex safety literals: research/paper only, read-only, no order submission.
-  VERTEX_MODE: z.enum(["research", "paper"]).default("research"),
+  VERRILLO_CORPUS_PATH: optionalString,
+  // Tailnet-only media URL base for Academy video, caption and thumbnail files.
+  VERTEX_ACADEMY_MEDIA_BASE_URL: academyMediaBaseUrlSchema,
   VERTEX_ACCESS_MODE: z.literal("read-only").default("read-only"),
-  // Repo-wide order submission gate. "enabled" (with VERTEX_ORDERS_ENABLED=true) lets the owner order
-  // screen send real orders through the bridge (owner decision 2026-11-04). Default "disabled".
-  VERTEX_ORDER_SUBMISSION: z.enum(["disabled", "enabled"]).default("disabled"),
-  VERTEX_OPERATOR_EMAILS: operatorEmailsSchema,
+  // Read-only agent viewers (owner decision 2026-11-04): see operator pages, call read procedures
+  // only. Must not overlap VERTEX_OPERATOR_EMAILS.
+  VERTEX_AGENT_VIEWER_EMAILS: emailListSchema("VERTEX_AGENT_VIEWER_EMAILS"),
+  VERTEX_ASSISTANT_MODEL: assistantModelSchema,
+  VERTEX_DEPLOY_STATUS_TOKEN: serviceTokenSchema("VERTEX_DEPLOY_STATUS_TOKEN"),
   VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
   // Tailnet-only v2 session snapshot (same token and URL rules).
   VERTEX_DEPLOY_STATUS_V2_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_V2_URL"),
   // Tailnet-only read-only IBKR history service base URL (marketData.bars).
   VERTEX_HISTORY_URL: tailnetOrLoopbackServiceUrl("VERTEX_HISTORY_URL"),
-  // Tailnet-only read-only research lens documents (researchLenses.*), e.g.
-  // https://<vps>.ts.net:8443/vertex-research-lenses/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
-  VERTEX_RESEARCH_LENSES_URL: tailnetServiceUrl("VERTEX_RESEARCH_LENSES_URL"),
-  // Tailnet-only read-only IBKR portfolio service base URL (portfolioMonitor.snapshot), e.g.
-  // https://<vps>.ts.net:8443/vertex-portfolio/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
-  VERTEX_PORTFOLIO_URL: tailnetOrLoopbackServiceUrl("VERTEX_PORTFOLIO_URL"),
-  IBKR_MONITOR_URL: ibkrMonitorUrlSchema,
-  ENGINE_STATUS_URL: engineStatusUrlSchema,
+  VERTEX_IBKR_RECOVERY_TOKEN: serviceTokenSchema("VERTEX_IBKR_RECOVERY_TOKEN"),
   // Tailnet-only human IBKR 2FA recovery service (ibkrRecovery.*), e.g.
   // https://<vps>.ts.net:8443/vertex-ibkr-recovery/v1. It has its OWN token (VERTEX_IBKR_RECOVERY_TOKEN),
   // because VERTEX_DEPLOY_STATUS_TOKEN also opens the public status route.
   VERTEX_IBKR_RECOVERY_URL: tailnetServiceUrl("VERTEX_IBKR_RECOVERY_URL"),
-  VERTEX_IBKR_RECOVERY_TOKEN: serviceTokenSchema("VERTEX_IBKR_RECOVERY_TOKEN"),
-  // Price alert ntfy delivery (priceAlerts.*); unset => triggers show in the portal only.
-  VERTEX_PRICE_ALERTS_NTFY_ORIGIN: priceAlertsNtfyOrigin,
-  VERTEX_PRICE_ALERTS_NTFY_TOPIC: priceAlertsNtfyTopic,
-  VERTEX_PRICE_ALERTS_NTFY_TOKEN: priceAlertsNtfyToken,
+  // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
+  VERTEX_KB_CHAT_URL: kbChatUrlSchema,
+
+  // Vertex safety literals: research/paper only, read-only, no order submission.
+  VERTEX_MODE: z.enum(["research", "paper"]).default("research"),
+  VERTEX_OPERATOR_EMAILS: operatorEmailsSchema,
+  // Shared secret for the order bridge (header X-Vertex-Bridge-Token). Server-only; never logged.
+  VERTEX_ORDER_BRIDGE_TOKEN: serviceTokenSchema("VERTEX_ORDER_BRIDGE_TOKEN"),
+  // Loopback order bridge that wraps the market-watch-bot IBKR gateway (used only when enabled).
+  VERTEX_ORDER_BRIDGE_URL: loopbackHttpUrl("VERTEX_ORDER_BRIDGE_URL"),
+  // Repo-wide order submission gate. "enabled" (with VERTEX_ORDERS_ENABLED=true) lets the owner order
+  // screen send real orders through the bridge (owner decision 2026-11-04). Default "disabled".
+  VERTEX_ORDER_SUBMISSION: z.enum(["disabled", "enabled"]).default("disabled"),
   // Owner order screen. Off by default: while false the screen uses the mock gateway only and
   // nothing reaches IBKR. Turning it on in production is the owner's decision.
   VERTEX_ORDERS_ENABLED: environmentBoolean("VERTEX_ORDERS_ENABLED", false),
-  // Loopback order bridge that wraps the market-watch-bot IBKR gateway (used only when enabled).
-  VERTEX_ORDER_BRIDGE_URL: loopbackHttpUrl("VERTEX_ORDER_BRIDGE_URL"),
-  // Shared secret for the order bridge (header X-Vertex-Bridge-Token). Server-only; never logged.
-  VERTEX_ORDER_BRIDGE_TOKEN: serviceTokenSchema("VERTEX_ORDER_BRIDGE_TOKEN"),
-  // Tailnet-only media URL base for Academy video, caption and thumbnail files.
-  VERTEX_ACADEMY_MEDIA_BASE_URL: academyMediaBaseUrlSchema,
-  // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
-  VERTEX_KB_CHAT_URL: kbChatUrlSchema,
-  VERTEX_DEPLOY_STATUS_TOKEN: serviceTokenSchema("VERTEX_DEPLOY_STATUS_TOKEN"),
-  OPENROUTER_API_KEY: openRouterApiKeySchema,
-  VERTEX_ASSISTANT_MODEL: assistantModelSchema,
-  MARKET_DATA_RUNTIME_STATE: pendingRuntimeState,
-  QUANTDATA_API_BASE_URL: optionalUrl("QUANTDATA_API_BASE_URL"),
-  QUANTDATA_API_KEY: optionalString,
-  FINANCIAL_DATASETS_API_BASE_URL: optionalUrl(
-    "FINANCIAL_DATASETS_API_BASE_URL"
-  ),
-  FINANCIAL_DATASETS_API_KEY: optionalString,
-  QUANT_RUNTIME_STATE: pendingRuntimeState,
-  QUANT_VPS_API_URL: optionalUrl("QUANT_VPS_API_URL"),
-  QUANT_VPS_API_TOKEN: optionalString,
-  NAUTILUS_RUNTIME_STATE: pendingRuntimeState,
-  NAUTILUS_TRADING_MODE: z.literal("paper").default("paper"),
-  IBKR_RUNTIME_STATE: pendingRuntimeState,
-  IBKR_TRADING_MODE: z.literal("paper").default("paper"),
-  IBKR_READ_ONLY: z.literal("true").default("true"),
-  IBKR_RECOVERY_POLICY: z
-    .literal("human-trigger-only")
-    .default("human-trigger-only"),
-  IBKR_HOST: optionalString,
-  IBKR_PORT: optionalString,
-  IBKR_CLIENT_ID: optionalString,
-  IBKR_ACCOUNT_ID: optionalString,
-  RESEARCH_RUNTIME_STATE: pendingRuntimeState,
-  GAMMA_RESEARCH_API_URL: optionalUrl("GAMMA_RESEARCH_API_URL"),
-  GAMMA_RESEARCH_API_TOKEN: optionalString,
-  AGNO_RUNTIME_STATE: pendingRuntimeState,
-  AGNO_API_URL: optionalUrl("AGNO_API_URL"),
-  AGNO_API_TOKEN: optionalString,
-  RUST_KERNEL_RUNTIME_STATE: pendingRuntimeState,
-  RUST_KERNEL_API_URL: optionalUrl("RUST_KERNEL_API_URL"),
-  RUST_KERNEL_API_TOKEN: optionalString,
-  CHART_RUNTIME_STATE: pendingRuntimeState,
-  CHART_RENDERER: z
-    .literal("tanstack-charts-alpha")
-    .default("tanstack-charts-alpha"),
-  NOTIFICATION_RUNTIME_STATE: pendingRuntimeState,
-  NOTIFICATION_PROVIDER: z
-    .enum(["disabled", "ntfy", "email"])
-    .default("disabled"),
-  NTFY_SERVER_URL: optionalUrl("NTFY_SERVER_URL"),
-  NTFY_TOPIC: optionalString,
-  NTFY_ACCESS_TOKEN: optionalString,
-  NOTIFICATION_EMAIL_TO: z.preprocess(
+  // Tailnet-only read-only IBKR portfolio service base URL (portfolioMonitor.snapshot), e.g.
+  // https://<vps>.ts.net:8443/vertex-portfolio/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
+  VERTEX_PORTFOLIO_URL: tailnetOrLoopbackServiceUrl("VERTEX_PORTFOLIO_URL"),
+  // Price alert ntfy delivery (priceAlerts.*); unset => triggers show in the portal only.
+  VERTEX_PRICE_ALERTS_NTFY_ORIGIN: priceAlertsNtfyOrigin,
+  VERTEX_PRICE_ALERTS_NTFY_TOKEN: priceAlertsNtfyToken,
+  VERTEX_PRICE_ALERTS_NTFY_TOPIC: priceAlertsNtfyTopic,
+  // Contact address for the research fetch User-Agent (SEC asks for one); server-side only.
+  VERTEX_RESEARCH_CONTACT_EMAIL: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().max(254).pipe(z.email()).optional()
   ),
-  JEV_RUNTIME_STATE: pendingRuntimeState,
-  JEV_API_URL: optionalUrl("JEV_API_URL"),
-  JEV_API_TOKEN: optionalString,
-  JEV_ALLOWED_ORIGINS: optionalString,
-  RESEARCH_CORPUS_ROOT: optionalString,
-  DELTATREND_CORPUS_PATH: optionalString,
-  VERRILLO_CORPUS_PATH: optionalString,
-  CROWN_CORPUS_PATH: optionalString,
-  DEFINE_YOUR_RISK_CORPUS_PATH: optionalString,
-  SSRN_CORPUS_PATH: optionalString,
+  // Tailnet-only read-only research lens documents (researchLenses.*), e.g.
+  // https://<vps>.ts.net:8443/vertex-research-lenses/v1. Same token and URL rules as VERTEX_DEPLOY_STATUS_URL.
+  VERTEX_RESEARCH_LENSES_URL: tailnetServiceUrl("VERTEX_RESEARCH_LENSES_URL"),
+  WORKFLOW_REPOSITORY_GRANTS: optionalString,
 });
 
 type BaseServerEnv = z.infer<typeof baseServerEnvSchema>;
@@ -611,9 +622,9 @@ const addDevelopmentCaptureIssues = (
   ) {
     context.addIssue({
       code: "custom",
-      path: ["DEV_EMAIL_PREVIEW_ENDPOINT"],
       message:
         "Development email capture requires development preview transport and a loopback app origin",
+      path: ["DEV_EMAIL_PREVIEW_ENDPOINT"],
     });
   }
   if (
@@ -630,9 +641,9 @@ const addDevelopmentCaptureIssues = (
   ) {
     context.addIssue({
       code: "custom",
-      path: ["DEV_EMAIL_PREVIEW_ENDPOINT"],
       message:
         "Development email capture requires an exact loopback capture URL",
+      path: ["DEV_EMAIL_PREVIEW_ENDPOINT"],
     });
   }
   if (
@@ -642,9 +653,9 @@ const addDevelopmentCaptureIssues = (
   ) {
     context.addIssue({
       code: "custom",
-      path: ["DEV_EMAIL_PREVIEW_KEY"],
       message:
         "Development email capture requires a canonical 32-byte base64url key",
+      path: ["DEV_EMAIL_PREVIEW_KEY"],
     });
   }
 };
@@ -654,19 +665,33 @@ export const serverEnvSchema = baseServerEnvSchema
     (env) =>
       env.DATABASE_PROVIDER === "hyperdrive" || env.DATABASE_URL !== undefined,
     {
-      path: ["DATABASE_URL"],
       message: "DATABASE_URL is required",
+      path: ["DATABASE_URL"],
       // Run beside other field errors so a missing DATABASE_URL is reported in the same pass.
       when: (payload) =>
         typeof payload.value === "object" && payload.value !== null,
     }
   )
   .superRefine((env, context): void => {
+    const operators = new Set(
+      env.VERTEX_OPERATOR_EMAILS.map((email) => email.toLowerCase())
+    );
+    if (
+      env.VERTEX_AGENT_VIEWER_EMAILS.some((email) =>
+        operators.has(email.toLowerCase())
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "VERTEX_AGENT_VIEWER_EMAILS must not overlap VERTEX_OPERATOR_EMAILS (a viewer is read-only)",
+        path: ["VERTEX_AGENT_VIEWER_EMAILS"],
+      });
     if (env.APP_URL !== env.BETTER_AUTH_URL) {
       context.addIssue({
         code: "custom",
-        path: ["BETTER_AUTH_URL"],
         message: "BETTER_AUTH_URL must match APP_URL",
+        path: ["BETTER_AUTH_URL"],
       });
     }
 
@@ -676,8 +701,8 @@ export const serverEnvSchema = baseServerEnvSchema
     ) {
       context.addIssue({
         code: "custom",
-        path: ["APP_URL"],
         message: "APP_URL may use http://*.localhost only in development",
+        path: ["APP_URL"],
       });
     }
 
@@ -690,8 +715,8 @@ export const serverEnvSchema = baseServerEnvSchema
       if (DEVELOPMENT_SECRETS[env[name].trim()] !== true) continue;
       context.addIssue({
         code: "custom",
-        path: [name],
         message: `${name} cannot use a development or public-template secret ${secretScope}`,
+        path: [name],
       });
     }
 
@@ -705,24 +730,24 @@ export const serverEnvSchema = baseServerEnvSchema
           continue;
         context.addIssue({
           code: "custom",
-          path: [name],
           message: `${name} cannot use a local origin in production`,
+          path: [name],
         });
       }
       if (env.DATABASE_URL !== undefined && isPostgresUrl(env.DATABASE_URL)) {
         try {
           validateRequestDatabaseEndpoint({
-            appEnvironment: env.APP_ENV,
-            provider: env.DATABASE_PROVIDER,
-            connectionString: env.DATABASE_URL,
             allowedHosts: env.DATABASE_ALLOWED_HOSTS,
+            appEnvironment: env.APP_ENV,
+            connectionString: env.DATABASE_URL,
+            provider: env.DATABASE_PROVIDER,
           });
         } catch (error) {
           if (!(error instanceof RequestDatabaseEndpointError)) throw error;
           context.addIssue({
             code: "custom",
-            path: ["DATABASE_URL"],
             message: error.diagnostic,
+            path: ["DATABASE_URL"],
           });
         }
       }
@@ -734,24 +759,24 @@ export const serverEnvSchema = baseServerEnvSchema
     ) {
       context.addIssue({
         code: "custom",
-        path: ["EMAIL_TRANSPORT"],
         message: "EMAIL_PROVIDER and EMAIL_TRANSPORT must be disabled together",
+        path: ["EMAIL_TRANSPORT"],
       });
     }
 
     if (env.EMAIL_TRANSPORT === "resend" && !env.RESEND_API_KEY) {
       context.addIssue({
         code: "custom",
-        path: ["RESEND_API_KEY"],
         message: "RESEND_API_KEY is required when EMAIL_TRANSPORT is resend",
+        path: ["RESEND_API_KEY"],
       });
     }
 
     if (env.APP_ENV === "production" && env.EMAIL_TRANSPORT === "preview") {
       context.addIssue({
         code: "custom",
-        path: ["EMAIL_TRANSPORT"],
         message: "EMAIL_TRANSPORT cannot use preview in production",
+        path: ["EMAIL_TRANSPORT"],
       });
     }
 
@@ -767,8 +792,8 @@ export const serverEnvSchema = baseServerEnvSchema
         if (env[key]) continue;
         context.addIssue({
           code: "custom",
-          path: [key],
           message: `${key} is required when STORAGE_ENABLED is true`,
+          path: [key],
         });
       }
     }
@@ -802,8 +827,8 @@ export const parseServerEnv = (source: EnvironmentSource): ServerEnv => {
 
   const issues = result.error.issues.map(
     (issue): EnvironmentIssue => ({
-      path: issue.path.length > 0 ? issue.path.join(".") : "environment",
       message: issue.message,
+      path: issue.path.length > 0 ? issue.path.join(".") : "environment",
     })
   );
   throw new EnvironmentValidationError(issues);
@@ -821,9 +846,9 @@ export const getProviderCapabilities = (
   env: ServerEnv
 ): ProviderCapabilities => ({
   ai: Boolean(env.GROQ_API_KEY && env.GROQ_MODEL),
+  analytics: Boolean(env.POSTHOG_KEY && env.POSTHOG_HOST),
   emailDelivery: Boolean(
     env.EMAIL_TRANSPORT === "resend" && env.RESEND_API_KEY && env.EMAIL_FROM
   ),
-  analytics: Boolean(env.POSTHOG_KEY && env.POSTHOG_HOST),
   telemetryExport: Boolean(env.OTEL_ENABLED && env.OTEL_EXPORTER_OTLP_ENDPOINT),
 });

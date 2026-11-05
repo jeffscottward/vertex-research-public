@@ -113,7 +113,7 @@ fn short_cash_call_is_undefined_risk_even_inside_claimed_spread() {
 }
 #[test]
 fn same_day_is_not_an_accepted_strategy_and_never_becomes_a_sixth_sleeve() {
-    // Gamma execution.py:24-34 and Charan.py:338-350 keep rejection boundaries.
+    // Gamma execution.py:24-34 and the retired vertex-quant intake (provenance record) keep rejection boundaries.
     // New private paper gate requires explicit exact artifact evidence, not dte=0.
     let mut p=policy();assert_eq!(qualification::zero_dte_gate(&p,"strategy-artifact-1",stamp()),Err(KernelError::ZeroDteGate));
     p.zero_dte=Some(ZeroDteGate {policy_id:"zero-dte-policy".into(),strategy_artifact_id:"strategy-artifact-1".into(),review_artifact_id:"review".into(),intraday_dataset_id:"intraday-options".into(),replay_report_id:"replay".into(),expiry_scenarios_report_id:"expiry".into(),rapid_exit_report_id:"exit".into(),partial_leg_report_id:"partial".into(),valid_until_ns:later(10),owner_review_verified:true});

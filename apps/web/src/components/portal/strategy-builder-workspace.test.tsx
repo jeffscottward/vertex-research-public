@@ -21,6 +21,8 @@ import {
   INDICATOR_LABELS,
   lengthUnit,
   numberOf,
+  pickBuilderRun,
+  readBuilderQuery,
   replaceAt,
   templateDefinition,
   toBuilderRunInput,
@@ -34,6 +36,7 @@ import {
 
 const browserGateway = vi.hoisted(() => ({
   get: vi.fn(),
+  list: vi.fn(async () => []),
   series: vi.fn(async () => []),
   submit: vi.fn(),
 }));
@@ -53,9 +56,15 @@ afterAll(() => {
   else testGlobal.IS_REACT_ACT_ENVIRONMENT = previousAct;
 });
 const roots: Root[] = [];
+// Unmounts every root and clears the URL that a submit may have written.
+const unmountAll = async () => {
+  for (const root of roots.splice(0)) await act(async () => root.unmount());
+  window.history.replaceState(null, "", "/");
+};
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  window.history.replaceState(null, "", "/");
   vi.useRealTimers();
 });
 
@@ -114,6 +123,17 @@ const button = (text: string) => {
   return found;
 };
 const definitionText = () => JSON.parse(field("Definition text").value);
+
+// The TS lib here predates Promise.withResolvers, so build the same shape by hand.
+const deferred = <T,>() => {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: unknown) => void = () => undefined;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, reject, resolve };
+};
 
 const DAY_MS = 86_400_000;
 const SPY: InstantBacktestSeries = {
@@ -217,6 +237,7 @@ const gatewayOf = (
   overrides: Partial<StrategyBuilderGateway> = {}
 ): StrategyBuilderGateway => ({
   get: vi.fn(async () => finished),
+  list: vi.fn(async () => []),
   series: vi.fn(async () => [SPY, QQQ]),
   submit: vi.fn(async () => runOf()),
   ...overrides,
@@ -229,6 +250,59 @@ describe("strategy builder model", () => {
     initialCapital: 5000,
     to: "1970-04-10",
   };
+
+  it("reads the run and symbol deep link", () => {
+    expect(readBuilderQuery("")).toEqual({ run: null, symbol: null });
+    expect(readBuilderQuery("?run=%20r-2%20&symbol=ES%3DF")).toEqual({
+      run: "r-2",
+      symbol: "ES=F",
+    });
+    expect(readBuilderQuery("?run=&symbol=")).toEqual({
+      run: null,
+      symbol: null,
+    });
+  });
+
+  it("picks the linked or newest finished builder run", () => {
+    const old = runOf({
+      createdAt: new Date(1),
+      id: "old",
+      status: "succeeded",
+    });
+    const recent = runOf({
+      createdAt: new Date(5),
+      id: "recent",
+      spec: { ...old.spec, symbol: "QQQ" },
+      status: "succeeded",
+    });
+    const queued = runOf({ createdAt: new Date(9), id: "queued" });
+    const golden = runOf({
+      createdAt: new Date(9),
+      id: "golden",
+      spec: { ...old.spec, rule: { fast: 10, kind: "smaCross", slow: 40 } },
+      status: "succeeded",
+    });
+    const runs = [old, queued, golden, recent];
+    expect(pickBuilderRun(runs, { run: null, symbol: null })?.run.id).toBe(
+      "recent"
+    );
+    expect(pickBuilderRun(runs, { run: "old", symbol: null })?.run.id).toBe(
+      "old"
+    );
+    expect(pickBuilderRun(runs, { run: "golden", symbol: null })?.run.id).toBe(
+      "recent"
+    );
+    expect(pickBuilderRun(runs, { run: "queued", symbol: null })?.run.id).toBe(
+      "queued"
+    );
+    expect(pickBuilderRun(runs, { run: null, symbol: "SPY" })).toEqual({
+      definition,
+      run: old,
+    });
+    expect(pickBuilderRun([queued, golden], { run: null, symbol: null })).toBe(
+      null
+    );
+  });
 
   it("builds a dsl run request or explains the error", () => {
     expect(toBuilderRunInput(definition, SPY, form)).toEqual({
@@ -470,7 +544,7 @@ describe("StrategyBuilderWorkspace", () => {
     expect(document.body.textContent).toContain(
       "The backtest failed: No stored 1d bars"
     );
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -483,7 +557,7 @@ describe("StrategyBuilderWorkspace", () => {
     expect(document.body.textContent).toContain(
       "The backtest failed: unknown error"
     );
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -495,7 +569,7 @@ describe("StrategyBuilderWorkspace", () => {
     expect(document.body.textContent).toContain(
       "The run has not finished yet."
     );
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -508,7 +582,7 @@ describe("StrategyBuilderWorkspace", () => {
     );
     await settle(() => button("Run backtest").click());
     expect(document.querySelector('[role="alert"]')?.textContent).toBeTruthy();
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -545,13 +619,13 @@ describe("StrategyBuilderWorkspace", () => {
     });
     await mount(<StrategyBuilderWorkspace gateway={gateway} />);
     await settle(() => button("Run backtest").click());
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
     finishGet(finished);
     await flush();
 
     await mount(<StrategyBuilderWorkspace gateway={gateway} />);
     await settle(() => button("Run backtest").click());
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
     failGet(new Error("late"));
     await flush();
 
@@ -570,7 +644,7 @@ describe("StrategyBuilderWorkspace", () => {
         })}
       />
     );
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
     finishSeries([SPY]);
     await mount(
       <StrategyBuilderWorkspace
@@ -584,7 +658,7 @@ describe("StrategyBuilderWorkspace", () => {
         })}
       />
     );
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
     failSeries(new Error("late"));
     await flush();
     expect(document.body.textContent).toBe("");
@@ -601,7 +675,7 @@ describe("StrategyBuilderWorkspace", () => {
       />
     );
     expect(document.body.textContent).toContain("Loading series…");
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -613,7 +687,7 @@ describe("StrategyBuilderWorkspace", () => {
       />
     );
     expect(document.body.textContent).toMatch(/operator/iu);
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(
       <StrategyBuilderWorkspace
@@ -625,12 +699,293 @@ describe("StrategyBuilderWorkspace", () => {
       />
     );
     expect(document.querySelector('[role="alert"]')).not.toBeNull();
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await unmountAll();
 
     await mount(<StrategyBuilderWorkspace />);
     expect(browserGateway.series).toHaveBeenCalled();
     expect(document.body.textContent).toContain("No stored bar series.");
     expect(button("Run backtest").disabled).toBe(true);
+  });
+
+  const ES: InstantBacktestSeries = {
+    ...SPY,
+    firstT: 20 * DAY_MS,
+    symbol: "ES=F",
+  };
+  const loadedDefinition = { ...definition, name: "Loaded rule" };
+  const stored = runOf({
+    createdAt: new Date(3),
+    id: "stored",
+    spec: {
+      ...runOf().spec,
+      costBps: 4,
+      from: "1970-01-05",
+      initialCapital: 20_000,
+      rule: { definition: loadedDefinition, kind: "dsl" },
+      to: "1970-02-01",
+    },
+    status: "succeeded",
+  });
+  const older = runOf({
+    createdAt: new Date(1),
+    id: "older",
+    spec: { ...stored.spec, symbol: "QQQ" },
+    status: "succeeded",
+  });
+
+  it("opens on the Core 7 default with a notice when no builder run exists", async () => {
+    const gateway = gatewayOf({ series: vi.fn(async () => [SPY, ES]) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(field("Symbol and timeframe").value).toBe("ES=F:1d");
+    expect(field("From").value).toBe("1970-01-21");
+    expect(definitionText()).toEqual(definition);
+    expect(document.querySelector('[role="status"]')?.textContent).toContain(
+      "No builder run exists yet."
+    );
+    expect(gateway.submit).not.toHaveBeenCalled();
+    expect(gateway.get).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+  });
+
+  it("shows the latest builder run on open without submitting", async () => {
+    const gateway = gatewayOf({
+      get: vi.fn(async () => ({ ...finished, id: "stored" })),
+      list: vi.fn(async () => [older, stored]),
+      series: vi.fn(async () => [SPY, ES]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("stored");
+    expect(gateway.submit).not.toHaveBeenCalled();
+    expect(definitionText().name).toBe("Loaded rule");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+    expect(field("From").value).toBe("1970-01-05");
+    expect(field("To").value).toBe("1970-02-01");
+    expect(field("Initial capital").value).toBe("20000");
+    expect(field("Cost per side (bps)").value).toBe("4");
+    const result = document.querySelector('[aria-label="Backtest result"]');
+    expect(result?.textContent).toContain("The backtest finished.");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("applies run and symbol deep links and falls back when invalid", async () => {
+    const list = vi.fn(async () => [older, stored]);
+    window.history.replaceState(null, "", "/?run=older");
+    let gateway = gatewayOf({ list, series: vi.fn(async () => [SPY, QQQ]) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("older");
+    expect(field("Symbol and timeframe").value).toBe("QQQ:1d");
+    await unmountAll();
+
+    window.history.replaceState(null, "", "/?run=missing&symbol=nope");
+    gateway = gatewayOf({ list, series: vi.fn(async () => [SPY, QQQ]) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("stored");
+    await unmountAll();
+
+    window.history.replaceState(null, "", "/?symbol=QQQ");
+    gateway = gatewayOf({ series: vi.fn(async () => [SPY, ES, QQQ]) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(field("Symbol and timeframe").value).toBe("QQQ:1d");
+    expect(field("From").value).toBe("1970-01-11");
+  });
+
+  it("follows a linked run that has not finished yet", async () => {
+    const fresh = runOf({ createdAt: new Date(9), id: "fresh" });
+    window.history.replaceState(null, "", "/?run=fresh");
+    const gateway = gatewayOf({
+      get: vi.fn(async () => ({ ...finished, id: "fresh" })),
+      list: vi.fn(async () => [stored, fresh]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("fresh");
+    expect(window.location.search).toBe("?run=fresh");
+    expect(
+      document.querySelector('[aria-label="Backtest result"]')?.textContent
+    ).toContain("The backtest finished.");
+  });
+
+  it("reads a linked run that is older than the listed runs", async () => {
+    const ancient = runOf({
+      createdAt: new Date(0),
+      id: "ancient",
+      spec: { ...older.spec, from: "1970-01-12" },
+      status: "succeeded",
+    });
+    window.history.replaceState(null, "", "/?run=ancient");
+    const gateway = gatewayOf({
+      get: vi.fn(async () => ancient),
+      list: vi.fn(async () => [stored]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("ancient");
+    expect(field("Symbol and timeframe").value).toBe("QQQ:1d");
+    expect(field("From").value).toBe("1970-01-12");
+    expect(window.location.search).toBe("?run=ancient&symbol=QQQ");
+  });
+
+  it("falls back to the newest run only when the linked run is missing", async () => {
+    window.history.replaceState(null, "", "/?run=gone");
+    const gateway = gatewayOf({
+      get: vi
+        .fn<StrategyBuilderGateway["get"]>()
+        .mockRejectedValueOnce(
+          Object.assign(new Error("missing"), { code: "NOT_FOUND" })
+        )
+        .mockResolvedValue({ ...finished, id: "stored" }),
+      list: vi.fn(async () => [stored]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenLastCalledWith("stored");
+    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(window.location.search).toBe("");
+    await unmountAll();
+
+    window.history.replaceState(null, "", "/?run=broken");
+    const failing = gatewayOf({
+      get: vi.fn(async () => {
+        throw new Error("down");
+      }),
+      list: vi.fn(async () => [stored]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={failing} />);
+    expect(failing.get).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.querySelector('[role="status"]')).not.toBeNull();
+    expect(definitionText()).toEqual(definition);
+  });
+
+  it("ignores a linked run read after unmount or a user edit", async () => {
+    window.history.replaceState(null, "", "/?run=ancient");
+    const late = deferred<BacktestRun>();
+    const gateway = gatewayOf({
+      get: vi.fn(() => late.promise),
+      list: vi.fn(async () => [stored]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    await unmountAll();
+    late.resolve(stored);
+    await flush();
+    expect(gateway.get).toHaveBeenCalledTimes(1);
+
+    window.history.replaceState(null, "", "/?run=ancient");
+    const editing = deferred<BacktestRun>();
+    const edited = gatewayOf({
+      get: vi.fn(() => editing.promise),
+      list: vi.fn(async () => [stored]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={edited} />);
+    await setNative(field("Strategy name"), "Mine");
+    await settle(() => editing.resolve(stored));
+    expect(definitionText().name).toBe("Mine");
+    expect(edited.get).toHaveBeenCalledTimes(1);
+    expect(window.location.search).toBe("?run=ancient");
+  });
+
+  it("selects the series of a linked run for another symbol", async () => {
+    window.history.replaceState(null, "", "/?run=older&symbol=SPY");
+    const gateway = gatewayOf({
+      list: vi.fn(async () => [older, stored]),
+      series: vi.fn(async () => [SPY, QQQ]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(field("Symbol and timeframe").value).toBe("QQQ:1d");
+    expect(window.location.search).toBe("?run=older&symbol=QQQ");
+  });
+
+  it("keeps the URL clean when the link names the default run", async () => {
+    window.history.replaceState(null, "", "/?run=stored&symbol=SPY");
+    const gateway = gatewayOf({
+      list: vi.fn(async () => [older, stored]),
+      series: vi.fn(async () => [SPY, QQQ]),
+    });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(gateway.get).toHaveBeenCalledWith("stored");
+    expect(window.location.search).toBe("");
+  });
+
+  it("keeps user edits made while the stored runs load", async () => {
+    const editing = deferred<BacktestRun[]>();
+    const gateway = gatewayOf({ list: vi.fn(() => editing.promise) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    await setNative(field("Strategy name"), "Mine");
+    await settle(() => editing.resolve([stored]));
+    expect(definitionText().name).toBe("Mine");
+    expect(gateway.get).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="status"]')).toBeNull();
+    await unmountAll();
+
+    const submitting = deferred<BacktestRun[]>();
+    const submitted = gatewayOf({ list: vi.fn(() => submitting.promise) });
+    await mount(<StrategyBuilderWorkspace gateway={submitted} />);
+    await settle(() => button("Run backtest").click());
+    await settle(() => submitting.resolve([stored]));
+    expect(submitted.get).toHaveBeenCalledTimes(1);
+    expect(submitted.get).toHaveBeenCalledWith("run-1");
+    expect(field("Symbol and timeframe").value).toBe("SPY:1d");
+  });
+
+  it("writes the symbol and the submitted run to the URL", async () => {
+    const gateway = gatewayOf({ series: vi.fn(async () => [SPY, ES, QQQ]) });
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    window.history.replaceState(null, "", "/?run=old");
+    await setNative(field("Symbol and timeframe"), "QQQ:1d");
+    expect(window.location.search).toBe("?symbol=QQQ");
+    await setNative(field("Symbol and timeframe"), "ES=F:1d");
+    expect(window.location.search).toBe("");
+    await setNative(field("Symbol and timeframe"), "QQQ:1d");
+    await settle(() => button("Run backtest").click());
+    expect(gateway.submit).toHaveBeenCalledTimes(1);
+    expect(new URLSearchParams(window.location.search).get("run")).toBe(
+      "run-1"
+    );
+  });
+
+  it("reports a failed run lookup and keeps the template", async () => {
+    await mount(
+      <StrategyBuilderWorkspace
+        gateway={gatewayOf({
+          list: vi.fn(async () => {
+            throw new Error("down");
+          }),
+        })}
+      />
+    );
+    expect(document.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.querySelector('[role="status"]')).not.toBeNull();
+    expect(definitionText()).toEqual(definition);
+  });
+
+  it("ignores the run lookup after unmount", async () => {
+    const listDone = deferred<BacktestRun[]>();
+    const pending = gatewayOf({ list: vi.fn(() => listDone.promise) });
+    await mount(<StrategyBuilderWorkspace gateway={pending} />);
+    await unmountAll();
+    listDone.resolve([stored]);
+    await flush();
+    expect(pending.get).not.toHaveBeenCalled();
+
+    const getDone = deferred<BacktestRun>();
+    await mount(
+      <StrategyBuilderWorkspace
+        gateway={gatewayOf({
+          get: vi.fn(() => getDone.promise),
+          list: vi.fn(async () => [stored]),
+        })}
+      />
+    );
+    await unmountAll();
+    getDone.resolve(finished);
+
+    const listFailed = deferred<BacktestRun[]>();
+    await mount(
+      <StrategyBuilderWorkspace
+        gateway={gatewayOf({ list: vi.fn(() => listFailed.promise) })}
+      />
+    );
+    await unmountAll();
+    listFailed.reject(new Error("late"));
+    await flush();
+    expect(document.body.textContent).toBe("");
   });
 
   it("parses every template it offers", () => {

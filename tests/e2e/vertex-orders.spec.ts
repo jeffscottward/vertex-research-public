@@ -30,7 +30,13 @@ for (const viewport of [
     await signInAs(page, E2E_IDENTITIES.admin);
     await page.goto("/portfolio");
     await page.getByRole("tab", { name: "Vertex orders" }).click();
-    await expect(page.getByRole("status")).toContainText("Orders disabled");
+    // The IBKR monitor's own status (above the tabs) is also on the page: scope to the open view.
+    await expect(
+      page
+        .getByRole("tabpanel")
+        .getByRole("status")
+        .filter({ hasText: "Orders disabled" })
+    ).toBeVisible();
     await expect(page.getByText("Not cancellable here")).toBeVisible();
 
     await page.getByLabel("Underlying symbol").fill(viewport.symbol);

@@ -71,12 +71,13 @@ RISK_ENV_KEYS = {
     "NAUTILUS_RISK_ORDERS_ENABLED": "bool", "NAUTILUS_RISK_DRY_RUN": "bool",
     "NAUTILUS_RISK_MAX_ORDER_QUANTITY": "num", "NAUTILUS_RISK_MAX_POSITION_NOTIONAL_USD": "num",
     "NAUTILUS_RISK_MAX_DAILY_LOSS_USD": "num", "NAUTILUS_RISK_ALLOWED_INSTRUMENTS": "list",
-    "RISK_DENIED_INSTRUMENTS": "list", "NAUTILUS_SAMPLE_ORDERS_ENABLED": "bool",
-    "CHARAN_TRADE_INTENTS_ENABLED": "bool", "CHARAN_LIVE_TRANSMIT_ENABLED": "bool",
-    "CHARAN_MAX_OPTION_UNIT_NOTIONAL_USD": "num", "SYNTHETIC_STOPS_ENABLED": "bool",
+    "RISK_DENIED_INSTRUMENTS": "list", "NAUTILUS_SAMPLE_ORDERS_ENABLED": "bool", "SYNTHETIC_STOPS_ENABLED": "bool",
     "SYNTHETIC_STOP_MODE": "str", "SYNTHETIC_STOP_MAX_ORDER_QUANTITY": "num",
     "IBKR_GATEWAY_ENABLED": "bool",
 }
+# Only these watchdog live_flags are passed on; flags of retired features are dropped.
+WATCHDOG_FLAG_KEYS = ("trading_mode", "enable_live_trading", "live_risk_acknowledged", "nautilus_risk_orders_enabled",
+                      "nautilus_risk_dry_run", "kill_switch_active")
 
 # ---------------------------------------------------------------------------------------------
 # Scrubbing
@@ -762,7 +763,8 @@ def build_risk(inp, now, nautilus_raw, health, wd):
                     "required_failures": [scrub(x, 40) for x in (recent.get("required_failures") or [])][:20],
                     "kill_switch_created_at": iso(summary.get("kill_switch_created_at")),
                     "kill_switch_reason": scrub(summary.get("kill_switch_reason"), 120) if summary.get("kill_switch_reason") else None,
-                    "live_flags": {scrub(k, 40): (v if isinstance(v, bool) else scrub(v, 24)) for k, v in (summary.get("live_flags") or {}).items()},
+                    "live_flags": {k: (v if isinstance(v, bool) else scrub(v, 24)) for k, v in (summary.get("live_flags") or {}).items()
+                                   if k in WATCHDOG_FLAG_KEYS},
                     "checks": checks}
     return {"available": True, "source": "kill-switch file stat + watchdog.log status + nautilus-trader container env (allow-listed keys) + postgres.risk_events",
             "as_of": iso(now), "kill_switch": kill, "kill_switch_indicators": indicators,

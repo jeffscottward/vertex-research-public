@@ -5,10 +5,19 @@ const mocks = vi.hoisted(() => {
     env: {
       APP_URL: "https://darkfactory.localhost",
       BETTER_AUTH_SECRET: "test-secret-with-at-least-thirty-two-characters",
+      VERTEX_AGENT_VIEWER_EMAILS: [] as string[],
     },
     requestId: "request-1",
+    sink: { emit: vi.fn() },
     db: { kind: "request-db" },
-    auth: { kind: "auth" },
+    auth: {
+      kind: "auth",
+      api: {
+        getSession: vi.fn(
+          async (): Promise<{ user: { email: string } } | null> => null
+        ),
+      },
+    },
   };
   return {
     scope,
@@ -54,6 +63,36 @@ beforeEach(() => {
 });
 
 describe("Better Auth handler", () => {
+  it("refuses an account change for a read-only agent viewer session", async () => {
+    mocks.scope.env.VERTEX_AGENT_VIEWER_EMAILS = ["agent-viewer@domain.test"];
+    mocks.scope.auth.api.getSession.mockResolvedValueOnce({
+      user: { email: "agent-viewer@domain.test" },
+    });
+    try {
+      const response = await handleAuthRequest(
+        new Request("https://darkfactory.localhost/api/auth/change-password", {
+          method: "POST",
+          headers: { cookie: "session=x", "content-type": "application/json" },
+          body: "{}",
+        }),
+        vi.fn()
+      );
+      expect(response.status).toBe(403);
+      expect(mocks.requestHandler).not.toHaveBeenCalled();
+      const other = await handleAuthRequest(
+        new Request("https://darkfactory.localhost/api/auth/change-password", {
+          method: "POST",
+          headers: { cookie: "session=x", "content-type": "application/json" },
+          body: "{}",
+        }),
+        vi.fn()
+      );
+      expect(other.status).toBe(200);
+    } finally {
+      mocks.scope.env.VERTEX_AGENT_VIEWER_EMAILS = [];
+    }
+  });
+
   it("runs Better Auth inside the request scope", async () => {
     const waitUntil = vi.fn();
     const request = new Request(

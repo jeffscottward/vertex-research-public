@@ -269,6 +269,20 @@ export {
   validateBasketMembers,
 } from "./basket-repository.ts";
 export type { BasketSeed, BasketSeedResult } from "./basket-seed.ts";
+export type {
+  ImportPickListSnapshotInput,
+  PickListImportMethod,
+  PickListMemberRow,
+  PickListRecord,
+  PickListRepository,
+  PickListSnapshotRecord,
+  PickListWithLatest,
+} from "./pick-list-repository.ts";
+export {
+  comparePickListMembers,
+  createPickListRepository,
+  validatePickListMembers,
+} from "./pick-list-repository.ts";
 export {
   equalBasketWeights,
   findUserIdByEmail,

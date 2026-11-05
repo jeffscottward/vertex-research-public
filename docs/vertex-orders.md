@@ -43,7 +43,9 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   2 minutes, one use, bound to the user and the exact order). `vertexOrders.submit` refuses a
   missing, changed, expired or reused token. Cancel uses the same two steps
   (`cancelPreview`, `cancel`). There is no bulk send.
-- **Access.** Owner only: operator allow-list (`VERTEX_OPERATOR_EMAILS`) AND the admin role. Agent API keys and MCP tools
+- **Access.** Owner only: operator allow-list (`VERTEX_OPERATOR_EMAILS`) AND the admin role. A
+  read-only agent viewer (`VERTEX_AGENT_VIEWER_EMAILS`) can open the Close dialog, but every
+  `vertexOrders.*` call except `status` is refused with 403, and `status` needs admin. Agent API keys and MCP tools
   cannot reach `vertexOrders.*`. The oRPC handler origin check blocks cross-site POSTs (CSRF).
 - **Rate limit.** Per user and per minute: 20 previews, 5 submits or cancels (in-process).
 - **One placement at a time.** While a `submit` or `comboSubmit` is placing, a second one is

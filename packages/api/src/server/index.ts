@@ -18,6 +18,20 @@ export {
   createAdminUsersService,
 } from "./admin-users-service.ts";
 export type {
+  AssistantActionLogEntry,
+  AssistantDependencies,
+  AssistantLogEntry,
+  AssistantLogEvent,
+} from "./assistant-runtime.ts";
+export {
+  ASSISTANT_DAILY_REQUEST_LIMIT,
+  ASSISTANT_DAILY_TOKEN_LIMIT,
+  ASSISTANT_MAX_STEPS,
+  ASSISTANT_WRITE_TOOLS,
+  assistantToolsFor,
+  createSessionProcedureCaller,
+} from "./assistant-runtime.ts";
+export type {
   ContactDeliveryPort,
   ContactDeliveryResult,
   ContactServiceErrorCode,
@@ -29,12 +43,13 @@ export {
   createContactService,
 } from "./contact-service.ts";
 export type {
+  ApiAgentApiKeys,
   ApiContext,
   ApiContextDependencies,
   ApiRequestIdOptions,
+  VertexModelPrivacyReviewer,
 } from "./context.ts";
 export { createApiContext, resolveApiRequestId } from "./context.ts";
-export { clearInstantBacktestCacheForTesting } from "./instant-backtest.ts";
 export type {
   DashboardService,
   DashboardServiceErrorCode,
@@ -44,12 +59,35 @@ export {
   createDashboardService,
   DashboardServiceError,
 } from "./dashboard-service.ts";
+export type { DeployStatusConfig } from "./deploy-status.ts";
+export { resolveDeployStatusConfig } from "./deploy-status.ts";
 export {
+  AGENT_API_KEY_PROCEDURE_PATHS,
+  AGENT_API_KEY_PROCEDURE_ROOTS,
+  agentApiKeyScopeInterceptor,
   handleApiRequest,
   handleOpenApiRequest,
+  isAgentApiKeyProcedurePath,
   ORPC_OPENAPI_PREFIX,
   ORPC_RPC_PREFIX,
+  researchChatResponse,
 } from "./handler.ts";
+export { clearInstantBacktestCacheForTesting } from "./instant-backtest.ts";
+export { resolveJevConfig } from "./jev-client.ts";
+export type { CallProcedure, ProcedureResult } from "./mcp.ts";
+export {
+  handleMcpHttp,
+  MCP_PROTOCOL_VERSIONS,
+  MCP_SERVER_NAME,
+  MCP_TOOLS,
+  procedureResultFromResponse,
+} from "./mcp.ts";
+export {
+  type PriceAlertsNtfyConfig,
+  resolvePriceAlertsNtfyConfig,
+} from "./price-alerts.ts";
+export { resolveQuantDataConfig } from "./quantdata-client.ts";
+export { setResearchContactEmail } from "./research-contact.ts";
 export type { AuthenticatedApiContext } from "./router.ts";
 export { appRouter } from "./router.ts";
 export type {
@@ -69,48 +107,8 @@ export {
   FeatureServiceError,
   ThemePreferenceServiceError,
 } from "./service.ts";
-export type {
-  ApiAgentApiKeys,
-  VertexModelPrivacyReviewer,
-} from "./context.ts";
-export type { DeployStatusConfig } from "./deploy-status.ts";
-export { resolveDeployStatusConfig } from "./deploy-status.ts";
-export { resolveQuantDataConfig } from "./quantdata-client.ts";
-export { resolveJevConfig } from "./jev-client.ts";
-export {
-  type PriceAlertsNtfyConfig,
-  resolvePriceAlertsNtfyConfig,
-} from "./price-alerts.ts";
-export {
-  AGENT_API_KEY_PROCEDURE_PATHS,
-  AGENT_API_KEY_PROCEDURE_ROOTS,
-  agentApiKeyScopeInterceptor,
-  isAgentApiKeyProcedurePath,
-  researchChatResponse,
-} from "./handler.ts";
-export type {
-  VertexAuthorizationPort,
-  VertexReadDependencies,
-  VertexReadPort,
-  VertexReadService,
-  VertexReadServiceErrorCode,
-  VertexStoredArtifact,
-} from "./vertex-service.ts";
-export {
-  createVertexReadService,
-  MAX_VERTEX_ARTIFACT_BYTES,
-  VertexReadServiceError,
-} from "./vertex-service.ts";
-export type { VertexExperienceService } from "./vertex-experience-service.ts";
-export type {
-  VertexExperienceDependencies,
-  VertexExperienceErrorCode,
-  VertexResearchBinding,
-  VertexReviewPolicy,
-  VertexSimulationBinding,
-} from "./vertex-experience-core.ts";
-export { createVertexExperienceService } from "./vertex-experience-service.ts";
-export { VertexExperienceServiceError } from "./vertex-experience-core.ts";
+export type { VertexChartReadDependencies } from "./vertex-chart-service.ts";
+export { createVertexChartReadService } from "./vertex-chart-service.ts";
 export type {
   VertexLegacyScopeLookup,
   VertexRequestDependencies,
@@ -121,18 +119,25 @@ export {
   createVertexRequestDependencies,
   vertexPersistenceBoundary,
 } from "./vertex-experience-adapter.ts";
-export type { VertexChartReadDependencies } from "./vertex-chart-service.ts";
-export { createVertexChartReadService } from "./vertex-chart-service.ts";
 export type {
-  VertexWorkerService,
-  VertexWorkerServiceDependencies,
-} from "./vertex-worker-service.ts";
-export type { VertexWorkerRequestContext } from "./vertex-worker-auth.ts";
+  VertexExperienceDependencies,
+  VertexExperienceErrorCode,
+  VertexResearchBinding,
+  VertexReviewPolicy,
+  VertexSimulationBinding,
+} from "./vertex-experience-core.ts";
+export { VertexExperienceServiceError } from "./vertex-experience-core.ts";
+export type { VertexExperienceService } from "./vertex-experience-service.ts";
+export { createVertexExperienceService } from "./vertex-experience-service.ts";
+export type {
+  VertexLocalSetupOptions,
+  VertexLocalSetupPlanOptions,
+  VertexLocalSetupService,
+} from "./vertex-local-setup.ts";
 export {
-  createVertexWorkerDispatchBoundary,
-  createVertexWorkerService,
-} from "./vertex-worker-service.ts";
-export { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
+  createVertexLocalSetupService,
+  parseVertexLocalSetupPlan,
+} from "./vertex-local-setup.ts";
 export type {
   VertexNotificationReadDependencies,
   VertexNotificationReadService,
@@ -150,39 +155,31 @@ export type {
   VertexRuntimeConfigurationResult,
   VertexRuntimeConfiguredGroups,
 } from "./vertex-runtime-config.ts";
+export { createVertexRuntimeConfiguredOptions } from "./vertex-runtime-config.ts";
 export type {
   VertexRuntimeServerContext,
   VertexRuntimeWorkerBindings,
 } from "./vertex-runtime-config-notifications.ts";
-export { createVertexRuntimeConfiguredOptions } from "./vertex-runtime-config.ts";
 export type {
-  VertexLocalSetupOptions,
-  VertexLocalSetupPlanOptions,
-  VertexLocalSetupService,
-} from "./vertex-local-setup.ts";
+  VertexAuthorizationPort,
+  VertexReadDependencies,
+  VertexReadPort,
+  VertexReadService,
+  VertexReadServiceErrorCode,
+  VertexStoredArtifact,
+} from "./vertex-service.ts";
 export {
-  createVertexLocalSetupService,
-  parseVertexLocalSetupPlan,
-} from "./vertex-local-setup.ts";
-export type { CallProcedure, ProcedureResult } from "./mcp.ts";
-export {
-  handleMcpHttp,
-  MCP_PROTOCOL_VERSIONS,
-  MCP_SERVER_NAME,
-  MCP_TOOLS,
-  procedureResultFromResponse,
-} from "./mcp.ts";
+  createVertexReadService,
+  MAX_VERTEX_ARTIFACT_BYTES,
+  VertexReadServiceError,
+} from "./vertex-service.ts";
+export type { VertexWorkerRequestContext } from "./vertex-worker-auth.ts";
+export { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
 export type {
-  AssistantActionLogEntry,
-  AssistantDependencies,
-  AssistantLogEntry,
-  AssistantLogEvent,
-} from "./assistant-runtime.ts";
+  VertexWorkerService,
+  VertexWorkerServiceDependencies,
+} from "./vertex-worker-service.ts";
 export {
-  ASSISTANT_DAILY_REQUEST_LIMIT,
-  ASSISTANT_DAILY_TOKEN_LIMIT,
-  ASSISTANT_MAX_STEPS,
-  ASSISTANT_WRITE_TOOLS,
-  assistantToolsFor,
-  createSessionProcedureCaller,
-} from "./assistant-runtime.ts";
+  createVertexWorkerDispatchBoundary,
+  createVertexWorkerService,
+} from "./vertex-worker-service.ts";

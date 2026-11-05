@@ -19,7 +19,7 @@ import {
   SidebarRail,
   SidebarTrigger,
 } from "@darkfactory/ui/client/sidebar";
-import { ChevronRight, PanelLeft, X } from "lucide-react";
+import { BellRing, ChevronRight, PanelLeft, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
@@ -35,7 +35,7 @@ import {
   PORTAL_SIDEBAR_GROUPS,
   SETTINGS_NAVIGATION,
 } from "../lib/navigation.ts";
-import { portalPageTitle } from "../lib/portal-page-title.ts";
+import { portalBreadcrumb } from "../lib/portal-page-title.ts";
 import { useUiState } from "../lib/ui-store.tsx";
 import { BrandMark } from "./brand-mark.tsx";
 import {
@@ -363,7 +363,57 @@ interface PortalTopbarProps {
   readonly userName: string;
 }
 
-/** dashboard-01 SiteHeader. Below md the trigger opens the native popover drawer; from md it collapses the sidebar. */
+const NOTIFICATIONS_HREF = "/price-alerts";
+const SETTINGS_HREF = "/settings";
+
+/** Breadcrumb from the route: sidebar group, then the page. The page gives way first on mobile. */
+const PortalBreadcrumb = ({ pathname }: { readonly pathname: string }) => {
+  const { section, title } = portalBreadcrumb(pathname);
+  return (
+    <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+      <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+        {section === undefined ? null : (
+          <li className="hidden shrink-0 items-center gap-1.5 text-muted-foreground sm:flex">
+            <span>{section}</span>
+            <ChevronRight aria-hidden="true" className="size-3.5" />
+          </li>
+        )}
+        <li className="min-w-0">
+          <p
+            aria-current="page"
+            className="min-w-0 flex-1 truncate font-medium text-base"
+            data-slot="portal-page-title"
+          >
+            {title}
+          </p>
+        </li>
+      </ol>
+    </nav>
+  );
+};
+
+/** Quick link in the top bar's action group (44px target). */
+const TopbarLink = ({
+  children,
+  href,
+  label,
+}: {
+  readonly children: ReactNode;
+  readonly href: string;
+  readonly label: string;
+}) => (
+  <Button asChild size="icon" variant="ghost">
+    <Link aria-label={label} href={href} prefetch={false} title={label}>
+      {children}
+    </Link>
+  </Button>
+);
+
+/**
+ * Top bar (Fulcrum reference, owner 2026-11-04): breadcrumb left, a search box in the
+ * middle that opens the command palette (Ctrl/Cmd+K), quick actions right. Below md the
+ * trigger opens the native popover drawer; from md it collapses the sidebar.
+ */
 const PortalTopbar = ({
   availableRoutes = EXPOSED_ROUTE_PATHS,
   onSessionEnding,
@@ -371,7 +421,10 @@ const PortalTopbar = ({
 }: PortalTopbarProps) => {
   const pathname = usePathname() ?? "";
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header
+      className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
+      data-slot="portal-topbar"
+    >
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <Button
           aria-label="Open portal navigation"
@@ -392,16 +445,36 @@ const PortalTopbar = ({
           className="mx-2 data-[orientation=vertical]:h-4"
           orientation="vertical"
         />
-        {/* The title gives way first: with the command palette and user menu the
-            header must still fit 375px (WCAG 1.4.10 reflow). */}
-        <p
-          className="min-w-0 flex-1 truncate font-medium text-base"
-          data-slot="portal-page-title"
+        {/* The breadcrumb gives way first: with search, quick actions and the user
+            menu the header must still fit 375px (WCAG 1.4.10 reflow). */}
+        <PortalBreadcrumb pathname={pathname} />
+        <div
+          className="flex shrink-0 justify-center sm:flex-1"
+          data-slot="portal-search-slot"
         >
-          {portalPageTitle(pathname)}
-        </p>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <CommandPalette items={paletteItemsFor(availableRoutes)} />
+          <CommandPalette
+            items={paletteItemsFor(availableRoutes)}
+            trigger="search"
+          />
+        </div>
+        <div
+          className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2"
+          data-slot="portal-quick-actions"
+        >
+          {isRouteExposed(NOTIFICATIONS_HREF, availableRoutes) ? (
+            <span className="hidden md:inline-flex">
+              <TopbarLink href={NOTIFICATIONS_HREF} label="Notifications">
+                <BellRing aria-hidden="true" />
+              </TopbarLink>
+            </span>
+          ) : null}
+          {isRouteExposed(SETTINGS_HREF, availableRoutes) ? (
+            <span className="hidden md:inline-flex">
+              <TopbarLink href={SETTINGS_HREF} label="Settings">
+                <Settings aria-hidden="true" />
+              </TopbarLink>
+            </span>
+          ) : null}
           <AssistantPanelToggle />
           <UserMenu
             availableRoutes={availableRoutes}

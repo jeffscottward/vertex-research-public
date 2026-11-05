@@ -16,6 +16,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -24,16 +25,20 @@ import {
   isOperatorAccessDenied,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import { currentSearch, readParam, writeQuery } from "./backtest-lab-query.ts";
 import {
   COST_PROFILE_OPTIONS,
   costRows,
   describeRevision,
   describeUniverseBatch,
   describeUniversePlan,
-  isFinished,
   isCostProfilePresetId,
+  isFinished,
+  isNotFound,
   isoDate,
+  latestSucceededRunId,
   metricRows,
+  pickInitialRunId,
   type RunForm,
   replayGeometry,
   toSubmitInput,
@@ -67,26 +72,26 @@ const REPLAY_WIDTH = 960;
 const REPLAY_HEIGHT = 260;
 
 export interface BacktestRunsGateway {
+  readonly get: (id: string) => Promise<BacktestRun>;
+  readonly list: () => Promise<readonly BacktestRunSummary[]>;
   readonly series: () => Promise<readonly InstantBacktestSeries[]>;
   readonly strategies: () => Promise<
     readonly Readonly<{ id: string; name: string }>[]
   >;
   readonly submit: (input: BacktestRunSubmitInput) => Promise<BacktestRun>;
-  readonly get: (id: string) => Promise<BacktestRun>;
-  readonly list: () => Promise<readonly BacktestRunSummary[]>;
 }
 
 export const createBacktestRunsGateway = (
   client: ApiClient
 ): BacktestRunsGateway => ({
+  get: (id) => client.backtestRuns.get({ id }),
+  list: async () => (await client.backtestRuns.list({ limit: 50 })).runs,
   series: async () => (await client.instantBacktest.series()).series,
   strategies: async () =>
     (await client.strategyLibrary.list({ sort: "name" })).strategies.map(
       (strategy) => ({ id: strategy.id, name: strategy.name })
     ),
   submit: (input) => client.backtestRuns.submit(input),
-  get: (id) => client.backtestRuns.get({ id }),
-  list: async () => (await client.backtestRuns.list({ limit: 50 })).runs,
 });
 
 /** Builds the API client on each call, so server rendering never reads `window`. */
@@ -96,11 +101,11 @@ export const createBrowserBacktestRunsGateway = (): BacktestRunsGateway => {
       createApiClient({ baseUrl: window.location.origin })
     );
   return {
+    get: (id) => current().get(id),
+    list: () => current().list(),
     series: () => current().series(),
     strategies: () => current().strategies(),
     submit: (input) => current().submit(input),
-    get: (id) => current().get(id),
-    list: () => current().list(),
   };
 };
 
@@ -353,22 +358,25 @@ export const BacktestRunsWorkspace = ({
   const [selectedSeries, setSelectedSeries] = useState("");
   const [universe, setUniverse] = useState(DEFAULT_UNIVERSE_CHOICE);
   const [form, setForm] = useState<RunForm>({
-    params: DEFAULT_INSTANT_PARAMS,
-    from: "",
-    to: "",
-    initialCapital: 10_000,
     costProfile: "",
+    from: "",
+    initialCapital: 10_000,
+    params: DEFAULT_INSTANT_PARAMS,
     strategyId: "",
+    to: "",
   });
   const [runs, setRuns] = useState<readonly BacktestRunSummary[]>([]);
   const [runId, setRunId] = useState<string | null>(initialRunId);
-  // A link such as /backtest-runs?run=<id> (from the strategy builder) opens that run. The URL is
-  // read after mount, so server and first client render stay equal.
+  // With no run given, the first list load opens the run named by ?run=<id> (from the strategy
+  // builder) or else the latest succeeded run. The URL is read after mount, so server and first
+  // client render stay equal.
+  const autoPick = useRef(initialRunId === null);
+  const linkedRun = useRef(initialRunId);
+  const [latestId, setLatestId] = useState<string | null>(null);
   useEffect(() => {
-    if (initialRunId !== null) return;
-    const linked = new URLSearchParams(window.location.search).get("run");
-    if (linked !== null && linked !== "") setRunId(linked);
-  }, [initialRunId]);
+    if (autoPick.current) return;
+    writeQuery({ run: runId }, { run: latestId });
+  }, [runId, latestId]);
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [reload, setReload] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -381,7 +389,20 @@ export const BacktestRunsWorkspace = ({
   const toId = useId();
 
   const refreshList = useCallback(() => {
-    gateway.list().then(setRuns, () => undefined);
+    gateway.list().then(
+      (list) => {
+        setRuns(list);
+        if (!autoPick.current) return;
+        autoPick.current = false;
+        setLatestId(latestSucceededRunId(list));
+        const picked = pickInitialRunId(
+          readParam(currentSearch(), "run"),
+          list
+        );
+        setRunId((current) => current ?? picked);
+      },
+      () => undefined
+    );
   }, [gateway]);
 
   // Selects a series and sets the dates to its stored range.
@@ -400,7 +421,7 @@ export const BacktestRunsWorkspace = ({
     Promise.all([gateway.series(), gateway.strategies()]).then(
       ([loadedSeries, strategies]) => {
         if (!active) return;
-        setLoad({ type: "ready", series: loadedSeries, strategies });
+        setLoad({ series: loadedSeries, strategies, type: "ready" });
         // A link such as /backtest-runs?strategy=<id>&universe=core7-futures (from the strategy
         // library) preselects the universe and the strategy. Read after load, like `run` above.
         const query = new URLSearchParams(window.location.search);
@@ -419,8 +440,8 @@ export const BacktestRunsWorkspace = ({
           isOperatorAccessDenied(error)
             ? { type: "forbidden" }
             : {
-                type: "error",
                 message: describeMarketDataFailure(error).message,
+                type: "error",
               }
         );
       }
@@ -448,10 +469,25 @@ export const BacktestRunsWorkspace = ({
           else setMessage(STILL_RUNNING);
         },
         (error: unknown) => {
-          if (active)
-            setMessage(
-              `${describeMarketDataFailure(error).message} Select the run in Recent runs to check again.`
-            );
+          if (!active) return;
+          const failure = `${describeMarketDataFailure(error).message} Select the run in Recent runs to check again.`;
+          // A linked run that does not exist falls back, once, to the latest succeeded run.
+          if (runId !== linkedRun.current || !isNotFound(error))
+            return setMessage(failure);
+          linkedRun.current = null;
+          gateway.list().then(
+            (list) => {
+              if (!active) return;
+              const latest = latestSucceededRunId(list);
+              if (latest === null || latest === runId)
+                return setMessage(failure);
+              setLatestId(latest);
+              setRunId(latest);
+            },
+            () => {
+              if (active) setMessage(failure);
+            }
+          );
         }
       );
     };
@@ -552,6 +588,10 @@ export const BacktestRunsWorkspace = ({
           fallback={visible.fallback}
           onChange={(choice) => {
             setUniverse(choice);
+            writeQuery(
+              { universe: choice },
+              { universe: DEFAULT_UNIVERSE_CHOICE }
+            );
             applySeries(visibleSeries(load.series, choice).series[0]);
           }}
           storedSymbols={load.series.map((entry) => entry.symbol)}

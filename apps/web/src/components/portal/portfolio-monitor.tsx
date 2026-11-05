@@ -6,6 +6,11 @@ import type {
   PortfolioMonitorPosition,
 } from "@darkfactory/api";
 import { Button, Skeleton, StatusBadge, cn } from "@darkfactory/ui";
+import {
+  CollapsibleSummary,
+  type StickyTab,
+  StickyTabs,
+} from "@darkfactory/ui/client/page-sections";
 import { RotateCcw } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -59,11 +64,29 @@ export interface PortfolioMonitorProps {
   readonly configured?: boolean;
   // Heading text; the Portfolio tab names its source.
   readonly title?: string;
-  // The page owns the tab strip (portfolio-tabs.tsx) and picks the one section shown here.
-  readonly section: MonitorSection;
+  // Tab shown when ?tab= is absent or unknown; Positions by default.
+  readonly defaultTab?: string;
+  // ?tab= from the server request, so a deep link renders that tab on the first paint.
+  readonly initialTab?: string | undefined;
+  // Page views that do not read the snapshot (projection, Vertex orders); after the sections.
+  readonly extraTabs?: readonly StickyTab[];
+  // Called after a tab's content opens (mounts), with that tab's value.
+  readonly onTabShown?: (value: string) => void;
   // Owner order buttons (Close / Buy / Sell) per position; absent => read-only table.
   readonly ordersGateway?: VertexOrdersGateway;
 }
+
+/** The section tabs, in page order. The labels are the tab names in the sticky tab bar. */
+const MONITOR_SECTION_TABS: readonly Readonly<{
+  value: MonitorSection;
+  label: string;
+}>[] = [
+  { value: "positions", label: "Positions" },
+  { value: "orders-stops", label: "Orders & stops" },
+  { value: "pnl", label: "P&L" },
+  { value: "allocation", label: "Allocation" },
+  { value: "options", label: "Options" },
+];
 
 type PositionActionCell = (
   position: PortfolioMonitorPosition,
@@ -303,20 +326,18 @@ export const Banner = ({
   );
 };
 
+// Stands in for the summary grid until the first snapshot arrives.
 const LoadingState = () => (
   <div
     aria-busy="true"
-    className="space-y-3"
+    className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6"
     data-monitor-state="loading"
     role="status"
   >
     <span className="sr-only">Loading IBKR snapshot</span>
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-      {Array.from({ length: 12 }, (_, index) => (
-        <Skeleton className="h-[4.5rem]" key={index} />
-      ))}
-    </div>
-    <Skeleton className="h-64" />
+    {Array.from({ length: 12 }, (_, index) => (
+      <Skeleton className="h-[4.5rem]" key={index} />
+    ))}
   </div>
 );
 
@@ -364,15 +385,64 @@ export const ForbiddenState = () => (
   </div>
 );
 
+// Orders & stops: the round-number check polls only while this tab is open (mounted).
+const OrdersStopsSection = ({
+  gateway,
+  live,
+  nowMs,
+  snapshot,
+}: {
+  readonly gateway: PortfolioMonitorGateway;
+  readonly live: boolean;
+  readonly nowMs: number;
+  readonly snapshot: PortfolioMonitorOutput;
+}) => {
+  const handles = useRoundHandles(gateway, true);
+  return (
+    <div className="space-y-8">
+      {handles.failed ? (
+        <p
+          className="text-muted-foreground text-xs"
+          data-round-handle-state="unavailable"
+        >
+          Round-number check unavailable. Order prices are not flagged.
+        </p>
+      ) : null}
+      <OrdersTable
+        empty="No open orders."
+        handles={handles.flags ?? undefined}
+        live={live}
+        orders={snapshot.orders}
+        title="Open orders"
+        titleId="pm-open-orders-title"
+      />
+      <StopLadders
+        live={live}
+        orders={snapshot.orders}
+        positions={snapshot.positions}
+      />
+      <ExecutionsTable executions={snapshot.executions} live={live} />
+      <OrdersTable
+        completed
+        empty="No completed or cancelled orders today."
+        live={live}
+        orders={completedToday(snapshot.completed, new Date(nowMs))}
+        title="Completed / cancelled today"
+        titleId="pm-completed-title"
+      />
+    </div>
+  );
+};
+
 const SectionBody = ({
   actions,
-  handles,
+  gateway,
   nowMs,
   section,
   snapshot,
 }: {
   readonly actions?: PositionActionCell | undefined;
-  readonly handles: RoundHandleFeed;
+  readonly gateway: PortfolioMonitorGateway;
   readonly nowMs: number;
   readonly section: MonitorSection;
   readonly snapshot: PortfolioMonitorOutput;
@@ -381,38 +451,12 @@ const SectionBody = ({
   switch (section) {
     case "orders-stops": {
       return (
-        <div className="space-y-8">
-          {handles.failed ? (
-            <p
-              className="text-muted-foreground text-xs"
-              data-round-handle-state="unavailable"
-            >
-              Round-number check unavailable. Order prices are not flagged.
-            </p>
-          ) : null}
-          <OrdersTable
-            empty="No open orders."
-            handles={handles.flags ?? undefined}
-            live={live}
-            orders={snapshot.orders}
-            title="Open orders"
-            titleId="pm-open-orders-title"
-          />
-          <StopLadders
-            live={live}
-            orders={snapshot.orders}
-            positions={snapshot.positions}
-          />
-          <ExecutionsTable executions={snapshot.executions} live={live} />
-          <OrdersTable
-            completed
-            empty="No completed or cancelled orders today."
-            live={live}
-            orders={completedToday(snapshot.completed, new Date(nowMs))}
-            title="Completed / cancelled today"
-            titleId="pm-completed-title"
-          />
-        </div>
+        <OrdersStopsSection
+          gateway={gateway}
+          live={live}
+          nowMs={nowMs}
+          snapshot={snapshot}
+        />
       );
     }
     case "pnl": {
@@ -449,31 +493,19 @@ const SectionBody = ({
   }
 };
 
-const MonitorBody = ({
-  actions,
-  handles,
-  nowMs,
-  section,
-  snapshot,
+// Runs onShown once per opening of a tab (StickyTabs mounts only the open tab's content).
+const TabShown = ({
+  children,
+  onShown,
+  value,
 }: {
-  readonly actions?: PositionActionCell | undefined;
-  readonly handles: RoundHandleFeed;
-  readonly nowMs: number;
-  readonly section: MonitorSection;
-  readonly snapshot: PortfolioMonitorOutput;
-}) => (
-  <div className="space-y-6">
-    <SummaryGrid snapshot={snapshot} />
-    <SectionBody
-      actions={actions}
-      handles={handles}
-      nowMs={nowMs}
-      section={section}
-      snapshot={snapshot}
-    />
-    <MessageList messages={snapshot.messages} />
-  </div>
-);
+  readonly children: ReactNode;
+  readonly onShown: ((value: string) => void) | undefined;
+  readonly value: string;
+}) => {
+  useEffect(() => onShown?.(value), [onShown, value]);
+  return children;
+};
 
 const AccountBadge = ({ mode }: { readonly mode: string }) => (
   <StatusBadge
@@ -485,11 +517,16 @@ const AccountBadge = ({ mode }: { readonly mode: string }) => (
 );
 
 // Read-only IBKR monitor. It polls portfolioMonitor.snapshot and never sends anything to IBKR.
+// Layout (owner 2026-11-04): status line -> alerts -> collapsible Summary (account KPIs) ->
+// sticky tab bar (sections, then the page's extra views) -> tab content. The tab is in ?tab=.
 export const PortfolioMonitor = ({
   gateway: suppliedGateway,
   configured = true,
   title = "IBKR monitor",
-  section,
+  defaultTab = "positions",
+  extraTabs = [],
+  initialTab,
+  onTabShown,
   ordersGateway,
 }: PortfolioMonitorProps) => {
   const orderActions = usePositionActions(ordersGateway);
@@ -507,10 +544,6 @@ export const PortfolioMonitor = ({
     reloadKey,
     configured
   );
-  const handles = useRoundHandles(
-    gateway,
-    configured && section === "orders-stops"
-  );
   const nowMs = useNow();
   const health = monitorHealth({
     snapshot,
@@ -523,33 +556,50 @@ export const PortfolioMonitor = ({
   const freshness = `Data as of ${clock(snapshot?.status.dataAsOf)}${age === null ? "" : ` (${Math.round(age)} s ago)`} · fetched ${clock(fetchedAt)}`;
   const retry = () => setReloadKey((key) => key + 1);
 
-  const body =
+  // Alerts stay outside the summary, so folding it never hides a problem.
+  const alert =
     failure?.kind === "forbidden" ? (
       <ForbiddenState />
     ) : snapshot === null ? (
-      failure === null ? (
-        <LoadingState />
-      ) : (
+      failure === null ? null : (
         <FailureState failure={failure} onRetry={retry} />
       )
     ) : (
-      <>
-        <Banner
-          age={age}
-          failure={failure}
-          fetchedAt={fetchedAt}
-          health={health}
-          snapshot={snapshot}
-        />
-        <MonitorBody
-          actions={orderActions?.cell}
-          handles={handles}
-          nowMs={nowMs}
-          section={section}
-          snapshot={snapshot}
-        />
-      </>
+      <Banner
+        age={age}
+        failure={failure}
+        fetchedAt={fetchedAt}
+        health={health}
+        snapshot={snapshot}
+      />
     );
+
+  // Before the first snapshot a section tab shows a table placeholder while loading, else
+  // one line; the failure itself (with Retry) is shown once, above the summary.
+  const sectionTabs: StickyTab[] = MONITOR_SECTION_TABS.map((tab) => ({
+    ...tab,
+    content:
+      snapshot === null ? (
+        failure === null ? (
+          <Skeleton className="h-64" data-section-placeholder="loading" />
+        ) : (
+          <p
+            className="text-muted-foreground text-sm"
+            data-section-placeholder="no-data"
+          >
+            No IBKR snapshot is loaded, so this view has no account data.
+          </p>
+        )
+      ) : (
+        <SectionBody
+          actions={orderActions?.cell}
+          gateway={gateway}
+          nowMs={nowMs}
+          section={tab.value}
+          snapshot={snapshot}
+        />
+      ),
+  }));
 
   return (
     <section
@@ -600,10 +650,39 @@ export const PortfolioMonitor = ({
           </select>
         </div>
       </header>
-      <p className="text-muted-foreground text-xs" role="note">
-        {orderActions === null ? READ_ONLY_NOTICE : ORDER_ACTIONS_NOTICE}
-      </p>
-      {body}
+      {alert}
+      <CollapsibleSummary id="portfolio" title="Summary">
+        <div className="space-y-3">
+          {snapshot === null ? (
+            failure === null ? (
+              <LoadingState />
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                No account values are shown because none were loaded.
+              </p>
+            )
+          ) : (
+            <SummaryGrid snapshot={snapshot} />
+          )}
+          <p className="text-muted-foreground text-xs" role="note">
+            {orderActions === null ? READ_ONLY_NOTICE : ORDER_ACTIONS_NOTICE}
+          </p>
+        </div>
+      </CollapsibleSummary>
+      <StickyTabs
+        defaultValue={defaultTab}
+        {...(initialTab === undefined ? {} : { initialValue: initialTab })}
+        label="Portfolio views"
+        tabs={[...sectionTabs, ...extraTabs].map((tab) => ({
+          ...tab,
+          content: (
+            <TabShown onShown={onTabShown} value={tab.value}>
+              {tab.content}
+            </TabShown>
+          ),
+        }))}
+      />
+      {snapshot === null ? null : <MessageList messages={snapshot.messages} />}
       {orderActions?.dialog}
     </section>
   );

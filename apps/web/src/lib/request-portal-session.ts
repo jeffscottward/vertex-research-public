@@ -4,11 +4,17 @@ import { headers } from "next/headers";
 import { dispatchInternalAuthRequest } from "./server-internal-dispatch.ts";
 import { getPortalSession, type PortalSession } from "./server-session.ts";
 
-/** VERTEX_OPERATOR_EMAILS for the portal session; an invalid list fails closed (no operators). */
+/**
+ * Emails that see the operator pages: VERTEX_OPERATOR_EMAILS plus the read-only
+ * VERTEX_AGENT_VIEWER_EMAILS (the API refuses every write for viewers). An invalid list fails
+ * closed (that list adds nobody).
+ */
 export const portalOperatorEmails = (
   source: Readonly<Record<string, string | undefined>> = process.env
-): readonly string[] =>
-  parseOperatorEmails(source["VERTEX_OPERATOR_EMAILS"]) ?? [];
+): readonly string[] => [
+  ...(parseOperatorEmails(source["VERTEX_OPERATOR_EMAILS"]) ?? []),
+  ...(parseOperatorEmails(source["VERTEX_AGENT_VIEWER_EMAILS"]) ?? []),
+];
 
 /*
  * vinext calls each layout twice per request: a probe pass and then the render

@@ -3,6 +3,7 @@ import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 
+import { agentViewerReadOnlyInterceptor } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
 import { appRouter } from "./router.ts";
 
@@ -26,15 +27,21 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 
 // Single procedures outside those roots that keys may call. The Autopilot scheduler ticks running
 // campaigns with an operator write key; every other autopilot.* procedure stays session-only. The
-// sector rotation scheduler collects with a write key, and research agents read the snapshot with a
+// sector rotation scheduler collects and records chat delivery results with a write key, and research agents read the snapshot with a
 // read key; sectorRotation.map stays session-only. The click-log CLI (scripts/vertex-click-log.ts)
 // reads clicks with an operator key; clickLog.record stays session-only, so a key never writes
-// clicks for a user.
+// clicks for a user. The pick-list importer (scripts/vertex-pick-lists.ts) stores snapshots with a
+// write key and research agents read lists and screens with a read key; pickLists.syncBucket stays
+// session-only, so a key never edits baskets.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
+  "sectorRotation.recordChatDelivery",
   "sectorRotation.snapshot",
   "clickLog.query",
+  "pickLists.import",
+  "pickLists.list",
+  "pickLists.screen",
 ]);
 
 export const isAgentApiKeyProcedurePath = (path: readonly string[]): boolean =>
@@ -57,7 +64,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.snapshot and clickLog.query",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list and pickLists.screen",
       })
     );
   }
@@ -65,10 +72,16 @@ export const agentApiKeyScopeInterceptor = (
 };
 
 const rpcHandler = new RPCHandler(appRouter, {
-  clientInterceptors: [agentApiKeyScopeInterceptor],
+  clientInterceptors: [
+    agentApiKeyScopeInterceptor,
+    agentViewerReadOnlyInterceptor,
+  ],
 });
 const openApiHandler = new OpenAPIHandler(appRouter, {
-  clientInterceptors: [agentApiKeyScopeInterceptor],
+  clientInterceptors: [
+    agentApiKeyScopeInterceptor,
+    agentViewerReadOnlyInterceptor,
+  ],
 });
 
 const notFound = (): Response => new Response("Not Found", { status: 404 });

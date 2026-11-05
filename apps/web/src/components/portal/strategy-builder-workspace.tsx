@@ -13,12 +13,13 @@ import {
   type StrategyExpr,
   type StrategyTemplateId,
 } from "@darkfactory/api";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import {
   isOperatorAccessDenied,
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
+import { currentSearch, writeQuery } from "./backtest-lab-query.ts";
 import {
   describeRevision,
   isFinished,
@@ -29,6 +30,10 @@ import {
   type BacktestRunsGateway,
   createBrowserBacktestRunsGateway,
 } from "./backtest-runs-workspace.tsx";
+import {
+  DEFAULT_UNIVERSE_CHOICE,
+  visibleSeries,
+} from "./backtest-universe.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   type BuilderRunForm,
@@ -38,11 +43,14 @@ import {
   INDICATOR_LABELS,
   lengthUnit,
   numberOf,
+  openBuilderRun,
+  readBuilderQuery,
   removeAt,
   replaceAt,
   templateDefinition,
   toBuilderRunInput,
   usesSource,
+  withLinkedRun,
   withOffset,
 } from "./strategy-builder-model.ts";
 
@@ -73,7 +81,7 @@ const OPERATOR_LABELS: Record<StrategyCondition["op"], string> = {
 
 export type StrategyBuilderGateway = Pick<
   BacktestRunsGateway,
-  "series" | "submit" | "get"
+  "series" | "submit" | "get" | "list"
 >;
 
 export type StrategyBuilderWorkspaceProps = Readonly<{
@@ -439,6 +447,22 @@ const RunResult = ({ run }: Readonly<{ run: BacktestRun }>) => (
   </section>
 );
 
+// The result shown under the form, or a notice when no builder run exists yet.
+const ShownRun = ({
+  latest,
+  run,
+}: Readonly<{ latest: LatestState; run: BacktestRun | null }>) => {
+  if (run !== null) return <RunResult run={run} />;
+  if (latest !== "none") return null;
+  return (
+    <p className="text-sm" role="status">
+      No builder run exists yet. Run backtest queues one with this definition.
+    </p>
+  );
+};
+
+type LatestState = "loading" | "none" | "shown";
+
 const seriesKey = (series: InstantBacktestSeries): string =>
   `${series.symbol}:${series.timeframe}`;
 
@@ -473,6 +497,10 @@ export const StrategyBuilderWorkspace = ({
   const [run, setRun] = useState<BacktestRun | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // "none": no finished builder run exists yet, so the page shows the template only.
+  const [latest, setLatest] = useState<LatestState>("loading");
+  // Set by any user edit or submit, so a slow first load never overwrites the user's work.
+  const touched = useRef(false);
   const templateId = useId();
   const textId = useId();
   const seriesId = useId();
@@ -481,34 +509,76 @@ export const StrategyBuilderWorkspace = ({
   // Visual edits may make the definition invalid; only invalid text the builder did not write locks it.
   const textOutOfSync = !validation.ok && text !== definitionText(draft);
 
+  // On open: pick the Core 7 default series (or ?symbol=), then show the linked (?run=) or newest
+  // finished builder run. Read-only: nothing is submitted here.
   useEffect(() => {
     let active = true;
-    gateway.series().then(
-      (loaded) => {
-        if (!active) return;
-        setLoad({ series: loaded, type: "ready" });
-        const first = loaded[0];
-        if (first !== undefined) {
-          setSelectedSeries(seriesKey(first));
-          setForm((current) => ({
-            ...current,
-            from: isoDate(first.firstT),
-            to: isoDate(first.lastT),
-          }));
-        }
-      },
-      (error: unknown) => {
-        if (!active) return;
-        setLoad(
-          isOperatorAccessDenied(error)
-            ? { type: "forbidden" }
-            : {
-                message: describeMarketDataFailure(error).message,
-                type: "error",
-              }
-        );
+    let ready = false;
+    const fail = (error: unknown) => {
+      if (!active) return;
+      if (ready) {
+        setLatest("none");
+        setMessage(describeMarketDataFailure(error).message);
+        return;
       }
-    );
+      setLoad(
+        isOperatorAccessDenied(error)
+          ? { type: "forbidden" }
+          : {
+              message: describeMarketDataFailure(error).message,
+              type: "error",
+            }
+      );
+    };
+    const open = async () => {
+      const query = readBuilderQuery(currentSearch());
+      const loaded = await gateway.series();
+      if (!active) return;
+      ready = true;
+      setLoad({ series: loaded, type: "ready" });
+      const linked = loaded.find((entry) => entry.symbol === query.symbol);
+      const fallback = visibleSeries(loaded, DEFAULT_UNIVERSE_CHOICE).series[0];
+      const start = linked ?? fallback;
+      if (start !== undefined) {
+        setSelectedSeries(seriesKey(start));
+        setForm((current) => ({
+          ...current,
+          from: isoDate(start.firstT),
+          to: isoDate(start.lastT),
+        }));
+      }
+      const runs = await withLinkedRun(
+        await gateway.list(),
+        query.run,
+        gateway.get
+      );
+      // A user edit or submit while the runs load wins over the stored run.
+      if (!active || touched.current) return;
+      const { defaults, picked, updates } = openBuilderRun(
+        runs,
+        { run: query.run, symbol: linked?.symbol ?? null },
+        fallback?.symbol ?? null
+      );
+      writeQuery(updates, defaults);
+      if (picked === null) {
+        setLatest("none");
+        return;
+      }
+      const { spec } = picked.run;
+      setDraft(picked.definition);
+      setText(definitionText(picked.definition));
+      setSelectedSeries(`${spec.symbol}:${spec.timeframe}`);
+      setForm({
+        costBps: spec.costBps,
+        from: spec.from,
+        initialCapital: spec.initialCapital,
+        to: spec.to,
+      });
+      // The polling effect reads the run and follows it until it finishes.
+      setRunId(picked.run.id);
+      setLatest("shown");
+    };
+    open().catch(fail);
     return () => {
       active = false;
     };
@@ -558,14 +628,23 @@ export const StrategyBuilderWorkspace = ({
     );
 
   const edit = (next: StrategyDefinition) => {
+    touched.current = true;
     setDraft(next);
     setText(definitionText(next));
   };
   const editText = (next: string) => {
+    touched.current = true;
     setText(next);
     const parsed = parseStrategyDefinitionText(next);
     if (parsed.ok) setDraft(parsed.definition);
   };
+  const editForm = (patch: Partial<BuilderRunForm>) => {
+    touched.current = true;
+    setForm((current) => ({ ...current, ...patch }));
+  };
+  const defaultSymbol =
+    visibleSeries(load.series, DEFAULT_UNIVERSE_CHOICE).series[0]?.symbol ??
+    null;
 
   const series = load.series.find(
     (entry) => seriesKey(entry) === selectedSeries
@@ -577,6 +656,7 @@ export const StrategyBuilderWorkspace = ({
 
   const submit = async () => {
     if (request === null || "error" in request) return;
+    touched.current = true;
     setSubmitting(true);
     setMessage(null);
     setRun(null);
@@ -584,6 +664,7 @@ export const StrategyBuilderWorkspace = ({
       const created = await gateway.submit(request.input);
       setRun(created);
       setRunId(created.id);
+      writeQuery({ run: created.id });
     } catch (error) {
       setMessage(describeMarketDataFailure(error).message);
     } finally {
@@ -826,13 +907,17 @@ export const StrategyBuilderWorkspace = ({
                 const next = load.series.find(
                   (entry) => seriesKey(entry) === event.target.value
                 );
+                touched.current = true;
                 setSelectedSeries(event.target.value);
-                if (next !== undefined)
-                  setForm((current) => ({
-                    ...current,
-                    from: isoDate(next.firstT),
-                    to: isoDate(next.lastT),
-                  }));
+                if (next === undefined) return;
+                writeQuery(
+                  { run: null, symbol: next.symbol },
+                  { symbol: defaultSymbol }
+                );
+                editForm({
+                  from: isoDate(next.firstT),
+                  to: isoDate(next.lastT),
+                });
               }}
               value={selectedSeries}
             >
@@ -848,12 +933,7 @@ export const StrategyBuilderWorkspace = ({
               <input
                 className={CONTROL}
                 id={id}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    from: event.target.value,
-                  }))
-                }
+                onChange={(event) => editForm({ from: event.target.value })}
                 type="date"
                 value={form.from}
               />
@@ -864,9 +944,7 @@ export const StrategyBuilderWorkspace = ({
               <input
                 className={CONTROL}
                 id={id}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, to: event.target.value }))
-                }
+                onChange={(event) => editForm({ to: event.target.value })}
                 type="date"
                 value={form.to}
               />
@@ -874,16 +952,12 @@ export const StrategyBuilderWorkspace = ({
           </Labeled>
           <NumberField
             label="Initial capital"
-            onChange={(initialCapital) =>
-              setForm((current) => ({ ...current, initialCapital }))
-            }
+            onChange={(initialCapital) => editForm({ initialCapital })}
             value={form.initialCapital}
           />
           <NumberField
             label="Cost per side (bps)"
-            onChange={(costBps) =>
-              setForm((current) => ({ ...current, costBps }))
-            }
+            onChange={(costBps) => editForm({ costBps })}
             value={form.costBps}
           />
           <div className="grid content-end gap-2 lg:col-span-4">
@@ -909,7 +983,7 @@ export const StrategyBuilderWorkspace = ({
             {message}
           </p>
         )}
-        {run === null ? null : <RunResult run={run} />}
+        <ShownRun latest={latest} run={run} />
       </section>
     </div>
   );

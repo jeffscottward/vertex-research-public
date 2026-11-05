@@ -1,6 +1,5 @@
 import { implement } from "@orpc/server";
 import type { z } from "zod";
-
 import { appContract } from "../contract.ts";
 import {
   type DeepValueDocument,
@@ -28,6 +27,7 @@ import type { ApiContext } from "./context.ts";
 import type { DeployStatusConfig, DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
 import { readCappedText } from "./portfolio-monitor.ts";
+import { researchUserAgent } from "./research-contact.ts";
 
 // Read-only research lenses. The rig data jobs (vertex-research collect-rotation-matrix.mjs and
 // collect-deep-value.mjs) write JSON documents; they are served on the QuantVPS tailnet under
@@ -44,8 +44,7 @@ const SEC_TICKERS_MAX_BYTES = 8 * 1024 * 1024;
 const SEC_TICKERS_TTL_MS = 24 * 60 * 60 * 1000;
 const YAHOO_MAX_BYTES = 4 * 1024 * 1024;
 // SEC asks automated clients for a descriptive User-Agent with a contact address.
-export const SEC_USER_AGENT =
-  "vertex-research deep-value (personal research; owner@example.com)";
+export const secUserAgent = (): string => researchUserAgent("deep-value");
 const YAHOO_USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) vertex-research/deep-value";
 
@@ -267,7 +266,7 @@ export const secTickers = async (
     return tickerCache.map;
   const raw = await fetchBoundedJson(
     {
-      headers: { "user-agent": SEC_USER_AGENT },
+      headers: { "user-agent": secUserAgent() },
       label: "SEC ticker list",
       maxBytes: SEC_TICKERS_MAX_BYTES,
       url: "https://www.sec.gov/files/company_tickers.json",
@@ -337,7 +336,7 @@ export const gatherDeepValueFacts = async (
       facts = { ...facts, cik: hit.cik, name: facts.name ?? hit.title };
       const raw = await fetchBoundedJson(
         {
-          headers: { "user-agent": SEC_USER_AGENT },
+          headers: { "user-agent": secUserAgent() },
           label: "SEC companyfacts",
           maxBytes: SEC_FACTS_MAX_BYTES,
           url: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(hit.cik).padStart(10, "0")}.json`,

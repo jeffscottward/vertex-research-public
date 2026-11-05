@@ -91,6 +91,7 @@ vi.mock("@darkfactory/api/server", () => ({
   resolvePriceAlertsNtfyConfig: vi.fn(() => null),
   resolveJevConfig: vi.fn(() => null),
   resolveQuantDataConfig: vi.fn(() => null),
+  setResearchContactEmail: vi.fn(),
 }));
 vi.mock("@darkfactory/analytics/server/posthog", () => ({
   createPostHogAnalyticsPort: mocks.createPostHogAnalyticsPort,

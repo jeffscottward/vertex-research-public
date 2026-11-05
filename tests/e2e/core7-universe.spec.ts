@@ -87,3 +87,23 @@ for (const { path, heading, seriesLabel } of [
     await expect(series).toHaveValue("SPY:1d");
   });
 }
+
+// Pages without a universe choice still open on the first stored Core 7 futures series.
+test("/strategy-builder opens on ES=F", async ({ page }) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.goto("/strategy-builder");
+  await expect(
+    page.getByLabel("Symbol and timeframe", { exact: true })
+  ).toHaveValue("ES=F:1d");
+});
+
+test("/setup-replay opens on ES=F and replays it without input", async ({
+  page,
+}) => {
+  await signInAs(page, E2E_IDENTITIES.alice);
+  await page.goto("/setup-replay");
+  await expect(
+    page.getByLabel("Daily series", { exact: true }).locator("option:checked")
+  ).toHaveText(/^ES=F daily/u);
+  await expect(page.locator('[data-setup-replay="results"]')).toBeVisible();
+});

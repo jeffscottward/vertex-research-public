@@ -168,8 +168,6 @@ class WatchdogConfig:
     live_trading_account_allowlist: str = ""
     nautilus_risk_orders_enabled: bool = False
     nautilus_risk_dry_run: bool = False
-    charan_trade_intents_enabled: bool = False
-    charan_live_transmit_enabled: bool = False
     health_host: str = "0.0.0.0"
     health_port: int = 8081
     check_interval_seconds: int = 30
@@ -220,7 +218,6 @@ class WatchdogConfig:
         trading_mode = str(value("TRADING_MODE", "paper")).strip().lower()
         live_broker_enabled = trading_mode == "live" and (
             parse_bool(value("ENABLE_LIVE_TRADING", False))
-            or parse_bool(value("CHARAN_LIVE_TRANSMIT_ENABLED", False))
             or parse_bool(value("NAUTILUS_RISK_ORDERS_ENABLED", False))
         )
         ib_gateway_enabled = parse_bool(value("IBKR_GATEWAY_ENABLED", False))
@@ -243,8 +240,6 @@ class WatchdogConfig:
             live_trading_account_allowlist=str(value("LIVE_TRADING_ACCOUNT_ALLOWLIST", "")),
             nautilus_risk_orders_enabled=parse_bool(value("NAUTILUS_RISK_ORDERS_ENABLED", False)),
             nautilus_risk_dry_run=parse_bool(value("NAUTILUS_RISK_DRY_RUN", False)),
-            charan_trade_intents_enabled=parse_bool(value("CHARAN_TRADE_INTENTS_ENABLED", False)),
-            charan_live_transmit_enabled=parse_bool(value("CHARAN_LIVE_TRANSMIT_ENABLED", False)),
             health_host=str(value("WATCHDOG_HEALTH_HOST", "0.0.0.0")),
             health_port=int(value("WATCHDOG_HEALTH_PORT", 8081)),
             check_interval_seconds=max(1, int(value("WATCHDOG_CHECK_INTERVAL_SECONDS", 30))),
@@ -509,8 +504,6 @@ class WatchdogService:
             "live_risk_acknowledged": self.config.live_risk_acknowledged,
             "nautilus_risk_orders_enabled": self.config.nautilus_risk_orders_enabled,
             "nautilus_risk_dry_run": self.config.nautilus_risk_dry_run,
-            "charan_trade_intents_enabled": self.config.charan_trade_intents_enabled,
-            "charan_live_transmit_enabled": self.config.charan_live_transmit_enabled,
             "kill_switch_active": kill_switch_active,
         }
 

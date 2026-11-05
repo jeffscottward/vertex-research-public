@@ -35,7 +35,6 @@ process.umask(0o077);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const directory = join(root, "private/basic-app-named");
 const web = join(root, "apps/web");
-const origin = "https://quant-vps-host.example-tailnet.ts.net:3451";
 const logPath = join(directory, "runtime.log");
 
 const privateRead = (path) => {
@@ -61,6 +60,14 @@ const privateRead = (path) => {
 
 const bindingsText = privateRead(join(directory, ".prod.vars"));
 const bindings = parseEnv(bindingsText);
+// The real tailnet origin is server-side config (APP_URL in the private .prod.vars), never
+// committed: an https origin on port 3451 with no path.
+const origin = bindings.APP_URL ?? "";
+if (!/^https:\/\/[a-z0-9.-]+:3451$/u.test(origin)) {
+  throw new Error(
+    "QuantVPS APP_URL must be the https tailnet origin on port 3451."
+  );
+}
 const required = [
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
@@ -145,29 +152,29 @@ for (const output of [
     throw new Error("The production build output is missing.");
   }
 }
-writeFileSync(outputBindings, bindingsText, { mode: 0o600, flag: "w" });
+writeFileSync(outputBindings, bindingsText, { flag: "w", mode: 0o600 });
 
 const environment = {
-  PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
-  HOME: join(directory, "home"),
-  XDG_CONFIG_HOME: join(directory, "config"),
-  XDG_CACHE_HOME: join(directory, "cache"),
-  TMPDIR: join(directory, "tmp"),
-  LANG: "C.UTF-8",
-  TZ: "UTC",
-  NODE_ENV: "production",
-  HOST: "127.0.0.1",
-  PORT: "3450",
-  VERTEX_SELF_HOSTED_ORIGIN: origin,
-  CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
+  BROWSER: "none",
   CLOUDFLARE_INCLUDE_PROCESS_ENV: "false",
-  WRANGLER_SEND_METRICS: "false",
-  WRANGLER_REGISTRY_PATH: join(directory, "registry"),
+  CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false",
+  HOME: join(directory, "home"),
+  HOST: "127.0.0.1",
+  LANG: "C.UTF-8",
   MINIFLARE_REGISTRY_PATH: join(directory, "registry"),
+  NO_COLOR: "1",
+  NODE_ENV: "production",
+  PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
+  PORT: "3450",
+  TMPDIR: join(directory, "tmp"),
+  TZ: "UTC",
+  VERTEX_SELF_HOSTED_ORIGIN: origin,
+  WRANGLER_REGISTRY_PATH: join(directory, "registry"),
+  WRANGLER_SEND_METRICS: "false",
   X_LOCAL_EXPLORER: "false",
   X_LOCAL_OBSERVABILITY: "false",
-  NO_COLOR: "1",
-  BROWSER: "none",
+  XDG_CACHE_HOME: join(directory, "cache"),
+  XDG_CONFIG_HOME: join(directory, "config"),
 };
 const child = spawn(
   process.execPath,
@@ -180,8 +187,8 @@ const child = spawn(
   {
     cwd: web,
     env: environment,
-    stdio: ["ignore", "pipe", "pipe"],
     shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
   }
 );
 for (const stream of [child.stdout, child.stderr]) {

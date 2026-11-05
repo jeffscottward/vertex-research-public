@@ -1,23 +1,25 @@
 import { join } from "node:path";
-import type { Page } from "@playwright/test";
 import {
   createAutopilotRepository,
   createMarketBarsRepository,
   createNodeDatabase,
   type MarketBarRow,
 } from "@darkfactory/db/server";
+import type { Page } from "@playwright/test";
 
 import { e2eEnvironment } from "./env.ts";
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
-// Autopilot: an operator starts a campaign on synthetic bars, runs one tick, reads the leaderboard
-// and a tearsheet, checks that "Request live" is always blocked, and sends a (seeded, fictional)
-// verified candidate to the PAPER deployment-request flow. Research only; nothing is armed.
+// Autopilot: the page opens on the latest completed campaign with no clicks, an operator starts a
+// campaign on synthetic bars, runs one tick, reads the leaderboard and a tearsheet, checks that
+// "Request live" is always blocked, and sends a (seeded, fictional) verified candidate to the
+// PAPER deployment-request flow. Research only; nothing is armed.
 
 const DAY_MS = 86_400_000;
 // Optional evidence copy of the screenshots (passing runs keep no test output).
 const EVIDENCE_DIR = process.env["AUTOPILOT_EVIDENCE_DIR"] ?? "";
+const SEEDED_NAME = "Seeded verified (fixture)";
 
 const shot = async (page: Page, name: string) => {
   await page.screenshot({
@@ -91,11 +93,12 @@ test.beforeAll(async () => {
         seed: 1,
       },
       createdBy: "e2e",
-      name: "Seeded verified (fixture)",
+      name: SEEDED_NAME,
       symbol: "TEST",
       timeframe: "1d",
     });
-    await repository.transitionCampaign({ id: campaign.id, to: "stopped" });
+    // Completed and newest, so it is the campaign the page opens on by default.
+    await repository.transitionCampaign({ id: campaign.id, to: "completed" });
     const definition = {
       entry: {
         all: [
@@ -211,6 +214,18 @@ test("an operator runs a campaign and sends a verified candidate to paper", asyn
     page.getByRole("heading", { level: 1, name: "Autopilot" })
   ).toBeVisible();
 
+  // No input: the latest completed campaign opens with its candidates, and the URL stays clean.
+  const campaign = page.getByRole("region", { name: "Campaign" });
+  await expect(
+    campaign.getByRole("heading", { name: SEEDED_NAME })
+  ).toBeVisible();
+  await expect(
+    campaign
+      .locator("table", { has: page.getByText("Gated candidates") })
+      .getByRole("button", { name: "trendEma(20) fixture" })
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.has("campaign")).toBe(false);
+
   // Start a small campaign and run one tick from the page.
   const form = page.getByRole("region", { name: "New campaign" });
   await form.getByLabel("Name", { exact: true }).fill("E2E campaign");
@@ -220,10 +235,12 @@ test("an operator runs a campaign and sends a verified candidate to paper", asyn
   await form.getByLabel("Gated per generation").fill("2");
   await form.getByRole("button", { name: "Start campaign" }).click();
   await expect(form.getByText("Campaign started.")).toBeVisible();
-  const campaign = page.getByRole("region", { name: "Campaign" });
   await expect(
     campaign.getByRole("heading", { name: "E2E campaign" })
   ).toBeVisible();
+  // The selection is in the URL, so the view can be linked.
+  await expect(page).toHaveURL(/[?&]campaign=/u);
+  const campaignLink = page.url();
   await expect(
     campaign.getByText("Running", { exact: true }).first()
   ).toBeVisible();
@@ -251,9 +268,14 @@ test("an operator runs a campaign and sends a verified candidate to paper", asyn
   // The seeded verified candidate goes to paper; live stays blocked.
   await page
     .getByRole("region", { name: "Campaigns" })
-    .getByRole("button", { name: "Seeded verified (fixture)" })
+    .getByRole("button", { name: SEEDED_NAME })
     .first()
     .click();
+  // Check the selected campaign, not the URL: the E2E campaign may finish during its tick and
+  // become the default.
+  await expect(
+    campaign.getByRole("heading", { name: SEEDED_NAME })
+  ).toBeVisible();
   await campaign
     .locator("table", { has: page.getByText("Gated candidates") })
     .getByRole("button", { name: "trendEma(20) fixture" })
@@ -292,11 +314,16 @@ test("an operator runs a campaign and sends a verified candidate to paper", asyn
   ).toBeVisible();
   await shot(page, "autopilot-deployment-request-dark.png");
 
-  // Narrow layout keeps the page usable.
+  // Narrow layout keeps the page usable, and the campaign link opens that campaign.
   await page.setViewportSize({ height: 900, width: 375 });
-  await page.goto("/autopilot");
+  await page.goto(campaignLink);
   await expect(
     page.getByRole("heading", { level: 1, name: "Autopilot" })
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Campaign" })
+      .getByRole("heading", { name: "E2E campaign" })
   ).toBeVisible();
   await shot(page, "autopilot-375-dark.png");
 });

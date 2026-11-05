@@ -260,6 +260,40 @@ describe("createSectorRotationRepository", () => {
   });
 });
 
+describe("recordChatDelivery", () => {
+  it("updates only an undelivered row by the alert key and reports whether it changed", async () => {
+    const double = createDouble([[{ symbol: "XLK" }], []]);
+    const repository = createSectorRotationRepository(double.database, {
+      now: () => NOW,
+    });
+    const key = {
+      enteredOn: "2026-11-02",
+      quadrant: "leading" as const,
+      symbol: "XLK",
+    };
+    await expect(
+      repository.recordChatDelivery({ ...key, delivery: "sent" })
+    ).resolves.toBe(true);
+    await expect(
+      repository.recordChatDelivery({ ...key, delivery: "failed" })
+    ).resolves.toBe(false);
+    expect(double.operations[0]).toMatchObject({
+      kind: "update",
+      set: { delivery: "sent", updatedAt: NOW },
+      table: sectorRotationAlerts,
+    });
+    expect(double.operations[0]?.returning).toBeDefined();
+    expect(whereOf(double.operations[0]).params).toEqual([
+      "XLK",
+      "leading",
+      "2026-11-02",
+      "not-configured",
+      "failed",
+    ]);
+    expect(double.operations.some((op) => op.kind === "insert")).toBe(false);
+  });
+});
+
 describe("0047_sector_rotation migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");

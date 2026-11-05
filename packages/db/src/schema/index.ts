@@ -533,6 +533,92 @@ export const basketMembers = pgTable(
   ]
 );
 
+// Dated snapshots of external stock-pick lists with provenance per row (source slug, list slug,
+// as-of date, import method). Research only: no orders. bucket_symbol links a basket by symbol.
+export const PICK_LIST_SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
+export const PICK_LIST_NAME_MAX_LENGTH = 80;
+export const PICK_LIST_MAX_MEMBERS = 200;
+export const PICK_LIST_IMPORT_METHODS = ["manual", "adapter"] as const;
+
+export const pickLists = pgTable(
+  "pick_lists",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    sourceLabel: text("source_label").notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    bucketSymbol: text("bucket_symbol"),
+    // The basket the list was last synced into; cleared when that basket is deleted.
+    bucketBasketId: text("bucket_basket_id").references(() => baskets.id, {
+      onDelete: "set null",
+    }),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("pick_lists_user_source_slug_unique_idx").on(
+      table.userId,
+      table.source,
+      table.slug
+    ),
+    check(
+      "pick_lists_fields_check",
+      sql`${table.source} ~ '^[a-z0-9][a-z0-9-]{0,39}$' and ${table.slug} ~ '^[a-z0-9][a-z0-9-]{0,39}$' and char_length(trim(${table.sourceLabel})) between 1 and 80 and char_length(trim(${table.name})) between 1 and 80 and (${table.bucketSymbol} is null or ${table.bucketSymbol} ~ '^[A-Z][A-Z0-9]{0,9}$')`
+    ),
+  ]
+);
+
+export const pickListSnapshots = pgTable(
+  "pick_list_snapshots",
+  {
+    id: text("id").primaryKey(),
+    pickListId: text("pick_list_id")
+      .notNull()
+      .references(() => pickLists.id, { onDelete: "cascade" }),
+    asOf: date("as_of").notNull(),
+    method: text("method").notNull(),
+    importedAt: utcTimestamp("imported_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("pick_list_snapshots_list_as_of_unique_idx").on(
+      table.pickListId,
+      table.asOf
+    ),
+    check(
+      "pick_list_snapshots_method_check",
+      sql`${table.method} in ('manual', 'adapter')`
+    ),
+  ]
+);
+
+export const pickListMembers = pgTable(
+  "pick_list_members",
+  {
+    snapshotId: text("snapshot_id")
+      .notNull()
+      .references(() => pickListSnapshots.id, { onDelete: "cascade" }),
+    symbol: text("symbol").notNull(),
+    rank: integer("rank"),
+    weight: numeric("weight"),
+    sector: text("sector"),
+    rating: text("rating"),
+    thesis: text("thesis"),
+    targetPrice: numeric("target_price"),
+    addedOn: date("added_on"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.snapshotId, table.symbol] }),
+    check(
+      "pick_list_members_fields_check",
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and (${table.rank} is null or ${table.rank} between 1 and 1000) and (${table.weight} is null or (${table.weight} >= 0 and ${table.weight} <= 1)) and (${table.targetPrice} is null or ${table.targetPrice} > 0) and (${table.sector} is null or char_length(${table.sector}) <= 60) and (${table.rating} is null or char_length(${table.rating}) <= 40) and (${table.thesis} is null or char_length(${table.thesis}) <= 2000)`
+    ),
+  ]
+);
+
 // Workspace-scoped agent operations ledger and research paper library.
 // Single-operator fund: rows are not owned by a user; any authenticated session reads and writes.
 export const AGENT_TASK_KINDS = [
@@ -1911,6 +1997,9 @@ export type WatchlistItem = typeof watchlistItems.$inferSelect;
 export type NewWatchlistItem = typeof watchlistItems.$inferInsert;
 export type Basket = typeof baskets.$inferSelect;
 export type BasketMember = typeof basketMembers.$inferSelect;
+export type PickList = typeof pickLists.$inferSelect;
+export type PickListSnapshot = typeof pickListSnapshots.$inferSelect;
+export type PickListMember = typeof pickListMembers.$inferSelect;
 export type ResearchPaper = typeof researchPapers.$inferSelect;
 export type NewResearchPaper = typeof researchPapers.$inferInsert;
 export type AgentTask = typeof agentTasks.$inferSelect;

@@ -27,7 +27,7 @@ import {
   executionClock,
   executionsNewestFirst,
   groupOrders,
-  holdingLabel,
+  holdingBadge,
   moveColumn,
   nextSort,
   normalizeColumnConfig,
@@ -180,7 +180,25 @@ const positionCell = (
       return usd(position.costBasis);
     }
     default: {
-      return holdingLabel(position);
+      const badge = holdingBadge(position);
+      return (
+        <span
+          aria-label={badge.label}
+          className={cn(
+            "inline-block whitespace-nowrap rounded px-1.5 py-0.5 font-semibold text-xs",
+            badge.tone === "long" &&
+              "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+            badge.tone === "short" &&
+              "bg-red-500/15 text-red-700 dark:text-red-400",
+            badge.tone === "flat" && "bg-muted text-muted-foreground"
+          )}
+          data-holding-tone={badge.tone}
+          role="img"
+          title={badge.label}
+        >
+          {badge.text}
+        </span>
+      );
     }
   }
 };

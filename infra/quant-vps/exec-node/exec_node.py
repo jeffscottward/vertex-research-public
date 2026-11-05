@@ -18,17 +18,20 @@ Rules (Vertex constitution and owner decisions):
   (.env values, tokens, compose config values). It prints JSON paths and names only.
 
 Subcommands (run as root on QuantVPS; `--dry-run` prints the commands of switch/rollback without running them):
-  stage     build /opt/vertex-exec-node from the frozen /opt/vertex-quant tree plus the Vertex-owned overlay
-  gate      compare `docker compose config` old vs new; exit 1 unless only file paths differ
+  stage     build /opt/vertex-exec-node from the frozen /opt/vertex-quant tree, without the REMOVED files, plus
+            the Vertex-owned overlay
+  gate      compare `docker compose config` old vs new; exit 1 unless only file paths and retired env keys differ
   switch    preflight + gate, stop the old services (not ib-gateway), move state, rewire consumers, start from
             the new root; a failed step rolls back automatically
-  verify    post-switch checks (containers, gateway login, portfolio, ibkr-monitor, Nautilus DISARMED, watchdog)
+  verify    post-switch checks (containers, gateway login, portfolio, ibkr-monitor, Nautilus DISARMED, watchdog,
+            REMOVED files absent)
   rollback  reverse the switch from its backup directory (safe after a partial switch)
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as _dt
 import fnmatch
 import hashlib
@@ -64,7 +67,7 @@ STOP_ORDER = ("caddy", "portfolio-ui", "watchdog", "nautilus-trader", "uptime-ku
 EXPECTED_NETWORKS = {"prototype": PROJECT + "_prototype"}
 EXPECTED_VOLUMES = {"caddy_config": PROJECT + "_caddy_config", "caddy_data": PROJECT + "_caddy_data"}
 HOST_ROOT_KEY = "VERTEX_QUANT_HOST_ROOT"
-# Runtime state under the root: (relative path, required). portfolio-ui resolves ./data/KILL_SWITCH and the Charan
+# Runtime state under the root: (relative path, required). portfolio-ui resolves ./data/KILL_SWITCH and its 2FA
 # rescan request against its working dir /app/portfolio-ui, so that directory is state too when it exists.
 STATE_PATHS = (("data", True), ("portfolio-ui/data", False))
 
@@ -89,6 +92,33 @@ COPY_EXCLUDES = (
 # Copied but not pinned by the manifest (installed dependencies and caches).
 UNPINNED_PARTS = ("node_modules", "__pycache__", ".pnpm-store")
 RELEASE_FILE = ".vertex-exec-node-release.json"
+# Frozen-manifest files that never enter the new root (owner 2026-11-04, card remove-charan-signals): the retired
+# signal intake, its draft approval tool, tests, ADR, dashboard charts and logo. `stage` skips them; verify_staged,
+# `gate` and `verify` require them absent. Three signal-named frozen files stay because live non-signal features run
+# them: portfolio-ui's manual position close (/api/position-close) runs scripts/transmit_charan_approved_drafts.py,
+# which imports scripts/charan_draft_review.py, which imports nautilus/charan.py; portfolio-ui's market refresh runs
+# src/update-market-data.ts, which imports src/signal-event-parser.ts.
+REMOVED = (
+    "dist/charan-server-logo.png",
+    "docs/adr/0001-charan-discord-ingestion.md",
+    "public/charan-server-logo.png",
+    "scripts/approve_charan_drafts.py",
+    "src/SignalPriceChart.tsx",
+    "src/alert-signal-quality.test.ts",
+    "src/alert-signal-quality.ts",
+    "src/signal-chart-view.test.ts",
+    "src/signal-chart-view.ts",
+    "src/signal-event-parser.test.ts",
+    "src/signal-quality-alerts.test.ts",
+    "src/signal-quality-alerts.ts",
+    "tests/test_charan_review_scripts.py",
+    "tests/test_charan_trade_intents.py",
+)
+# Compose environment keys of the retired signal intake. The gate ignores them in the old root's config and
+# refuses them in the new root's config. nautilus-trader received the portfolio-ui login only for the retired
+# intake's 2FA trigger; portfolio-ui keeps it.
+REMOVED_ENV_PREFIX = "CHARAN_"
+REMOVED_SERVICE_ENV = {"nautilus-trader": ("PORTFOLIO_AUTH_USERNAME", "PORTFOLIO_AUTH_PASSWORD")}
 
 PM2_NAME = "vertex-ibkr-account-heartbeat"
 HEALTH_ALERT_TIMER = "vertex-nautilus-health-alert.timer"
@@ -286,12 +316,22 @@ def rewrite_env(text: str, old_root: str, new_root: str) -> str:
     return "\n".join(lines)
 
 
+def is_removed(rel: str) -> bool:
+    return rel in REMOVED
+
+
+def removed_present(root: Path) -> List[str]:
+    """REMOVED files that exist under root, as '<path>: present (removed)'. Names only."""
+    return [f"{rel}: present (removed)" for rel in REMOVED if (root / rel).exists() or (root / rel).is_symlink()]
+
+
 def copy_ignore(source: Path) -> Callable[[str, List[str]], List[str]]:
-    """shutil.copytree ignore: nested state directories stay out of the new root."""
+    """shutil.copytree ignore: nested state directories and REMOVED files stay out of the new root."""
 
     def ignore(directory: str, names: List[str]) -> List[str]:
         rel_dir = Path(directory).relative_to(source).as_posix()
-        return [n for n in names if is_state(n if rel_dir == "." else f"{rel_dir}/{n}")]
+        rels = {n: n if rel_dir == "." else f"{rel_dir}/{n}" for n in names}
+        return [n for n, rel in rels.items() if is_state(rel) or is_removed(rel)]
 
     return ignore
 
@@ -312,7 +352,7 @@ def stage(source: Path, target: Path, bundle: Path, manifest: Dict[str, str], vr
     staging.mkdir(mode=0o755)
     try:
         for entry in sorted(source.iterdir()):
-            if excluded(entry.name):
+            if excluded(entry.name) or is_removed(entry.name):
                 continue
             dest = staging / entry.name
             if entry.is_dir() and not entry.is_symlink():
@@ -364,9 +404,10 @@ def write_env(path: Path, text: str) -> None:
 
 
 def verify_staged(root: Path, manifest: Dict[str, str], overlay: Dict[str, str]) -> List[str]:
-    """Owned files must equal the overlay; every other manifest file must equal the frozen bytes; no state yet."""
-    frozen = {rel: digest for rel, digest in manifest.items() if rel not in overlay}
-    problems = verify_tree(root, frozen) + verify_tree(root, overlay)
+    """Owned files must equal the overlay; every other manifest file must equal the frozen bytes, except REMOVED
+    files, which must be absent; no state yet."""
+    frozen = {rel: digest for rel, digest in manifest.items() if rel not in overlay and not is_removed(rel)}
+    problems = verify_tree(root, frozen) + verify_tree(root, overlay) + removed_present(root)
     for rel, _ in STATE_PATHS:
         if (root / rel).exists():
             problems.append(f"{rel}: present before the switch")
@@ -412,6 +453,29 @@ def object_names(config: Dict[str, Any], kind: str) -> Dict[str, Optional[str]]:
     return {key: (value or {}).get("name") for key, value in (config.get(kind) or {}).items()}
 
 
+def retired_env(svc: str, key: str) -> bool:
+    return key.startswith(REMOVED_ENV_PREFIX) or key in REMOVED_SERVICE_ENV.get(svc, ())
+
+
+def retired_env_paths(config: Dict[str, Any]) -> List[str]:
+    """JSON paths of retired environment keys in a compose config. Paths only, never values."""
+    paths = []
+    for svc, spec in sorted((config.get("services") or {}).items()):
+        env = (spec or {}).get("environment")
+        if isinstance(env, dict):
+            paths += [f"services.{svc}.environment.{key}" for key in sorted(env) if retired_env(svc, key)]
+    return paths
+
+
+def strip_retired_env(config: Dict[str, Any]) -> Dict[str, Any]:
+    out = copy.deepcopy(config)
+    for svc, spec in (out.get("services") or {}).items():
+        env = (spec or {}).get("environment")
+        if isinstance(env, dict):
+            spec["environment"] = {key: value for key, value in env.items() if not retired_env(svc, key)}
+    return out
+
+
 def container_names(config: Dict[str, Any]) -> Dict[str, str]:
     """Compose names a container `<project>-<service>-1` unless the service sets container_name."""
     project = config.get("name")
@@ -430,9 +494,12 @@ def gate(
     new_root: str,
     unpinned_names: Optional[Dict[str, Optional[str]]] = None,
     running_hashes: Optional[Dict[str, Optional[str]]] = None,
+    new_removed_present: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """unpinned_names: project name each root resolves without `-p` (what lib.sh compose() uses).
-    running_hashes: com.docker.compose.config-hash label of each running container that must be kept."""
+    running_hashes: com.docker.compose.config-hash label of each running container that must be kept.
+    new_removed_present: REMOVED files found in the new root (removed_present). Retired environment keys are
+    ignored in the old config and refused in the new one."""
     problems: List[str] = []
     for label, cfg in (("old", old_cfg), ("new", new_cfg)):
         if cfg.get("name") != PROJECT:
@@ -456,7 +523,13 @@ def gate(
     images_new = {s: (v or {}).get("image") for s, v in (new_cfg.get("services") or {}).items()}
     if images_old != images_new:
         problems.append("images differ")
-    remaining = diff_paths(replace_strings(old_cfg, old_root, new_root), new_cfg)
+    retired = retired_env_paths(new_cfg)
+    if retired:
+        # caddy reads the whole .env (env_file), so a retired key left in .env shows up here too.
+        problems.append("new root sets retired environment (compose file or .env): " + ", ".join(retired))
+    problems += ["new root " + p for p in (new_removed_present or [])]
+    old_swapped = replace_strings(strip_retired_env(old_cfg), old_root, new_root)
+    remaining = diff_paths(old_swapped, strip_retired_env(new_cfg))
     if remaining:
         problems.append("non-path differences at: " + ", ".join(remaining))
     for svc in KEEP_RUNNING:
@@ -509,7 +582,8 @@ def run_gate(runner: Runner, old_root: str, new_root: str, check_running: bool =
     new_cfg, new_hashes, new_name = read_compose(runner, new_root)
     running = {svc: running_label(runner, svc) for svc in KEEP_RUNNING} if check_running else None
     return gate(
-        old_cfg, new_cfg, old_hashes, new_hashes, old_root, new_root, {"old": old_name, "new": new_name}, running
+        old_cfg, new_cfg, old_hashes, new_hashes, old_root, new_root, {"old": old_name, "new": new_name}, running,
+        removed_present(Path(new_root)),
     )
 
 
@@ -736,6 +810,14 @@ def evaluate_arm(status: Dict[str, Any]) -> Tuple[bool, str]:
     return (armed is False, f"armed={armed} detail={detail}")
 
 
+def evaluate_removed(root: str) -> Tuple[bool, str]:
+    """REMOVED files must be absent from the runtime root. The old root is the frozen tree and keeps them."""
+    if root == OLD_ROOT:
+        return (True, "skipped for the old root (frozen tree)")
+    present = removed_present(Path(root))
+    return (not present, "none present" if not present else ", ".join(present[:10]))
+
+
 def evaluate_pm2(processes: List[Dict[str, Any]], root: str) -> Tuple[bool, str]:
     for proc in processes:
         if proc.get("name") == PM2_NAME:
@@ -791,6 +873,7 @@ def verify(runner: Runner, root: str, before: Optional[Dict[str, Any]] = None) -
     if before:
         checks["arm_audit_unchanged"] = (audit_digest(root) == before.get("armAudit"), "arm-audit.jsonl digest")
     checks["no_arm_record"] = (not os.path.exists(f"{root}/data/nautilus/ARMED"), "data/nautilus/ARMED absent")
+    checks["removed_files_absent"] = evaluate_removed(root)
     code, _ = runner.run(
         ["docker", "exec", f"{PROJECT}-watchdog-1", "python", "-c", WATCHDOG_HEALTH], check=False, mutating=False
     )

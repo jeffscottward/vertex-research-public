@@ -33,6 +33,7 @@ import {
   LayoutList,
   Library,
   ListChecks,
+  ListOrdered,
   ListTodo,
   LockKeyhole,
   Mail,
@@ -121,6 +122,7 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/price-alerts", icon: BellRing, label: "Price alerts" },
     { href: "/news", icon: Newspaper, label: "News monitor" },
     { href: "/baskets", icon: ShoppingBasket, label: "Baskets" },
+    { href: "/pick-lists", icon: ListOrdered, label: "Pick lists" },
     { href: "/papers", icon: ScrollText, label: "Papers" },
     { href: "/rotation-matrix", icon: Grid3x3, label: "Rotation matrix" },
     { href: "/sector-rotation", icon: Orbit, label: "Sector rotation" },
@@ -308,6 +310,7 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/price-alerts",
   "/news",
   "/baskets",
+  "/pick-lists",
   "/todos",
   "/today",
   "/portfolio",
@@ -372,6 +375,7 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/charts",
   "/deployments",
   "/baskets",
+  "/pick-lists",
   "/engines",
 ] as const);
 

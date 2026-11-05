@@ -2,6 +2,7 @@ import { createAuthHandler } from "@darkfactory/auth/server";
 import type { BackgroundTaskScheduler } from "@darkfactory/db/server";
 
 import { bufferBoundedRequest } from "../../../../lib/bounded-request-body.ts";
+import { guardAgentViewerAuth } from "../../../../server/agent-viewer-auth.ts";
 import { withRequestScope } from "../../../../server/request-scope.ts";
 
 const AUTH_BODY_METHODS: readonly string[] = ["POST", "PUT", "PATCH", "DELETE"];
@@ -22,7 +23,17 @@ export const handleAuthRequest = async (
   return await withRequestScope(
     bounded.request,
     waitUntil,
-    ({ auth }) => createAuthHandler(auth)(bounded.request),
+    ({ auth, env, sink, requestId }) =>
+      guardAgentViewerAuth({
+        request: bounded.request,
+        viewerEmails: env.VERTEX_AGENT_VIEWER_EMAILS,
+        sessionEmail: async () =>
+          (await auth.api.getSession({ headers: bounded.request.headers }))
+            ?.user.email ?? null,
+        sink,
+        requestId,
+        run: () => createAuthHandler(auth)(bounded.request),
+      }),
     internalParentRequestId
   );
 };

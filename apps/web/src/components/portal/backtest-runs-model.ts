@@ -63,9 +63,9 @@ export const toSubmitInput = (
     input: {
       ...base.input,
       from: form.from,
-      to: form.to,
       initialCapital: form.initialCapital,
       strategyId: form.strategyId === "" ? null : form.strategyId,
+      to: form.to,
       ...(form.costProfile === "" ? {} : { costProfile: form.costProfile }),
     },
   };
@@ -152,8 +152,8 @@ const money = (value: number | null): string =>
   value === null
     ? "n/a"
     : value.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
         maximumFractionDigits: 2,
+        minimumFractionDigits: 2,
       });
 const percent = (value: number | null): string =>
   value === null ? "n/a" : `${(value * 100).toFixed(2)}%`;
@@ -272,7 +272,7 @@ export const replayGeometry = (
   const first = prices[0];
   const last = prices.at(-1);
   if (first === undefined || last === undefined || last.t === first.t)
-    return { path: "", markers: [], cursorX: null };
+    return { cursorX: null, markers: [], path: "" };
   let low = Number.POSITIVE_INFINITY;
   let high = Number.NEGATIVE_INFINITY;
   for (const price of prices) {
@@ -290,18 +290,39 @@ export const replayGeometry = (
     .join("");
   const shown = report.trades.slice(0, Math.max(0, step));
   const markers = shown.map((trade) => ({
-    n: trade.n,
-    x1: x(trade.entryT),
-    y1: y(trade.entryPrice),
-    x2: x(trade.exitT),
-    y2: y(trade.exitPrice),
-    win: trade.pnl > 0,
     current: trade.n === step,
+    n: trade.n,
+    win: trade.pnl > 0,
+    x1: x(trade.entryT),
+    x2: x(trade.exitT),
+    y1: y(trade.entryPrice),
+    y2: y(trade.exitPrice),
   }));
   const current = shown.at(-1);
   return {
-    path,
-    markers,
     cursorX: current === undefined ? null : x(current.exitT),
+    markers,
+    path,
   };
 };
+
+// The newest succeeded run in a newest-first list, or null when none finished well.
+export const latestSucceededRunId = (
+  runs: readonly Readonly<{ id: string; status: string }>[]
+): string | null => runs.find((run) => run.status === "succeeded")?.id ?? null;
+
+// The run to open on load: the linked run when the list has it, else the latest succeeded run.
+export const pickInitialRunId = (
+  linked: string | null,
+  runs: readonly Readonly<{ id: string; status: string }>[]
+): string | null =>
+  linked !== null && runs.some((run) => run.id === linked)
+    ? linked
+    : latestSucceededRunId(runs);
+
+// True for the API's "no such record" error.
+export const isNotFound = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  error.code === "NOT_FOUND";

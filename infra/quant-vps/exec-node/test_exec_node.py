@@ -138,6 +138,33 @@ class GateTests(unittest.TestCase):
                           None, {"ib-gateway": None})
         self.assertFalse(missing["ok"])
 
+    def test_retired_env_is_ignored_in_the_old_root_and_refused_in_the_new(self):
+        old = compose_config(OLD)
+        old["services"]["nautilus-trader"]["environment"]["CHARAN_TRADE_INTENTS_ENABLED"] = "false"
+        old["services"]["nautilus-trader"]["environment"]["PORTFOLIO_AUTH_PASSWORD"] = "retired-pw-value"
+        old["services"]["watchdog"]["environment"]["CHARAN_LIVE_TRANSMIT_ENABLED"] = "false"
+        result = en.gate(old, compose_config(NEW), HASHES, new_hashes(), OLD, NEW)
+        self.assertTrue(result["ok"], result["problems"])
+        new = compose_config(NEW)
+        new["services"]["watchdog"]["environment"]["CHARAN_LIVE_TRANSMIT_ENABLED"] = "retired-flag-value"
+        result = en.gate(compose_config(OLD), new, HASHES, new_hashes(), OLD, NEW)
+        self.assertFalse(result["ok"])
+        self.assertIn("services.watchdog.environment.CHARAN_LIVE_TRANSMIT_ENABLED", " ".join(result["problems"]))
+        self.assertNotIn("retired-flag-value", json.dumps(result))
+
+    def test_portfolio_ui_keeps_its_login(self):
+        old = compose_config(OLD)
+        old["services"]["portfolio-ui"]["environment"]["PORTFOLIO_AUTH_PASSWORD"] = "pw-value"
+        result = en.gate(old, compose_config(NEW), HASHES, new_hashes(), OLD, NEW)
+        self.assertFalse(result["ok"])
+        self.assertIn("services.portfolio-ui.environment.PORTFOLIO_AUTH_PASSWORD", " ".join(result["problems"]))
+
+    def test_removed_files_in_the_new_root_block(self):
+        result = en.gate(compose_config(OLD), compose_config(NEW), HASHES, new_hashes(), OLD, NEW,
+                         None, None, ["src/signal-chart-view.ts: present (removed)"])
+        self.assertFalse(result["ok"])
+        self.assertIn("new root src/signal-chart-view.ts: present (removed)", result["problems"])
+
     def test_parse_hashes(self):
         self.assertEqual(en.parse_hashes("redis abc\npostgres def\n\n"), {"redis": "abc", "postgres": "def"})
 
@@ -208,13 +235,11 @@ class OwnedRuntimeTests(unittest.TestCase):
 
     manifest = en.load_manifest((HERE / "frozen-manifest.sha256").read_text())
     unchanged = (
-        "docker-compose.yml",
         "watchdog/Dockerfile",
         "watchdog/__init__.py",
         "watchdog/requirements.txt",
         "nautilus/arm_cli.py",
         "scripts/request-ibkr-2fa-until-ready.sh",
-        "scripts/ibkr_account_snapshot.py",
         "scripts/ibkr-account-heartbeat.sh",
         "scripts/ibkr-account-heartbeat-pm2.sh",
         "scripts/lib.sh",
@@ -224,24 +249,63 @@ class OwnedRuntimeTests(unittest.TestCase):
     path_changed = ("scripts/nautilus-arm.sh", "scripts/nautilus_health_alert.py")
     # The live tree paired the new snapshot script with an old reader (TypeError on
     # market_values_timeout_seconds), so the 2FA readiness check always failed. The owned reader is
-    # vertex-quant commit ef1b38b (merged to its main), a superset of the frozen one.
-    reader_fix = {"nautilus/ibkr_account.py": "60b6cc80e892b66dc194e63ffc12dc0911fb35b6dd625a6afc4d7d913b29be8f"}
+    # vertex-quant commit ef1b38b (merged to its main), a superset of the frozen one. It also
+    # records each position's tradingClass (not in the v1 JSON shape) for the class sidecar below.
+    reader_fix = {"nautilus/ibkr_account.py": "d65e0d32247bee9e0734cf35eaadbfa66e30caa4ed6655d1d50f5d344794e9c3"}
 
     # State-machine audit 2026-11-03 (card sma-vertex-arm-killswitch): a kill switch deletes the
     # owner arm record (gate and watchdog), so removing the kill switch never re-arms the node.
     # Test: test_arm_killswitch.py. arm_gate.py also carries the options-only, defined-risk order
-    # policy in place_order (owner rule 2026-11-04). Test: test_order_policy.py.
+    # policy in place_order (owner rule 2026-11-04: options only, risk always defined, max loss per
+    # order <= 2% NLV, one working close per contract). Test: test_order_policy.py.
+    # scripts/transmit_charan_approved_drafts.py called client.placeOrder directly (gate bypass);
+    # the owned copy refuses every run. Test: test_transmit_disabled.py.
+    # scripts/ibkr_account_snapshot.py also writes ibkr-account-classes.json (conId/tradingClass per
+    # position) beside each snapshot, which keeps the v1 shape that staged protection checks key by
+    # key. arm_gate.py needs it to tell option classes apart. Test: test_order_policy.py.
     safety_fix = {
-        "watchdog/watchdog.py": "87a01578372fb5607888b3e2f94d4709aa73f7153613537013d705c4dca7b887",
-        "nautilus/arm_gate.py": "929b3a3112707c456ac23bdab0c6f9b557a3b311bb34ecb7f5661e08d613cd82",
+        "watchdog/watchdog.py": "215229586079adeb034d912f955d39770d6817dcff8acbb347b4fdb1fe96afe9",
+        "nautilus/arm_gate.py": "501763f951408bdf0afe1ec26861890d61d2c579cde4cf86774657678a6fcb22",
+        "scripts/ibkr_account_snapshot.py": "42265a912c610a676c604692437d68612642884f6d1e20f7de3d82a87d35d2f4",
+        "scripts/transmit_charan_approved_drafts.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
     }
 
     # Owner 2026-11-04 (card remove-charan-signals): the node has no trade-intent source. run_live.py
     # no longer imports nautilus/charan.py or polls the CHARAN Discord signal feed; the node only runs
     # health, IBKR connection state, the arm gate and protection. Test: test_no_signal_intake.py.
+    # docker-compose.yml drops every CHARAN_* variable (nautilus-trader, watchdog, portfolio-ui) and the
+    # portfolio-ui login that nautilus-trader received only for the retired intake's 2FA trigger. The gate
+    # ignores those keys in the old root (en.retired_env). watchdog.py drops the CHARAN_* settings and the
+    # CHARAN_LIVE_TRANSMIT_ENABLED term of live_broker_enabled (safety_fix digest above).
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
+        "docker-compose.yml": "edd2aee5de72abc617d9ec30c5f53f5644e1966c191021d70c1468dc30a21289",
     }
+
+    def test_compose_has_no_retired_environment(self):
+        text = (RUNTIME / "docker-compose.yml").read_text()
+        self.assertNotIn("charan", text.lower())
+        self.assertNotIn("PORTFOLIO_AUTH", text.split("  nautilus-trader:")[1].split("  watchdog:")[0])
+
+    def test_owned_runtime_names_no_signal_intake(self):
+        # run_live.py keeps only the legacy config key name (test_no_signal_intake.py).
+        for path in sorted(RUNTIME.rglob("*")):
+            if path.is_file() and path != RUNTIME / "nautilus" / "run_live.py":
+                self.assertNotIn("charan", path.read_text(errors="replace").lower(), str(path))
+
+    def test_removed_files_are_frozen_files(self):
+        self.assertEqual(len(set(en.REMOVED)), len(en.REMOVED))
+        for rel in en.REMOVED:
+            self.assertIn(rel, self.manifest, rel)
+            self.assertNotIn(rel, en.owned_files(RUNTIME), rel)
+
+    def test_live_dependencies_are_not_removed(self):
+        # portfolio-ui /api/position-close and its market refresh run these (see en.REMOVED).
+        for rel in ("scripts/transmit_charan_approved_drafts.py", "scripts/charan_draft_review.py",
+                    "nautilus/charan.py", "src/signal-event-parser.ts", "src/update-market-data.ts",
+                    "portfolio-ui/server.mjs"):
+            self.assertIn(rel, self.manifest, rel)
+            self.assertNotIn(rel, en.REMOVED, rel)
 
     def test_signal_removal_files_are_pinned(self):
         for rel, digest in self.signal_removal.items():
@@ -406,6 +470,25 @@ class StageTests(unittest.TestCase):
             en.stage(self.source, self.target, self.bundle, self.manifest, "a")
         self.assertIn("scripts/run.sh: changed", str(ctx.exception))
         self.assertFalse(self.target.exists())
+
+    def test_stage_leaves_removed_files_behind(self):
+        removed = {"scripts/approve_charan_drafts.py": "retired\n", "src/signal-chart-view.ts": "retired\n"}
+        for rel, text in removed.items():
+            (self.source / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.source / rel).write_text(text)
+            self.manifest[rel] = sha(text.encode())
+        result = en.stage(self.source, self.target, self.bundle, self.manifest, "a")
+        self.assertEqual(result["frozenFiles"], len(self.manifest))
+        for rel in removed:
+            self.assertFalse((self.target / rel).exists(), rel)
+            self.assertTrue((self.source / rel).is_file(), "frozen source untouched")
+        self.assertTrue((self.target / "scripts" / "run.sh").is_file())
+        overlay = en.owned_files(self.bundle / "exec-node" / "runtime")
+        self.assertEqual(en.verify_staged(self.target, self.manifest, overlay), [])
+        (self.target / "src" / "signal-chart-view.ts").parent.mkdir(exist_ok=True)
+        (self.target / "src" / "signal-chart-view.ts").write_text("retired\n")
+        self.assertEqual(en.verify_staged(self.target, self.manifest, overlay),
+                         ["src/signal-chart-view.ts: present (removed)"])
 
     def test_stage_refuses_after_the_switch(self):
         (self.target / "data").mkdir(parents=True)
@@ -633,6 +716,16 @@ class VerifyLogicTests(unittest.TestCase):
         self.assertTrue(en.evaluate_arm({"armed": False, "detail": "no_arm_record"})[0])
         self.assertFalse(en.evaluate_arm({"armed": True, "detail": "armed"})[0])
         self.assertFalse(en.evaluate_arm({"armed": None, "detail": "arm_cli exit 1"})[0])
+
+    def test_removed_files_must_be_absent_from_the_new_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(en.evaluate_removed(tmp), (True, "none present"))
+            (Path(tmp) / "tests").mkdir()
+            (Path(tmp) / "tests" / "test_charan_trade_intents.py").write_text("x\n")
+            ok, detail = en.evaluate_removed(tmp)
+            self.assertFalse(ok)
+            self.assertEqual(detail, "tests/test_charan_trade_intents.py: present (removed)")
+        self.assertTrue(en.evaluate_removed(OLD)[0], "the frozen old root keeps them")
 
     def test_diff_paths_handles_lists_and_missing_keys(self):
         self.assertEqual(en.diff_paths({"a": [1, 2]}, {"a": [1, 3], "b": 1}), ["a[1]", "b"])

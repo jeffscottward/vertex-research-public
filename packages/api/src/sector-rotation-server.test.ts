@@ -233,6 +233,12 @@ const memoryRepository = (initial: SectorRotationPointRecord[] = []) => {
     recordDelivery: vi.fn(async (input) => {
       alerts.set(alertKey(input), input.delivery);
     }),
+    recordChatDelivery: vi.fn(async (input) => {
+      const current = alerts.get(alertKey(input));
+      if (current !== "not-configured" && current !== "failed") return false;
+      alerts.set(alertKey(input), input.delivery);
+      return true;
+    }),
     upsertPoints: vi.fn(async (next: readonly SectorRotationPointRecord[]) => {
       for (const point of next) points.set(keyOf(point), point);
       return next.length;
@@ -589,6 +595,77 @@ describe("sectorRotation.collect", () => {
     });
     await expectCode(client.sectorRotation.collect({}), "UNAVAILABLE", 503);
     expect(repository.upsertPoints).not.toHaveBeenCalled();
+  });
+});
+
+describe("sectorRotation.recordChatDelivery", () => {
+  const key = {
+    enteredOn: LAST_DATE,
+    quadrant: "lagging" as const,
+    symbol: "xle",
+  };
+
+  it("needs an operator agent write key and a repository", async () => {
+    const { repository } = memoryRepository();
+    await expectCode(
+      clientFor({ repository }).sectorRotation.recordChatDelivery({
+        ...key,
+        delivery: "sent",
+      }),
+      "FORBIDDEN",
+      403
+    );
+    await expectCode(
+      clientFor({ apiKey: PLAINTEXT }).sectorRotation.recordChatDelivery({
+        ...key,
+        delivery: "sent",
+      }),
+      "STORAGE_ERROR",
+      503
+    );
+    await expectCode(
+      clientFor({
+        apiKey: PLAINTEXT,
+        keyAccess: "read",
+        repository,
+      }).sectorRotation.recordChatDelivery({ ...key, delivery: "sent" }),
+      "FORBIDDEN",
+      403
+    );
+    expect(repository.recordChatDelivery).not.toHaveBeenCalled();
+  });
+
+  it("moves a collected not-configured alert to sent once and never inserts", async () => {
+    useYahoo();
+    const memory = memoryRepository();
+    const client = clientFor({
+      apiKey: PLAINTEXT,
+      repository: memory.repository,
+    });
+    await client.sectorRotation.collect({});
+    expect(memory.alerts.get(`XLE|lagging|${LAST_DATE}`)).toBe(
+      "not-configured"
+    );
+    await expect(
+      client.sectorRotation.recordChatDelivery({ ...key, delivery: "sent" })
+    ).resolves.toEqual({ updated: true });
+    expect(memory.alerts.get(`XLE|lagging|${LAST_DATE}`)).toBe("sent");
+    expect(memory.repository.recordChatDelivery).toHaveBeenCalledWith({
+      ...key,
+      delivery: "sent",
+      symbol: "XLE",
+    });
+    await expect(
+      client.sectorRotation.recordChatDelivery({ ...key, delivery: "failed" })
+    ).resolves.toEqual({ updated: false });
+    await expect(
+      client.sectorRotation.recordChatDelivery({
+        ...key,
+        delivery: "sent",
+        symbol: "XLU",
+      })
+    ).resolves.toEqual({ updated: false });
+    expect(memory.alerts.has(`XLU|lagging|${LAST_DATE}`)).toBe(false);
   });
 });
 

@@ -273,6 +273,7 @@ describe("application navigation manifest", () => {
           "/price-alerts",
           "/news",
           "/baskets",
+          "/pick-lists",
           "/papers",
           "/rotation-matrix",
           "/sector-rotation",
@@ -800,6 +801,7 @@ describe("root metadata and theme contract", () => {
       "/price-alerts",
       "/news",
       "/baskets",
+      "/pick-lists",
       "/todos",
       "/papers",
       "/library",
@@ -1051,7 +1053,7 @@ describe("shared shell semantics", () => {
     );
     expect(portal).toContain('aria-current="page"');
     expect(portal).toContain(
-      '<p class="min-w-0 flex-1 truncate font-medium text-base" data-slot="portal-page-title">Mission control</p>'
+      '<p aria-current="page" class="min-w-0 flex-1 truncate font-medium text-base" data-slot="portal-page-title">Mission control</p>'
     );
     expect(userMenuTrigger).toContain('data-hydration-state="pending"');
     expect(portal).toContain(">AL</span>");
