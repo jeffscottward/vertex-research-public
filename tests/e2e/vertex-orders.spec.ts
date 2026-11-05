@@ -39,11 +39,13 @@ for (const viewport of [
     ).toBeVisible();
     await expect(page.getByText("Not cancellable here")).toBeVisible();
 
-    await page.getByLabel("Underlying symbol").fill(viewport.symbol);
-    await page.getByLabel("Expiry").fill("2028-01-21");
-    await page.getByLabel("Strike").fill("100");
-    await page.getByLabel("Contracts").fill("2");
-    await page.getByLabel("Limit price per share").fill("10");
+    await page
+      .getByLabel("Underlying symbol", { exact: true })
+      .fill(viewport.symbol);
+    await page.getByLabel("Expiry", { exact: true }).fill("2028-01-21");
+    await page.getByLabel("Strike", { exact: true }).fill("100");
+    await page.getByLabel("Contracts", { exact: true }).fill("2");
+    await page.getByLabel("Limit price per share", { exact: true }).fill("10");
     await expect(page.getByRole("button", { name: /Send order/ })).toHaveCount(
       0
     );
@@ -51,22 +53,48 @@ for (const viewport of [
     const review = page.getByRole("region", { name: "Order review" });
     await expect(review).toContainText(`${viewport.symbol} 20280121 100 call`);
     await expect(review).toContainText("LEAPS cap 6% NLV per name");
-    await expect(review).toContainText("Passes all order rules");
+    // Final JEV order gate (P6): the E2E server has no JEV verdict, so the paper order is denied
+    // and no send button appears.
+    const gate = review.getByRole("region", { name: "Final JEV gate" });
+    await expect(gate).toContainText("Deny");
+    await expect(gate).toContainText("Long option");
+    await expect(gate).toContainText("JEV verdict is none");
     await page.screenshot({
       path: testInfo.outputPath(`orders-review-${viewport.name}.png`),
       fullPage: true,
     });
-    await page.getByRole("button", { name: "Send order (simulated)" }).click();
-    await expect(page.getByRole("alert")).toContainText(
-      "Order submitted (simulated)"
+    await expect(page.getByRole("button", { name: /Send order/ })).toHaveCount(
+      0
     );
+    await page.getByRole("button", { name: "Back" }).click();
+
+    // Vertical ticket: a debit vertical is reviewed as one combo and gated the same way.
+    await page.getByLabel("Spread underlying symbol").fill(viewport.symbol);
+    await page.getByLabel("Spread expiry").fill("2028-01-21");
+    await page.getByLabel("Buy strike").fill("100");
+    await page.getByLabel("Sell strike").fill("110");
+    await page.getByLabel("Spreads").fill("1");
+    await page.getByLabel(/Net limit per share/).fill("4");
+    await page.getByRole("button", { name: "Review vertical" }).click();
+    const vertical = page.getByRole("region", { name: "Vertical review" });
+    await expect(vertical).toContainText("Debit vertical");
+    await expect(vertical).toContainText("$400");
+    await expect(vertical).toContainText("Deny");
+    await page.screenshot({
+      path: testInfo.outputPath(`orders-vertical-${viewport.name}.png`),
+      fullPage: true,
+    });
+    await expect(
+      page.getByRole("button", { name: /Send vertical/ })
+    ).toHaveCount(0);
+    await page.getByRole("button", { name: "Back" }).click();
 
     // Over the 2% short-dated cap: the review shows the reason and no send button.
-    await page.getByLabel("Underlying symbol").fill("MOCKE");
-    await page.getByLabel("Expiry").fill("2026-12-18");
-    await page.getByLabel("Strike").fill("50");
-    await page.getByLabel("Contracts").fill("5");
-    await page.getByLabel("Limit price per share").fill("10");
+    await page.getByLabel("Underlying symbol", { exact: true }).fill("MOCKE");
+    await page.getByLabel("Expiry", { exact: true }).fill("2026-12-18");
+    await page.getByLabel("Strike", { exact: true }).fill("50");
+    await page.getByLabel("Contracts", { exact: true }).fill("5");
+    await page.getByLabel("Limit price per share", { exact: true }).fill("10");
     await page.getByRole("button", { name: "Review order" }).click();
     await expect(
       page.getByRole("region", { name: "Order review" })

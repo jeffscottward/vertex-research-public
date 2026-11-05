@@ -321,7 +321,8 @@ services:
       KILL_SWITCH_PATH: ${KILL_SWITCH_PATH:-./data/KILL_SWITCH}
       VERTEX_QUANT_HOST_ROOT: ${VERTEX_QUANT_HOST_ROOT:-${PWD}}
       IBKR_2FA_UI_NOTIFY_ENABLED: ${IBKR_2FA_UI_NOTIFY_ENABLED:-0}
-      IBKR_2FA_NOTIFY_EMAIL: ${IBKR_2FA_NOTIFY_EMAIL:-owner@example.com}
+      # Owner contact for the 2FA notice: host config (IBKR_2FA_NOTIFY_EMAIL in the root .env), never committed.
+      IBKR_2FA_NOTIFY_EMAIL: ${IBKR_2FA_NOTIFY_EMAIL:-}
     volumes:
       - ${VERTEX_QUANT_HOST_ROOT:-.}:/app
       # Docker socket lets the portfolio-ui server restart ib-gateway

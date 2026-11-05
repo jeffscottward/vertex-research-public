@@ -68,6 +68,7 @@ const order = toOrderInput({
   symbol: " mockd ",
   expiry: "2028-01-21",
   strike: "100",
+  right: "C",
   side: "BUY",
   quantity: "2",
   limitPrice: "10",
@@ -355,5 +356,31 @@ describe("vertex orders client", () => {
     expect(orderErrorMessage({ message: "Rate limited" })).toBe("Rate limited");
     expect(orderErrorMessage({ message: " " })).toBe("Request failed");
     expect(orderErrorMessage(null)).toBe("Request failed");
+  });
+
+  it("paper mode offers puts and the vertical ticket, and shows the final gate", async () => {
+    const g = gateway();
+    g.preview.mockResolvedValueOnce({
+      ...review(true),
+      review: {
+        ...review(true).review,
+        finalGate: {
+          decision: "allow",
+          jevStance: "NEUTRAL",
+          jevState: "fresh",
+          maxLoss: 2000,
+          maxLossPct: 1,
+          reasons: [],
+          structure: "long-option",
+        },
+      },
+    });
+    await render(g);
+    expect(host.textContent).toContain("Vertical spread · defined risk");
+    await type("order-right", "P");
+    await fillAndReview();
+    expect(g.preview).toHaveBeenCalledWith({ ...order, right: "P" });
+    expect(host.textContent).toContain("Final JEV gate");
+    expect(host.textContent).toContain("Long option");
   });
 });

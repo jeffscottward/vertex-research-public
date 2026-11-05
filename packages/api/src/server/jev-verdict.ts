@@ -144,6 +144,14 @@ export const setJevVerdictForTesting = (
   barsOptions = options.bars ?? {};
 };
 
+// Cached verdict for the final order gate (P6). Never calls JEV.
+export const readCachedJevVerdict = (symbol: string): JevVerdictOutput =>
+  toJevVerdictOutput(symbol, store, clock().getTime(), LIMITS, {
+    configured: true,
+    refreshed: false,
+    throttled: false,
+  });
+
 const api = implement(appContract).$context<ApiContext>();
 
 const get = api.jevVerdict.get
