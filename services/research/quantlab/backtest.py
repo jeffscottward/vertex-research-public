@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .data import Bar
-from .engine import Costs, buy_and_hold, metrics, rf_series, simulate, walk_forward, window
+from .engine import ENGINE_ID, Costs, buy_and_hold, metrics, rf_series, simulate, walk_forward, window
 
 CHECKS = {
     "walk_forward_sharpe_gt_benchmark": "Stitched walk-forward Sharpe is above buy-and-hold Sharpe on the same days.",
@@ -11,6 +11,18 @@ CHECKS = {
     "survives_cost_stress": "Walk-forward Sharpe stays above buy-and-hold with costs multiplied by 5.",
 }
 EQUITY_POINTS_MAX = 5000
+ENGINES = ("stdlib", "nautilus")
+
+
+def select_engine(name: str):
+    """(simulate function, engine id) for an engine name. Nautilus is imported only when selected."""
+    if name == "stdlib":
+        return simulate, ENGINE_ID
+    if name == "nautilus":
+        from . import nautilus_engine
+        nautilus_engine.require()
+        return nautilus_engine.simulate, nautilus_engine.ENGINE_ID
+    raise ValueError(f"unknown engine {name!r}; expected one of {ENGINES}")
 
 
 def _equity(dates: list[str], returns: list[float], step: int) -> list[dict]:
@@ -55,7 +67,10 @@ def _trade(entry: tuple[str, float, float], day: str, exit_px: float, costs: Cos
 fold_metrics = lambda m: {k: m[k] for k in ("cagr", "ann_vol", "sharpe", "max_drawdown", "time_in_market")}
 
 
-def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label: str, start: str | None = None) -> dict:
+def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label: str, start: str | None = None,
+             engine: str = "stdlib") -> dict:
+    """Backtest record draft. The benchmark (buy and hold) is closed-form for both engines."""
+    simulator, engine_id = select_engine(engine)
     if start:
         bars = [b for b in bars if b.date >= start]
     rf = rf_series([b.date for b in bars], rates)
@@ -65,9 +80,9 @@ def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label
     signal, rebalance, sizing = spec["signal"], spec["rebalance"], spec["sizing"]
 
     def sim(cost: Costs, lookback: int):
-        return simulate(bars, rf, signal_type=signal["type"], lookback=lookback, unit=signal["lookback_unit"],
-                        rebalance=rebalance["frequency"], execution=rebalance["execution"],
-                        weight=sizing["weight"], costs=cost)
+        return simulator(bars, rf, signal_type=signal["type"], lookback=lookback, unit=signal["lookback_unit"],
+                         rebalance=rebalance["frequency"], execution=rebalance["execution"],
+                         weight=sizing["weight"], costs=cost)
 
     base = sim(costs, signal["lookback"])
     bench = buy_and_hold(bars, rf, costs)
@@ -81,8 +96,8 @@ def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label
 
     is_m, oos_m = seg(base, first, split), seg(base, split + "~", last)
     bh_is, bh_oos = seg(bench, first, split), seg(bench, split + "~", last)
-    wf = walk_forward(bars, rf, spec=spec, costs=costs, start=first)
-    wf_stress = walk_forward(bars, rf, spec=spec, costs=stress, start=first)
+    wf = walk_forward(bars, rf, spec=spec, costs=costs, start=first, simulator=simulator)
+    wf_stress = walk_forward(bars, rf, spec=spec, costs=stress, start=first, simulator=simulator)
     wf_days = set(wf["dates"])
     bh_wf_idx = [i for i, d in enumerate(bench.dates) if d in wf_days]
     bh_wf = metrics([bench.returns[i] for i in bh_wf_idx], [bench.rf[i] for i in bh_wf_idx], [1.0] * len(bh_wf_idx))
@@ -104,8 +119,12 @@ def run_spec(spec: dict, bars: list[Bar], rates: list[Bar] | None, *, data_label
     bh_points = _equity(wf["dates"], [bench.returns[i] for i in bh_wf_idx], step)
     trades = trades_from_weights(wf["dates"], wf["weights"], bars, costs, rebalance["execution"],
                                  spec["universe"]["instruments"][0])[-2000:]
+    # `engine` is a top-level key (the recorder's result schema strips unknown keys and the stored
+    # runConfig is a closed contract), so a non-default engine is also named in the strategy label.
+    label = "walk-forward" if engine_id == ENGINE_ID else f"walk-forward, {engine_id}"
     return {
-        "strategy": f"{spec['name']} (walk-forward)",
+        "engine": engine_id,
+        "strategy": f"{spec['name']} ({label})",
         "instruments": ", ".join(spec["universe"]["instruments"]),
         "periodStart": wf["dates"][0],
         "periodEnd": wf["dates"][-1],

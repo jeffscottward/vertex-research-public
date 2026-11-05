@@ -1,8 +1,9 @@
 """Deterministic daily backtester for single-instrument timing specs.
 
-NautilusTrader is not installed on this host (checked 2026-10-18) and the
-repository's backtesting/ package plans and verifies runs but does not simulate
-fills, so this module is the execution model for Quant Lab specs.
+This standard-library simulator is the default execution model for Quant Lab
+specs (`ENGINE_ID`). The repository's backtesting/ package plans and verifies
+runs but does not simulate fills. An optional NautilusTrader engine with the
+same contract is in nautilus_engine.py (`--engine nautilus`).
 
 Timing: the signal uses only adjusted closes up to and including the decision
 day. The trade fills at the next session's open (or close) with commission,
@@ -19,6 +20,7 @@ from datetime import date
 from .data import Bar
 
 TRADING_DAYS = 252
+ENGINE_ID = "stdlib-daily-v1"
 
 
 @dataclass(frozen=True)
@@ -188,14 +190,19 @@ def add_years(day: str, years: int) -> str:
         return d.replace(year=d.year + years, day=28).isoformat()
 
 
-def walk_forward(bars: list[Bar], rf: list[float], *, spec: dict, costs: Costs, start: str) -> dict:
-    """Rolling walk-forward: pick lookback on each train window, apply it to the next test window."""
+def walk_forward(bars: list[Bar], rf: list[float], *, spec: dict, costs: Costs, start: str,
+                 simulator=None) -> dict:
+    """Rolling walk-forward: pick lookback on each train window, apply it to the next test window.
+
+    `simulator` has the signature of `simulate` (default) or `nautilus_engine.simulate`.
+    """
+    simulator = simulator or simulate
     signal, rebalance, sizing = spec["signal"], spec["rebalance"], spec["sizing"]
     walk = spec["validation"]["walk_forward"]
     objective = walk["objective"]
-    runs = {lb: simulate(bars, rf, signal_type=signal["type"], lookback=lb, unit=signal["lookback_unit"],
-                         rebalance=rebalance["frequency"], execution=rebalance["execution"],
-                         weight=sizing["weight"], costs=costs)
+    runs = {lb: simulator(bars, rf, signal_type=signal["type"], lookback=lb, unit=signal["lookback_unit"],
+                          rebalance=rebalance["frequency"], execution=rebalance["execution"],
+                          weight=sizing["weight"], costs=costs)
             for lb in walk["lookback_grid"]}
     last = bars[-1].date
     folds, stitched, stitched_rf, stitched_w, stitched_dates = [], [], [], [], []
