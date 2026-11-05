@@ -57,7 +57,7 @@ How it maps the spec:
 
 Differences from the default engine:
 
-- Whole shares, cent-rounded fees and interest, and the fee charged on notional instead of on equity. With weight 1 the close equity agrees within 1e-5 (relative); the parity tests (`tests/test_quantlab_nautilus.py`) check this tolerance and equal trade dates, sides and fill prices.
+- Whole shares, cent-rounded fees and interest, and the fee charged on notional instead of on equity. With weight 1 the close equity agrees within 1e-5 (relative); the parity tests (`services/research/tests/test_quantlab_nautilus.py`) check this tolerance and equal trade dates, sides and fill prices.
 - The share count is fixed between rebalances. With a weight below 1 the exposure drifts with the price; the default engine keeps the weight constant every day.
 - About 15 times slower (a full SPY 1993–2026 spec with an 11-value walk-forward grid and the cost stress: about 35 seconds on this host).
 - The result `strategy` label ends in `(walk-forward, nautilus-trader-1.227.0)`. The recorder drops the top-level `engine` key and the stored `runConfig` is a closed contract, so the label is how a recorded row shows the engine.
