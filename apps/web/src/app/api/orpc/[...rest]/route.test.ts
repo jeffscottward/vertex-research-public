@@ -89,6 +89,7 @@ vi.mock("@darkfactory/api/server", () => ({
   createVertexRuntimeConfiguredOptions: vi.fn(() => ({ options: {} })),
   resolveDeployStatusConfig: vi.fn(() => null),
   resolvePriceAlertsNtfyConfig: vi.fn(() => null),
+  resolveJevConfig: vi.fn(() => null),
   resolveQuantDataConfig: vi.fn(() => null),
 }));
 vi.mock("@darkfactory/analytics/server/posthog", () => ({

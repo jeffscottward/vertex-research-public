@@ -29,6 +29,7 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
 import type { BacktestsGateway } from "./agent-ops-client.tsx";
 import { ChartsWorkspace } from "./charts-workspace.tsx";
 import type { MarketDataGateway } from "./market-data-client.ts";
+import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -237,6 +238,12 @@ const optionsGateway = () =>
     snapshot: vi.fn(() => new Promise<never>(() => undefined)),
   }) satisfies OptionsAnalyticsGateway;
 
+const jevGateway = () =>
+  ({
+    get: vi.fn(() => new Promise<never>(() => undefined)),
+    refresh: vi.fn(() => new Promise<never>(() => undefined)),
+  }) satisfies JevVerdictGateway;
+
 describe("ChartsWorkspace", () => {
   it("loads the SPY daily defaults and shows source, contract, timing, cache and bar count", async () => {
     const market = marketGateway(async () => output());
@@ -245,6 +252,7 @@ describe("ChartsWorkspace", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     expect(market.bars).toHaveBeenCalledWith({
@@ -305,6 +313,7 @@ describe("ChartsWorkspace", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     await change(select("Bar size"), "1 min");
@@ -334,21 +343,27 @@ describe("ChartsWorkspace", () => {
     });
   });
 
-  it("mounts the options panel only for USD stock charts", async () => {
+  it("mounts the options and JEV panels only for USD stock charts", async () => {
     const usd = optionsGateway();
+    const usdJev = jevGateway();
     const container = await mount(
       <ChartsWorkspace
         backtests={backtestsGateway()}
         marketData={marketGateway(async () => output())}
         optionsAnalytics={usd}
+        jevVerdict={usdJev}
       />
     );
     expect(
       container.querySelector('[data-options-analytics="SPY"]')
     ).not.toBeNull();
     expect(usd.snapshot).toHaveBeenCalledWith({ flowHours: 24, symbol: "SPY" });
+    expect(container.querySelector('[data-jev-verdict="SPY"]')).not.toBeNull();
+    expect(usdJev.get).toHaveBeenCalledWith({ symbol: "SPY" });
+    expect(usdJev.refresh).not.toHaveBeenCalled();
 
     const eur = optionsGateway();
+    const eurJev = jevGateway();
     const base = output();
     const sap = await mount(
       <ChartsWorkspace
@@ -358,9 +373,12 @@ describe("ChartsWorkspace", () => {
           request: { ...base.request, currency: "EUR", exchange: "IBIS" },
         }))}
         optionsAnalytics={eur}
+        jevVerdict={eurJev}
       />
     );
     expect(sap.querySelector("[data-options-analytics]")).toBeNull();
+    expect(sap.querySelector("[data-jev-verdict]")).toBeNull();
+    expect(eurJev.get).not.toHaveBeenCalled();
     return expect(eur.snapshot).not.toHaveBeenCalled();
   });
 
@@ -375,6 +393,7 @@ describe("ChartsWorkspace", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     const alert = container.querySelector("[role=alert]");
@@ -388,6 +407,7 @@ describe("ChartsWorkspace", () => {
         backtests={backtestsGateway()}
         marketData={marketGateway(async () => output(4100))}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     expect(chartProps.last?.["candles"]).toHaveLength(4096);
@@ -401,6 +421,7 @@ describe("ChartsWorkspace", () => {
         backtests={backtests}
         marketData={marketGateway(async () => output())}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     await change(select("Backtest trades"), "bt-1");
@@ -426,6 +447,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     expect(market.bars).toHaveBeenLastCalledWith(
@@ -459,6 +481,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     const length = window.history.length;
@@ -481,6 +504,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     expect(container.querySelector("[data-link-error]")?.textContent).toBe(
@@ -500,6 +524,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     const calls = market.bars.mock.calls.length;
@@ -520,6 +545,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     const length = window.history.length;
@@ -549,6 +575,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     expect(container.querySelector("[data-link-error]")).toBeNull();
@@ -575,6 +602,7 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
         backtests={backtestsGateway()}
         marketData={market}
         optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
       />
     );
     // The button is disabled while loading; submit the form itself.
