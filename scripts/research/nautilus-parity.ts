@@ -502,10 +502,11 @@ export const summarizeStrategies = (
 };
 
 /** Runs the suite and writes report.json and README.md to --out. */
+/** Runs the suite and returns the process exit code (0; a failed batch throws). */
 export const runNautilusParity = (
   args: readonly string[],
   io: ParityIo
-): void => {
+): number => {
   const data = resolve(argValue(args, "--data"));
   const python = argValue(args, "--python");
   const out = resolve(argValue(args, "--out"));
@@ -581,6 +582,7 @@ export const runNautilusParity = (
   io.stdout.write(
     `parity: ${report.passed}/${report.total} cases pass; report ${join(out, "report.json")}\n`
   );
+  return 0;
 };
 
 export interface StrategySummary {

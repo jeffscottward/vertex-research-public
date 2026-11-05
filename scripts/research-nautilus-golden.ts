@@ -3,12 +3,18 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildGolden } from "./research/nautilus-golden.ts";
+import { runGoldenCli } from "./research/nautilus-golden.ts";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
-const out = "services/research/tests/fixtures/nautilus_backtest/golden.json";
-writeFileSync(
-  join(root, out),
-  buildGolden({ readText: (path) => readFileSync(join(root, path), "utf8") })
-);
-process.stdout.write(`wrote ${out}\n`);
+process.exitCode = runGoldenCli({
+  readText: (path) =>
+    readFileSync(
+      join(fileURLToPath(new URL("..", import.meta.url)), path),
+      "utf8"
+    ),
+  stdout: process.stdout,
+  writeText: (path, text) =>
+    writeFileSync(
+      join(fileURLToPath(new URL("..", import.meta.url)), path),
+      text
+    ),
+});

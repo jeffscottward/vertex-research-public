@@ -562,7 +562,7 @@ describe("runNautilusParity", () => {
           }
         }),
     }));
-    runNautilusParity(args, io);
+    expect(runNautilusParity(args, io)).toBe(0);
     expect(dirs).toEqual(["/out"]);
     const report = JSON.parse(files.get("/out/report.json") as string);
     const perSeries = buildCases(libraryText).length;

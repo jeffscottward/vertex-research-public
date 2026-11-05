@@ -9,16 +9,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runNautilusParity } from "./research/nautilus-parity.ts";
 
-runNautilusParity(process.argv.slice(2), {
+process.exitCode = runNautilusParity(process.argv.slice(2), {
   clock: () => performance.now(),
   makeDir: (path) => mkdirSync(path, { recursive: true }),
   now: () => new Date(),
   readText: (path) => readFileSync(path, "utf8"),
   root: fileURLToPath(new URL("..", import.meta.url)),
-  spawn: (python, args, cwd) => {
-    const run = spawnSync(python, args, { cwd, encoding: "utf8" });
-    return { status: run.status, stderr: run.stderr };
-  },
+  spawn: (python, args, cwd) =>
+    spawnSync(python, args, { cwd, encoding: "utf8" }),
   stdout: process.stdout,
   tempDir: () => mkdtempSync(join(tmpdir(), "nautilus-parity-")),
   writeText: (path, text) => writeFileSync(path, text),

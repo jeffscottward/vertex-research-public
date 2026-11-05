@@ -198,6 +198,23 @@ const RSI_REVERSION: InstantRule = {
 /** File access for buildGolden: `readText` reads a path relative to the repo root. */
 export type GoldenIo = Readonly<{ readText: (path: string) => string }>;
 
+export const GOLDEN_FIXTURE =
+  "services/research/tests/fixtures/nautilus_backtest/golden.json";
+
+/** Paths are relative to the repo root. */
+export type GoldenCliIo = GoldenIo &
+  Readonly<{
+    writeText: (path: string, text: string) => void;
+    stdout: Readonly<{ write: (text: string) => unknown }>;
+  }>;
+
+/** Writes golden.json and returns the process exit code. */
+export const runGoldenCli = (io: GoldenCliIo): number => {
+  io.writeText(GOLDEN_FIXTURE, buildGolden(io));
+  io.stdout.write(`wrote ${GOLDEN_FIXTURE}\n`);
+  return 0;
+};
+
 /** The first trade of a gap case must exit at bar 2 with `reason` at `price`. */
 export const assertGapExit = (
   id: string,
@@ -931,7 +948,7 @@ const buildEngine = (
   return engine;
 };
 
-export const buildGolden = (io: GoldenIo): string => {
+const buildGolden = (io: GoldenIo): string => {
   const csv = (file: string) =>
     io.readText(join("tests/fixtures/golden", file));
   const intraday = intradayBars();

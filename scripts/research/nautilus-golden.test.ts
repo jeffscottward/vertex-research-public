@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { InstantTrade } from "../../packages/api/src/instant-backtest-engine.ts";
 import { scaledTimeout } from "../lib/test-timeout-scale.ts";
-import { assertGapExit, buildGolden } from "./nautilus-golden.ts";
+import {
+  assertGapExit,
+  GOLDEN_FIXTURE,
+  runGoldenCli,
+} from "./nautilus-golden.ts";
 
 const repoRoot = join(import.meta.dirname, "..", "..");
-const FIXTURE =
-  "services/research/tests/fixtures/nautilus_backtest/golden.json";
 
 const trade: InstantTrade = {
   entryIndex: 1,
@@ -28,13 +30,21 @@ describe("buildGolden", () => {
     "rebuilds the committed golden.json byte for byte",
     () => {
       const read: string[] = [];
-      const text = buildGolden({
+      const written = new Map<string, string>();
+      const out: string[] = [];
+      const code = runGoldenCli({
         readText: (path) => {
           read.push(path);
           return readFileSync(join(repoRoot, path), "utf8");
         },
+        stdout: { write: (line) => out.push(line) },
+        writeText: (path, value) => written.set(path, value),
       });
-      const committed = readFileSync(join(repoRoot, FIXTURE), "utf8");
+      expect(code).toBe(0);
+      expect([...written.keys()]).toEqual([GOLDEN_FIXTURE]);
+      expect(out).toEqual([`wrote ${GOLDEN_FIXTURE}\n`]);
+      const text = written.get(GOLDEN_FIXTURE) ?? "";
+      const committed = readFileSync(join(repoRoot, GOLDEN_FIXTURE), "utf8");
       expect(text === committed).toBe(true);
       expect(createHash("sha256").update(text).digest("hex")).toBe(
         createHash("sha256").update(committed).digest("hex")
