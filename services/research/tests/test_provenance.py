@@ -36,7 +36,7 @@ def test_locked_dependencies_use_only_pinned_wheel_hashes():
     assert [line for line in requirements if line and not line.startswith("#")] == expected
     project = tomllib.loads((ROOT / "pyproject.toml").read_text())
     assert project["project"]["dependencies"] == ["pydantic==2.13.4", "tzdata==2026.2"]
-    assert project["build-system"]["requires"] == ["setuptools==82.0.1"]
+    assert project["build-system"]["requires"] == ["setuptools==84.2.1"]
 
 
 def test_native_dependency_surface_has_no_provider_execution_or_clock_import():
