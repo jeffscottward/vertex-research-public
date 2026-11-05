@@ -92,6 +92,8 @@ On pull requests the browser lane can run fewer specs. The CI step `Choose brows
 
 The core lane also runs `scripts/ci/research-python.sh`. It makes a temporary virtual environment with CPython 3.12 from the hash-pinned lock `services/research/requirements-linux-py312.lock` and runs pytest on the suites in `services/research/tests/ci-suites.txt`. These are the research tooling suites: the TradingAgents, QuantMind, Financial Datasets, framework-bench and Quant Lab entry points. Add the suite of every new research tooling entry point to that file. The rest of the Python research suite still runs locally only. Local run: `VERTEX_RESEARCH_PYTHON="$(uv python find 3.12)" bash scripts/ci/research-python.sh`.
 
+A second run in the same script installs `services/research/requirements-nautilus-linux-py312.lock` (the base pins plus `nautilus-trader==1.227.0`; glibc 2.35 or later) into its own temporary virtual environment and runs the suites in `services/research/tests/ci-suites-nautilus.txt` with `VERTEX_REQUIRE_NAUTILUS=1`, so a missing engine fails instead of skipping. The base run does not change.
+
 ## Writing good tests
 
 - Use fakes from each brick's `./test` export instead of mocking SDKs.

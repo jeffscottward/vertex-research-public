@@ -7,6 +7,7 @@ Commands
   spec      --capture capture.json --draft draft.json                          validate + freeze spec
   freeze    --symbol SPY --start YYYY-MM-DD --end YYYY-MM-DD                   freeze daily bars
   backtest  --spec spec.json --bars m.json [--rates m.json] [--start DATE]     run spec, write result
+            [--engine stdlib|nautilus]   stdlib (default) or NautilusTrader 1.227.0 (optional install)
 
 All output goes under $QUANTLAB_HOME (default: <repo>/private/quantlab). Research only:
 no orders, no broker access, no credentials.
@@ -20,7 +21,8 @@ import sys
 from pathlib import Path
 
 from . import data, ssrn
-from .backtest import run_spec
+from .backtest import ENGINES, run_spec
+from .nautilus_engine import NautilusUnavailable
 from .spec import SpecError, agent_prompt, build_spec
 
 REPO = Path(__file__).resolve().parents[3]
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     f = sub.add_parser("freeze"); f.add_argument("--symbol", required=True); f.add_argument("--start", required=True)
     f.add_argument("--end", required=True)
     t = sub.add_parser("backtest"); t.add_argument("--spec", required=True); t.add_argument("--bars", required=True)
-    t.add_argument("--rates"); t.add_argument("--start")
+    t.add_argument("--rates"); t.add_argument("--start"); t.add_argument("--engine", choices=ENGINES, default="stdlib")
     args = parser.parse_args(argv)
     root = home()
 
@@ -92,12 +94,18 @@ def main(argv: list[str] | None = None) -> int:
         label = f"{bars_manifest['source']}; {bars_manifest['symbol']} sha256 {bars_manifest['sha256'][:16]}"
         if rates_manifest:
             label += f"; cash {rates_manifest['symbol']} sha256 {rates_manifest['sha256'][:16]}"
-        result = run_spec(spec, data.load(bars_manifest), data.load(rates_manifest) if rates_manifest else None,
-                          data_label=label, start=args.start)
+        try:
+            result = run_spec(spec, data.load(bars_manifest), data.load(rates_manifest) if rates_manifest else None,
+                              data_label=label, start=args.start, engine=args.engine)
+        except NautilusUnavailable as error:  # optional engine not installed or wrong version
+            print(json.dumps({"error": str(error)}), file=sys.stderr)
+            return 2
         result["specId"], result["specSha256"] = spec["id"], spec["spec_sha256"]
         result["data"] = {"bars": bars_manifest, "rates": rates_manifest}
-        path = write(root / "results" / f"{spec['id']}-{spec['spec_sha256'][:12]}.json", result)
-        print(json.dumps({"written": str(path), "verdict": result["verdict"], "metrics": result["metrics"]}))
+        suffix = "" if args.engine == "stdlib" else f"-{args.engine}"
+        path = write(root / "results" / f"{spec['id']}-{spec['spec_sha256'][:12]}{suffix}.json", result)
+        print(json.dumps({"written": str(path), "engine": result["engine"], "verdict": result["verdict"],
+                          "metrics": result["metrics"]}))
     return 0
 
 
