@@ -118,6 +118,30 @@ type Feed = Readonly<{
 // Delay before one quick retry after a transient failure, instead of a full poll interval.
 export const SNAPSHOT_RETRY_MS = 2000;
 
+// A request with no answer after this long counts as failed, so one stuck fetch cannot stop
+// the polling (`busy` would stay set) without any message.
+export const SNAPSHOT_TIMEOUT_MS = 15_000;
+
+const snapshotWithTimeout = (
+  gateway: PortfolioMonitorGateway
+): Promise<PortfolioMonitorOutput> => {
+  let timeout: number | undefined;
+  // Executor form: the app's TypeScript lib predates Promise.withResolvers.
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = window.setTimeout(
+      () =>
+        reject({
+          code: "TIMEOUT",
+          message: `No answer in ${SNAPSHOT_TIMEOUT_MS / 1000} s`,
+        }),
+      SNAPSHOT_TIMEOUT_MS
+    );
+  });
+  return Promise.race([gateway.snapshot(), expired]).finally(() =>
+    window.clearTimeout(timeout)
+  );
+};
+
 // Polls the snapshot. A failed request keeps the last good snapshot and records the failure.
 // A transient failure gets one quick retry. No request is sent while the page is hidden: iOS
 // suspends the page and aborts its fetches, which is not a server fault. A terminal failure
@@ -168,7 +192,7 @@ export const useSnapshotFeed = (
       busy = true;
       window.clearTimeout(retryTimer);
       try {
-        const snapshot = await gateway.snapshot();
+        const snapshot = await snapshotWithTimeout(gateway);
         retried = false;
         if (alive)
           setFeed({

@@ -31,6 +31,7 @@ import {
   PortfolioMonitor,
   READ_ONLY_NOTICE,
   SNAPSHOT_RETRY_MS,
+  SNAPSHOT_TIMEOUT_MS,
 } from "./portfolio-monitor.tsx";
 import {
   COLUMNS_STORAGE_KEY,
@@ -813,6 +814,50 @@ describe("PortfolioMonitor", () => {
     expect(gateway.snapshot).toHaveBeenCalledTimes(3);
     expect(health()).toContain("Live");
     return expect(document.querySelector("[data-banner]")).toBeNull();
+  });
+
+  it("times out a stuck request, keeps polling and recovers", async () => {
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
+    // The second request never settles, as if the server were blocked by an order submit.
+    const results: Array<() => Promise<PortfolioMonitorOutput>> = [
+      async () => fixtureSnapshot(),
+      () => new Promise<PortfolioMonitorOutput>(() => undefined),
+      async () => fixtureSnapshot(),
+    ];
+    const snapshot = vi.fn(() => results[snapshot.mock.calls.length - 1]!());
+    await mount(
+      <PortfolioMonitor gateway={{ snapshot }} defaultTab="positions" />
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    // While the request hangs, the poll timer sends nothing more.
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_TIMEOUT_MS - 1);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      return await flush();
+    });
+    expect(health()).toContain("Updating");
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_RETRY_MS);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(3);
+    return expect(health()).toContain("Live");
   });
 
   it("shows the not-configured state and retries on request", async () => {
