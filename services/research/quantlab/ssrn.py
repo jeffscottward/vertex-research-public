@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import hashlib
 import html
+import ipaddress
 import json
 import os
 import re
+import socket
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -42,10 +45,56 @@ class HttpResponse:
 Fetch = Callable[[str], HttpResponse]
 
 
+class UnsafeUrl(ValueError):
+    """A URL that is not plain public HTTPS (SSRF guard)."""
+
+
+def require_public_https(url: str) -> None:
+    """Refuse anything but https on port 443 to a name that resolves only to global addresses.
+
+    PDF locations come from third-party OpenAlex records, so they are untrusted:
+    without this check a record could point the fetcher at file://, the cloud
+    metadata address, loopback services, the LAN or the tailnet.
+    """
+    parsed = urllib.parse.urlsplit(url)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.port not in (None, 443)):
+        raise UnsafeUrl("only https URLs on port 443 without credentials are fetched")
+    try:
+        addresses = {ipaddress.ip_address(parsed.hostname)}
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+        except OSError as error:
+            raise UnsafeUrl("host does not resolve") from error
+        addresses = {ipaddress.ip_address(str(info[4][0]).split("%", 1)[0]) for info in infos}
+    if not addresses or not all(address.is_global for address in addresses):
+        raise UnsafeUrl("host resolves to a non-public address")
+
+
+class _CheckedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Apply the same public-HTTPS check to every redirect hop."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        require_public_https(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_OPENER: urllib.request.OpenerDirector | None = None
+
+
+def _opener() -> urllib.request.OpenerDirector:
+    global _OPENER
+    if _OPENER is None:
+        _OPENER = urllib.request.build_opener(_CheckedRedirectHandler())
+    return _OPENER
+
+
 def http_fetch(url: str, *, timeout: float = 30.0, max_bytes: int = MAX_PDF_BYTES) -> HttpResponse:
+    require_public_https(url)
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _opener().open(request, timeout=timeout) as response:
             body = response.read(max_bytes + 1)
             return HttpResponse(response.status, response.headers.get("content-type", ""), body, response.geturl())
     except urllib.error.HTTPError as error:

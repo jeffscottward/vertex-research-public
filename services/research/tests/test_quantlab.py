@@ -225,3 +225,42 @@ def test_redirect_to_ssrn_is_not_retained(tmp_path):
     fetch = fetcher({ssrn.OPENALEX: openalex("https://oa.test/a.pdf"),
                      "https://oa.test/": ssrn.HttpResponse(200, "application/pdf", b"%PDF-1.4", "https://papers.ssrn.com/x.pdf")})
     assert ssrn.retain_pdf(c, tmp_path, fetch=fetch).pdf_status == "metadata_only:free_copy_unreachable"
+
+
+class NoNetwork:
+    def open(self, *args, **kwargs):
+        raise AssertionError("the guard must refuse before any connection")
+
+
+@pytest.mark.parametrize("url", [
+    "file:///etc/passwd",
+    "http://oa.test/a.pdf",
+    "https://169.254.169.254/latest/meta-data/",
+    "https://127.0.0.1/a.pdf",
+    "https://100.64.0.1/a.pdf",
+    "https://[::1]/a.pdf",
+    "https://user:pw@oa.test/a.pdf",
+    "https://oa.test:8443/a.pdf",
+])
+def test_http_fetch_refuses_non_public_or_non_https_urls(url, monkeypatch):
+    # The pdf_url comes from third-party OpenAlex data, so it is untrusted.
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("93.184.216.34", 443))])
+    monkeypatch.setattr(ssrn, "_OPENER", NoNetwork())
+    with pytest.raises(ssrn.UnsafeUrl):
+        ssrn.http_fetch(url)
+
+
+def test_http_fetch_refuses_a_public_name_that_resolves_to_a_private_address(monkeypatch):
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.5", 443))])
+    monkeypatch.setattr(ssrn, "_OPENER", NoNetwork())
+    with pytest.raises(ssrn.UnsafeUrl):
+        ssrn.http_fetch("https://oa.test/a.pdf")
+
+
+def test_redirects_are_checked_at_every_hop(monkeypatch):
+    monkeypatch.setattr(ssrn.socket, "getaddrinfo", lambda *a, **k: [(2, 1, 6, "", ("10.0.0.5", 443))])
+    handler = ssrn._CheckedRedirectHandler()
+    with pytest.raises(ssrn.UnsafeUrl):
+        handler.redirect_request(None, None, 302, "Found", {}, "http://169.254.169.254/")
+    with pytest.raises(ssrn.UnsafeUrl):
+        handler.redirect_request(None, None, 302, "Found", {}, "https://internal.test/")
