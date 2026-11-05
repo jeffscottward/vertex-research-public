@@ -1506,7 +1506,7 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(resting.review.reasons.join(" ")).toMatch(/open order rests/);
   });
 
-  it("live mode runs the final gate, keeps opening combos close-only and keeps the env gates", async () => {
+  it("live mode runs the final gate, accepts an opening vertical and keeps the env gates", async () => {
     const on = { ...OFF, enabled: true, submission: "enabled" };
     const { store } = intentStore();
     const client = clientFor({ config: on, intents: store });
@@ -1516,11 +1516,15 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
       decision: "allow",
       structure: "long-option",
     });
-    // The live order tail accepts exact closes only: an opening vertical is refused here.
+    // The live order tail accepts defined-risk opening verticals (market-watch-bot PR #36).
     const combo = await client.vertexOrders.comboPreview(vertical());
-    expect(combo.review.accepted).toBe(false);
-    expect(combo.review.reasons.join(" ")).toMatch(/close-only/);
-    expect(combo.confirmToken).toBeNull();
+    expect(combo.review.reasons.join(" ")).not.toMatch(/close-only/);
+    expect(combo.review.finalGate).toMatchObject({
+      decision: "allow",
+      structure: "debit-vertical",
+    });
+    expect(combo.review.accepted).toBe(true);
+    expect(combo.confirmToken).not.toBeNull();
     // VERTEX_ORDER_SUBMISSION disabled: the mock is used, never the bridge.
     bridgeFetch.mockClear();
     const off = clientFor({ config: { ...on, submission: "disabled" } });

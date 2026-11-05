@@ -445,18 +445,15 @@ const comboGateOrder = (order: VertexComboInput): FinalGateOrder => ({
 });
 
 // A combo that reverses held legs is a close (evaluateCombo). Any other combo opens a vertical
-// (evaluateOpeningCombo, final gate) on the simulated gateway only: the live order tail accepts
-// only exact closes, so on live an opening combo is reviewed by the close-only rule and refused.
+// (evaluateOpeningCombo, final gate) on both gateways: the live order tail accepts defined-risk
+// opening verticals since card vertex-bridge-killswitch-closes (market-watch-bot PR #36).
 const reviewCombo = (
   order: VertexComboInput,
-  gateway: OrderGatewayPort,
   account: OrderAccount,
   now: Date
 ) => {
   const gateOrder = comboGateOrder(order);
-  const opening =
-    gateway.mode === "simulated" &&
-    !isRiskReducing(gateOrder, account.positions);
+  const opening = !isRiskReducing(gateOrder, account.positions);
   return withFinalGate(
     (opening ? evaluateOpeningCombo : evaluateCombo)(order, account, now),
     finalGateFor(account, gateOrder, now)
@@ -671,7 +668,7 @@ const comboPreview = api.vertexOrders.comboPreview
     const account = await guarded(failures, gateway.account);
     const now = deps().now();
     const review = blockedBy(
-      reviewCombo(input, gateway, account, now),
+      reviewCombo(input, account, now),
       await reconcileUnknown(
         context,
         intentStoreOf(context, gateway, failures),
@@ -748,7 +745,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
     const store = intentStoreOf(context, gateway, failures);
     const account = await guarded(failures, gateway.account, auditFailure);
     const review = blockedBy(
-      reviewCombo(order, gateway, account, now),
+      reviewCombo(order, account, now),
       await reconcileUnknown(context, store, account, now.getTime())
     );
     if (!review.accepted) {
