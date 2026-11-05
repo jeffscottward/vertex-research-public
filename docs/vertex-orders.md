@@ -46,6 +46,11 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
 - **Access.** Owner only: operator allow-list (`VERTEX_OPERATOR_EMAILS`) AND the admin role. Agent API keys and MCP tools
   cannot reach `vertexOrders.*`. The oRPC handler origin check blocks cross-site POSTs (CSRF).
 - **Rate limit.** Per user and per minute: 20 previews, 5 submits or cancels (in-process).
+- **One placement at a time.** While a `submit` or `comboSubmit` is placing, a second one is
+  refused with `RATE_LIMITED` and keeps its confirm token. Each placement reads the account after
+  the previous order is placed, so parallel submits cannot pass a per-name cap or the 2% max-loss
+  gate together on one stale snapshot. The guard is a lease that ends after the bridge timeout
+  plus 30 s, so a cancelled request cannot block placements for longer. Cancels are not gated.
 - **Replay.** The used-nonce list is per process (per Worker isolate). The nonce is also the
   IBKR `orderRef` (`vertex-<nonce>`). A replay on another isolate is blocked ONLY if the
   bridge refuses an `orderRef` that was already used, as `mode_place_option` does today. This is a
@@ -62,7 +67,7 @@ every order and every cancel. It grew out of the order screen of Gamma Forge, th
   intent store is missing or the intent row fails. Every preview and submit first reconciles unknown
   intents from the last 7 days against the fresh account: the `orderRef` in open orders resolves as
   `open` at once. After 10 minutes a changed position in the contract resolves as `position-changed`,
-  an unchanged one as `not-found`. Concurrent submits are not serialized. While an intent is still unknown, every new order is refused with a reason that
+  an unchanged one as `not-found`. Submits are placed one at a time (see "One placement at a time"). While an intent is still unknown, every new order is refused with a reason that
   names it.
 - Only option orders can be cancelled here. Share stop orders protect positions and are shown
   as "Not cancellable here".
