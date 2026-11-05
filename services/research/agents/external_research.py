@@ -317,10 +317,16 @@ class TradingAgentsResearchAdapter:
     def discover_candidates(self, context: Mapping[str, Any]) -> list[CandidateCompany]:
         return self._run("candidate_discovery", context)
 
-    def analyze_candidate(self, ticker: str, themes: Sequence[ThemeThesis]) -> ResearchBrief:
+    def analyze_candidate(
+        self, ticker: str, themes: Sequence[ThemeThesis], *,
+        context: Mapping[str, Any] | None = None,
+    ) -> ResearchBrief:
+        """Bull/bear brief. ``context`` is optional caller research (never account data)."""
         requested = ticker.strip()
-        brief: ResearchBrief = self._run(
-            "bull_bear_research_brief", {"ticker": requested, "themes": list(themes)})
+        task: dict[str, Any] = {"ticker": requested, "themes": list(themes)}
+        if context:
+            task["context"] = context
+        brief: ResearchBrief = self._run("bull_bear_research_brief", task)
         if brief.ticker.casefold() != requested.casefold():
             raise ExternalResearchError(
                 f"TradingAgents brief is for {brief.ticker!r}, not requested {requested!r}.")
