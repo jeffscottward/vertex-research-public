@@ -558,6 +558,13 @@ const baseServerEnvSchema = z.object({
   // only. Must not overlap VERTEX_OPERATOR_EMAILS.
   VERTEX_AGENT_VIEWER_EMAILS: emailListSchema("VERTEX_AGENT_VIEWER_EMAILS"),
   VERTEX_ASSISTANT_MODEL: assistantModelSchema,
+  // Engine of new backtest runs (backtestRuns.submit). "typescript" runs them in the API server;
+  // "nautilus" queues them for the Nautilus research worker on the rig. Stored runs keep their own
+  // engine. Blank means the default.
+  VERTEX_BACKTEST_RUNS_ENGINE: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(["typescript", "nautilus"]).default("typescript")
+  ),
   VERTEX_DEPLOY_STATUS_TOKEN: serviceTokenSchema("VERTEX_DEPLOY_STATUS_TOKEN"),
   VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
   // Tailnet-only v2 session snapshot (same token and URL rules).

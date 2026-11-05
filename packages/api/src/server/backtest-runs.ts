@@ -14,6 +14,7 @@ import { sweepValueCount } from "../backtest-sweep-grid.ts";
 import { appContract } from "../contract.ts";
 import {
   BACKTEST_RUN_ENGINE_VERSION,
+  BACKTEST_RUN_NAUTILUS_ENGINE,
   type BacktestRun,
   type BacktestRunReportOutput,
 } from "../contracts/backtest-runs.ts";
@@ -38,17 +39,24 @@ import {
   type SectorQuadrantSource,
 } from "./sector-quadrant-series.ts";
 
-// Backtest run procedures. submit stores a queued run and schedules its execution on the request's
-// tracked background scheduler (the database connection stays open until it finishes); without a
-// scheduler it runs before the response. get re-schedules a queued run, so a run whose scheduled
-// task was lost still completes, and fails runs left running longer than the stale limit. The
-// claim is a conditional update, so a run executes at most once. sweep runs a parameter grid in
-// the request after a cells x bars budget check and stores nothing. Research only; no order path.
+// Backtest run procedures. submit stores a queued run. With the TypeScript engine (the default of
+// VERTEX_BACKTEST_RUNS_ENGINE) it schedules the execution on the request's tracked background
+// scheduler (the database connection stays open until it finishes); without a scheduler it runs
+// before the response. With the Nautilus engine the run waits for the research worker
+// (backtest-run-engine.ts). get re-schedules a queued TypeScript run, so a run whose scheduled task
+// was lost still completes, fails runs left running longer than the stale limit, and fails a
+// Nautilus run that no worker claimed within the same limit. The claim is a conditional update, so
+// a run executes at most once. sweep runs a parameter grid in the request after a cells x bars
+// budget check and stores nothing. Research only; no order path.
 
 const BACKTEST_RUN_STALE_MS = 10 * 60 * 1000;
+export const NAUTILUS_UNCLAIMED_ERROR =
+  "Nautilus backtest worker did not pick up the run";
+export const BACKTEST_RUN_STORAGE_ERROR =
+  "Backtest failed: bar storage or engine error";
 const DAY_MS = 86_400_000;
 
-type Failures = Readonly<{
+export type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   BAD_REQUEST: (options?: { message?: string }) => Error;
   STORAGE_ERROR: () => Error;
@@ -109,31 +117,38 @@ export const sliceColumnsByDate = (
   };
 };
 
+export type LoadedRunBars =
+  | Readonly<{ bars: MarketBarColumns; series: MarketBarSeries }>
+  | Readonly<{ error: string }>;
+
+/** The stored bars of the run's date range, or the error message for the run. */
+export const loadRunBars = async (
+  marketBars: MarketBarsRepository,
+  spec: BacktestRunRecord["spec"]
+): Promise<LoadedRunBars> => {
+  const series = await marketBars.getSeries(spec.symbol, spec.timeframe);
+  if (series === null)
+    return { error: `No stored ${spec.timeframe} bars for ${spec.symbol}` };
+  const loaded = await columnsFor(marketBars, series);
+  const bars = sliceColumnsByDate(loaded.columns, spec.from, spec.to);
+  if (bars.t.length < 2)
+    return {
+      error: `Fewer than 2 bars for ${spec.symbol} between ${spec.from} and ${spec.to}`,
+    };
+  return { bars, series };
+};
+
 const executeClaimed = async (
   dependencies: BacktestRunExecutionDependencies,
   run: BacktestRunRecord
 ): Promise<void> => {
   const { spec } = run;
-  const series = await dependencies.marketBars.getSeries(
-    spec.symbol,
-    spec.timeframe
-  );
-  if (series === null) {
-    await dependencies.runs.fail(
-      run.id,
-      `No stored ${spec.timeframe} bars for ${spec.symbol}`
-    );
+  const loaded = await loadRunBars(dependencies.marketBars, spec);
+  if ("error" in loaded) {
+    await dependencies.runs.fail(run.id, loaded.error);
     return;
   }
-  const loaded = await columnsFor(dependencies.marketBars, series);
-  const bars = sliceColumnsByDate(loaded.columns, spec.from, spec.to);
-  if (bars.t.length < 2) {
-    await dependencies.runs.fail(
-      run.id,
-      `Fewer than 2 bars for ${spec.symbol} between ${spec.from} and ${spec.to}`
-    );
-    return;
-  }
+  const { bars, series } = loaded;
   const costs = costsForSpec(spec);
   const { rule } = spec;
   // A definition rule carries its own stop, target and sizing; the run-level stop and target
@@ -183,7 +198,7 @@ export const executeBacktestRun = async (
       run.id,
       error instanceof InstantBacktestInputError
         ? error.message
-        : "Backtest failed: bar storage or engine error"
+        : BACKTEST_RUN_STORAGE_ERROR
     );
   }
 };
@@ -204,7 +219,7 @@ const toOutput = (run: BacktestRunRecord): BacktestRun =>
     strategySnapshot: run.strategySnapshot,
   }) as BacktestRun;
 
-const dependenciesFor = (
+export const dependenciesFor = (
   context: ApiContext,
   failures: Failures
 ): BacktestRunExecutionDependencies => {
@@ -287,8 +302,11 @@ const submit = api.backtestRuns.submit
         updatedAt: "",
       };
     }
+    const nautilus = context.backtestRunsEngine === "nautilus";
     const created = await dependencies.runs.create({
-      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      engineVersion: nautilus
+        ? BACKTEST_RUN_NAUTILUS_ENGINE
+        : BACKTEST_RUN_ENGINE_VERSION,
       requestedBy: context.principal.userId,
       spec,
       strategyId: libraryId,
@@ -296,6 +314,8 @@ const submit = api.backtestRuns.submit
         snapshot === null ? null : await sha256Hex(canonicalJson(snapshot)),
       strategySnapshot: snapshot,
     });
+    // A Nautilus run waits for the research worker (backtestRuns.engine.claim).
+    if (nautilus) return toOutput(created);
     await schedule(context, () => executeBacktestRun(dependencies, created.id));
     return toOutput((await dependencies.runs.get(created.id)) ?? created);
   });
@@ -305,16 +325,29 @@ const get = api.backtestRuns.get
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     const dependencies = dependenciesFor(context, failures);
+    const staleBefore = new Date(Date.now() - BACKTEST_RUN_STALE_MS);
     await dependencies.runs.failIfStale(
       input.id,
-      new Date(Date.now() - BACKTEST_RUN_STALE_MS),
+      staleBefore,
       "Backtest stopped before it finished"
     );
-    const run = await dependencies.runs.get(input.id);
+    let run = await dependencies.runs.get(input.id);
     if (run === null)
       throw failures.NOT_FOUND({ message: "Backtest run not found" });
-    if (run.status === "queued")
-      await schedule(context, () => executeBacktestRun(dependencies, run.id));
+    if (run.status === "queued") {
+      if (run.engineVersion !== BACKTEST_RUN_NAUTILUS_ENGINE) {
+        const id = run.id;
+        await schedule(context, () => executeBacktestRun(dependencies, id));
+      } else if (
+        run.createdAt < staleBefore &&
+        (await dependencies.runs.failIfUnclaimed(
+          run.id,
+          staleBefore,
+          NAUTILUS_UNCLAIMED_ERROR
+        ))
+      )
+        run = (await dependencies.runs.get(run.id)) ?? run;
+    }
     return toOutput(run);
   });
 

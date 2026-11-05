@@ -1,6 +1,6 @@
 # Backtest runs
 
-Updated: 2026-10-23. Research and paper use only. Nothing in this feature creates, routes or simulates broker orders.
+Updated: 2026-11-05. Research and paper use only. Nothing in this feature creates, routes or simulates broker orders.
 
 ## Purpose
 
@@ -14,6 +14,7 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 | Procedures, execution, revision hash | `packages/api/src/server/backtest-runs.ts` |
 | Report and metrics (pure) | `packages/api/src/backtest-run-report.ts` |
 | Engine (shared with the instant backtest) | `packages/api/src/instant-backtest-engine.ts` |
+| Nautilus engine worker procedures `backtestRuns.engine.claim`, `complete`, `fail` | `packages/api/src/server/backtest-run-engine.ts`, worker `scripts/backtest-worker/nautilus-worker.ts`, see [nautilus-backtest-engine.md](nautilus-backtest-engine.md#backtest-runs-on-nautilus) |
 | Cost profiles and presets (pure), contract schema | `packages/api/src/backtest-costs.ts`, `packages/api/src/contracts/backtest-cost-profiles.ts` |
 | Table `backtest_runs` | `packages/db/src/schema/index.ts`, migration `0026_backtest_runs`, rollback `packages/db/rollback/0026_backtest_runs.down.sql` |
 | Repository | `packages/db/src/server/backtest-runs.ts` |
@@ -26,10 +27,10 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 
 ## Run lifecycle
 
-1. `submit` validates the input, takes the strategy snapshot when `strategyId` is set, and inserts a `queued` row.
+1. `submit` validates the input, takes the strategy snapshot when `strategyId` is set, and inserts a `queued` row. The row's engine comes from `VERTEX_BACKTEST_RUNS_ENGINE`: `instant-2` (TypeScript, the default) or `nautilus-trader-1.227.0` (the Nautilus research worker). A stored run keeps its engine when the setting changes. Steps 2 to 4 apply to `instant-2` runs; a Nautilus run waits for the worker ([nautilus-backtest-engine.md](nautilus-backtest-engine.md#backtest-runs-on-nautilus)).
 2. The procedure schedules the execution on the request's tracked background scheduler. The request database connection stays open until the task settles. Without a scheduler (tests), the run executes before the response.
 3. Execution claims the row with a conditional update (`queued` to `running`), so a run executes at most once. It loads the bars (shared in-process cache), keeps the bars between `from` 00:00 UTC and the end of `to`, runs the engine and stores the report (`succeeded`) or a short error (`failed`). Storage errors store a generic message only.
-4. `get` re-schedules a run that is still `queued`, so a lost background task still completes. The page polls `get` once a second for at most 300 reads. It fails the requested run when it stayed `running` for more than 10 minutes.
+4. `get` re-schedules a run that is still `queued`, so a lost background task still completes. The page polls `get` once a second for at most 300 reads. It fails the requested run when it stayed `running` for more than 10 minutes, and a Nautilus run that stayed `queued` for more than 10 minutes ("Nautilus backtest worker did not pick up the run").
 
 The page opens the run named in `?run=<id>`, else the newest succeeded run; the parameter sweep page links there after "Run full backtest".
 
