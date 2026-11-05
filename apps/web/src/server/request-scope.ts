@@ -121,6 +121,7 @@ export const withRequestScope = async (
       baseURL: env.BETTER_AUTH_URL,
       trustedOrigins: [env.APP_URL],
       rateLimitEnabled: env.APP_ENV !== "test",
+      passwordBreachCheck: env.APP_ENV !== "test",
       scheduleBackgroundTask: database.schedule,
     });
     const response = await run({

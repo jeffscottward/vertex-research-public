@@ -191,6 +191,15 @@ const intentStore = () => {
   return { store, intents, rows };
 };
 
+// A promise the test settles by hand (the tsconfig lib has no Promise.withResolvers).
+const deferred = () => {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve: () => resolve() };
+};
+
 let clock = new Date("2026-10-22T15:00:00.000Z");
 
 let bridgeFetch: ReturnType<
@@ -315,6 +324,167 @@ describe("vertexOrders procedures", () => {
       userId: "operator",
       contract: "MOCKD 20280121 100 call",
     });
+  });
+
+  it("places one order at a time, refuses a parallel submit, and keeps the per-name cap", async () => {
+    // Each order is $3,500 (below the 2% max loss); the MOCKD LEAPS cap is
+    // 6% of $200,000 = $12,000, so only three of four may be placed.
+    const base = createMockOrderGateway(() => at);
+    const entered = deferred();
+    const release = deferred();
+    let placeCalls = 0;
+    setVertexOrdersDependenciesForTesting({
+      mock: {
+        ...base,
+        place: async (candidate, orderRef) => {
+          placeCalls += 1;
+          if (placeCalls === 1) {
+            entered.resolve();
+            await release.promise;
+          }
+          return await base.place(candidate, orderRef);
+        },
+      },
+      now: () => at,
+    });
+    const client = clientFor();
+    const orders = [100, 105, 110, 115].map((strike) =>
+      order({ strike, quantity: 1, limitPrice: 35 })
+    );
+    const tokens: string[] = [];
+    for (const candidate of orders) {
+      const preview = await client.vertexOrders.preview(candidate);
+      expect(preview.review.accepted).toBe(true);
+      tokens.push(preview.confirmToken ?? "");
+    }
+    const submitAt = (index: number) =>
+      client.vertexOrders.submit({
+        order: orders[index] ?? order(),
+        confirmToken: tokens[index] ?? "",
+        confirm: true,
+      });
+
+    const first = submitAt(0);
+    await entered.promise;
+    const parallel = await Promise.allSettled([1, 2, 3].map(submitAt));
+    release.resolve();
+    await first;
+
+    for (const refused of parallel)
+      expect(refused).toMatchObject({
+        status: "rejected",
+        reason: { code: "RATE_LIMITED" },
+      });
+    // A refused submit did not use its confirm token: one at a time, the
+    // per-name cap admits two more and refuses the fourth.
+    await submitAt(1);
+    await submitAt(2);
+    return await expectCode(submitAt(3), "ORDER_REJECTED", 422);
+  });
+
+  it("lets a placement that never finishes block new placements only until its lease ends", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const base = createMockOrderGateway(() => at);
+      const entered = deferred();
+      let placeCalls = 0;
+      setVertexOrdersDependenciesForTesting({
+        mock: {
+          ...base,
+          place: (candidate, orderRef) => {
+            placeCalls += 1;
+            if (placeCalls > 1) return base.place(candidate, orderRef);
+            // The first call never settles, like a request whose client went away.
+            entered.resolve();
+            return new Promise<never>(() => undefined);
+          },
+        },
+        now: () => at,
+      });
+      const client = clientFor();
+      const first = order({ strike: 100 });
+      const second = order({ strike: 105 });
+      const firstToken =
+        (await client.vertexOrders.preview(first)).confirmToken ?? "";
+      const secondToken =
+        (await client.vertexOrders.preview(second)).confirmToken ?? "";
+      const submitSecond = () =>
+        client.vertexOrders.submit({
+          order: second,
+          confirmToken: secondToken,
+          confirm: true,
+        });
+
+      void client.vertexOrders
+        .submit({ order: first, confirmToken: firstToken, confirm: true })
+        .catch(() => undefined);
+      await entered.promise;
+
+      await expectCode(submitSecond(), "RATE_LIMITED", 429);
+      vi.setSystemTime(Date.now() + 10 * 60_000);
+      return await expect(submitSecond()).resolves.toMatchObject({
+        state: "submitted",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a newer lease when an expired placement finishes late", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const base = createMockOrderGateway(() => at);
+      const holds = [deferred(), deferred()];
+      const entered = [deferred(), deferred()];
+      let placeCalls = 0;
+      setVertexOrdersDependenciesForTesting({
+        mock: {
+          ...base,
+          place: async (candidate, orderRef) => {
+            const call = placeCalls;
+            placeCalls += 1;
+            const hold = holds[call];
+            if (hold !== undefined) {
+              entered[call]?.resolve();
+              await hold.promise;
+            }
+            return await base.place(candidate, orderRef);
+          },
+        },
+        now: () => at,
+      });
+      const client = clientFor();
+      const orders = [100, 105, 110].map((strike) => order({ strike }));
+      const tokens: string[] = [];
+      for (const candidate of orders)
+        tokens.push(
+          (await client.vertexOrders.preview(candidate)).confirmToken ?? ""
+        );
+      const submitAt = (index: number) =>
+        client.vertexOrders.submit({
+          order: orders[index] ?? order(),
+          confirmToken: tokens[index] ?? "",
+          confirm: true,
+        });
+
+      const first = submitAt(0);
+      await entered[0]?.promise;
+      vi.setSystemTime(Date.now() + 10 * 60_000);
+      const second = submitAt(1);
+      await entered[1]?.promise;
+      holds[0]?.resolve();
+      await first;
+
+      // The first placement ended after its lease expired; the second still holds the newer lease.
+      await expectCode(submitAt(2), "RATE_LIMITED", 429);
+      holds[1]?.resolve();
+      await second;
+      return await expect(submitAt(2)).resolves.toMatchObject({
+        state: "submitted",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rejects share orders and over-cap orders without a token", async () => {

@@ -15,6 +15,7 @@ import {
   createVertexRuntimeConfiguredOptions,
   resolveDeployStatusConfig,
   resolvePriceAlertsNtfyConfig,
+  resolveJevConfig,
   resolveQuantDataConfig,
 } from "@darkfactory/api/server";
 import {
@@ -307,6 +308,8 @@ const vertexContextDependencies = (
       env.VERTEX_DEPLOY_STATUS_TOKEN,
       { allowLoopbackHttp: true }
     ),
+    // Display-only JEV verdict on /charts (jevVerdict.*); the OpenRouter key stays server-side.
+    jev: resolveJevConfig(env.OPENROUTER_API_KEY),
     // Read-only QuantData options analytics (optionsAnalytics.snapshot); key stays server-side.
     quantData: resolveQuantDataConfig(
       env.QUANTDATA_API_BASE_URL,

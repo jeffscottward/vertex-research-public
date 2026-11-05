@@ -374,6 +374,10 @@ describe("generated local runtime defaults", () => {
       issuesFor({
         APP_URL: "http://vertex.example.test",
         BETTER_AUTH_URL: "http://vertex.example.test",
+        // A non-local APP_URL also refuses the public template secrets
+        // (packages/config deployedSecretScope); keep this case on HTTPS only.
+        BETTER_AUTH_SECRET: "independent-fixture-authentication-key-32",
+        CONTACT_THROTTLE_SECRET: "independent-fixture-contact-throttle-key-32",
       })
     ).toEqual([
       { path: "APP_URL", message: "APP_URL must use HTTPS" },

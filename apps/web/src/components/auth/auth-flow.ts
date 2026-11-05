@@ -180,7 +180,22 @@ const connectionError = (): AuthFlowResult => ({
     "We could not complete the request. Check your connection and try again.",
 });
 
+// Better Auth haveIBeenPwned plugin code for a new password found in a breach.
+const PASSWORD_COMPROMISED_CODE = "PASSWORD_COMPROMISED";
+
+const breachedPasswordError = (): AuthFlowResult => ({
+  status: "error",
+  message:
+    "This password appears in a known data breach. Choose a different password.",
+});
+
 const signInError = (error: AuthError): AuthFlowResult => {
+  if (error?.status === 429) {
+    return {
+      status: "error",
+      message: "Too many sign-in attempts. Wait a few minutes, then try again.",
+    };
+  }
   if (error?.code === "EMAIL_NOT_VERIFIED") {
     return {
       status: "error",
@@ -248,7 +263,11 @@ export const submitSignUp = async (
       password: input.password,
       callbackURL: "/verify-email?verified=1",
     });
-    if (result.error) return connectionError();
+    if (result.error) {
+      return result.error.code === PASSWORD_COMPROMISED_CODE
+        ? breachedPasswordError()
+        : connectionError();
+    }
     return { status: "success", message: SAFE_ACCOUNT_EMAIL_MESSAGE };
   } catch {
     return connectionError();
@@ -299,7 +318,11 @@ export const submitResetPassword = async (
       token: input.token,
       newPassword: input.newPassword,
     });
-    if (result.error) return resetTokenError();
+    if (result.error) {
+      return result.error.code === PASSWORD_COMPROMISED_CODE
+        ? breachedPasswordError()
+        : resetTokenError();
+    }
     return { status: "success", destination: "/sign-in?reset=1" };
   } catch {
     return connectionError();
