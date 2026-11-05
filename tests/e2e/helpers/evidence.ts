@@ -8,8 +8,10 @@ import type { Page } from "@playwright/test";
 
 const MOCK_EVIDENCE_BANNER = "MOCK DATA - E2E test server, not the live app";
 
+// Reduced motion also turns off the page's smooth scrolling, so a scroll ends before the
+// next step measures or takes a screenshot.
 export const useDarkEvidence = (page: Page): Promise<void> =>
-  page.emulateMedia({ colorScheme: "dark" });
+  page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
 
 /** Full-page dark screenshot from the top of the page, with a mock-data banner on top. */
 export const captureMockEvidence = async (
@@ -19,7 +21,7 @@ export const captureMockEvidence = async (
   await useDarkEvidence(page);
   await page.evaluate((text) => {
     (document.activeElement as HTMLElement | null)?.blur();
-    window.scrollTo(0, 0);
+    window.scrollTo({ behavior: "instant", left: 0, top: 0 });
     const banner = document.createElement("div");
     banner.dataset["evidenceBanner"] = "mock";
     banner.textContent = text;
@@ -30,6 +32,7 @@ export const captureMockEvidence = async (
     document.body.prepend(banner);
   }, MOCK_EVIDENCE_BANNER);
   try {
+    await page.waitForFunction(() => window.scrollY === 0);
     await page.screenshot({ animations: "disabled", fullPage: true, path });
   } finally {
     await page.evaluate(() =>

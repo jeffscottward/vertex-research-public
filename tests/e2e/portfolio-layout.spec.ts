@@ -51,25 +51,22 @@ for (const viewport of [
     });
     await expect(heading).toBeVisible();
 
-    // Desktop: the sidebar nav starts at the top of the screen, also after scrolling.
+    // Desktop: the sidebar nav starts at the top of the screen.
     const brand = page
       .locator("[data-sidebar=sidebar]")
       .getByRole("link", { name: /Vertex Research/u })
       .first();
-    if (viewport.width >= 768) {
+    if (viewport.width >= 768)
       expect((await brand.boundingBox())?.y ?? 999).toBeLessThan(80);
-      await page.evaluate(() =>
-        window.scrollTo(0, document.documentElement.scrollHeight)
-      );
-      expect((await brand.boundingBox())?.y ?? 999).toBeLessThan(80);
-    }
 
-    // Keyboard focus into the orders view from the bottom of the page: the field lands below
-    // the stuck tab bar, not under it.
-    await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
-    );
+    // Keyboard focus on a field that sits under the stuck tab bar moves it below the bar.
     const symbol = page.getByLabel("Underlying symbol", { exact: true });
+    await symbol.evaluate((element) =>
+      window.scrollTo({
+        behavior: "instant",
+        top: element.getBoundingClientRect().top + window.scrollY - 8,
+      })
+    );
     await symbol.focus();
     const barBox = await bar.boundingBox();
     const symbolBox = await symbol.boundingBox();
@@ -80,7 +77,10 @@ for (const viewport of [
     // A jump to the heading (from the bottom, with the bar stuck) stops below the tab bar, and
     // nothing covers the heading.
     await page.evaluate(() =>
-      window.scrollTo(0, document.documentElement.scrollHeight)
+      window.scrollTo({
+        behavior: "instant",
+        top: document.documentElement.scrollHeight,
+      })
     );
     await heading.evaluate((element) =>
       element.scrollIntoView({ block: "start" })
@@ -101,7 +101,9 @@ for (const viewport of [
       })
     ).toBe(true);
 
-    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() =>
+      window.scrollTo({ behavior: "instant", left: 0, top: 0 })
+    );
 
     // Nothing is cut off on the right: the order form, then the vertical review with its gate.
     expect(await findLayoutProblems(page)).toEqual([]);

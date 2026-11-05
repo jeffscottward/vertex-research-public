@@ -326,10 +326,12 @@
     pointer-events: auto;
   }
 
-  /* A page with a sticky tab bar: focus moves and anchor jumps stop below the bar, so
-     the bar never covers a heading or field (min-h-11 bar plus its border, with room). */
-  html:has([data-slot="sticky-tabs-list"]) {
-    scroll-padding-top: 3.5rem;
+  /* Content under a sticky tab bar: focus moves and anchor jumps stop below the bar
+     (min-h-11 bar plus its border, with room), so the bar never covers a heading or
+     field. A margin on the panel content, not padding on the root, so focusing the
+     stuck bar itself never scrolls the page (Chromium issue 40749247). */
+  [data-slot="sticky-tabs"] > [role="tabpanel"] * {
+    scroll-margin-top: 3.5rem;
   }
 
   @media (min-width: 48rem) {
