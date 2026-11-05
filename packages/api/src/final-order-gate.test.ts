@@ -4,9 +4,12 @@ import type { JevVerdictOutput } from "./contracts/jev-verdict.ts";
 import {
   classifyStructure,
   evaluateFinalOrderGate,
+  isRiskReducing,
+  type FinalGateInput,
   type FinalGateLeg,
   type FinalGateOrder,
 } from "./server/final-order-gate.ts";
+import type { OrderPosition } from "./server/vertex-orders-rules.ts";
 
 const NOW = new Date("2026-11-05T15:00:00Z");
 const EXP = "20261218";
@@ -29,15 +32,13 @@ const leg = (
 const order = (
   legs: FinalGateLeg[],
   limitPrice: number,
-  quantity = 1,
-  riskReducing = false
+  quantity = 1
 ): FinalGateOrder => ({
   engine: "platform-ticket",
   legs,
   limitPrice,
   quantity,
   reason: "test",
-  riskReducing,
   symbol: "MSFT",
 });
 
@@ -72,6 +73,26 @@ const verdict = (
 });
 
 const ACCOUNT = 100_000; // 2% = 2000
+const HELD_LEG: OrderPosition = {
+  expiry: EXP,
+  premium: 500,
+  quantity: 1,
+  right: "C",
+  secType: "OPT",
+  strike: 400,
+  symbol: "MSFT",
+};
+const HELD: OrderPosition[] = [HELD_LEG];
+const gate = (
+  input: Partial<Omit<FinalGateInput, "order">> & { order: FinalGateOrder }
+) =>
+  evaluateFinalOrderGate({
+    accountValue: ACCOUNT,
+    jev: null,
+    now: NOW,
+    positions: [],
+    ...input,
+  });
 
 describe("classifyStructure", () => {
   it("accepts a long call, a debit vertical and a defined-width credit vertical", () => {
@@ -132,10 +153,10 @@ describe("classifyStructure", () => {
 });
 
 describe("evaluateFinalOrderGate", () => {
-  const base = { accountValue: ACCOUNT, now: NOW };
+  const base = { accountValue: ACCOUNT, now: NOW, positions: [] };
 
   it("allows a valid bullish debit vertical with a fresh agreeing verdict", () => {
-    const result = evaluateFinalOrderGate({
+    const result = gate({
       ...base,
       jev: verdict("BULLISH"),
       order: order([leg("BUY", 400), leg("SELL", 410)], 4, 5),
@@ -144,7 +165,7 @@ describe("evaluateFinalOrderGate", () => {
   });
 
   it("denies max loss above 2% of account value", () => {
-    const result = evaluateFinalOrderGate({
+    const result = gate({
       ...base,
       jev: verdict("BULLISH"),
       order: order([leg("BUY", 400), leg("SELL", 410)], 4, 6),
@@ -154,7 +175,7 @@ describe("evaluateFinalOrderGate", () => {
   });
 
   it("denies when the account value is unknown", () => {
-    const result = evaluateFinalOrderGate({
+    const result = gate({
       ...base,
       accountValue: null,
       jev: verdict("BULLISH"),
@@ -171,28 +192,25 @@ describe("evaluateFinalOrderGate", () => {
       null,
       verdict("BEARISH"),
     ]) {
-      expect(evaluateFinalOrderGate({ ...base, jev, order: o }).decision).toBe(
-        "deny"
-      );
+      expect(gate({ ...base, jev, order: o }).decision).toBe("deny");
     }
   });
 
   it("reads a put debit vertical and a call credit vertical as bearish", () => {
     const put = order([leg("BUY", 410, "P"), leg("SELL", 400, "P")], 3);
     expect(
-      evaluateFinalOrderGate({ ...base, jev: verdict("BEARISH"), order: put })
-        .decision
+      gate({ ...base, jev: verdict("BEARISH"), order: put }).decision
     ).toBe("allow");
     const callCredit = order([leg("SELL", 400), leg("BUY", 410)], -3);
     expect(
-      evaluateFinalOrderGate({
+      gate({
         ...base,
         jev: verdict("BULLISH"),
         order: callCredit,
       }).decision
     ).toBe("deny");
     expect(
-      evaluateFinalOrderGate({
+      gate({
         ...base,
         jev: verdict("NEUTRAL"),
         order: callCredit,
@@ -201,21 +219,22 @@ describe("evaluateFinalOrderGate", () => {
   });
 
   it("sends a risk-reducing order when JEV is unreachable, but JEV can still deny it", () => {
-    const close = order([leg("SELL", 400)], 2, 1, true);
+    const close = order([leg("SELL", 400)], 2, 1);
     expect(
-      evaluateFinalOrderGate({ ...base, jev: null, order: close }).decision
+      gate({ ...base, jev: null, order: close, positions: HELD }).decision
     ).toBe("allow");
-    const denied = evaluateFinalOrderGate({
+    const denied = gate({
       ...base,
       jev: { ...verdict("BULLISH"), state: "fresh" },
       jevDenied: true,
       order: close,
+      positions: HELD,
     });
     expect(denied.decision).toBe("deny");
   });
 
   it("denies an expired or invalid expiry", () => {
-    const result = evaluateFinalOrderGate({
+    const result = gate({
       ...base,
       jev: verdict("BULLISH"),
       order: order([leg("BUY", 400, "C", { expiry: "20261101" })], 1),
@@ -251,20 +270,25 @@ describe("classifyStructure rejection table", () => {
   });
 
   it("denies a risk-reducing order with an invalid expiry and passes one with a fresh verdict", () => {
-    const base = { accountValue: ACCOUNT, now: NOW };
-    const bad = order([leg("SELL", 400, "C", { expiry: "2026" })], 2, 1, true);
+    const base = { accountValue: ACCOUNT, now: NOW, positions: [] };
+    const bad = order([leg("SELL", 400, "C", { expiry: "2026" })], 2, 1);
     expect(
-      evaluateFinalOrderGate({ ...base, jev: null, order: bad }).decision
+      gate({
+        ...base,
+        jev: null,
+        order: bad,
+        positions: [{ ...HELD_LEG, expiry: "2026" }],
+      }).decision
     ).toBe("deny");
-    const ok = order([leg("SELL", 400)], 2, 1, true);
+    const ok = order([leg("SELL", 400)], 2, 1);
     expect(
-      evaluateFinalOrderGate({ ...base, jev: verdict("BULLISH"), order: ok })
+      gate({ ...base, jev: verdict("BULLISH"), order: ok, positions: HELD })
         .reasons
     ).toEqual([]);
   });
 
   it("skips the loss check for a rejected shape but still denies", () => {
-    const r = evaluateFinalOrderGate({
+    const r = gate({
       accountValue: ACCOUNT,
       jev: verdict("NEUTRAL"),
       now: NOW,
@@ -279,7 +303,7 @@ it("evaluateFinalOrderGate denies a share order", () => {
     [leg("BUY", 0, "", { expiry: "", secType: "STK" })],
     400
   );
-  const r = evaluateFinalOrderGate({
+  const r = gate({
     accountValue: ACCOUNT,
     jev: verdict("BULLISH"),
     now: NOW,
@@ -287,4 +311,62 @@ it("evaluateFinalOrderGate denies a share order", () => {
   });
   expect(r.decision).toBe("deny");
   expect(r.reasons.join(" ")).toMatch(/Options only/);
+});
+
+it("does not trust a close: a SELL with nothing held is a naked short and is denied", () => {
+  const r = gate({
+    accountValue: ACCOUNT,
+    jev: null,
+    now: NOW,
+    order: order([leg("SELL", 400)], 2, 1),
+    positions: [],
+  });
+  expect(r.decision).toBe("deny");
+  expect(r.structure).toBe("rejected");
+  // selling more than held is not risk-reducing either
+  const over = gate({
+    accountValue: ACCOUNT,
+    jev: null,
+    now: NOW,
+    order: order([leg("SELL", 400)], 2, 2),
+    positions: HELD,
+  });
+  expect(over.decision).toBe("deny");
+});
+
+it("reads a BUY against a held short as risk-reducing", () => {
+  const short = [{ ...HELD_LEG, quantity: -1 }];
+  const r = gate({
+    accountValue: ACCOUNT,
+    jev: null,
+    now: NOW,
+    order: order([leg("BUY", 400)], 2, 1),
+    positions: short,
+  });
+  expect(r).toMatchObject({ decision: "allow", structure: "risk-reducing" });
+});
+
+it("never treats two legs on one contract as risk-reducing", () => {
+  const twice = order([leg("SELL", 400), leg("SELL", 400)], 2, 1);
+  expect(isRiskReducing(twice, HELD)).toBe(false);
+  expect(isRiskReducing(order([], 1), HELD)).toBe(false);
+});
+
+it("reads a share sale against held shares as risk-reducing", () => {
+  const shares: OrderPosition = {
+    expiry: "",
+    premium: 9000,
+    quantity: 100,
+    right: "",
+    secType: "STK",
+    strike: 0,
+    symbol: "MSFT",
+  };
+  const sale = order(
+    [leg("SELL", 0, "", { expiry: "", secType: "STK" })],
+    90,
+    100
+  );
+  expect(isRiskReducing(sale, [shares])).toBe(true);
+  expect(isRiskReducing(sale, [])).toBe(false);
 });

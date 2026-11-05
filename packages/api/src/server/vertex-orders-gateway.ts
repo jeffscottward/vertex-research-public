@@ -118,6 +118,21 @@ export const createMockOrderGateway = (
       status: "PreSubmitted",
       orderRef: "mock-stop",
     },
+    // A second resting option order, so more than one cancel flow can run against one mock.
+    {
+      permId: nextPermId++,
+      symbol: "MOCKB",
+      secType: "OPT",
+      expiry: shortExpiry,
+      strike: 45,
+      right: "P",
+      side: "BUY",
+      quantity: 1,
+      orderType: "LMT",
+      limitPrice: 1.5,
+      status: "Submitted",
+      orderRef: "mock-seed-2",
+    },
   ];
   return {
     mode: "simulated",

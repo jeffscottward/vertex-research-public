@@ -125262,6 +125262,94 @@
                         "accepted": {
                           "type": "boolean"
                         },
+                        "finalGate": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "allow",
+                                    "deny"
+                                  ],
+                                  "type": "string"
+                                },
+                                "jevStance": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "BULLISH",
+                                        "NEUTRAL",
+                                        "BEARISH"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "jevState": {
+                                  "enum": [
+                                    "fresh",
+                                    "stale",
+                                    "none",
+                                    "unreachable"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxLoss": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "maxLossPct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reasons": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "structure": {
+                                  "enum": [
+                                    "long-option",
+                                    "debit-vertical",
+                                    "credit-vertical",
+                                    "risk-reducing",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision",
+                                "structure",
+                                "maxLoss",
+                                "maxLossPct",
+                                "jevState",
+                                "jevStance",
+                                "reasons"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "label": {
                           "type": "string"
                         },
@@ -126723,6 +126811,94 @@
                           "maximum": 9007199254740991,
                           "minimum": -9007199254740991,
                           "type": "integer"
+                        },
+                        "finalGate": {
+                          "anyOf": [
+                            {
+                              "properties": {
+                                "decision": {
+                                  "enum": [
+                                    "allow",
+                                    "deny"
+                                  ],
+                                  "type": "string"
+                                },
+                                "jevStance": {
+                                  "anyOf": [
+                                    {
+                                      "enum": [
+                                        "BULLISH",
+                                        "NEUTRAL",
+                                        "BEARISH"
+                                      ],
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "jevState": {
+                                  "enum": [
+                                    "fresh",
+                                    "stale",
+                                    "none",
+                                    "unreachable"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxLoss": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "maxLossPct": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "reasons": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "structure": {
+                                  "enum": [
+                                    "long-option",
+                                    "debit-vertical",
+                                    "credit-vertical",
+                                    "risk-reducing",
+                                    "rejected"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "decision",
+                                "structure",
+                                "maxLoss",
+                                "maxLossPct",
+                                "jevState",
+                                "jevStance",
+                                "reasons"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "heldContracts": {
                           "type": "number"
