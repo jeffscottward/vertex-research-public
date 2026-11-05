@@ -65,7 +65,10 @@ export interface PortfolioMonitorProps {
   readonly ordersGateway?: VertexOrdersGateway;
 }
 
-type PositionActionCell = (position: PortfolioMonitorPosition) => ReactNode;
+type PositionActionCell = (
+  position: PortfolioMonitorPosition,
+  positions: readonly PortfolioMonitorPosition[]
+) => ReactNode;
 
 const NOT_CONFIGURED_FAILURE: PortfolioMonitorFailure = Object.freeze({
   kind: "not-configured",

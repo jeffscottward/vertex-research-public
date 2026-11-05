@@ -29,6 +29,7 @@ import {
   createMockOrderGateway,
 } from "./server/vertex-orders-gateway.ts";
 import type { OrderAccount } from "./server/vertex-orders-rules.ts";
+import type { VertexComboInput } from "./contracts/vertex-orders.ts";
 import {
   type VertexOrdersConfig,
   setVertexOrdersDependenciesForTesting,
@@ -41,6 +42,7 @@ const OFF: VertexOrdersConfig = {
   enabled: false,
   submission: "disabled",
   bridgeUrl: "http://127.0.0.1:3470",
+  bridgeToken: "b".repeat(40),
   confirmSecret: SECRET,
 };
 
@@ -252,7 +254,7 @@ describe("vertexOrders procedures", () => {
       confirm: true,
     });
     expect(result).toMatchObject({ mode: "simulated", state: "submitted" });
-    expect(result.orderRef).toMatch(/^leaps-vertex-/);
+    expect(result.orderRef).toMatch(/^vertex-/);
     expect(bridgeFetch).not.toHaveBeenCalled();
   });
 
@@ -319,7 +321,9 @@ describe("vertexOrders procedures", () => {
     const client = clientFor();
     const shares = await client.vertexOrders.preview(order({ secType: "STK" }));
     expect(shares).toMatchObject({ confirmToken: null, expiresAt: null });
-    expect(shares.review.reasons[0]).toContain("Options only");
+    expect(shares.review.reasons[0]).toContain(
+      "options only for new positions"
+    );
     const big = await client.vertexOrders.preview(order({ quantity: 20 }));
     expect(big.review.accepted).toBe(false);
   });
@@ -380,7 +384,7 @@ describe("vertexOrders procedures", () => {
       "http://127.0.0.1:3470/orders"
     );
     expect(rows).toEqual([
-      expect.stringMatching(/^intent leaps-vertex-/u),
+      expect.stringMatching(/^intent vertex-/u),
       "vertex.order.result placed",
     ]);
     await expectCode(
@@ -399,6 +403,310 @@ describe("vertexOrders procedures", () => {
       }).vertexOrders.preview(order()),
       "NOT_CONFIGURED",
       503
+    );
+  });
+
+  it("closes a spread as one combo: preview, confirm, submit, refusals and unknown outcome", async () => {
+    clock = new Date(at);
+    const spreadAccount = async (): Promise<OrderAccount> => ({
+      ...(await mock.account()),
+      positions: [
+        {
+          symbol: "MOCKS",
+          secType: "OPT",
+          expiry: "20280121",
+          strike: 100,
+          right: "C",
+          quantity: 2,
+          premium: 2000,
+        },
+        {
+          symbol: "MOCKS",
+          secType: "OPT",
+          expiry: "20280121",
+          strike: 120,
+          right: "C",
+          quantity: -2,
+          premium: 0,
+        },
+      ],
+      openOrders: [],
+    });
+    const combo = (over: Partial<VertexComboInput> = {}): VertexComboInput => ({
+      symbol: "MOCKS",
+      quantity: 2,
+      limitPrice: -3.5,
+      legs: [
+        { expiry: "20280121", strike: 100, right: "C", side: "SELL", ratio: 1 },
+        { expiry: "20280121", strike: 120, right: "C", side: "BUY", ratio: 1 },
+      ],
+      ...over,
+    });
+    let placeCombo: OrderGatewayPort["placeCombo"] = async () => ({
+      state: "submitted",
+      permId: 77,
+      message: "ok",
+    });
+    setVertexOrdersDependenciesForTesting({
+      mock: {
+        ...mock,
+        account: spreadAccount,
+        placeCombo: (o, ref) => placeCombo(o, ref),
+      },
+      now: () => clock,
+    });
+    const { store, rows } = intentStore();
+    const events: SemanticEvent[] = [];
+    const client = clientFor({ intents: store, events });
+    const send = async (input = combo()) => {
+      const preview = await client.vertexOrders.comboPreview(input);
+      return await client.vertexOrders.comboSubmit({
+        order: input,
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      });
+    };
+
+    const preview = await client.vertexOrders.comboPreview(combo());
+    expect(preview.review).toMatchObject({
+      accepted: true,
+      netAmount: -700,
+      label: "MOCKS combo x2: SELL 20280121 100C / BUY 20280121 120C",
+    });
+    expect(await send()).toMatchObject({ state: "submitted", permId: 77 });
+    expect(rows.slice(-2)).toEqual([
+      expect.stringMatching(/^intent vertex-/u),
+      "vertex.order.result placed",
+    ]);
+    // A partial close (legging out) gets no confirm token.
+    const partial = await client.vertexOrders.comboPreview(
+      combo({ quantity: 1 })
+    );
+    expect(partial.confirmToken).toBeNull();
+    // A token for another combo is refused.
+    await expectCode(
+      client.vertexOrders.comboSubmit({
+        order: combo({ limitPrice: -1 }),
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      }),
+      "CONFIRM_INVALID",
+      409
+    );
+    // Unconfirmed by IBKR: kept as unknown.
+    placeCombo = async () => ({
+      state: "unconfirmed",
+      permId: null,
+      message: "pending",
+    });
+    await send(combo({ limitPrice: -3.4 }));
+    expect(rows.at(-1)).toBe("vertex.order.result unknown");
+    clock = new Date(at.getTime() + 10 * 60_000);
+    // Gateway failure: outcome unknown, typed error.
+    placeCombo = () =>
+      Promise.reject(new OrderGatewayError("UPSTREAM_ERROR", "down"));
+    await expectCode(send(combo({ limitPrice: -3.3 })), "UPSTREAM_ERROR", 502);
+    expect(rows.at(-1)).toBe("vertex.order.result unknown");
+    clock = new Date(at.getTime() + 20 * 60_000);
+    placeCombo = () => Promise.reject(new Error("bug"));
+    await expectCode(
+      send(combo({ limitPrice: -3.2 })),
+      "INTERNAL_SERVER_ERROR",
+      500
+    );
+    expect(
+      events.some(
+        (e) => e.name === "vertex.orders.comboSubmit" && e.outcome === "failure"
+      )
+    ).toBe(true);
+  });
+
+  it("refuses a combo submit when the account changed or the intent store fails", async () => {
+    clock = new Date(at);
+    let held = 2;
+    const account = async (): Promise<OrderAccount> => ({
+      ...(await mock.account()),
+      positions: [
+        {
+          symbol: "MOCKS",
+          secType: "OPT",
+          expiry: "20280121",
+          strike: 100,
+          right: "C",
+          quantity: held,
+          premium: 2000,
+        },
+        {
+          symbol: "MOCKS",
+          secType: "OPT",
+          expiry: "20280121",
+          strike: 120,
+          right: "C",
+          quantity: -held,
+          premium: 0,
+        },
+      ],
+      openOrders: [],
+    });
+    setVertexOrdersDependenciesForTesting({
+      mock: { ...mock, account },
+      now: () => clock,
+    });
+    const order = {
+      symbol: "MOCKS",
+      quantity: 2,
+      limitPrice: 1.25,
+      legs: [
+        {
+          expiry: "20280121",
+          strike: 100,
+          right: "C" as const,
+          side: "SELL" as const,
+          ratio: 1,
+        },
+        {
+          expiry: "20280121",
+          strike: 120,
+          right: "C" as const,
+          side: "BUY" as const,
+          ratio: 1,
+        },
+      ],
+    };
+    const client = clientFor({
+      intents: {
+        ...intentStore().store,
+        recordIntent: () => Promise.reject(new Error("db down")),
+      },
+    });
+    const first = await client.vertexOrders.comboPreview(order);
+    await expectCode(
+      client.vertexOrders.comboSubmit({
+        order,
+        confirmToken: first.confirmToken ?? "",
+        confirm: true,
+      }),
+      "AUDIT_UNAVAILABLE",
+      503
+    );
+    const second = await client.vertexOrders.comboPreview(order);
+    held = 1;
+    await expectCode(
+      client.vertexOrders.comboSubmit({
+        order,
+        confirmToken: second.confirmToken ?? "",
+        confirm: true,
+      }),
+      "ORDER_REJECTED",
+      422
+    );
+    // Simulated default mock: the combo is accepted only with a matching spread.
+    const fresh = createMockOrderGateway(() => at);
+    expect((await fresh.placeCombo(order, "vertex-c")).state).toBe("submitted");
+    expect((await fresh.placeCombo(order, "vertex-c")).state).toBe("aborted");
+  });
+
+  it("live: no bridge token fails closed; an unconfirmed single order stays unknown", async () => {
+    clock = new Date(at);
+    const on = { ...OFF, enabled: true, submission: "enabled" };
+    const { bridgeToken: _unused, ...noToken } = on;
+    await expectCode(
+      clientFor({ config: noToken }).vertexOrders.status({}),
+      "NOT_CONFIGURED",
+      503
+    );
+    bridgeFetch.mockImplementation(async (input: string) =>
+      Response.json(
+        input.endsWith("/account")
+          ? {
+              netLiquidation: 200_000,
+              positions: [],
+              openOrders: [],
+              gates: { killSwitch: false, optionsOnly: true },
+              caps: { leapsMinDays: 365, leapsPct: 6, shortPct: 2 },
+            }
+          : { state: "unconfirmed", permId: null, message: "pending" }
+      )
+    );
+    const { store, rows } = intentStore();
+    const client = clientFor({ config: on, intents: store });
+    const preview = await client.vertexOrders.preview(order({ quantity: 1 }));
+    await client.vertexOrders.submit({
+      order: order({ quantity: 1 }),
+      confirmToken: preview.confirmToken ?? "",
+      confirm: true,
+    });
+    expect(rows.at(-1)).toBe("vertex.order.result unknown");
+  });
+
+  it("live combo goes to the bridge /combos route", async () => {
+    clock = new Date(at);
+    bridgeFetch.mockImplementation(async (input: string) =>
+      Response.json(
+        input.endsWith("/account")
+          ? {
+              netLiquidation: 200_000,
+              positions: [
+                {
+                  symbol: "MOCKS",
+                  secType: "OPT",
+                  expiry: "20280121",
+                  strike: 100,
+                  right: "P",
+                  quantity: -1,
+                  premium: 0,
+                },
+                {
+                  symbol: "MOCKS",
+                  secType: "OPT",
+                  expiry: "20280121",
+                  strike: 90,
+                  right: "P",
+                  quantity: 1,
+                  premium: 500,
+                },
+              ],
+              openOrders: [],
+              gates: { killSwitch: false, optionsOnly: true },
+              caps: { leapsMinDays: 365, leapsPct: 2, shortPct: 2 },
+            }
+          : { state: "submitted", permId: 44, message: "bridge" }
+      )
+    );
+    const on = { ...OFF, enabled: true, submission: "enabled" };
+    const client = clientFor({ config: on, intents: intentStore().store });
+    const order = {
+      symbol: "MOCKS",
+      quantity: 1,
+      limitPrice: 0.8,
+      legs: [
+        {
+          expiry: "20280121",
+          strike: 100,
+          right: "P" as const,
+          side: "BUY" as const,
+          ratio: 1,
+        },
+        {
+          expiry: "20280121",
+          strike: 90,
+          right: "P" as const,
+          side: "SELL" as const,
+          ratio: 1,
+        },
+      ],
+    };
+    const preview = await client.vertexOrders.comboPreview(order);
+    expect(preview.gates.mode).toBe("live");
+    expect(
+      await client.vertexOrders.comboSubmit({
+        order,
+        confirmToken: preview.confirmToken ?? "",
+        confirm: true,
+      })
+    ).toMatchObject({ mode: "live", permId: 44 });
+    expect(bridgeFetch.mock.calls.map(([url]) => url)).toContain(
+      "http://127.0.0.1:3470/combos"
     );
   });
 

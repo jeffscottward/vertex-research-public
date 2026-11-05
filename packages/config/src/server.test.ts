@@ -147,7 +147,8 @@ describe("parseServerEnv", () => {
   it.each([
     ["VERTEX_MODE", "live"],
     ["VERTEX_ACCESS_MODE", "read-write"],
-    ["VERTEX_ORDER_SUBMISSION", "enabled"],
+    // "enabled" is a valid owner choice since 2026-11-04 (live order path); other values stay invalid.
+    ["VERTEX_ORDER_SUBMISSION", "on"],
     ["NAUTILUS_TRADING_MODE", "live"],
     ["IBKR_TRADING_MODE", "live"],
     ["IBKR_READ_ONLY", "false"],

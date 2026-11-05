@@ -83170,6 +83170,28 @@
                               }
                             ]
                           },
+                          "option": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "expiry": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "right": {
+                                "maxLength": 8,
+                                "type": "string"
+                              },
+                              "strike": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "expiry",
+                              "strike",
+                              "right"
+                            ],
+                            "type": "object"
+                          },
                           "position": {
                             "type": "number"
                           },
@@ -95643,6 +95665,28 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "option": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "expiry": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "right": {
+                                "maxLength": 8,
+                                "type": "string"
+                              },
+                              "strike": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "expiry",
+                              "strike",
+                              "right"
+                            ],
+                            "type": "object"
                           },
                           "position": {
                             "type": "number"
@@ -121632,6 +121676,1429 @@
         ]
       }
     },
+    "/vertex-orders/combo-preview": {
+      "post": {
+        "operationId": "vertexOrders.comboPreview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "legs": {
+                    "items": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "expiry": {
+                          "pattern": "^\\d{8}$",
+                          "type": "string"
+                        },
+                        "ratio": {
+                          "maximum": 10,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "right": {
+                          "enum": [
+                            "C",
+                            "P"
+                          ],
+                          "type": "string"
+                        },
+                        "side": {
+                          "enum": [
+                            "BUY",
+                            "SELL"
+                          ],
+                          "type": "string"
+                        },
+                        "strike": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 100000,
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "expiry",
+                        "strike",
+                        "right",
+                        "side",
+                        "ratio"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 6,
+                    "minItems": 2,
+                    "type": "array"
+                  },
+                  "limitPrice": {
+                    "maximum": 100000,
+                    "minimum": -100000,
+                    "type": "number"
+                  },
+                  "quantity": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 10000,
+                    "minimum": -9007199254740991,
+                    "type": "integer"
+                  },
+                  "symbol": {
+                    "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "quantity",
+                  "limitPrice",
+                  "legs"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "confirmToken": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "expiresAt": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "gates": {
+                      "properties": {
+                        "killSwitch": {
+                          "type": "boolean"
+                        },
+                        "mode": {
+                          "enum": [
+                            "simulated",
+                            "live"
+                          ],
+                          "type": "string"
+                        },
+                        "optionsOnly": {
+                          "type": "boolean"
+                        },
+                        "ordersEnabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "ordersEnabled",
+                        "mode",
+                        "killSwitch",
+                        "optionsOnly"
+                      ],
+                      "type": "object"
+                    },
+                    "review": {
+                      "properties": {
+                        "accepted": {
+                          "type": "boolean"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "netAmount": {
+                          "type": "number"
+                        },
+                        "order": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "legs": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "expiry": {
+                                    "pattern": "^\\d{8}$",
+                                    "type": "string"
+                                  },
+                                  "ratio": {
+                                    "maximum": 10,
+                                    "minimum": 1,
+                                    "type": "integer"
+                                  },
+                                  "right": {
+                                    "enum": [
+                                      "C",
+                                      "P"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "side": {
+                                    "enum": [
+                                      "BUY",
+                                      "SELL"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "strike": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 100000,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "expiry",
+                                  "strike",
+                                  "right",
+                                  "side",
+                                  "ratio"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 6,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "limitPrice": {
+                              "maximum": 100000,
+                              "minimum": -100000,
+                              "type": "number"
+                            },
+                            "quantity": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 10000,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "symbol": {
+                              "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "quantity",
+                            "limitPrice",
+                            "legs"
+                          ],
+                          "type": "object"
+                        },
+                        "reasons": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "order",
+                        "label",
+                        "netAmount",
+                        "accepted",
+                        "reasons"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "gates",
+                    "review",
+                    "confirmToken",
+                    "expiresAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFIRM_INVALID"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Confirmation is missing, expired or does not match the order",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "ORDER_REJECTED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order rejected by the order rules",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "RATE_LIMITED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Too many order requests",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 429
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "429"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order gateway request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order gateway not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "AUDIT_UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order audit record could not be written; nothing was sent",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Check one spread close (one combo order) against the rules and issue a confirm token",
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
+    "/vertex-orders/combo-submit": {
+      "post": {
+        "operationId": "vertexOrders.comboSubmit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": {
+                    "const": true
+                  },
+                  "confirmToken": {
+                    "maxLength": 4096,
+                    "minLength": 16,
+                    "type": "string"
+                  },
+                  "order": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "legs": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "expiry": {
+                              "pattern": "^\\d{8}$",
+                              "type": "string"
+                            },
+                            "ratio": {
+                              "maximum": 10,
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "right": {
+                              "enum": [
+                                "C",
+                                "P"
+                              ],
+                              "type": "string"
+                            },
+                            "side": {
+                              "enum": [
+                                "BUY",
+                                "SELL"
+                              ],
+                              "type": "string"
+                            },
+                            "strike": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 100000,
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "expiry",
+                            "strike",
+                            "right",
+                            "side",
+                            "ratio"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 6,
+                        "minItems": 2,
+                        "type": "array"
+                      },
+                      "limitPrice": {
+                        "maximum": 100000,
+                        "minimum": -100000,
+                        "type": "number"
+                      },
+                      "quantity": {
+                        "exclusiveMinimum": 0,
+                        "maximum": 10000,
+                        "minimum": -9007199254740991,
+                        "type": "integer"
+                      },
+                      "symbol": {
+                        "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "symbol",
+                      "quantity",
+                      "limitPrice",
+                      "legs"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "order",
+                  "confirmToken",
+                  "confirm"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "enum": [
+                        "simulated",
+                        "live"
+                      ],
+                      "type": "string"
+                    },
+                    "orderRef": {
+                      "type": "string"
+                    },
+                    "permId": {
+                      "anyOf": [
+                        {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "state": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "state",
+                    "orderRef",
+                    "permId",
+                    "message"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFIRM_INVALID"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Confirmation is missing, expired or does not match the order",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "ORDER_REJECTED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order rejected by the order rules",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 422
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "422"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "RATE_LIMITED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Too many order requests",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 429
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "429"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order gateway request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order gateway not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "AUDIT_UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Order audit record could not be written; nothing was sent",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Send one previewed and confirmed spread close as one combo order",
+        "tags": [
+          "Orders"
+        ]
+      }
+    },
     "/vertex-orders/preview": {
       "post": {
         "operationId": "vertexOrders.preview",
@@ -121642,7 +123109,7 @@
                 "additionalProperties": false,
                 "properties": {
                   "expiry": {
-                    "pattern": "^\\d{8}$",
+                    "pattern": "^(\\d{8})?$",
                     "type": "string"
                   },
                   "limitPrice": {
@@ -121663,7 +123130,8 @@
                   "right": {
                     "enum": [
                       "C",
-                      "P"
+                      "P",
+                      ""
                     ],
                     "type": "string"
                   },
@@ -121679,8 +123147,8 @@
                     "type": "string"
                   },
                   "strike": {
-                    "exclusiveMinimum": 0,
                     "maximum": 100000,
+                    "minimum": 0,
                     "type": "number"
                   },
                   "symbol": {
@@ -121828,7 +123296,7 @@
                           "additionalProperties": false,
                           "properties": {
                             "expiry": {
-                              "pattern": "^\\d{8}$",
+                              "pattern": "^(\\d{8})?$",
                               "type": "string"
                             },
                             "limitPrice": {
@@ -121849,7 +123317,8 @@
                             "right": {
                               "enum": [
                                 "C",
-                                "P"
+                                "P",
+                                ""
                               ],
                               "type": "string"
                             },
@@ -121865,8 +123334,8 @@
                               "type": "string"
                             },
                             "strike": {
-                              "exclusiveMinimum": 0,
                               "maximum": 100000,
+                              "minimum": 0,
                               "type": "number"
                             },
                             "symbol": {
@@ -123130,7 +124599,7 @@
                     "additionalProperties": false,
                     "properties": {
                       "expiry": {
-                        "pattern": "^\\d{8}$",
+                        "pattern": "^(\\d{8})?$",
                         "type": "string"
                       },
                       "limitPrice": {
@@ -123151,7 +124620,8 @@
                       "right": {
                         "enum": [
                           "C",
-                          "P"
+                          "P",
+                          ""
                         ],
                         "type": "string"
                       },
@@ -123167,8 +124637,8 @@
                         "type": "string"
                       },
                       "strike": {
-                        "exclusiveMinimum": 0,
                         "maximum": 100000,
+                        "minimum": 0,
                         "type": "number"
                       },
                       "symbol": {

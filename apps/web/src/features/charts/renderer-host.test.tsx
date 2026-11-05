@@ -120,6 +120,86 @@ describe("CandleCanvas optional studies and markers", () => {
     return expect(factory).toHaveBeenCalledTimes(1);
   });
 
+  it("reports null to onRenderer when a failing update disposes the renderer", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    const failing = (method: "replace" | "setStudies" | "setMarkers") => {
+      const renderer = {
+        replace: vi.fn(),
+        resize: vi.fn(),
+        dispose: vi.fn(),
+        setStudies: vi.fn(),
+        setMarkers: vi.fn(),
+      };
+      const factory: CandleRendererFactory = vi.fn(async () => renderer);
+      return { renderer, factory, method };
+    };
+    for (const method of ["replace", "setStudies", "setMarkers"] as const) {
+      const { renderer, factory } = failing(method);
+      const onRenderer = vi.fn();
+      const render = async (
+        values: readonly DisplayCandle[],
+        studies: ChartStudies,
+        markers: readonly ChartMarker[]
+      ) =>
+        await act(async () => {
+          root.render(
+            <CandleCanvas
+              factory={factory}
+              label="Bars"
+              markers={markers}
+              onRenderer={onRenderer}
+              pricePrecision={2}
+              studies={studies}
+              values={values}
+              volumePrecision={0}
+            />
+          );
+          return await flush();
+        });
+      await render(candles, studiesA, markersA);
+      expect(onRenderer).toHaveBeenLastCalledWith(renderer);
+      renderer[method].mockImplementation(() => {
+        throw new Error("renderer failed");
+      });
+      await render(
+        method === "replace" ? [...candles] : candles,
+        method === "setStudies" ? { ...studiesA } : studiesA,
+        method === "setMarkers" ? [...markersA] : markersA
+      );
+      expect(onRenderer).toHaveBeenLastCalledWith(null);
+      expect(renderer.dispose).toHaveBeenCalled();
+      expect(container.textContent).toContain("Chart renderer unavailable");
+      await act(async () => root.render(<span />));
+    }
+    // A mount that fails after the renderer exists also clears it.
+    const broken = {
+      replace: vi.fn(() => {
+        throw new Error("bad bars");
+      }),
+      resize: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const onRenderer = vi.fn();
+    await act(async () => {
+      root.render(
+        <CandleCanvas
+          factory={async () => broken}
+          label="Bars"
+          onRenderer={onRenderer}
+          pricePrecision={2}
+          values={candles}
+          volumePrecision={0}
+        />
+      );
+      return await flush();
+    });
+    expect(onRenderer).toHaveBeenCalledWith(null);
+    expect(broken.dispose).toHaveBeenCalled();
+  });
+
   it("leaves renderers without the optional methods untouched when the props are omitted", async () => {
     const renderer = { replace: vi.fn(), resize: vi.fn(), dispose: vi.fn() };
     const container = document.createElement("div");

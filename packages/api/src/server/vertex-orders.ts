@@ -3,6 +3,8 @@ import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
 import type {
+  VertexComboInput,
+  VertexComboLeg,
   VertexOpenOrder,
   VertexOrderInput,
 } from "../contracts/vertex-orders.ts";
@@ -21,6 +23,7 @@ import {
 } from "./vertex-orders-gateway.ts";
 import {
   contractLabel,
+  evaluateCombo,
   evaluateOrder,
   type GatewayOpenOrder,
   type OrderAccount,
@@ -34,10 +37,12 @@ import {
 
 export type VertexOrdersConfig = Readonly<{
   enabled: boolean;
-  // VERTEX_ORDER_SUBMISSION, the repo-wide submission gate (a config literal "disabled" today).
+  // VERTEX_ORDER_SUBMISSION, the repo-wide submission gate ("disabled" by default).
   // Live orders need BOTH this gate open and VERTEX_ORDERS_ENABLED; otherwise the mock is used.
   submission: string;
   bridgeUrl: string | null;
+  // VERTEX_ORDER_BRIDGE_TOKEN: shared secret the bridge requires on every call. Never logged.
+  bridgeToken?: string | null;
   confirmSecret: string;
 }>;
 
@@ -86,7 +91,11 @@ const liveAllowed = (config: VertexOrdersConfig): boolean =>
 
 const selectOrderGateway = (config: VertexOrdersConfig): OrderGatewayPort =>
   liveAllowed(config)
-    ? createBridgeOrderGateway(config.bridgeUrl, deps().bridgeFetch)
+    ? createBridgeOrderGateway(
+        config.bridgeUrl,
+        deps().bridgeFetch,
+        config.bridgeToken ?? null
+      )
     : deps().mock;
 
 const RATE_WINDOW_MS = 60_000;
@@ -120,11 +129,13 @@ const gatesOf = (
 const toOpenOrder = (order: GatewayOpenOrder): VertexOpenOrder => ({
   ...order,
   // Only option orders can be cancelled here; share stops protect positions and stay untouched.
-  cancellable: order.secType === "OPT",
+  cancellable: order.secType === "OPT" || order.secType === "BAG",
 });
 
 const orderAction = (order: VertexOrderInput): string =>
   `order:${JSON.stringify(order)}`;
+const comboAction = (order: VertexComboInput): string =>
+  `combo:${JSON.stringify(order)}`;
 
 type Failures = Readonly<
   Record<
@@ -241,6 +252,20 @@ const intentStoreOf = (
     });
   return store;
 };
+
+// Writes the result row of a submit. A failed write never hides the gateway result.
+const outcomeRecorder =
+  (context: ApiContext, store: IntentStore | undefined, orderRef: string) =>
+  async (outcome: "placed" | "unknown") =>
+    await store
+      ?.recordOutcome({
+        action: "vertex.order.result",
+        actorUserId: userOf(context),
+        requestId: context.requestId,
+        orderRef,
+        outcome,
+      })
+      .catch(() => undefined);
 
 const heldIn = (
   account: OrderAccount,
@@ -437,23 +462,14 @@ const submit = api.vertexOrders.submit
       await auditFailure(review.reasons.join(" | "));
       throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
     }
-    // The IBKR gateway place_option mode accepts only orderRefs that start with "leaps-".
-    const orderRef = `leaps-vertex-${claims.nonce}`;
+    // The Vertex order tail (market-watch-bot ops/vertex_order_tail.py) accepts only "vertex-" orderRefs.
+    const orderRef = `vertex-${claims.nonce}`;
     await requireAudit(context, failures, "submit", {
       ...base,
       mode: gateway.mode,
       orderRef,
     });
-    const outcomeOf = async (outcome: "placed" | "unknown") =>
-      await store
-        ?.recordOutcome({
-          action: "vertex.order.result",
-          actorUserId: userOf(context),
-          requestId: context.requestId,
-          orderRef,
-          outcome,
-        })
-        .catch(() => undefined);
+    const outcomeOf = outcomeRecorder(context, store, orderRef);
     try {
       await store?.recordIntent({
         actorUserId: userOf(context),
@@ -490,8 +506,161 @@ const submit = api.vertexOrders.submit
         });
       throw error;
     }
-    await outcomeOf("placed");
+    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
+    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
     await audit(context, "submit", "success", {
+      ...base,
+      mode: gateway.mode,
+      orderRef,
+      result: result.state,
+    });
+    return { mode: gateway.mode, orderRef, ...result };
+  });
+
+const comboPreview = api.vertexOrders.comboPreview
+  .use(requireOperator)
+  .use(requireOwner)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    rateCheck(context, failures, "preview");
+    const config = configOf(context, failures);
+    const gateway = selectOrderGateway(config);
+    const account = await guarded(failures, gateway.account);
+    const now = deps().now();
+    const review = blockedBy(
+      evaluateCombo(input, account, now),
+      await reconcileUnknown(
+        context,
+        intentStoreOf(context, gateway, failures),
+        account,
+        now.getTime()
+      )
+    );
+    const expiresAt = now.getTime() + CONFIRM_TTL_MS;
+    const confirmToken = review.accepted
+      ? await issueConfirmToken(config.confirmSecret, {
+          userId: userOf(context),
+          action: comboAction(input),
+          nonce: crypto.randomUUID().replaceAll("-", "").slice(0, 20),
+          expiresAt,
+        })
+      : null;
+    await audit(
+      context,
+      "comboPreview",
+      review.accepted ? "success" : "failure",
+      {
+        contract: review.label,
+        quantity: input.quantity,
+        limitPrice: input.limitPrice,
+        mode: gateway.mode,
+        result: review.accepted ? "accepted" : review.reasons.join(" | "),
+      }
+    );
+    return {
+      gates: gatesOf(config, gateway, account),
+      review,
+      confirmToken,
+      expiresAt:
+        confirmToken === null ? null : new Date(expiresAt).toISOString(),
+    };
+  });
+
+const comboSubmit = api.vertexOrders.comboSubmit
+  .use(requireOperator)
+  .use(requireOwner)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    rateCheck(context, failures, "submit");
+    const config = configOf(context, failures);
+    const now = deps().now();
+    const order = input.order;
+    const base = {
+      contract: `${order.symbol} combo (${order.legs.length} legs)`,
+      quantity: order.quantity,
+      limitPrice: order.limitPrice,
+    };
+    const claims = await consumeConfirmToken(
+      config.confirmSecret,
+      input.confirmToken,
+      { userId: userOf(context), action: comboAction(order) },
+      now.getTime()
+    );
+    if (claims === null) {
+      await audit(context, "comboSubmit", "failure", {
+        ...base,
+        result: "confirm invalid",
+      });
+      throw failures.CONFIRM_INVALID();
+    }
+    const gateway = selectOrderGateway(config);
+    const auditFailure = (outcome: string) =>
+      audit(context, "comboSubmit", "failure", {
+        ...base,
+        mode: gateway.mode,
+        result: outcome,
+      });
+    const store = intentStoreOf(context, gateway, failures);
+    const account = await guarded(failures, gateway.account, auditFailure);
+    const review = blockedBy(
+      evaluateCombo(order, account, now),
+      await reconcileUnknown(context, store, account, now.getTime())
+    );
+    if (!review.accepted) {
+      await auditFailure(review.reasons.join(" | "));
+      throw failures.ORDER_REJECTED({ message: review.reasons.join(" ") });
+    }
+    const orderRef = `vertex-${claims.nonce}`;
+    await requireAudit(context, failures, "comboSubmit", {
+      ...base,
+      mode: gateway.mode,
+      orderRef,
+    });
+    // The intent tracks the first leg: reconciliation finds the orderRef in open orders, or a changed
+    // position in that leg after the wait.
+    // The contract schema requires at least two legs.
+    const [first] = order.legs as [VertexComboLeg, ...VertexComboLeg[]];
+    const leg = {
+      symbol: order.symbol,
+      expiry: first.expiry,
+      strike: first.strike,
+      right: first.right,
+    };
+    try {
+      await store?.recordIntent({
+        actorUserId: userOf(context),
+        requestId: context.requestId,
+        intent: {
+          orderRef,
+          contract: review.label,
+          ...leg,
+          heldBefore: heldIn(account, leg),
+        },
+      });
+    } catch {
+      await auditFailure("intent store unavailable");
+      throw failures.AUDIT_UNAVAILABLE({
+        message: "Order intent store unavailable; nothing was sent",
+      });
+    }
+    const outcomeOf = outcomeRecorder(context, store, orderRef);
+    let result: Awaited<ReturnType<OrderGatewayPort["placeCombo"]>>;
+    try {
+      result = await gateway.placeCombo(order, orderRef);
+    } catch (error) {
+      const detail =
+        error instanceof OrderGatewayError ? error.message : "gateway error";
+      await outcomeOf("unknown");
+      await auditFailure(`outcome unknown: ${detail}`);
+      if (error instanceof OrderGatewayError)
+        throw failures[error.code]({
+          message: `Outcome unknown (${detail}): the order may still reach IBKR. The next preview checks it first.`,
+        });
+      throw error;
+    }
+    // "unconfirmed": IBKR has not acknowledged the order yet; it may still be live.
+    await outcomeOf(result.state === "unconfirmed" ? "unknown" : "placed");
+    await audit(context, "comboSubmit", "success", {
       ...base,
       mode: gateway.mode,
       orderRef,
@@ -506,7 +675,10 @@ const findOrder = (
   permId: number
 ): GatewayOpenOrder => {
   const order = account.openOrders.find((o) => o.permId === permId);
-  if (order === undefined || order.secType !== "OPT")
+  if (
+    order === undefined ||
+    (order.secType !== "OPT" && order.secType !== "BAG")
+  )
     throw failures.NOT_FOUND({
       message: "No open option order with this permId",
     });
@@ -603,6 +775,8 @@ export const vertexOrdersRouter = {
   status,
   preview,
   submit,
+  comboPreview,
+  comboSubmit,
   cancelPreview,
   cancelSubmit,
 };

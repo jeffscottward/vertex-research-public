@@ -316,7 +316,10 @@ export const PositionsPanel = ({
 }: {
   /** Optional order-button cell per row (owner order actions); adds an "Actions" column. */
   readonly actions?:
-    | ((position: PortfolioMonitorPosition) => ReactNode)
+    | ((
+        position: PortfolioMonitorPosition,
+        positions: readonly PortfolioMonitorPosition[]
+      ) => ReactNode)
     | undefined;
   readonly empty?: string;
   readonly live: boolean;
@@ -429,7 +432,7 @@ export const PositionsPanel = ({
                     ))}
                     {actions === undefined ? null : (
                       <td className={CELL} data-column="actions">
-                        {actions(position)}
+                        {actions(position, positions)}
                       </td>
                     )}
                   </tr>

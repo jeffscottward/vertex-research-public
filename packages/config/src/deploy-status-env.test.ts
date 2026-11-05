@@ -209,6 +209,16 @@ describe("VERTEX_ORDERS_ENABLED and VERTEX_ORDER_BRIDGE_URL", () =>
     expect(url.safeParse("http://127.0.0.1:3470").success).toBe(true);
     expect(url.safeParse("https://127.0.0.1:3470").success).toBe(false);
     expect(url.safeParse("http://10.0.0.5:3470").success).toBe(false);
+    const gate = serverEnvSchema.shape.VERTEX_ORDER_SUBMISSION;
+    expect(gate.parse(undefined)).toBe("disabled");
+    expect(gate.parse("enabled")).toBe("enabled");
+    expect(gate.safeParse("on").success).toBe(false);
+    const token = serverEnvSchema.shape.VERTEX_ORDER_BRIDGE_TOKEN;
+    expect(token.safeParse("")).toMatchObject({
+      success: true,
+      data: undefined,
+    });
+    expect(token.safeParse("short").success).toBe(false);
   }));
 
 describe("VERTEX_IBKR_RECOVERY_URL / VERTEX_IBKR_RECOVERY_TOKEN", () =>

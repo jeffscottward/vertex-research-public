@@ -127,6 +127,8 @@ const gateway = () =>
       permId: 11,
       message: "Simulated",
     })),
+    comboPreview: vi.fn(),
+    comboSubmit: vi.fn(),
   }) satisfies Record<keyof VertexOrdersGateway, unknown>;
 
 const render = async (g: ReturnType<typeof gateway>) => {
@@ -297,6 +299,8 @@ describe("vertex orders client", () => {
         submit: forward("submit"),
         cancelPreview: forward("cancelPreview"),
         cancelSubmit: forward("cancelSubmit"),
+        comboPreview: forward("comboPreview"),
+        comboSubmit: forward("comboSubmit"),
       },
     } as unknown as ApiClient;
     const g = createBrowserVertexOrdersGateway();
@@ -309,12 +313,41 @@ describe("vertex orders client", () => {
       confirmToken: "x".repeat(20),
       confirm: true,
     });
+    const combo = {
+      symbol: "MOCKS",
+      quantity: 1,
+      limitPrice: -1,
+      legs: [
+        {
+          expiry: "20280121",
+          strike: 100,
+          right: "C" as const,
+          side: "SELL" as const,
+          ratio: 1,
+        },
+        {
+          expiry: "20280121",
+          strike: 120,
+          right: "C" as const,
+          side: "BUY" as const,
+          ratio: 1,
+        },
+      ],
+    };
+    await g.comboPreview(combo);
+    await g.comboSubmit({
+      order: combo,
+      confirmToken: "x".repeat(20),
+      confirm: true,
+    });
     expect(calls).toEqual([
       "status",
       "preview",
       "submit",
       "cancelPreview",
       "cancelSubmit",
+      "comboPreview",
+      "comboSubmit",
     ]);
   });
 

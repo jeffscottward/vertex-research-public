@@ -89,6 +89,16 @@ export const PortfolioMonitorPositionSchema = z
     unrealizedPct: money,
     realized: money,
     weightPct: money,
+    // Option contract fields from IBKR (OPT rows only), so an order can name the contract exactly
+    // even when the description text has another form (owner 2026-11-04: every row can be closed).
+    option: z
+      .object({
+        expiry: shortText(16),
+        strike: z.number().finite(),
+        right: shortText(8),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 

@@ -7,14 +7,19 @@ import type {
 import { Button, Input, Label, StatusBadge } from "@darkfactory/ui";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { ComboOrderDialog } from "./position-combo-dialog.tsx";
 import {
+  type ComboDraft,
   type PositionAction,
   type PositionOrderDraft,
   actionsUnavailableReason,
+  comboDraft,
   defaultLimit,
   draftFor,
   estimatedAmount,
   parseOptionContract,
+  shareContract,
+  spreadGroup,
   toPositionOrderInput,
 } from "./position-actions-model.ts";
 import {
@@ -90,8 +95,13 @@ const PositionOrderDialog = ({
   const price = Number(limit);
   const valid =
     Number.isInteger(qty) && qty > 0 && Number.isFinite(price) && price > 0;
-  const amount = valid ? estimatedAmount(qty, price) : null;
+  const shares = draft.secType === "STK";
+  const amount = valid ? estimatedAmount(qty, price, shares ? 1 : 100) : null;
   const { contract } = draft;
+  const offsetPct = shares ? 1 : 5;
+  const title = shares
+    ? `${ACTION_LABEL[action]} ${contract.symbol} shares`
+    : `${ACTION_LABEL[action]} ${contract.symbol} ${contract.expiry} ${contract.strike} ${contract.right === "C" ? "call" : "put"}`;
 
   const run = async (step: () => Promise<void>) => {
     setBusy(true);
@@ -108,7 +118,12 @@ const PositionOrderDialog = ({
   const onMarketable = (next: boolean) => {
     setMarketable(next);
     setReview(null);
-    const value = defaultLimit(position.last, draft.side, next);
+    const value = defaultLimit(
+      position.last,
+      draft.side,
+      next,
+      offsetPct / 100
+    );
     if (value !== null) setLimit(String(value));
   };
 
@@ -141,12 +156,15 @@ const PositionOrderDialog = ({
         role="dialog"
       >
         <h2 className="font-semibold text-lg" id={titleId}>
-          {`${ACTION_LABEL[action]} ${contract.symbol} ${contract.expiry} ${contract.strike} call`}
+          {title}
         </h2>
         <dl>
           <Row label="Symbol" value={contract.symbol} />
           <Row label="Side" value={draft.side} />
-          <Row label="Held contracts" value={String(position.position)} />
+          <Row
+            label={shares ? "Held shares" : "Held contracts"}
+            value={String(position.position)}
+          />
           <Row label="Order type" value="Limit (LMT), day" />
           <Row
             label={
@@ -157,7 +175,9 @@ const PositionOrderDialog = ({
         </dl>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor={`${titleId}-qty`}>Contracts</Label>
+            <Label htmlFor={`${titleId}-qty`}>
+              {shares ? "Shares" : "Contracts"}
+            </Label>
             <Input
               id={`${titleId}-qty`}
               inputMode="numeric"
@@ -194,7 +214,8 @@ const PositionOrderDialog = ({
             onChange={(event) => onMarketable(event.target.checked)}
             type="checkbox"
           />
-          Marketable limit (mark {draft.side === "BUY" ? "+" : "−"} 5%)
+          Marketable limit (mark {draft.side === "BUY" ? "+" : "−"} {offsetPct}
+          %)
         </label>
         <p className="text-muted-foreground text-xs">
           Default limit is the IBKR mark ({usd(position.last)}). Options are
@@ -251,38 +272,72 @@ const PositionOrderDialog = ({
   );
 };
 
+const SPREAD_REASON = "Part of a spread: use Close (one combo order)";
+
 const PositionActions = ({
   disabledReason,
   onAction,
+  onCombo,
   position,
+  positions,
 }: Readonly<{
   disabledReason: string | null;
   onAction: (action: PositionAction, draft: PositionOrderDraft) => void;
+  onCombo: (draft: ComboDraft) => void;
   position: PortfolioMonitorPosition;
+  positions: readonly PortfolioMonitorPosition[];
 }>) => {
+  const share = shareContract(position);
+  if (share !== null)
+    return (
+      <div className="flex gap-1">
+        <Button
+          aria-label={`Close ${position.symbol} shares`}
+          data-position-action="close"
+          onClick={() =>
+            onAction("close", draftFor(share, position, "close", true, "STK"))
+          }
+          size="compact"
+          variant="destructive"
+        >
+          Close
+        </Button>
+      </div>
+    );
   const contract = parseOptionContract(position);
-  if (contract === null)
+  const group = spreadGroup(position, positions);
+  if (contract === null || group === "unparsed")
     return (
       <span className="text-muted-foreground text-xs">
         {actionsUnavailableReason(position)}
       </span>
     );
   const actions: readonly PositionAction[] = ["close", "buy", "sell"];
+  // Close is always available (owner 2026-11-04: close no matter what; the server checks it).
+  // The kill switch and unknown gates disable only Buy and Sell.
+  const reasonFor = (action: PositionAction): string | null =>
+    action === "close"
+      ? null
+      : (disabledReason ?? (group === null ? null : SPREAD_REASON));
+  const onClick = (action: PositionAction) => {
+    if (group === null)
+      onAction(
+        action,
+        draftFor(contract, position, action, action === "close")
+      );
+    else onCombo(comboDraft(contract.symbol, group, true));
+  };
   return (
-    <div className="flex gap-1" title={disabledReason ?? undefined}>
+    <div className="flex gap-1">
       {actions.map((action) => (
         <Button
           aria-label={`${ACTION_LABEL[action]} ${position.description}`}
           data-position-action={action}
-          disabled={disabledReason !== null}
+          disabled={reasonFor(action) !== null}
           key={action}
-          onClick={() =>
-            onAction(
-              action,
-              draftFor(contract, position, action, action === "close")
-            )
-          }
+          onClick={() => onClick(action)}
           size="compact"
+          title={reasonFor(action) ?? undefined}
           variant={action === "close" ? "destructive" : "secondary"}
         >
           {ACTION_LABEL[action]}
@@ -303,6 +358,7 @@ export const usePositionActions = (
     draft: PositionOrderDraft;
     position: PortfolioMonitorPosition;
   }> | null>(null);
+  const [combo, setCombo] = useState<ComboDraft | null>(null);
   useEffect(() => {
     if (gateway === undefined) return;
     // A synchronous throw (no API client) also ends as "gates unknown".
@@ -314,27 +370,40 @@ export const usePositionActions = (
   if (gateway === undefined) return null;
   const disabledReason =
     killSwitch === true
-      ? "Kill switch on: no new orders"
+      ? "Kill switch on: Close only"
       : killSwitch === null
         ? "Order gates unknown"
         : null;
   return {
-    cell: (position: PortfolioMonitorPosition) => (
+    cell: (
+      position: PortfolioMonitorPosition,
+      positions: readonly PortfolioMonitorPosition[]
+    ) => (
       <PositionActions
         disabledReason={disabledReason}
         onAction={(action, draft) => setOpen({ action, draft, position })}
+        onCombo={setCombo}
         position={position}
+        positions={positions}
       />
     ),
     dialog:
-      open === null ? null : (
-        <PositionOrderDialog
-          action={open.action}
-          draft={open.draft}
+      combo === null ? (
+        open === null ? null : (
+          <PositionOrderDialog
+            action={open.action}
+            draft={open.draft}
+            gateway={gateway}
+            key={`${open.position.id}-${open.action}`}
+            onClose={() => setOpen(null)}
+            position={open.position}
+          />
+        )
+      ) : (
+        <ComboOrderDialog
+          draft={combo}
           gateway={gateway}
-          key={`${open.position.id}-${open.action}`}
-          onClose={() => setOpen(null)}
-          position={open.position}
+          onClose={() => setCombo(null)}
         />
       ),
   };

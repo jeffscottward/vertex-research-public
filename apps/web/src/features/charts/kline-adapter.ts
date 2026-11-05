@@ -7,6 +7,7 @@ import type {
 import {
   type ChartType,
   type Drawing,
+  type DrawingPoint,
   type DrawingTool,
   validDrawing,
 } from "./workstation.ts";
@@ -108,17 +109,78 @@ const toolForOverlay = (name: string): DrawingTool | undefined =>
 type OverlayLike = Readonly<{
   id: string;
   name: string;
-  points: readonly Readonly<{ timestamp?: number; value?: number }>[];
+  points: readonly Readonly<{
+    timestamp?: number;
+    dataIndex?: number;
+    value?: number;
+  }>[];
   extendData: unknown;
 }>;
+const DAY_MS = 86_400_000;
+/**
+ * Bar time for a chart data index. Past the last bar (KLineCharts gives a dataIndex but
+ * no timestamp there) it extends the last bar spacing; one bar uses one day.
+ */
+export const timestampAtIndex = (
+  timestamps: readonly number[],
+  index: number
+): number | undefined => {
+  if (!Number.isSafeInteger(index) || index < 0) return undefined;
+  const known = timestamps[index];
+  if (known !== undefined) return known;
+  const last = timestamps.at(-1);
+  if (last === undefined) return undefined;
+  return last + (index - (timestamps.length - 1)) * barSpacing(timestamps);
+};
+const SPACING_BARS = 20;
+/**
+ * Typical bar spacing: the median gap of the last 20 bars (lower median), so one weekend or
+ * holiday gap does not move points after the last bar. Fewer than two bars use one day.
+ */
+export const barSpacing = (timestamps: readonly number[]): number => {
+  const gaps: number[] = [];
+  let prior: number | null = null;
+  for (const timestamp of timestamps.slice(-(SPACING_BARS + 1))) {
+    if (prior !== null) gaps.push(timestamp - prior);
+    prior = timestamp;
+  }
+  const middle = Math.floor((gaps.length - 1) / 2);
+  return gaps
+    .sort((left, right) => left - right)
+    .slice(middle, middle + 1)
+    .reduce((_, gap) => gap, DAY_MS);
+};
+/**
+ * Overlay point for a stored drawing point. KLineCharts 9.8.12 snaps every timestamp to
+ * the nearest bar, so a point after the last bar is passed as a data index without a time.
+ */
+export const overlayPoint = (
+  point: DrawingPoint,
+  timestamps: readonly number[]
+): Readonly<{ timestamp?: number; dataIndex?: number; value: number }> => {
+  const last = timestamps.at(-1);
+  if (last === undefined || point.timestamp <= last) return { ...point };
+  return {
+    dataIndex:
+      timestamps.length -
+      1 +
+      Math.round((point.timestamp - last) / barSpacing(timestamps)),
+    value: point.value,
+  };
+};
 export const drawingFromOverlay = (
-  overlay: OverlayLike
+  overlay: OverlayLike,
+  timestamps: readonly number[] = []
 ): Drawing | undefined => {
   const tool = toolForOverlay(overlay.name);
   const drawing = {
     id: overlay.id,
     points: overlay.points.map((point) => ({
-      timestamp: point.timestamp,
+      timestamp:
+        point.timestamp ??
+        (point.dataIndex === undefined
+          ? undefined
+          : timestampAtIndex(timestamps, point.dataIndex)),
       value: point.value,
     })),
     text: typeof overlay.extendData === "string" ? overlay.extendData : "",
@@ -257,6 +319,29 @@ export const createKLineRenderer: CandleRendererFactory = async (
     dispose();
     throw error;
   }
+  // Current drawings, kept so points after the last bar can be placed again when bars change.
+  let drawn: Readonly<{
+    drawings: readonly Drawing[];
+    onChange: (drawing: Drawing) => void;
+  }> | null = null;
+  // Places the drawings again when one of them has a point after `time`.
+  const redrawAfter = (time: number) => {
+    if (
+      drawn?.drawings.some((drawing) =>
+        drawing.points.some((point) => point.timestamp > time)
+      )
+    )
+      setDrawings(drawn.drawings, drawn.onChange);
+  };
+  // Keeps the shown bars. Drawing points after the last bar are data indexes counted from
+  // the first bar, so they are placed again when the bar count or the last bar changes.
+  const remember = (values: readonly DisplayCandle[], newLast: number) => {
+    const oldLast = previous.at(-1)?.timestamp ?? Number.NEGATIVE_INFINITY;
+    const oldCount = previous.length;
+    previous = values.map((bar) => Object.freeze({ ...bar }));
+    if (newLast !== oldLast || values.length !== oldCount)
+      redrawAfter(Math.min(oldLast, newLast));
+  };
   const replace = (values: readonly DisplayCandle[]) => {
     if (disposed) return;
     if (!validDisplayCandles(values))
@@ -304,7 +389,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         false
       );
     }
-    previous = values.map((bar) => Object.freeze({ ...bar }));
+    remember(values, last.timestamp);
   };
   let volumeShown = false;
   let smaKey = "";
@@ -392,8 +477,16 @@ export const createKLineRenderer: CandleRendererFactory = async (
   };
   const overlayEvents = (onChange: (drawing: Drawing) => void) => {
     const emit = (event: { overlay: OverlayLike }): boolean => {
-      const drawing = drawingFromOverlay(event.overlay);
+      const drawing = drawingFromOverlay(
+        event.overlay,
+        previous.map((bar) => bar.timestamp)
+      );
       if (drawing !== undefined) onChange(drawing);
+      // A drawing that cannot be stored must not stay on the chart as if it were saved:
+      // a saved one goes back to its stored place, a new one is removed.
+      else if (drawn?.drawings.some((saved) => saved.id === event.overlay.id))
+        setDrawings(drawn.drawings, drawn.onChange);
+      else chart.removeOverlay({ id: event.overlay.id });
       return false;
     };
     return { onDrawEnd: emit, onPressedMoveEnd: emit };
@@ -404,15 +497,17 @@ export const createKLineRenderer: CandleRendererFactory = async (
   ) => {
     if (!drawings.every(validDrawing)) throw new TypeError("Invalid drawings");
     if (disposed) return;
+    drawn = { drawings, onChange };
     chart.removeOverlay({ groupId: DRAWING_GROUP_ID });
     if (drawings.length === 0) return;
+    const times = previous.map((bar) => bar.timestamp);
     chart.createOverlay(
       drawings.map((drawing) => ({
         extendData: drawing.text,
         groupId: DRAWING_GROUP_ID,
         id: drawing.id,
         name: DRAWING_OVERLAYS[drawing.tool],
-        points: drawing.points.map((point) => ({ ...point })),
+        points: drawing.points.map((point) => overlayPoint(point, times)),
         ...overlayEvents(onChange),
       }))
     );

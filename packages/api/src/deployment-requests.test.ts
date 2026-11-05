@@ -576,7 +576,7 @@ describe("deploymentRequests lock contract", () => {
       "utf8"
     );
     return expect(config).toContain(
-      'VERTEX_ORDER_SUBMISSION: z.literal("disabled").default("disabled")'
+      'VERTEX_ORDER_SUBMISSION: z.enum(["disabled", "enabled"]).default("disabled")'
     );
   });
 });

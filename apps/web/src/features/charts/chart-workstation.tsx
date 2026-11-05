@@ -69,13 +69,22 @@ export const ChartWorkstation = ({
     parseDrawings(storage?.getItem(key) ?? null)
   );
   const [renderer, setRenderer] = useState<CandleRenderer | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
+  const [hover, setHoverState] = useState<Readonly<{
+    timestamp: number;
+    values: readonly DisplayCandle[];
+    key: string;
+  }> | null>(null);
   const [noteText, setNoteText] = useState("");
   const [status, setStatus] = useState("");
   const values = useMemo(
     () => displayValues(candles, chartType),
     [candles, chartType]
   );
+  const series = useRef({ key, values });
+  series.current = { key, values };
+  const setHover = useCallback((timestamp: number | null) => {
+    setHoverState(timestamp === null ? null : { ...series.current, timestamp });
+  }, []);
   const keyRef = useRef(key);
   useEffect(() => {
     if (keyRef.current === key) return;
@@ -111,10 +120,17 @@ export const ChartWorkstation = ({
     renderer?.onCrosshair?.(setHover);
     return;
   }, [renderer]);
-  const index =
-    hover === null
-      ? values.length - 1
-      : values.findIndex((bar) => bar.timestamp === hover);
+  // A hover belongs to one bar series: a new symbol or new bars start at the latest bar.
+  const hoverTimestamp =
+    hover !== null && hover.values === values && hover.key === key
+      ? hover.timestamp
+      : null;
+  // The latest bar when nothing is hovered or the hovered time is not in this series.
+  const hovered =
+    hoverTimestamp === null
+      ? -1
+      : values.findIndex((bar) => bar.timestamp === hoverTimestamp);
+  const index = hovered < 0 ? values.length - 1 : hovered;
   const rows = dataWindowRows(
     values[index],
     index > 0 ? values[index - 1]?.close : undefined,
@@ -207,17 +223,26 @@ export const ChartWorkstation = ({
         {status}
       </p>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-        <CandleCanvas
-          captions={captions}
-          factory={factory}
-          label={label}
-          markers={markers}
-          onRenderer={setRenderer}
-          pricePrecision={pricePrecision}
-          studies={studies}
-          values={values}
-          volumePrecision={0}
-        />
+        {/* KLineCharts sends no crosshair event on leave: reset the data window here (mouse and pen). */}
+        <div
+          className="min-w-0"
+          onPointerLeave={(event) => {
+            // A touch lifts with pointerleave while KLineCharts keeps the tapped bar.
+            if (event.pointerType !== "touch") setHover(null);
+          }}
+        >
+          <CandleCanvas
+            captions={captions}
+            factory={factory}
+            label={label}
+            markers={markers}
+            onRenderer={setRenderer}
+            pricePrecision={pricePrecision}
+            studies={studies}
+            values={values}
+            volumePrecision={0}
+          />
+        </div>
         <aside className="space-y-4 text-sm">
           <section aria-labelledby="vx-data-window" data-data-window="">
             <h3 className="font-semibold" id="vx-data-window">

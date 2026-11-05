@@ -104,6 +104,7 @@ export const CandleCanvas = ({
         return setPhase("ready");
       } catch {
         if (active && mine === generation) {
+          latestOnRenderer.current?.(null);
           mounted?.dispose();
           mounted = null;
           renderer.current = null;
@@ -154,6 +155,7 @@ export const CandleCanvas = ({
     try {
       renderer.current?.replace(values);
     } catch {
+      latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
       setPhase("error");
@@ -165,6 +167,7 @@ export const CandleCanvas = ({
     try {
       renderer.current?.setStudies?.(studies);
     } catch {
+      latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
       setPhase("error");
@@ -176,6 +179,7 @@ export const CandleCanvas = ({
     try {
       renderer.current?.setMarkers?.(markers);
     } catch {
+      latestOnRenderer.current?.(null);
       renderer.current?.dispose();
       renderer.current = null;
       setPhase("error");
