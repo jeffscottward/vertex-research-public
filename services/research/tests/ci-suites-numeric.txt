@@ -1,0 +1,4 @@
+# Suites that need the optional numeric backend (second run of scripts/ci/research-python.sh,
+# separate venv from requirements-numeric-linux-py312.lock, VERTEX_REQUIRE_NUMERIC=1).
+# One path per line, relative to services/research. Remove a line only when its file is removed.
+tests/test_quant_replay_event_study.py

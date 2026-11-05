@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the research tooling Python tests in services/research.
+# Run the Python research and execution test suites.
 #
 # The suites to run are listed in services/research/tests/ci-suites.txt (one
 # path per line, relative to services/research). The script makes a private
@@ -8,14 +8,26 @@
 # suites. Nothing is installed outside the temporary virtual environment, and
 # the tests use fakes only: no network, model or broker call.
 #
-# Second run: the suites in services/research/tests/ci-suites-nautilus.txt run
+# Completeness: ci-suites.txt must list every test file in
+# services/research/tests, services/research/providers/tests and
+# services/execution/tests. A test file that is not listed stops the run, so a
+# new suite cannot silently stay out of CI.
+#
+# Second run: the suites in services/research/tests/ci-suites-numeric.txt run
+# in a separate virtual environment from
+# services/research/requirements-numeric-linux-py312.lock (base pins plus
+# numpy 2.4.6 and scipy 1.18.1) with VERTEX_REQUIRE_NUMERIC=1, so a missing
+# numeric backend fails instead of skipping. The base run skips only those
+# optional-backend tests.
+#
+# Third run: the suites in services/research/tests/ci-suites-nautilus.txt run
 # in a separate virtual environment from
 # services/research/requirements-nautilus-linux-py312.lock (base pins plus
-# nautilus-trader 1.227.0, glibc >= 2.35) with VERTEX_REQUIRE_NAUTILUS=1, so a
-# missing engine fails instead of skipping. The base run does not change; it
-# also lists tests/test_quantlab_nautilus.py, so without nautilus-trader it runs
-# that file's error-path tests (missing engine, wrong version, CLI exit 2) and
-# skips its parity tests.
+# nautilus-trader 1.227.0 and pandas, glibc >= 2.35) with
+# VERTEX_REQUIRE_NAUTILUS=1, so a missing engine fails instead of skipping. The
+# base run also lists tests/test_quantlab_nautilus.py, so without
+# nautilus-trader it runs that file's error-path tests (missing engine, wrong
+# version, CLI exit 2) and skips its parity tests.
 #
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
@@ -38,12 +50,36 @@ if [[ "${version}" != "3.12" ]]; then
 fi
 
 pythonpath=""
-for p in research control-client market-data execution contracts/python/src host; do
+for p in research control-client market-data execution contracts/python/src host gateway; do
   pythonpath="${pythonpath:+${pythonpath}:}${root}/services/${p}"
 done
 
 venvs=()
 trap 'rm -rf "${venvs[@]}"' EXIT
+
+# manifest_lines <manifest relative to services/research>: one suite per line,
+# comments and blanks removed.
+manifest_lines() {
+  local line
+  while IFS= read -r line; do
+    line="${line%%#*}"
+    line="${line//[[:space:]]/}"
+    [[ -n "${line}" ]] && printf '%s\n' "${line}"
+  done <"${research}/$1"
+}
+
+# Every test file must be listed in the base manifest.
+listed="$(manifest_lines tests/ci-suites.txt)"
+missing=0
+while IFS= read -r suite; do
+  if ! grep -qxF "${suite}" <<<"${listed}"; then
+    echo "::error::${suite} is not listed in services/research/tests/ci-suites.txt." >&2
+    missing=1
+  fi
+done < <(cd "${research}" && ls tests/test_*.py providers/tests/test_*.py ../execution/tests/test_*.py)
+if [[ "${missing}" -ne 0 ]]; then
+  exit 1
+fi
 
 # run_suites <manifest relative to services/research> <lock> [VAR=value ...]
 run_suites() {
@@ -51,15 +87,12 @@ run_suites() {
   shift 2
   local suites=() line
   while IFS= read -r line; do
-    line="${line%%#*}"
-    line="${line//[[:space:]]/}"
-    [[ -z "${line}" ]] && continue
     if [[ ! -f "${research}/${line}" ]]; then
       echo "::error::Suite ${line} in ${manifest} does not exist." >&2
       exit 1
     fi
     suites+=("${line}")
-  done <"${research}/${manifest}"
+  done < <(manifest_lines "${manifest}")
   if [[ "${#suites[@]}" -eq 0 ]]; then
     echo "::error::${manifest} lists no suites." >&2
     exit 1
@@ -77,5 +110,7 @@ run_suites() {
 }
 
 run_suites tests/ci-suites.txt "${research}/requirements-linux-py312.lock"
+run_suites tests/ci-suites-numeric.txt "${research}/requirements-numeric-linux-py312.lock" \
+  VERTEX_REQUIRE_NUMERIC=1
 run_suites tests/ci-suites-nautilus.txt "${research}/requirements-nautilus-linux-py312.lock" \
   VERTEX_REQUIRE_NAUTILUS=1
