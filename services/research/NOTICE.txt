@@ -21,3 +21,8 @@ Pydantic, pydantic-core, tzdata, the optional numeric extra (NumPy, SciPy;
 pinned, not yet installed) and test/build tools are separate dependencies under
 their own distribution notices. They are not vendored or relicensed by this
 package. Preserve their installed distribution notices.
+
+NautilusTrader (LGPL-3.0) is an optional, separately installed dependency of
+the Quant Lab engine quantlab/nautilus_engine.py, pinned at 1.227.0 with its
+dependency closure in requirements-nautilus-linux-py312.lock. No NautilusTrader
+code is copied, vendored, modified or relinked into this package.

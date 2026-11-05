@@ -1,0 +1,4 @@
+# Research tooling suites that need nautilus-trader (second run of scripts/ci/research-python.sh,
+# separate venv from requirements-nautilus-linux-py312.lock, VERTEX_REQUIRE_NAUTILUS=1).
+# One path per line, relative to services/research. Remove a line only when its file is removed.
+tests/test_quantlab_nautilus.py
