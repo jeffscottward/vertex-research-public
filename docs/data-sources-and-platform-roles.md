@@ -60,6 +60,22 @@ The `/charts` page shows an options panel for stock symbols (`secType` STK). The
 
 The calculations in `packages/api/src/server/options-analytics-engine.ts` implement the volatility, exposure and flow views first written in Gamma Forge (the earlier version of Vertex): ATM IV term structure, IV at fixed deltas (skew), an out-of-the-money IV surface by moneyness, aggregate open interest, max pain and option flow with hourly premium buckets. GEX is an estimate: aggregate open interest multiplied by Black-Scholes gamma from the front-expiry IV, in dollars per 1 % move, with dealers assumed long calls and short puts. The panel shows these limits under "Data limits". The panel does not place, change or cancel orders.
 
+## FinancialDatasets research CLI (fundamentals and daily history)
+
+`services/research/providers/financialdatasets_cli.py` is a read-only research entry point. It uses the FinancialDatasets adapter [L5]. It gives company facts, financial metrics, financial statements and daily price history for one ticker. These data sit next to IBKR; they do not replace IBKR. The CLI has no order, broker or account path. Run it from `services/research`:
+
+```bash
+python -m providers.financialdatasets_cli company-facts --ticker AAPL
+python -m providers.financialdatasets_cli financial-metrics --ticker AAPL --out ../../private/fd/aapl-metrics.json
+python -m providers.financialdatasets_cli financial-statements --ticker AAPL --period annual --limit 4
+python -m providers.financialdatasets_cli prices --ticker AAPL --days 7   # or --start-date/--end-date
+```
+
+- **Key:** the CLI reads the key only from `FINANCIAL_DATASETS_API_KEY`, or else from `FINANCIALDATASETS_API_KEY`. The key goes only in the `X-API-KEY` header. The CLI never prints or writes it, and it blocks any output that contains the key. Without a key, the CLI stops before it makes a request. `FINANCIAL_DATASETS_API_BASE_URL` can replace the default `https://api.financialdatasets.ai`. It must be a bare HTTPS origin.
+- **Output:** JSON with `source`, `endpoint`, `ticker`, `http_status`, `fetched_at`, `age_seconds`, `raw_sha256`, `rights`, `limitations`, `record_count` and the normalized `payload`. Numbers are exact decimal strings. Without `--out`, the JSON goes to stdout. With `--out`, the file must be inside the git-ignored `private/` folder at the repository root (`../../private/` from `services/research`). Other folders named `private` are refused. The file has mode 0600. Stdout then gets only a summary. The CLI stores nothing else.
+- **Calls:** one run makes at most one request. The CLI never retries, follows redirects or follows pages. After HTTP 429 it exits with code 3 and reports `retry_after_seconds`; wait before the next run. HTTP 401/403 shows as `provider-access-denied`. HTTP 402 and other errors show as `provider-unavailable`. A response that needs another page shows as `unsupported-pagination`, so data are never cut short without notice. Statements accept `--limit` 1-10, which is one documented page.
+- **Limits:** the only rights mode is `research-only`. Vendor storage, redistribution and model-use rights are **unverified**. Prices are **end-of-day daily bars only**. They are not quotes, intraday or real-time data, and they are not point-in-time history. Account entitlement and history depth are unverified until a live run shows them. Tests use a fake transport only (`providers/tests/test_financialdatasets_cli.py`).
+
 ## Current limitations and decision rules
 
 1. **Historical simulation, live decision support and reconciled account state must stay separate.** Show source, as-of/received time, environment and stale/unknown/coverage status beside relevant values. Do not silently blend providers or substitute a simulation for a broker record.

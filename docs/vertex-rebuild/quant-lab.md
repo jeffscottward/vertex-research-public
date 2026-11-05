@@ -32,7 +32,9 @@ Status: research only. Nothing in this pipeline places orders, reads broker acco
 
 ## Engine
 
-NautilusTrader is not installed on this host, and the existing `backtesting/` package plans and verifies runs but does not simulate fills. `quantlab/engine.py` is a deterministic, standard-library daily simulator:
+Quant Lab has two engines with the same input (a frozen spec and frozen CSV bars) and the same result record. The result has an `engine` field: `stdlib-daily-v1` (default) or `nautilus-trader-1.227.0`. The existing `backtesting/` package plans and verifies runs but does not simulate fills.
+
+`quantlab/engine.py` (default) is a deterministic, standard-library daily simulator:
 
 - Signals use adjusted closes up to the decision day. The trade fills at the next session's open. Month-end detection uses the next trading date, which is known from the exchange calendar in advance.
 - Costs per side: commission + half-spread + slippage on traded notional. A 5x cost stress run is included.
@@ -40,9 +42,29 @@ NautilusTrader is not installed on this host, and the existing `backtesting/` pa
 - Validation: fixed-parameter in-sample/out-of-sample split at the preregistered date, and a rolling walk-forward (train window selects the lookback by Sharpe; next test window uses it). The Backtests page shows the stitched walk-forward curve and a buy-and-hold benchmark on the same days.
 - Limits: bar-level fills; no queue position, partial fills, borrow, taxes or intraday gaps beyond the open.
 
+### NautilusTrader engine (optional)
+
+`quantlab/nautilus_engine.py` runs the same spec in a NautilusTrader `BacktestEngine`. Select it with `--engine nautilus`. The pin is `nautilus-trader==1.227.0`, the version of the Vertex Quant node. It is a lazy import: the package imports without it, and `--engine nautilus` without the pinned version stops with exit code 2 and an install hint. Install from the hash lock `services/research/requirements-nautilus-linux-py312.lock` (CPython 3.12, Linux x86_64, glibc 2.35 or later; NautilusTrader is LGPL-3.0 and is a pinned dependency only, never vendored). Research only: one simulated venue, no live client, broker, order route or network.
+
+How it maps the spec:
+
+- Each session is three one-minute bars with open = high = low = close: the opening print (adjusted open), the closing print (adjusted close), and an end-of-day mark at the close price. Bar-based execution fills a market order at the price of the print where the strategy submits it.
+- Decisions: the same `engine.signals` function as the default engine, read at the end-of-day mark. The order goes in at the next session's opening print (`next_open`) or closing print (`next_close`). So fill dates and fill prices are the same as in the default engine.
+- Costs: commission + half-spread + slippage per side are the instrument fee on traded notional. The fill price is the print price; spread and slippage are a fee, not a worse price.
+- Cash interest: a simulation module credits the daily T-bill rate on the cash balance before the first print of each session.
+- Account: CASH account, 100,000,000 USD start, whole shares. An entry buys `floor(weight × equity / (1 + weight × fee) / price)` shares; an exit sells all.
+- The buy-and-hold benchmark stays closed-form for both engines.
+
+Differences from the default engine:
+
+- Whole shares, cent-rounded fees and interest, and the fee charged on notional instead of on equity. With weight 1 the close equity agrees within 1e-5 (relative); the parity tests (`services/research/tests/test_quantlab_nautilus.py`) check this tolerance and equal trade dates, sides and fill prices.
+- The share count is fixed between rebalances. With a weight below 1 the exposure drifts with the price; the default engine keeps the weight constant every day.
+- About 15 times slower (a full SPY 1993–2026 spec with an 11-value walk-forward grid and the cost stress: about 35 seconds on this host).
+- The result `strategy` label ends in `(walk-forward, nautilus-trader-1.227.0)`. The recorder drops the top-level `engine` key and the stored `runConfig` is a closed contract, so the label is how a recorded row shows the engine.
+
 ## Commands
 
-From `services/research` with Python 3.12 (the package uses only the standard library; tests need pytest, for example `uv run --python 3.12 --with pytest python -m pytest tests/test_quantlab.py`):
+From `services/research` with Python 3.12 (the package uses only the standard library; tests need pytest, for example `uv run --python 3.12 --with pytest python -m pytest tests/test_quantlab.py`). The `--engine nautilus` line needs a separate virtual environment from `requirements-nautilus-linux-py312.lock` (`python -m pip install --no-deps --require-hashes --only-binary=:all: -r requirements-nautilus-linux-py312.lock`):
 
 ```sh
 python -m quantlab paper --doi 10.2139/ssrn.2242795 --topic "moving average market timing"
@@ -50,6 +72,7 @@ python -m quantlab spec --capture ../../private/quantlab/captures/ssrn-2242795.j
 python -m quantlab freeze --symbol SPY --start 1993-01-01 --end 2026-10-17
 python -m quantlab freeze --symbol ^IRX --start 1993-01-01 --end 2026-10-17
 python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest>
+python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest> --engine nautilus
 ```
 
 From the repository root. `DATABASE_URL` selects the target database; for the QuantVPS database use an SSH tunnel to its `127.0.0.1:5433`:
@@ -61,6 +84,26 @@ bun run vertex:quantlab:record -- --capture <capture.json> --spec <spec.json> --
 ```
 
 `--dry-run` prints the paper, capture, strategy, spec and backtest rows and needs no database. The recorder checks each input file with a Zod schema. Exit codes: 0 success, 2 usage error, a file that fails its schema, or an input mismatch (for example a result that does not belong to the spec, or a spec whose paper is not recorded), 1 any other failure (unreadable file, database error).
+
+## QuantMind mining
+
+Strategy mining runs the QuantMind knowledge boundary (`QuantMindKnowledgeAdapter` in `services/research/agents/external_research.py`) on our own paper captures and writes draft spec inputs for the strategy library. Code: `services/research/agents/quantmind_mining.py` and `agents/quantmind_cli.py`. Research only, standard library plus the existing adapter. No QuantMind (LLMQuant) code is copied.
+
+- Client: `LocalCaptureClient` reads `captures/*.json` (one capture per file, or a `search-*.json` bundle). A capture is unique by DOI and version; the earliest `captured_at` wins. Its id is `ssrn-<id>-<sha12>`, where the hash is the canonical SHA-256 of the capture record. The searchable text is the title, DOI and abstract, plus retained text when a `.txt` file with the stem of the retained PDF is in `papers/` (for example made with `pdftotext`). Text is read only from that folder.
+- Ranking: the adapter scores each paper by the share of topic terms it contains. `--min-confidence` (default 0.5) and `--top` (default 10) limit the candidates.
+- Rules: deterministic keyword rules on the title and abstract, no model and no network. A moving-average rule becomes `price_above_sma`; time-series momentum, absolute momentum or trend following becomes `momentum`. Rejected with a reason: no supported signal, "moving average" only inside a model or indicator name (ARIMA, MACD), a title that names a rule built from several averages (crossover, triple, combination, distance), and cross-sectional or long-short momentum. Other unsupported parts in the abstract (options, leverage, many portfolios) are listed in `our_reading.deviations`.
+- Draft: one instrument (`--instrument`, default `SPY`) or T-bills, monthly decision, next-open fill, the same costs and rejection criteria as the Zakamulin draft. A lookback stated in the abstract (for example "200-day moving average") is used and added to the walk-forward grid; otherwise the default is 10 months (SMA) or 12 months (momentum), recorded as an assumption. `paper_claims` are verbatim abstract sentences or the title; every choice we made is in `our_reading`. `mining` holds the topic, rank, search score, knowledge source id, capture id and capture SHA-256. `preregistered_at` is the capture time unless `--preregistered-at` is given, so a rerun gives the same bytes. Drafts carry no order fields.
+- Gate: each draft goes through `quantlab.spec.build_spec` before it is written. A draft that fails is reported as rejected with the validation message.
+
+From `services/research`. Relative `--captures`, `--papers` and `--out` paths resolve against the repository root; a relative `QUANTLAB_HOME` resolves from the current directory. Defaults: captures `$QUANTLAB_HOME/captures`, out `$QUANTLAB_HOME/mined`, papers `$QUANTLAB_HOME/papers`, or `<captures>/../papers` when `--captures` is given.
+
+```sh
+python -m agents.quantmind_cli search --topic "moving average market timing"
+python -m agents.quantmind_cli mine --topic "moving average market timing" --out private/quantlab/mined/
+python -m quantlab spec --capture <topic folder>/captures/<capture id>.json --draft <topic folder>/drafts/<draft id>.json
+```
+
+`mine` writes `private/quantlab/mined/<topic-slug>-<sha8>/report.json` (the suffix is the first 8 hex digits of the SHA-256 of the exact topic, so topics with the same slug do not share a folder) (counts, every candidate with its status and reason), `drafts/qm-*.json` and single-capture copies in `captures/` for `quantlab spec`. A rerun of the same topic replaces the earlier drafts. A mined draft is a starting point: review `our_reading` before the spec is frozen and backtested. Tests: `services/research/tests/test_quantmind_mining.py`.
 
 ## Read view
 
@@ -87,4 +130,4 @@ Tests:
 - Unit: `packages/db/src/server/quant-lab-store.test.ts`, `packages/db/src/server/quant-lab-migration.test.ts`, `packages/db/src/server/quant-lab-read.test.ts`, `packages/api/src/quant-lab.test.ts`, `apps/web/src/components/portal/quant-lab-panel.test.tsx`.
 - Recorder: `scripts/quant-lab/record.test.ts`, `scripts/quant-lab/record-rows.test.ts`.
 - Real Postgres (CI): `tests/integration/database/quant-lab-store.test.ts`, `tests/integration/database/quant-lab-read.test.ts`.
-- Python: `services/research/tests/test_quantlab.py`.
+- Python: `services/research/tests/test_quantlab.py`; `services/research/tests/test_quantmind_mining.py`; `services/research/tests/test_quantlab_nautilus.py` (engine parity; its Nautilus tests skip without the pinned engine, except in the CI Nautilus run, which sets `VERTEX_REQUIRE_NAUTILUS=1`).
