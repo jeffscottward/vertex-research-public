@@ -22,13 +22,15 @@ exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 backtesting = ["AI_HEDGE_FUND_LICENSE.txt"]
 quantlab = ["topics.json", "drafts/*.json"]
 
-# Approved source plan; artifacts have not been acquired or runtime-qualified.
+# Approved source plan. CI (scripts/ci/research-python.sh, numeric run) installs this lock with
+# hash checks in a temporary venv and runs the event-study tests. That is test use, not
+# runtime qualification.
 [tool.vertex.optional-backends.event-study-numerics]
-state = "pinned-source-plan-runtime-unavailable"
+state = "pinned-ci-tested-runtime-unqualified"
 extra = "numeric"
 requirements-lock = "requirements-numeric-linux-py312.lock"
 runtime-qualified = false
-reason = "Main-approved exact CPython 3.12 Linux x86_64 artifact metadata; optional numerical runtime is unavailable until composed and accepted. Existing base lock is unchanged."
+reason = "Main-approved exact CPython 3.12 Linux x86_64 artifact metadata; optional numerical runtime is unavailable until composed and accepted. Existing base lock is unchanged. Since 2026-11-05 CI installs the lock and runs the optional-backend event-study tests (VERTEX_REQUIRE_NUMERIC=1); no production runtime uses it."
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"

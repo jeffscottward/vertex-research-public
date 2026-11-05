@@ -1,7 +1,8 @@
 # Additive source plan for the optional numeric extra; base lock remains unchanged.
 # Target: CPython 3.12.11, Linux x86_64, glibc >= 2.27.
 # Main approved these exact pins and official target-wheel metadata hashes.
-# No wheel download, local artifact-hash verification, install or runtime qualification.
+# Since 2026-11-05 CI (scripts/ci/research-python.sh) installs this lock with --require-hashes
+# in a temporary venv and runs the event-study tests. No runtime qualification.
 # Full release/dependency/license evidence: provenance/numeric-backend.json.
 # Runtime Python closure: SciPy requires numpy>=2.0.0,<2.8; NumPy declares none.
 # SciPy test/doc/dev extras are excluded. Native bundled-library notices still apply.
