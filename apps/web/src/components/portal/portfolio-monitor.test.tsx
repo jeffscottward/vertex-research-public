@@ -30,6 +30,8 @@ import {
   INTERVAL_STORAGE_KEY,
   PortfolioMonitor,
   READ_ONLY_NOTICE,
+  SNAPSHOT_RETRY_MS,
+  SNAPSHOT_TIMEOUT_MS,
 } from "./portfolio-monitor.tsx";
 import {
   COLUMNS_STORAGE_KEY,
@@ -733,16 +735,45 @@ describe("PortfolioMonitor", () => {
     );
   });
 
-  it("keeps the last good data and says so when a refresh fails", async () => {
+  it("keeps the last good data and says so when a refresh keeps failing", async () => {
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
     const gateway = gatewayOf(fixtureSnapshot(), {
       code: "UNAVAILABLE",
       message: "IBKR portfolio service unavailable",
     });
     await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    // A hidden page sends nothing: iOS aborts fetches of a suspended page.
     await visibilityChange("hidden");
+    await act(async () => {
+      vi.advanceTimersByTime(30_000);
+      return await flush();
+    });
     expect(gateway.snapshot).toHaveBeenCalledTimes(1);
     await visibilityChange("visible");
     expect(gateway.snapshot).toHaveBeenCalledTimes(2);
+    // Inside the grace window the page says "Updating" and keeps the last data.
+    expect(health()).toContain("Updating");
+    expect(document.querySelector("[data-banner=failure]")).toBeNull();
+    expect(find("[data-banner=updating]").textContent).toContain(
+      "the page is retrying"
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_RETRY_MS);
+      return await flush();
+    });
+    expect(gateway.snapshot).toHaveBeenCalledTimes(3);
+    await act(async () => {
+      vi.advanceTimersByTime(20_000);
+      return await flush();
+    });
     expect(health()).toContain("Server unreachable");
     expect(find("[data-banner=failure]").textContent).toMatch(
       /^Cannot load a new snapshot \(UNAVAILABLE: IBKR portfolio service unavailable\)\. Values below are from the last successful update at \d{2}:\d{2}:\d{2}\.$/u
@@ -750,6 +781,83 @@ describe("PortfolioMonitor", () => {
     return expect(find("[data-stat=netLiquidation]").textContent).toContain(
       "$20,000"
     );
+  });
+
+  it("hides a transient failure while orders run and recovers on the quick retry", async () => {
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
+    // Safari reports an aborted fetch as TypeError "Load failed" (owner screenshot 2026-11-05).
+    const gateway = gatewayOf(
+      fixtureSnapshot(),
+      new TypeError("Load failed"),
+      fixtureSnapshot()
+    );
+    await mount(<PortfolioMonitor gateway={gateway} defaultTab="positions" />);
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      return await flush();
+    });
+    expect(gateway.snapshot).toHaveBeenCalledTimes(2);
+    expect(health()).toContain("Updating");
+    expect(health()).not.toContain("Server unreachable");
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_RETRY_MS);
+      return await flush();
+    });
+    expect(gateway.snapshot).toHaveBeenCalledTimes(3);
+    expect(health()).toContain("Live");
+    return expect(document.querySelector("[data-banner]")).toBeNull();
+  });
+
+  it("times out a stuck request, keeps polling and recovers", async () => {
+    vi.useFakeTimers({
+      toFake: [
+        "setInterval",
+        "clearInterval",
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+      ],
+    });
+    // The second request never settles, as if the server were blocked by an order submit.
+    const results: Array<() => Promise<PortfolioMonitorOutput>> = [
+      async () => fixtureSnapshot(),
+      () => new Promise<PortfolioMonitorOutput>(() => undefined),
+      async () => fixtureSnapshot(),
+    ];
+    const snapshot = vi.fn(() => results[snapshot.mock.calls.length - 1]!());
+    await mount(
+      <PortfolioMonitor gateway={{ snapshot }} defaultTab="positions" />
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    // While the request hangs, the poll timer sends nothing more.
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_TIMEOUT_MS - 1);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+      return await flush();
+    });
+    expect(health()).toContain("Updating");
+    await act(async () => {
+      vi.advanceTimersByTime(SNAPSHOT_RETRY_MS);
+      return await flush();
+    });
+    expect(snapshot).toHaveBeenCalledTimes(3);
+    return expect(health()).toContain("Live");
   });
 
   it("shows the not-configured state and retries on request", async () => {
