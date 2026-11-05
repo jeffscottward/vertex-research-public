@@ -182,16 +182,21 @@ def simulate(bars: list[Bar], rf: list[float], *, signal_type: str, lookback: in
             if target > 0 and net == 0:
                 equity = self._equity(price)
                 qty = math.floor(target * equity / (1 + target * costs.per_side) / price)
-                if qty > 0:
+                if qty > 0:  # held changes only when an order is sent
                     self.submit_order(self.order_factory.market(instrument_id, nt["OrderSide"].BUY,
                                                                 Quantity.from_int(qty)))
                     state["open_trade"] = {"entry_t": day, "qty": target, "equity": equity}
+                    state["held"] = target
             elif target == 0 and net > 0:
-                state["open_trade"]["exit_t"] = day
-                state["open_trade"]["exit_equity"] = self._equity(price)
+                # A sell closes the lot of a filled buy; anything else is an engine bug.
+                trade = state["open_trade"]
+                if trade is None or "shares" not in trade:
+                    raise RuntimeError(f"nautilus engine: sell on {day} without a filled buy")
+                trade["exit_t"] = day
+                trade["exit_equity"] = self._equity(price)
                 self.submit_order(self.order_factory.market(instrument_id, nt["OrderSide"].SELL,
                                                             Quantity.from_int(int(net))))
-            state["held"] = target
+                state["held"] = target
 
         def on_order_filled(self, event):
             trade = state["open_trade"]

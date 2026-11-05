@@ -12,7 +12,10 @@
 # in a separate virtual environment from
 # services/research/requirements-nautilus-linux-py312.lock (base pins plus
 # nautilus-trader 1.227.0, glibc >= 2.35) with VERTEX_REQUIRE_NAUTILUS=1, so a
-# missing engine fails instead of skipping. The base run does not change.
+# missing engine fails instead of skipping. The base run does not change; it
+# also lists tests/test_quantlab_nautilus.py, so without nautilus-trader it runs
+# that file's error-path tests (missing engine, wrong version, CLI exit 2) and
+# skips its parity tests.
 #
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
