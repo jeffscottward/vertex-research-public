@@ -1,0 +1,26 @@
+# Vertex Nautilus backtest worker (research only: claims queued backtest runs, runs NautilusTrader on
+# stored bars, posts the result; no broker, order or deployment calls). Research host only (the rig
+# or a research container); never install it on the live trading node.
+# Install as a user unit: copy vertex-nautilus-worker-run.sh to
+# ~/.local/bin/vertex-nautilus-worker-run (mode 0700) and fill in its placeholders, copy this file
+# to ~/.config/systemd/user/ and run:
+# systemctl --user daemon-reload && systemctl --user enable --now vertex-nautilus-worker.service
+# See README.md in this folder.
+[Unit]
+Description=Vertex Nautilus backtest worker (research only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/vertex-nautilus-worker-run
+Restart=always
+RestartSec=10
+# SIGTERM goes to the worker only: it kills a running engine process, fails that run and exits.
+KillMode=mixed
+TimeoutStopSec=60
+Nice=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

@@ -284,6 +284,8 @@ const vertexContextDependencies = (
       // E2E runs only: the fake model endpoint; `{}` everywhere else.
       ...resolveE2eAssistantModelOverride(),
     },
+    // Engine of new backtest runs: typescript (in this server) or nautilus (research worker).
+    backtestRunsEngine: env.VERTEX_BACKTEST_RUNS_ENGINE,
     // Read-only QuantVPS status endpoint; the token stays server-side (agentOps.deployment.status).
     deployStatus: resolveDeployStatusConfig(
       env.VERTEX_DEPLOY_STATUS_URL,
