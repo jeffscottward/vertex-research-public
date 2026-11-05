@@ -107,6 +107,8 @@
     "research:backtest-151": "bun scripts/research-backtest-151.ts",
     "research:quantjourney": "bun scripts/research-quantjourney.ts",
     "research:core7": "bun scripts/vertex-core7-rerun.ts",
+    "research:nautilus-golden": "bun scripts/research-nautilus-golden.ts",
+    "research:nautilus-parity": "bun scripts/research-nautilus-parity.ts",
     "academy:sources": "bun scripts/academy/build-sources.ts",
     "academy:lessons": "bun scripts/academy/build-lesson-index.ts",
     "academy:lessons:check": "bun scripts/academy/build-lesson-index.ts --check"

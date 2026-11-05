@@ -16,7 +16,7 @@ gsquant = ["gs-quant==2.2.4"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*", "quantlab", "quantlab.*", "analytics", "analytics.*"]
+include = ["gamma", "gamma.*", "indicators", "indicators.*", "strategies", "strategies.*", "backtesting", "backtesting.*", "agents", "agents.*", "providers", "providers.*", "knowledge", "knowledge.*", "adapters", "adapters.*", "quantlab", "quantlab.*", "analytics", "analytics.*", "nautilus_backtest", "nautilus_backtest.*"]
 exclude = ["tests", "tests.*", "*.tests", "*.tests.*"]
 
 [tool.setuptools.package-data]

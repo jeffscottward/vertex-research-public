@@ -16,6 +16,9 @@
       "!!services/research/tests/fixtures/pure-research.json",
       // Verbatim third-party MIT fixtures (see its NOTICE.md); reformatting would change the copies.
       "!!packages/api/src/fixtures/day-trader-skill",
+      // Written by scripts/research/nautilus-golden.ts and nautilus-parity.ts; regenerate, do not reformat.
+      "!!services/research/tests/fixtures/nautilus_backtest/golden.json",
+      "!!research/backtests/nautilus-parity/report.json",
       "!!**/node_modules",
       "!!**/.turbo",
       "!!**/dist",

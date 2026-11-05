@@ -313,7 +313,7 @@ const rsiReversionSignals = (
   return signals;
 };
 
-const signalsFor = (
+export const signalsFor = (
   bars: BarColumns,
   rule: InstantRule,
   size: number
