@@ -8,3 +8,4 @@ tests/test_sector_rotation_input.py
 tests/test_quantlab.py
 providers/tests/test_provider_boundaries.py
 tests/test_omp_claude.py
+tests/test_tradingagents_cli.py
