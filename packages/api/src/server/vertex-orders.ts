@@ -410,6 +410,15 @@ const withFinalGate = <T extends { accepted: boolean; reasons: string[] }>(
   finalGate: gate,
 });
 
+// Audit field for the final gate. A risk-reducing order sent without a fresh JEV verdict is
+// recorded here (owner rule: logged and sent).
+const gateAudit = (
+  gate: FinalGateDecision | null
+): Readonly<Record<string, string>> =>
+  gate === null
+    ? {}
+    : { finalGate: `${gate.decision} ${gate.structure} jev=${gate.jevState}` };
+
 const singleGateOrder = (order: VertexOrderInput): FinalGateOrder => ({
   engine: "platform-ticket",
   legs: [
@@ -526,6 +535,7 @@ const preview = api.vertexOrders.preview
       limitPrice: input.limitPrice,
       mode: gateway.mode,
       result: review.accepted ? "accepted" : review.reasons.join(" | "),
+      ...gateAudit(review.finalGate),
     });
     return {
       gates: gatesOf(config, gateway, account),
@@ -591,6 +601,7 @@ const submit = api.vertexOrders.submit
       ...base,
       mode: gateway.mode,
       orderRef,
+      ...gateAudit(review.finalGate),
     });
     const outcomeOf = outcomeRecorder(context, store, orderRef);
     try {
@@ -678,6 +689,7 @@ const comboPreview = api.vertexOrders.comboPreview
         limitPrice: input.limitPrice,
         mode: gateway.mode,
         result: review.accepted ? "accepted" : review.reasons.join(" | "),
+        ...gateAudit(review.finalGate),
       }
     );
     return {
@@ -739,6 +751,7 @@ const comboSubmit = api.vertexOrders.comboSubmit
       ...base,
       mode: gateway.mode,
       orderRef,
+      ...gateAudit(review.finalGate),
     });
     // The intent tracks the first leg: reconciliation finds the orderRef in open orders, or a changed
     // position in that leg after the wait.

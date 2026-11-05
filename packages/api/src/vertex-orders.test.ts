@@ -1516,4 +1516,132 @@ describe("final JEV order gate on the simulated gateway (merge plan P6)", () => 
     expect(combo.review.finalGate).toBeNull();
     expect(combo.review.accepted).toBe(false);
   });
+
+  it("lets a share close through as risk-reducing and logs the gate in the audit", async () => {
+    const events: SemanticEvent[] = [];
+    const client = clientFor({ events });
+    const close = order({
+      symbol: "MOCKA",
+      secType: "STK",
+      expiry: "",
+      strike: 0,
+      right: "",
+      side: "SELL",
+      quantity: 100,
+      limitPrice: 90,
+    });
+    const preview = await client.vertexOrders.preview(close);
+    expect(preview.review.accepted).toBe(true);
+    expect(preview.review.finalGate).toMatchObject({
+      decision: "allow",
+      jevState: "fresh",
+      structure: "risk-reducing",
+    });
+    expect(JSON.stringify(events)).toContain("allow risk-reducing jev=fresh");
+  });
+
+  it("counts premium already open in the name for an opening debit vertical", async () => {
+    const heavy = {
+      ...mock,
+      account: async () => ({
+        ...(await mock.account()),
+        positions: [
+          {
+            symbol: "MOCKV",
+            secType: "OPT",
+            expiry: "20280121",
+            strike: 90,
+            right: "C",
+            quantity: 1,
+            premium: 11_000,
+          },
+          {
+            symbol: "MOCKS",
+            secType: "OPT",
+            expiry: "20261218",
+            strike: 90,
+            right: "C",
+            quantity: 1,
+            premium: 3000,
+          },
+        ],
+      }),
+    };
+    setVertexOrdersDependenciesForTesting({ mock: heavy, now: () => at });
+    const client = clientFor();
+    const leaps = await client.vertexOrders.comboPreview(
+      vertical({ limitPrice: 8 })
+    );
+    expect(leaps.review.reasons.join(" ")).toMatch(/per-name maximum is 6%/);
+    const short = await client.vertexOrders.comboPreview(
+      vertical({
+        symbol: "MOCKS",
+        limitPrice: 8,
+        legs: [
+          {
+            expiry: "20261218",
+            strike: 100,
+            right: "C",
+            side: "BUY",
+            ratio: 1,
+          },
+          {
+            expiry: "20261218",
+            strike: 110,
+            right: "C",
+            side: "SELL",
+            ratio: 1,
+          },
+        ],
+      })
+    );
+    expect(short.review.reasons.join(" ")).toMatch(
+      /short-dated premium; the cap is 2%/
+    );
+    const credit = await client.vertexOrders.comboPreview(
+      vertical({
+        limitPrice: -3,
+        legs: [
+          {
+            expiry: "20280121",
+            strike: 100,
+            right: "C",
+            side: "SELL",
+            ratio: 1,
+          },
+          {
+            expiry: "20280121",
+            strike: 110,
+            right: "C",
+            side: "BUY",
+            ratio: 1,
+          },
+        ],
+      })
+    );
+    expect(credit.review.reasons.join(" ")).not.toMatch(/Premium cap/);
+    const badDate = await client.vertexOrders.comboPreview(
+      vertical({
+        legs: [
+          {
+            expiry: "20281399",
+            strike: 100,
+            right: "C",
+            side: "BUY",
+            ratio: 1,
+          },
+          {
+            expiry: "20281399",
+            strike: 110,
+            right: "C",
+            side: "SELL",
+            ratio: 1,
+          },
+        ],
+      })
+    );
+    expect(badDate.review.reasons.join(" ")).toMatch(
+      /expiry must be after today/
+    );
+  });
 });

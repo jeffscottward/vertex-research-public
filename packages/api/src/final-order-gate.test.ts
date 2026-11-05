@@ -4,6 +4,7 @@ import type { JevVerdictOutput } from "./contracts/jev-verdict.ts";
 import {
   classifyStructure,
   evaluateFinalOrderGate,
+  isRiskReducing,
   type FinalGateInput,
   type FinalGateLeg,
   type FinalGateOrder,
@@ -343,4 +344,29 @@ it("reads a BUY against a held short as risk-reducing", () => {
     positions: short,
   });
   expect(r).toMatchObject({ decision: "allow", structure: "risk-reducing" });
+});
+
+it("never treats two legs on one contract as risk-reducing", () => {
+  const twice = order([leg("SELL", 400), leg("SELL", 400)], 2, 1);
+  expect(isRiskReducing(twice, HELD)).toBe(false);
+  expect(isRiskReducing(order([], 1), HELD)).toBe(false);
+});
+
+it("reads a share sale against held shares as risk-reducing", () => {
+  const shares: OrderPosition = {
+    expiry: "",
+    premium: 9000,
+    quantity: 100,
+    right: "",
+    secType: "STK",
+    strike: 0,
+    symbol: "MSFT",
+  };
+  const sale = order(
+    [leg("SELL", 0, "", { expiry: "", secType: "STK" })],
+    90,
+    100
+  );
+  expect(isRiskReducing(sale, [shares])).toBe(true);
+  expect(isRiskReducing(sale, [])).toBe(false);
 });

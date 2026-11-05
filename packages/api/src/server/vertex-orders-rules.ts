@@ -419,6 +419,39 @@ export const evaluateCombo = (
   };
 };
 
+// Per-name premium caps for an opening debit vertical, counted like a long option buy: the net
+// debit plus premium already open in the name stays within the LEAPS cap (all expiries) and, for
+// a short-dated spread, within the short-dated cap. Credit verticals pay no premium.
+const comboPremiumReasons = (
+  order: VertexComboInput,
+  account: OrderAccount,
+  now: Date
+): string[] => {
+  const debit = round2(order.limitPrice * order.quantity * CONTRACT_MULTIPLIER);
+  const nlv = account.netLiquidation;
+  if (!(debit > 0) || nlv === null || !(nlv > 0)) return [];
+  const { leapsMinDays, leapsPct, shortPct } = account.caps;
+  const reasons: string[] = [];
+  const total = round2(openPremium(account, order.symbol, now, "all") + debit);
+  const totalCap = round2((nlv * leapsPct) / 100);
+  if (total > totalCap + 1e-6)
+    reasons.push(
+      `Premium cap: ${order.symbol} total option premium would be $${total}; the per-name maximum is ${leapsPct}% ($${totalCap}).`
+    );
+  const shortDated = order.legs.some(
+    (leg) => (daysToExpiry(leg.expiry, now) ?? 0) < leapsMinDays
+  );
+  const bucket = round2(
+    openPremium(account, order.symbol, now, "short-dated") + debit
+  );
+  const bucketCap = round2((nlv * shortPct) / 100);
+  if (shortDated && bucket > bucketCap + 1e-6)
+    reasons.push(
+      `Premium cap: ${order.symbol} would hold $${bucket} of short-dated premium; the cap is ${shortPct}% ($${bucketCap}).`
+    );
+  return reasons;
+};
+
 // Opening vertical as ONE combo order (merge plan P6). Only the simulated gateway calls this; the
 // structure, the 2% max loss and the JEV verdict are checked by the final gate
 // (final-order-gate.ts). Here: the account gates and the order-book checks.
@@ -452,6 +485,7 @@ export const evaluateOpeningCombo = (
         `Leg ${label}: an open order rests on this contract; cancel it first.`
       );
   }
+  reasons.push(...comboPremiumReasons(order, account, now));
   return {
     accepted: reasons.length === 0,
     label: comboLabel(order),

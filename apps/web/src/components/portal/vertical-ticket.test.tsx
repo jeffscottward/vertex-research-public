@@ -192,7 +192,7 @@ describe("VerticalTicket", () => {
 
   it("names live mode and the live send button", async () => {
     await act(async () => root.render(<FinalGatePanel gate={null} />));
-    expect(host.textContent).toContain("not applied in live mode");
+    expect(host.textContent).toBe("");
     const g = gatewayWith(preview(allow, 800, "live"));
     await act(async () =>
       root.render(

@@ -138,23 +138,31 @@ export const classifyStructure = (order: FinalGateOrder): Structure => {
   return classifyVertical(first, second, quantity, limitPrice);
 };
 
-// true when every leg only reduces a held option leg: SELL against a long, BUY against a short.
+// true when every leg only reduces a held leg of the same instrument: SELL against a long, BUY
+// against a short. Two legs on one contract are never risk-reducing (they could add up past the
+// holding). Resting orders on the contract are refused by the order rules before this gate.
 export const isRiskReducing = (
   order: FinalGateOrder,
   positions: readonly OrderPosition[]
-): boolean =>
-  order.legs.length > 0 &&
-  order.legs.every((leg) => {
+): boolean => {
+  const keys = order.legs.map(
+    (leg) => `${leg.secType}:${leg.expiry}:${leg.strike}:${leg.right}`
+  );
+  if (keys.length === 0 || new Set(keys).size !== keys.length) return false;
+  return order.legs.every((leg) => {
     const held = positions
       .filter(
         (p) =>
-          p.secType === "OPT" &&
-          sameContract({ symbol: order.symbol, ...leg }, p)
+          p.secType === leg.secType &&
+          p.symbol === order.symbol &&
+          (leg.secType !== "OPT" ||
+            sameContract({ symbol: order.symbol, ...leg }, p))
       )
       .reduce((sum, p) => sum + p.quantity, 0);
     const size = leg.ratio * order.quantity;
     return leg.side === "SELL" ? size <= held : size <= -held;
   });
+};
 
 export type FinalGateInput = Readonly<{
   order: FinalGateOrder;

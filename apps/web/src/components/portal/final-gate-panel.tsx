@@ -2,7 +2,7 @@ import type { VertexFinalGate } from "@darkfactory/api";
 import { StatusBadge } from "@darkfactory/ui";
 
 // Final JEV order gate verdict (merge plan P6), shown on every order review. The server decides;
-// this panel only shows the decision. null = live mode, where the existing gates apply.
+// this panel only shows the decision. null = live mode: nothing is shown and the existing gates apply.
 
 const STRUCTURE: Readonly<Record<VertexFinalGate["structure"], string>> = {
   "credit-vertical": "Credit vertical (defined width)",
@@ -15,12 +15,7 @@ const STRUCTURE: Readonly<Record<VertexFinalGate["structure"], string>> = {
 export const FinalGatePanel = ({
   gate,
 }: Readonly<{ gate: VertexFinalGate | null | undefined }>) => {
-  if (gate === null || gate === undefined)
-    return (
-      <p className="text-muted-foreground text-sm">
-        Final JEV gate: not applied in live mode (existing order gates apply).
-      </p>
-    );
+  if (gate === null || gate === undefined) return null;
   return (
     <section
       aria-label="Final JEV gate"
