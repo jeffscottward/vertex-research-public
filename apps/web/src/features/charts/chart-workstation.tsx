@@ -1,13 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  applyDrawingCommand,
+  type ChartCommand,
+  clearPendingScript,
+  isQuantDrawing,
+  type PendingScript,
+  publishChartContext,
+  readPendingScript,
+  sendChartCommand,
+  subscribeChartCommands,
+} from "./chart-bus.ts";
+import { CHART_BUTTON as BUTTON } from "./chart-ui.ts";
+import { validScriptLayer } from "./kline-adapter.ts";
+import { dataWindowRows, displayValues } from "./market-bars.ts";
 import { CandleCanvas } from "./renderer-host.tsx";
+import { ScriptPanel, type ScriptRequest } from "./script-panel.tsx";
+import type { ScriptRunner } from "./script-runner.ts";
 import type {
   CandleRenderer,
   CandleRendererFactory,
   ChartMarker,
   ChartStudies,
   DisplayCandle,
+  ScriptLayer,
 } from "./types.ts";
 import { VERTEX_STUDIES } from "./vertex-studies.ts";
 import {
@@ -23,7 +40,6 @@ import {
   screenshotFileName,
   upsertDrawing,
 } from "./workstation.ts";
-import { dataWindowRows, displayValues } from "./market-bars.ts";
 
 export type ChartWorkstationProps = Readonly<{
   candles: readonly DisplayCandle[];
@@ -35,20 +51,40 @@ export type ChartWorkstationProps = Readonly<{
   factory: CandleRendererFactory;
   captions: Readonly<{ ready: string; loading: string; error: string }>;
   // Injected for tests; defaults to window.localStorage.
-  storage?: Pick<Storage, "getItem" | "setItem"> | null;
+  storage?: ScriptStorage | null;
   now?: () => Date;
+  // Injected for tests: script execution (defaults to a module Web Worker), script storage
+  // and the chart command event target (both default to the browser's).
+  scriptRunner?: ScriptRunner;
+  scriptStorage?: ScriptStorage | null;
+  commandTarget?: CommandTarget | null;
 }>;
 
-const browserStorage = (): Pick<Storage, "getItem" | "setItem"> | null => {
+type ScriptStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+type CommandTarget = Pick<
+  EventTarget,
+  "addEventListener" | "removeEventListener" | "dispatchEvent"
+>;
+const PENDING_SOURCE_MAX = 16_000;
+const NO_LAYERS: readonly ScriptLayer[] = Object.freeze([]);
+
+// The script carried by the command itself, for when storage refused the pending copy.
+const commandScript = (
+  command: Extract<ChartCommand, { type: "script" }>
+): PendingScript | null =>
+  typeof command.source === "string" &&
+  typeof command.title === "string" &&
+  command.source.length > 0 &&
+  command.source.length <= PENDING_SOURCE_MAX
+    ? { source: command.source, title: command.title.slice(0, 80) }
+    : null;
+const browserStorage = (): ScriptStorage | null => {
   try {
     return window.localStorage;
   } catch {
     return null;
   }
 };
-
-const BUTTON =
-  "min-h-11 rounded-md border border-border px-3 text-sm hover:bg-muted focus-visible:outline-2 aria-pressed:border-primary aria-pressed:bg-muted";
 
 export const ChartWorkstation = ({
   candles,
@@ -61,6 +97,9 @@ export const ChartWorkstation = ({
   captions,
   storage = browserStorage(),
   now = () => new Date(),
+  scriptRunner,
+  scriptStorage = browserStorage(),
+  commandTarget,
 }: ChartWorkstationProps) => {
   const key = drawingsStorageKey(symbol);
   const [chartType, setChartType] = useState<ChartType>("candles");
@@ -119,6 +158,98 @@ export const ChartWorkstation = ({
     renderer?.onCrosshair?.(setHover);
     return;
   }, [renderer]);
+  const [scriptsOpen, setScriptsOpen] = useState(false);
+  const [scriptRequest, setScriptRequest] = useState<ScriptRequest | null>(
+    null
+  );
+  const [panelLayers, setScriptLayers] =
+    useState<readonly ScriptLayer[]>(NO_LAYERS);
+  // A layer the chart cannot draw is left out on its own; the other scripts still update.
+  const scriptLayers = useMemo(
+    () => panelLayers.filter(validScriptLayer),
+    [panelLayers]
+  );
+  const dropped = panelLayers
+    .filter((layer) => !scriptLayers.includes(layer))
+    .map((layer) => layer.title)
+    .join(", ");
+  useEffect(() => {
+    if (dropped !== "")
+      setStatus(`Script output could not be drawn on the chart: ${dropped}.`);
+    return;
+  }, [dropped]);
+  useEffect(() => {
+    try {
+      renderer?.setScriptPlots?.(scriptLayers);
+    } catch {
+      setStatus("Script output could not be drawn on the chart.");
+    }
+    return;
+  }, [renderer, scriptLayers]);
+  // A script from the Quant assistant: the stored copy first, then the command's own.
+  const requests = useRef(0);
+  const takePendingScript = useCallback(
+    (fallback: PendingScript | null) => {
+      const pending = readPendingScript(scriptStorage) ?? fallback;
+      clearPendingScript(scriptStorage);
+      if (pending === null) return;
+      requests.current += 1;
+      setScriptRequest({ ...pending, nonce: requests.current });
+      setScriptsOpen(true);
+    },
+    [scriptStorage]
+  );
+  useEffect(() => {
+    takePendingScript(null);
+    return;
+  }, [takePendingScript]);
+  useEffect(() => {
+    const listener = (command: ChartCommand) => {
+      if (command.type === "script") {
+        takePendingScript(commandScript(command));
+        return;
+      }
+      // The sender stored the result when it could; applying the command to what this
+      // chart shows gives the same drawings, and keeps them when storage refused the write.
+      if (
+        (command.type !== "drawings" && command.type !== "clear_quant") ||
+        typeof command.symbol !== "string" ||
+        drawingsStorageKey(command.symbol) !== key
+      )
+        return;
+      setDrawings((current) => applyDrawingCommand(current, command));
+    };
+    return commandTarget === undefined
+      ? subscribeChartCommands(listener)
+      : subscribeChartCommands(listener, commandTarget);
+  }, [commandTarget, key, takePendingScript]);
+  const clearQuantDrawings = () => {
+    const command = { symbol, type: "clear_quant" } as const;
+    const stored =
+      commandTarget === undefined
+        ? sendChartCommand(command, storage)
+        : sendChartCommand(command, storage, commandTarget);
+    setDrawings((current) => applyDrawingCommand(current, command));
+    setStatus(
+      stored
+        ? "Removed Quant's drawings."
+        : "Removed Quant's drawings for this visit only: this browser refused to store the change."
+    );
+  };
+  // What the chart shows, for the Quant assistant's page context.
+  useEffect(() => {
+    const last = candles.at(-1);
+    publishChartContext({
+      bars: candles.length,
+      firstTimestamp: candles[0]?.timestamp ?? null,
+      label,
+      lastClose: last?.close ?? null,
+      lastTimestamp: last?.timestamp ?? null,
+      symbol,
+    });
+    return;
+  }, [candles, label, symbol]);
+  useEffect(() => () => publishChartContext(null), []);
   // A hover belongs to one bar series: a new symbol or new bars start at the latest bar.
   const hoverTimestamp =
     hover !== null && hover.values === values && hover.key === key
@@ -217,6 +348,16 @@ export const ChartWorkstation = ({
         >
           Screenshot (PNG)
         </button>
+        {drawings.some(isQuantDrawing) ? (
+          <button
+            className={BUTTON}
+            data-clear-quant=""
+            onClick={clearQuantDrawings}
+            type="button"
+          >
+            Clear Quant's drawings
+          </button>
+        ) : null}
       </div>
       <p aria-live="polite" className="min-h-5 text-muted-foreground text-xs">
         {status}
@@ -232,6 +373,7 @@ export const ChartWorkstation = ({
         >
           <CandleCanvas
             captions={captions}
+            extraPanes={scriptLayers.filter((layer) => !layer.overlay).length}
             factory={factory}
             label={label}
             markers={markers}
@@ -280,29 +422,61 @@ export const ChartWorkstation = ({
                     {entry}
                   </li>
                 ))}
-              {drawings.map((drawing) => (
+              {scriptLayers.map((layer) => (
                 <li
-                  className="flex items-center justify-between gap-2"
-                  data-drawing-id={drawing.id}
-                  key={drawing.id}
+                  className="text-muted-foreground"
+                  data-script-layer={layer.id}
+                  key={layer.id}
                 >
-                  <span className="min-w-0 truncate">
-                    {describeDrawing(drawing, pricePrecision)}
-                  </span>
-                  <button
-                    aria-label={`Remove ${describeDrawing(drawing, pricePrecision)}`}
-                    className={BUTTON}
-                    onClick={() => remove(drawing.id)}
-                    type="button"
-                  >
-                    Remove
-                  </button>
+                  Script: {layer.title}
                 </li>
               ))}
+              {drawings.map((drawing) => {
+                const quant = isQuantDrawing(drawing);
+                const description = describeDrawing(drawing, pricePrecision);
+                return (
+                  <li
+                    className="flex items-center justify-between gap-2"
+                    data-drawing-id={drawing.id}
+                    key={drawing.id}
+                  >
+                    <span className="min-w-0 truncate">
+                      {quant ? (
+                        <span
+                          className="mr-1 rounded border border-border px-1 text-xs"
+                          data-quant-badge=""
+                          title="Drawn by the Quant assistant"
+                        >
+                          Quant
+                        </span>
+                      ) : null}
+                      {description}
+                    </span>
+                    <button
+                      aria-label={`Remove ${quant ? "Quant " : ""}${description}`}
+                      className={BUTTON}
+                      onClick={() => remove(drawing.id)}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         </aside>
       </div>
+      <ScriptPanel
+        candles={candles}
+        onLayers={setScriptLayers}
+        onOpenChange={setScriptsOpen}
+        open={scriptsOpen}
+        request={scriptRequest}
+        storage={scriptStorage}
+        symbol={symbol}
+        {...(scriptRunner === undefined ? {} : { runner: scriptRunner })}
+      />
     </div>
   );
 };
