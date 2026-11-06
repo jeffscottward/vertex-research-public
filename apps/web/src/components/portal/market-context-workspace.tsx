@@ -7,10 +7,13 @@ import {
 } from "@darkfactory/api";
 import { Button, KpiCard, KpiRow, Panel, StatusBadge } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
-import type { MarketSourceStatus } from "./market-source-status.ts";
+import {
+  type MarketSourceStatus,
+  volatilitySourceStatus,
+} from "./market-source-status.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 // Market context (audit phase 5): public volatility read by ibkr-monitor through
@@ -77,6 +80,8 @@ type State =
 
 export interface MarketContextWorkspaceProps {
   readonly gateway?: MarketContextGateway;
+  /** Called with whether a load is in flight, so the page header can hold Refresh. */
+  readonly onBusyChange?: (busy: boolean) => void;
   /** Called with the load state, for the page header chip. */
   readonly onStatusChange?: (status: MarketSourceStatus) => void;
   /** Each new value reloads now (the page header Refresh). */
@@ -86,23 +91,34 @@ export interface MarketContextWorkspaceProps {
 export const MarketContextWorkspace = ({
   gateway: supplied,
   onStatusChange,
+  onBusyChange,
   refreshSignal = 0,
 }: MarketContextWorkspaceProps) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserMarketContextGateway()
   );
   const [state, setState] = useState<State>({ type: "loading" });
+  const [busy, setBusy] = useState(true);
+  // Each load takes the next number; only the newest may write, so a slow older answer
+  // (the timer, Refresh or Retry overlapping) never overwrites a newer one.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    latest.current += 1;
+    const request = latest.current;
+    setBusy(true);
     try {
       const data = await gateway.volatility();
-      return setState({ type: "ready", data });
+      if (request === latest.current) setState({ data, type: "ready" });
     } catch (error) {
+      if (request !== latest.current) return;
       const failure = describePortfolioMonitorFailure(error);
-      return setState(
+      setState(
         failure.kind === "forbidden"
           ? { type: "forbidden" }
-          : { type: "error", message: `${failure.code}: ${failure.message}` }
+          : { message: `${failure.code}: ${failure.message}`, type: "error" }
       );
+    } finally {
+      if (request === latest.current) setBusy(false);
     }
   }, [gateway]);
   useEffect(() => {
@@ -113,9 +129,16 @@ export const MarketContextWorkspace = ({
       () => void load(),
       MARKET_CONTEXT_REFRESH_MS
     );
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      // A Refresh restart or unmount drops the answer still in flight.
+      latest.current += 1;
+    };
   }, [load, refreshSignal]);
-  useEffect(() => onStatusChange?.(state.type), [onStatusChange, state.type]);
+  const status: MarketSourceStatus =
+    state.type === "ready" ? volatilitySourceStatus(state.data) : state.type;
+  useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
+  useEffect(() => onBusyChange?.(busy), [onBusyChange, busy]);
 
   if (state.type === "forbidden")
     return <OperatorAccessRequired feature="ibkr-monitor" />;
@@ -135,7 +158,7 @@ export const MarketContextWorkspace = ({
         <p className="text-sm" role="alert">
           Market context unavailable. {state.message}
         </p>
-        <Button onClick={() => void load()} variant="outline">
+        <Button disabled={busy} onClick={() => void load()} variant="outline">
           <RotateCcw aria-hidden="true" className="size-4" />
           Retry now
         </Button>

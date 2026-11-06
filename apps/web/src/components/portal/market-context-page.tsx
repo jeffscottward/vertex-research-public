@@ -32,6 +32,9 @@ export const MarketContextPage = ({
 }: MarketContextPageProps) => {
   const [volatility, setVolatility] = useState<MarketSourceStatus>("loading");
   const [feeds, setFeeds] = useState<MarketSourceStatus>("loading");
+  // Each workspace reports whether a load (mount, Refresh, timer, Retry) is in flight; both start one.
+  const [volatilityBusy, setVolatilityBusy] = useState(true);
+  const [feedsBusy, setFeedsBusy] = useState(true);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const summary = summarizeMarketStatus([volatility, feeds]);
   return (
@@ -40,8 +43,13 @@ export const MarketContextPage = ({
         actions={
           <Button
             className="min-h-11"
-            disabled={summary.label === "Loading"}
-            onClick={() => setRefreshSignal((count) => count + 1)}
+            disabled={volatilityBusy || feedsBusy}
+            onClick={() => {
+              // Hold the button now; each workspace clears its flag when its new load settles.
+              setVolatilityBusy(true);
+              setFeedsBusy(true);
+              setRefreshSignal((count) => count + 1);
+            }}
             variant="secondary"
           >
             <RotateCcw aria-hidden="true" className="size-4" />
@@ -58,11 +66,13 @@ export const MarketContextPage = ({
       />
       <MarketContextWorkspace
         {...(contextGateway === undefined ? {} : { gateway: contextGateway })}
+        onBusyChange={setVolatilityBusy}
         onStatusChange={setVolatility}
         refreshSignal={refreshSignal}
       />
       <MarketFeedsWorkspace
         {...(feedsGateway === undefined ? {} : { gateway: feedsGateway })}
+        onBusyChange={setFeedsBusy}
         onStatusChange={setFeeds}
         refreshSignal={refreshSignal}
       />
