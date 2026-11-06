@@ -214,6 +214,9 @@ describe("sector rotation URL settings and quadrant counts", () => {
         universe: "watchlist",
       })
     ).toEqual({ tailLength: 5, timeframe: "daily", universeId: "watchlist" });
+    expect(
+      parseSectorRotationParams({ universe: "basket:b-42" }).universeId
+    ).toBe("basket:b-42");
   });
 
   it("writes only the settings that differ from the defaults", () => {
@@ -230,7 +233,7 @@ describe("sector rotation URL settings and quadrant counts", () => {
         timeframe: "daily",
         universeId: "watchlist",
       })
-    ).toBe("?timeframe=daily&universe=watchlist&tail=20");
+    ).toBe("?tail=20&timeframe=daily&universe=watchlist");
   });
 
   it("counts rows per quadrant, skipping rows without a point", () => {
@@ -266,6 +269,10 @@ describe("SectorRotationWorkspace page chrome", () => {
     expect(links).toContain("XLE");
     expect(links).toContain("XLK");
     expect(window.location.search).toBe("");
+    const link = container.querySelector('a[data-slot="ticker-link"]');
+    expect(link?.className).toContain("min-h-11");
+    expect(link?.className).toContain("inline-flex");
+    expect(link?.className).toContain("items-center");
   });
 
   it("starts from the URL settings and keeps the URL in sync", async () => {
@@ -282,11 +289,34 @@ describe("SectorRotationWorkspace page chrome", () => {
       timeframe: "daily",
       universe: { kind: "sectors" },
     });
-    expect(window.location.search).toBe("?timeframe=daily&tail=20");
+    expect(window.location.search).toBe("?tail=20&timeframe=daily");
     await click(button(container, "Weekly"));
     expect(window.location.search).toBe("?tail=20");
     await setValue(selects(container)[0], "watchlist", "change");
-    expect(window.location.search).toBe("?universe=watchlist&tail=20");
+    expect(window.location.search).toBe("?tail=20&universe=watchlist");
+  });
+
+  it("keeps parameters it does not own in the URL", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/sector-rotation?theme=light&timeframe=daily#map"
+    );
+    const gateway = gatewayWith(async (input) =>
+      mapFixture({ timeframe: input.timeframe ?? "weekly" })
+    );
+    const container = await render(gateway, {
+      tailLength: 10,
+      timeframe: "daily",
+      universeId: "sectors",
+    });
+    expect(window.location.search).toBe("?theme=light&timeframe=daily");
+    await click(button(container, "Weekly"));
+    expect(window.location.search).toBe("?theme=light");
+    await setValue(selects(container)[1], "20", "change");
+    expect(window.location.search).toBe("?theme=light&tail=20");
+    expect(window.location.pathname).toBe("/sector-rotation");
+    return expect(window.location.hash).toBe("#map");
   });
 
   it("refreshes from the header and shows loading and unavailable chips", async () => {
@@ -312,6 +342,191 @@ describe("SectorRotationWorkspace page chrome", () => {
     expect(
       container.querySelector('[data-slot="badge"]')?.textContent
     ).toContain("Unavailable");
+  });
+});
+
+describe("SectorRotationWorkspace preset restore", () => {
+  /** A universes() call that settles only when the test says so. */
+  const heldPresets = () => {
+    let settle: (
+      outcome: readonly SectorRotationUniversePreset[] | Error
+    ) => void = () => undefined;
+    const universes = () =>
+      new Promise<readonly SectorRotationUniversePreset[]>(
+        (resolve, reject) => {
+          settle = (outcome) =>
+            outcome instanceof Error ? reject(outcome) : resolve(outcome);
+        }
+      );
+    return {
+      settle: (outcome: readonly SectorRotationUniversePreset[] | Error) =>
+        act$(() => settle(outcome)),
+      universes,
+    };
+  };
+  const universeSelect = (container: HTMLElement) =>
+    selects(container)[0] as HTMLSelectElement;
+  const optionValues = (select: HTMLSelectElement) =>
+    [...select.options].map((option) => option.value);
+  const BASKET: SectorRotationUniversePreset = {
+    id: "basket:b-42",
+    label: "Basket Energy (2)",
+    universe: { kind: "custom", symbols: ["XOM", "CVX"] },
+  };
+
+  it("waits for the lists before drawing a linked watchlist", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/sector-rotation?theme=light&universe=watchlist"
+    );
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(gateway, {
+      tailLength: 10,
+      timeframe: "weekly",
+      universeId: "watchlist",
+    });
+    expect(gateway.map).not.toHaveBeenCalled();
+    const pending = universeSelect(container);
+    expect(pending.disabled).toBe(true);
+    expect(pending.getAttribute("aria-busy")).toBe("true");
+    expect(pending.value).toBe("watchlist");
+    expect(optionValues(pending)).toContain(pending.value);
+    expect(container.textContent).toContain("Loading sector rotation…");
+    expect(button(container, "Refresh")?.hasAttribute("disabled")).toBe(true);
+    // A timeframe switch while the lists load still draws nothing.
+    await click(button(container, "Daily"));
+    expect(gateway.map).not.toHaveBeenCalled();
+    await held.settle([SECTORS_PRESET, WATCHLIST]);
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(gateway.map).toHaveBeenCalledWith({
+      timeframe: "daily",
+      universe: { kind: "custom", symbols: ["AAPL", "MSFT"] },
+    });
+    const resolved = universeSelect(container);
+    expect(resolved.disabled).toBe(false);
+    expect(resolved.value).toBe("watchlist");
+    expect(optionValues(resolved)).toEqual(["sectors", "watchlist", "custom"]);
+    return expect(window.location.search).toBe(
+      "?theme=light&universe=watchlist&timeframe=daily"
+    );
+  });
+
+  it("restores a basket link", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/sector-rotation?universe=basket:b-42"
+    );
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(
+      gateway,
+      parseSectorRotationParams({ universe: "basket:b-42" })
+    );
+    expect(gateway.map).not.toHaveBeenCalled();
+    await held.settle([SECTORS_PRESET, WATCHLIST, BASKET]);
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(gateway.map).toHaveBeenCalledWith({
+      timeframe: "weekly",
+      universe: { kind: "custom", symbols: ["XOM", "CVX"] },
+    });
+    expect(universeSelect(container).value).toBe("basket:b-42");
+    return expect(
+      new URLSearchParams(window.location.search).get("universe")
+    ).toBe("basket:b-42");
+  });
+
+  it("falls back to the sector ETFs and cleans the URL for an unknown list", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/sector-rotation?theme=light&universe=gone&tail=20"
+    );
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(gateway, {
+      tailLength: 20,
+      timeframe: "weekly",
+      universeId: "gone",
+    });
+    expect(gateway.map).not.toHaveBeenCalled();
+    expect(universeSelect(container).value).toBe("gone");
+    await held.settle([SECTORS_PRESET, WATCHLIST]);
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(gateway.map).toHaveBeenCalledWith({
+      timeframe: "weekly",
+      universe: { kind: "sectors" },
+    });
+    const select = universeSelect(container);
+    expect(select.disabled).toBe(false);
+    expect(select.value).toBe("sectors");
+    expect(optionValues(select)).not.toContain("gone");
+    return expect(window.location.search).toBe("?theme=light&tail=20");
+  });
+
+  it("falls back to the sector ETFs and cleans the URL when the lists fail", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/sector-rotation?universe=watchlist&theme=light"
+    );
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(gateway, {
+      tailLength: 10,
+      timeframe: "weekly",
+      universeId: "watchlist",
+    });
+    expect(gateway.map).not.toHaveBeenCalled();
+    await held.settle(new Error("offline"));
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(gateway.map).toHaveBeenCalledWith({
+      timeframe: "weekly",
+      universe: { kind: "sectors" },
+    });
+    const select = universeSelect(container);
+    expect(select.value).toBe("sectors");
+    expect(optionValues(select)).toEqual(["sectors", "custom"]);
+    return expect(window.location.search).toBe("?theme=light");
+  });
+
+  it("keeps a typed list choice when the lists arrive", async () => {
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(gateway, {
+      tailLength: 10,
+      timeframe: "weekly",
+      universeId: "custom",
+    });
+    expect(universeSelect(container).disabled).toBe(false);
+    expect(container.textContent).toContain(
+      "Type up to 30 tickers and select Apply to draw them."
+    );
+    await held.settle([SECTORS_PRESET, WATCHLIST]);
+    expect(universeSelect(container).value).toBe("custom");
+    expect(gateway.map).not.toHaveBeenCalled();
+    return expect(window.location.search).toBe("?universe=custom");
+  });
+
+  it("loads the default sector view once when an equal preset list arrives", async () => {
+    const held = heldPresets();
+    const gateway = gatewayWith(async () => mapFixture(), held.universes);
+    const container = await render(gateway);
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(universeSelect(container).disabled).toBe(false);
+    // A fresh (equal) sectors preset object, as a server round trip would return.
+    await held.settle([
+      {
+        ...SECTORS_PRESET,
+        universe: { kind: "sectors" },
+      },
+      WATCHLIST,
+    ]);
+    expect(gateway.map).toHaveBeenCalledTimes(1);
+    expect(row(container, "XLK")[0]).toBe("XLK");
+    return expect(window.location.search).toBe("");
   });
 });
 
