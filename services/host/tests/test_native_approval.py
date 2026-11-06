@@ -97,9 +97,9 @@ class NativeApprovalRegression(unittest.TestCase):
 
     def seed(self) -> tuple[SimulationCapitalPolicy, PortfolioObservation]:
         policy = SimulationCapitalPolicy("capital-fixture", "3" * 64, "paper-fixture", "sim-fixture", "USD",
-            "100.00", "human-fixture", "seed-fixture", 90, 900, 100)
+            "100", "human-fixture", "seed-fixture", 90, 900, 100)
         observation = PortfolioObservation("seed-observation", "paper-fixture", "paper", "sim-fixture", 1,
-            100, 100, 190, "USD", "100.00", (), "4" * 64, 1, "5" * 64, "capital-fixture", "3" * 64)
+            100, 100, 190, "USD", "100", (), "4" * 64, 1, "5" * 64, "capital-fixture", "3" * 64)
         return policy, observation
 
     def test_default_and_unopened_authority_deny(self) -> None:

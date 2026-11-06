@@ -5,9 +5,12 @@ registries in the deferred generation/conformance stage, never by these tests.
 """
 
 import copy
+from pathlib import Path
+import re
 import unittest
 
 from vertex_contracts import ContractAuthority, ContractError, ContractUnavailable, rawSHA256
+from vertex_contracts import authority as authority_module
 from vertex_contracts.codec import canonical_encode
 from vertex_contracts.schema import public_https
 
@@ -16,6 +19,8 @@ SOURCE_PATHS = ["packages/api/src/contracts/vertex.ts",
                 "packages/api/src/contracts/vertex-control.ts",
                 "packages/api/src/contracts/vertex-native-facts.ts",
                 "packages/api/src/contracts/vertex-worker.ts",
+                "packages/api/src/contracts/vertex-worker-experiment.ts",
+                "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts",
                 "packages/api/src/contracts/vertex-policy.ts",
                 "packages/api/src/contracts/vertex-model-use.ts",
                 "packages/api/src/contracts/vertex-worker-epoch.ts",
@@ -44,6 +49,14 @@ def rebind_programs(document):
 
 
 class AuthorityBoundaryCases(unittest.TestCase):
+    def test_source_bindings_match_the_bundle_generator(self):
+        generator = Path(__file__).resolve().parents[4] / "scripts/vertex-native-contracts/generate.ts"
+        block = re.search(r"AUTHORITATIVE_SOURCE_PATHS = \[(.*?)\] as const", generator.read_text(), re.S)
+        self.assertIsNotNone(block)
+        generated = set(re.findall(r'"([^"]+)"', block.group(1))) | {"scripts/vertex-native-contracts/invariants-v1.json"}
+        self.assertEqual(set(authority_module._SOURCE_FILES), generated)
+        self.assertEqual(set(SOURCE_PATHS), generated)
+
     def test_validate_is_true_only_and_never_authorizes(self):
         codec = authority(synthetic_bundle())
         self.assertIs(codec.validate("Fixture", {}), True)

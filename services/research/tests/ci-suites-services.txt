@@ -1,0 +1,30 @@
+# Native service suites outside services/research and services/execution. Paths are
+# relative to services/research. The run uses requirements-services-linux-py312.lock
+# (base pins plus ada-url and cryptography). Every test_*.py file under these services
+# must be listed here (scripts/ci/research-python.sh checks it).
+../contracts/python/tests/test_authority.py
+../contracts/python/tests/test_codec.py
+../contracts/python/tests/test_conformance.py
+../contracts/python/tests/test_native_journal_proof.py
+../contracts/python/tests/test_replay_adapter.py
+../contracts/python/tests/test_replay_primitives.py
+../contracts/python/tests/test_whatwg.py
+../control-client/tests/test_adapters.py
+../control-client/tests/test_client.py
+../gateway/test_gateway_compatibility.py
+../gateway/test_gateway_readiness.py
+../gateway/test_gateway_recovery.py
+../gateway/test_infrastructure_probe.py
+../host/tests/test_epoch_store.py
+../host/tests/test_epoch_transition.py
+../host/tests/test_evidence.py
+../host/tests/test_gateway.py
+../host/tests/test_host.py
+../host/tests/test_native_approval.py
+../host/tests/test_native_approval_transport.py
+../host/tests/test_nautilus.py
+../host/tests/test_replay.py
+../host/tests/test_sandbox.py
+../kernel-bridge/tests/test_bridge.py
+../market-data/tests/test_market_data.py
+../vibe-trading/tests/test_vt_driver.py
