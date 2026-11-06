@@ -27,7 +27,7 @@ CREATE TABLE "signal_alert_rules" (
 	"fire_count" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "signal_alert_rules_fields_check" CHECK ("signal_alert_rules"."symbol" ~ '^[A-Z][A-Z0-9.\-]{0,9}$' and "signal_alert_rules"."kind" in ('alert', 'watch') and "signal_alert_rules"."origin" in ('manual', 'strategy', 'quant') and "signal_alert_rules"."status" in ('proposed', 'active', 'done', 'dismissed') and "signal_alert_rules"."frequency" in ('once', 'per-bar', 'per-bar-close') and "signal_alert_rules"."timeframe" in ('5m', '15m', '1h', '1d') and char_length("signal_alert_rules"."name") between 1 and 120 and "signal_alert_rules"."fire_count" >= 0)
+	CONSTRAINT "signal_alert_rules_fields_check" CHECK ("signal_alert_rules"."symbol" ~ '^[A-Z][A-Z0-9.\-]{0,9}(=F)?$' and "signal_alert_rules"."kind" in ('alert', 'watch') and "signal_alert_rules"."origin" in ('manual', 'strategy', 'quant') and "signal_alert_rules"."status" in ('proposed', 'active', 'done', 'dismissed') and "signal_alert_rules"."frequency" in ('once', 'per-bar', 'per-bar-close') and "signal_alert_rules"."timeframe" in ('5m', '15m', '1h', '1d') and char_length("signal_alert_rules"."name") between 1 and 120 and "signal_alert_rules"."fire_count" >= 0)
 );
 --> statement-breakpoint
 ALTER TABLE "signal_alert_events" ADD CONSTRAINT "signal_alert_events_rule_id_signal_alert_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."signal_alert_rules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

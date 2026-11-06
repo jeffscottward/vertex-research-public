@@ -38,21 +38,21 @@ const YAHOO_RANGE: Readonly<Record<SignalAlertTimeframe, string>> =
     "15m": "60d",
   });
 
-/** Bare futures roots quoted as Yahoo continuous contracts (NQ -> NQ=F). */
-const FUTURES_ROOTS: ReadonlySet<string> = new Set([
-  "CL",
-  "ES",
-  "GC",
+/**
+ * Futures roots the watch parser reads as continuous contracts (NQ -> NQ=F). Only roots that are not
+ * also listed stock tickers: ES (Eversource), CL (Colgate), GC and SI stay stock symbols unless the
+ * request writes the contract (ES=F).
+ */
+const WATCH_FUTURES_ROOTS: ReadonlySet<string> = new Set([
   "MES",
   "MNQ",
   "NQ",
   "RTY",
-  "SI",
-  "YM",
 ]);
 
+/** Yahoo's symbol: contracts (NQ=F) as written; class shares use a dash (BRK.B -> BRK-B). */
 export const yahooSymbolOf = (symbol: string): string =>
-  FUTURES_ROOTS.has(symbol) ? `${symbol}=F` : symbol.replace(/[./]/gu, "-");
+  symbol.endsWith("=F") ? symbol : symbol.replace(/[./]/gu, "-");
 
 /** Yahoo chart URL for one symbol and timeframe, regular session only. */
 export const signalAlertChartUrl = (
@@ -454,16 +454,17 @@ export const parseWatchRequest = (text: string): SignalWatchParse => {
   const symbolMatch =
     /\bwatch\s+\$?([A-Za-z][A-Za-z0-9.=-]{0,9})\b/iu.exec(raw) ??
     /\$([A-Za-z][A-Za-z0-9.-]{0,9})\b/u.exec(raw);
-  const symbol = symbolMatch?.[1]?.toUpperCase().replace(/[=]F$/u, "");
+  const written = symbolMatch?.[1]?.toUpperCase();
   if (
-    symbol === undefined ||
-    STOP_WORDS.has(symbol) ||
-    !/^[A-Z][A-Z0-9.-]{0,9}$/u.test(symbol)
+    written === undefined ||
+    STOP_WORDS.has(written) ||
+    !/^[A-Z][A-Z0-9.-]{0,9}(?:[=]F)?$/u.test(written)
   )
     return {
       ok: false,
       reason: 'Name the symbol after "watch", e.g. "Watch NQ when ..."',
     };
+  const symbol = WATCH_FUTURES_ROOTS.has(written) ? `${written}=F` : written;
   const timeframe =
     TIMEFRAME_WORDS.find(([pattern]) => pattern.test(lower))?.[1] ?? "15m";
   const direction = /\b(above|over|up)\b/u.test(lower)

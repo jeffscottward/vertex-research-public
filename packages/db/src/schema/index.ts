@@ -2729,7 +2729,7 @@ export const signalAlertRules = pgTable(
     ),
     check(
       "signal_alert_rules_fields_check",
-      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and ${table.kind} in ('alert', 'watch') and ${table.origin} in ('manual', 'strategy', 'quant') and ${table.status} in ('proposed', 'active', 'done', 'dismissed') and ${table.frequency} in ('once', 'per-bar', 'per-bar-close') and ${table.timeframe} in ('5m', '15m', '1h', '1d') and char_length(${table.name}) between 1 and 120 and ${table.fireCount} >= 0`
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}(=F)?$' and ${table.kind} in ('alert', 'watch') and ${table.origin} in ('manual', 'strategy', 'quant') and ${table.status} in ('proposed', 'active', 'done', 'dismissed') and ${table.frequency} in ('once', 'per-bar', 'per-bar-close') and ${table.timeframe} in ('5m', '15m', '1h', '1d') and char_length(${table.name}) between 1 and 120 and ${table.fireCount} >= 0`
     ),
   ]
 );

@@ -344,10 +344,10 @@ describe("priceAlerts.signals", () => {
     expect(rule).toMatchObject({
       description: "SMA(20) crosses above SMA(50)",
       kind: "alert",
-      name: "NQ 1h: SMA(20) crosses above SMA(50)",
+      name: "NQ=F 1h: SMA(20) crosses above SMA(50)",
       origin: "strategy",
       status: "active",
-      symbol: "NQ",
+      symbol: "NQ=F",
     });
     const listed = await client.priceAlerts.signals.list({});
     expect(listed.notifications).toBe("not-configured");
@@ -552,6 +552,31 @@ describe("priceAlerts.signals", () => {
       fired: 2,
       seriesErrors: [],
     });
+  });
+
+  it("write keys may propose but never create active alerts or start watches", async () => {
+    useFakes();
+    const { repository, rows } = memoryRules([
+      record({ id: "rule-1", kind: "watch", status: "proposed" }),
+    ]);
+    const client = clientFor({ apiKey: PLAINTEXT, rules: repository });
+    await expectCode(
+      client.priceAlerts.signals.start({ id: "rule-1" }),
+      "FORBIDDEN",
+      403
+    );
+    await expectCode(
+      client.priceAlerts.signals.create({
+        condition,
+        frequency: "once",
+        symbol: "SPY",
+        timeframe: "15m",
+      }),
+      "FORBIDDEN",
+      403
+    );
+    expect(rows.map((row) => row.status)).toEqual(["proposed"]);
+    expect(repository.create).not.toHaveBeenCalled();
   });
 
   it("read keys may list and backfill but not create", async () => {

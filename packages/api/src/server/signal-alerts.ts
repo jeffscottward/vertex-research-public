@@ -313,6 +313,21 @@ const defaultName = (
 ): string =>
   `${symbol} ${timeframe}: ${describeSignalCondition(condition)}`.slice(0, 120);
 
+/**
+ * Activating a rule is the owner's own click: agent keys may propose, list, dismiss and remove, but
+ * never create an active alert or start a proposed watch.
+ */
+const refuseAgentKey = (
+  context: ApiContext,
+  failures: Failures,
+  procedure: "create" | "start"
+): void => {
+  if (context.agentApiKeyPresented === true)
+    throw failures.FORBIDDEN({
+      message: `priceAlerts.signals.${procedure} is session-only; agents use propose`,
+    });
+};
+
 const notificationsOf = (context: ApiContext) =>
   (context.priceAlertsNtfy ?? null) === null
     ? ("not-configured" as const)
@@ -335,6 +350,7 @@ const create = api.priceAlerts.signals.create
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
+    refuseAgentKey(context, failures, "create");
     const rule = await createRule(rulesFor(context, failures), failures, {
       condition: input.condition,
       frequency: input.frequency,
@@ -416,6 +432,7 @@ const start = api.priceAlerts.signals.start
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
+    refuseAgentKey(context, failures, "start");
     const rule = await rulesFor(context, failures).transition(
       input.id,
       context.principal.userId,

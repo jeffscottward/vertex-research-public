@@ -1,5 +1,5 @@
 {
-  "id": "b44eb8a2-6bd2-4219-bf55-012f3bd73c29",
+  "id": "d2299a3a-65d6-490c-83ab-b9206639a40d",
   "prevId": "1d0de09b-b251-4250-b906-f9b9b40fc82e",
   "version": "7",
   "dialect": "postgresql",
@@ -6982,7 +6982,7 @@
       "checkConstraints": {
         "signal_alert_rules_fields_check": {
           "name": "signal_alert_rules_fields_check",
-          "value": "\"signal_alert_rules\".\"symbol\" ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and \"signal_alert_rules\".\"kind\" in ('alert', 'watch') and \"signal_alert_rules\".\"origin\" in ('manual', 'strategy', 'quant') and \"signal_alert_rules\".\"status\" in ('proposed', 'active', 'done', 'dismissed') and \"signal_alert_rules\".\"frequency\" in ('once', 'per-bar', 'per-bar-close') and \"signal_alert_rules\".\"timeframe\" in ('5m', '15m', '1h', '1d') and char_length(\"signal_alert_rules\".\"name\") between 1 and 120 and \"signal_alert_rules\".\"fire_count\" >= 0"
+          "value": "\"signal_alert_rules\".\"symbol\" ~ '^[A-Z][A-Z0-9.\\-]{0,9}(=F)?$' and \"signal_alert_rules\".\"kind\" in ('alert', 'watch') and \"signal_alert_rules\".\"origin\" in ('manual', 'strategy', 'quant') and \"signal_alert_rules\".\"status\" in ('proposed', 'active', 'done', 'dismissed') and \"signal_alert_rules\".\"frequency\" in ('once', 'per-bar', 'per-bar-close') and \"signal_alert_rules\".\"timeframe\" in ('5m', '15m', '1h', '1d') and char_length(\"signal_alert_rules\".\"name\") between 1 and 120 and \"signal_alert_rules\".\"fire_count\" >= 0"
         }
       },
       "isRLSEnabled": false

@@ -443,6 +443,7 @@ export function SignalAlertsSection({
               className="min-h-11"
               id={`${ids}-symbol`}
               maxLength={12}
+              placeholder="SPY or NQ=F"
               onChange={(event) => setSymbol(event.target.value)}
               value={symbol}
             />
