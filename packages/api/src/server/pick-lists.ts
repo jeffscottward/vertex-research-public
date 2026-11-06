@@ -35,6 +35,7 @@ import {
   screenMember,
   sectorEtfFor,
 } from "../pick-list-screen.ts";
+import { isAgentViewerEmail } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -520,12 +521,30 @@ const proposal = api.pickLists.proposal
   .use(requireOperator)
   .handler(async ({ context, errors }): Promise<PickListProposalOutput> => {
     const failures = factories(errors);
-    const userId = context.principal.userId;
     let lists: PickListWithLatest[];
     let owned: BasketWithMembers[];
     try {
-      lists = await pickListsFor(context, failures).listByUser(userId);
-      owned = await basketsFor(context, failures).listByUser(userId);
+      const pickLists = pickListsFor(context, failures);
+      const baskets = basketsFor(context, failures);
+      // The read-only agent viewer has no lists of its own. It reads the operator accounts'
+      // buckets (owner decision 2026-11-05, card vertex-bucket-buy-proposal); the response has
+      // no account data, and the viewer still cannot call any write procedure. Everyone else
+      // reads their own buckets.
+      const viewer =
+        context.agentApiKeyPresented !== true &&
+        isAgentViewerEmail(
+          (await context.requireSession()).user.email,
+          context.agentViewerEmails
+        );
+      lists = viewer
+        ? await pickLists.listByUserEmails(context.operatorEmails)
+        : await pickLists.listByUser(context.principal.userId);
+      const owners = viewer
+        ? [...new Set(lists.map((entry) => entry.list.userId))]
+        : [context.principal.userId];
+      owned = (
+        await Promise.all(owners.map((owner) => baskets.listByUser(owner)))
+      ).flat();
     } catch (error) {
       return mapError(error, failures);
     }

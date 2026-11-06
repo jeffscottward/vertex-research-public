@@ -153,6 +153,18 @@ describe("pick list repository (Postgres)", () => {
       listed.map((item) => `${item.list.source}/${item.list.slug}`)
     ).toEqual(["newsletter/growth", "wishlist/wishlist"]);
     expect(await repository.listByUser("user-b")).toEqual([]);
+    // The agent viewer's read of operator lists: by email, case-insensitive.
+    expect(
+      (await repository.listByUserEmails([" OWNER@example.test "])).map(
+        (item) => `${item.list.userId}/${item.list.slug}`
+      )
+    ).toEqual(["user-a/growth", "user-a/wishlist"]);
+    expect(await repository.listByUserEmails(["other@example.test"])).toEqual(
+      []
+    );
+    expect(await repository.listByUserEmails(["nobody@example.test"])).toEqual(
+      []
+    );
     expect(await repository.get(first.list.id, "user-b")).toBeNull();
 
     const at = new Date("2026-11-05T12:00:00.000Z");

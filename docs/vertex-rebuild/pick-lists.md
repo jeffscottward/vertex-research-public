@@ -23,7 +23,7 @@ Updated: 2026-11-05. Research only. A pick list is a dated snapshot of an extern
 
 ## Access
 
-- Every procedure is operator-only and scoped to the caller's user id.
+- Every procedure is operator-only and scoped to the caller's user id. One exception: the read-only agent viewer (`VERTEX_AGENT_VIEWER_EMAILS`) has no lists of its own, so `pickLists.proposal` reads the buckets of the operator accounts (`VERTEX_OPERATOR_EMAILS`) for it (owner decision 2026-11-05, card vertex-bucket-buy-proposal). The viewer still cannot call any write procedure, and an API key always reads its owner's buckets.
 - Agent keys: `pickLists.import` needs a write key (the importer); `pickLists.list`, `pickLists.proposal` and `pickLists.screen` accept a read key. `pickLists.syncBucket` is session-only, so a key never edits baskets.
 
 ## Buckets
