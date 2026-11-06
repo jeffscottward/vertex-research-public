@@ -373,7 +373,10 @@ const OptionsFlowPanel = ({
                 {rows.map((row) => (
                   <TableRow data-flow-print="" key={row.key}>
                     <TableCell>{row.time}</TableCell>
-                    <TableHead className="font-mono text-xs" scope="row">
+                    <TableHead
+                      className="h-auto whitespace-normal font-mono text-xs"
+                      scope="row"
+                    >
                       {row.expiry} {row.strike}
                       {row.right}
                       <span className="block text-muted-foreground">
@@ -441,7 +444,9 @@ const GexPanel = ({ snapshot }: Readonly<{ snapshot: FlowSnapshot }>) => {
           <TableBody>
             {gexLevelRows(gex).map((row) => (
               <TableRow data-flow-level={row.key} key={row.key}>
-                <TableHead scope="row">{row.label}</TableHead>
+                <TableHead className="h-auto whitespace-normal" scope="row">
+                  {row.label}
+                </TableHead>
                 <TableCell className="text-right">{row.symbolPrice}</TableCell>
                 {showUnderlying ? (
                   <TableCell className="text-right">

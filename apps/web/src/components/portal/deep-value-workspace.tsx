@@ -618,7 +618,7 @@ export const DeepValueWorkspace = ({
                         <TableRow className="border-border border-b [&>td]:align-top [&>th]:align-top">
                           <TableCell>{row.rank ?? "–"}</TableCell>
                           <TableHead
-                            className="text-left font-normal"
+                            className="h-auto whitespace-normal text-left font-normal"
                             scope="row"
                           >
                             <span className="flex items-center gap-1">

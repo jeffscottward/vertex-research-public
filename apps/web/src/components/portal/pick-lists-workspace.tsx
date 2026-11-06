@@ -131,7 +131,10 @@ const MemberRow = ({
   screened: PickListScreenMemberOutput | undefined;
 }>) => (
   <TableRow>
-    <TableHead className="font-medium font-mono" scope="row">
+    <TableHead
+      className="h-auto whitespace-normal font-medium font-mono"
+      scope="row"
+    >
       <span title={member.thesis ?? undefined}>{member.symbol}</span>
     </TableHead>
     <TableCell className="text-right">{member.rank ?? "—"}</TableCell>
