@@ -189,11 +189,12 @@ const TickerSection = ({
       data-news-symbol={ticker.symbol}
       description={`${ticker.headlines.length} headlines · ${ticker.filings.length} 8-K${important === 0 ? "" : ` (${important} important)`}`}
       headingId={`news-${ticker.symbol}`}
+      headingLevel={3}
       title={<TickerLink className="text-base" symbol={ticker.symbol} />}
     >
       <div className="grid gap-4 lg:grid-cols-[2fr_3fr]">
         <div className="min-w-0 space-y-2">
-          <h3 className="font-medium text-sm">8-K filings</h3>
+          <h4 className="font-medium text-sm">8-K filings</h4>
           {failures.filings === null ? null : (
             <p className="text-sm">
               8-K filings unavailable: {failures.filings}
@@ -213,7 +214,7 @@ const TickerSection = ({
           )}
         </div>
         <div className="min-w-0 space-y-2">
-          <h3 className="font-medium text-sm">Headlines</h3>
+          <h4 className="font-medium text-sm">Headlines</h4>
           {failures.headlines === null ? null : (
             <p className="text-sm">
               Headlines unavailable: {failures.headlines}

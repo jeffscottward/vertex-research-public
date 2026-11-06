@@ -6,11 +6,11 @@ const sessionMock = vi.hoisted(() => ({ isOperator: true }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("../../../lib/request-portal-session.ts", () => ({
   getRequestPortalSession: async () => ({
-    userId: "u",
-    role: "member",
+    expiresAt: new Date(),
     isOperator: sessionMock.isOperator,
     name: "Owner",
-    expiresAt: new Date(),
+    role: "member",
+    userId: "u",
   }),
 }));
 
@@ -38,7 +38,7 @@ describe("academy route files", () => {
   });
 
   it("renders the filters and page from the URL query", async () => {
-    const html = await render({ type: "strategy", page: "2", q: "" });
+    const html = await render({ page: "2", q: "", type: "strategy" });
     expect(html).toMatch(/<option value="strategy" selected="">/u);
     expect(html).toContain("Page 2 of");
     expect(html).not.toContain('data-lesson-card="vega-exposure-basics"');
@@ -49,6 +49,8 @@ describe("academy route files", () => {
     const html = await render();
     expect(html).toContain('data-operator-feature="academy"');
     expect(html).not.toContain("data-academy-gallery");
+    expect(html.match(/<h1[\s>]/gu)?.length ?? 0).toBe(1);
+    expect(html).toMatch(/<h1[^>]*>Academy<\/h1>/u);
   });
 
   it("renders loading and error states", () => {

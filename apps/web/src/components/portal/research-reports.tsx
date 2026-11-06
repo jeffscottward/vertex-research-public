@@ -66,11 +66,11 @@ import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 // datasets. Read-only and operator-only. Rows come from `bun run vertex:research-reports:import`.
 
 export interface ResearchReportsGateway {
-  readonly list: () => Promise<ResearchReportsListOutput>;
   readonly dataset: (
     reportId: string,
     dataset: ResearchReportDatasetName
   ) => Promise<ResearchReportDatasetOutput>;
+  readonly list: () => Promise<ResearchReportsListOutput>;
 }
 
 export const createBrowserResearchReportsGateway =
@@ -591,6 +591,31 @@ const DatasetTab = ({
   );
 };
 
+/**
+ * The report's real ticker from the catalog (a report id such as `brk-b` is not a symbol).
+ * Undefined while loading, when the catalog read fails or when the report is not listed.
+ */
+const useReportSymbol = (
+  gateway: ResearchReportsGateway,
+  reportId: string
+): string | undefined => {
+  const [found, setFound] = useState<
+    Readonly<{ reportId: string; symbol: string | undefined }> | undefined
+  >(undefined);
+  useEffect(() => {
+    gateway.list().then(
+      (catalog) =>
+        setFound({
+          reportId,
+          symbol: catalog.reports.find((report) => report.id === reportId)
+            ?.symbol,
+        }),
+      () => undefined
+    );
+  }, [gateway, reportId]);
+  return found?.reportId === reportId ? found.symbol : undefined;
+};
+
 export const ResearchReportDetail = ({
   reportId,
   gateway: supplied,
@@ -604,6 +629,7 @@ export const ResearchReportDetail = ({
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchReportsGateway()
   );
+  const symbol = useReportSymbol(gateway, reportId);
   return (
     <div className="space-y-6">
       <PageHeader
@@ -612,8 +638,9 @@ export const ResearchReportDetail = ({
         }
         description={
           <>
-            Imported research for <TickerLink symbol={reportId} />, one dataset
-            per tab. {RESEARCH_REPORTS_NOTICE}
+            Imported research for{" "}
+            {symbol === undefined ? reportId : <TickerLink symbol={symbol} />},
+            one dataset per tab. {RESEARCH_REPORTS_NOTICE}
           </>
         }
         status={<StatusBadge status="info">Research only</StatusBadge>}

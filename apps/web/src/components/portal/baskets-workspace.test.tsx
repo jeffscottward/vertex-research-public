@@ -20,7 +20,7 @@ import {
   formatIndex,
   formatPct,
 } from "./baskets-client.ts";
-import { BasketsWorkspace } from "./baskets-workspace.tsx";
+import { BasketsWorkspace, findBasket } from "./baskets-workspace.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -361,6 +361,17 @@ describe("BasketsWorkspace", () => {
     expect(buttonByText(fallback, "BBB")?.getAttribute("aria-pressed")).toBe(
       "true"
     );
+  });
+
+  it("matches ?basket= by id, then symbol, then name in separate passes", () => {
+    const named = { ...basket("NAMD"), name: "TECH" };
+    const symbol = basket("TECH");
+    const id = { ...basket("IDDD"), id: "tech" };
+    expect(findBasket([named, symbol], "TECH")).toBe(symbol);
+    expect(findBasket([named, symbol, id], "TECH")).toBe(id);
+    expect(findBasket([named], "tech")).toBe(named);
+    expect(findBasket([named], "none")).toBeUndefined();
+    expect(findBasket([named], null)).toBeUndefined();
   });
 
   it("shows Loading and Unavailable in the status chip", async () => {

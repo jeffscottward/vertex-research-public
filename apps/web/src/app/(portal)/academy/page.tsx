@@ -5,6 +5,7 @@ import {
   withAcademyMediaBaseUrl,
 } from "@darkfactory/academy/lessons";
 import { parseAcademyMediaBaseUrl } from "@darkfactory/config/server";
+import { PageHeader } from "@darkfactory/ui";
 import { headers } from "next/headers";
 import { AcademyGallery } from "../../../components/portal/academy/academy-gallery.tsx";
 import {
@@ -26,7 +27,12 @@ export default async function AcademyPage({
     requestHeaders.get("cf-connecting-ip")
   );
   if (session?.isOperator !== true)
-    return <OperatorAccessRequired feature="academy" />;
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Academy" variant="portal" />
+        <OperatorAccessRequired feature="academy" />
+      </div>
+    );
   const mediaBaseUrl = parseAcademyMediaBaseUrl(process.env) ?? undefined;
   const media = Object.fromEntries(
     Object.entries(ACADEMY_MEDIA).map(([slug, entry]) => [

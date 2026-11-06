@@ -141,7 +141,7 @@ const render = async (gateway?: MarketNewsGateway, initialDays?: string) => {
 
 /** Heading of the first symbol panel. */
 const firstSymbol = (container: HTMLElement) =>
-  container.querySelector("[data-news-symbol] h2")?.textContent;
+  container.querySelector("[data-news-symbol] h3")?.textContent;
 
 /** Header chip text without StatusBadge's screen-reader "Status:" prefix. */
 const chipTone = (container: HTMLElement) =>
@@ -188,11 +188,11 @@ describe("news monitor workspace", () => {
     expect(kpi("filings")).toBe("8-K filings21 important");
     const sections = container.querySelectorAll("[data-news-symbol]");
     expect(
-      [...sections].map((section) => section.querySelector("h2")?.textContent)
+      [...sections].map((section) => section.querySelector("h3")?.textContent)
     ).toEqual(["AAPL", "SPY"]);
     expect(
       sections[0]
-        ?.querySelector('h2 a[data-slot="ticker-link"]')
+        ?.querySelector('h3 a[data-slot="ticker-link"]')
         ?.getAttribute("href")
     ).toBe("/stock/AAPL");
     const first = sections[0] as HTMLElement;
