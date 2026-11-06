@@ -10,6 +10,12 @@ import {
   type InstantBacktestSeries,
 } from "@darkfactory/api";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@darkfactory/ui/client/tabs";
+import {
   lazy,
   Suspense,
   useCallback,
@@ -26,6 +32,10 @@ import {
   OperatorAccessRequired,
 } from "./agent-ops-client.tsx";
 import { currentSearch, readParam, writeQuery } from "./backtest-lab-query.ts";
+import {
+  SimulationPanel,
+  TradesAnalysisPanel,
+} from "./backtest-report-depth.tsx";
 import {
   COST_PROFILE_OPTIONS,
   costRows,
@@ -255,81 +265,105 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
   }));
   return (
     <div className="grid gap-6">
-      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-        {[...costRows(report), ...metricRows(report.metrics)].map((row) => (
-          <div
-            className="flex justify-between gap-4 border-b py-1"
-            key={row.label}
-          >
-            <dt className="text-muted-foreground">{row.label}</dt>
-            <dd className="font-medium tabular-nums">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
-      <ChartRendererBoundary>
-        <Suspense
-          fallback={
-            <p className="h-[220px] text-muted-foreground text-xs">
-              Loading chart…
-            </p>
-          }
+      <Tabs defaultValue="performance">
+        <TabsList aria-label="Report sections">
+          <TabsTrigger value="performance">Performance</TabsTrigger>
+          <TabsTrigger value="analysis">Trades Analysis</TabsTrigger>
+          <TabsTrigger value="log">Trades Log</TabsTrigger>
+          <TabsTrigger value="simulation">Simulation</TabsTrigger>
+        </TabsList>
+        <TabsContent className="grid gap-6 pt-4" value="performance">
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            {[...costRows(report), ...metricRows(report.metrics)].map((row) => (
+              <div
+                className="flex justify-between gap-4 border-b py-1"
+                key={row.label}
+              >
+                <dt className="text-muted-foreground">{row.label}</dt>
+                <dd className="font-medium tabular-nums">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <ChartRendererBoundary>
+            <Suspense
+              fallback={
+                <p className="h-[220px] text-muted-foreground text-xs">
+                  Loading chart…
+                </p>
+              }
+            >
+              <LazyBacktestSeriesChart
+                caption={`Equity in account currency. ${report.bars.toLocaleString("en-US")} bars.`}
+                label="Equity curve"
+                points={equityPoints}
+                yLabel="Equity"
+              />
+              <LazyBacktestSeriesChart
+                caption="Drawdown from the running equity peak, in percent."
+                height={160}
+                label="Drawdown"
+                points={drawdownPoints}
+                yLabel="Drawdown %"
+              />
+            </Suspense>
+          </ChartRendererBoundary>
+        </TabsContent>
+        <TabsContent className="pt-4" value="analysis">
+          <TradesAnalysisPanel report={report} />
+        </TabsContent>
+        <TabsContent
+          className="grid gap-6 pt-4 data-[state=inactive]:hidden"
+          forceMount
+          value="log"
         >
-          <LazyBacktestSeriesChart
-            caption={`Equity in account currency. ${report.bars.toLocaleString("en-US")} bars.`}
-            label="Equity curve"
-            points={equityPoints}
-            yLabel="Equity"
-          />
-          <LazyBacktestSeriesChart
-            caption="Drawdown from the running equity peak, in percent."
-            height={160}
-            label="Drawdown"
-            points={drawdownPoints}
-            yLabel="Drawdown %"
-          />
-        </Suspense>
-      </ChartRendererBoundary>
-      <RunReplay report={report} />
-      <section aria-label="Trades" className="grid gap-2">
-        <h3 className="font-semibold text-base">
-          Trades
-          {report.tradesTruncated ? ` (first ${report.trades.length})` : ""}
-        </h3>
-        <div className="max-h-96 overflow-auto rounded-md border">
-          <table className="w-full text-sm tabular-nums">
-            <thead className="sticky top-0 bg-background text-left">
-              <tr>
-                <th className="p-2">#</th>
-                <th className="p-2">Entry</th>
-                <th className="p-2">Exit</th>
-                <th className="p-2">Entry price</th>
-                <th className="p-2">Exit price</th>
-                <th className="p-2">Units</th>
-                <th className="p-2">P/L</th>
-                <th className="p-2">Return</th>
-                <th className="p-2">Exit reason</th>
-                <th className="p-2">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.trades.map((trade) => (
-                <tr className="border-t" key={trade.n}>
-                  <td className="p-2">{trade.n}</td>
-                  <td className="p-2">{isoDate(trade.entryT)}</td>
-                  <td className="p-2">{isoDate(trade.exitT)}</td>
-                  <td className="p-2">{trade.entryPrice.toFixed(2)}</td>
-                  <td className="p-2">{trade.exitPrice.toFixed(2)}</td>
-                  <td className="p-2">{trade.units.toFixed(2)}</td>
-                  <td className="p-2">{trade.pnl.toFixed(2)}</td>
-                  <td className="p-2">{(trade.netReturn * 100).toFixed(2)}%</td>
-                  <td className="p-2">{trade.exitReason}</td>
-                  <td className="p-2">{trade.balanceAfter.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <RunReplay report={report} />
+          <section aria-label="Trades" className="grid gap-2">
+            <h3 className="font-semibold text-base">
+              Trades
+              {report.tradesTruncated ? ` (first ${report.trades.length})` : ""}
+            </h3>
+            <div className="max-h-96 overflow-auto rounded-md border">
+              <table className="w-full text-sm tabular-nums">
+                <thead className="sticky top-0 bg-background text-left">
+                  <tr>
+                    <th className="p-2">#</th>
+                    <th className="p-2">Entry</th>
+                    <th className="p-2">Exit</th>
+                    <th className="p-2">Entry price</th>
+                    <th className="p-2">Exit price</th>
+                    <th className="p-2">Units</th>
+                    <th className="p-2">P/L</th>
+                    <th className="p-2">Return</th>
+                    <th className="p-2">Exit reason</th>
+                    <th className="p-2">Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.trades.map((trade) => (
+                    <tr className="border-t" key={trade.n}>
+                      <td className="p-2">{trade.n}</td>
+                      <td className="p-2">{isoDate(trade.entryT)}</td>
+                      <td className="p-2">{isoDate(trade.exitT)}</td>
+                      <td className="p-2">{trade.entryPrice.toFixed(2)}</td>
+                      <td className="p-2">{trade.exitPrice.toFixed(2)}</td>
+                      <td className="p-2">{trade.units.toFixed(2)}</td>
+                      <td className="p-2">{trade.pnl.toFixed(2)}</td>
+                      <td className="p-2">
+                        {(trade.netReturn * 100).toFixed(2)}%
+                      </td>
+                      <td className="p-2">{trade.exitReason}</td>
+                      <td className="p-2">{trade.balanceAfter.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </TabsContent>
+        <TabsContent className="pt-4" value="simulation">
+          <SimulationPanel capital={run.spec.initialCapital} report={report} />
+        </TabsContent>
+      </Tabs>
       <p className="text-muted-foreground text-xs">
         Engine {run.engineVersion}. Data SHA-256{" "}
         {report.seriesSha256.slice(0, 12)}….
