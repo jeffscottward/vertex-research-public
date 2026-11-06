@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { InlineNotice } from "../inline-notice.tsx";
 import {
   type AccountFailureKind,
+  type AccountGateway,
   accountFailureKind,
   createBrowserAccountGateway,
   safeAccountFeedback,
@@ -23,8 +24,13 @@ type ProfileState =
   | Readonly<{ type: "error"; kind: AccountFailureKind }>
   | Readonly<{ type: "ready"; account: AccountProfileOutput; version: number }>;
 
-export const ProfilePageClient = () => {
-  const [gateway] = useState(createBrowserAccountGateway);
+/** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
+export const ProfilePageClient = ({
+  gateway: injected,
+}: {
+  readonly gateway?: AccountGateway;
+} = {}) => {
+  const [gateway] = useState(() => injected ?? createBrowserAccountGateway());
   const [state, setState] = useState<ProfileState>({ type: "loading" });
   const [feedback, setFeedback] = useState<AccountFeedback | null>(null);
 

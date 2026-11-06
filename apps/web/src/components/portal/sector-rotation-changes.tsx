@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
 
 export interface SectorRotationChangesProps {
-  readonly load?: () => Promise<SectorRotationSnapshot>;
+  readonly load?: (() => Promise<SectorRotationSnapshot>) | undefined;
 }
 
 type State =
