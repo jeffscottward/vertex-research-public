@@ -10,6 +10,8 @@ export type PriceAlertTickIo = Readonly<{
   post: (url: string, init: RequestInit) => Promise<Response>;
   stdout: Readonly<{ write: (text: string) => unknown }>;
   stderr: Readonly<{ write: (text: string) => unknown }>;
+  /** Tick procedure; signal alerts and watches use priceAlerts/signals/tick (scripts/vertex-signal-alerts-tick.ts). */
+  procedure?: "priceAlerts/tick" | "priceAlerts/signals/tick";
 }>;
 
 const required = (
@@ -25,7 +27,8 @@ const required = (
 const tick = async (io: PriceAlertTickIo): Promise<string> => {
   const origin = new URL(required(io.env, "VERTEX_ORIGIN")).origin;
   const apiKey = required(io.env, "VERTEX_AGENT_API_KEY");
-  const response = await io.post(`${origin}/api/orpc/priceAlerts/tick`, {
+  const procedure = io.procedure ?? "priceAlerts/tick";
+  const response = await io.post(`${origin}/api/orpc/${procedure}`, {
     body: JSON.stringify({ json: {} }),
     headers: {
       "content-type": "application/json",
@@ -37,7 +40,7 @@ const tick = async (io: PriceAlertTickIo): Promise<string> => {
   const text = await response.text();
   if (!response.ok)
     throw new Error(
-      `priceAlerts.tick returned HTTP ${response.status}: ${text.slice(0, 300)}`
+      `${procedure.replaceAll("/", ".")} returned HTTP ${response.status}: ${text.slice(0, 300)}`
     );
   const body = JSON.parse(text) as { json?: unknown };
   return JSON.stringify(body.json ?? null);

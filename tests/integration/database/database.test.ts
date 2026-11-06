@@ -102,6 +102,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   research_reports: "id",
   sector_rotation_alerts: "symbol,quadrant,entered_on",
   sector_rotation_points: "timeframe,symbol,date",
+  signal_alert_events: "id",
+  signal_alert_rules: "id",
   strategies: "id",
   strategy_definition_revisions: "id",
   strategy_presets: "id",

@@ -145,6 +145,10 @@ import {
   type PriceAlertRepository,
 } from "./price-alerts.ts";
 import {
+  createSignalAlertRepository,
+  type SignalAlertRepository,
+} from "./signal-alerts.ts";
+import {
   CLICK_LOG_RETENTION_DAYS,
   type ClickLogRepository,
   createClickLogRepository,
@@ -4274,6 +4278,7 @@ export type Repositories = Readonly<{
   assistantActions?: AssistantActionsRepository;
   autopilot?: AutopilotRepository;
   priceAlerts?: PriceAlertRepository;
+  signalAlerts?: SignalAlertRepository;
   researchReports?: ResearchReportsRepository;
   sectorRotation?: SectorRotationRepository;
   clickLog?: ClickLogRepository;
@@ -4343,6 +4348,10 @@ export const createRepositories = (
     resolveDependencies(dependencies)
   ),
   priceAlerts: createPriceAlertRepository(
+    database,
+    resolveDependencies(dependencies)
+  ),
+  signalAlerts: createSignalAlertRepository(
     database,
     resolveDependencies(dependencies)
   ),

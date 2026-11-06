@@ -79,6 +79,7 @@
     "vertex:autopilot:tick": "bun --no-env-file scripts/vertex-autopilot-tick.ts",
     "vertex:backtest-worker:nautilus": "bun --no-env-file scripts/vertex-backtest-worker-nautilus.ts",
     "vertex:alerts:tick": "bun --no-env-file scripts/vertex-price-alerts-tick.ts",
+    "vertex:signal-alerts:tick": "bun --no-env-file scripts/vertex-signal-alerts-tick.ts",
     "vertex:sector-rotation:tick": "bun --no-env-file scripts/vertex-sector-rotation-tick.ts",
     "vertex:pick-lists": "bun --no-env-file scripts/vertex-pick-lists.ts",
     "research:sector-rotation:freeze": "bun --no-env-file scripts/sector-rotation-backtest-freeze.ts",
