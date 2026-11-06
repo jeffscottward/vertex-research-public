@@ -77,11 +77,23 @@ describe("report depth panels", () => {
       render(<SimulationPanel capital={10_000} report={report([1])} />)
         .textContent
     ).toContain("needs at least two trades");
+    expect(html.textContent).toContain("measured on closed trade P/L");
     const truncated = { ...report(pnls), tradesTruncated: true };
-    expect(
-      render(<SimulationPanel capital={10_000} report={truncated} />)
-        .textContent
-    ).toContain("first 30 trades");
+    const truncatedText = render(
+      <SimulationPanel capital={10_000} report={truncated} />
+    ).textContent;
+    expect(truncatedText).toContain("first 30 trades");
+    expect(truncatedText).toContain("also use only those trades");
+    const equity = pnls.map((_, index) => ({
+      drawdownPct: 0,
+      equity: 10_000 + index * 10,
+      t: T0 + index * DAY,
+    }));
+    const withEquity = render(
+      <SimulationPanel capital={10_000} report={{ ...truncated, equity }} />
+    ).textContent;
+    expect(withEquity).toContain("intraday dips count");
+    expect(withEquity).toContain("use the full equity curve");
   });
 
   it("covers all-win, truncated and flat reports", () => {
