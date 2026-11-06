@@ -3060,7 +3060,16 @@ describe("engine comparison (dual run)", () => {
   it("queues at most the cap of sweep cells, one run per cell with its parameters", async () => {
     const runs = memoryRuns();
     const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    // Each clock read moves 1 ms: every cell takes 1 ms, so the total counts all 121 cells,
+    // while only the first 100 cells keep their full results.
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => {
+      now += 1;
+      return now;
+    });
     const sweep = await client.backtestRuns.sweep(sweepInput);
+    vi.restoreAllMocks();
+    expect(sweep.comparison?.wallMs).toBe(121);
     expect(sweep.cells).toHaveLength(121);
     expect(sweep.comparison).toMatchObject({
       dropped: 21,
@@ -3068,7 +3077,6 @@ describe("engine comparison (dual run)", () => {
       host,
       queued: ENGINE_COMPARISON_SWEEP_CELLS_MAX,
     });
-    expect(typeof sweep.comparison?.wallMs).toBe("number");
     const queued = comparisonRuns(runs).map(comparisonOf);
     expect(queued).toHaveLength(ENGINE_COMPARISON_SWEEP_CELLS_MAX);
     expect(queued[0]).toMatchObject({

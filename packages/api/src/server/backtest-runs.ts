@@ -373,7 +373,9 @@ const sweep = api.backtestRuns.sweep
         message: `The sweep needs ${cells} cells x ${size} bars; the limit is ${BACKTEST_SWEEP_MAX_BAR_STEPS.toLocaleString("en-US")} bar steps. Narrow the date range or the grid.`,
       });
     const queue = comparisonQueueFor(context, context.principal.userId);
+    // Full cell results only for the cells Nautilus repeats; the wall time of every cell.
     const cellRuns: SweepCellRun[] = [];
+    const walls: SweepWalls = { cells: 0, frozen: false, totalMs: 0 };
     const started = performance.now();
     const grid = runBacktestSweep(
       bars,
@@ -382,7 +384,13 @@ const sweep = api.backtestRuns.sweep
         ? undefined
         : {
             clock: () => performance.now(),
-            onCell: (cell) => cellRuns.push(cell),
+            onCell: (cell) => {
+              walls.cells += 1;
+              if (cell.wall.wallMs === null) walls.frozen = true;
+              else walls.totalMs += cell.wall.wallMs;
+              if (cellRuns.length < ENGINE_COMPARISON_SWEEP_CELLS_MAX)
+                cellRuns.push(cell);
+            },
           }
     );
     const computeMs = performance.now() - started;
@@ -394,7 +402,8 @@ const sweep = api.backtestRuns.sweep
             input,
             series.sourceSha256,
             grid,
-            cellRuns
+            cellRuns,
+            walls
           );
     return {
       ...grid,
@@ -414,24 +423,31 @@ const sweep = api.backtestRuns.sweep
     };
   });
 
+/** The evaluated cell count and summed wall time of a sweep; `frozen` when a cell clock froze. */
+interface SweepWalls {
+  cells: number;
+  frozen: boolean;
+  totalMs: number;
+}
+
 /**
  * Queues the first ENGINE_COMPARISON_SWEEP_CELLS_MAX evaluated cells of a sweep on Nautilus (one
- * run per cell, labelled with the cell's parameters) and returns the comparison answer.
+ * run per cell, labelled with the cell's parameters) and returns the comparison answer. `queued`
+ * holds only those cells; `walls` covers every evaluated cell.
  */
 const queueSweepComparison = async (
   queue: ComparisonQueue,
   input: BacktestSweepRequest,
   seriesSha256: string,
   grid: BacktestSweepGrid,
-  cells: readonly SweepCellRun[]
+  queued: readonly SweepCellRun[],
+  walls: SweepWalls
 ): Promise<NonNullable<BacktestSweepOutput["comparison"]>> => {
-  const queued = cells.slice(0, ENGINE_COMPARISON_SWEEP_CELLS_MAX);
-  const dropped = cells.length - queued.length;
+  const dropped = walls.cells - queued.length;
   // One frozen cell clock makes the total unknown (measureWall in ../engine-comparison.ts).
-  const times = cells.map((cell) => cell.wall.wallMs);
-  const wall: WallTime = times.includes(null)
+  const wall: WallTime = walls.frozen
     ? { wallMs: null, wallNote: TIMER_FROZEN_NOTE }
-    : { wallMs: (times as number[]).reduce((sum, ms) => sum + ms, 0) };
+    : { wallMs: walls.totalMs };
   const timing = { dropped, host: queue.host, queued: queued.length, ...wall };
   if (queued.length === 0) return { ...timing, groupId: null };
   try {
