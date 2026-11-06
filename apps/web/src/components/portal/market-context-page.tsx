@@ -44,12 +44,10 @@ export const MarketContextPage = ({
           <Button
             className="min-h-11"
             disabled={volatilityBusy || feedsBusy}
-            onClick={() => {
-              // Hold the button now; each workspace clears its flag when its new load settles.
-              setVolatilityBusy(true);
-              setFeedsBusy(true);
-              setRefreshSignal((count) => count + 1);
-            }}
+            // Each workspace reports its own busy flag when the new load starts and settles; the
+            // page does not preset it, so a load that settles before that render cannot leave the
+            // button stuck disabled. Late responses are ignored inside each workspace.
+            onClick={() => setRefreshSignal((count) => count + 1)}
             variant="secondary"
           >
             <RotateCcw aria-hidden="true" className="size-4" />

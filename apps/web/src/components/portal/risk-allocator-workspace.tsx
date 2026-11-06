@@ -448,10 +448,12 @@ export const RiskAllocatorWorkspace = ({
 
   const suggest = useCallback(
     async (next: RiskAllocatorForm, source: SymbolSource) => {
-      setSubject({ source, symbol: next.symbol.trim().toUpperCase() });
+      // The panel text names the symbol of the result on screen, so it is set with the result.
+      const computed = { source, symbol: next.symbol.trim().toUpperCase() };
       const invalid = invalidAmountFields(next);
       if (invalid.length > 0) {
         setResult(null);
+        setSubject({ source: "form", symbol: "" });
         setError(
           `Enter a number of 0 or more (commas allowed) for: ${invalid.join(", ")}.`
         );
@@ -460,9 +462,12 @@ export const RiskAllocatorWorkspace = ({
       setBusy(true);
       setError(null);
       try {
-        setResult(await gateway.suggest(toAllocatorInput(next)));
+        const suggestion = await gateway.suggest(toAllocatorInput(next));
+        setResult(suggestion);
+        setSubject(computed);
       } catch (failure) {
         setResult(null);
+        setSubject({ source: "form", symbol: "" });
         setError(describeFailure(failure));
       } finally {
         setBusy(false);
