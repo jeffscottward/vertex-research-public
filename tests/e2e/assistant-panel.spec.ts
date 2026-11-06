@@ -1,6 +1,12 @@
 import type { Page } from "@playwright/test";
 
-import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
+import {
+  E2E_IDENTITIES,
+  expect,
+  expectHydrated,
+  signInAs,
+  test,
+} from "./fixtures.ts";
 
 // Assistant side panel: available on an ordinary portal page, sends the page as context, streams a
 // reply with Stop in view, and keeps the streaming reply when the operator moves to another page.
@@ -89,18 +95,19 @@ for (const viewport of VIEWPORTS) {
     await streamLongReply(page);
     await page.goto("/todos");
 
-    // Closed until the operator opens it. Docked from 1024px (topbar toggle); a modal bottom sheet
-    // below 1024px (floating button).
+    // Closed until the operator opens it from the topbar toggle (every width). Docked from 1024px;
+    // a modal bottom sheet below 1024px.
     const docked = viewport.width >= 1024;
     const panel = page.getByRole(docked ? "complementary" : "dialog", {
       name: "Assistant panel",
     });
     await expect(panel).toHaveCount(0);
-    await page
-      .getByRole("button", {
-        name: docked ? "Toggle assistant panel" : "Open assistant",
-      })
-      .click();
+    const toggle = page
+      .locator('[data-slot="portal-topbar"]')
+      .getByRole("button", { name: "Toggle assistant panel" });
+    // A click before hydration has no handler yet.
+    await expectHydrated(toggle);
+    await toggle.click();
     await expect(panel).toBeVisible();
     const composer = panel.getByRole("textbox", { name: "Ask the assistant" });
     await expect(composer).toBeEnabled();
@@ -137,5 +144,86 @@ for (const viewport of VIEWPORTS) {
     await stop.click();
     await expect(stop).toHaveCount(0);
     await expect(panel.getByRole("button", { name: "Send" })).toBeVisible();
+    // A thread-list read still in flight must not fail after the test ends.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+}
+
+// No launcher floats over page content: at 375 px the Mission control "Reload" button sat under the
+// old floating chat button. Both controls must be separate and hit-testable at their centers.
+for (const viewport of [
+  { height: 812, width: 375 },
+  { height: 900, width: 1440 },
+] as const) {
+  test(`the assistant toggle covers no page control on Mission control (${viewport.width}x${viewport.height})`, async ({
+    browserErrors,
+    page,
+  }) => {
+    // The E2E database holds no collected sector rotation rows: the snapshot answers NOT_FOUND.
+    browserErrors.allowHttpError({
+      method: "POST",
+      pathname: "/api/orpc/sectorRotation/snapshot",
+      status: 404,
+    });
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ colorScheme: "dark" });
+    await signInAs(page, E2E_IDENTITIES.alice);
+    await page.goto("/dashboard");
+    const reload = page.getByRole("button", { name: "Reload mission control" });
+    const toggle = page
+      .locator('[data-slot="portal-topbar"]')
+      .getByRole("button", { name: "Toggle assistant panel" });
+    await expect(reload).toBeVisible();
+    await expectHydrated(toggle);
+    await reload.scrollIntoViewIfNeeded();
+    const hits = await page.evaluate(() => {
+      const fixed = [...document.querySelectorAll<HTMLElement>("button")]
+        .filter((node) => {
+          const style = getComputedStyle(node);
+          return style.position === "fixed" && style.display !== "none";
+        })
+        .map((node) => node.getAttribute("aria-label") ?? node.textContent);
+      const hit = (selector: string) => {
+        const node = document.querySelector(selector);
+        if (!(node instanceof HTMLElement)) return null;
+        const box = node.getBoundingClientRect();
+        const top = document.elementFromPoint(
+          box.x + box.width / 2,
+          box.y + box.height / 2
+        );
+        return {
+          box: {
+            bottom: box.bottom,
+            left: box.left,
+            right: box.right,
+            top: box.top,
+          },
+          ok: top !== null && node.contains(top),
+        };
+      };
+      return {
+        fixed,
+        reload: hit('[aria-label="Reload mission control"]'),
+        toggle: hit(
+          '[data-slot="portal-topbar"] [aria-label="Toggle assistant panel"]'
+        ),
+      };
+    });
+    expect(hits.fixed).toEqual([]);
+    expect(hits.reload?.ok).toBe(true);
+    expect(hits.toggle?.ok).toBe(true);
+    const a = hits.reload?.box;
+    const b = hits.toggle?.box;
+    const intersects =
+      a !== undefined &&
+      b !== undefined &&
+      a.left < b.right &&
+      b.left < a.right &&
+      a.top < b.bottom &&
+      b.top < a.bottom;
+    expect(intersects).toBe(false);
+    await page.screenshot({
+      path: test.info().outputPath(`mission-control-${viewport.width}.png`),
+    });
   });
 }
