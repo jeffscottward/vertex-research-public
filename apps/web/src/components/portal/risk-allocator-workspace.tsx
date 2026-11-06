@@ -557,6 +557,7 @@ export const RiskAllocatorWorkspace = ({
   return (
     <div className="space-y-6">
       <PageHeader
+        description="Your premium caps and a position size that fits them for one symbol. It never places orders or changes caps."
         status={<StatusBadge status="neutral">Advisory only</StatusBadge>}
         title="Risk allocator"
       />

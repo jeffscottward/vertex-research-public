@@ -38,14 +38,14 @@ import {
 
 // Shown until the stored ranking loads (and for an on-demand score without it).
 const FALLBACK_CRITERIA: readonly DeepValueCriterion[] = [
-  { id: "timeHorizon", lens: "TRUE", label: "Time horizon", proxy: "" },
-  { id: "risk", lens: "TRUE", label: "Risk", proxy: "" },
-  { id: "upside", lens: "TRUE", label: "Upside", proxy: "" },
-  { id: "entry", lens: "TRUE", label: "Entry", proxy: "" },
-  { id: "substance", lens: "SLAP", label: "Substance", proxy: "" },
-  { id: "longevity", lens: "SLAP", label: "Longevity", proxy: "" },
-  { id: "alignment", lens: "SLAP", label: "Alignment", proxy: "" },
-  { id: "price", lens: "SLAP", label: "Price", proxy: "" },
+  { id: "timeHorizon", label: "Time horizon", lens: "TRUE", proxy: "" },
+  { id: "risk", label: "Risk", lens: "TRUE", proxy: "" },
+  { id: "upside", label: "Upside", lens: "TRUE", proxy: "" },
+  { id: "entry", label: "Entry", lens: "TRUE", proxy: "" },
+  { id: "substance", label: "Substance", lens: "SLAP", proxy: "" },
+  { id: "longevity", label: "Longevity", lens: "SLAP", proxy: "" },
+  { id: "alignment", label: "Alignment", lens: "SLAP", proxy: "" },
+  { id: "price", label: "Price", lens: "SLAP", proxy: "" },
 ];
 
 const DEEP_VALUE_ROLE_FILTERS = [
@@ -60,9 +60,9 @@ const DEEP_VALUE_ROLE_FILTERS = [
 const UNIVERSE_ROLE = "low-price universe";
 // Flags that hide a row when "Hide penny / illiquid / dilution" is on.
 const HIDDEN_FLAGS: Readonly<Record<string, true>> = {
-  penny: true,
-  illiquid: true,
   dilution: true,
+  illiquid: true,
+  penny: true,
 };
 const MAX_TABLE_ROWS = 300;
 const MAX_TOTAL = 16;
@@ -319,7 +319,7 @@ const AdhocResult = ({
 );
 
 const selectClass =
-  "h-9 rounded-md border border-input bg-background px-2 text-sm";
+  "h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:w-auto";
 
 export interface DeepValueWorkspaceProps {
   readonly gateway?: ResearchLensesGateway;
@@ -350,13 +350,13 @@ export const DeepValueWorkspace = ({
     setRanking({ type: "loading" });
     try {
       return setRanking({
-        type: "ready",
         scorecard: await gateway.deepValue(),
+        type: "ready",
       });
     } catch (error) {
       return setRanking({
-        type: "error",
         message: describeResearchLensFailure(error),
+        type: "error",
       });
     }
   }, [gateway]);
@@ -417,10 +417,10 @@ export const DeepValueWorkspace = ({
   const rows = useMemo(
     () =>
       filterDeepValueRows(scorecard?.rows ?? [], {
-        role,
-        text,
         hideFlagged,
         minTotal,
+        role,
+        text,
       }),
     [scorecard, role, text, hideFlagged, minTotal]
   );
@@ -484,7 +484,7 @@ export const DeepValueWorkspace = ({
 
   const screenControls = (
     <>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Show</span>
         <select
           className={selectClass}
@@ -498,10 +498,10 @@ export const DeepValueWorkspace = ({
           ))}
         </select>
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Min score</span>
         <Input
-          className="w-20"
+          className="h-11 w-20"
           max={MAX_TOTAL}
           min={0}
           onChange={(event) => setMinTotal(Number(event.target.value) || 0)}
@@ -509,7 +509,7 @@ export const DeepValueWorkspace = ({
           value={minTotal}
         />
       </label>
-      <label className="flex min-h-11 items-center gap-2 text-sm">
+      <label className="flex min-h-11 w-full items-center gap-2 text-sm sm:w-auto">
         <input
           checked={hideFlagged}
           onChange={(event) => setHideFlagged(event.target.checked)}
@@ -517,10 +517,10 @@ export const DeepValueWorkspace = ({
         />
         Hide penny / illiquid / dilution
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Filter</span>
         <Input
-          className="w-44"
+          className="h-11 w-full sm:w-44"
           onChange={(event) => setText(event.target.value)}
           placeholder="Symbol, name or industry"
           type="search"
@@ -543,6 +543,7 @@ export const DeepValueWorkspace = ({
             Refresh
           </Button>
         }
+        description="Small caps ranked by the TRUE timing and SLAP strategic lenses, plus a scorecard for any ticker. Research only."
         status={status}
         title="Deep value screen"
       />

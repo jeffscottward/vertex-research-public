@@ -407,7 +407,7 @@ export const RotationMatrixWorkspace = ({
     }
     return matrix.sectors.flatMap((sector) => {
       const industries = bySector.get(sector.sector);
-      return industries === undefined ? [] : [{ sector, industries }];
+      return industries === undefined ? [] : [{ industries, sector }];
     });
   }, [matrix, filter]);
 
@@ -440,10 +440,10 @@ export const RotationMatrixWorkspace = ({
           </Button>
         ))}
       </div>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Filter</span>
         <Input
-          className="w-48"
+          className="h-11 w-full sm:w-48"
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Industry, sector or symbol"
           type="search"
@@ -466,6 +466,7 @@ export const RotationMatrixWorkspace = ({
             Refresh
           </Button>
         }
+        description="Median returns by sector, industry and cap bucket, with your watchlist names. Research only."
         status={status}
         title="Rotation matrix"
       />
@@ -631,7 +632,7 @@ export const RotationMatrixWorkspace = ({
                               <HeatButton
                                 label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian)}, ${cell.n} names`}
                                 n={cell.n}
-                                onSelect={() => setSelection({ industry, cap })}
+                                onSelect={() => setSelection({ cap, industry })}
                                 period={period}
                                 ret={cell.retMedian}
                               />
@@ -644,7 +645,7 @@ export const RotationMatrixWorkspace = ({
                           label={`${industry.industry} all caps: ${formatReturn(industry.retMedian)}, ${industry.n} names`}
                           n={industry.n}
                           onSelect={() =>
-                            setSelection({ industry, cap: "all" })
+                            setSelection({ cap: "all", industry })
                           }
                           period={period}
                           ret={industry.retMedian}
