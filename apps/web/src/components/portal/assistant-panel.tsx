@@ -8,7 +8,7 @@ import {
   AssistantPageContextSchema,
 } from "@darkfactory/api";
 import { Button, IconButton } from "@darkfactory/ui";
-import { BotMessageSquare, Maximize2, PanelRight, X } from "lucide-react";
+import { Maximize2, PanelRight, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -130,7 +130,10 @@ export const AssistantPanelProvider = ({
   );
 };
 
-/** Topbar control next to the command palette; absent where the panel is not offered. */
+/**
+ * Topbar control next to the command palette, at every width (the only launcher, so nothing floats
+ * over page content); absent where the panel is not offered.
+ */
 export const AssistantPanelToggle = () => {
   const panel = useAssistantPanel();
   if (!panel.shown) return null;
@@ -139,7 +142,6 @@ export const AssistantPanelToggle = () => {
       aria-controls={ASSISTANT_PANEL_ID}
       aria-label="Toggle assistant panel"
       aria-pressed={panel.open}
-      className="hidden md:inline-flex"
       onClick={() => panel.setOpen(!panel.open)}
     >
       <PanelRight aria-hidden="true" />
@@ -269,20 +271,6 @@ export const AssistantPanel = ({ gateway }: AssistantPanelProps) => {
           ) : null}
         </div>
       </aside>
-      {panel.shown ? (
-        <button
-          aria-controls={ASSISTANT_PANEL_ID}
-          aria-expanded={panel.open}
-          aria-label="Open assistant"
-          className="fixed right-4 bottom-4 z-overlay inline-flex size-12 items-center justify-center rounded-full border border-border bg-primary text-primary-foreground shadow-lg outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:hidden"
-          data-assistant-panel-fab=""
-          hidden={visible}
-          onClick={() => setOpen(true)}
-          type="button"
-        >
-          <BotMessageSquare aria-hidden="true" className="size-5" />
-        </button>
-      ) : null}
     </>
   );
 };
