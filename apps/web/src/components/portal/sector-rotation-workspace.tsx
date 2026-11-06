@@ -10,7 +10,12 @@ import {
 import {
   Button,
   Input,
+  KpiCard,
+  KpiRow,
+  PageHeader,
+  Panel,
   Skeleton,
+  StatusBadge,
   Table,
   TableBody,
   TableCaption,
@@ -18,10 +23,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from "@darkfactory/ui";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import { TickerLink } from "../ticker-link.tsx";
 import {
   type ChartHighlight,
   QUADRANT_CHIP,
@@ -42,9 +48,70 @@ import {
 // Research only: a quadrant describes past prices and never authorizes a trade.
 
 const TAIL_LENGTHS = [5, 10, 20] as const;
+export const DEFAULT_TIMEFRAME: SectorRotationTimeframe = "weekly";
+export const DEFAULT_TAIL_LENGTH = 10;
 /** Time between two dates while the map plays. */
 export const PLAY_STEP_MS = 400;
 const CUSTOM_ID = "custom";
+const UNIVERSE_ID = /^[\w-]{1,64}$/u;
+
+export type SectorRotationSettings = Readonly<{
+  tailLength: number;
+  timeframe: SectorRotationTimeframe;
+  universeId: string;
+}>;
+
+type ParamValue = string | readonly string[] | undefined;
+
+/** Reads `?timeframe=&universe=&tail=`; anything unknown falls back to the default. */
+export const parseSectorRotationParams = (
+  params: Readonly<Record<string, ParamValue>>
+): SectorRotationSettings => {
+  const { tail, timeframe, universe } = params;
+  const tailLength = TAIL_LENGTHS.find((length) => String(length) === tail);
+  return {
+    tailLength: tailLength ?? DEFAULT_TAIL_LENGTH,
+    timeframe:
+      SECTOR_ROTATION_TIMEFRAMES.find((key) => key === timeframe) ??
+      DEFAULT_TIMEFRAME,
+    universeId:
+      typeof universe === "string" && UNIVERSE_ID.test(universe)
+        ? universe
+        : SECTORS_PRESET.id,
+  };
+};
+
+/** The query string for the settings, without the defaults ("" when all are default). */
+export const sectorRotationSearch = (
+  settings: SectorRotationSettings
+): string => {
+  const params = new URLSearchParams();
+  if (settings.timeframe !== DEFAULT_TIMEFRAME)
+    params.set("timeframe", settings.timeframe);
+  if (settings.universeId !== SECTORS_PRESET.id)
+    params.set("universe", settings.universeId);
+  if (settings.tailLength !== DEFAULT_TAIL_LENGTH)
+    params.set("tail", String(settings.tailLength));
+  const search = params.toString();
+  return search === "" ? "" : `?${search}`;
+};
+
+const QUADRANT_ORDER = [
+  "leading",
+  "improving",
+  "weakening",
+  "lagging",
+] as const satisfies readonly (keyof typeof QUADRANT_LABELS)[];
+
+/** Number of rows in each quadrant (rows without a point are not counted). */
+export const quadrantCounts = (
+  rows: readonly SectorRotationRow[]
+): Readonly<Record<(typeof QUADRANT_ORDER)[number], number>> => {
+  const counts = { improving: 0, lagging: 0, leading: 0, weakening: 0 };
+  for (const entry of rows)
+    if (entry.point !== null) counts[entry.point.quadrant] += 1;
+  return counts;
+};
 const TIMEFRAME_LABELS: Readonly<Record<SectorRotationTimeframe, string>> = {
   daily: "Daily",
   weekly: "Weekly",
@@ -214,7 +281,7 @@ const RotationTable = ({
   readonly rows: readonly SectorRotationRow[];
   readonly timeframe: SectorRotationTimeframe;
 }) => (
-  <Table className="w-full min-w-[640px] text-sm">
+  <Table className="w-full text-sm">
     <TableCaption className="sr-only">
       Ratio, momentum and quadrant on {date}
     </TableCaption>
@@ -240,16 +307,13 @@ const RotationTable = ({
           onMouseEnter={() => onHighlight(row.symbol)}
           onMouseLeave={() => onHighlight(null)}
         >
-          <TableHead className="font-mono" scope="row">
-            <button
-              aria-pressed={row.symbol === highlighted}
-              className="min-h-11 min-w-11 rounded-md px-1 text-left font-semibold outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              onBlur={() => onHighlight(null)}
-              onFocus={() => onHighlight(row.symbol)}
-              type="button"
-            >
-              {row.symbol}
-            </button>
+          <TableHead
+            className="font-mono"
+            onBlur={() => onHighlight(null)}
+            onFocus={() => onHighlight(row.symbol)}
+            scope="row"
+          >
+            <TickerLink className="font-semibold" symbol={row.symbol} />
           </TableHead>
           <TableCell className="whitespace-normal">{row.name ?? "–"}</TableCell>
           {row.point === null ? (
@@ -285,23 +349,204 @@ const RotationTable = ({
   </Table>
 );
 
+const HeaderStatus = ({ state }: { readonly state: LoadState }) => {
+  if (state.type === "loading")
+    return <StatusBadge status="info">Loading</StatusBadge>;
+  if (state.type === "error")
+    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+  if (state.type === "ready")
+    return <StatusBadge status="neutral">As of {state.map.asOf}</StatusBadge>;
+  return null;
+};
+
+const RotationControls = ({
+  onTailLength,
+  onTimeframe,
+  onUniverse,
+  presets,
+  tailLength,
+  timeframe,
+  universeId,
+}: {
+  readonly onTailLength: (length: number) => void;
+  readonly onTimeframe: (timeframe: SectorRotationTimeframe) => void;
+  readonly onUniverse: (id: string) => void;
+  readonly presets: readonly SectorRotationUniversePreset[];
+  readonly tailLength: number;
+  readonly timeframe: SectorRotationTimeframe;
+  readonly universeId: string;
+}) => (
+  <div className="flex flex-wrap items-end gap-3">
+    <div className="space-y-1 text-sm">
+      <span className="block" id="sector-rotation-timeframe">
+        Timeframe
+      </span>
+      <div
+        aria-labelledby="sector-rotation-timeframe"
+        className="flex gap-1"
+        role="tablist"
+      >
+        {SECTOR_ROTATION_TIMEFRAMES.map((key) => (
+          <Button
+            aria-selected={key === timeframe}
+            key={key}
+            onClick={() => onTimeframe(key)}
+            role="tab"
+            size="sm"
+            variant={key === timeframe ? "primary" : "secondary"}
+          >
+            {TIMEFRAME_LABELS[key]}
+          </Button>
+        ))}
+      </div>
+    </div>
+    <label className="w-full space-y-1 text-sm sm:w-48">
+      <span className="block">Universe</span>
+      <select
+        className={selectClass}
+        onChange={(event) => onUniverse(event.target.value)}
+        value={universeId}
+      >
+        {presets.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {preset.label}
+          </option>
+        ))}
+        <option value={CUSTOM_ID}>Custom list</option>
+      </select>
+    </label>
+    <label className="w-full space-y-1 text-sm sm:w-32">
+      <span className="block">Tail length</span>
+      <select
+        className={selectClass}
+        onChange={(event) => onTailLength(Number(event.target.value))}
+        value={tailLength}
+      >
+        {TAIL_LENGTHS.map((length) => (
+          <option key={length} value={length}>
+            {length} periods
+          </option>
+        ))}
+      </select>
+    </label>
+  </div>
+);
+
+const LoadNotice = ({
+  onRetry,
+  state,
+}: {
+  readonly onRetry: () => void;
+  readonly state: LoadState;
+}) => (
+  <>
+    {state.type === "idle" ? (
+      <p className="text-muted-foreground text-sm">
+        Type up to 30 tickers and select Apply to draw them.
+      </p>
+    ) : null}
+    {state.type === "loading" ? (
+      <div aria-busy="true" className="space-y-2" role="status">
+        <span className="text-muted-foreground text-sm">
+          Loading sector rotation…
+        </span>
+        <Skeleton className="aspect-square w-full max-w-2xl" />
+      </div>
+    ) : null}
+    {state.type === "error" ? (
+      <div className="space-y-2" role="alert">
+        <p className="text-sm">Sector rotation unavailable: {state.message}</p>
+        <Button onClick={onRetry} size="sm" variant="secondary">
+          <RotateCcw aria-hidden="true" className="size-4" />
+          Try again
+        </Button>
+      </div>
+    ) : null}
+  </>
+);
+
+const QuadrantKpis = ({
+  date,
+  rows,
+}: {
+  readonly date: string;
+  readonly rows: readonly SectorRotationRow[];
+}) => {
+  const counts = quadrantCounts(rows);
+  return (
+    <KpiRow label={`Symbols per quadrant on ${date}`}>
+      {QUADRANT_ORDER.map((quadrant) => (
+        <KpiCard
+          data-quadrant={quadrant}
+          icon={
+            <span
+              className={`block size-2.5 rounded-full ${QUADRANT_CHIP[quadrant]}`}
+            />
+          }
+          key={quadrant}
+          label={QUADRANT_LABELS[quadrant]}
+          value={<span className="tabular-nums">{counts[quadrant]}</span>}
+        />
+      ))}
+    </KpiRow>
+  );
+};
+
+const RotationTablePanel = ({
+  date,
+  highlighted,
+  map,
+  onHighlight,
+  rows,
+}: {
+  readonly date: string | null;
+  readonly highlighted: ChartHighlight;
+  readonly map: SectorRotationMapOutput | null;
+  readonly onHighlight: (symbol: ChartHighlight) => void;
+  readonly rows: readonly SectorRotationRow[];
+}) =>
+  map === null || date === null ? null : (
+    <Panel
+      description={`Values on ${date}`}
+      flush
+      headingId="sector-rotation-table"
+      title="Sectors"
+    >
+      <TableScroll label="Sector rotation table" minWidth="40rem">
+        <RotationTable
+          date={date}
+          highlighted={highlighted}
+          onHighlight={onHighlight}
+          rows={rows}
+          timeframe={map.timeframe}
+        />
+      </TableScroll>
+    </Panel>
+  );
+
 export interface SectorRotationWorkspaceProps {
   readonly gateway?: SectorRotationGateway;
+  /** Settings read from the URL by the page. */
+  readonly initial?: SectorRotationSettings | undefined;
 }
 
 export const SectorRotationWorkspace = ({
   gateway: suppliedGateway,
+  initial,
 }: SectorRotationWorkspaceProps) => {
+  const settings = initial ?? parseSectorRotationParams({});
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserSectorRotationGateway()
   );
-  const [timeframe, setTimeframe] = useState<SectorRotationTimeframe>("weekly");
+  const [timeframe, setTimeframe] = useState<SectorRotationTimeframe>(
+    settings.timeframe
+  );
   const [presets, setPresets] = useState<
     readonly SectorRotationUniversePreset[]
   >([SECTORS_PRESET]);
-  const [universeId, setUniverseId] = useState(SECTORS_PRESET.id);
+  const [universeId, setUniverseId] = useState(settings.universeId);
   const [customSymbols, setCustomSymbols] = useState<readonly string[]>([]);
-  const [tailLength, setTailLength] = useState<number>(10);
+  const [tailLength, setTailLength] = useState<number>(settings.tailLength);
   const [state, setState] = useState<LoadState>({ type: "loading" });
   const [dateIndex, setDateIndex] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -322,6 +567,17 @@ export const SectorRotationWorkspace = ({
       live = false;
     };
   }, [gateway]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const search = sectorRotationSearch({ tailLength, timeframe, universeId });
+    if (url.search === search) return;
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${search}${url.hash}`
+    );
+  }, [tailLength, timeframe, universeId]);
 
   const universe = useMemo((): SectorRotationUniverseChoice | null => {
     if (universeId === CUSTOM_ID)
@@ -407,142 +663,92 @@ export const SectorRotationWorkspace = ({
 
   return (
     <div className="space-y-6">
-      <p className="max-w-3xl text-muted-foreground text-sm">
-        Our own relative strength ratio and momentum, both centered on 100. Not
-        the RRG® / JdK algorithm. Research only.
-      </p>
-
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="space-y-1 text-sm">
-          <span className="block" id="sector-rotation-timeframe">
-            Timeframe
-          </span>
-          <div
-            aria-labelledby="sector-rotation-timeframe"
-            className="flex gap-1"
-            role="tablist"
-          >
-            {SECTOR_ROTATION_TIMEFRAMES.map((key) => (
-              <Button
-                aria-selected={key === timeframe}
-                key={key}
-                onClick={() => setTimeframe(key)}
-                role="tab"
-                size="sm"
-                variant={key === timeframe ? "primary" : "secondary"}
-              >
-                {TIMEFRAME_LABELS[key]}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <label className="w-full space-y-1 text-sm sm:w-56">
-          <span className="block">Universe</span>
-          <select
-            className={selectClass}
-            onChange={(event) => setUniverseId(event.target.value)}
-            value={universeId}
-          >
-            {presets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label}
-              </option>
-            ))}
-            <option value={CUSTOM_ID}>Custom list</option>
-          </select>
-        </label>
-        <label className="w-full space-y-1 text-sm sm:w-36">
-          <span className="block">Tail length</span>
-          <select
-            className={selectClass}
-            onChange={(event) => setTailLength(Number(event.target.value))}
-            value={tailLength}
-          >
-            {TAIL_LENGTHS.map((length) => (
-              <option key={length} value={length}>
-                {length} periods
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {universeId === CUSTOM_ID ? (
-        <CustomListForm onApply={setCustomSymbols} />
-      ) : null}
-
-      {state.type === "idle" ? (
-        <p className="text-muted-foreground text-sm">
-          Type up to 30 tickers and select Apply to draw them.
-        </p>
-      ) : null}
-      {state.type === "loading" ? (
-        <div aria-busy="true" className="space-y-2" role="status">
-          <span className="text-muted-foreground text-sm">
-            Loading sector rotation…
-          </span>
-          <Skeleton className="aspect-square w-full max-w-2xl" />
-        </div>
-      ) : null}
-      {state.type === "error" ? (
-        <div className="space-y-2" role="alert">
-          <p className="text-sm">
-            Sector rotation unavailable: {state.message}
-          </p>
+      <PageHeader
+        actions={
           <Button
+            disabled={state.type === "loading" || universe === null}
             onClick={() => void load(timeframe, universe)}
             size="sm"
-            variant="secondary"
           >
-            <RotateCcw aria-hidden="true" className="size-4" />
-            Try again
+            <RefreshCw aria-hidden="true" className="size-4" />
+            Refresh
           </Button>
-        </div>
-      ) : null}
+        }
+        description="Our own relative strength ratio and momentum, both centered on 100. Not the RRG® / JdK algorithm. Research only."
+        status={<HeaderStatus state={state} />}
+        title="Sector rotation"
+      />
 
-      {map === null ? null : (
-        <>
-          <MapSummary map={map} />
-          {date === null ? (
-            <p className="text-muted-foreground text-sm">
-              No points to draw for this list yet.
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-end gap-3">
-                <Button
-                  aria-label={playing ? "Pause" : "Play"}
-                  onClick={togglePlay}
-                  size="sm"
-                  variant="secondary"
-                >
-                  {playing ? (
-                    <Pause aria-hidden="true" className="size-4" />
-                  ) : (
-                    <Play aria-hidden="true" className="size-4" />
-                  )}
-                  {playing ? "Pause" : "Play"}
-                </Button>
-                <label className="min-w-48 flex-1 space-y-1 text-sm">
-                  <span className="block">
-                    Date <span className="font-mono">{date}</span>
-                  </span>
-                  <input
-                    aria-valuetext={date}
-                    className="min-h-11 w-full accent-primary"
-                    max={lastIndex}
-                    min={0}
-                    onChange={(event) => {
-                      setPlaying(false);
-                      setDateIndex(Number(event.target.value));
-                    }}
-                    type="range"
-                    value={position}
-                  />
-                </label>
-              </div>
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                <div className="w-full max-w-2xl">
+      {map === null || date === null ? null : (
+        <QuadrantKpis date={date} rows={rows} />
+      )}
+
+      <Panel
+        actions={
+          <RotationControls
+            onTailLength={setTailLength}
+            onTimeframe={setTimeframe}
+            onUniverse={setUniverseId}
+            presets={presets}
+            tailLength={tailLength}
+            timeframe={timeframe}
+            universeId={universeId}
+          />
+        }
+        contentClassName="space-y-4"
+        headingId="sector-rotation-map"
+        title="Rotation map"
+      >
+        {universeId === CUSTOM_ID ? (
+          <CustomListForm onApply={setCustomSymbols} />
+        ) : null}
+
+        <LoadNotice
+          onRetry={() => void load(timeframe, universe)}
+          state={state}
+        />
+        {map === null ? null : (
+          <>
+            <MapSummary map={map} />
+            {date === null ? (
+              <p className="text-muted-foreground text-sm">
+                No points to draw for this list yet.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <Button
+                    aria-label={playing ? "Pause" : "Play"}
+                    onClick={togglePlay}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    {playing ? (
+                      <Pause aria-hidden="true" className="size-4" />
+                    ) : (
+                      <Play aria-hidden="true" className="size-4" />
+                    )}
+                    {playing ? "Pause" : "Play"}
+                  </Button>
+                  <label className="min-w-0 flex-1 basis-48 space-y-1 text-sm">
+                    <span className="block">
+                      Date <span className="font-mono">{date}</span>
+                    </span>
+                    <input
+                      aria-valuetext={date}
+                      className="min-h-11 w-full accent-primary"
+                      max={lastIndex}
+                      min={0}
+                      onChange={(event) => {
+                        setPlaying(false);
+                        setDateIndex(Number(event.target.value));
+                      }}
+                      type="range"
+                      value={position}
+                    />
+                  </label>
+                </div>
+                <div className="mx-auto w-full min-w-0 max-w-2xl">
                   <SectorRotationChart
                     benchmark={map.benchmark}
                     date={date}
@@ -553,20 +759,19 @@ export const SectorRotationWorkspace = ({
                     timeframe={map.timeframe}
                   />
                 </div>
-                <div className="overflow-x-auto">
-                  <RotationTable
-                    date={date}
-                    highlighted={hovered}
-                    onHighlight={setHovered}
-                    rows={rows}
-                    timeframe={map.timeframe}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </>
-      )}
+              </>
+            )}
+          </>
+        )}
+      </Panel>
+
+      <RotationTablePanel
+        date={date}
+        highlighted={hovered}
+        map={map}
+        onHighlight={setHovered}
+        rows={rows}
+      />
     </div>
   );
 };
