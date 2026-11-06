@@ -10,9 +10,16 @@ KEY_FILE="__AGENT_WRITE_KEY_FILE__"    # for example $HOME/.config/vertex/agent-
 BUN="__BUN__"                          # absolute path of the bun binary
 export VERTEX_ORIGIN="__VERTEX_ORIGIN__"                    # portal origin, https://...
 export VERTEX_NAUTILUS_PYTHON="__NAUTILUS_VENV__/bin/python" # venv with the Nautilus lock
-# export VERTEX_WORKER_IDLE_MS=3000
-# export VERTEX_WORKER_IDLE_MAX_MS=45000  # keep above 35000 (restart-when-idle.sh quiet window)
 # export VERTEX_WORKER_PROCESSES=8      # engine processes per batch (1..16)
+# Defaults (150 requests, 125 s pause, 3 s to 45 s idle) are for a key shared with other clients.
+# With a write key used by this worker only (fast polling, about 1.5 s average queue wait, one
+# 65 s pause about every 27 min), uncomment all four:
+# export VERTEX_WORKER_IDLE_MS=3000
+# export VERTEX_WORKER_IDLE_MAX_MS=3000
+# export VERTEX_WORKER_REQUEST_BUDGET=550       # 1..590
+# export VERTEX_WORKER_QUIET_PAUSE_MS=65000     # at least 61000; 65000 or more with its own key
+# Web restarts pause the worker through this file (infra/quantvps/restart-when-idle.sh):
+# export VERTEX_WORKER_PAUSE_FILE="$HOME/.local/state/vertex-nautilus-worker.pause"
 # Optional alert route (a loopback chat endpoint that takes {channel, text}); set both to "" for none.
 export VERTEX_ALERT_POST_URL="__ALERT_POST_URL__"  # for example http://127.0.0.1:47821/post
 export VERTEX_ALERT_CHANNEL="__ALERT_CHANNEL__"    # for example trading-alerts

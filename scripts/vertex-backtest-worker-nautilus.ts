@@ -4,6 +4,7 @@ import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import {
+  fileAgeMs,
   runCommand,
   runNautilusWorker,
   sleep,
@@ -12,6 +13,7 @@ import {
 
 process.exitCode = await runNautilusWorker(process.argv.slice(2), {
   env: process.env,
+  fileAgeMs,
   hostname: hostname(),
   post: (url, init) => globalThis.fetch(url, init),
   researchDir: fileURLToPath(new URL("../services/research/", import.meta.url)),

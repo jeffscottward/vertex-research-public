@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { BACKTEST_RUN_NAUTILUS_ENGINE } from "../../packages/api/src/contracts/backtest-runs.ts";
@@ -13,13 +16,18 @@ import {
   DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
   DEFAULT_PROCESSES,
+  fileAgeMs,
   deliveryChunks,
   DELIVERY_MARGIN_MS,
   DELIVERY_MAX_BYTES,
   DELIVERY_MIN_WAIT_MS,
   MAX_PROCESSES,
+  MAX_REQUEST_BUDGET,
+  MIN_QUIET_PAUSE_MS,
   NAUTILUS_RUN_TIMEOUT_MS,
   type NautilusWorkerIo,
+  PAUSE_FILE_MAX_AGE_MS,
+  PAUSE_POLL_MS,
   QUIET_PAUSE_MS,
   REJECTED_ERROR,
   REQUEST_BUDGET,
@@ -35,10 +43,12 @@ import {
 } from "./nautilus-worker.ts";
 
 const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
+const PAUSE_FILE = "/state/vertex-nautilus-worker.pause";
 const env = {
   VERTEX_AGENT_API_KEY: "secret-key",
   VERTEX_NAUTILUS_PYTHON: "/venv/bin/python",
   VERTEX_ORIGIN: "https://vertex.example.test/portal",
+  VERTEX_WORKER_PAUSE_FILE: PAUSE_FILE,
 };
 const SHA = "b".repeat(64);
 
@@ -146,8 +156,12 @@ const harness = (
     /** Answers by claim number (1-based) that replace the normal claim answer. */
     claimAnswers?: Readonly<Record<number, () => Response>>;
     alert?: () => Response;
+    /** Pause file ages (ms, null: absent) in call order; then absent. */
+    pauseAges?: (number | null)[];
   }> = {}
 ) => {
+  const pauseAges = [...(options.pauseAges ?? [])];
+  const fileAge = vi.fn((_path: string) => pauseAges.shift() ?? null);
   const claims = [...(options.claims ?? [])];
   const alerts: unknown[] = [];
   let claimCount = 0;
@@ -190,6 +204,7 @@ const harness = (
   );
   const io: NautilusWorkerIo = {
     env: options.env ?? env,
+    fileAgeMs: fileAge,
     hostname: "rig-1",
     post,
     researchDir: "/repo/services/research",
@@ -203,6 +218,7 @@ const harness = (
     calls.filter((call) => call.path === "backtestRuns/engine/completeMany");
   return {
     alerts,
+    fileAge,
     calls,
     claimCount: () => claimCount,
     completes,
@@ -229,6 +245,30 @@ describe("nautilus worker configuration", () => {
       [
         { VERTEX_WORKER_PROCESSES: String(MAX_PROCESSES + 1) },
         `VERTEX_WORKER_PROCESSES must be at most ${MAX_PROCESSES}`,
+      ],
+      [
+        { VERTEX_WORKER_REQUEST_BUDGET: "0" },
+        "VERTEX_WORKER_REQUEST_BUDGET must be",
+      ],
+      [
+        { VERTEX_WORKER_REQUEST_BUDGET: String(MAX_REQUEST_BUDGET + 1) },
+        "VERTEX_WORKER_REQUEST_BUDGET must be at most 590",
+      ],
+      [
+        { VERTEX_WORKER_QUIET_PAUSE_MS: String(MIN_QUIET_PAUSE_MS - 1) },
+        "VERTEX_WORKER_QUIET_PAUSE_MS must be at least 61000",
+      ],
+      [
+        { VERTEX_WORKER_QUIET_PAUSE_MS: "65s" },
+        "VERTEX_WORKER_QUIET_PAUSE_MS must be",
+      ],
+      [
+        { HOME: " ", VERTEX_WORKER_PAUSE_FILE: "" },
+        "VERTEX_WORKER_PAUSE_FILE is required when HOME is not set",
+      ],
+      [
+        { VERTEX_WORKER_PAUSE_FILE: "" },
+        "VERTEX_WORKER_PAUSE_FILE is required when HOME is not set",
       ],
     ] as const) {
       const run = harness({ env: { ...env, ...overrides } });
@@ -755,6 +795,129 @@ describe("nautilus worker loop", () => {
     expect(run.out.join("")).toContain(
       `${REQUEST_BUDGET} requests sent; quiet for 125 s`
     );
+  });
+
+  it("uses a configured request budget and quiet pause (own key: 550 and 65 s)", async () => {
+    const run = harness({
+      env: {
+        ...env,
+        VERTEX_WORKER_IDLE_MAX_MS: "3000",
+        VERTEX_WORKER_QUIET_PAUSE_MS: "65000",
+        VERTEX_WORKER_REQUEST_BUDGET: "550",
+      },
+    });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 553) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    const waits = run.sleep.mock.calls.map(([ms]) => ms);
+    expect(waits.indexOf(65_000)).toBe(550);
+    expect(waits.filter((ms) => ms === 65_000)).toHaveLength(1);
+    expect(run.out.join("")).toContain("550 requests sent; quiet for 65 s");
+    // A 429 waits the configured pause too.
+    const limited = harness({
+      claimAnswers: { 1: () => new Response("slow down", { status: 429 }) },
+      env: { ...env, VERTEX_WORKER_QUIET_PAUSE_MS: "61000" },
+    });
+    limited.sleep.mockImplementation(async () => {
+      limited.controller.abort();
+    });
+    await runNautilusWorker([], limited.io);
+    expect(limited.sleep.mock.calls[0]?.[0]).toBe(61_000);
+  });
+
+  it("claims nothing while a fresh pause file exists and logs entering and leaving once", async () => {
+    const run = harness({ pauseAges: [1000, 2000, 3000, null] });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 1) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(run.fileAge).toHaveBeenCalledWith(PAUSE_FILE);
+    // Three paused looks one second apart, then the claim and its idle wait.
+    expect(run.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      PAUSE_POLL_MS,
+      PAUSE_POLL_MS,
+      PAUSE_POLL_MS,
+      DEFAULT_IDLE_MS,
+    ]);
+    expect(run.claimCount()).toBe(1);
+    expect(run.out.filter((line) => line.includes("pause"))).toEqual([
+      `nautilus worker: paused while ${PAUSE_FILE} exists (a web restart waits for idle)\n`,
+      "nautilus worker: pause ended; claiming again\n",
+    ]);
+  });
+
+  it("ignores a stale pause file with one log line, and a long pause starts a new budget", async () => {
+    const stale = PAUSE_FILE_MAX_AGE_MS;
+    const run = harness({ pauseAges: [stale, stale, null, stale] });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 4) run.controller.abort();
+    });
+    await runNautilusWorker([], run.io);
+    expect(run.claimCount()).toBe(4);
+    // Logged once while stale, again after the file was gone and came back stale.
+    expect(
+      run.err.filter((line) => line.includes("ignoring pause file"))
+    ).toEqual([
+      `nautilus worker: ignoring pause file ${PAUSE_FILE}, older than 90 min\n`,
+      `nautilus worker: ignoring pause file ${PAUSE_FILE}, older than 90 min\n`,
+    ]);
+    expect(run.out.some((line) => line.includes("paused while"))).toBe(false);
+    // A pause as long as the quiet pause resets the budget: no quiet pause after it.
+    const looks = MIN_QUIET_PAUSE_MS / PAUSE_POLL_MS;
+    const long = harness({
+      env: {
+        ...env,
+        VERTEX_WORKER_IDLE_MAX_MS: "3000",
+        VERTEX_WORKER_QUIET_PAUSE_MS: String(MIN_QUIET_PAUSE_MS),
+        VERTEX_WORKER_REQUEST_BUDGET: "3",
+      },
+      pauseAges: [null, null, ...Array.from({ length: looks }, () => 5), null],
+    });
+    long.sleep.mockImplementation(async () => {
+      if (long.claimCount() >= 4) long.controller.abort();
+    });
+    await runNautilusWorker([], long.io);
+    expect(
+      long.sleep.mock.calls.filter(([ms]) => ms === MIN_QUIET_PAUSE_MS)
+    ).toHaveLength(0);
+  });
+
+  it("stops while paused on abort, and --once claims nothing while paused", async () => {
+    const run = harness({ pauseAges: [1000, 1000] });
+    run.sleep.mockImplementation(async () => run.controller.abort());
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(run.claimCount()).toBe(0);
+    const once = harness({ pauseAges: [1000] });
+    expect(await runNautilusWorker(["--once"], once.io)).toBe(0);
+    expect(once.post).not.toHaveBeenCalled();
+    expect(once.out.join("")).toContain("paused while");
+  });
+
+  it("defaults the pause file to the XDG state directory, else ~/.local/state", async () => {
+    const { VERTEX_WORKER_PAUSE_FILE: _unused, ...base } = env;
+    const xdg = harness({ env: { ...base, XDG_STATE_HOME: "/xdg" } });
+    await runNautilusWorker(["--once"], xdg.io);
+    expect(xdg.fileAge).toHaveBeenCalledWith(
+      "/xdg/vertex-nautilus-worker.pause"
+    );
+    const home = harness({ env: { ...base, HOME: "/home/u" } });
+    await runNautilusWorker(["--once"], home.io);
+    expect(home.fileAge).toHaveBeenCalledWith(
+      "/home/u/.local/state/vertex-nautilus-worker.pause"
+    );
+  });
+
+  it("reads a file's age, and null for a missing file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "vertex-pause-"));
+    const path = join(dir, "pause");
+    expect(fileAgeMs(path)).toBeNull();
+    writeFileSync(path, "pid 1\n");
+    const age = fileAgeMs(path);
+    expect(age).not.toBeNull();
+    expect(age ?? -1).toBeGreaterThanOrEqual(-1000);
+    expect(age ?? Number.POSITIVE_INFINITY).toBeLessThan(60_000);
+    rmSync(dir, { force: true, recursive: true });
   });
 
   it("keeps the shared key below half of its limit", () => {

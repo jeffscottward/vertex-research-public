@@ -132,6 +132,8 @@ describe("idle decision", () => {
 const FAKE = `#!/usr/bin/env bash
 cmd="$1"; name="\${cmd#: }"; name="\${name%%;*}"
 echo "$name" >>"$FAKE_DIR/calls"
+# The worker pause file as each probe saw it (the idle wait).
+if [ "$name" = probe ] && [ -f "\${VERTEX_WORKER_PAUSE_FILE:-/nonexistent}" ]; then cp "$VERTEX_WORKER_PAUSE_FILE" "$FAKE_DIR/pause-seen"; fi
 bash -n -c "$cmd" 2>>"$FAKE_DIR/syntax" || { echo "$name" >>"$FAKE_DIR/syntax"; exit 97; }
 n=$(grep -cx "$name" "$FAKE_DIR/calls")
 case "$name" in restart|rollback) printf '%s\\n' "\${cmd//$'\\n'/ }" >>"$FAKE_DIR/commands" ;; esac
@@ -199,6 +201,7 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
       VERTEX_RESTART_LOCK: join(dir, "lock"),
       VERTEX_RESTART_SLEEP: "true",
       VERTEX_WEB_SSH: join(dir, "fake.sh"),
+      VERTEX_WORKER_PAUSE_FILE: join(dir, "state", "worker.pause"),
       ...env,
     },
   });
@@ -210,6 +213,9 @@ const run = (args: string[] = [], env: Record<string, string> = {}) => {
     }
   };
   return {
+    pauseLeft: existsSync(join(dir, "state", "worker.pause")),
+    pauseSeen: read("pause-seen"),
+    signal: result.signal,
     alerts: read("alerts"),
     calls: read("calls"),
     commands: read("commands"),
@@ -255,6 +261,80 @@ describe("restart flow", () => {
       "protected containers: start times unchanged"
     );
     expect(result.alerts).toEqual([]);
+  });
+
+  it("pauses the worker during the idle wait and removes the pause file on exit", () => {
+    setup({ "probe.1": BUSY, "probe.2": IDLE });
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.pauseSeen[0]).toMatch(/^pid \d+$/u);
+    expect(result.pauseSeen[1]).toMatch(
+      /^since \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/u
+    );
+    expect(result.stdout).toContain("worker paused: ");
+    expect(result.pauseLeft).toBe(false);
+  });
+
+  it("removes the pause file when it gives up, when dist changes and on SIGTERM", () => {
+    setup({ probe: BUSY });
+    const gaveUp = run([], { VERTEX_RESTART_GIVE_UP_AFTER: "0" });
+    expect(gaveUp.status).toBe(4);
+    expect(gaveUp.pauseSeen).toHaveLength(2);
+    expect(gaveUp.pauseLeft).toBe(false);
+    setup({ "shas.2": "new def5678\ndeployed abc1234\n" });
+    const changed = run();
+    expect(changed.status).toBe(9);
+    expect(changed.pauseSeen).toHaveLength(2);
+    expect(changed.pauseLeft).toBe(false);
+    // Stopped while it waits for idle: the TERM trap exits through the EXIT trap.
+    setup({ probe: BUSY });
+    const started = Date.now();
+    const stopped = spawnSync("bash", [script], {
+      encoding: "utf8",
+      env: {
+        ...HERMETIC_GIT,
+        FAKE_DIR: dir,
+        PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+        VERTEX_RESTART_ALERT: join(dir, "alert.sh"),
+        VERTEX_RESTART_LOCK: join(dir, "lock"),
+        VERTEX_RESTART_POLL: "0.2",
+        VERTEX_WEB_SSH: join(dir, "fake.sh"),
+        VERTEX_WORKER_PAUSE_FILE: join(dir, "state", "worker.pause"),
+      },
+      killSignal: "SIGTERM",
+      timeout: 2000,
+    });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(stopped.status).toBe(143);
+    expect(existsSync(join(dir, "pause-seen"))).toBe(true);
+    expect(existsSync(join(dir, "state", "worker.pause"))).toBe(false);
+  });
+
+  it("does not pause the worker before the gates pass, and a dry run leaves the file alone", () => {
+    setup({ gate: "missing\n" });
+    const gate = run();
+    expect(gate.status).toBe(3);
+    expect(gate.pauseLeft).toBe(false);
+    setup({});
+    mkdirSync(join(dir, "state"));
+    writeFileSync(join(dir, "state", "worker.pause"), "pid 1\n");
+    const dry = run(["--dry-run"]);
+    expect(dry.status).toBe(0);
+    // Neither rewritten nor removed.
+    expect(dry.pauseSeen).toEqual(["pid 1"]);
+    expect(readFileSync(join(dir, "state", "worker.pause"), "utf8")).toBe(
+      "pid 1\n"
+    );
+  });
+
+  it("warns and still restarts when the pause file cannot be written", () => {
+    setup({});
+    writeFileSync(join(dir, "state"), "a file, not a directory");
+    const result = run();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "warning: cannot write the worker pause file"
+    );
   });
 
   it("takes the container start-time baseline after the idle wait, right before the restart", () => {
