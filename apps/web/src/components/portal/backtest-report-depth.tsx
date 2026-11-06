@@ -5,6 +5,7 @@ import {
   type HistogramBin,
   type RunMonteCarlo,
   runMonteCarlo,
+  propRulesUseEquity,
   simulatePropRules,
   type TradeGroupRow,
   tradesAnalysis,
@@ -245,9 +246,12 @@ const PropRulesTable = ({
       <h3 className="font-semibold text-base">Prop-firm rule simulation</h3>
       <p className="text-muted-foreground text-xs">
         Generic rule sets modeled on common evaluation formats, not tied to any
-        firm. Limits are a percent of the starting balance ({money(capital)}) on
-        closed P/L per UTC day. Pass rate reshuffles the order of the same
-        trading days.
+        firm. Limits are a percent of the starting balance ({money(capital)})
+        per UTC day,{" "}
+        {propRulesUseEquity(report)
+          ? "measured on account equity at each bar, so open-trade drawdown counts (moves inside one bar are not seen)."
+          : "measured on closed trade P/L (this report has no full per-bar equity curve, so open-trade drawdown is not seen)."}{" "}
+        Pass rate reshuffles the order of the same trading days.
       </p>
       <div className="overflow-auto rounded-md border">
         <table className="w-full text-sm tabular-nums">
@@ -335,8 +339,10 @@ export const SimulationPanel = ({
       {report.tradesTruncated ? (
         <p className="rounded-md border p-2 text-sm" role="status">
           The report keeps only the first {report.trades.length} trades, so the
-          Monte Carlo covers those trades only. The prop-firm rules use the full
-          equity curve.
+          Monte Carlo covers those trades only.
+          {propRulesUseEquity(report)
+            ? " The prop-firm rules use the full equity curve."
+            : " The prop-firm rules also use only those trades."}
         </p>
       ) : null}
       {result === null ? (

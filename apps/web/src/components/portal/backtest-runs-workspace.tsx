@@ -264,14 +264,29 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
     value: -point.drawdownPct * 100,
   }));
   return (
-    <div className="grid gap-6">
-      <Tabs defaultValue="performance">
-        <TabsList aria-label="Report sections">
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="analysis">Trades Analysis</TabsTrigger>
-          <TabsTrigger value="log">Trades Log</TabsTrigger>
-          <TabsTrigger value="simulation">Simulation</TabsTrigger>
-        </TabsList>
+    <div className="grid min-w-0 gap-6">
+      {/* 375 px: the tab bar scrolls in a padded wrapper. overflow-x on the list itself would clip
+          the 44 px trigger boxes, which reach about 4 px above and below its 36 px height. */}
+      <Tabs className="min-w-0" defaultValue="performance">
+        <div
+          className="-my-1.5 max-w-full overflow-x-auto py-1.5"
+          data-report-tabs-scroll=""
+        >
+          <TabsList aria-label="Report sections">
+            <TabsTrigger className="flex-none" value="performance">
+              Performance
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="analysis">
+              Trades Analysis
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="log">
+              Trades Log
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="simulation">
+              Simulation
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent className="grid gap-6 pt-4" value="performance">
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
             {[...costRows(report), ...metricRows(report.metrics)].map((row) => (
@@ -630,6 +645,7 @@ export const BacktestRunsWorkspace = ({
             );
             applySeries(visibleSeries(load.series, choice).series[0]);
           }}
+          selectClassName="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
           storedSymbols={load.series.map((entry) => entry.symbol)}
           value={universe}
         />
@@ -638,7 +654,7 @@ export const BacktestRunsWorkspace = ({
             Symbol and timeframe
           </label>
           <select
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={seriesId}
             onChange={(event) => {
               const next = load.series.find(
@@ -667,7 +683,7 @@ export const BacktestRunsWorkspace = ({
             Strategy (optional)
           </label>
           <select
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={strategyId}
             onChange={(event) =>
               setForm((current) => ({
@@ -690,7 +706,7 @@ export const BacktestRunsWorkspace = ({
             Rule
           </label>
           <select
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={ruleId}
             onChange={(event) =>
               setForm((current) => ({
@@ -763,7 +779,7 @@ export const BacktestRunsWorkspace = ({
             Cost profile
           </label>
           <select
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={costProfileId}
             onChange={(event) => {
               const value = event.target.value;
@@ -795,7 +811,7 @@ export const BacktestRunsWorkspace = ({
             From
           </label>
           <input
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={fromId}
             onChange={(event) =>
               setForm((current) => ({ ...current, from: event.target.value }))
@@ -809,7 +825,7 @@ export const BacktestRunsWorkspace = ({
             To
           </label>
           <input
-            className="min-h-11 rounded-md border bg-background px-3 text-sm"
+            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
             id={toId}
             onChange={(event) =>
               setForm((current) => ({ ...current, to: event.target.value }))
