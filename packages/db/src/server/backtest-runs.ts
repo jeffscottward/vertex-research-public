@@ -73,11 +73,12 @@ export type BacktestRunsRepository = Readonly<{
   /**
    * Stores the queued runs of one comparison group, in one transaction under an advisory lock on
    * the group id:
-   * - reuse (with `reuseSince`): when the group already has a run created since then that was
-   *   not superseded, nothing is inserted (an identical request does not queue the same runs
-   *   again);
+   * - reuse (with `reuseSince`): when the group already has a queued, running or succeeded run
+   *   created since then, nothing is inserted (an identical request does not queue the same runs
+   *   again); failed runs (superseded or any other error) do not count;
    * - supersede: queued runs of the same engine, feature and requester in other groups fail with
-   *   `supersededError` (one conditional update; running runs are never touched).
+   *   `supersededError` (one conditional update; running runs are never touched). A lock on
+   *   feature and requester makes two such requests run one after the other.
    */
   enqueueGroup: (
     input: Readonly<{
@@ -207,6 +208,14 @@ export const createBacktestRunsRepository = (
     },
     enqueueGroup: async (input) =>
       await withTransaction(database, async (transaction) => {
+        // With supersede, two requests of one feature and user (even of different groups) run
+        // one after the other, so the later one always supersedes the earlier one's runs. This
+        // lock is always taken before the group lock (one lock order: no deadlock).
+        const { supersede } = input;
+        if (supersede !== undefined)
+          await transaction.execute(
+            sql`select pg_advisory_xact_lock(hashtextextended(${`${supersede.feature}:${supersede.requestedBy}`}, 0))`
+          );
         // Two identical requests at once: the second waits here and then reuses the group.
         await transaction.execute(
           sql`select pg_advisory_xact_lock(hashtextextended(${input.groupId}, 0))`
@@ -222,7 +231,12 @@ export const createBacktestRunsRepository = (
                   and(
                     eq(comparisonGroup, input.groupId),
                     gte(backtestRuns.createdAt, reuseSince),
-                    sql`not (${backtestRuns.status} = 'failed' and ${backtestRuns.error} = ${input.supersededError})`
+                    // Failed runs (superseded or any other error) do not make a group reusable.
+                    inArray(backtestRuns.status, [
+                      "queued",
+                      "running",
+                      "succeeded",
+                    ])
                   )
                 )
                 .limit(1);
@@ -246,7 +260,6 @@ export const createBacktestRunsRepository = (
                   }))
                 )
                 .returning({ id: backtestRuns.id });
-        const { supersede } = input;
         const superseded =
           supersede === undefined
             ? []

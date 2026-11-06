@@ -282,57 +282,57 @@ describe("backtest run queue on real Postgres", { concurrent: false }, () => {
       for (const run of batch) expect(run.status).toBe("running");
   });
 
-  it("reuses a live comparison group and supersedes only older queued runs", async () => {
-    const engine = "nautilus-enqueue";
-    const SUPERSEDED = "Superseded by a newer request";
-    const DAY_MS = 24 * 60 * MINUTE_MS;
-    const runInput = (requestedBy = "operator", feature = "sweep") => ({
-      engineVersion: engine,
-      requestedBy,
-      spec: {
-        comparison: { feature, label: "cell" },
-        costBps: 0,
-        from: "2020-01-01",
-        initialCapital: 10_000,
-        rule: { fast: 5, kind: "smaCross" as const, slow: 20 },
-        stopLossPct: 0,
-        symbol: "SPY",
-        takeProfitPct: 0,
-        timeframe: "1d" as const,
-        to: "2021-01-01",
-      },
-      strategyId: null,
-      strategyRevision: null,
-      strategySnapshot: null,
+  const ENQUEUE_ENGINE = "nautilus-enqueue";
+  const SUPERSEDED = "Superseded by a newer request";
+  const DAY_MS = 24 * 60 * MINUTE_MS;
+  const runInput = (requestedBy = "operator", feature = "sweep") => ({
+    engineVersion: ENQUEUE_ENGINE,
+    requestedBy,
+    spec: {
+      comparison: { feature, label: "cell" },
+      costBps: 0,
+      from: "2020-01-01",
+      initialCapital: 10_000,
+      rule: { fast: 5, kind: "smaCross" as const, slow: 20 },
+      stopLossPct: 0,
+      symbol: "SPY",
+      takeProfitPct: 0,
+      timeframe: "1d" as const,
+      to: "2021-01-01",
+    },
+    strategyId: null,
+    strategyRevision: null,
+    strategySnapshot: null,
+  });
+  const enqueue = (
+    groupId: string,
+    at: number,
+    count = 2,
+    requestedBy = "operator",
+    feature = "sweep"
+  ) => {
+    clock = at;
+    return repository().enqueueGroup({
+      groupId,
+      reuseSince: new Date(at - DAY_MS),
+      runs: Array.from({ length: count }, () => {
+        const input = runInput(requestedBy, feature);
+        return {
+          ...input,
+          spec: {
+            ...input.spec,
+            comparison: { ...input.spec.comparison, groupId },
+          },
+        };
+      }),
+      supersede: { engineVersion: ENQUEUE_ENGINE, feature, requestedBy },
+      supersededError: SUPERSEDED,
     });
-    const enqueue = (
-      groupId: string,
-      at: number,
-      count = 2,
-      requestedBy = "operator",
-      feature = "sweep"
-    ) => {
-      clock = at;
-      return repository().enqueueGroup({
-        groupId,
-        reuseSince: new Date(at - DAY_MS),
-        runs: Array.from({ length: count }, () => {
-          const input = runInput(requestedBy, feature);
-          return {
-            ...input,
-            spec: {
-              ...input.spec,
-              comparison: { ...input.spec.comparison, groupId },
-            },
-          };
-        }),
-        supersede: { engineVersion: engine, feature, requestedBy },
-        supersededError: SUPERSEDED,
-      });
-    };
-    const group = async (groupId: string) =>
-      repository().listComparisons({ groupId, limit: 100 });
+  };
+  const group = async (groupId: string) =>
+    repository().listComparisons({ groupId, limit: 100 });
 
+  it("reuses a live comparison group and supersedes only older queued runs", async () => {
     // (1) Two identical requests at once store the group once; a third reuses it.
     const first = await Promise.all([enqueue("same", T0), enqueue("same", T0)]);
     expect(first.map((result) => result.created).sort()).toEqual([0, 2]);
@@ -381,5 +381,56 @@ describe("backtest run queue on real Postgres", { concurrent: false }, () => {
       created: 1,
       reused: false,
     });
+  });
+  it("reuses only a group with a queued, running or succeeded run", async () => {
+    const [first] = await group("err-g").then(async (runs) => {
+      expect(runs).toHaveLength(0);
+      await enqueue("err-g", T0, 1);
+      return group("err-g");
+    });
+    // A run failed for another reason does not make the group reusable.
+    await repository().fail(first?.id ?? "", "Nautilus engine failed (exit 1)");
+    await expect(enqueue("err-g", T0 + MINUTE_MS, 1)).resolves.toMatchObject({
+      created: 1,
+      reused: false,
+    });
+    // A succeeded run does.
+    const [queued] = (await group("err-g")).filter(
+      (run) => run.status === "queued"
+    );
+    clock = T0 + 2 * MINUTE_MS;
+    await repository().claim(queued?.id ?? "");
+    await repository().complete(queued?.id ?? "", {
+      differences: { items: [], ok: true },
+      engineRun: { host: "rig" },
+      metrics: {},
+    });
+    await expect(enqueue("err-g", T0 + 3 * MINUTE_MS, 1)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 0,
+    });
+  });
+
+  it("lets the later of two concurrent latest requests of different groups supersede the other", async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const user = `racer-${round}`;
+      const at = T0 + round * MINUTE_MS;
+      const results = await Promise.all([
+        enqueue(`race-${round}-a`, at, 2, user),
+        enqueue(`race-${round}-b`, at, 2, user),
+      ]);
+      // One request ran first and the other superseded all of its runs.
+      expect(results.map((result) => result.superseded).sort()).toEqual([0, 2]);
+      const statuses = await Promise.all(
+        ["a", "b"].map(async (side) =>
+          (await group(`race-${round}-${side}`)).map((run) => run.status)
+        )
+      );
+      expect(statuses.map((list) => [...new Set(list)].join()).sort()).toEqual([
+        "failed",
+        "queued",
+      ]);
+    }
   });
 });

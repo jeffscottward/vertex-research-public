@@ -298,6 +298,7 @@ describe("createBacktestRunsRepository", () => {
     const fresh = createDouble([
       [],
       [],
+      [],
       [{ id: "run-1" }, { id: "run-2" }],
       [{ id: "old" }],
     ]);
@@ -314,7 +315,14 @@ describe("createBacktestRunsRepository", () => {
         supersededError: "Superseded by a newer request",
       })
     ).resolves.toEqual({ created: 2, reused: false, superseded: 1 });
-    const [lock, live, insert, supersede] = fresh.operations;
+    const [userLock, lock, live, insert, supersede] = fresh.operations;
+    // The feature and user lock first, then the group lock.
+    expect(sqlText(userLock?.where)).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))"
+    );
+    expect(userLock?.where).toMatchObject({
+      queryChunks: expect.arrayContaining(["sweep:user-1"]),
+    });
     expect(sqlText(lock?.where)).toContain(
       "select pg_advisory_xact_lock(hashtextextended($1, 0))"
     );
@@ -323,9 +331,7 @@ describe("createBacktestRunsRepository", () => {
       `"backtest_runs"."spec"->'comparison'->>'groupId' = $`
     );
     expect(liveWhere).toContain(`"backtest_runs"."created_at" >= $`);
-    expect(liveWhere).toContain(
-      `not ("backtest_runs"."status" = 'failed' and "backtest_runs"."error" = $`
-    );
+    expect(liveWhere).toContain(`"backtest_runs"."status" in ($`);
     expect(insert?.values).toEqual(
       [1, 2].map((n) => ({
         ...input,

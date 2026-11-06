@@ -222,7 +222,7 @@ const memoryRuns = (): BacktestRunsRepository & {
           (row) =>
             groupOf(row) === input.groupId &&
             row.createdAt >= reuseSince &&
-            !(row.status === "failed" && row.error === input.supersededError)
+            row.status !== "failed"
         );
       if (!live) for (const run of input.runs) await repository.create(run);
       let superseded = 0;
