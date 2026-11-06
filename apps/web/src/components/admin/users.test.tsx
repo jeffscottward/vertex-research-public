@@ -912,3 +912,18 @@ describe("admin users page client", () => {
     });
   });
 });
+
+describe("injected admin users gateway (UI lab seam)", () => {
+  it("lists through a supplied gateway instead of the browser client", async () => {
+    const list = vi.fn(async () => directoryPage([user], null));
+    const mounted = mount(() => AdminUsersPageClient({ gateway: { list } }));
+    mounted.render();
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledWith({ limit: 20 });
+    return expect(directoryState(mounted.render())).toEqual({
+      items: [user],
+      nextCursor: null,
+      type: "ready",
+    });
+  });
+});

@@ -49,6 +49,7 @@ vi.mock("react", async (importOriginal) => ({
 
 import { TodayDecisionInbox, TodayWorkspace } from "./today.tsx";
 import { ScopeChooser } from "./shared.tsx";
+import { SectorRotationChanges } from "../../components/portal/sector-rotation-changes.tsx";
 
 const hash = "a".repeat(64);
 const scope: ExperienceScope = {
@@ -315,6 +316,16 @@ describe("Today data-first decision inbox", () => {
     return expect(renderToStaticMarkup(render(many))).toContain(
       "No matching decisions"
     );
+  });
+
+  it("passes the supplied sector rotation loader to the card", () => {
+    const load = vi.fn();
+    hooks.begin();
+    const tree = TodayWorkspace({ sectorRotation: load });
+    const card = elements(tree).find(
+      (node) => node.type === SectorRotationChanges
+    );
+    return expect(Reflect.get(card?.props ?? {}, "load")).toBe(load);
   });
 
   return it("retires scoped reads when the workspace scope is cleared", () => {

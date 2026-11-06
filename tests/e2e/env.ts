@@ -251,6 +251,8 @@ export const e2eEnvironment = (
       // (tests/e2e/fixtures.ts#E2E_IDENTITIES) are this workspace's operators.
       VERTEX_OPERATOR_EMAILS:
         "admin@domain.test,alice@domain.test,bob@domain.test",
+      // UI lab (/lab, dummy data only; tests/e2e/ui-lab.spec.ts). Allowed because APP_ENV is test.
+      VERTEX_UI_LAB: "on",
       // Fake QuantVPS recovery service (tests/e2e/helpers/fake-ibkr-recovery.ts), served
       // through the run's HTTPS proxy. It starts nothing; no test reaches the real VPS.
       VERTEX_IBKR_RECOVERY_URL: `${recoveryOrigin}/vertex-ibkr-recovery/v1`,

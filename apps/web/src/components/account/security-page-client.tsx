@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AccountFeedback } from "./account-feedback.tsx";
 import {
   type ChangePasswordInput,
+  type SecurityGateway,
   createBrowserSecurityGateway,
   safeSecurityFeedback,
   securityFailureKind,
@@ -16,8 +17,13 @@ import {
   type SecurityPanelState,
 } from "./security-panel.tsx";
 
-export const SecurityPageClient = () => {
-  const [gateway] = useState(createBrowserSecurityGateway);
+/** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
+export const SecurityPageClient = ({
+  gateway: injected,
+}: {
+  readonly gateway?: SecurityGateway;
+} = {}) => {
+  const [gateway] = useState(() => injected ?? createBrowserSecurityGateway());
   const [state, setState] = useState<SecurityPanelState>({ type: "loading" });
   const [sessionFeedback, setSessionFeedback] =
     useState<AccountFeedback | null>(null);

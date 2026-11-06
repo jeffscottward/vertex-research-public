@@ -17,8 +17,14 @@ import { ResearchWorkspace } from "./research.tsx";
 // exact-ID lookup (job collection, evidence, dataset chart) remains.
 
 vi.mock("./research-chat-room.tsx", () => ({
-  ResearchChatRoom: ({ scope }: { readonly scope: ExperienceScope }) => (
-    <p data-testid="chat-room">
+  ResearchChatRoom: ({
+    scope,
+    initialThreadId,
+  }: {
+    readonly scope: ExperienceScope;
+    readonly initialThreadId?: string | null;
+  }) => (
+    <p data-testid="chat-room" data-thread={initialThreadId ?? "none"}>
       chat for {scope.accountAlias} / {scope.environment}
     </p>
   ),
@@ -40,7 +46,8 @@ afterEach(() => {
 });
 
 const mount = async (
-  scopes: ExperienceServices["reads"]["scopes"]
+  scopes: ExperienceServices["reads"]["scopes"],
+  initialThreadId?: string
 ): Promise<HTMLDivElement> => {
   const base = createUnavailableExperienceServices();
   const services: ExperienceServices = {
@@ -55,7 +62,9 @@ const mount = async (
     root?.render(
       <ResearchReadScopeProvider scope={createResearchReadScope()}>
         <ExperienceProvider services={services}>
-          <ResearchWorkspace />
+          <ResearchWorkspace
+            {...(initialThreadId === undefined ? {} : { initialThreadId })}
+          />
         </ExperienceProvider>
       </ResearchReadScopeProvider>
     );
@@ -89,6 +98,20 @@ describe("ResearchWorkspace", () => {
     expect(
       container.querySelector('a[href="/knowledge"]')?.textContent
     ).toContain("Open the knowledge chat");
+  });
+
+  it("opens the given initial thread instead of waiting for a pick", async () => {
+    const container = await mount(
+      () => Promise.resolve([research]),
+      "fictional-thread"
+    );
+    await vi.waitFor(() =>
+      expect(
+        container
+          .querySelector('[data-testid="chat-room"]')
+          ?.getAttribute("data-thread")
+      ).toBe("fictional-thread")
+    );
   });
 
   it("reopens the chat room on the scope chosen from the list", async () => {
