@@ -324,8 +324,12 @@ describe("strategy library board", () => {
         favorite: true,
         sort: "sharpe",
       });
-      return expect(button("Favorites only").getAttribute("aria-pressed")).toBe(
+      expect(button("Favorites only").getAttribute("aria-pressed")).toBe(
         "true"
+      );
+      // The pressed state changes colour only; a weight change shifts layout.
+      return expect(button("Favorites only").className).not.toMatch(
+        /font-(medium|semibold|bold)/
       );
     } finally {
       vi.useRealTimers();

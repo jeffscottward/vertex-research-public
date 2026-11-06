@@ -96,8 +96,12 @@ const ioFor = (post: NautilusWorkerIo["post"]): NautilusWorkerIo => ({
     VERTEX_AGENT_API_KEY: "test-key",
     VERTEX_NAUTILUS_PYTHON: python,
     VERTEX_ORIGIN: "https://vertex.example.test",
+    VERTEX_WORKER_PAUSE_FILE: "/nonexistent/vertex-nautilus-worker.pause",
+    VERTEX_WORKER_RESTART_LOCK: "/nonexistent/vertex-web-restart.lock",
     VERTEX_WORKER_PROCESSES: "2",
   },
+  fileAgeMs: () => null,
+  restartLock: async () => "free",
   hostname: "rig-test",
   post,
   researchDir: fileURLToPath(

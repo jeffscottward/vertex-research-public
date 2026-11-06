@@ -37,14 +37,23 @@ export const AcademyThemeScope = ({
   readonly children: ReactNode;
 }) => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  // Storage can be blocked (privacy settings, sandboxed frames) or full; the in-memory theme still applies.
   useEffect(() => {
-    if (window.localStorage.getItem(ACADEMY_THEME_STORAGE_KEY) === "light")
-      setTheme("light");
+    try {
+      if (window.localStorage.getItem(ACADEMY_THEME_STORAGE_KEY) === "light")
+        setTheme("light");
+    } catch {
+      return;
+    }
   }, []);
   const toggle = useCallback(() => {
     setTheme((current) => {
       const next = current === "dark" ? "light" : "dark";
-      window.localStorage.setItem(ACADEMY_THEME_STORAGE_KEY, next);
+      try {
+        window.localStorage.setItem(ACADEMY_THEME_STORAGE_KEY, next);
+      } catch {
+        // Keep the new theme for this page view only.
+      }
       return next;
     });
   }, []);
@@ -82,7 +91,16 @@ export const AcademyThemeToggle = () => {
         <Sun className="size-4" data-state={theme === "dark" ? "on" : "off"} />
         <Moon className="size-4" data-state={theme === "dark" ? "off" : "on"} />
       </span>
-      {theme === "dark" ? "Light mode" : "Dark mode"}
+      {/* Both labels share one grid cell; the hidden one reserves the wider
+          width, so the button keeps its size when the label changes. */}
+      <span className="grid">
+        <span className="col-start-1 row-start-1" data-academy-theme-label="">
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </span>
+        <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+          {theme === "dark" ? "Dark mode" : "Light mode"}
+        </span>
+      </span>
     </button>
   );
 };

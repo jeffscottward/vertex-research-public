@@ -90,6 +90,7 @@ vi.mock("@darkfactory/api/server", () => ({
   resolveDeployStatusConfig: vi.fn(() => null),
   resolvePriceAlertsNtfyConfig: vi.fn(() => null),
   resolveJevConfig: vi.fn(() => null),
+  resolveMarketHistoryConfig: vi.fn(() => null),
   resolveQuantDataConfig: vi.fn(() => null),
   setResearchContactEmail: vi.fn(),
 }));

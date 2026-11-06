@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   AcademyThemeScope,
@@ -50,14 +50,20 @@ describe("AcademyThemeScope", () => {
     expect(button.getAttribute("aria-label")).toBe(
       "Switch the Academy to light mode"
     );
-    expect(button.textContent).toBe("Light mode");
+    expect(
+      button.querySelector("[data-academy-theme-label]")?.textContent
+    ).toBe("Light mode");
+    expect(button.querySelector(".invisible")?.textContent).toBe("Dark mode");
     await act(async () => button.click());
     expect(scope?.getAttribute("data-academy-theme")).toBe("light");
     expect(scope?.getAttribute("data-theme")).toBe("default-light");
     expect(button.getAttribute("aria-label")).toBe(
       "Switch the Academy to dark mode"
     );
-    expect(button.textContent).toBe("Dark mode");
+    expect(
+      button.querySelector("[data-academy-theme-label]")?.textContent
+    ).toBe("Dark mode");
+    expect(button.querySelector(".invisible")?.textContent).toBe("Light mode");
     expect(window.localStorage.getItem("vertex-academy-theme")).toBe("light");
     await act(async () => button.click());
     expect(scope?.getAttribute("data-academy-theme")).toBe("dark");
@@ -83,6 +89,56 @@ describe("AcademyThemeScope", () => {
     expect(
       other.querySelector("[data-academy-theme]")?.getAttribute("data-theme")
     ).toBe("default-dark");
+  });
+
+  it("defaults to dark and still toggles when storage access throws", async () => {
+    const blocked = vi
+      .spyOn(window, "localStorage", "get")
+      .mockImplementation(() => {
+        throw new DOMException("Storage is blocked", "SecurityError");
+      });
+    try {
+      const container = await render(
+        <AcademyThemeScope>
+          <AcademyThemeToggle />
+        </AcademyThemeScope>
+      );
+      const scope = container.querySelector("[data-academy-theme]");
+      expect(scope?.getAttribute("data-theme")).toBe("default-dark");
+      await act(async () =>
+        (container.querySelector("button") as HTMLButtonElement).click()
+      );
+      expect(scope?.getAttribute("data-theme")).toBe("default-light");
+      expect(blocked).toHaveBeenCalled();
+    } finally {
+      blocked.mockRestore();
+    }
+  });
+
+  it("keeps the in-memory choice when the stored write fails", async () => {
+    const full = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new DOMException("Quota exceeded", "QuotaExceededError");
+      });
+    try {
+      const container = await render(
+        <AcademyThemeScope>
+          <AcademyThemeToggle />
+        </AcademyThemeScope>
+      );
+      await act(async () =>
+        (container.querySelector("button") as HTMLButtonElement).click()
+      );
+      expect(
+        container
+          .querySelector("[data-academy-theme]")
+          ?.getAttribute("data-academy-theme")
+      ).toBe("light");
+      expect(full).toHaveBeenCalledWith("vertex-academy-theme", "light");
+    } finally {
+      full.mockRestore();
+    }
   });
 
   it("gives a dark no-op theme outside the scope", async () => {
