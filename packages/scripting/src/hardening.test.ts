@@ -9,6 +9,7 @@ import {
   SCRIPT_OPS_DEFAULT,
   SCRIPT_SOURCE_MAX,
 } from "./index.ts";
+import { opsBudget } from "./interpreter.ts";
 
 type Ok = Extract<RunResult, { ok: true }>;
 
@@ -222,7 +223,9 @@ describe("emitted strings are capped", () => {
   });
 });
 
-describe("operation budget option", () => {
+// These run millions of real operations; coverage instrumentation makes them slow on CI
+// (8.4 s seen for the 10x case), so they get a longer timeout than the 5 s default.
+describe("operation budget option", { timeout: 60_000 }, () => {
   // About 3 ops per iteration: 1.5M iterations exceed the 2M default.
   const heavy = "x = 0\nfor i = 1 to 1500000\n    x += 1\nplot(x)";
   const once = [SMALL_BARS[0]] as const;
@@ -239,14 +242,16 @@ describe("operation budget option", () => {
     }
   );
 
+  // The clamp itself is checked directly: running 20M real operations takes seconds on CI.
   it("clamps to 10x the default", () => {
-    const endless = "x = 0\nfor i = 1 to 1000000000\n    x += 1\nplot(x)";
-    expect(runOnce(endless, 1e15)).toMatchObject({
-      errors: [{ message: "Script stopped: operation budget used" }],
-      ok: false,
-    });
-    // 10x the default is enough for the heavy loop.
-    expect(runOnce(heavy, 10 * SCRIPT_OPS_DEFAULT).ok).toBe(true);
+    expect(opsBudget(1e15)).toBe(10 * SCRIPT_OPS_DEFAULT);
+    expect(opsBudget(10 * SCRIPT_OPS_DEFAULT + 1)).toBe(
+      10 * SCRIPT_OPS_DEFAULT
+    );
+    expect(opsBudget(3_000_000.9)).toBe(3_000_000);
+    expect(opsBudget("5" as unknown)).toBe(SCRIPT_OPS_DEFAULT);
+    // A raised budget is honoured: the heavy loop needs more than the default.
+    expect(runOnce(heavy, 3 * SCRIPT_OPS_DEFAULT).ok).toBe(true);
   });
 
   it("clamps small and fractional values to at least 1", () => {

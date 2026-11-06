@@ -99,7 +99,7 @@ const COMPARE: ReadonlyMap<string, NumberOp<boolean>> = new Map<
 const BUDGET_MESSAGE = "Script stopped: operation budget used";
 // options.maxOps as a finite integer in [1, 10 x default]; anything unusable -> default.
 // (Computed per call: index.ts constants are not initialized while this module loads.)
-const opsBudget = (maxOps: unknown): number => {
+export const opsBudget = (maxOps: unknown): number => {
   if (typeof maxOps !== "number" || !Number.isFinite(maxOps)) {
     return SCRIPT_OPS_DEFAULT;
   }
