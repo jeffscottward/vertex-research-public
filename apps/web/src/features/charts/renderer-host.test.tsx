@@ -120,6 +120,37 @@ describe("CandleCanvas optional studies and markers", () => {
     return expect(factory).toHaveBeenCalledTimes(1);
   });
 
+  it("counts study, built-in and script panes together", async () => {
+    const { factory } = fakeRenderer();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () => {
+      root.render(
+        <CandleCanvas
+          extraPanes={1}
+          factory={factory}
+          label="Bars"
+          markers={[]}
+          pricePrecision={2}
+          studies={{
+            ema: [],
+            extra: ["macd"],
+            panes: ["RSI"],
+            sma: [],
+            volume: false,
+          }}
+          values={candles}
+          volumePrecision={0}
+        />
+      );
+      return await flush();
+    });
+    const canvas = container.querySelector<HTMLElement>(".vx-chart-canvas");
+    expect(canvas?.style.getPropertyValue("--vx-chart-sub-panes")).toBe("3");
+  });
+
   it("reports null to onRenderer when a failing update disposes the renderer", async () => {
     const container = document.createElement("div");
     document.body.append(container);

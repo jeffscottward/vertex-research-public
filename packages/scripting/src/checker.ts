@@ -589,8 +589,11 @@ class Checker {
     for (const param of fn.params) {
       if (scope.names.has(param.name))
         fail(`Duplicate parameter '${param.name}'`, param);
-      if (param.fallback)
+      if (param.fallback) {
         constEval(param.fallback, `Default value of '${param.name}'`);
+        // Record the constant names it uses (math.pi, color.red) for the runtime.
+        this.expr(param.fallback, { ...where, scope: snapshot }, false);
+      }
       scope.names.set(param.name, { global: false, kind: "param" });
     }
     this.defining = fn.name;
