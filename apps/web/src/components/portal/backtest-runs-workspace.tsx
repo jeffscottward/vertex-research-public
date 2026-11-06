@@ -265,25 +265,28 @@ const RunReport = ({ run }: Readonly<{ run: BacktestRun }>) => {
   }));
   return (
     <div className="grid min-w-0 gap-6">
-      {/* min-w-0 and a scrolling tab bar keep the four tabs inside a 375 px screen. */}
+      {/* 375 px: the tab bar scrolls in a padded wrapper. overflow-x on the list itself would clip
+          the 44 px trigger boxes, which reach about 4 px above and below its 36 px height. */}
       <Tabs className="min-w-0" defaultValue="performance">
-        <TabsList
-          aria-label="Report sections"
-          className="max-w-full justify-start overflow-x-auto"
+        <div
+          className="-my-1.5 max-w-full overflow-x-auto py-1.5"
+          data-report-tabs-scroll=""
         >
-          <TabsTrigger className="flex-none" value="performance">
-            Performance
-          </TabsTrigger>
-          <TabsTrigger className="flex-none" value="analysis">
-            Trades Analysis
-          </TabsTrigger>
-          <TabsTrigger className="flex-none" value="log">
-            Trades Log
-          </TabsTrigger>
-          <TabsTrigger className="flex-none" value="simulation">
-            Simulation
-          </TabsTrigger>
-        </TabsList>
+          <TabsList aria-label="Report sections">
+            <TabsTrigger className="flex-none" value="performance">
+              Performance
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="analysis">
+              Trades Analysis
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="log">
+              Trades Log
+            </TabsTrigger>
+            <TabsTrigger className="flex-none" value="simulation">
+              Simulation
+            </TabsTrigger>
+          </TabsList>
+        </div>
         <TabsContent className="grid gap-6 pt-4" value="performance">
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
             {[...costRows(report), ...metricRows(report.metrics)].map((row) => (
