@@ -1,6 +1,6 @@
 # Nautilus backtest engine
 
-Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, and migrate with parity tests first. Research only: no backtest path creates, routes or sends an order.
+Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, and migrate with parity tests first. A later decision the same day: for the instant backtest, sweeps and the Autopilot gate, run both engines side by side with no forced switch (see [Dual run](#dual-run-engine-comparison)). Research only: no backtest path creates, routes or sends an order.
 
 ## Status
 
@@ -11,8 +11,8 @@ Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, an
 | Costs | `nautilus_backtest/costs.py`: port of `packages/api/src/backtest-costs.ts` (presets, commission, fees, spread, slippage, sizing). |
 | Parity suite | CLI `scripts/research-nautilus-parity.ts`, logic and tests in `scripts/research/nautilus-parity.ts` and `nautilus-parity.test.ts`. Latest report: [`research/backtests/nautilus-parity/README.md`](../../research/backtests/nautilus-parity/README.md). |
 | CI | `services/research/tests/test_nautilus_backtest_signals.py` (base lane) and `test_nautilus_backtest_engine.py` (Nautilus lane, `VERTEX_REQUIRE_NAUTILUS=1`). |
-| Features on Nautilus | Backtest runs: switchable by the setting `VERTEX_BACKTEST_RUNS_ENGINE` (`typescript` by default, `nautilus` sends new runs to the research worker); see [Backtest runs on Nautilus](#backtest-runs-on-nautilus). Every other feature still uses the TypeScript engine; each switches only after its parity passes; see [Switch plan](#switch-plan). |
-| Dual run | Instant backtest, parameter sweeps and the Autopilot gate: with `VERTEX_ENGINE_COMPARISON=on` they keep the TypeScript result and also queue the same runs on Nautilus (research worker on the rig), with where it ran, wall time, queue wait, CPU time and the differences recorded; see [Dual run](#dual-run-engine-comparison). Default off. |
+| Features on Nautilus | Backtest runs: on Nautilus in production since 2026-11-06 (`VERTEX_BACKTEST_RUNS_ENGINE=nautilus`, rig worker); see [Backtest runs on Nautilus](#backtest-runs-on-nautilus). Instant backtest, sweeps and the Autopilot gate: dual run in production since 2026-11-06 (`VERTEX_ENGINE_COMPARISON=on`): the TypeScript result shows first and the same run repeats on Nautilus; the owner decides any switch from the side-by-side data (owner decision 2026-11-05). Paper forward, setup replay, Academy, the offline research scripts and Quant Lab still use the TypeScript engine (or their own engines); see [Switch plan](#switch-plan). |
+| Dual run | Instant backtest, parameter sweeps and the Autopilot gate: with `VERTEX_ENGINE_COMPARISON=on` they keep the TypeScript result and also queue the same runs on Nautilus (research worker on the rig), with where it ran, wall time, queue wait, CPU time and the differences recorded; see [Dual run](#dual-run-engine-comparison). Default off in code; on in production since 2026-11-06. |
 
 ## Run it
 
@@ -119,11 +119,11 @@ A feature switches only when its parity cases pass. The TypeScript engine stays 
 | Step | Target date | Pass condition |
 | --- | --- | --- |
 | 1. Engine, golden fixture, parity suite and report (this change) | 2026-11-05 | Parity report: all cases pass; CI green |
-| 2. Backtest runs on a research worker on the rig: the API stores the run with the Nautilus engine id; the worker claims it over the API, runs Nautilus and posts the result; the API builds the report (code done 2026-11-05, see [Backtest runs on Nautilus](#backtest-runs-on-nautilus); production switch pending) | 2026-11-07 | One live run checked end to end; TS path still available by setting |
+| 2. Backtest runs on a research worker on the rig: the API stores the run with the Nautilus engine id; the worker claims it over the API, runs Nautilus and posts the result; the API builds the report (done: live on 2026-11-06, first live run matched the TypeScript run of the same spec) | 2026-11-07 | One live run checked end to end; TS path still available by setting |
 | 3. Offline research scripts and Quant Lab default to Nautilus | 2026-11-10 | Core 7 re-run equal to the parity figures |
-| 4. Instant backtest, sweeps and the Autopilot gate as queued worker jobs (they run in the request today) | 2026-11-14 | Parity per feature; response-time budget recorded |
+| 4. Instant backtest, sweeps and the Autopilot gate: dual run (done 2026-11-06; owner decision: no forced switch). Report of record: the "current engine vs Nautilus on the rig" page on the rig reports site (run times p50/p95, queue wait, CPU/GPU, differences) | 2026-11-20 | Two weeks of live side-by-side data reported; the owner decides whether to switch |
 | 5. Paper forward and setup replay | 2026-11-18 | Parity per feature |
 | 6. Academy: feed modelled option quotes to Nautilus option instruments, or keep the modelled simulator as teaching material outside the engine of record (owner choice at that step) | 2026-11-21 | Decision recorded |
-| 7. Retire the TypeScript engine in a separate PR (keep the git history; remove dead paths) | 2026-11-28 | All features switched for two weeks without a parity regression |
+| 7. Retire the TypeScript engine in a separate PR (keep the git history; remove dead paths), only if the owner switches the interactive paths in step 4 | after step 4 | All features switched for two weeks without a parity regression |
 
 The QuantVPS Nautilus node stays disarmed. The research worker runs on the rig or in a research container, never on the live trading node.
