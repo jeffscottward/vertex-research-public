@@ -2,8 +2,9 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   // Exported types document public function signatures even when only their module uses them.
   "ignoreExportsUsedInFile": { "interface": true, "type": true },
-  // mkcert is a system binary installed by `mise`/Homebrew, not an npm package.
-  "ignoreBinaries": ["mkcert"],
+  // System binaries, not npm packages: mkcert (installed by `mise`/Homebrew) and flock
+  // (util-linux; the Nautilus worker checks the web restart lock with it).
+  "ignoreBinaries": ["mkcert", "flock"],
   "workspaces": {
     ".": {
       // Loading playwright.config.ts provisions the E2E environment, so list its entries instead.
