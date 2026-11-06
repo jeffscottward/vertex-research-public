@@ -17,7 +17,7 @@ import type { Database } from "./client.ts";
 import {
   DatabaseConflictError,
   InvalidRepositoryInputError,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 const dialect = new PgDialect();
 

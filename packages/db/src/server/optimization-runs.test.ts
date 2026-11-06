@@ -9,10 +9,8 @@ import {
   normalizeOptimizationRun,
   type OptimizationRunDraft,
 } from "./optimization-runs.ts";
-import {
-  createOptimizationRunsRepository,
-  InvalidRepositoryInputError,
-} from "./repositories.ts";
+import { createOptimizationRunsRepository } from "./repositories.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();

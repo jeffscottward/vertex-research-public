@@ -6,11 +6,13 @@ import { todos, users } from "../schema/index.ts";
 import type { Database } from "./client.ts";
 import {
   createTodoRepository,
-  DatabasePersistenceError,
-  InvalidRepositoryInputError,
   normalizeTodoDueDate,
   normalizeTodoTags,
 } from "./repositories.ts";
+import {
+  DatabasePersistenceError,
+  InvalidRepositoryInputError,
+} from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();

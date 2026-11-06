@@ -7,11 +7,13 @@ import { watchlistItems } from "../schema/index.ts";
 import type { Database } from "./client.ts";
 import {
   createWatchlistRepository,
+  normalizeWatchlistSymbol,
+} from "./repositories.ts";
+import {
   DatabaseConflictError,
   DatabasePersistenceError,
   InvalidRepositoryInputError,
-  normalizeWatchlistSymbol,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();
