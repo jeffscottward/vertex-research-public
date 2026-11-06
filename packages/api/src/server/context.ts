@@ -28,8 +28,6 @@ import type {
   ContactDeliveryPort,
   ContactThrottlePort,
 } from "./contact-service.ts";
-import type { DeployStatusConfig } from "./deploy-status.ts";
-import type { PriceAlertsNtfyConfig } from "./price-alerts.ts";
 import type { VertexChartReadDependencies } from "./vertex-chart-service.ts";
 import type { VertexExperienceDependencies } from "./vertex-experience-core.ts";
 import type { VertexLocalSetupService } from "./vertex-local-setup.ts";
@@ -41,7 +39,11 @@ import type { VertexWorkerServiceDependencies } from "./vertex-worker-service.ts
 import type { JevConfig } from "./jev-client.ts";
 import type { QuantDataConfig } from "./quantdata-client.ts";
 import type { VertexWorkerRequestContext } from "./vertex-worker-auth.ts";
-import type { VertexOrdersConfig } from "./vertex-orders.ts";
+import type {
+  DeployStatusConfig,
+  PriceAlertsNtfyConfig,
+  VertexOrdersConfig,
+} from "./service-config.ts";
 
 export type VertexModelPrivacyReviewer = Pick<
   ResearchChatModelPrivacyOperations,
