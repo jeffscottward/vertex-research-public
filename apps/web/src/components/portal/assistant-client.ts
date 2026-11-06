@@ -18,12 +18,15 @@ import {
 // server runs the tool loop and streams the turn: reply text as the model writes it, tool steps, then
 // the stored reply with its tool-call trace. Confirm cards (save a strategy definition, run a
 // backtest, run a sweep) run only after `decide` with "approve". A message sent from the side panel
-// carries the portal page it came from; the server adds it to the prompt as context only.
+// carries the portal page it came from (on /charts also what the chart shows); the server adds it to
+// the prompt as context only. Chart tool calls carry display-only artifacts (assistant-artifacts.tsx).
 export type AssistantSendRequest = Readonly<{
   threadId: string;
   message: string;
   mode: AssistantModeValue;
   page?: AssistantPageContext;
+  /** Teach mode: the server asks for step-by-step explanations (a walkthrough card). */
+  teach?: boolean;
 }>;
 
 export interface AssistantGateway {
@@ -73,6 +76,7 @@ const createAssistantGateway = (client: ApiClient): AssistantGateway => ({
           message: input.message,
           mode: input.mode,
           ...(input.page === undefined ? {} : { page: input.page }),
+          ...(input.teach === true ? { teach: true } : {}),
         },
         signal === undefined ? {} : { signal }
       ),

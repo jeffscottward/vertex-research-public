@@ -1712,6 +1712,9 @@ export interface AssistantToolTraceEntry {
   ok: boolean;
   error: string | null;
   durationMs: number;
+  // A chart tool's display artifact (drawings, a script, a teach walkthrough), validated by the
+  // api contract on read; the runtime caps artifact bytes per turn so the row stays under its check.
+  artifact?: Record<string, unknown>;
 }
 
 export const assistantThreads = pgTable(
