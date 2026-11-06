@@ -1,6 +1,8 @@
-// What: Deterministic fake market data for the UI lab: OHLCV bars and an options analytics snapshot.
+// What: Deterministic fake market data for the UI lab: OHLCV bars, an options analytics snapshot
+// and an empty JEV verdict.
 // Used by: apps/web/src/lab/entries/markets.tsx and other lab entries that chart prices.
 import type {
+  JevVerdictOutput,
   MarketBar,
   MarketBarSize,
   MarketBarsInput,
@@ -230,3 +232,18 @@ export const labOptionsAnalytics = (
     },
   };
 };
+
+/** No cached JEV verdict for the symbol: the panel shows its empty state; Ask JEV is refused. */
+export const labJevVerdict = (symbol: string): JevVerdictOutput => ({
+  configured: true,
+  lastFailure: null,
+  minIntervalSeconds: 1800,
+  nextRefreshAt: null,
+  notes: [],
+  refreshed: false,
+  staleAfterSeconds: 3600,
+  state: "none",
+  symbol: symbol.trim().toUpperCase(),
+  throttled: false,
+  verdict: null,
+});

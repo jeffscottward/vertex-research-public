@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { JevVerdictOutputSchema } from "@darkfactory/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../features/charts/market-chart.tsx", () => ({
@@ -6,7 +7,11 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
 }));
 
 import { mountLab, unmountLab } from "../test-support.tsx";
-import { CHARTS_LAB_ENTRIES, labOptionsAnalyticsGateway } from "./charts.tsx";
+import {
+  CHARTS_LAB_ENTRIES,
+  labJevVerdictGateway,
+  labOptionsAnalyticsGateway,
+} from "./charts.tsx";
 
 afterEach(async () => {
   await unmountLab();
@@ -35,5 +40,17 @@ describe("charts lab entry", () => {
       symbol: "NVDA",
     });
     expect(six.flow.hours).toBe(6);
+  });
+
+  it("serves an empty JEV verdict and refuses Ask JEV", async () => {
+    const verdict = await labJevVerdictGateway.get({ symbol: " nvda " });
+    expect(JevVerdictOutputSchema.parse(verdict)).toMatchObject({
+      state: "none",
+      symbol: "NVDA",
+      verdict: null,
+    });
+    await expect(
+      labJevVerdictGateway.refresh({ symbol: "NVDA" })
+    ).rejects.toThrow("UI lab");
   });
 });
