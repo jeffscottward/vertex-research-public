@@ -23,13 +23,8 @@ import {
   buildModelEpochCapacityFixtures,
   buildModelEpochFixtures,
 } from "./model-epoch-fixtures.ts";
+import type { ContractFixture } from "./contract-fixture.ts";
 
-export interface ContractFixture {
-  name: string;
-  contract: string;
-  payload: unknown;
-  valid: boolean;
-}
 export interface NativeContractFixtures {
   fixtureFormat: "vertex-native-contract-fixtures-v1";
   schemaVersion: "1.0.0";

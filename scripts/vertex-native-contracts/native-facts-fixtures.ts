@@ -8,7 +8,7 @@ import type {
   NativeFactProjection,
   NativeJournalProof,
 } from "../../packages/api/src/contracts/vertex-native-facts.ts";
-import type { ContractFixture } from "./fixtures.ts";
+import type { ContractFixture } from "./contract-fixture.ts";
 
 export interface NativeProofFixture {
   name: string;

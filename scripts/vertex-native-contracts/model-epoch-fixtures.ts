@@ -8,7 +8,7 @@ import type {
   NativeJournalProof,
 } from "../../packages/api/src/contracts/vertex-native-facts.ts";
 import { canonicalJsonSha256, rawBytesSha256 } from "./generate.ts";
-import type { ContractFixture } from "./fixtures.ts";
+import type { ContractFixture } from "./contract-fixture.ts";
 
 type Mutable<T> = T extends object
   ? { -readonly [K in keyof T]: Mutable<T[K]> }

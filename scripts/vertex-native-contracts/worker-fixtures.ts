@@ -1,4 +1,4 @@
-import type { ContractFixture } from "./fixtures.ts";
+import type { ContractFixture } from "./contract-fixture.ts";
 
 // Transport DTO acceptance is deliberately weaker than publication/replay
 // admission. Services must separately bind canonical bytes, hashes and grants.
