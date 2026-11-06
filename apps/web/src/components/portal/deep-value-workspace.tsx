@@ -646,7 +646,7 @@ export const DeepValueWorkspace = ({
                   <TableBody>
                     {rows.slice(0, MAX_TABLE_ROWS).map((row) => (
                       <Fragment key={row.symbol}>
-                        <TableRow className="border-border border-b align-top">
+                        <TableRow className="border-border border-b [&>td]:align-top [&>th]:align-top">
                           <TableCell>{row.rank ?? "–"}</TableCell>
                           <TableHead
                             className="text-left font-normal"
