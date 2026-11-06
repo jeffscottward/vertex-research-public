@@ -5,7 +5,7 @@
 // output, including strategy.entry/close signals, is a chart annotation, never a trading input.
 
 export const SCRIPT_SOURCE_MAX = 16_000;
-export const SCRIPT_BARS_MAX = 5_000;
+export const SCRIPT_BARS_MAX = 5000;
 export const SCRIPT_PLOTS_MAX = 16;
 export const SCRIPT_SIGNALS_MAX = 500;
 export const SCRIPT_OPS_DEFAULT = 2_000_000;
@@ -98,5 +98,6 @@ export type ScriptTemplate = Readonly<{
   source: string;
 }>;
 
+// biome-ignore lint/performance/noBarrelFile: the package root is the public scripting entrypoint.
 export { compileScript, runScript } from "./interpreter.ts";
 export { SCRIPT_TEMPLATES, scriptTemplate } from "./templates.ts";

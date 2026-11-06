@@ -1,16 +1,15 @@
 {
   "name": "@darkfactory/scripting",
-  "brick": "product",
-  "description": "Pine-compatible script subset: parser and bar-by-bar interpreter. No eval, no network, display only.",
   "version": "0.1.0",
-  "license": "MIT",
+  "private": true,
+  "description": "Pine-compatible script subset: parser and bar-by-bar interpreter. No eval, no network, display only.",
   "repository": {
     "type": "git",
     "url": "https://github.com/jeffscottward/darkfactory.git"
   },
-  "private": true,
-  "type": "module",
+  "license": "MIT",
   "sideEffects": false,
+  "type": "module",
   "exports": {
     ".": {
       "import": "./src/index.ts",
@@ -18,10 +17,11 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit ."
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "vitest": "catalog:"
-  }
+  },
+  "brick": "product"
 }

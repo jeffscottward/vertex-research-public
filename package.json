@@ -126,7 +126,6 @@
     "@darkfactory/jobs": "workspace:*",
     "@darkfactory/observability": "workspace:*",
     "@darkfactory/operator": "workspace:*",
-    "@darkfactory/scripting": "workspace:*",
     "@darkfactory/state": "workspace:*",
     "@darkfactory/testkit": "workspace:*",
     "@darkfactory/ui": "workspace:*",
