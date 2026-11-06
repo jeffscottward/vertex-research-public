@@ -1,7 +1,7 @@
 // What: Database provider profiles and request endpoint validation (local vs Hyperdrive/production).
 // Used by: apps/web/src/server/database-binding.ts, apps/web/src/server/request-scope.ts, apps/operator/src/server/operator-auth.ts.
 // See: docs/debugging.md#symptom--where-to-look (validateRequestDatabaseEndpoint); docs/deploy.md#hyperdrive.
-import type { ServerEnv } from "./server.ts";
+import type { AppEnvironment } from "./environment.ts";
 
 export const DATABASE_PROVIDERS = [
   "postgres",
@@ -10,6 +10,14 @@ export const DATABASE_PROVIDERS = [
 ] as const;
 export type DatabaseProvider = (typeof DATABASE_PROVIDERS)[number];
 export type DatabaseDeploymentProfile = "managed" | "standard";
+
+/** The four parsed server env fields the database profile reads; ServerEnv satisfies it. */
+export type DatabaseEnv = Readonly<{
+  APP_ENV: AppEnvironment;
+  DATABASE_PROVIDER: DatabaseProvider;
+  DATABASE_URL?: string | undefined;
+  DATABASE_ALLOWED_HOSTS: readonly string[];
+}>;
 
 export type DatabaseCompositionMetadata = Readonly<{
   provider: DatabaseProvider;
@@ -40,7 +48,7 @@ export class DatabaseConfigurationError extends Error {
 }
 
 export type RequestDatabaseEndpointConfiguration = Readonly<{
-  appEnvironment: ServerEnv["APP_ENV"];
+  appEnvironment: AppEnvironment;
   provider: DatabaseProvider;
   /** DATABASE_URL; absent when a Hyperdrive binding supplies the connection. */
   connectionString: string | undefined;
@@ -325,7 +333,7 @@ export const validateRequestDatabaseEndpoint = (
 };
 
 const getConnectionString = (
-  env: ServerEnv,
+  env: DatabaseEnv,
   requestBinding?: DatabaseRequestBinding
 ): string => {
   if (
@@ -362,7 +370,7 @@ const getConnectionString = (
 };
 
 export const composeDatabaseProfile = (
-  env: ServerEnv,
+  env: DatabaseEnv,
   requestBinding?: DatabaseRequestBinding
 ): DatabaseCompositionProfile => {
   validateRequestDatabaseEndpoint({
