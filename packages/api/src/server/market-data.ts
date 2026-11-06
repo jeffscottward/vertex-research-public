@@ -8,9 +8,15 @@ import {
   MARKET_SEC_TYPES,
   MARKET_WHAT_TO_SHOW,
   MarketBarSchema,
-  MarketContractSchema,
   type MarketBarsOutput,
   type MarketBarsParsedInput,
+  MarketContractSchema,
+  type MarketDepthOutput,
+  MarketDepthOutputSchema,
+  type MarketDepthParsedInput,
+  type MarketTicksOutput,
+  MarketTicksOutputSchema,
+  type MarketTicksParsedInput,
 } from "../contracts/market-data.ts";
 import type { ApiContext } from "./context.ts";
 import {
@@ -20,11 +26,19 @@ import {
 } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
 
-// Bounded, read-only fetch of IBKR historical bars from the QuantVPS tailnet history service
-// (VERTEX_HISTORY_URL, bearer VERTEX_DEPLOY_STATUS_TOKEN). GET only, 30 s timeout, 2 MiB cap,
-// redirects never followed, strict schema parse. Messages never include the token or the URL.
+// Bounded, read-only fetch of IBKR historical bars, historical ticks and one-shot depth snapshots
+// from the QuantVPS tailnet history service (VERTEX_HISTORY_URL, bearer VERTEX_DEPLOY_STATUS_TOKEN).
+// GET only, per-endpoint timeout, 2 MiB cap, redirects never followed, strict schema parse.
+// Messages never include the token or the URL.
 
 export const MARKET_HISTORY_TIMEOUT_MS = 30_000;
+// Ticks: the service spends at most 35 s per request (lock, pacing for TRADES then BID_ASK, the
+// contract lookup and both IB requests). 40 s leaves headroom and stays under the tailnet Caddy
+// response_header_timeout (45 s).
+export const MARKET_TICKS_TIMEOUT_MS = 40_000;
+// Depth: the service spends at most 25 s per request (the one depth slot and its 3 s spacing, the
+// contract lookup, about 2 s of book collection). 35 s stays under the Caddy 45 s limit.
+export const MARKET_DEPTH_TIMEOUT_MS = 35_000;
 export const MARKET_HISTORY_MAX_BYTES = 2 * 1024 * 1024;
 const ERROR_BODY_MAX_BYTES = 4 * 1024;
 
@@ -81,6 +95,50 @@ export const buildMarketBarsUrl = (
   return `${base.replace(/\/+$/, "")}/bars?${params.toString()}`;
 };
 
+type InstrumentInput = Readonly<{
+  symbol: string;
+  secType: MarketTicksParsedInput["secType"];
+  exchange?: string | undefined;
+  currency: string;
+  contractMonth?: string | undefined;
+}>;
+
+const instrumentParams = (input: InstrumentInput): URLSearchParams => {
+  return new URLSearchParams({
+    symbol: input.symbol.toUpperCase(),
+    secType: input.secType,
+    exchange: (input.exchange ?? "SMART").toUpperCase(),
+    currency: input.currency.toUpperCase(),
+  });
+};
+
+export const buildMarketTicksUrl = (
+  base: string,
+  input: MarketTicksParsedInput
+): string => {
+  const params = instrumentParams(input);
+  params.set("count", String(input.count));
+  params.set("useRTH", input.useRTH ? "1" : "0");
+  params.set("quotes", input.quotes ? "1" : "0");
+  if (input.contractMonth !== undefined)
+    params.set("contractMonth", input.contractMonth);
+  return `${base.replace(/\/+$/, "")}/ticks?${params.toString()}`;
+};
+
+// Stocks always use IBKR SMART depth (aggregated across venues); futures use the exchange's book.
+export const buildMarketDepthUrl = (
+  base: string,
+  input: MarketDepthParsedInput
+): string => {
+  const params = instrumentParams(
+    input.secType === "STK" ? { ...input, exchange: "SMART" } : input
+  );
+  params.set("rows", String(input.rows));
+  if (input.contractMonth !== undefined)
+    params.set("contractMonth", input.contractMonth);
+  return `${base.replace(/\/+$/, "")}/depth?${params.toString()}`;
+};
+
 const isoUtc = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
 
 const VertexHistoryUpstreamSchema = z
@@ -119,6 +177,29 @@ const VertexHistoryUpstreamSchema = z
   .refine((document) => document.count === document.bars.length, {
     message: "count mismatch",
   });
+
+// Ticks and depth documents already use the API field names; the server checks the envelope
+// (schema, source, client id 77) and passes the rest through.
+const VertexTicksUpstreamSchema = MarketTicksOutputSchema.omit({
+  receivedAt: true,
+})
+  .extend({
+    asOf: isoUtc.nullable(),
+    client_id: z.literal(77),
+    fetchedAt: isoUtc,
+    schema: z.literal("vertex-history-ticks-v1"),
+  })
+  .strict();
+
+const VertexDepthUpstreamSchema = MarketDepthOutputSchema.omit({
+  receivedAt: true,
+})
+  .extend({
+    client_id: z.literal(77),
+    fetchedAt: isoUtc,
+    schema: z.literal("vertex-history-depth-v1"),
+  })
+  .strict();
 
 const UpstreamErrorSchema = z.object({
   error: z.string().max(40),
@@ -279,11 +360,12 @@ const toMarketBarsOutput = (
   };
 };
 
-export const fetchMarketBars = async (
+const fetchHistoryDocument = async (
   config: DeployStatusConfig | null,
-  input: MarketBarsParsedInput,
-  options: FetchMarketBarsOptions = {}
-): Promise<MarketBarsOutput> => {
+  buildUrl: (base: string) => string,
+  defaultTimeoutMs: number,
+  options: FetchMarketBarsOptions
+): Promise<unknown> => {
   if (config === null)
     throw new MarketDataError(
       "NOT_CONFIGURED",
@@ -293,12 +375,12 @@ export const fetchMarketBars = async (
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
-    options.timeoutMs ?? MARKET_HISTORY_TIMEOUT_MS
+    options.timeoutMs ?? defaultTimeoutMs
   );
   try {
     let response: Response;
     try {
-      response = await doFetch(buildMarketBarsUrl(config.url, input), {
+      response = await doFetch(buildUrl(config.url), {
         method: "GET",
         headers: {
           accept: "application/json",
@@ -339,19 +421,74 @@ export const fetchMarketBars = async (
           : "History response could not be read"
       );
     }
-    let raw: unknown;
     try {
-      raw = JSON.parse(body) as unknown;
+      return JSON.parse(body) as unknown;
     } catch {
       throw new MarketDataError(
         "UPSTREAM_ERROR",
         "History response is not valid JSON"
       );
     }
-    return toMarketBarsOutput(raw, (options.now ?? (() => new Date()))());
   } finally {
     clearTimeout(timer);
   }
+};
+
+const receivedNow = (options: FetchMarketBarsOptions): Date =>
+  (options.now ?? (() => new Date()))();
+
+export const fetchMarketBars = async (
+  config: DeployStatusConfig | null,
+  input: MarketBarsParsedInput,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketBarsOutput> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketBarsUrl(base, input),
+    MARKET_HISTORY_TIMEOUT_MS,
+    options
+  );
+  return toMarketBarsOutput(raw, receivedNow(options));
+};
+
+const schemaFailure = (): MarketDataError =>
+  new MarketDataError(
+    "UPSTREAM_ERROR",
+    "History response failed schema validation"
+  );
+
+export const fetchMarketTicks = async (
+  config: DeployStatusConfig | null,
+  input: MarketTicksParsedInput,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketTicksOutput> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketTicksUrl(base, input),
+    MARKET_TICKS_TIMEOUT_MS,
+    options
+  );
+  const parsed = VertexTicksUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return { ...document, receivedAt: receivedNow(options).toISOString() };
+};
+
+export const fetchMarketDepth = async (
+  config: DeployStatusConfig | null,
+  input: MarketDepthParsedInput,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketDepthOutput> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => buildMarketDepthUrl(base, input),
+    MARKET_DEPTH_TIMEOUT_MS,
+    options
+  );
+  const parsed = VertexDepthUpstreamSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  const { schema: _schema, client_id: _clientId, ...document } = parsed.data;
+  return { ...document, receivedAt: receivedNow(options).toISOString() };
 };
 
 const api = implement(appContract).$context<ApiContext>();
@@ -367,10 +504,16 @@ export const setMarketDataFetchOptionsForTesting = (
   marketDataFetchOptions = options;
 };
 
+const toTypedError = (errors: unknown, error: unknown): Error => {
+  const failures = errors as MarketDataErrorFactories;
+  if (error instanceof MarketDataError)
+    return failures[error.code]({ message: error.message });
+  return failures.UPSTREAM_ERROR({ message: "History request failed" });
+};
+
 const marketDataBars = api.marketData.bars
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
-    const failures = errors as unknown as MarketDataErrorFactories;
     try {
       return await fetchMarketBars(
         context.marketHistory ?? null,
@@ -378,10 +521,40 @@ const marketDataBars = api.marketData.bars
         marketDataFetchOptions
       );
     } catch (error) {
-      if (error instanceof MarketDataError)
-        throw failures[error.code]({ message: error.message });
-      throw failures.UPSTREAM_ERROR({ message: "History request failed" });
+      throw toTypedError(errors, error);
     }
   });
 
-export const marketDataRouter = { bars: marketDataBars };
+const marketDataTicks = api.marketData.ticks
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    try {
+      return await fetchMarketTicks(
+        context.marketHistory ?? null,
+        input,
+        marketDataFetchOptions
+      );
+    } catch (error) {
+      throw toTypedError(errors, error);
+    }
+  });
+
+const marketDataDepth = api.marketData.depth
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    try {
+      return await fetchMarketDepth(
+        context.marketHistory ?? null,
+        input,
+        marketDataFetchOptions
+      );
+    } catch (error) {
+      throw toTypedError(errors, error);
+    }
+  });
+
+export const marketDataRouter = {
+  bars: marketDataBars,
+  depth: marketDataDepth,
+  ticks: marketDataTicks,
+};

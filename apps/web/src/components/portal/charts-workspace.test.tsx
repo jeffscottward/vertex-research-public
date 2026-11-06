@@ -26,6 +26,7 @@ vi.mock("../../features/charts/market-chart.tsx", () => ({
   },
 }));
 
+import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import type { BacktestsGateway } from "./agent-ops-client.tsx";
 import { ChartsWorkspace } from "./charts-workspace.tsx";
 import type { MarketDataGateway } from "./market-data-client.ts";
@@ -394,6 +395,74 @@ describe("ChartsWorkspace", () => {
     expect(sap.querySelector("[data-jev-verdict]")).toBeNull();
     expect(eurJev.get).not.toHaveBeenCalled();
     return expect(eur.snapshot).not.toHaveBeenCalled();
+  });
+
+  it("mounts the lazy order flow panel after Return analysis, futures included", async () => {
+    const orderFlow = {
+      depth: vi.fn(() => new Promise<never>(() => undefined)),
+      ticks: vi.fn(() => new Promise<never>(() => undefined)),
+    } satisfies OrderFlowGateway;
+    const base = output();
+    const market = marketGateway(async (input) =>
+      input.barSize === "30 mins"
+        ? new Promise<never>(() => undefined)
+        : {
+            ...base,
+            request: {
+              ...base.request,
+              contractMonth: "202612",
+              exchange: "CME",
+              secType: "FUT",
+              symbol: "ES",
+            },
+          }
+    );
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        jevVerdict={jevGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+        orderFlow={orderFlow}
+      />
+    );
+    const panel = container.querySelector('[data-order-flow="ES"]');
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector("h2")?.textContent).toBe("Order flow");
+    expect(
+      container.querySelector("[data-return-analysis]")?.nextElementSibling
+    ).toBe(panel);
+    // Lazy: the chart load does not fetch order flow.
+    expect(orderFlow.ticks).not.toHaveBeenCalled();
+    expect(market.bars).toHaveBeenCalledTimes(1);
+    const load = [...(panel?.querySelectorAll("button") ?? [])].find(
+      (node) => node.textContent === "Load order flow"
+    );
+    await act(async () => {
+      load?.click();
+      return await flush();
+    });
+    const instrument = {
+      contractMonth: "202612",
+      currency: "USD",
+      exchange: "CME",
+      secType: "FUT",
+      symbol: "ES",
+    };
+    expect(orderFlow.ticks).toHaveBeenCalledWith({
+      ...instrument,
+      count: 500,
+      quotes: true,
+      useRTH: false,
+    });
+    expect(orderFlow.depth).toHaveBeenCalledWith({ ...instrument, rows: 10 });
+    return expect(market.bars).toHaveBeenLastCalledWith({
+      ...instrument,
+      barSize: "30 mins",
+      duration: "5 D",
+      useRTH: true,
+      whatToShow: "TRADES",
+    });
   });
 
   it("shows the oRPC error code and message", async () => {

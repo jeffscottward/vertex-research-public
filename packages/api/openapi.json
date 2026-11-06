@@ -98024,6 +98024,1790 @@
         ]
       }
     },
+    "/market-data/depth": {
+      "get": {
+        "operationId": "marketData.depth",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "secType",
+            "required": false,
+            "schema": {
+              "default": "STK",
+              "enum": [
+                "STK",
+                "FUT",
+                "CONTFUT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9.]{1,15}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "pattern": "^[A-Za-z]{3}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "contractMonth",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{6}(\\d{2})?$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "rows",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "asks": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "price": {
+                            "type": "number"
+                          },
+                          "size": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "venue": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "price",
+                          "size",
+                          "venue"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "bids": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "price": {
+                            "type": "number"
+                          },
+                          "size": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "venue": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "price",
+                          "size",
+                          "venue"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 20,
+                      "type": "array"
+                    },
+                    "cache": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "hit": {
+                          "type": "boolean"
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        },
+                        "ttlSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "hit",
+                        "ageSeconds",
+                        "ttlSeconds",
+                        "stale"
+                      ],
+                      "type": "object"
+                    },
+                    "contract": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "conId": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "maxLength": 8,
+                          "type": "string"
+                        },
+                        "exchange": {
+                          "maxLength": 32,
+                          "type": "string"
+                        },
+                        "lastTradeDateOrContractMonth": {
+                          "anyOf": [
+                            {
+                              "maxLength": 16,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "localSymbol": {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        "longName": {
+                          "anyOf": [
+                            {
+                              "maxLength": 160,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "matches": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "multiplier": {
+                          "anyOf": [
+                            {
+                              "maxLength": 16,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "secType": {
+                          "maxLength": 16,
+                          "type": "string"
+                        },
+                        "timeZoneId": {
+                          "anyOf": [
+                            {
+                              "maxLength": 64,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "conId",
+                        "secType",
+                        "localSymbol",
+                        "exchange",
+                        "currency",
+                        "lastTradeDateOrContractMonth",
+                        "multiplier",
+                        "longName",
+                        "timeZoneId",
+                        "matches"
+                      ],
+                      "type": "object"
+                    },
+                    "fetchedAt": {
+                      "type": "string"
+                    },
+                    "minTick": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "contractMonth": {
+                          "anyOf": [
+                            {
+                              "maxLength": 8,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "currency": {
+                          "maxLength": 3,
+                          "type": "string"
+                        },
+                        "exchange": {
+                          "maxLength": 16,
+                          "type": "string"
+                        },
+                        "rows": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "secType": {
+                          "enum": [
+                            "STK",
+                            "FUT",
+                            "CONTFUT"
+                          ],
+                          "type": "string"
+                        },
+                        "smartDepth": {
+                          "type": "boolean"
+                        },
+                        "symbol": {
+                          "maxLength": 12,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "symbol",
+                        "secType",
+                        "exchange",
+                        "currency",
+                        "contractMonth",
+                        "rows",
+                        "smartDepth"
+                      ],
+                      "type": "object"
+                    },
+                    "sizeMultiplier": {
+                      "exclusiveMinimum": 0,
+                      "type": "number"
+                    },
+                    "source": {
+                      "const": "ibkr-gateway"
+                    },
+                    "updates": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "venues": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "depth": {
+                              "items": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "maxItems": 40,
+                              "type": "array"
+                            },
+                            "missing": {
+                              "items": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "maxItems": 40,
+                              "type": "array"
+                            },
+                            "top": {
+                              "items": {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              "maxItems": 40,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "depth",
+                            "top",
+                            "missing"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "request",
+                    "contract",
+                    "minTick",
+                    "bids",
+                    "asks",
+                    "sizeMultiplier",
+                    "venues",
+                    "updates",
+                    "fetchedAt",
+                    "cache",
+                    "receivedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "No IBKR contract matched the request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "PACED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR history pacing; retry later",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 429
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "429"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "ENTITLEMENT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR market data permissions missing for this request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market data history request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR history service unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market data history endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only one-shot IBKR market depth (L2) snapshot from the QuantVPS history service",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
+    "/market-data/ticks": {
+      "get": {
+        "operationId": "marketData.ticks",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "secType",
+            "required": false,
+            "schema": {
+              "default": "STK",
+              "enum": [
+                "STK",
+                "FUT",
+                "CONTFUT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "exchange",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Za-z][A-Za-z0-9.]{1,15}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "default": "USD",
+              "pattern": "^[A-Za-z]{3}$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "contractMonth",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{6}(\\d{2})?$",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 50,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "useRTH",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "quotes",
+            "required": false,
+            "schema": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "asOf": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "cache": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "ageSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "hit": {
+                          "type": "boolean"
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        },
+                        "ttlSeconds": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "hit",
+                        "ageSeconds",
+                        "ttlSeconds",
+                        "stale"
+                      ],
+                      "type": "object"
+                    },
+                    "contract": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "conId": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "maxLength": 8,
+                          "type": "string"
+                        },
+                        "exchange": {
+                          "maxLength": 32,
+                          "type": "string"
+                        },
+                        "lastTradeDateOrContractMonth": {
+                          "anyOf": [
+                            {
+                              "maxLength": 16,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "localSymbol": {
+                          "maxLength": 40,
+                          "type": "string"
+                        },
+                        "longName": {
+                          "anyOf": [
+                            {
+                              "maxLength": 160,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "matches": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "multiplier": {
+                          "anyOf": [
+                            {
+                              "maxLength": 16,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "secType": {
+                          "maxLength": 16,
+                          "type": "string"
+                        },
+                        "timeZoneId": {
+                          "anyOf": [
+                            {
+                              "maxLength": 64,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "conId",
+                        "secType",
+                        "localSymbol",
+                        "exchange",
+                        "currency",
+                        "lastTradeDateOrContractMonth",
+                        "multiplier",
+                        "longName",
+                        "timeZoneId",
+                        "matches"
+                      ],
+                      "type": "object"
+                    },
+                    "fetchedAt": {
+                      "type": "string"
+                    },
+                    "minTick": {
+                      "anyOf": [
+                        {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quotes": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "ap": {
+                            "type": "number"
+                          },
+                          "as": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "bp": {
+                            "type": "number"
+                          },
+                          "bs": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "t": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "t",
+                          "bp",
+                          "bs",
+                          "ap",
+                          "as"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 1000,
+                      "type": "array"
+                    },
+                    "receivedAt": {
+                      "type": "string"
+                    },
+                    "request": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "contractMonth": {
+                          "anyOf": [
+                            {
+                              "maxLength": 8,
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "count": {
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "currency": {
+                          "maxLength": 3,
+                          "type": "string"
+                        },
+                        "exchange": {
+                          "maxLength": 16,
+                          "type": "string"
+                        },
+                        "quotes": {
+                          "type": "boolean"
+                        },
+                        "secType": {
+                          "enum": [
+                            "STK",
+                            "FUT",
+                            "CONTFUT"
+                          ],
+                          "type": "string"
+                        },
+                        "symbol": {
+                          "maxLength": 12,
+                          "type": "string"
+                        },
+                        "useRTH": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "symbol",
+                        "secType",
+                        "exchange",
+                        "currency",
+                        "contractMonth",
+                        "count",
+                        "useRTH",
+                        "quotes"
+                      ],
+                      "type": "object"
+                    },
+                    "source": {
+                      "const": "ibkr-gateway"
+                    },
+                    "trades": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "c": {
+                            "anyOf": [
+                              {
+                                "maxLength": 32,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "p": {
+                            "type": "number"
+                          },
+                          "s": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "t": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "x": {
+                            "anyOf": [
+                              {
+                                "maxLength": 16,
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "t",
+                          "p",
+                          "s",
+                          "x",
+                          "c"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 1000,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "source",
+                    "request",
+                    "contract",
+                    "minTick",
+                    "trades",
+                    "quotes",
+                    "fetchedAt",
+                    "asOf",
+                    "cache",
+                    "receivedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "No IBKR contract matched the request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "PACED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR history pacing; retry later",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 429
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "429"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "ENTITLEMENT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR market data permissions missing for this request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UPSTREAM_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market data history request failed",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 502
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "502"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAVAILABLE"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "IBKR history service unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_CONFIGURED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Market data history endpoint not configured",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only IBKR historical trade prints and bid/ask quotes (time & sales) from the QuantVPS history service",
+        "tags": [
+          "Market data"
+        ]
+      }
+    },
     "/market-news/watchlist": {
       "get": {
         "operationId": "marketNews.watchlist",

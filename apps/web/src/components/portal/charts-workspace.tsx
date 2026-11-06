@@ -62,6 +62,7 @@ import {
 import { ChartToolbar } from "../../features/charts/chart-toolbar.tsx";
 import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
 import type { ChartMarker } from "../../features/charts/types.ts";
+import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   OPERATOR_ACCESS_REQUIRED_TEXT,
   createBrowserBacktestsGateway,
@@ -84,6 +85,7 @@ import type { JevVerdictGateway } from "./jev-verdict-client.ts";
 import { JevVerdictPanel } from "./jev-verdict-panel.tsx";
 import type { OptionsAnalyticsGateway } from "./options-analytics-client.ts";
 import { OptionsAnalyticsPanel } from "./options-analytics-panel.tsx";
+import { OrderFlowPanel } from "./order-flow-panel.tsx";
 import {
   isLinkableSymbol,
   parseSymbolParam,
@@ -601,6 +603,7 @@ export interface ChartsWorkspaceProps {
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
   readonly jevVerdict?: JevVerdictGateway;
   readonly backtests?: BacktestsGateway;
+  readonly orderFlow?: OrderFlowGateway;
   readonly autoLoad?: boolean;
 }
 
@@ -608,6 +611,7 @@ export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
   jevVerdict,
+  orderFlow,
   backtests: suppliedBacktests,
   autoLoad = true,
 }: ChartsWorkspaceProps) => {
@@ -945,6 +949,22 @@ export const ChartsWorkspace = ({
         <Panel data-return-analysis="" title="Return analysis">
           <Analysis data={data} />
         </Panel>
+      )}
+      {/* Lazy: fetches nothing until the operator presses Load order flow. */}
+      {data === null ? null : (
+        <OrderFlowPanel
+          gateway={orderFlow}
+          instrument={{
+            contractMonth: data.request.contractMonth,
+            currency: data.request.currency,
+            exchange: data.request.exchange,
+            secType: data.request.secType,
+            symbol: data.request.symbol,
+          }}
+          key={`${data.request.symbol}|${data.request.secType}|${data.request.exchange}|${data.request.currency}|${data.request.contractMonth ?? ""}`}
+          marketData={marketData}
+          timeZoneId={data.contract.timeZoneId}
+        />
       )}
       {/* QuantData covers US-listed equities only; the JEV verdict uses the same scope. */}
       {data !== null &&

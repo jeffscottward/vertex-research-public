@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApiClient } from "./client.ts";
 import {
   MarketBarsInputSchema,
+  MarketDepthInputSchema,
+  MarketTicksInputSchema,
   marketDurationAllowed,
 } from "./contracts/market-data.ts";
 import { createApiContext } from "./server/context.ts";
@@ -19,11 +21,17 @@ import {
   handleApiRequest,
 } from "./server/handler.ts";
 import {
+  buildMarketBarsUrl,
+  buildMarketDepthUrl,
+  buildMarketTicksUrl,
+  fetchMarketBars,
+  fetchMarketDepth,
+  fetchMarketTicks,
+  MARKET_DEPTH_TIMEOUT_MS,
   MARKET_HISTORY_MAX_BYTES,
   MARKET_HISTORY_TIMEOUT_MS,
+  MARKET_TICKS_TIMEOUT_MS,
   MarketDataError,
-  buildMarketBarsUrl,
-  fetchMarketBars,
   resolveMarketHistoryConfig,
   setMarketDataFetchOptionsForTesting,
 } from "./server/market-data.ts";
@@ -494,8 +502,11 @@ describe("marketData.bars procedure", () => {
 
   it("is readable with read-access agent keys", () => {
     expect(AGENT_API_KEY_PROCEDURE_ROOTS).toContain("marketData");
-    return expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.bars")).toBe(
-      true
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.bars")).toBe(true);
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.ticks")).toBe(true);
+    // a depth snapshot holds the one IBKR depth slot; read keys may not take it
+    return expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.depth")).toBe(
+      false
     );
   });
 });
@@ -525,3 +536,525 @@ describe("market_bars MCP tool", () =>
       barsOmitted: 1,
     });
   }));
+
+// ---------------------------------------------------------------------------
+// Order flow: historical ticks and one-shot depth (vertex-history-ticks-v1 / -depth-v1).
+
+const contractFixture = upstream().contract;
+
+const ticksUpstream = (overrides: Record<string, unknown> = {}) => ({
+  asOf: "2026-10-02T00:00:01Z",
+  cache: { ageSeconds: 0, hit: false, stale: false, ttlSeconds: 15 },
+  client_id: 77,
+  contract: contractFixture,
+  fetchedAt: "2026-10-04T02:16:59Z",
+  minTick: 0.01,
+  quotes: [{ ap: 769.61, as: 4, bp: 769.59, bs: 3, t: 1_790_899_200 }],
+  request: {
+    contractMonth: null,
+    count: 500,
+    currency: "USD",
+    exchange: "SMART",
+    quotes: true,
+    secType: "STK",
+    symbol: "SPY",
+    useRTH: false,
+  },
+  schema: "vertex-history-ticks-v1",
+  source: "ibkr-gateway",
+  trades: [
+    { c: null, p: 769.6, s: 100, t: 1_790_899_200, x: "ARCA" },
+    { c: "T I", p: 769.62, s: 25, t: 1_790_899_201, x: null },
+  ],
+  ...overrides,
+});
+
+const depthUpstream = (overrides: Record<string, unknown> = {}) => ({
+  asks: [{ price: 769.61, size: 4, venue: "NSDQ" }],
+  bids: [{ price: 769.59, size: 3, venue: "ARCA" }],
+  cache: { ageSeconds: 2, hit: true, stale: false, ttlSeconds: 5 },
+  client_id: 77,
+  contract: contractFixture,
+  fetchedAt: "2026-10-04T02:16:59Z",
+  minTick: 0.01,
+  request: {
+    contractMonth: null,
+    currency: "USD",
+    exchange: "SMART",
+    rows: 10,
+    secType: "STK",
+    smartDepth: true,
+    symbol: "SPY",
+  },
+  schema: "vertex-history-depth-v1",
+  sizeMultiplier: 100,
+  source: "ibkr-gateway",
+  updates: 42,
+  venues: { depth: ["ARCA", "NSDQ"], missing: ["ISLAND"], top: ["BYX"] },
+  ...overrides,
+});
+
+const ticksInput = (overrides: Record<string, unknown> = {}) =>
+  MarketTicksInputSchema.parse({ symbol: "spy", ...overrides });
+const depthInput = (overrides: Record<string, unknown> = {}) =>
+  MarketDepthInputSchema.parse({ symbol: "spy", ...overrides });
+
+describe("marketData ticks and depth input", () => {
+  it("applies tick defaults and bounds the count", () => {
+    expect(ticksInput()).toMatchObject({
+      count: 500,
+      currency: "USD",
+      quotes: true,
+      secType: "STK",
+      symbol: "spy",
+      useRTH: false,
+    });
+    for (const count of [50, 1000])
+      expect(ticksInput({ count }).count).toBe(count);
+    for (const count of [49, 1001, 0, 50.5, "500"])
+      expect(
+        MarketTicksInputSchema.safeParse({ count, symbol: "SPY" }).success
+      ).toBe(false);
+    return expect(
+      MarketTicksInputSchema.safeParse({ rows: 5, symbol: "SPY" }).success
+    ).toBe(false);
+  });
+
+  it("needs an exchange for futures and allows a contract month for FUT only", () => {
+    for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema]) {
+      expect(schema.safeParse({ secType: "FUT", symbol: "ES" }).success).toBe(
+        false
+      );
+      expect(
+        schema.safeParse({ secType: "CONTFUT", symbol: "ES" }).success
+      ).toBe(false);
+      expect(
+        schema.safeParse({
+          contractMonth: "202612",
+          exchange: "CME",
+          secType: "FUT",
+          symbol: "ES",
+        }).success
+      ).toBe(true);
+      expect(
+        schema.safeParse({ contractMonth: "202612", symbol: "SPY" }).success
+      ).toBe(false);
+      expect(
+        schema.safeParse({
+          contractMonth: "202612",
+          exchange: "CME",
+          secType: "CONTFUT",
+          symbol: "ES",
+        }).success
+      ).toBe(false);
+    }
+    return expect(
+      MarketTicksInputSchema.safeParse({ symbol: "SPY;rm" }).success
+    ).toBe(false);
+  });
+
+  it("bounds the depth rows", () => {
+    expect(depthInput().rows).toBe(10);
+    for (const rows of [1, 20]) expect(depthInput({ rows }).rows).toBe(rows);
+    for (const rows of [0, 21, 2.5])
+      expect(
+        MarketDepthInputSchema.safeParse({ rows, symbol: "SPY" }).success
+      ).toBe(false);
+    return expect(
+      MarketDepthInputSchema.safeParse({ count: 50, symbol: "SPY" }).success
+    ).toBe(false);
+  });
+});
+
+describe("marketData ticks and depth URLs", () => {
+  it("builds the ticks URL with normalized parameters", () => {
+    expect(buildMarketTicksUrl(`${BASE}/`, ticksInput())).toBe(
+      `${BASE}/ticks?symbol=SPY&secType=STK&exchange=SMART&currency=USD&count=500&useRTH=0&quotes=1`
+    );
+    return expect(
+      buildMarketTicksUrl(
+        BASE,
+        ticksInput({
+          contractMonth: "202612",
+          count: 1000,
+          exchange: "cme",
+          quotes: false,
+          secType: "FUT",
+          symbol: "es",
+          useRTH: true,
+        })
+      )
+    ).toBe(
+      `${BASE}/ticks?symbol=ES&secType=FUT&exchange=CME&currency=USD&count=1000&useRTH=1&quotes=0&contractMonth=202612`
+    );
+  });
+
+  it("builds the depth URL: SMART for stocks, the given exchange for futures", () => {
+    expect(buildMarketDepthUrl(BASE, depthInput({ exchange: "arca" }))).toBe(
+      `${BASE}/depth?symbol=SPY&secType=STK&exchange=SMART&currency=USD&rows=10`
+    );
+    return expect(
+      buildMarketDepthUrl(
+        BASE,
+        depthInput({
+          exchange: "cme",
+          rows: 20,
+          secType: "CONTFUT",
+          symbol: "nq",
+        })
+      )
+    ).toBe(
+      `${BASE}/depth?symbol=NQ&secType=CONTFUT&exchange=CME&currency=USD&rows=20`
+    );
+  });
+});
+
+describe("marketData ticks and depth fetch", () => {
+  it("sends a bearer GET for ticks and passes the document through", async () => {
+    const doFetch = vi.fn(async () => jsonResponse(ticksUpstream()));
+    const output = await fetchMarketTicks(config, ticksInput(), {
+      fetch: doFetch,
+      now: () => at,
+    });
+    const [url, init] = doFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(buildMarketTicksUrl(BASE, ticksInput()));
+    expect(init).toMatchObject({ method: "GET", redirect: "manual" });
+    expect((init.headers as Record<string, string>)["authorization"]).toBe(
+      `Bearer ${TOKEN}`
+    );
+    const {
+      schema: _schema,
+      client_id: _clientId,
+      ...passThrough
+    } = ticksUpstream();
+    expect(output).toEqual({ ...passThrough, receivedAt: at.toISOString() });
+    // the service budget is 35 s; the tailnet Caddy gives up at 45 s
+    expect(MARKET_TICKS_TIMEOUT_MS).toBe(40_000);
+    return expect(MARKET_TICKS_TIMEOUT_MS).toBeGreaterThan(
+      MARKET_HISTORY_TIMEOUT_MS
+    );
+  });
+
+  it("sends a bearer GET for depth and passes the document through", async () => {
+    const doFetch = vi.fn(async () => jsonResponse(depthUpstream()));
+    const output = await fetchMarketDepth(config, depthInput(), {
+      fetch: doFetch,
+      now: () => at,
+    });
+    const [url, init] = doFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(
+      `${BASE}/depth?symbol=SPY&secType=STK&exchange=SMART&currency=USD&rows=10`
+    );
+    expect((init.headers as Record<string, string>)["authorization"]).toBe(
+      `Bearer ${TOKEN}`
+    );
+    expect(output).toMatchObject({
+      bids: [{ price: 769.59, size: 3, venue: "ARCA" }],
+      cache: { ageSeconds: 2, hit: true, stale: false, ttlSeconds: 5 },
+      minTick: 0.01,
+      receivedAt: at.toISOString(),
+      sizeMultiplier: 100,
+      updates: 42,
+      venues: { missing: ["ISLAND"] },
+    });
+    expect(output).not.toHaveProperty("schema");
+    expect(output).not.toHaveProperty("client_id");
+    const nullVenues = await fetchMarketDepth(config, depthInput(), {
+      fetch: async () => jsonResponse(depthUpstream({ venues: null })),
+      now: () => at,
+    });
+    expect(nullVenues.venues).toBeNull();
+    const noTick = await fetchMarketDepth(config, depthInput(), {
+      fetch: async () => jsonResponse(depthUpstream({ minTick: null })),
+      now: () => at,
+    });
+    expect(noTick.minTick).toBeNull();
+    // the service budget is 25 s; the tailnet Caddy gives up at 45 s
+    return expect(MARKET_DEPTH_TIMEOUT_MS).toBe(35_000);
+  });
+
+  it("refuses schema drift in tick and depth documents", async () => {
+    const tickCases = [
+      ticksUpstream({ schema: "vertex-history-bars-v1" }),
+      ticksUpstream({ client_id: 78 }),
+      ticksUpstream({ extra: true }),
+      ticksUpstream({ fetched_at: "2026-10-04T02:16:59Z" }),
+      ticksUpstream({
+        cache: { age_seconds: 1, hit: true, stale: false, ttl_seconds: 15 },
+      }),
+      ticksUpstream({
+        trades: [{ account: "U1", c: null, p: 1, s: 1, t: 1, x: null }],
+      }),
+      ticksUpstream({
+        trades: Array.from({ length: 1001 }, (_, t) => ({
+          c: null,
+          p: 1,
+          s: 1,
+          t,
+          x: null,
+        })),
+      }),
+      ticksUpstream({ fetchedAt: "yesterday" }),
+      ticksUpstream({ minTick: 0 }),
+      ticksUpstream({ minTick: undefined }),
+    ];
+    for (const body of tickCases) {
+      const failure = (await fetchMarketTicks(config, ticksInput(), {
+        fetch: async () => jsonResponse(body),
+        now: () => at,
+      }).catch((error: unknown) => error)) as MarketDataError;
+      expect(failure).toBeInstanceOf(MarketDataError);
+      expect(failure.code).toBe("UPSTREAM_ERROR");
+    }
+    const depthCases = [
+      depthUpstream({ schema: "vertex-history-ticks-v1" }),
+      depthUpstream({ sizeMultiplier: 0 }),
+      depthUpstream({ minTick: -0.01 }),
+      depthUpstream({
+        bids: Array.from({ length: 21 }, () => ({
+          price: 1,
+          size: 1,
+          venue: null,
+        })),
+      }),
+      depthUpstream({ venues: { depth: [], top: [] } }),
+      depthUpstream({ asOf: null }),
+    ];
+    for (const body of depthCases) {
+      const failure = (await fetchMarketDepth(config, depthInput(), {
+        fetch: async () => jsonResponse(body),
+        now: () => at,
+      }).catch((error: unknown) => error)) as MarketDataError;
+      expect(failure).toBeInstanceOf(MarketDataError);
+      expect(failure.code).toBe("UPSTREAM_ERROR");
+      expect(failure.message).not.toContain(TOKEN);
+    }
+  });
+
+  it("maps service errors like bars, including entitlement", async () => {
+    const ticks = async (response: Response) =>
+      (await fetchMarketTicks(config, ticksInput(), {
+        fetch: async () => response,
+        now: () => at,
+      }).catch((error: unknown) => error)) as MarketDataError;
+    const depth = async (response: Response) =>
+      (await fetchMarketDepth(config, depthInput(), {
+        fetch: async () => response,
+        now: () => at,
+      }).catch((error: unknown) => error)) as MarketDataError;
+    let failure = await ticks(
+      jsonResponse(
+        {
+          error: "entitlement",
+          ibkr_code: 10_089,
+          message: "Requested market data requires additional subscription",
+        },
+        { status: 502 }
+      )
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "ENTITLEMENT",
+      "IBKR 10089: Requested market data requires additional subscription",
+    ]);
+    failure = await depth(
+      jsonResponse(
+        {
+          error: "entitlement",
+          ibkr_code: 10_092,
+          message: "Deep market data is not supported U1234567",
+        },
+        { status: 502 }
+      )
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "ENTITLEMENT",
+      "IBKR 10092: Deep market data is not supported [account]",
+    ]);
+    failure = await depth(
+      jsonResponse({ error: "paced", retry_after_seconds: 3 }, { status: 429 })
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "PACED",
+      "IBKR history pacing: retry in 3 s",
+    ]);
+    failure = await ticks(
+      jsonResponse(
+        { error: "no_contract", message: "No security definition" },
+        { status: 422 }
+      )
+    );
+    expect(failure.code).toBe("NOT_FOUND");
+    failure = await depth(
+      jsonResponse({ error: "timeout", message: "slow" }, { status: 504 })
+    );
+    expect(failure.code).toBe("UNAVAILABLE");
+    failure = await ticks(
+      jsonResponse(
+        { error: "bad_request", message: "count must be an integer" },
+        { status: 400 }
+      )
+    );
+    expect(failure.code).toBe("BAD_REQUEST");
+    failure = await depth(
+      jsonResponse(
+        {
+          error: "ibkr_error",
+          ibkr_code: 309,
+          message: "Max number of depth requests",
+        },
+        { status: 502 }
+      )
+    );
+    expect([failure.code, failure.message]).toEqual([
+      "UPSTREAM_ERROR",
+      "IBKR 309: Max number of depth requests",
+    ]);
+    const hang = (_input: string, init: RequestInit) =>
+      new Promise<Response>((_resolve, reject) =>
+        init.signal?.addEventListener("abort", () =>
+          reject(new Error("aborted"))
+        )
+      );
+    failure = (await fetchMarketDepth(config, depthInput(), {
+      fetch: hang,
+      timeoutMs: 5,
+    }).catch((error: unknown) => error)) as MarketDataError;
+    expect([failure.code, failure.message]).toEqual([
+      "UNAVAILABLE",
+      "History request timed out",
+    ]);
+    const doFetch = vi.fn();
+    failure = (await fetchMarketTicks(null, ticksInput(), {
+      fetch: doFetch,
+    }).catch((error: unknown) => error)) as MarketDataError;
+    expect(failure.code).toBe("NOT_CONFIGURED");
+    return expect(doFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("marketData.ticks and marketData.depth procedures", () => {
+  it("are operator-only and never call upstream for denied callers or invalid input", async () => {
+    const doFetch = vi.fn(async () => jsonResponse(ticksUpstream()));
+    setMarketDataFetchOptionsForTesting({ fetch: doFetch, now: () => at });
+    const operator = clientFor(session("operator"), config);
+    await expectCode(
+      clientFor(null, config).marketData.ticks({ symbol: "SPY" }),
+      "UNAUTHORIZED",
+      401
+    );
+    await expectCode(
+      clientFor(null, config).marketData.depth({ symbol: "SPY" }),
+      "UNAUTHORIZED",
+      401
+    );
+    await expectCode(
+      clientFor(session("outsider"), config).marketData.ticks({
+        symbol: "SPY",
+      }),
+      "FORBIDDEN",
+      403
+    );
+    await expectCode(
+      clientFor(session("outsider"), config).marketData.depth({
+        symbol: "SPY",
+      }),
+      "FORBIDDEN",
+      403
+    );
+    await expectCode(
+      operator.marketData.ticks({ count: 10, symbol: "SPY" }),
+      "BAD_REQUEST",
+      400
+    );
+    await expectCode(
+      operator.marketData.ticks({ secType: "FUT", symbol: "ES" }),
+      "BAD_REQUEST",
+      400
+    );
+    await expectCode(
+      operator.marketData.depth({ rows: 21, symbol: "SPY" }),
+      "BAD_REQUEST",
+      400
+    );
+    await expectCode(
+      operator.marketData.depth({ contractMonth: "202612", symbol: "SPY" }),
+      "BAD_REQUEST",
+      400
+    );
+    return expect(doFetch).not.toHaveBeenCalled();
+  });
+
+  it("return documents to operators and typed errors otherwise", async () => {
+    const operator = clientFor(session("operator"), config);
+    setMarketDataFetchOptionsForTesting({
+      fetch: async (url) =>
+        jsonResponse(
+          String(url).includes("/ticks?") ? ticksUpstream() : depthUpstream()
+        ),
+      now: () => at,
+    });
+    const ticks = await operator.marketData.ticks({ symbol: "SPY" });
+    expect(ticks.trades).toHaveLength(2);
+    expect(ticks.receivedAt).toBe(at.toISOString());
+    const depth = await operator.marketData.depth({ symbol: "SPY" });
+    expect(depth.sizeMultiplier).toBe(100);
+    expect(JSON.stringify([ticks, depth])).not.toContain(TOKEN);
+    await expectCode(
+      clientFor(session("operator"), null).marketData.depth({ symbol: "SPY" }),
+      "NOT_CONFIGURED",
+      503
+    );
+    setMarketDataFetchOptionsForTesting({
+      fetch: async () =>
+        jsonResponse(
+          {
+            error: "entitlement",
+            ibkr_code: 10_092,
+            message: "Deep market data is not supported",
+          },
+          { status: 502 }
+        ),
+      now: () => at,
+    });
+    await expectCode(
+      operator.marketData.depth({
+        exchange: "CME",
+        secType: "FUT",
+        symbol: "ES",
+      }),
+      "ENTITLEMENT",
+      502
+    );
+    await expectCode(
+      operator.marketData.ticks({ symbol: "SPY" }),
+      "ENTITLEMENT",
+      502
+    );
+    setMarketDataFetchOptionsForTesting({
+      fetch: async () =>
+        jsonResponse(
+          { error: "busy", retry_after_seconds: 3 },
+          { status: 429 }
+        ),
+      now: () => at,
+    });
+    return await expectCode(
+      operator.marketData.depth({ symbol: "SPY" }),
+      "PACED",
+      429
+    );
+  });
+
+  it("ticks are readable with read-access agent keys; depth is operator-only", () => {
+    expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.ticks")).toBe(true);
+    return expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.depth")).toBe(
+      false
+    );
+  });
+});

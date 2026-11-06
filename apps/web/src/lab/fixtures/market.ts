@@ -1,5 +1,6 @@
-// What: Deterministic fake market data for the UI lab: OHLCV bars, an options analytics snapshot
-// and an empty JEV verdict.
+// What: Deterministic fake market data for the UI lab: OHLCV bars, order flow (trade prints,
+// quotes, an L2 depth snapshot and a depth ENTITLEMENT failure), an options analytics snapshot
+// and an empty JEV verdict. Every venue is a made-up LAB-* code.
 // Used by: apps/web/src/lab/entries/markets.tsx and other lab entries that chart prices.
 import type {
   JevVerdictOutput,
@@ -7,6 +8,14 @@ import type {
   MarketBarSize,
   MarketBarsInput,
   MarketBarsOutput,
+  MarketDepthInput,
+  MarketDepthLevel,
+  MarketDepthOutput,
+  MarketQuoteTick,
+  MarketSecType,
+  MarketTicksInput,
+  MarketTicksOutput,
+  MarketTradeTick,
   OptionsAnalyticsOutput,
 } from "@darkfactory/api";
 
@@ -247,3 +256,181 @@ export const labJevVerdict = (symbol: string): JevVerdictOutput => ({
   throttled: false,
   verdict: null,
 });
+
+// ---------------------------------------------------------------------------
+// Order flow (marketData.ticks / marketData.depth). Fictional prints on made-up LAB-* venues.
+
+const ORDER_FLOW_WINDOW_SECONDS = 240;
+/** The first prints come before the first quote, so the tick rule and "unsigned" show too. */
+const PRINTS_BEFORE_FIRST_QUOTE = 6;
+
+const labTickSize = (secType: MarketSecType): number =>
+  secType === "STK" ? 0.01 : 0.25;
+
+const labOnTick = (value: number, tick: number): number =>
+  roundTo(Math.round(value / tick) * tick, 2);
+
+const labContract = (
+  symbol: string,
+  secType: MarketSecType,
+  exchange: string,
+  currency: string
+): MarketBarsOutput["contract"] => ({
+  conId: 100_000 + (symbol.charCodeAt(0) % 90) * 1000,
+  currency,
+  exchange,
+  lastTradeDateOrContractMonth: null,
+  localSymbol: symbol,
+  longName: `${symbol} Demo Listing (fake data)`,
+  matches: 1,
+  multiplier: secType === "STK" ? null : "50",
+  secType,
+  timeZoneId: "US/Eastern",
+});
+
+/** One fictional print: 45% lift the ask, 40% hit the bid, 15% at the midpoint (tick rule). */
+const labPrint = (
+  random: () => number,
+  at: Readonly<{
+    lot: number;
+    mid: number;
+    secType: MarketSecType;
+    t: number;
+    tick: number;
+  }>
+): MarketTradeTick => {
+  const pick = random();
+  const offset = pick < 0.45 ? at.tick : pick < 0.85 ? -at.tick : 0;
+  const venue = pick < 0.5 ? "LAB-A" : "LAB-B";
+  return {
+    c: pick > 0.97 ? "LAB-COND" : null,
+    p: labOnTick(at.mid + offset, at.tick),
+    s: Math.ceil(random() * 9) * at.lot,
+    t: at.t,
+    x: at.secType === "STK" ? venue : null,
+  };
+};
+
+/** `count` fictional prints over the four minutes before 15:59 ET, a quote every fourth print. */
+const labTape = (
+  symbol: string,
+  secType: MarketSecType,
+  count: number
+): { trades: MarketTradeTick[]; quotes: MarketQuoteTick[] } => {
+  const random = createSeededRandom(`ticks:${symbol}:${secType}`);
+  const tick = labTickSize(secType);
+  const lot = secType === "STK" ? 100 : 1;
+  const start =
+    Math.floor(LAB_NOW.getTime() / 1000) - 60 - ORDER_FLOW_WINDOW_SECONDS;
+  let mid = labOnTick(labBasePrice(symbol), tick);
+  const trades: MarketTradeTick[] = [];
+  const quotes: MarketQuoteTick[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const t = start + Math.floor((index * ORDER_FLOW_WINDOW_SECONDS) / count);
+    if (index % 4 === 0) {
+      const step = random();
+      if (step < 0.35) mid = labOnTick(mid - tick, tick);
+      else if (step > 0.62) mid = labOnTick(mid + tick, tick);
+      if (index >= PRINTS_BEFORE_FIRST_QUOTE)
+        quotes.push({
+          ap: labOnTick(mid + tick, tick),
+          as: Math.ceil(random() * 20),
+          bp: labOnTick(mid - tick, tick),
+          bs: Math.ceil(random() * 20),
+          t,
+        });
+    }
+    trades.push(labPrint(random, { lot, mid, secType, t, tick }));
+  }
+  return { quotes, trades };
+};
+
+/** A marketData.ticks response with fictional prints and quotes for any instrument. */
+export const labTicksOutput = (input: MarketTicksInput): MarketTicksOutput => {
+  const symbol = input.symbol.trim().toUpperCase();
+  const secType = input.secType ?? "STK";
+  const exchange = input.exchange ?? "SMART";
+  const currency = input.currency ?? "USD";
+  const count = input.count ?? 500;
+  const { quotes, trades } = labTape(symbol, secType, count);
+  const last = trades.at(-1);
+  return {
+    asOf: last === undefined ? null : new Date(last.t * 1000).toISOString(),
+    cache: { ageSeconds: 8, hit: true, stale: false, ttlSeconds: 30 },
+    contract: labContract(symbol, secType, exchange, currency),
+    fetchedAt: LAB_NOW_ISO,
+    minTick: labTickSize(secType),
+    quotes: input.quotes === false ? [] : quotes,
+    receivedAt: LAB_NOW_ISO,
+    request: {
+      contractMonth: input.contractMonth ?? null,
+      count,
+      currency,
+      exchange,
+      quotes: input.quotes ?? true,
+      secType,
+      symbol,
+      useRTH: input.useRTH ?? false,
+    },
+    source: "ibkr-gateway",
+    trades,
+  };
+};
+
+/** A fictional one-shot L2 book; SMART (stocks) spreads it across made-up LAB-* venues. */
+export const labDepthOutput = (input: MarketDepthInput): MarketDepthOutput => {
+  const symbol = input.symbol.trim().toUpperCase();
+  const secType = input.secType ?? "STK";
+  const exchange = input.exchange ?? "SMART";
+  const currency = input.currency ?? "USD";
+  const rows = input.rows ?? 10;
+  const smartDepth = secType === "STK";
+  const random = createSeededRandom(`depth:${symbol}:${secType}`);
+  const tick = labTickSize(secType);
+  // The book sits around the last fictional quote, so it lines up with the tape.
+  const lastQuote = labTape(symbol, secType, 500).quotes.at(-1);
+  const mid = labOnTick(
+    lastQuote === undefined
+      ? labBasePrice(symbol)
+      : (lastQuote.bp + lastQuote.ap) / 2,
+    tick
+  );
+  const venues = ["LAB-A", "LAB-B", "LAB-C"];
+  const side = (direction: 1 | -1): MarketDepthLevel[] =>
+    Array.from({ length: rows }, (_, index) => ({
+      price: labOnTick(mid + direction * (index + 1) * tick, tick),
+      size: Math.ceil(random() * (6 + index * 2)),
+      venue: smartDepth ? (venues[index % venues.length] ?? null) : null,
+    }));
+  return {
+    asks: side(1),
+    bids: side(-1),
+    cache: { ageSeconds: 3, hit: false, stale: false, ttlSeconds: 15 },
+    contract: labContract(symbol, secType, exchange, currency),
+    fetchedAt: LAB_NOW_ISO,
+    minTick: labTickSize(secType),
+    receivedAt: LAB_NOW_ISO,
+    request: {
+      contractMonth: input.contractMonth ?? null,
+      currency,
+      exchange,
+      rows,
+      secType,
+      smartDepth,
+      symbol,
+    },
+    sizeMultiplier: smartDepth ? 100 : 1,
+    source: "ibkr-gateway",
+    updates: rows * 6,
+    venues: smartDepth
+      ? { depth: ["LAB-A", "LAB-B"], missing: ["LAB-D"], top: ["LAB-C"] }
+      : null,
+  };
+};
+
+/** The oRPC ENTITLEMENT failure the depth route returns when the account has no L2 for a venue. */
+export const labDepthEntitlementError = (): Error =>
+  Object.assign(
+    new Error("IBKR market data permissions missing for this request"),
+    { code: "ENTITLEMENT", status: 502 }
+  );

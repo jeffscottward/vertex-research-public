@@ -309,6 +309,8 @@ export const MarketTicksOutputSchema = z.object({
     quotes: z.boolean(),
   }).strict(),
   contract: MarketContractSchema,
+  // IBKR ContractDetails.minTick (price increment); null when IBKR reports none.
+  minTick: z.number().positive().nullable(),
   // Oldest first.
   trades: z.array(MarketTradeTickSchema).max(MARKET_TICKS_MAX),
   // Oldest first; empty when quotes=false or IBKR returned none.
@@ -359,6 +361,8 @@ export const MarketDepthOutputSchema = z.object({
     smartDepth: z.boolean(),
   }).strict(),
   contract: MarketContractSchema,
+  // IBKR ContractDetails.minTick (price increment); null when IBKR reports none.
+  minTick: z.number().positive().nullable(),
   // Best price first.
   bids: z.array(MarketDepthLevelSchema).max(MARKET_DEPTH_ROWS_MAX),
   asks: z.array(MarketDepthLevelSchema).max(MARKET_DEPTH_ROWS_MAX),
