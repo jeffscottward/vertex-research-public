@@ -11,12 +11,13 @@ import type { AssistantMessage, AssistantThread } from "@darkfactory/db/schema";
 import { ORPCError, implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
-import type {
-  AssistantActionOutput,
-  AssistantMessageOutput,
-  AssistantSendEvent,
-  AssistantThreadOutput,
-  AssistantUsageOutput,
+import {
+  AssistantArtifactSchema,
+  type AssistantActionOutput,
+  type AssistantMessageOutput,
+  type AssistantSendEvent,
+  type AssistantThreadOutput,
+  type AssistantUsageOutput,
 } from "../contracts/assistant.ts";
 import {
   AssistantBudgetError,
@@ -28,6 +29,7 @@ import {
   type AssistantRuntime,
   type AssistantTurnResult,
 } from "./assistant-runtime.ts";
+import { storableTrace } from "./assistant-chart-tools.ts";
 import type { ApiContext } from "./context.ts";
 import {
   AGENT_VIEWER_PLAN_ONLY_MESSAGE,
@@ -140,6 +142,14 @@ const toAssistantThreadOutput = (
   updatedAt: row.updatedAt,
 });
 
+// A stored artifact is shown only when it still matches the contract; rows from before chart
+// tools have none, and a malformed one is dropped rather than failing the whole thread.
+const storedArtifact = (value: unknown) => {
+  if (value === undefined) return {};
+  const parsed = AssistantArtifactSchema.safeParse(value);
+  return parsed.success ? { artifact: parsed.data } : {};
+};
+
 const toAssistantMessageOutput = (
   row: AssistantMessage
 ): AssistantMessageOutput => ({
@@ -154,6 +164,7 @@ const toAssistantMessageOutput = (
     ok: entry.ok,
     error: entry.error ?? null,
     durationMs: entry.durationMs,
+    ...storedArtifact(entry.artifact),
   })),
   model: row.model ?? null,
   inputTokens: row.inputTokens,
@@ -506,6 +517,9 @@ export const assistantSend = api.assistant.send
           })),
           message: input.message,
           ...(input.page === undefined ? {} : { page: input.page }),
+          ...(input.teach === true ? { teach: true } : {}),
+          // Chart drawing ids of this turn: quant-<end of the user message id>-<n>.
+          turnId: userMessage.id,
           client: runtime.client,
           callProcedure: runtime.callProcedure,
           budget,
@@ -531,7 +545,7 @@ export const assistantSend = api.assistant.send
                 role: "assistant",
                 mode: input.mode,
                 content: `No reply: ${error.failure.message}`,
-                toolCalls: error.trace,
+                toolCalls: storableTrace(error.trace),
                 model: runtime.model,
                 inputTokens: error.inputTokens,
                 outputTokens: error.outputTokens,
@@ -546,6 +560,8 @@ export const assistantSend = api.assistant.send
         }
         throw error;
       }
+      // The trace as the row check accepts it (size, entries, clean text), so the reply is always kept.
+      const trace = storableTrace(result.trace);
       const reply = await stored(
         () =>
           repository.appendMessage({
@@ -553,7 +569,7 @@ export const assistantSend = api.assistant.send
             role: "assistant",
             mode: input.mode,
             content: result.content,
-            toolCalls: result.trace,
+            toolCalls: trace,
             model: runtime.model,
             inputTokens: result.inputTokens,
             outputTokens: result.outputTokens,
@@ -572,7 +588,7 @@ export const assistantSend = api.assistant.send
           thread: toAssistantThreadOutput(refreshed ?? thread),
           userMessage: toAssistantMessageOutput(userMessage),
           reply: toAssistantMessageOutput(reply),
-          trace: result.trace.map((entry) => ({ ...entry })),
+          trace: trace.map((entry) => ({ ...entry })),
           stopReason: result.stopReason,
           steps: result.steps,
           usage: usageOutput(usage, runtime),

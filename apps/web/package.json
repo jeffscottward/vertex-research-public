@@ -30,6 +30,7 @@
     "@darkfactory/db": "workspace:*",
     "@darkfactory/email": "workspace:*",
     "@darkfactory/observability": "workspace:*",
+    "@darkfactory/scripting": "workspace:*",
     "@darkfactory/shared": "workspace:*",
     "@darkfactory/state": "workspace:*",
     "@darkfactory/storage": "workspace:*",

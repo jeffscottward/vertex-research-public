@@ -95,6 +95,16 @@ const mount = async (
   clock: (() => Date) | null = () => new Date("2026-11-04T00:00:00.000Z")
 ) => {
   const factory: CandleRendererFactory = async () => renderer;
+  // The workstation hands its storage to the chart bus, whose port includes removeItem.
+  const store =
+    storage === null
+      ? null
+      : {
+          getItem: (name: string) => storage.getItem(name),
+          removeItem: () => undefined,
+          setItem: (name: string, value: string) =>
+            storage.setItem(name, value),
+        };
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -110,7 +120,7 @@ const mount = async (
           markers={[{ id: "m", text: "Long", timestamp: 1000, value: 10 }]}
           {...(clock ? { now: clock } : {})}
           pricePrecision={2}
-          storage={storage}
+          storage={store}
           studies={{
             ema: [9],
             extra: ["macd"],
@@ -355,14 +365,15 @@ describe("chart workstation", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    await act(async () =>
-      host
-        .querySelector<HTMLButtonElement>("[data-drawing-tool='trend']")
-        ?.click()
-    );
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>("[data-chart-screenshot]")?.click()
-    );
+    const button = (selector: string) => {
+      const found = host.querySelector<HTMLButtonElement>(selector);
+      if (found === null) throw new Error(`${selector} missing`);
+      return found;
+    };
+    // A renderer without startDrawing: the tool does nothing and gives no instructions.
+    await act(async () => button("[data-drawing-tool='trend']").click());
+    expect(host.textContent).not.toContain("Click on the chart");
+    await act(async () => button("[data-chart-screenshot]").click());
     expect(host.textContent).toContain("Screenshot is not available yet.");
     const getter = vi
       .spyOn(window, "localStorage", "get")
@@ -384,8 +395,9 @@ describe("chart workstation", () => {
       )
     );
     getter.mockRestore();
+    expect(host.querySelector("[data-data-window] dl")?.textContent).toBe("");
     return expect(
-      host.querySelector("[data-data-window] dl")?.textContent
-    ).toBe("");
+      host.querySelector("[data-object-tree]")?.textContent
+    ).toContain("Candles");
   });
 });
