@@ -1013,14 +1013,30 @@ describe("pickLists.proposal", () => {
         [row("BBB", { rank: 2 }), row("AAA", { rank: 1 })],
         "WISH"
       ),
+      // Re-imported after Make bucket: the bucket still holds AAA and CCC, not NEW.
       pickList(
         "moby",
-        [row("AAA", { sector: "Technology" }), row("CCC")],
+        [row("AAA", { sector: "Technology" }), row("NEW")],
         "TMOBY"
       ),
+      // The bucket basket was deleted: no bucket, no rows.
+      pickList("gone", [row("OLD")], "GONE", "operator", null),
+      // The recorded basket no longer exists for this owner.
+      pickList("lost", [row("LOST")], "LOST"),
       pickList("loose", [row("ZZZ")]),
     ]);
-    const result = await operator(repository).proposal({});
+    const weight = { weight: "0.5" };
+    const baskets = basketRepository([
+      basket("WISH", [
+        { symbol: "AAA", ...weight },
+        { symbol: "BBB", ...weight },
+      ]),
+      basket("TMOBY", [
+        { symbol: "AAA", ...weight },
+        { symbol: "CCC", ...weight },
+      ]),
+    ]);
+    const result = await operator(repository, baskets).proposal({});
     expect(fetchedSymbols(fetch)).toEqual(["SPY", "AAA", "CCC", "BBB", "XLK"]);
     expect(result.proposalOnly).toBe(true);
     expect(result.computedAt).toBe(now.toISOString());
@@ -1072,11 +1088,17 @@ describe("pickLists.proposal", () => {
     const ranked = Array.from({ length: 61 }, (_, index) =>
       row(`M${String(index).padStart(3, "0")}`, { rank: index + 1 })
     );
+    const members = (rows: readonly PickListMemberRow[]) =>
+      rows.map((entry) => ({ symbol: entry.symbol, weight: "0.1" }));
     const fetch = useYahoo({});
     const result = await operator(
       pickListRepository([
         pickList("a", ranked.slice(0, 40), "AAA"),
         pickList("b", ranked.slice(40), "BBB"),
+      ]),
+      basketRepository([
+        basket("AAA", members(ranked.slice(0, 40))),
+        basket("BBB", members(ranked.slice(40))),
       ])
     ).proposal({});
     expect(fetchedSymbols(fetch)).toHaveLength(61);
@@ -1088,7 +1110,8 @@ describe("pickLists.proposal", () => {
   it("returns an empty proposal without buckets", async () => {
     useYahoo({});
     const result = await operator(
-      pickListRepository([pickList("loose", [row("ZZZ")])])
+      pickListRepository([pickList("loose", [row("ZZZ")])]),
+      basketRepository()
     ).proposal({});
     expect(result.buckets).toEqual([]);
     expect(result.rows).toEqual([]);
@@ -1100,6 +1123,36 @@ describe("pickLists.proposal", () => {
     repository.listByUser = vi.fn(async () => {
       throw new DatabasePersistenceError("list");
     });
-    await expectCode(operator(repository).proposal({}), "STORAGE_ERROR", 503);
+    await expectCode(
+      operator(repository, basketRepository()).proposal({}),
+      "STORAGE_ERROR",
+      503
+    );
+    // Lists load, but basket storage is missing.
+    await expectCode(
+      operator(pickListRepository()).proposal({}),
+      "STORAGE_ERROR",
+      503
+    );
+  });
+
+  it("counts DTE from the New York date", async () => {
+    // 2026-11-06T02:00Z is still 2026-11-05 in New York.
+    const late = new Date("2026-11-06T02:00:00.000Z");
+    setPickListOptionsForTesting({
+      fetch: yahooWith({
+        SPY: { closes: rising(120, 400, 1) },
+        AAA: { closes: rising(120) },
+      }),
+      now: () => late,
+    });
+    const result = await operator(
+      pickListRepository([pickList("one", [row("AAA")], "ONE")]),
+      basketRepository([basket("ONE", [{ symbol: "AAA", weight: "1" }])])
+    ).proposal({});
+    expect(result.rows[0]?.structure).toMatchObject({
+      expiry: "2027-03-19",
+      dte: 134,
+    });
   });
 });

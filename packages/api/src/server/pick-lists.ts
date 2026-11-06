@@ -61,6 +61,13 @@ const BARS_CACHE_TTL_MS = 10 * 60_000;
 const BARS_CACHE_MAX_ENTRIES = 400;
 const WEIGHT_DIGITS = 8;
 const PRICE_DIGITS = 4;
+/** YYYY-MM-DD in New York ("en-CA" formats dates as ISO). */
+const NEW_YORK_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export type PickListOptions = Readonly<{
   /** Yahoo chart fetch. */
@@ -513,18 +520,27 @@ const proposal = api.pickLists.proposal
   .use(requireOperator)
   .handler(async ({ context, errors }): Promise<PickListProposalOutput> => {
     const failures = factories(errors);
-    const repository = pickListsFor(context, failures);
+    const userId = context.principal.userId;
     let lists: PickListWithLatest[];
+    let owned: BasketWithMembers[];
     try {
-      lists = await repository.listByUser(context.principal.userId);
+      lists = await pickListsFor(context, failures).listByUser(userId);
+      owned = await basketsFor(context, failures).listByUser(userId);
     } catch (error) {
       return mapError(error, failures);
     }
+    // A bucket's members are its basket's members (what /baskets shows), not the latest
+    // snapshot: a re-import changes the bucket only after Make or Refresh bucket. A list whose
+    // bucket basket was deleted (bucketBasketId null) has no bucket.
+    const basketById = new Map(owned.map((entry) => [entry.basket.id, entry]));
     const buckets = lists
       .flatMap((entry) => {
         const symbol = entry.list.bucketSymbol;
-        if (symbol === null) return [];
-        const { kept } = orderForBucket(entry.latest.members);
+        const basket =
+          entry.list.bucketBasketId === null
+            ? undefined
+            : basketById.get(entry.list.bucketBasketId);
+        if (symbol === null || basket === undefined) return [];
         const sectors = new Map(
           entry.latest.members.map((member) => [member.symbol, member.sector])
         );
@@ -533,9 +549,9 @@ const proposal = api.pickLists.proposal
             bucketSymbol: symbol,
             listId: entry.list.id,
             listName: entry.list.name,
-            members: kept.map((member) => ({
-              symbol: member,
-              sector: sectors.get(member) ?? null,
+            members: basket.members.map((member) => ({
+              symbol: member.symbol,
+              sector: sectors.get(member.symbol) ?? null,
             })),
           },
         ];
@@ -554,7 +570,8 @@ const proposal = api.pickLists.proposal
     ]);
     const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
     const now = clock();
-    const asOf = now.toISOString().slice(0, 10);
+    // DTE counts from the New York calendar date (US option expiries).
+    const asOf = NEW_YORK_DATE.format(now);
     const rows = proposed.map((candidate) => {
       // Every proposed symbol was requested, so its result exists.
       const result = loaded.get(candidate.symbol) as BarsResult;

@@ -257,9 +257,13 @@ describe("PickListProposalPanel", () => {
     );
     await setValue(container.querySelector("input"), "1,000,000");
     expect(cells(rowFor(container, "NVDA"))[7]).toBe("4");
-    expect(container.querySelector('[role="status"]')?.textContent).toContain(
-      "total max loss 0.50% NLV ($5,000.00)"
+    expect(container.querySelector("[data-nlv-total]")?.textContent).toBe(
+      " · at this NLV: $5,000.00"
     );
+    // The live region keeps only the counts, so typing does not re-announce it.
+    expect(
+      container.querySelector('[role="status"]')?.textContent
+    ).not.toContain("$");
   });
 
   it("lists members past the per-run limit", async () => {
@@ -293,6 +297,17 @@ describe("PickListProposalPanel", () => {
     await settle();
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(rowFor(container, "NVDA")).toBeDefined();
+    // A failed refresh keeps the last proposal on screen.
+    fail = true;
+    await act(async () =>
+      (container.querySelector("button") as HTMLButtonElement).click()
+    );
+    await settle();
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "Pick list storage unavailable (503)."
+    );
+    expect(rowFor(container, "NVDA")).toBeDefined();
+    fail = false;
     await act(async () =>
       root.render(
         <PickListProposalPanel
@@ -302,7 +317,8 @@ describe("PickListProposalPanel", () => {
       )
     );
     await settle();
-    expect(gateway.proposal).toHaveBeenCalledTimes(3);
+    expect(gateway.proposal).toHaveBeenCalledTimes(4);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("keeps only the newest response", async () => {

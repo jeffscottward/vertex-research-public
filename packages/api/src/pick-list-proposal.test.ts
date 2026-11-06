@@ -54,6 +54,7 @@ describe("monthlyExpiryAtLeast", () => {
       expiry: "2026-11-20",
       dte: 0,
     });
+    expect(() => monthlyExpiryAtLeast("not-a-date", 1)).toThrow(RangeError);
     // A month that starts on a Friday (January 2027).
     expect(monthlyExpiryAtLeast("2026-12-20", 20)).toEqual({
       expiry: "2027-01-15",
@@ -83,8 +84,15 @@ describe("realizedVolatility", () => {
     );
   });
 
-  it("is null for a flat series", () => {
+  it("is null for a flat or nearly flat series", () => {
     expect(realizedVolatility(Array.from({ length: 80 }, () => 10))).toBeNull();
+    expect(
+      realizedVolatility(
+        Array.from({ length: 80 }, (_, index) =>
+          index % 2 ? 10 : 10.000_000_1
+        )
+      )
+    ).toBeNull();
   });
 });
 

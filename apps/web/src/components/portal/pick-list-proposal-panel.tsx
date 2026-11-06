@@ -1,10 +1,11 @@
 "use client";
 
-import type {
-  PickListOutput,
-  PickListProposalOutput,
-  PickListProposalRowOutput,
-  PickListProposalTier,
+import {
+  PICK_LIST_SCREEN_MAX_MEMBERS,
+  type PickListOutput,
+  type PickListProposalOutput,
+  type PickListProposalRowOutput,
+  type PickListProposalTier,
 } from "@darkfactory/api";
 import {
   Button,
@@ -35,12 +36,6 @@ import {
 // Buy proposal from the bucketed pick lists (pickLists.proposal). Read-only: this panel has no
 // order control and sends nothing but the proposal request. The optional NLV field stays in this
 // browser tab; it only turns % NLV into dollars and a spread count.
-
-type ProposalState =
-  | Readonly<{ type: "idle" }>
-  | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; data: PickListProposalOutput }>
-  | Readonly<{ type: "error"; message: string }>;
 
 const TIER_LABELS: Readonly<Record<PickListProposalTier, string>> = {
   full: "Full size",
@@ -170,20 +165,27 @@ export const PickListProposalPanel = ({
 }>) => {
   const fieldId = useId();
   const key = bucketKey(lists);
-  const [state, setState] = useState<ProposalState>({ type: "idle" });
+  // The last good proposal stays on screen while a refresh runs or after it fails.
+  const [data, setData] = useState<PickListProposalOutput | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const [nlvText, setNlvText] = useState("");
   const request = useRef(0);
 
   const load = useCallback(async () => {
     request.current += 1;
     const current = request.current;
-    setState({ type: "loading" });
+    setLoading(true);
     try {
-      const data = await gateway.proposal();
-      if (current === request.current) setState({ type: "ready", data });
+      const next = await gateway.proposal();
+      if (current !== request.current) return;
+      setData(next);
+      setFailure(null);
     } catch (error) {
       if (current === request.current)
-        setState({ type: "error", message: describePickListFailure(error) });
+        setFailure(describePickListFailure(error));
+    } finally {
+      if (current === request.current) setLoading(false);
     }
   }, [gateway]);
 
@@ -192,7 +194,6 @@ export const PickListProposalPanel = ({
   }, [key, load]);
 
   const nlv = parseNlv(nlvText);
-  const data = state.type === "ready" ? state.data : null;
   const proposed = data?.rows.filter((row) => row.tier !== "none") ?? [];
   return (
     <Card aria-label="Buy proposal" role="region">
@@ -232,7 +233,7 @@ export const PickListProposalPanel = ({
                 />
               </label>
               <Button
-                loading={state.type === "loading"}
+                loading={loading}
                 loadingLabel="Building proposal"
                 onClick={() => void load()}
                 type="button"
@@ -242,19 +243,22 @@ export const PickListProposalPanel = ({
                 Refresh proposal
               </Button>
             </div>
-            {state.type === "error" ? (
+            {failure === null ? null : (
               <p className="text-destructive text-sm" role="alert">
-                {state.message}
+                {failure}
               </p>
-            ) : null}
+            )}
             {data === null ? null : (
               <>
-                <p className="text-sm" role="status">
-                  {`${data.rows.length} names · ${proposed.length} proposed · total max loss ${percent(data.totalMaxLossPct)} NLV`}
-                  {nlv === null
-                    ? ""
-                    : ` (${usd.format((data.totalMaxLossPct / 100) * nlv)})`}
-                  {` · computed ${data.computedAt}`}
+                <p className="text-sm">
+                  <span role="status">
+                    {`${data.rows.length} names · ${proposed.length} proposed · total max loss ${percent(data.totalMaxLossPct)} NLV · computed ${data.computedAt}`}
+                  </span>
+                  {nlv === null ? null : (
+                    <span data-nlv-total="">
+                      {` · at this NLV: ${usd.format((data.totalMaxLossPct / 100) * nlv)}`}
+                    </span>
+                  )}
                 </p>
                 <p className="text-muted-foreground text-xs">
                   {`Rules: options only, defined risk. Max loss per new position ≤ ${data.rules.maxLossGatePct}% NLV; premium per name ≤ ${data.rules.namePremiumCapPct}% NLV (< 365 DTE). Full size ${data.rules.fullMaxLossPct}% NLV, half size ${data.rules.halfMaxLossPct}% NLV. Call debit spread ${data.rules.dteMin}-${data.rules.dteMax} DTE, long ~${data.rules.longDelta} delta, short ~${data.rules.shortDelta} delta. Estimates: Black-Scholes on 1-year realized volatility, r = ${data.rules.riskFreeRate * 100}%. Strikes and expiry are picked from the live chain at entry.`}
@@ -295,7 +299,7 @@ export const PickListProposalPanel = ({
                 </Table>
                 {data.notProposed.length === 0 ? null : (
                   <p className="text-muted-foreground text-sm">
-                    {`Not proposed (first 60 names per run): ${data.notProposed.join(", ")}.`}
+                    {`Not proposed (first ${PICK_LIST_SCREEN_MAX_MEMBERS} names per run): ${data.notProposed.join(", ")}.`}
                   </p>
                 )}
               </>

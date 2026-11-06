@@ -10,6 +10,7 @@ import type {
 import type { SectorRotationQuadrant } from "./contracts/sector-rotation.ts";
 import { normalQuantile } from "./quant-distributions.ts";
 import { OWNER_RISK_CAPS } from "./risk-allocator.ts";
+import { MAX_LOSS_PCT } from "./server/vertex-orders-rules.ts";
 
 // Buy-proposal math for bucketed pick lists (pure; no network, no orders). For each screened
 // member it proposes one defined-risk structure and a size as % of NLV max loss:
@@ -32,8 +33,8 @@ import { OWNER_RISK_CAPS } from "./risk-allocator.ts";
 
 const PROPOSAL_FULL_MAX_LOSS_PCT = 0.5;
 const PROPOSAL_HALF_MAX_LOSS_PCT = 0.25;
-/** Owner hard gate (2026-11-02): a new position's max possible loss is at most 2% NLV. */
-const PROPOSAL_MAX_LOSS_GATE_PCT = 2;
+/** Owner hard gate (2026-11-02), shared with the order rules: max loss of a new position <= 2% NLV. */
+const PROPOSAL_MAX_LOSS_GATE_PCT = MAX_LOSS_PCT;
 const PROPOSAL_DTE_MIN = 90;
 const PROPOSAL_DTE_MAX = 180;
 const PROPOSAL_TARGET_DTE = 120;
@@ -42,6 +43,8 @@ const PROPOSAL_SHORT_DELTA = 0.3;
 const PROPOSAL_RISK_FREE_RATE = 0.04;
 const TRADING_DAYS = 252;
 const MIN_RETURNS = 60;
+/** Below this annualized volatility the series is treated as flat (no estimate). */
+const MIN_VOLATILITY = 0.0001;
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365;
 const GATE_NAMES = {
@@ -80,6 +83,8 @@ export const monthlyExpiryAtLeast = (
   minDte: number
 ): Readonly<{ expiry: string; dte: number }> => {
   const start = Date.parse(`${asOf}T00:00:00Z`);
+  if (!Number.isFinite(start))
+    throw new RangeError(`Not a calendar date: ${asOf}`);
   const date = new Date(start);
   for (let offset = 0; ; offset += 1) {
     const ms = thirdFriday(date.getUTCFullYear(), date.getUTCMonth() + offset);
@@ -106,7 +111,7 @@ export const realizedVolatility = (
     returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
     (returns.length - 1);
   const annualized = Math.sqrt(variance * TRADING_DAYS);
-  return annualized > 0 ? annualized : null;
+  return annualized >= MIN_VOLATILITY ? annualized : null;
 };
 
 /** Typical listed-strike spacing for a price level. */
