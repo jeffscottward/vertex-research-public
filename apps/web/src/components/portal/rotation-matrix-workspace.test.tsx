@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { RotationMatrixOutput } from "@darkfactory/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
@@ -16,7 +17,10 @@ import { rotationFixture } from "./research-lenses-test-fixtures.ts";
 import {
   formatReturn,
   heatColor,
+  parseRotationMatrixParams,
+  type RotationMatrixSettings,
   RotationMatrixWorkspace,
+  rotationMatrixSearch,
 } from "./rotation-matrix-workspace.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -36,6 +40,7 @@ afterAll(() => {
 const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
+  window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
 });
 
@@ -51,13 +56,22 @@ const gatewayWith = (
   score: vi.fn(),
 });
 
-const render = async (gateway: ResearchLensesGateway) => {
+const render = async (
+  gateway: ResearchLensesGateway,
+  initial?: RotationMatrixSettings
+) => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
-    root.render(<RotationMatrixWorkspace gateway={gateway} />);
+    root.render(
+      initial === undefined ? (
+        <RotationMatrixWorkspace gateway={gateway} />
+      ) : (
+        <RotationMatrixWorkspace gateway={gateway} initial={initial} />
+      )
+    );
     return await flush();
   });
   return container;
@@ -97,6 +111,14 @@ const industryRows = (container: HTMLElement) =>
     (cell) => cell.textContent
   );
 
+const kpi = (container: HTMLElement, id: string) =>
+  container.querySelector(`[data-kpi="${id}"]`)?.textContent;
+
+const status = (container: HTMLElement) =>
+  container
+    .querySelector('[data-slot="page-status"]')
+    ?.textContent?.replace(/^Status:/u, "");
+
 describe("rotation matrix helpers", () => {
   it("colors gains green, losses red and unknown values transparent", () => {
     expect(heatColor(10, "1M")).toBe("rgba(22, 163, 74, 0.85)");
@@ -106,21 +128,49 @@ describe("rotation matrix helpers", () => {
     return expect(heatColor(Number.NaN, "3M")).toBe("transparent");
   });
 
-  return it("formats returns with a sign", () => {
+  it("formats returns with a sign", () => {
     expect(formatReturn(4.26)).toBe("+4.3%");
     expect(formatReturn(-2)).toBe("-2.0%");
     expect(formatReturn(0)).toBe("0.0%");
     return expect(formatReturn(null)).toBe("–");
   });
+
+  return it("reads and writes the period URL parameter", () => {
+    expect(parseRotationMatrixParams({})).toEqual({ period: "1M" });
+    expect(parseRotationMatrixParams({ period: "3M" })).toEqual({
+      period: "3M",
+    });
+    expect(parseRotationMatrixParams({ period: "2Y" })).toEqual({
+      period: "1M",
+    });
+    expect(rotationMatrixSearch({ period: "1M" })).toBe("");
+    return expect(rotationMatrixSearch({ period: "6M" })).toBe("?period=6M");
+  });
 });
 
 describe("RotationMatrixWorkspace", () => {
-  it("renders the summary, our names and the grouped matrix", async () => {
+  it("renders the header, KPIs, summary, our names and the grouped matrix by default", async () => {
     const rotationMatrix = vi.fn(async () => rotationFixture());
     const container = await render(gatewayWith(rotationMatrix));
     expect(rotationMatrix).toHaveBeenCalledWith("1M");
+    expect(container.querySelector("h1")?.textContent).toBe("Rotation matrix");
+    expect(status(container)).toBe("As of 2026-10-21");
+    expect(window.location.search).toBe("");
+    expect(button(container, "1M")?.getAttribute("aria-pressed")).toBe("true");
+    expect(button(container, "6M")?.getAttribute("aria-pressed")).toBe("false");
+    expect(kpi(container, "leading")).toBe(
+      "Leading industry (1M)+6.0%Oil & Gas Production"
+    );
+    expect(kpi(container, "lagging")).toBe(
+      "Lagging industry (1M)-2.5%Water Supply"
+    );
+    expect(kpi(container, "standouts")).toBe(
+      "Standouts (> 2σ vs industry)1Top: HPK +42.4%"
+    );
     const text = container.textContent;
-    expect(text).toContain("3,022 US-listed stocks. Daily close 2026-10-21");
+    expect(text).toContain(
+      "Median returns for 3,022 US-listed stocks by sector, industry and cap bucket. Color scale ±10%."
+    );
     expect(text).toContain("Leading industries (1M)");
     expect(text).toContain("HPK +42.4% z=3.1 · Oil & Gas Production");
     expect(text).toContain(
@@ -135,6 +185,20 @@ describe("RotationMatrixWorkspace", () => {
       "Oil Refining",
       "Water Supply ▼",
     ]);
+    // Every symbol links to its stock page.
+    const tickerLinks = [
+      ...container.querySelectorAll('[data-slot="ticker-link"]'),
+    ].map((link) => link.getAttribute("href"));
+    expect(tickerLinks).toEqual([
+      "/stock/HPK",
+      "/stock/XOM",
+      "/stock/XOM",
+      "/stock/OLD",
+    ]);
+    const scroll = container.querySelector(
+      '[aria-labelledby="rotation-matrix-heading"] [data-slot="table-scroll"]'
+    );
+    expect(scroll?.getAttribute("aria-label")).toBe("Rotation matrix for 1M");
     // The empty sector has no industries and is not listed.
     expect(text).not.toContain("Empty Sector");
     return expect(
@@ -152,9 +216,7 @@ describe("RotationMatrixWorkspace", () => {
     let detail = container.querySelector('[aria-label="Selected cell"]');
     expect(detail?.textContent).toContain("Oil & Gas Production · large · 1M");
     expect(detail?.textContent).toContain("Industry rank 1 (quintile 1).");
-    expect(detail?.querySelector("a")?.getAttribute("href")).toBe(
-      "https://finviz.com/quote.ashx?t=XOM"
-    );
+    expect(detail?.querySelector("a")?.getAttribute("href")).toBe("/stock/XOM");
     expect(detail?.textContent).toContain("$12.0B");
     await click(
       button(container, "Oil & Gas Production small: +9.0%, 1 names")
@@ -177,7 +239,7 @@ describe("RotationMatrixWorkspace", () => {
     ).toBeNull();
   });
 
-  it("filters by industry text and by exact symbol", async () => {
+  it("filters by industry text and by exact symbol, and clears a filter with no match", async () => {
     const container = await render(
       gatewayWith(vi.fn(async () => rotationFixture()))
     );
@@ -185,18 +247,31 @@ describe("RotationMatrixWorkspace", () => {
     expect(industryRows(container)).toEqual(["XOM", "OLD", "Water Supply ▼"]);
     await typeFilter(container, "psx");
     expect(industryRows(container)).toEqual(["XOM", "OLD", "Oil Refining"]);
-    await typeFilter(container, "nothing-matches");
-    return expect(industryRows(container)).toEqual(["XOM", "OLD"]);
+    await typeFilter(container, " nothing-matches ");
+    expect(industryRows(container)).toEqual(["XOM", "OLD"]);
+    expect(container.textContent).toContain(
+      "No industry, sector or symbol matches “nothing-matches”."
+    );
+    await click(button(container, "Clear filter"));
+    expect(
+      (container.querySelector('input[type="search"]') as HTMLInputElement)
+        .value
+    ).toBe("");
+    return expect(industryRows(container)).toHaveLength(5);
   });
 
-  it("switches period, closes the selection and handles empty optional data", async () => {
+  it("switches period, writes it to the URL, closes the selection and handles empty optional data", async () => {
+    window.history.replaceState(null, "", "/rotation-matrix#matrix");
     const rotationMatrix = vi.fn(async (period: "1D" | "1M" | "3M" | "6M") =>
       period === "1M"
         ? rotationFixture()
         : rotationFixture(period, {
             asOf: null,
+            bottom: [],
             ours: [],
             source: null,
+            standouts: [],
+            top: [],
           })
     );
     const container = await render(gatewayWith(rotationMatrix));
@@ -205,15 +280,78 @@ describe("RotationMatrixWorkspace", () => {
     );
     await click(button(container, "6M"));
     expect(rotationMatrix).toHaveBeenLastCalledWith("6M");
-    expect(button(container, "6M")?.getAttribute("aria-selected")).toBe("true");
+    expect(window.location.pathname).toBe("/rotation-matrix");
+    expect(window.location.search).toBe("?period=6M");
+    expect(window.location.hash).toBe("#matrix");
+    expect(button(container, "6M")?.getAttribute("aria-pressed")).toBe("true");
     expect(container.querySelector('[aria-label="Selected cell"]')).toBeNull();
+    expect(status(container)).toBe("As of unknown");
+    expect(kpi(container, "leading")).toBe(
+      "Leading industry (6M)–No ranked industry"
+    );
+    expect(kpi(container, "lagging")).toBe(
+      "Lagging industry (6M)–No ranked industry"
+    );
+    expect(kpi(container, "standouts")).toBe(
+      "Standouts (> 2σ vs industry)0None above 2σ"
+    );
     const text = container.textContent;
-    expect(text).toContain("Daily close unknown. Color scale ±30%.");
+    expect(text).toContain("Color scale ±30%.");
     expect(text).toContain("No wish-list or re-entry name is a leader");
     expect(text).toContain("Sources: unknown; unknown.");
-    return expect(
+    expect(
       container.querySelector('a[href="https://finviz.com/map.ashx?t=sec_all"]')
     ).not.toBeNull();
+    await click(button(container, "1M"));
+    return expect(window.location.search).toBe("");
+  });
+
+  it("starts from the URL period and refreshes on demand", async () => {
+    const leader = (symbol: string) => ({
+      cap: "large" as const,
+      cell1M: "leading",
+      cell3M: "leading",
+      covered: true,
+      industry: "Oil & Gas Production",
+      opportunity: true,
+      roles: ["wish"],
+      sector: "Energy",
+      symbol,
+    });
+    const rotationMatrix = vi.fn(async (period: "1D" | "1M" | "3M" | "6M") =>
+      rotationFixture(period, { ours: [leader("XOM"), leader("CVX")] })
+    );
+    const container = await render(gatewayWith(rotationMatrix), {
+      period: "3M",
+    });
+    expect(rotationMatrix).toHaveBeenCalledWith("3M");
+    expect(container.textContent).toContain(
+      "Leaders in leading industries (1M and 3M top quintile): XOM, CVX"
+    );
+    expect(window.location.search).toBe("?period=3M");
+    expect(button(container, "3M")?.getAttribute("aria-pressed")).toBe("true");
+    await click(button(container, "Refresh"));
+    expect(rotationMatrix).toHaveBeenCalledTimes(2);
+    return expect(rotationMatrix).toHaveBeenLastCalledWith("3M");
+  });
+
+  it("keeps the newest period when an older response arrives late", async () => {
+    let releaseSlow: (matrix: RotationMatrixOutput) => void = () => undefined;
+    const slow = new Promise<RotationMatrixOutput>((resolve) => {
+      releaseSlow = resolve;
+    });
+    const rotationMatrix = vi.fn(async (period: "1D" | "1M" | "3M" | "6M") =>
+      period === "1M" ? slow : rotationFixture(period, { asOf: "2026-04-01" })
+    );
+    const container = await render(gatewayWith(rotationMatrix));
+    expect(status(container)).toBe("Loading");
+    expect(button(container, "Refresh")?.hasAttribute("disabled")).toBe(true);
+    await click(button(container, "1D"));
+    await act(async () => {
+      releaseSlow(rotationFixture());
+      return await flush();
+    });
+    return expect(status(container)).toBe("As of 2026-04-01");
   });
 
   it("creates the browser gateway when none is supplied", async () => {
@@ -253,11 +391,15 @@ describe("RotationMatrixWorkspace", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "Rotation matrix unavailable: Rotation matrix not yet collected"
     );
+    expect(status(container)).toBe("Unavailable");
+    expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
     fail = false;
     await click(button(container, "Try again"));
     expect(container.querySelector('[role="alert"]')).toBeNull();
     const pending = vi.fn(() => new Promise<never>(() => undefined));
     const loading = await render(gatewayWith(pending));
-    return expect(loading.textContent).toContain("Loading rotation matrix…");
+    return expect(
+      loading.querySelector('[role="status"]')?.textContent
+    ).toContain("Loading rotation matrix…");
   });
 });

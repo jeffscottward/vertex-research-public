@@ -17,7 +17,13 @@ import {
 } from "vitest";
 
 import type { CongressTradesGateway } from "./congress-trades-client.ts";
-import { CongressTradesWorkspace } from "./congress-trades-workspace.tsx";
+import {
+  CONGRESS_TRADES_PAGE_SIZE,
+  type CongressTradesSettings,
+  CongressTradesWorkspace,
+  congressTradesSearch,
+  parseCongressTradesParams,
+} from "./congress-trades-workspace.tsx";
 
 const browserFeed = vi.hoisted(() => vi.fn());
 vi.mock("./congress-trades-client.ts", () => ({
@@ -41,6 +47,7 @@ afterAll(() => {
 const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
+  window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
 });
 
@@ -83,17 +90,48 @@ const thirtyDays = feedOf([
   filing("20035143", "Nancy Pelosi", "2026-09-21", ""),
 ]);
 
-const render = async (gateway: CongressTradesGateway) => {
+const render = async (
+  gateway: CongressTradesGateway,
+  initial?: CongressTradesSettings
+) => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
-    root.render(<CongressTradesWorkspace gateway={gateway} />);
+    root.render(
+      initial === undefined ? (
+        <CongressTradesWorkspace gateway={gateway} />
+      ) : (
+        <CongressTradesWorkspace gateway={gateway} initial={initial} />
+      )
+    );
     return await flush();
   });
   return container;
 };
+
+const kpi = (container: HTMLElement, id: string) =>
+  container.querySelector(`[data-kpi="${id}"]`)?.textContent;
+
+const status = (container: HTMLElement) =>
+  container
+    .querySelector('[data-slot="page-status"]')
+    ?.textContent?.replace(/^Status:/u, "");
+
+const buttonNamed = (container: HTMLElement, name: string) =>
+  [...container.querySelectorAll("button")].find(
+    (element) => element.textContent === name
+  ) as HTMLButtonElement;
+
+const press = async (element: HTMLElement) =>
+  await act(async () => {
+    element.click();
+    return await flush();
+  });
+
+const pager = (container: HTMLElement) =>
+  container.querySelector('[aria-label="Filing pages"] p')?.textContent;
 
 const choose = async (select: HTMLSelectElement, value: string) =>
   await act(async () => {
@@ -219,6 +257,10 @@ describe("congress trades workspace", () => {
       "Filings unavailable: House Clerk disclosures unavailable"
     );
     expect(selects(container)[1].disabled).toBe(true);
+    // The named feed region appears only once filings have loaded.
+    expect(
+      container.querySelector('section[aria-label="PTR filings"]')
+    ).toBeNull();
     await act(async () => {
       alert?.querySelector("button")?.click();
       return await flush();
@@ -249,5 +291,131 @@ describe("congress trades workspace", () => {
     return expect(rows(container).map((row) => row[3])).toEqual([
       "PTR 20033725",
     ]);
+  });
+
+  it("shows the header, KPIs and the feed panel controls by default", async () => {
+    const feed = vi.fn(async () => thirtyDays);
+    const container = await render({ feed });
+    expect(container.querySelector("h1")?.textContent).toBe("Congress trades");
+    expect(status(container)).toBe("3 filings");
+    expect(kpi(container, "filings")).toBe("Filings3Filed in the last 30 days");
+    expect(kpi(container, "members")).toBe("Members2With at least one filing");
+    expect(kpi(container, "latest")).toBe("Latest filing2026-10-12Rick Larsen");
+    expect(window.location.search).toBe("");
+    const header = container.querySelector(
+      '[aria-labelledby="congress-feed-heading"] [data-slot="panel-header"]'
+    );
+    expect(header?.querySelectorAll("select")).toHaveLength(2);
+    expect(header?.querySelector("h2")?.textContent).toBe("Filings");
+    expect(
+      container.querySelector('section[aria-label="PTR filings"]')
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-slot="table-scroll"]')
+        ?.getAttribute("aria-label")
+    ).toBe("Periodic transaction report filings");
+    // Three filings fit on one page: no pager.
+    expect(container.querySelector('[aria-label="Filing pages"]')).toBeNull();
+    await press(buttonNamed(container, "Refresh"));
+    expect(feed).toHaveBeenCalledTimes(2);
+    return expect(feed).toHaveBeenLastCalledWith(30);
+  });
+
+  it("writes the window and member to the URL and starts from URL settings", async () => {
+    window.history.replaceState(null, "", "/congress-trades#feed");
+    const feed = vi.fn(async () => thirtyDays);
+    const container = await render({ feed });
+    const [windowSelect, memberSelect] = selects(container);
+    await choose(windowSelect, "90");
+    expect(window.location.search).toBe("?days=90");
+    await choose(memberSelect, "Nancy Pelosi");
+    expect(window.location.pathname).toBe("/congress-trades");
+    expect(window.location.search).toBe("?days=90&member=Nancy+Pelosi");
+    expect(window.location.hash).toBe("#feed");
+    await choose(windowSelect, "30");
+    await choose(memberSelect, "");
+    expect(window.location.search).toBe("");
+    const restored = await render({ feed }, { days: 7, member: "Rick Larsen" });
+    expect(feed).toHaveBeenLastCalledWith(7);
+    expect(selects(restored)[1].value).toBe("Rick Larsen");
+    expect(window.location.search).toBe("?days=7&member=Rick+Larsen");
+    return expect(rows(restored).map((row) => row[3])).toEqual([
+      "PTR 20035635",
+    ]);
+  });
+
+  it("pages a long feed and returns to the first page when the filter changes", async () => {
+    const long = feedOf(
+      Array.from({ length: 120 }, (_, index) =>
+        filing(
+          String(20_030_000 + index),
+          index % 2 === 0 ? "Rick Larsen" : "Nancy Pelosi",
+          "2026-10-01"
+        )
+      )
+    );
+    const container = await render({ feed: async () => long });
+    expect(CONGRESS_TRADES_PAGE_SIZE).toBe(50);
+    expect(rows(container)).toHaveLength(50);
+    expect(
+      container.querySelectorAll('[aria-label="Filings, newest first"] li')
+    ).toHaveLength(50);
+    expect(pager(container)).toBe("Showing 1–50 of 120");
+    expect(buttonNamed(container, "Previous").disabled).toBe(true);
+    await press(buttonNamed(container, "Next"));
+    expect(pager(container)).toBe("Showing 51–100 of 120");
+    expect(rows(container)[0]?.[3]).toBe("PTR 20030050");
+    await press(buttonNamed(container, "Next"));
+    expect(pager(container)).toBe("Showing 101–120 of 120");
+    expect(rows(container)).toHaveLength(20);
+    expect(buttonNamed(container, "Next").disabled).toBe(true);
+    await press(buttonNamed(container, "Previous"));
+    expect(pager(container)).toBe("Showing 51–100 of 120");
+    await choose(selects(container)[1], "Nancy Pelosi");
+    expect(pager(container)).toBe("Showing 1–50 of 60");
+    await press(buttonNamed(container, "Next"));
+    expect(pager(container)).toBe("Showing 51–60 of 60");
+    // A new window starts again at the first page (the member keeps filings in it).
+    await choose(selects(container)[0], "90");
+    return expect(pager(container)).toBe("Showing 1–50 of 60");
+  });
+
+  it("finds the latest filing in any order and counts a single filing", async () => {
+    const unsorted = feedOf([
+      filing("20035143", "Nancy Pelosi", "2026-09-21"),
+      filing("20035635", "Rick Larsen", "2026-10-12", "WA02"),
+    ]);
+    const container = await render({ feed: async () => unsorted });
+    expect(kpi(container, "latest")).toBe("Latest filing2026-10-12Rick Larsen");
+    const single = await render({
+      feed: async () =>
+        feedOf([filing("20035553", "Nancy Pelosi", "2026-10-02")]),
+    });
+    expect(status(single)).toBe("1 filing");
+    const empty = await render({ feed: async () => feedOf([]) });
+    expect(status(empty)).toBe("0 filings");
+    return expect(kpi(empty, "latest")).toBe(
+      "Latest filing–No filing in this window"
+    );
+  });
+});
+
+describe("congress trades URL settings", () => {
+  it("reads and writes ?days= and ?member=", () => {
+    expect(parseCongressTradesParams({})).toEqual({ days: 30, member: "" });
+    expect(
+      parseCongressTradesParams({ days: "90", member: "Nancy Pelosi" })
+    ).toEqual({ days: 90, member: "Nancy Pelosi" });
+    expect(
+      parseCongressTradesParams({ days: "14", member: "x".repeat(201) })
+    ).toEqual({ days: 30, member: "" });
+    expect(
+      parseCongressTradesParams({ days: ["7"], member: ["Rick Larsen"] })
+    ).toEqual({ days: 30, member: "" });
+    expect(congressTradesSearch({ days: 30, member: "" })).toBe("");
+    return expect(
+      congressTradesSearch({ days: 7, member: "Rick Larsen" })
+    ).toBe("?days=7&member=Rick+Larsen");
   });
 });

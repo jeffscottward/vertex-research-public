@@ -7,9 +7,17 @@ import DeepValueError from "./error.tsx";
 import DeepValueLoading from "./loading.tsx";
 import DeepValuePage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/deep-value-workspace.tsx", () => ({
-  DeepValueWorkspace: () => <div data-workspace="deep-value" />,
-}));
+vi.mock(
+  "../../../components/portal/deep-value-workspace.tsx",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../components/portal/deep-value-workspace.tsx")
+    >()),
+    DeepValueWorkspace: (props: { initial: unknown }) => (
+      <div data-workspace={JSON.stringify(props.initial)} />
+    ),
+  })
+);
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -31,14 +39,47 @@ const render = async (element: ReactElement) => {
   return container;
 };
 
+const workspaceProps = (container: HTMLElement) =>
+  JSON.parse(
+    container
+      .querySelector("[data-workspace]")
+      ?.getAttribute("data-workspace") ?? "null"
+  );
+
 describe("deep value screen route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<DeepValuePage />);
-    expect(metadata).toEqual({ title: "Deep value screen" });
-    expect(container.querySelector("h1")?.textContent).toBe(
-      "Deep value screen"
+  it("renders the workspace with the default settings", async () => {
+    const container = await render(
+      await DeepValuePage({ searchParams: Promise.resolve({}) })
     );
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(metadata).toEqual({ title: "Deep value screen" });
+    expect(workspaceProps(container)).toEqual({
+      hideFlagged: false,
+      minTotal: 0,
+      role: "all",
+      symbol: null,
+      text: "",
+    });
+  });
+
+  it("passes the URL ticker and filters to the workspace", async () => {
+    const container = await render(
+      await DeepValuePage({
+        searchParams: Promise.resolve({
+          hide: "1",
+          min: "4",
+          q: "ore",
+          show: "ours",
+          symbol: "siri",
+        }),
+      })
+    );
+    expect(workspaceProps(container)).toEqual({
+      hideFlagged: true,
+      minTotal: 4,
+      role: "ours",
+      symbol: "SIRI",
+      text: "ore",
+    });
   });
 
   it("renders an accessible loading state", async () => {
