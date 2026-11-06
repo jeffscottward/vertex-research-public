@@ -2,6 +2,7 @@
 // clock times in the contract's exchange time zone.
 // Used by: components/portal/order-flow-panel.tsx.
 import type { SignedTrade, SigningMethod, TradeSide } from "./trade-signing.ts";
+import { defined } from "./defined.ts";
 
 export type TimeAndSalesRow = Readonly<{
   key: string;
@@ -57,7 +58,7 @@ export const timeZoneLabel = (timeZone: string): string => {
   })
     .formatToParts(new Date(0))
     .find((item) => item.type === "timeZoneName");
-  return part?.value ?? timeZone;
+  return defined(part, "time zone name").value;
 };
 
 const clockFormats = new Map<string, Intl.DateTimeFormat>();

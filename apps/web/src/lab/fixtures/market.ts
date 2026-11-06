@@ -28,6 +28,7 @@ import {
   labMinutesAgo,
   roundTo,
 } from "./core.ts";
+import { defined } from "../../features/order-flow/defined.ts";
 
 const BAR_SECONDS: Readonly<Record<MarketBarSize, number>> = Object.freeze({
   "1 day": 86_400,
@@ -353,9 +354,9 @@ export const labTicksOutput = (input: MarketTicksInput): MarketTicksOutput => {
   const currency = input.currency ?? "USD";
   const count = input.count ?? 500;
   const { quotes, trades } = labTape(symbol, secType, count);
-  const last = trades.at(-1);
+  const last = defined(trades.at(-1), "lab trade");
   return {
-    asOf: last === undefined ? null : new Date(last.t * 1000).toISOString(),
+    asOf: new Date(last.t * 1000).toISOString(),
     cache: { ageSeconds: 8, hit: true, stale: false, ttlSeconds: 30 },
     contract: labContract(symbol, secType, exchange, currency),
     fetchedAt: LAB_NOW_ISO,
@@ -388,19 +389,19 @@ export const labDepthOutput = (input: MarketDepthInput): MarketDepthOutput => {
   const random = createSeededRandom(`depth:${symbol}:${secType}`);
   const tick = labTickSize(secType);
   // The book sits around the last fictional quote, so it lines up with the tape.
-  const lastQuote = labTape(symbol, secType, 500).quotes.at(-1);
-  const mid = labOnTick(
-    lastQuote === undefined
-      ? labBasePrice(symbol)
-      : (lastQuote.bp + lastQuote.ap) / 2,
-    tick
+  const lastQuote = defined(
+    labTape(symbol, secType, 500).quotes.at(-1),
+    "lab quote"
   );
+  const mid = labOnTick((lastQuote.bp + lastQuote.ap) / 2, tick);
   const venues = ["LAB-A", "LAB-B", "LAB-C"];
   const side = (direction: 1 | -1): MarketDepthLevel[] =>
     Array.from({ length: rows }, (_, index) => ({
       price: labOnTick(mid + direction * (index + 1) * tick, tick),
       size: Math.ceil(random() * (6 + index * 2)),
-      venue: smartDepth ? (venues[index % venues.length] ?? null) : null,
+      venue: smartDepth
+        ? defined(venues[index % venues.length], "lab venue")
+        : null,
     }));
   return {
     asks: side(1),

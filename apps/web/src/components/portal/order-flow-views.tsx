@@ -791,10 +791,8 @@ export const TpoView = ({
                   `${formatPrice(session.valueAreaLow, digits)} – ${formatPrice(session.valueAreaHigh, digits)}`,
                 ],
                 [
-                  `Initial balance (${session.initialBalance?.periods === 1 ? "A" : "A+B"})`,
-                  session.initialBalance === null
-                    ? DASH
-                    : `${formatPrice(session.initialBalance.low, digits)} – ${formatPrice(session.initialBalance.high, digits)}`,
+                  `Initial balance (${session.initialBalance.periods === 1 ? "A" : "A+B"})`,
+                  `${formatPrice(session.initialBalance.low, digits)} – ${formatPrice(session.initialBalance.high, digits)}`,
                 ],
                 [
                   "Single prints",

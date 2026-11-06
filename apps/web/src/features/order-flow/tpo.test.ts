@@ -122,3 +122,25 @@ describe("valueAreaRange", () => {
     });
   });
 });
+
+describe("buildTpoProfile gaps", () => {
+  it("keeps an empty level between two periods that do not overlap", () => {
+    const profile = buildTpoProfile(
+      [
+        bar("2026-10-29T13:30:00Z", 100, 101),
+        bar("2026-10-29T14:00:00Z", 103, 104),
+      ],
+      "America/New_York",
+      { priceStep: 1 }
+    );
+    const levels = profile?.sessions[0]?.levels ?? [];
+    expect(levels.map((level) => `${level.price}:${level.letters}`)).toEqual([
+      "104:B",
+      "103:B",
+      "102:",
+      "101:A",
+      "100:A",
+    ]);
+    expect(levels.find((level) => level.price === 102)?.count).toBe(0);
+  });
+});

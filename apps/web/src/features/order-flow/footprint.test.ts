@@ -157,3 +157,14 @@ describe("pointOfControl", () => {
     expect(pointOfControl([])).toBeNull();
   });
 });
+
+describe("buildFootprint input", () => {
+  it("ignores prints without a finite price", () => {
+    expect(buildFootprint([signed(1000, Number.NaN, 10, "buy")])).toBeNull();
+    const footprint = buildFootprint([
+      signed(1000, Number.POSITIVE_INFINITY, 10, "buy"),
+      signed(1001, 100.01, 5, "sell"),
+    ]);
+    expect(footprint?.buckets.reduce((sum, b) => sum + b.trades, 0)).toBe(1);
+  });
+});

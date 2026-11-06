@@ -9,6 +9,7 @@ import {
   MAX_BUCKETS,
 } from "./price-grid.ts";
 import type { SignedTrade } from "./trade-signing.ts";
+import { defined } from "./defined.ts";
 
 export type DeltaBucket = Readonly<{
   start: number;
@@ -41,8 +42,8 @@ export const buildDeltaSeries = (
 ): DeltaSeries | null => {
   if (trades.length === 0) return null;
   const ordered = [...trades].sort((a, b) => a.t - b.t);
-  const first = ordered[0]?.t ?? 0;
-  const last = ordered.at(-1)?.t ?? first;
+  const first = defined(ordered[0], "first trade").t;
+  const last = defined(ordered.at(-1), "last trade").t;
   const seconds =
     bucketSeconds !== undefined &&
     bucketSeconds > 0 &&
@@ -59,9 +60,10 @@ export const buildDeltaSeries = (
   let minCvd = 0;
   let maxCvd = 0;
   for (const trade of ordered) {
-    const total =
-      totals[(bucketStart(trade.t, seconds) - firstStart) / seconds];
-    if (total === undefined) continue;
+    const total = defined(
+      totals[(bucketStart(trade.t, seconds) - firstStart) / seconds],
+      "delta bucket"
+    );
     if (trade.side === "buy") {
       total.buy += trade.size;
       running += trade.size;

@@ -2,6 +2,7 @@
 // from the prices, grouping a price to a step, an automatic step that caps the level count, and
 // time buckets sized so a tick window gets roughly 6 to 20 of them.
 // Used by: footprint.ts, delta.ts, tpo.ts, components/portal/order-flow-panel.tsx.
+import { defined } from "./defined.ts";
 
 const MAX_DECIMALS = 8;
 /** Share of prices whose decimals must fit the tick (sub-penny prints are rare outliers). */
@@ -36,15 +37,20 @@ export const deriveTickSize = (prices: readonly number[]): number | null => {
   const finite = prices.filter((price) => Number.isFinite(price));
   if (finite.length === 0) return null;
   const decimals = finite.map(decimalsOf).sort((a, b) => a - b);
-  const digits =
-    decimals[Math.max(0, Math.ceil(decimals.length * DECIMAL_COVERAGE) - 1)] ??
-    0;
+  const digits = defined(
+    decimals[Math.max(0, Math.ceil(decimals.length * DECIMAL_COVERAGE) - 1)],
+    "price decimals"
+  );
   const scale = 10 ** digits;
   const units = [...new Set(finite.map((price) => Math.round(price * scale)))];
   units.sort((a, b) => a - b);
   let divisor = 0;
   for (let index = 1; index < units.length; index += 1)
-    divisor = gcd(divisor, (units[index] ?? 0) - (units[index - 1] ?? 0));
+    divisor = gcd(
+      divisor,
+      defined(units[index], "price unit") -
+        defined(units[index - 1], "price unit")
+    );
   // One distinct price: the smallest step at its decimals.
   return roundPrice((divisor === 0 ? 1 : divisor) / scale, digits);
 };
@@ -59,6 +65,7 @@ export const groupPrice = (price: number, step: number): number => {
 export const PRICE_STEP_MULTIPLES = [
   1, 2, 5, 10, 25, 50, 100, 250, 500, 1000,
 ] as const;
+const LARGEST_STEP_MULTIPLE = 1000;
 
 /** Levels between low and high (inclusive) at a step. */
 export const levelCount = (low: number, high: number, step: number): number =>
@@ -76,13 +83,14 @@ export const autoPriceStep = (
     const step = roundPrice(tick * multiple, digits);
     if (levelCount(low, high, step) <= maxLevels) return step;
   }
-  return roundPrice(tick * (PRICE_STEP_MULTIPLES.at(-1) ?? 1), digits);
+  return roundPrice(tick * LARGEST_STEP_MULTIPLE, digits);
 };
 
 /** Bucket sizes (seconds) a footprint or delta view can use. */
 const BUCKET_SECONDS = [
   1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600,
 ] as const;
+const LARGEST_BUCKET_SECONDS = 3600;
 const AUTO_MAX_BUCKETS = 20;
 /** Largest bucket count offered at all (more columns are unreadable). */
 export const MAX_BUCKETS = 120;
@@ -102,7 +110,7 @@ export const bucketCount = (
 export const autoBucketSeconds = (first: number, last: number): number =>
   BUCKET_SECONDS.find(
     (seconds) => bucketCount(first, last, seconds) <= AUTO_MAX_BUCKETS
-  ) ?? (BUCKET_SECONDS.at(-1) as number);
+  ) ?? LARGEST_BUCKET_SECONDS;
 
 /** Bucket sizes giving 2 to 120 buckets over the window (always includes the auto choice). */
 export const bucketOptions = (first: number, last: number): number[] => {
