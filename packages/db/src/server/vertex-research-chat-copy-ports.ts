@@ -7,7 +7,7 @@ import type {
   VertexPrincipal,
   VertexRecord,
   VertexScope,
-} from "./vertex-ports.ts";
+} from "./vertex-primitives.ts";
 
 // Internal metadata only. None of these records grants content I/O, asserts body
 // existence/backend qualification, or proves fencing, physical cleanup or erasure.

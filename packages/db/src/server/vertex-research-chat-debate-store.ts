@@ -23,7 +23,7 @@ import type {
   ResearchChatSourceInputPort,
   ResearchChatSourceInputs,
   ResearchChatSourceRequest,
-} from "./vertex-research-chat-output-ports.ts";
+} from "./vertex-research-chat-source-ports.ts";
 
 // Concrete-source ports return original data, never an accepted/authorized flag.
 // The API composition supplies its existing governed output owner. No public

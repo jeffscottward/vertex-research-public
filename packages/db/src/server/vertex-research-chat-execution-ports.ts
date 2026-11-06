@@ -7,7 +7,7 @@ import type {
   VertexScope,
 } from "./vertex-ports.ts";
 import type { createResearchChatDebateOperations } from "./vertex-research-chat-debate-store.ts";
-import type { ResearchChatSourceInputs } from "./vertex-research-chat-output-ports.ts";
+import type { ResearchChatSourceInputs } from "./vertex-research-chat-source-ports.ts";
 
 export type ChatExecutionContract =
   | "plan"
