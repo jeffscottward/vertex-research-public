@@ -281,4 +281,105 @@ describe("backtest run queue on real Postgres", { concurrent: false }, () => {
     for (const batch of [...batches, first])
       for (const run of batch) expect(run.status).toBe("running");
   });
+
+  it("reuses a live comparison group and supersedes only older queued runs", async () => {
+    const engine = "nautilus-enqueue";
+    const SUPERSEDED = "Superseded by a newer request";
+    const DAY_MS = 24 * 60 * MINUTE_MS;
+    const runInput = (requestedBy = "operator", feature = "sweep") => ({
+      engineVersion: engine,
+      requestedBy,
+      spec: {
+        comparison: { feature, label: "cell" },
+        costBps: 0,
+        from: "2020-01-01",
+        initialCapital: 10_000,
+        rule: { fast: 5, kind: "smaCross" as const, slow: 20 },
+        stopLossPct: 0,
+        symbol: "SPY",
+        takeProfitPct: 0,
+        timeframe: "1d" as const,
+        to: "2021-01-01",
+      },
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    const enqueue = (
+      groupId: string,
+      at: number,
+      count = 2,
+      requestedBy = "operator",
+      feature = "sweep"
+    ) => {
+      clock = at;
+      return repository().enqueueGroup({
+        groupId,
+        reuseSince: new Date(at - DAY_MS),
+        runs: Array.from({ length: count }, () => {
+          const input = runInput(requestedBy, feature);
+          return {
+            ...input,
+            spec: {
+              ...input.spec,
+              comparison: { ...input.spec.comparison, groupId },
+            },
+          };
+        }),
+        supersede: { engineVersion: engine, feature, requestedBy },
+        supersededError: SUPERSEDED,
+      });
+    };
+    const group = async (groupId: string) =>
+      repository().listComparisons({ groupId, limit: 100 });
+
+    // (1) Two identical requests at once store the group once; a third reuses it.
+    const first = await Promise.all([enqueue("same", T0), enqueue("same", T0)]);
+    expect(first.map((result) => result.created).sort()).toEqual([0, 2]);
+    expect(first.filter((result) => result.reused)).toHaveLength(1);
+    expect(await group("same")).toHaveLength(2);
+    await expect(enqueue("same", T0 + MINUTE_MS)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 0,
+    });
+
+    // (2) A new group of the same feature and requester supersedes the older queued runs, never
+    // a running one, and never another requester's or another feature's runs.
+    const runningId = (await group("same"))[0]?.id ?? "";
+    clock = T0 + 2 * MINUTE_MS;
+    await repository().claim(runningId);
+    await enqueue("other-user", T0 + 3 * MINUTE_MS, 1, "someone-else");
+    await enqueue("instant", T0 + 3 * MINUTE_MS, 1, "operator", "instant");
+    await expect(enqueue("newer", T0 + 4 * MINUTE_MS)).resolves.toEqual({
+      created: 2,
+      reused: false,
+      superseded: 1,
+    });
+    const same = await group("same");
+    expect(same.map((run) => run.status).sort()).toEqual(["failed", "running"]);
+    expect(same.find((run) => run.status === "failed")?.error).toBe(SUPERSEDED);
+    expect((await group("other-user"))[0]?.status).toBe("queued");
+    expect((await group("instant"))[0]?.status).toBe("queued");
+
+    // A superseded group is queued again when it is asked for again (it supersedes "newer").
+    await expect(enqueue("same", T0 + 5 * MINUTE_MS)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 2,
+    });
+    // "same" still has its running run, so it was reused; a group whose runs were all
+    // superseded gets new runs.
+    await expect(enqueue("newer", T0 + 6 * MINUTE_MS)).resolves.toMatchObject({
+      created: 2,
+      reused: false,
+    });
+    // After 24 hours the same request queues new runs.
+    await expect(
+      enqueue("instant", T0 + 2 * DAY_MS, 1, "operator", "instant")
+    ).resolves.toMatchObject({
+      created: 1,
+      reused: false,
+    });
+  });
 });

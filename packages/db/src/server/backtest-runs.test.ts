@@ -63,6 +63,9 @@ const createDouble = (outcomes: Array<readonly unknown[]>) => {
     select: (columns?: unknown) => builder({ kind: "select", columns }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     update: (table: unknown) => builder({ kind: "update", table }),
+    execute: (query: SQL) => builder({ kind: "execute", where: query }),
+    transaction: async (operation: (transaction: unknown) => unknown) =>
+      operation(database),
   } as unknown as Database;
   return { database, operations };
 };
@@ -280,13 +283,9 @@ describe("createBacktestRunsRepository", () => {
     expect(where).toContain('"active"."started_at" >= $');
   });
 
-  it("inserts many runs in one statement and returns them in input order", async () => {
+  it("stores a comparison group under a lock, reuses a live group and supersedes older queued runs", async () => {
     let id = 0;
     const ids = { now: () => FIXED_NOW, generateId: () => `run-${++id}` };
-    const { database, operations } = createDouble([
-      [{ id: "run-2" }, { id: "run-1" }],
-    ]);
-    const repository = createBacktestRunsRepository(database, ids);
     const input = {
       engineVersion: "nautilus-x",
       requestedBy: "user-1",
@@ -295,20 +294,94 @@ describe("createBacktestRunsRepository", () => {
       strategyRevision: null,
       strategySnapshot: null,
     };
-    await expect(repository.createMany([input, input, input])).resolves.toEqual(
-      [{ id: "run-1" }, { id: "run-2" }]
+    const since = new Date(FIXED_NOW.getTime() - 86_400_000);
+    const fresh = createDouble([
+      [],
+      [],
+      [{ id: "run-1" }, { id: "run-2" }],
+      [{ id: "old" }],
+    ]);
+    await expect(
+      createBacktestRunsRepository(fresh.database, ids).enqueueGroup({
+        groupId: "g-1",
+        reuseSince: since,
+        runs: [input, input],
+        supersede: {
+          engineVersion: "nautilus-x",
+          feature: "sweep",
+          requestedBy: "user-1",
+        },
+        supersededError: "Superseded by a newer request",
+      })
+    ).resolves.toEqual({ created: 2, reused: false, superseded: 1 });
+    const [lock, live, insert, supersede] = fresh.operations;
+    expect(sqlText(lock?.where)).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))"
     );
-    expect(operations).toHaveLength(1);
-    expect(operations[0]?.values).toEqual(
-      [1, 2, 3].map((n) => ({
+    const liveWhere = sqlText(live?.where);
+    expect(liveWhere).toContain(
+      `"backtest_runs"."spec"->'comparison'->>'groupId' = $`
+    );
+    expect(liveWhere).toContain(`"backtest_runs"."created_at" >= $`);
+    expect(liveWhere).toContain(
+      `not ("backtest_runs"."status" = 'failed' and "backtest_runs"."error" = $`
+    );
+    expect(insert?.values).toEqual(
+      [1, 2].map((n) => ({
         ...input,
         createdAt: FIXED_NOW,
         id: `run-${n}`,
         status: "queued",
       }))
     );
-    await expect(repository.createMany([])).resolves.toEqual([]);
-    expect(operations).toHaveLength(1);
+    expect(supersede?.set).toEqual({
+      error: "Superseded by a newer request",
+      finishedAt: FIXED_NOW,
+      status: "failed",
+    });
+    const supersedeWhere = sqlText(supersede?.where);
+    expect(supersedeWhere).toContain(`"backtest_runs"."status" = $`);
+    expect(supersedeWhere).toContain(`"backtest_runs"."requested_by" = $`);
+    expect(supersedeWhere).toContain(`->'comparison'->>'feature' = $`);
+    expect(supersedeWhere).toContain(`->'comparison'->>'groupId' <> $`);
+
+    // A live group is reused: no insert; without supersede no update either.
+    const reused = createDouble([[], [{ id: "x" }]]);
+    await expect(
+      createBacktestRunsRepository(reused.database, ids).enqueueGroup({
+        groupId: "g-1",
+        reuseSince: since,
+        runs: [input],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 0, reused: true, superseded: 0 });
+    expect(reused.operations.map((operation) => operation.kind)).toEqual([
+      "execute",
+      "select",
+    ]);
+    const empty = createDouble([[], []]);
+    await expect(
+      createBacktestRunsRepository(empty.database, ids).enqueueGroup({
+        groupId: "g-2",
+        reuseSince: since,
+        runs: [],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 0, reused: false, superseded: 0 });
+    expect(empty.operations).toHaveLength(2);
+    // Without reuseSince (the campaign group) there is no live check: the runs are inserted.
+    const always = createDouble([[], [{ id: "run-3" }]]);
+    await expect(
+      createBacktestRunsRepository(always.database, ids).enqueueGroup({
+        groupId: "autopilot:c1",
+        runs: [input],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 1, reused: false, superseded: 0 });
+    expect(always.operations.map((operation) => operation.kind)).toEqual([
+      "execute",
+      "insert",
+    ]);
   });
 
   it("leaves comparison runs out of the list and lists them on their own", async () => {

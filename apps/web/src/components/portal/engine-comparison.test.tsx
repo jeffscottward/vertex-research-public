@@ -25,6 +25,7 @@ import {
   type EngineComparisonGateway,
   formatMs,
   GateNautilusStatus,
+  latestPerKey,
   NautilusCard,
   NautilusRunStatus,
   nautilusRunText,
@@ -187,6 +188,24 @@ describe("engine comparison helpers", () => {
       "failed: no reason"
     );
     expect(
+      nautilusRunText(
+        comparisonRun({
+          error: "Superseded by a newer request",
+          status: "failed",
+        })
+      )
+    ).toBe("superseded");
+    const keyedRun = (key: string, id: string) =>
+      comparisonRun({ comparison: { ...done.comparison, key }, id });
+    expect(
+      latestPerKey([
+        keyedRun("1", "new"),
+        keyedRun("1", "old"),
+        keyedRun("2", "x"),
+        done,
+      ]).map((run) => run.id)
+    ).toEqual(["new", "x", "run-1"]);
+    expect(
       comparisonSummary([
         done,
         differing,
@@ -300,11 +319,13 @@ describe("engine comparison components", () => {
       <NautilusCard
         gateway={gateway}
         pollMs={10}
-        timing={{ groupId: "g-1", host: "web server", wallMs: 1 }}
+        timing={{ groupId: "g-1", host: "web server", reused: true, wallMs: 1 }}
       />
     );
     const card = () => container.querySelector("[data-nautilus-card]");
-    expect(card()?.textContent).toBe("Nautilus · rig · queued");
+    expect(card()?.textContent).toBe(
+      "Nautilus · rig · queuedSame request as before: this is its earlier Nautilus run."
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10);
     });
@@ -431,7 +452,10 @@ describe("engine comparison components", () => {
   it("summarizes a sweep, lists cell and gate states", async () => {
     const state = {
       message: "The Nautilus status could not be read.",
-      runs: [done, differing],
+      runs: [
+        { ...done, comparison: { ...done.comparison, key: "0" } },
+        { ...differing, comparison: { ...differing.comparison, key: "1" } },
+      ],
     };
     const { container } = await mount(
       <>

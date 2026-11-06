@@ -67696,6 +67696,14 @@
                           "minimum": 0,
                           "type": "integer"
                         },
+                        "reused": {
+                          "type": "boolean"
+                        },
+                        "superseded": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
                         "wallMs": {
                           "anyOf": [
                             {
@@ -92283,6 +92291,14 @@
                         },
                         "host": {
                           "type": "string"
+                        },
+                        "reused": {
+                          "type": "boolean"
+                        },
+                        "superseded": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
                         },
                         "wallMs": {
                           "anyOf": [

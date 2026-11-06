@@ -11,7 +11,10 @@ import type {
 } from "@darkfactory/db/server";
 
 import { BACKTEST_RUN_NAUTILUS_ENGINE } from "./contracts/backtest-runs.ts";
+import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import {
+  ENGINE_COMPARISON_REUSE_MS,
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
   ENGINE_COMPARISON_TOLERANCES,
   ENGINE_COMPARISON_TRADES_MAX,
   type EngineComparisonFeature,
@@ -167,32 +170,57 @@ export type ComparisonRunInput = Readonly<{
   typescript: EngineComparisonSpec["typescript"];
 }>;
 
+/** What enqueue did: the group, whether an identical live group was reused, runs superseded. */
+export type ComparisonEnqueued = Readonly<{
+  groupId: string;
+  reused: boolean;
+  superseded: number;
+}>;
+
 export type ComparisonQueue = Readonly<{
   /** VERTEX_HOST_LABEL: where the TypeScript engine ran. */
   host: string;
-  /** Stores the runs of one group; returns the group id. */
+  /**
+   * Stores the runs of one group. With `latest` (instant backtest and sweep, which run again on
+   * every form change): an identical request whose group has a live run from the last
+   * ENGINE_COMPARISON_REUSE_MS queues nothing new, and queued runs of the same feature and
+   * requester in other groups fail as superseded.
+   */
   enqueue: (
     input: Readonly<{
       feature: EngineComparisonFeature;
+      /** A content hash (comparisonGroupId) or a stable group (an Autopilot campaign). */
+      groupId: string;
       runs: readonly ComparisonRunInput[];
-      /** A stable group (an Autopilot campaign); a new one per call when absent. */
-      groupId?: string;
       /** Runs of this request that the cap left out. */
       dropped?: number;
+      latest?: boolean;
     }>
-  ) => Promise<string>;
+  ) => Promise<ComparisonEnqueued>;
 }>;
 
+/** The group id of a request: the feature and a SHA-256 of its canonical content. */
+export const comparisonGroupId = async (
+  feature: EngineComparisonFeature,
+  content: unknown
+): Promise<string> =>
+  `${feature}-${(await sha256Hex(canonicalJson({ content, feature }))).slice(0, 32)}`;
+
 export const createComparisonQueue = (
-  runs: Pick<BacktestRunsRepository, "createMany">,
+  runs: Pick<BacktestRunsRepository, "enqueueGroup">,
   host: string,
   requestedBy: string,
-  newGroupId: () => string = () => crypto.randomUUID()
+  now: () => number = () => Date.now()
 ): ComparisonQueue => ({
   enqueue: async (input) => {
-    const groupId = input.groupId ?? newGroupId();
-    await runs.createMany(
-      input.runs.map((run) => ({
+    const { groupId } = input;
+    const latest = input.latest === true;
+    const stored = await runs.enqueueGroup({
+      groupId,
+      ...(latest
+        ? { reuseSince: new Date(now() - ENGINE_COMPARISON_REUSE_MS) }
+        : {}),
+      runs: input.runs.map((run) => ({
         engineVersion: BACKTEST_RUN_NAUTILUS_ENGINE,
         requestedBy,
         spec: {
@@ -211,9 +239,19 @@ export const createComparisonQueue = (
         strategyId: null,
         strategyRevision: null,
         strategySnapshot: null,
-      }))
-    );
-    return groupId;
+      })),
+      supersededError: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+      ...(latest
+        ? {
+            supersede: {
+              engineVersion: BACKTEST_RUN_NAUTILUS_ENGINE,
+              feature: input.feature,
+              requestedBy,
+            },
+          }
+        : {}),
+    });
+    return { groupId, reused: stored.reused, superseded: stored.superseded };
   },
   host,
 });

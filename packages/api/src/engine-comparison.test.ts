@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  ENGINE_COMPARISON_REUSE_MS,
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
   ENGINE_COMPARISON_TRADES_MAX,
   TIMER_FROZEN_NOTE,
 } from "./contracts/engine-comparison.ts";
@@ -9,6 +11,7 @@ import type { ApiContext } from "./server/context.ts";
 import {
   barDate,
   compactTrades,
+  comparisonGroupId,
   createComparisonQueue,
   compareEngineResults,
   measureWall,
@@ -201,11 +204,11 @@ describe("compareEngineResults", () => {
 });
 
 describe("comparison queue", () => {
-  it("is off without the setting or storage, and labels the host", async () => {
-    const createMany = vi.fn(async () => []);
+  it("is off without the setting or storage, and labels the host", () => {
+    const enqueueGroup = vi.fn();
     const context = (extra: Partial<ApiContext>) =>
       ({
-        repositories: { backtestRuns: { createMany } },
+        repositories: { backtestRuns: { enqueueGroup } },
         ...extra,
       }) as ApiContext;
     expect(comparisonQueueFor(context({}), "u")).toBeNull();
@@ -218,23 +221,69 @@ describe("comparison queue", () => {
     expect(
       comparisonQueueFor(context({ engineComparison: "on" }), "u")?.host
     ).toBe("web server");
+    expect(barDate(Date.parse("2026-11-05T23:59:00Z"))).toBe("2026-11-05");
+  });
+
+  it("reuses and supersedes only for the latest-request features", async () => {
+    const enqueueGroup = vi.fn(async () => ({
+      created: 1,
+      reused: true,
+      superseded: 2,
+    }));
+    const now = Date.parse("2026-11-05T12:00:00Z");
     const queue = createComparisonQueue(
-      { createMany },
+      { enqueueGroup },
       "rig web",
       "u",
-      () => "g-9"
+      () => now
     );
     await expect(
       queue.enqueue({
-        dropped: 0,
-        feature: "instant",
-        groupId: "fixed",
+        feature: "sweep",
+        groupId: "g-1",
+        latest: true,
         runs: [],
       })
-    ).resolves.toBe("fixed");
-    await expect(queue.enqueue({ feature: "instant", runs: [] })).resolves.toBe(
-      "g-9"
+    ).resolves.toEqual({ groupId: "g-1", reused: true, superseded: 2 });
+    expect(enqueueGroup).toHaveBeenLastCalledWith({
+      groupId: "g-1",
+      reuseSince: new Date(now - ENGINE_COMPARISON_REUSE_MS),
+      runs: [],
+      supersede: {
+        engineVersion: "nautilus-trader-1.227.0",
+        feature: "sweep",
+        requestedBy: "u",
+      },
+      supersededError: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+    });
+    await queue.enqueue({
+      dropped: 0,
+      feature: "autopilotGate",
+      groupId: "autopilot:c1",
+      runs: [],
+    });
+    expect(enqueueGroup).toHaveBeenLastCalledWith({
+      groupId: "autopilot:c1",
+      runs: [],
+      supersededError: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+    });
+    // The default clock is the wall clock.
+    await createComparisonQueue({ enqueueGroup }, "h", "u").enqueue({
+      feature: "instant",
+      groupId: "g-2",
+      latest: true,
+      runs: [],
+    });
+  });
+
+  it("derives a group id from the content, independent of key order", async () => {
+    const one = await comparisonGroupId("sweep", { a: 1, b: [2, 3] });
+    expect(one).toMatch(/^sweep-[0-9a-f]{32}$/u);
+    await expect(comparisonGroupId("sweep", { b: [2, 3], a: 1 })).resolves.toBe(
+      one
     );
-    expect(barDate(Date.parse("2026-11-05T23:59:00Z"))).toBe("2026-11-05");
+    await expect(
+      comparisonGroupId("instant", { a: 1, b: [2, 3] })
+    ).resolves.not.toBe(one);
   });
 });

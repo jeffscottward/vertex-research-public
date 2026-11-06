@@ -20,6 +20,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COST_PROFILE_PRESETS, ZERO_COST_PROFILE } from "./backtest-costs.ts";
 import { sliceColumnsByDate } from "./bar-slice.ts";
+import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import { createApiClient } from "./client.ts";
 import {
   BACKTEST_RUN_DEFAULT_CAPITAL,
@@ -31,6 +32,7 @@ import {
   BacktestRunSubmitInputSchema,
 } from "./contracts/backtest-runs.ts";
 import {
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
   ENGINE_COMPARISON_SWEEP_CELLS_MAX,
   EngineComparisonSpecSchema,
   NAUTILUS_GPU_NOTE,
@@ -49,10 +51,8 @@ import {
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
-  canonicalJson,
   executeBacktestRun,
   NAUTILUS_UNCLAIMED_ERROR,
-  sha256Hex,
 } from "./server/backtest-runs.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
@@ -211,8 +211,43 @@ const memoryRuns = (): BacktestRunsRepository & {
       rows.set(row.id, row);
       return row;
     },
-    createMany: async (inputs) =>
-      Promise.all(inputs.map((input) => repository.create(input))),
+    enqueueGroup: async (input) => {
+      const featureOf = (row: BacktestRunRecord): unknown =>
+        (row.spec.comparison as { feature?: unknown } | undefined)?.feature;
+      const { reuseSince } = input;
+      const live =
+        reuseSince !== undefined &&
+        [...rows.values()].some(
+          (row) =>
+            groupOf(row) === input.groupId &&
+            row.createdAt >= reuseSince &&
+            !(row.status === "failed" && row.error === input.supersededError)
+        );
+      if (!live) for (const run of input.runs) await repository.create(run);
+      let superseded = 0;
+      const { supersede } = input;
+      if (supersede !== undefined)
+        for (const row of [...rows.values()])
+          if (
+            row.status === "queued" &&
+            row.engineVersion === supersede.engineVersion &&
+            row.requestedBy === supersede.requestedBy &&
+            featureOf(row) === supersede.feature &&
+            groupOf(row) !== input.groupId
+          ) {
+            update(row.id, ["queued"], {
+              error: input.supersededError,
+              finishedAt: at,
+              status: "failed",
+            });
+            superseded += 1;
+          }
+      return {
+        created: live ? 0 : input.runs.length,
+        reused: live,
+        superseded,
+      };
+    },
     fail: async (id, error) =>
       update(id, ["queued", "running"], {
         error,
@@ -2873,6 +2908,64 @@ describe("engine comparison (dual run)", () => {
     expect((await client.backtestRuns.list({})).runs).toEqual([]);
   });
 
+  it("reuses an identical request's group and supersedes older queued runs of the same feature", async () => {
+    // The memory repository dates every run at `at`; the queue reuses groups from the last 24 h.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(at.getTime() + 60 * 60 * 1000));
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const first = await client.instantBacktest.run(instantInput);
+    expect(first.comparison).toMatchObject({ reused: false, superseded: 0 });
+    const again = await client.instantBacktest.run(instantInput);
+    expect(again.comparison).toMatchObject({
+      groupId: first.comparison?.groupId,
+      reused: true,
+      superseded: 0,
+    });
+    expect(comparisonRuns(runs)).toHaveLength(1);
+    // Another cost setting is another group: the older queued instant run is superseded.
+    const changed = await client.instantBacktest.run({
+      ...instantInput,
+      costBps: 9,
+    });
+    expect(changed.comparison?.groupId).not.toBe(first.comparison?.groupId);
+    expect(changed.comparison).toMatchObject({ reused: false, superseded: 1 });
+    const older = comparisonRuns(runs).find(
+      (row) => comparisonOf(row).groupId === first.comparison?.groupId
+    );
+    expect(older).toMatchObject({
+      error: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+      status: "failed",
+    });
+    // Asking for the first request again queues it again (its run was superseded).
+    const back = await client.instantBacktest.run(instantInput);
+    expect(back.comparison).toMatchObject({
+      groupId: first.comparison?.groupId,
+      reused: false,
+      superseded: 1,
+    });
+    // Sweeps: an identical sweep reuses its group, a changed one supersedes it; instant runs stay.
+    const sweep = {
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast" as const, step: 5, to: 10 }],
+    };
+    const s1 = await client.backtestRuns.sweep(sweep);
+    const s2 = await client.backtestRuns.sweep(sweep);
+    expect(s2.comparison).toMatchObject({
+      groupId: s1.comparison?.groupId,
+      reused: true,
+    });
+    const s3 = await client.backtestRuns.sweep({ ...sweep, to: "1971-06-30" });
+    expect(s3.comparison).toMatchObject({ reused: false, superseded: 2 });
+    expect(
+      comparisonRuns(runs).filter(
+        (row) =>
+          row.status === "queued" && comparisonOf(row).feature === "instant"
+      )
+    ).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
   it("records a frozen Worker clock as no time, and a failed queue as an error only", async () => {
     vi.spyOn(performance, "now").mockReturnValue(1000);
     const runs = memoryRuns();
@@ -2896,7 +2989,7 @@ describe("engine comparison (dual run)", () => {
       comparison: "on",
       runs: {
         ...memoryRuns(),
-        createMany: async () => Promise.reject(new Error("db")),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
       },
     });
     const answer = await broken.instantBacktest.run(instantInput);
@@ -2981,7 +3074,7 @@ describe("engine comparison (dual run)", () => {
       comparison: "on",
       runs: {
         ...memoryRuns(),
-        createMany: async () => Promise.reject(new Error("db")),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
       },
     }).backtestRuns.sweep({
       ...sweepInput,

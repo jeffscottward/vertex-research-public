@@ -17,7 +17,7 @@ import {
   type BacktestRunStrategySnapshot,
   backtestRuns,
 } from "../schema/index.ts";
-import type { DatabaseExecutor } from "./client.ts";
+import { type DatabaseExecutor, withTransaction } from "./client.ts";
 
 // Backtest runs started from the portal or MCP. The repository exposes only these transitions:
 // create (queued), claim and claimNext (queued -> running), complete (running -> succeeded), fail
@@ -70,10 +70,30 @@ export type BacktestRunCreateInput = Readonly<{
 export type BacktestRunsRepository = Readonly<{
   create: (input: BacktestRunCreateInput) => Promise<BacktestRunRecord>;
   get: (id: string) => Promise<BacktestRunRecord | null>;
-  /** Inserts the queued runs in one statement, in input order. */
-  createMany: (
-    inputs: readonly BacktestRunCreateInput[]
-  ) => Promise<BacktestRunRecord[]>;
+  /**
+   * Stores the queued runs of one comparison group, in one transaction under an advisory lock on
+   * the group id:
+   * - reuse (with `reuseSince`): when the group already has a run created since then that was
+   *   not superseded, nothing is inserted (an identical request does not queue the same runs
+   *   again);
+   * - supersede: queued runs of the same engine, feature and requester in other groups fail with
+   *   `supersededError` (one conditional update; running runs are never touched).
+   */
+  enqueueGroup: (
+    input: Readonly<{
+      groupId: string;
+      runs: readonly BacktestRunCreateInput[];
+      reuseSince?: Date;
+      supersededError: string;
+      supersede?: Readonly<{
+        engineVersion: string;
+        feature: string;
+        requestedBy: string;
+      }>;
+    }>
+  ) => Promise<
+    Readonly<{ reused: boolean; created: number; superseded: number }>
+  >;
   /** Newest first. Comparison runs (spec.comparison) are left out. */
   list: (
     filter: Readonly<{ strategyId?: string; limit: number }>
@@ -185,30 +205,74 @@ export const createBacktestRunsRepository = (
         .returning();
       return row as BacktestRunRecord;
     },
-    createMany: async (inputs) => {
-      if (inputs.length === 0) return [];
-      const createdAt = dependencies.now();
-      const rows = inputs.map((input) => ({
-        createdAt,
-        engineVersion: input.engineVersion,
-        id: dependencies.generateId(),
-        requestedBy: input.requestedBy,
-        spec: input.spec,
-        status: "queued" as const,
-        strategyId: input.strategyId,
-        strategyRevision: input.strategyRevision,
-        strategySnapshot: input.strategySnapshot,
-      }));
-      const stored = (await database
-        .insert(backtestRuns)
-        .values(rows)
-        .returning()) as BacktestRunRecord[];
-      const byId = new Map(stored.map((row) => [row.id, row]));
-      return rows.flatMap((row) => {
-        const found = byId.get(row.id);
-        return found === undefined ? [] : [found];
-      });
-    },
+    enqueueGroup: async (input) =>
+      await withTransaction(database, async (transaction) => {
+        // Two identical requests at once: the second waits here and then reuses the group.
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${input.groupId}, 0))`
+        );
+        const { reuseSince } = input;
+        const [live] =
+          reuseSince === undefined
+            ? []
+            : await transaction
+                .select({ id: backtestRuns.id })
+                .from(backtestRuns)
+                .where(
+                  and(
+                    eq(comparisonGroup, input.groupId),
+                    gte(backtestRuns.createdAt, reuseSince),
+                    sql`not (${backtestRuns.status} = 'failed' and ${backtestRuns.error} = ${input.supersededError})`
+                  )
+                )
+                .limit(1);
+        const createdAt = dependencies.now();
+        const created =
+          live !== undefined || input.runs.length === 0
+            ? []
+            : await transaction
+                .insert(backtestRuns)
+                .values(
+                  input.runs.map((run) => ({
+                    createdAt,
+                    engineVersion: run.engineVersion,
+                    id: dependencies.generateId(),
+                    requestedBy: run.requestedBy,
+                    spec: run.spec,
+                    status: "queued" as const,
+                    strategyId: run.strategyId,
+                    strategyRevision: run.strategyRevision,
+                    strategySnapshot: run.strategySnapshot,
+                  }))
+                )
+                .returning({ id: backtestRuns.id });
+        const { supersede } = input;
+        const superseded =
+          supersede === undefined
+            ? []
+            : await transaction
+                .update(backtestRuns)
+                .set({
+                  error: boundBacktestRunError(input.supersededError),
+                  finishedAt: createdAt,
+                  status: "failed",
+                })
+                .where(
+                  and(
+                    eq(backtestRuns.status, "queued"),
+                    eq(backtestRuns.engineVersion, supersede.engineVersion),
+                    eq(backtestRuns.requestedBy, supersede.requestedBy),
+                    sql`${backtestRuns.spec}->'comparison'->>'feature' = ${supersede.feature}`,
+                    sql`${comparisonGroup} <> ${input.groupId}`
+                  )
+                )
+                .returning({ id: backtestRuns.id });
+        return {
+          created: created.length,
+          reused: live !== undefined,
+          superseded: superseded.length,
+        };
+      }),
     get: async (id) => {
       const [row] = await database
         .select()

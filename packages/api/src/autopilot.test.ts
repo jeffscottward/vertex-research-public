@@ -446,7 +446,7 @@ type Harness = Readonly<{
   withMarketBars?: boolean;
   sectorRotation?: Repositories["sectorRotation"];
   /** Engine comparison on, with this run storage. */
-  comparisonRuns?: Pick<BacktestRunsRepository, "createMany">;
+  comparisonRuns?: Pick<BacktestRunsRepository, "enqueueGroup">;
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -1536,15 +1536,15 @@ describe("autopilot gate engine comparison", () => {
     clearInstantBacktestCacheForTesting();
     const memory = memoryAutopilot();
     const created: BacktestRunCreateInput[] = [];
-    const createMany = vi.fn(
-      async (inputs: readonly BacktestRunCreateInput[]) => {
-        created.push(...inputs);
-        return [];
+    const enqueueGroup = vi.fn(
+      async (input: Parameters<BacktestRunsRepository["enqueueGroup"]>[0]) => {
+        created.push(...input.runs);
+        return { created: input.runs.length, reused: false, superseded: 0 };
       }
     );
     const client = clientFor({
       autopilot: memory.repository,
-      comparisonRuns: { createMany },
+      comparisonRuns: { enqueueGroup },
     });
     const campaign = await client.autopilot.campaigns.create({
       budget,
@@ -1560,7 +1560,10 @@ describe("autopilot gate engine comparison", () => {
       dropped: Math.max(0, gatedRuns - ENGINE_COMPARISON_GATE_RUNS_MAX),
       queued: Math.min(gatedRuns, ENGINE_COMPARISON_GATE_RUNS_MAX),
     });
-    expect(createMany).toHaveBeenCalledTimes(1);
+    expect(enqueueGroup).toHaveBeenCalledTimes(1);
+    // The campaign group takes every tick's runs: no reuse and no superseding.
+    expect(enqueueGroup.mock.calls[0]?.[0]).not.toHaveProperty("reuseSince");
+    expect(enqueueGroup.mock.calls[0]?.[0]).not.toHaveProperty("supersede");
     const [inSample, full] = created;
     expect(inSample?.spec).toMatchObject({
       comparison: {
@@ -1592,7 +1595,7 @@ describe("autopilot gate engine comparison", () => {
     const client = clientFor({
       autopilot: memory.repository,
       comparisonRuns: {
-        createMany: vi.fn(async () => Promise.reject(new Error("db"))),
+        enqueueGroup: vi.fn(async () => Promise.reject(new Error("db"))),
       },
     });
     await client.autopilot.campaigns.create({

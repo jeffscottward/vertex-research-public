@@ -21,6 +21,11 @@ export const ENGINE_COMPARISON_GATE_RUNS_MAX = 20;
 /** TypeScript trades kept per comparison run (entry bar, exit bar, exit reason). */
 export const ENGINE_COMPARISON_TRADES_MAX = 5000;
 export const ENGINE_COMPARISON_LIST_MAX = 500;
+/** An identical request within this time reuses its group (no new runs). */
+export const ENGINE_COMPARISON_REUSE_MS = 24 * 60 * 60 * 1000;
+/** Error of queued runs that a newer request of the same feature and requester replaced. */
+export const ENGINE_COMPARISON_SUPERSEDED_ERROR =
+  "Superseded by a newer request";
 /** VERTEX_HOST_LABEL default. */
 export const DEFAULT_HOST_LABEL = "web server";
 /** wallNote when the runtime clock did not move during the engine call. */
@@ -117,6 +122,10 @@ export const EngineComparisonTimingSchema = z.object({
   error: z.string().optional(),
   groupId: z.string().nullable(),
   host: z.string(),
+  /** An identical request in the last 24 hours already queued this group. */
+  reused: z.boolean().optional(),
+  /** Queued runs of older requests of the same feature that this request replaced. */
+  superseded: z.number().int().nonnegative().optional(),
   wallMs: z.number().nonnegative().nullable(),
   wallNote: z.string().optional(),
 });

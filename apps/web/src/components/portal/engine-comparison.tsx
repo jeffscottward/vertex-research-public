@@ -3,6 +3,7 @@
 import {
   type ApiClient,
   createApiClient,
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
   type EngineComparisonListOutput,
   type EngineComparisonRun,
   type EngineComparisonTiming,
@@ -127,7 +128,10 @@ export const nautilusRunText = (run: EngineComparisonRun): string => {
   if (run.status === "queued") return "queued";
   if (run.status === "running")
     return `running (queue ${formatMs(run.queueWaitMs)})`;
-  if (run.status === "failed") return `failed: ${run.error ?? "no reason"}`;
+  if (run.status === "failed")
+    return run.error === ENGINE_COMPARISON_SUPERSEDED_ERROR
+      ? "superseded"
+      : `failed: ${run.error ?? "no reason"}`;
   return `${formatMs(run.engineRun?.wallMs ?? null)} (queue ${formatMs(run.queueWaitMs)})`;
 };
 
@@ -183,6 +187,22 @@ export const NautilusRunStatus = ({
   );
 };
 
+/**
+ * The newest run of each key (the list is newest first). A request asked for again after its runs
+ * were superseded has new runs in the same group; only those count.
+ */
+export const latestPerKey = (
+  runs: readonly EngineComparisonRun[]
+): EngineComparisonRun[] => {
+  const seen = new Set<string>();
+  return runs.filter((run) => {
+    const key = run.comparison.key ?? "";
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 /** Counts for a group summary line. */
 export const comparisonSummary = (
   runs: readonly EngineComparisonRun[]
@@ -234,6 +254,11 @@ export const NautilusCard = ({
           {run === undefined ? null : (
             <DifferencesBadge differences={run.differences} />
           )}
+          {timing.reused === true ? (
+            <p className="text-muted-foreground text-xs">
+              Same request as before: this is its earlier Nautilus run.
+            </p>
+          ) : null}
           {state.message === null ? null : (
             <p className="text-destructive text-xs">{state.message}</p>
           )}
@@ -256,7 +281,7 @@ export const SweepComparisonSummary = ({
   clientMs: number | null;
   state: ComparisonState;
 }>) => {
-  const runs = state.runs ?? [];
+  const runs = latestPerKey(state.runs ?? []);
   const summary = comparisonSummary(runs);
   return (
     <div

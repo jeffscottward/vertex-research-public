@@ -19,6 +19,7 @@ import {
 } from "../contracts/instant-backtest.ts";
 import {
   barDate,
+  comparisonGroupId,
   measureWall,
   typescriptSide,
   type WallTime,
@@ -137,28 +138,36 @@ const queueInstantComparison = async (
   const queue = comparisonQueueFor(context, context.principal.userId);
   if (queue === null) return undefined;
   const timing = { host: queue.host, ...wall };
+  const spec = {
+    costBps: input.costBps,
+    from: barDate(columns.t[0] as number),
+    initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
+    rule: input.rule,
+    stopLossPct: input.stopLossPct,
+    symbol: series.symbol,
+    takeProfitPct: input.takeProfitPct,
+    timeframe: series.timeframe,
+    to: barDate(columns.t.at(-1) as number),
+  };
   try {
-    const groupId = await queue.enqueue({
+    // An identical request (same bars, rule and costs) reuses its group; a new one replaces the
+    // older queued instant runs of this user (the page runs again on every parameter change).
+    const enqueued = await queue.enqueue({
       feature: "instant",
+      groupId: await comparisonGroupId("instant", {
+        seriesSha256: series.sourceSha256,
+        spec,
+      }),
       runs: [
         {
           label: `${input.symbol} ${input.timeframe} ${input.rule.kind}`,
-          spec: {
-            costBps: input.costBps,
-            from: barDate(columns.t[0] as number),
-            initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
-            rule: input.rule,
-            stopLossPct: input.stopLossPct,
-            symbol: series.symbol,
-            takeProfitPct: input.takeProfitPct,
-            timeframe: series.timeframe,
-            to: barDate(columns.t.at(-1) as number),
-          },
+          spec,
           typescript: typescriptSide(result, wall, queue.host),
         },
       ],
+      latest: true,
     });
-    return { ...timing, groupId };
+    return { ...timing, ...enqueued };
   } catch {
     return { ...timing, error: COMPARISON_QUEUE_ERROR, groupId: null };
   }
