@@ -78,7 +78,7 @@ type Draft = Readonly<{
 }>;
 
 const selectClass =
-  "h-9 rounded-md border border-border bg-background px-2 text-sm";
+  "h-11 rounded-md border border-border bg-background px-2 text-sm";
 const areaClass =
   "min-h-20 w-full rounded-md border border-border bg-background p-2 text-xs";
 
@@ -406,7 +406,6 @@ export const PapersWorkspace = ({
                 <label className="min-w-64 flex-1 text-xs">
                   Source URL (optional)
                   <Input
-                    aria-label="Paper URL"
                     inputMode="url"
                     maxLength={2000}
                     onChange={(event) => setUrl(event.target.value)}

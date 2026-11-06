@@ -292,8 +292,17 @@ describe("PapersWorkspace layout", () => {
 
     await click(button(container, "Add paper"));
     await setValue(container.querySelector('[aria-label="Paper title"]'), "T");
+    const urlInput = [...document.querySelectorAll("label")]
+      .find((label) => /^Source URL/u.test(label.textContent ?? ""))
+      ?.querySelector("input") as HTMLInputElement;
+    expect(urlInput?.getAttribute("aria-label")).toBeNull();
+    expect(urlInput?.closest("label")?.textContent).toContain("Source URL");
+    for (const select of container.querySelectorAll("select"))
+      expect(select.className).toContain("h-11");
     await setValue(
-      container.querySelector('[aria-label="Paper URL"]'),
+      [...document.querySelectorAll("label")]
+        .find((label) => /^Source URL/u.test(label.textContent ?? ""))
+        ?.querySelector("input") as HTMLInputElement,
       "https://domain.test/a"
     );
     await click(button(container, "Save paper"));
