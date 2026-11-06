@@ -10,8 +10,9 @@ anyone to trade.
   session opening range (New York day, first N minutes). Operators: crossing up, crossing down,
   crossing either way, above, below. The page offers the built-in strategies as presets (SMA cross,
   breakout above the N-bar high, breakdown below the N-bar low, opening range breakout) and a custom
-  price level. Timeframes: 5m, 15m, 1h, 1d. Bare futures roots (NQ, ES, YM, RTY, CL, GC, SI, MES,
-  MNQ) are quoted as Yahoo continuous contracts (`NQ=F`).
+  price level. Timeframes: 5m, 15m, 1h, 1d. Futures are written as Yahoo continuous contracts (`NQ=F`,
+  `ES=F`); a bare root stays a stock ticker (CL is Colgate, not crude oil). The watch parser reads
+  the unambiguous roots NQ, MNQ, MES and RTY as contracts.
 - **Frequencies** (LuxAlgo wording): Only once (fires on the first matching bar, then the rule is
   done), Once per bar (the forming bar may fire; each bar fires at most once), Once per bar close
   (closed bars only).
@@ -37,7 +38,8 @@ anyone to trade.
 | Procedure | Who | Notes |
 | --- | --- | --- |
 | `list`, `events`, `backfill` | session or read key | Owner's rules, recent fires (`since` for polling), history count |
-| `create`, `propose`, `start`, `dismiss`, `remove` | session or write key | At most 50 rules per owner |
+| `propose`, `dismiss`, `remove` | session or write key | At most 50 rules per owner |
+| `create`, `start` | session only | Activating a rule is the owner's click; agents propose |
 | `check` | session or write key | Evaluates the caller's active rules now |
 | `tick` | write key only | Scheduler: up to 100 active rules of every operator owner |
 

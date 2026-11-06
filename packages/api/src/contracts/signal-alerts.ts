@@ -44,7 +44,8 @@ export const SIGNAL_ALERT_PRICE_FIELDS = [
   "high",
   "low",
 ] as const;
-export const SIGNAL_ALERT_SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
+/** A stock/ETF ticker, or a futures continuous contract written with Yahoo's suffix (NQ=F, ES=F). */
+export const SIGNAL_ALERT_SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}(?:[=]F)?$/;
 export const SIGNAL_ALERT_NAME_MAX_LENGTH = 120;
 /** Rules (any status) one owner may keep. */
 export const SIGNAL_ALERT_MAX_RULES_PER_USER = 50;
@@ -109,7 +110,7 @@ const symbol = z
   .string()
   .trim()
   .max(16)
-  .transform((value) => value.toUpperCase().replace(/[=]F$/u, ""))
+  .transform((value) => value.toUpperCase())
   .pipe(z.string().regex(SIGNAL_ALERT_SYMBOL_PATTERN));
 
 const name = z.string().trim().min(1).max(SIGNAL_ALERT_NAME_MAX_LENGTH);

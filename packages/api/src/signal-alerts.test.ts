@@ -85,9 +85,11 @@ describe("signal alert bars", () => {
   });
 
   it("maps futures roots to Yahoo continuous contracts and builds the URL", () => {
-    expect(yahooSymbolOf("NQ")).toBe("NQ=F");
+    expect(yahooSymbolOf("NQ=F")).toBe("NQ=F");
+    // CL is Colgate unless the contract is written: never guessed as crude oil.
+    expect(yahooSymbolOf("CL")).toBe("CL");
     expect(yahooSymbolOf("BRK.B")).toBe("BRK-B");
-    expect(signalAlertChartUrl("NQ", "1h")).toBe(
+    expect(signalAlertChartUrl("NQ=F", "1h")).toBe(
       "https://query1.finance.yahoo.com/v8/finance/chart/NQ%3DF?range=1y&interval=60m"
     );
     expect(signalAlertChartUrl("SPY", "15m")).toContain(
@@ -360,8 +362,8 @@ describe("watch request parser", () => {
         },
         frequency: "per-bar-close",
         summary:
-          "Watch NQ on 15m bars: alert when close crosses above 30m opening range high on bar close.",
-        symbol: "NQ",
+          "Watch NQ=F on 15m bars: alert when close crosses above 30m opening range high on bar close.",
+        symbol: "NQ=F",
         timeframe: "15m",
       },
     });
@@ -421,6 +423,15 @@ describe("watch request parser", () => {
         condition: { right: { minutes: 60, side: "low" } },
       },
     });
+  });
+
+  it("keeps ambiguous roots as stock symbols unless the contract is written", () => {
+    expect(parseWatchRequest("Watch CL when it closes above 60")).toMatchObject(
+      { proposal: { symbol: "CL" } }
+    );
+    expect(
+      parseWatchRequest("Watch CL=F when it closes above 60")
+    ).toMatchObject({ proposal: { symbol: "CL=F" } });
   });
 
   it("explains what is missing instead of guessing", () => {
