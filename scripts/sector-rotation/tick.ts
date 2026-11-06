@@ -44,6 +44,26 @@ const required = (
   return value;
 };
 
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+/** Names each schema issue by path so a server shape change is easy to find in the job log. */
+const unexpectedShape = (
+  issues: readonly z.core.$ZodIssue[],
+  prefix: readonly PropertyKey[]
+): Error => {
+  const details = issues
+    .slice(0, 5)
+    .map((issue) => {
+      const path = [...prefix, ...issue.path].map(String).join(".");
+      return `${path === "" ? "(root)" : path}: ${issue.message}`;
+    })
+    .join("; ");
+  return new Error(
+    `sectorRotation.collect returned an unexpected shape; no alert was read or posted (${details})`
+  );
+};
+
 type TickAlert = Readonly<{
   date: string;
   delivery: string;
@@ -89,9 +109,21 @@ const tick = async (
     throw new Error(
       `sectorRotation.collect returned HTTP ${response.status}: ${text.slice(0, 300)}`
     );
-  const result = EnvelopeSchema.parse(JSON.parse(text)).json ?? null;
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `sectorRotation.collect returned a body that is not JSON: ${text.slice(0, 300)}`
+    );
+  }
+  // A changed server shape must fail the run: an empty alert list would hide new alerts.
+  const envelope = EnvelopeSchema.safeParse(body);
+  if (!envelope.success) throw unexpectedShape(envelope.error.issues, []);
+  const result = envelope.data.json;
   const parsed = AlertsSchema.safeParse(result);
-  const alerts = parsed.success ? parsed.data.alerts : [];
+  if (!parsed.success) throw unexpectedShape(parsed.error.issues, ["json"]);
+  const { alerts } = parsed.data;
   return {
     alerts,
     lines: [
@@ -107,28 +139,50 @@ const writeBack = async (
   alert: TickAlert,
   delivery: "sent" | "failed"
 ): Promise<boolean> => {
-  const response = await callApi(io, apiOf(io), "recordChatDelivery", {
-    delivery,
-    enteredOn: alert.date,
-    quadrant: alert.to,
-    symbol: alert.symbol,
-  }).catch(() => null);
+  let response: Response | undefined;
+  let reason = "";
+  try {
+    response = await callApi(io, apiOf(io), "recordChatDelivery", {
+      delivery,
+      enteredOn: alert.date,
+      quadrant: alert.to,
+      symbol: alert.symbol,
+    });
+  } catch (error) {
+    reason = `: ${messageOf(error)}`;
+  }
   if (response?.ok === true) return true;
   io.stderr.write(
-    `could not record ${delivery} for ${alert.symbol} ${alert.to} ${alert.date}${response === null ? "" : ` (HTTP ${response.status})`}\n`
+    `could not record ${delivery} for ${alert.symbol} ${alert.to} ${alert.date}${response === undefined ? reason : ` (HTTP ${response.status})`}\n`
   );
   return false;
 };
 
-const chatAccepted = async (response: Response | null): Promise<boolean> => {
-  if (response?.ok !== true) return false;
-  const body: unknown = await response.json().catch(() => null);
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    "ok" in body &&
-    body.ok === true
-  );
+/** Posts one alert line to the chat endpoint; returns why it failed, or null when accepted. */
+const postChat = async (
+  io: SectorRotationTickIo,
+  url: string,
+  channel: string,
+  alert: TickAlert
+): Promise<string | null> => {
+  let response: Response;
+  try {
+    response = await io.post(url, {
+      body: JSON.stringify({ channel, text: alert.line }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+  } catch (error) {
+    return messageOf(error);
+  }
+  if (!response.ok) return `HTTP ${response.status}`;
+  const reply: unknown = await response.json().catch(() => null);
+  return typeof reply === "object" &&
+    reply !== null &&
+    "ok" in reply &&
+    reply.ok === true
+    ? null
+    : 'reply was not {"ok":true}';
 };
 
 /**
@@ -147,16 +201,15 @@ const forward = async (
   for (const alert of alerts) {
     if (alert.delivery !== "not-configured" && alert.delivery !== "failed")
       continue;
-    const response = await io
-      .post(url, {
-        body: JSON.stringify({ channel, text: alert.line }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      })
-      .catch(() => null);
-    const sent = await chatAccepted(response);
+    const failure = await postChat(io, url, channel, alert);
+    const sent = failure === null;
     if (sent) io.stdout.write(`posted to ${channel}\n`);
-    else failed += 1;
+    else {
+      failed += 1;
+      io.stderr.write(
+        `could not post ${alert.symbol} ${alert.to} ${alert.date} to chat: ${failure}\n`
+      );
+    }
     if (!(await writeBack(io, alert, sent ? "sent" : "failed")))
       unrecorded += 1;
   }
@@ -179,9 +232,7 @@ export const runSectorRotationTick = async (
       );
     return 0;
   } catch (error) {
-    io.stderr.write(
-      `sector rotation tick failed: ${error instanceof Error ? error.message : String(error)}\n`
-    );
+    io.stderr.write(`sector rotation tick failed: ${messageOf(error)}\n`);
     return 1;
   }
 };
