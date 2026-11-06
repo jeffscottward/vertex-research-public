@@ -30,7 +30,7 @@ import {
   Users,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-
+import { writeQuery } from "./backtest-lab-query.ts";
 import {
   type CongressTradesGateway,
   createBrowserCongressTradesGateway,
@@ -97,7 +97,7 @@ const latestFiling = (
   );
 
 const pdfLabel = (filing: CongressTradeFiling): string =>
-  `PTR ${filing.docId} PDF for ${filing.member}, opens in a new tab`;
+  `Report PDF: ${filing.member} ${filing.filedOn}, opens in a new tab`;
 
 const FilingsList = ({
   filings,
@@ -331,14 +331,8 @@ export const CongressTradesWorkspace = ({
   }, [load, days]);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const search = congressTradesSearch({ days, member });
-    if (url.search === search) return;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${url.pathname}${search}${url.hash}`
-    );
+    // Only this page's keys change; foreign params such as ?theme= survive.
+    writeQuery({ days, member }, { days: DEFAULT_DAYS, member: ALL_MEMBERS });
   }, [days, member]);
 
   const feed = state.type === "ready" ? state.feed : null;

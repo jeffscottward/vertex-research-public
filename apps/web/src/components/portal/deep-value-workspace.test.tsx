@@ -56,8 +56,8 @@ const flush = async () => {
 const gatewayWith = (
   overrides: Partial<ResearchLensesGateway> = {}
 ): ResearchLensesGateway => ({
-  rotationMatrix: vi.fn(),
   deepValue: vi.fn(async () => deepValueFixture()),
+  rotationMatrix: vi.fn(),
   score: vi.fn(async () => deepValueScore()),
   ...overrides,
 });
@@ -184,12 +184,18 @@ describe("deep value helpers", () => {
     expect(
       parseDeepValueParams({
         hide: "yes",
-        min: "17",
+        min: "abc",
         q: "x".repeat(101),
         show: "everything",
         symbol: "NOT A TICKER",
       })
     ).toEqual(defaults);
+    // Out-of-range min scores clamp to 0..16; loose ticker shapes are rejected.
+    expect(parseDeepValueParams({ min: "17" }).minTotal).toBe(16);
+    expect(parseDeepValueParams({ min: "2.7" }).minTotal).toBe(2);
+    expect(parseDeepValueParams({ symbol: "brk.b" }).symbol).toBe("BRK.B");
+    expect(parseDeepValueParams({ symbol: "ABC123" }).symbol).toBeNull();
+    expect(parseDeepValueParams({ symbol: "TOOLONG" }).symbol).toBeNull();
     expect(
       parseDeepValueParams({ min: ["1", "2"], q: ["a"], symbol: ["SIRI"] })
     ).toEqual(defaults);
@@ -201,10 +207,10 @@ describe("deep value helpers", () => {
     const rows = deepValueFixture().rows;
     const pick = (filter: Partial<DeepValueFilter>) =>
       filterDeepValueRows(rows, {
-        role: "all",
-        text: "",
         hideFlagged: false,
         minTotal: 0,
+        role: "all",
+        text: "",
         ...filter,
       }).map((row) => row.symbol);
     expect(pick({})).toEqual(["TG", "SIRI", "REN"]);
@@ -386,7 +392,7 @@ describe("DeepValueWorkspace", () => {
     );
     const container = await render(
       gatewayWith({
-        deepValue: vi.fn(async () => deepValueFixture({ rows, criteria: [] })),
+        deepValue: vi.fn(async () => deepValueFixture({ criteria: [], rows })),
       })
     );
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
@@ -401,6 +407,67 @@ describe("DeepValueWorkspace", () => {
     const card = container.querySelector('[aria-label="S0 scorecard"]');
     // Criteria without a stored result show a dash.
     return expect(card?.textContent).toContain("Longevity–");
+  });
+
+  it("keeps foreign URL params, drops an invalid URL ticker and clamps inputs", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/deep-value?theme=light&symbol=bad1&min=3"
+    );
+    const gateway = gatewayWith();
+    const container = await render(
+      gateway,
+      parseDeepValueParams({ min: "3", symbol: "bad1", theme: "light" })
+    );
+    expect(gateway.score).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("?theme=light&min=3");
+    const min = container.querySelector(
+      'input[type="number"]'
+    ) as HTMLInputElement;
+    await setInput(min, "99");
+    expect(min.value).toBe("16");
+    expect(window.location.search).toBe("?theme=light&min=16");
+    await setInput(min, "-4");
+    expect(min.value).toBe("0");
+    expect(window.location.search).toBe("?theme=light");
+    const filter = container.querySelector(
+      'input[type="search"]'
+    ) as HTMLInputElement;
+    expect(filter.maxLength).toBe(100);
+    const ticker = container.querySelector(
+      'input[placeholder="e.g. SIRI"]'
+    ) as HTMLInputElement;
+    expect(ticker.maxLength).toBe(7);
+    return expect(ticker.value).toBe("");
+  });
+
+  it("shows an inline alert for an invalid typed ticker without calling the server", async () => {
+    const gateway = gatewayWith();
+    const container = await render(gateway);
+    await submitTicker(container, "12$");
+    const alert = container.querySelector("#deep-value-ticker-error");
+    expect(alert?.getAttribute("role")).toBe("alert");
+    expect(alert?.textContent).toBe("Enter a ticker like AAPL or BRK.B");
+    const ticker = container.querySelector(
+      'input[placeholder="e.g. SIRI"]'
+    ) as HTMLInputElement;
+    expect(ticker.getAttribute("aria-invalid")).toBe("true");
+    expect(gateway.score).not.toHaveBeenCalled();
+    await setInput(ticker, "SIR");
+    expect(container.querySelector("#deep-value-ticker-error")).toBeNull();
+    await submitTicker(container, "1");
+    expect(container.querySelector("#deep-value-ticker-error")).not.toBeNull();
+    await submitTicker(container, "   ");
+    expect(container.querySelector("#deep-value-ticker-error")).toBeNull();
+    expect(gateway.score).not.toHaveBeenCalled();
+    await submitTicker(container, "siri");
+    expect(gateway.score).toHaveBeenCalledTimes(1);
+    await submitTicker(container, "9");
+    expect(container.querySelector("#deep-value-ticker-error")).not.toBeNull();
+    await act$(() => buttonNamed(container, "Clear").click());
+    expect(container.querySelector("#deep-value-ticker-error")).toBeNull();
+    return expect(gateway.score).toHaveBeenCalledTimes(1);
   });
 
   it("scores one ticker on demand, again on resubmit, and keeps it in the URL", async () => {

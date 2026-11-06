@@ -6,6 +6,7 @@ import type {
   DeepValueRow,
   DeepValueScoreOutput,
 } from "@darkfactory/api";
+import { DEEP_VALUE_TICKER_PATTERN } from "@darkfactory/api";
 import {
   Button,
   Input,
@@ -25,6 +26,8 @@ import { ChevronDown, RefreshCw, RotateCcw } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
+
+import { writeQuery } from "./backtest-lab-query.ts";
 
 import {
   createBrowserResearchLensesGateway,
@@ -66,8 +69,8 @@ const HIDDEN_FLAGS: Readonly<Record<string, true>> = {
 };
 const MAX_TABLE_ROWS = 300;
 const MAX_TOTAL = 16;
-// The on-demand score accepts what the ticker input accepts: up to 8 letters, digits, dots or dashes.
-const SCORE_SYMBOL = /^[A-Z0-9.-]{1,8}$/u;
+// Longest ticker the shared pattern accepts: five letters, a dot or dash and a class letter.
+const MAX_TICKER_LENGTH = 7;
 const MAX_FILTER_TEXT = 100;
 
 export type DeepValueFilter = Readonly<{
@@ -94,8 +97,14 @@ type ParamValue = string | readonly string[] | undefined;
 /** Upper-cased ticker for the on-demand score, or null when blank or not a ticker. */
 const normalizeSymbol = (value: string): string | null => {
   const symbol = value.trim().toUpperCase();
-  return SCORE_SYMBOL.test(symbol) ? symbol : null;
+  return DEEP_VALUE_TICKER_PATTERN.test(symbol) ? symbol : null;
 };
+
+/** Whole-number min score inside 0..MAX_TOTAL; anything not a number becomes 0. */
+export const clampMinTotal = (value: number): number =>
+  Number.isFinite(value)
+    ? Math.min(MAX_TOTAL, Math.max(0, Math.trunc(value)))
+    : 0;
 
 /**
  * Reads `?symbol=&show=&min=&hide=1&q=`; anything unknown falls back to the default (no ticker, all
@@ -108,10 +117,7 @@ export const parseDeepValueParams = (
   const minTotal = typeof min === "string" ? Number(min) : Number.NaN;
   return {
     hideFlagged: hide === "1",
-    minTotal:
-      Number.isFinite(minTotal) && minTotal >= 0 && minTotal <= MAX_TOTAL
-        ? minTotal
-        : DEFAULT_SETTINGS.minTotal,
+    minTotal: clampMinTotal(minTotal),
     role:
       DEEP_VALUE_ROLE_FILTERS.find((entry) => entry === show) ??
       DEFAULT_SETTINGS.role,
@@ -342,6 +348,7 @@ export const DeepValueWorkspace = ({
   const [open, setOpen] = useState<string | null>(null);
   const [ticker, setTicker] = useState(initial.symbol ?? "");
   const [symbol, setSymbol] = useState<string | null>(initial.symbol);
+  const [tickerError, setTickerError] = useState(false);
   // Bumped on every submit, so scoring the same ticker again asks the server again.
   const [scoreRequest, setScoreRequest] = useState(0);
   const [adhoc, setAdhoc] = useState<AdhocState>({ type: "idle" });
@@ -393,19 +400,17 @@ export const DeepValueWorkspace = ({
   }, [gateway, symbol, scoreRequest]);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const search = deepValueSearch({
-      hideFlagged,
-      minTotal,
-      role,
-      symbol,
-      text,
-    });
-    if (url.search === search) return;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${url.pathname}${search}${url.hash}`
+    // Only this page's keys change; foreign params such as ?theme= survive.
+    writeQuery(
+      // Same key order as deepValueSearch, so fresh URLs read the same (entries keep the order).
+      Object.fromEntries([
+        ["symbol", symbol],
+        ["show", role],
+        ["min", minTotal],
+        ["hide", hideFlagged ? "1" : null],
+        ["q", text.trim() === "" ? null : text],
+      ]),
+      { min: DEFAULT_SETTINGS.minTotal, show: DEFAULT_SETTINGS.role }
     );
   }, [hideFlagged, minTotal, role, symbol, text]);
 
@@ -449,16 +454,27 @@ export const DeepValueWorkspace = ({
       className="flex flex-wrap items-center gap-2"
       onSubmit={(event) => {
         event.preventDefault();
-        setSymbol(normalizeSymbol(ticker));
+        const next = normalizeSymbol(ticker);
+        if (next === null && ticker.trim() !== "") {
+          setTickerError(true);
+          return;
+        }
+        setTickerError(false);
+        setSymbol(next);
         setScoreRequest((count) => count + 1);
       }}
     >
       <label className="flex items-center gap-2 text-sm">
         <span>Score any ticker</span>
         <Input
+          aria-describedby={tickerError ? "deep-value-ticker-error" : undefined}
+          aria-invalid={tickerError}
           className="w-28"
-          maxLength={8}
-          onChange={(event) => setTicker(event.target.value)}
+          maxLength={MAX_TICKER_LENGTH}
+          onChange={(event) => {
+            setTicker(event.target.value);
+            setTickerError(false);
+          }}
           placeholder="e.g. SIRI"
           value={ticker}
         />
@@ -470,6 +486,7 @@ export const DeepValueWorkspace = ({
         <Button
           onClick={() => {
             setTicker("");
+            setTickerError(false);
             setSymbol(null);
           }}
           size="sm"
@@ -479,6 +496,15 @@ export const DeepValueWorkspace = ({
           Clear
         </Button>
       )}
+      {tickerError ? (
+        <p
+          className="w-full text-destructive text-sm"
+          id="deep-value-ticker-error"
+          role="alert"
+        >
+          Enter a ticker like AAPL or BRK.B
+        </p>
+      ) : null}
     </form>
   );
 
@@ -504,7 +530,9 @@ export const DeepValueWorkspace = ({
           className="h-11 w-20"
           max={MAX_TOTAL}
           min={0}
-          onChange={(event) => setMinTotal(Number(event.target.value) || 0)}
+          onChange={(event) =>
+            setMinTotal(clampMinTotal(Number(event.target.value)))
+          }
           type="number"
           value={minTotal}
         />
@@ -521,6 +549,7 @@ export const DeepValueWorkspace = ({
         <span>Filter</span>
         <Input
           className="h-11 min-w-0 flex-1 sm:w-44 sm:flex-none"
+          maxLength={MAX_FILTER_TEXT}
           onChange={(event) => setText(event.target.value)}
           placeholder="Symbol, name or industry"
           type="search"

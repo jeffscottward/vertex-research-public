@@ -185,6 +185,9 @@ describe("congress trades workspace", () => {
     expect(cardLink.target).toBe("_blank");
     expect(cardLink.rel).toContain("noopener");
     expect(cardLink.className).toContain("min-h-11");
+    expect(cardLink.getAttribute("aria-label")).toBe(
+      "Report PDF: Rick Larsen 2026-10-12, opens in a new tab"
+    );
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "3 filings · U.S. House Clerk financial disclosure index 2026FD.zip · read 2026-10-13 15:04 UTC"
     );
@@ -343,6 +346,23 @@ describe("congress trades workspace", () => {
     return expect(rows(restored).map((row) => row[3])).toEqual([
       "PTR 20035635",
     ]);
+  });
+
+  it("keeps foreign URL params such as ?theme= on mount and on change", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/congress-trades?theme=light&days=90"
+    );
+    const feed = vi.fn(async () => thirtyDays);
+    const container = await render({ feed }, { days: 90, member: "" });
+    expect(window.location.search).toBe("?theme=light&days=90");
+    await choose(selects(container)[0], "30");
+    expect(window.location.search).toBe("?theme=light");
+    await choose(selects(container)[1], "Nancy Pelosi");
+    return expect(window.location.search).toBe(
+      "?theme=light&member=Nancy+Pelosi"
+    );
   });
 
   it("pages a long feed and returns to the first page when the filter changes", async () => {
