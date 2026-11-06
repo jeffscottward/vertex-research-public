@@ -53,4 +53,21 @@ describe("charts lab entry", () => {
       labJevVerdictGateway.refresh({ symbol: "NVDA" })
     ).rejects.toThrow("UI lab");
   });
+
+  it("renders the stock detail with the fake chain from ?symbol=", async () => {
+    window.history.replaceState(null, "", "/lab/stock?symbol=nvda");
+    const entry = CHARTS_LAB_ENTRIES.find((item) => item.id === "stock");
+    const host = await mountLab(
+      entry?.render(new URLSearchParams("symbol=nvda"))
+    );
+    expect(host.querySelector("h1")?.textContent).toBe("NVDA");
+    await vi.waitFor(() =>
+      expect(
+        host.querySelectorAll("[data-chain-layout=split] tbody tr").length
+      ).toBeGreaterThan(0)
+    );
+    expect(host.querySelector("[data-chain-notes]")?.textContent).toContain(
+      "DUMMY DATA"
+    );
+  });
 });
