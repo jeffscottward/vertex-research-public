@@ -1,14 +1,21 @@
-import { PageHeader } from "@darkfactory/ui";
-
-import { RotationMatrixWorkspace } from "../../../components/portal/rotation-matrix-workspace.tsx";
+import {
+  parseRotationMatrixParams,
+  RotationMatrixWorkspace,
+} from "../../../components/portal/rotation-matrix-workspace.tsx";
 
 export const metadata = { title: "Rotation matrix" };
 
-export default function RotationMatrixPage() {
+type SearchParams = Promise<
+  Readonly<Record<string, string | readonly string[] | undefined>>
+>;
+
+/** `?period=` restores the matrix period; the workspace renders the header and keeps the URL in sync. */
+export default async function RotationMatrixPage({
+  searchParams,
+}: Readonly<{ searchParams: SearchParams }>) {
   return (
-    <div className="space-y-8">
-      <PageHeader title="Rotation matrix" />
-      <RotationMatrixWorkspace />
-    </div>
+    <RotationMatrixWorkspace
+      initial={parseRotationMatrixParams(await searchParams)}
+    />
   );
 }

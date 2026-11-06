@@ -1,34 +1,58 @@
 "use client";
 
-import type {
-  OwnerRiskCaps,
-  RiskAllocatorInput,
-  RiskAllocatorRow,
-  RiskAllocatorSuggestion,
+import {
+  type OwnerRiskCaps,
+  RISK_ALLOCATOR_SYMBOL_PATTERN,
+  type RiskAllocatorInput,
+  type RiskAllocatorRow,
+  type RiskAllocatorSuggestion,
+  type WatchlistItemOutput,
 } from "@darkfactory/api";
 import {
   Badge,
   Button,
+  EmptyState,
   Input,
+  KpiCard,
+  KpiRow,
   Label,
+  PageHeader,
+  Panel,
+  StatusBadge,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from "@darkfactory/ui";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { CalendarRange, Copy, ListPlus, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
 import {
   createBrowserRiskAllocatorGateway,
   type RiskAllocatorGateway,
 } from "./risk-allocator-client.ts";
+import {
+  createBrowserWatchlistGateway,
+  describeWatchlistFailure,
+  type WatchlistGateway,
+} from "./watchlist-client.ts";
 
 // Advisory risk allocator (Gamma Forge engines/risk_allocator.py port). It shows the owner's caps and
 // the largest size one candidate may use under them. Advisory only: it does not enforce or change the
-// caps, and it cannot place, change or cancel an order.
+// caps, and it cannot place, change or cancel an order. By default it sizes the first watchlist symbol
+// with the labelled default inputs below; `?symbol=` picks another symbol.
 
 export interface RiskAllocatorForm {
   asOf: string;
@@ -42,6 +66,40 @@ export interface RiskAllocatorForm {
   symbol: string;
   unitCost: string;
 }
+
+/**
+ * Example inputs for the default suggestion. They are shown in the form and labelled as defaults;
+ * the owner replaces them with the real premium and net liquidation value.
+ */
+export const RISK_ALLOCATOR_DEFAULTS = {
+  kind: "option",
+  nlv: "100,000",
+  unitCost: "500",
+} as const satisfies Pick<RiskAllocatorForm, "kind" | "nlv" | "unitCost">;
+
+/** Read-only view of the watchlist: the allocator only needs the symbols, in list order. */
+export type RiskAllocatorWatchlist = Pick<WatchlistGateway, "list">;
+
+export type RiskAllocatorSettings = Readonly<{ symbol: string | null }>;
+
+type ParamValue = string | readonly string[] | undefined;
+
+/** Reads `?symbol=` (upper-cased); a missing or invalid symbol means "first watchlist symbol". */
+export const parseRiskAllocatorParams = (
+  params: Readonly<Record<string, ParamValue>>
+): RiskAllocatorSettings => {
+  const { symbol } = params;
+  const text = typeof symbol === "string" ? symbol.trim().toUpperCase() : "";
+  return {
+    symbol: RISK_ALLOCATOR_SYMBOL_PATTERN.test(text) ? text : null,
+  };
+};
+
+/** The query string for the settings ("" without a symbol). */
+export const riskAllocatorSearch = (settings: RiskAllocatorSettings): string =>
+  settings.symbol === null
+    ? ""
+    : `?${new URLSearchParams({ symbol: settings.symbol }).toString()}`;
 
 // A plain non-negative decimal; commas only as thousands separators ("1,500.25"). Empty means 0.
 const AMOUNT_PATTERN = /^(?:\d+|\d{1,3}(?:,\d{3})+)?(?:\.\d+)?$/u;
@@ -139,14 +197,8 @@ const describeFailure = (error: unknown): string => {
     : "Request failed.";
 };
 
-const CapsPanel = ({ caps }: { readonly caps: OwnerRiskCaps }) => (
-  <section
-    aria-labelledby="owner-caps-heading"
-    className="space-y-3 rounded-lg border border-border p-4"
-  >
-    <h2 className="font-semibold text-lg" id="owner-caps-heading">
-      Owner risk caps
-    </h2>
+const CapsRules = ({ caps }: { readonly caps: OwnerRiskCaps }) => (
+  <>
     <dl className="grid gap-3 sm:grid-cols-2">
       <div>
         <dt className="text-muted-foreground text-sm">
@@ -185,7 +237,33 @@ const CapsPanel = ({ caps }: { readonly caps: OwnerRiskCaps }) => (
         .join("; ")}
       . Vertex shows these caps. It does not enforce or change them.
     </p>
-  </section>
+  </>
+);
+
+const CapsKpis = ({ caps }: { readonly caps: OwnerRiskCaps }) => (
+  <KpiRow label="Owner risk caps">
+    <KpiCard
+      data-kpi="leaps"
+      hint={`Premium per name, ${caps.leapsMinDte}+ days to expiry`}
+      icon={<CalendarRange />}
+      label="LEAPS premium cap"
+      value={`${caps.leapsPremiumPct}% NLV`}
+    />
+    <KpiCard
+      data-kpi="short"
+      hint="Premium per name, shorter-dated options"
+      icon={<ShieldCheck />}
+      label="Shorter-dated premium cap"
+      value={`${caps.shortPremiumPct}% NLV`}
+    />
+    <KpiCard
+      data-kpi="copy"
+      hint="NLV per name / total"
+      icon={<Copy />}
+      label="Crown copy book caps"
+      value={`${caps.copyBookNamePct}% / ${caps.copyBookTotalPct}%`}
+    />
+  </KpiRow>
 );
 
 const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
@@ -194,9 +272,9 @@ const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
     className="space-y-3 rounded-lg border border-border p-4"
   >
     <div className="flex flex-wrap items-center gap-2">
-      <h2 className="font-semibold text-lg">
+      <h3 className="font-semibold text-lg">
         {row.symbol} {row.kind === "option" ? "option" : "shares"}
-      </h2>
+      </h3>
       <Badge data-rule-set={row.ruleSet} variant="secondary">
         Rule set: {RULE_SET_LABEL[row.ruleSet]}
       </Badge>
@@ -214,11 +292,8 @@ const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
       </ul>
     ) : null}
     {row.limits.length > 0 ? (
-      <div className="overflow-x-auto">
-        <Table
-          className="w-full min-w-[28rem] text-left text-sm"
-          containerClassName="overflow-visible"
-        >
+      <TableScroll label={`Limits for ${row.symbol}`} minWidth="28rem">
+        <Table className="w-full text-left text-sm">
           <TableHeader>
             <TableRow className="border-border border-b">
               <TableHead
@@ -267,23 +342,69 @@ const ResultRow = ({ row }: { readonly row: RiskAllocatorRow }) => (
             ))}
           </TableBody>
         </Table>
-      </div>
+      </TableScroll>
     ) : null}
   </section>
 );
 
+const DEFAULTS_NOTE =
+  "Fields marked Default use example values: replace them and select Compute size.";
+
+const suggestionDescription = (
+  source: SymbolSource,
+  symbol: string
+): string | undefined => {
+  if (source === "url")
+    return `Sizing ${symbol} from the link. ${DEFAULTS_NOTE}`;
+  if (source === "watchlist")
+    return `Sizing ${symbol}, the first symbol on your watchlist. ${DEFAULTS_NOTE}`;
+  return undefined;
+};
+
+type CapsState =
+  | Readonly<{ type: "loading" }>
+  | Readonly<{ type: "error"; message: string }>
+  | Readonly<{ type: "ready"; caps: OwnerRiskCaps }>;
+
+type WatchlistState =
+  // `?symbol=` names the symbol: the watchlist is not read.
+  | Readonly<{ type: "skipped" }>
+  | Readonly<{ type: "loading" }>
+  | Readonly<{ type: "error"; message: string }>
+  | Readonly<{ type: "ready"; items: readonly WatchlistItemOutput[] }>;
+
+// Where the symbol of the current suggestion came from.
+type SymbolSource = "url" | "watchlist" | "form";
+
 export const RiskAllocatorWorkspace = ({
   gateway: provided,
+  initial,
   initialAsOf,
+  watchlist: providedWatchlist,
 }: {
   readonly gateway?: RiskAllocatorGateway;
+  /** Settings restored from the URL (`?symbol=`). */
+  readonly initial?: RiskAllocatorSettings;
   readonly initialAsOf?: string;
+  /** Read-only watchlist; its first symbol is sized by default. */
+  readonly watchlist?: RiskAllocatorWatchlist;
 }) => {
   const gateway = useMemo(
     () => provided ?? createBrowserRiskAllocatorGateway(),
     [provided]
   );
-  const [caps, setCaps] = useState<OwnerRiskCaps | null>(null);
+  const watchlist = useMemo(
+    () => providedWatchlist ?? createBrowserWatchlistGateway(),
+    [providedWatchlist]
+  );
+  const initialSymbol = initial?.symbol ?? null;
+  const [caps, setCaps] = useState<CapsState>({ type: "loading" });
+  const [list, setList] = useState<WatchlistState>(
+    initialSymbol === null ? { type: "loading" } : { type: "skipped" }
+  );
+  const [source, setSource] = useState<SymbolSource>(
+    initialSymbol === null ? "form" : "url"
+  );
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RiskAllocatorSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -293,21 +414,25 @@ export const RiskAllocatorWorkspace = ({
     copyTotalExposure: "",
     crownCopy: false,
     expiry: "",
-    kind: "option",
-    nlv: "",
+    kind: RISK_ALLOCATOR_DEFAULTS.kind,
+    nlv: RISK_ALLOCATOR_DEFAULTS.nlv,
     openPremium: "",
-    symbol: "",
-    unitCost: "",
+    symbol: initialSymbol ?? "",
+    unitCost: RISK_ALLOCATOR_DEFAULTS.unitCost,
   });
+  // The latest form, for the default suggestion that starts after the watchlist loads.
+  const formRef = useRef(form);
+  formRef.current = form;
 
   useEffect(() => {
     let active = true;
     gateway.caps().then(
       (loaded) => {
-        if (active) setCaps(loaded);
+        if (active) setCaps({ caps: loaded, type: "ready" });
       },
       (failure: unknown) => {
-        if (active) setError(describeFailure(failure));
+        if (active)
+          setCaps({ message: describeFailure(failure), type: "error" });
       }
     );
     return () => {
@@ -315,40 +440,94 @@ export const RiskAllocatorWorkspace = ({
     };
   }, [gateway]);
 
+  const suggest = useCallback(
+    async (next: RiskAllocatorForm) => {
+      const invalid = invalidAmountFields(next);
+      if (invalid.length > 0) {
+        setResult(null);
+        setError(
+          `Enter a number of 0 or more (commas allowed) for: ${invalid.join(", ")}.`
+        );
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      try {
+        setResult(await gateway.suggest(toAllocatorInput(next)));
+      } catch (failure) {
+        setResult(null);
+        setError(describeFailure(failure));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [gateway]
+  );
+
+  // Default suggestion: the URL symbol, else the first watchlist symbol, with the default inputs.
+  useEffect(() => {
+    if (initialSymbol !== null) {
+      void suggest(formRef.current);
+      return;
+    }
+    let active = true;
+    watchlist.list().then(
+      (items) => {
+        if (!active) return;
+        setList({ items, type: "ready" });
+        const first = items[0]?.symbol;
+        // Nothing to size, or the owner already typed a symbol: leave the form alone.
+        if (first === undefined || formRef.current.symbol.trim() !== "") return;
+        const next = { ...formRef.current, symbol: first };
+        setForm(next);
+        setSource("watchlist");
+        void suggest(next);
+      },
+      (failure: unknown) => {
+        if (active)
+          setList({
+            message: describeWatchlistFailure(failure),
+            type: "error",
+          });
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [initialSymbol, suggest, watchlist]);
+
   const update =
     (key: keyof RiskAllocatorForm) => (event: { target: { value: string } }) =>
       setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const invalid = invalidAmountFields(form);
-    if (invalid.length > 0) {
-      setResult(null);
-      setError(
-        `Enter a number of 0 or more (commas allowed) for: ${invalid.join(", ")}.`
-      );
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      setResult(await gateway.suggest(toAllocatorInput(form)));
-    } catch (failure) {
-      setResult(null);
-      setError(describeFailure(failure));
-    } finally {
-      setBusy(false);
-    }
+    setSource("form");
+    const url = new URL(window.location.href);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${riskAllocatorSearch(parseRiskAllocatorParams({ symbol: form.symbol }))}${url.hash}`
+    );
+    void suggest(form);
   };
 
   const field = (
     key: keyof RiskAllocatorForm,
     label: string,
-    props: { inputMode?: "decimal"; type?: string; required?: boolean } = {}
+    props: {
+      hint?: string;
+      inputMode?: "decimal";
+      required?: boolean;
+      type?: string;
+    } = {}
   ) => (
     <div className="space-y-1">
       <Label htmlFor={`risk-${key}`}>{label}</Label>
       <Input
+        aria-describedby={
+          props.hint === undefined ? undefined : `risk-${key}-default`
+        }
         id={`risk-${key}`}
         inputMode={props.inputMode}
         onChange={update(key)}
@@ -356,100 +535,194 @@ export const RiskAllocatorWorkspace = ({
         type={props.type ?? "text"}
         value={String(form[key])}
       />
+      {props.hint === undefined ? null : (
+        <p
+          className="text-muted-foreground text-xs"
+          data-default-for={key}
+          id={`risk-${key}-default`}
+        >
+          {props.hint}
+        </p>
+      )}
     </div>
   );
 
+  const description = suggestionDescription(
+    source,
+    form.symbol.trim().toUpperCase()
+  );
+  const watchlistEmpty =
+    list.type === "ready" && list.items.length === 0 && result === null;
+
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground text-sm">
-        Advisory only. This page computes sizes from the numbers you enter. It
-        sends no order and changes no setting.
-      </p>
-      {caps === null ? null : <CapsPanel caps={caps} />}
-      <form
-        aria-label="Risk allocator"
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-        onSubmit={submit}
+      <PageHeader
+        status={<StatusBadge status="neutral">Advisory only</StatusBadge>}
+        title="Risk allocator"
+      />
+
+      {caps.type === "ready" ? <CapsKpis caps={caps.caps} /> : null}
+
+      <Panel
+        contentClassName="space-y-3"
+        description="Read only."
+        headingId="owner-caps-heading"
+        title="Owner risk caps"
       >
-        {field("symbol", "Symbol", { required: true })}
-        <div className="space-y-1">
-          <Label htmlFor="risk-kind">Instrument</Label>
-          <select
-            className="min-h-11 w-full rounded-md border border-input bg-background px-3"
-            id="risk-kind"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                kind: event.target.value === "share" ? "share" : "option",
-              }))
-            }
-            value={form.kind}
+        {caps.type === "loading" ? (
+          <p
+            aria-busy="true"
+            className="text-muted-foreground text-sm"
+            role="status"
           >
-            <option value="option">Option</option>
-            <option value="share">Shares</option>
-          </select>
-        </div>
-        {form.kind === "option"
-          ? field("expiry", "Expiry", { type: "date" })
-          : null}
-        {field("unitCost", unitCostLabel(form.kind), {
-          inputMode: "decimal",
-          required: true,
-        })}
-        {field("nlv", "Net liquidation value (USD)", {
-          inputMode: "decimal",
-          required: true,
-        })}
-        {field("asOf", "As of", { required: true, type: "date" })}
-        {field("openPremium", "Option premium already open in this name", {
-          inputMode: "decimal",
-        })}
-        <label
-          className="flex min-h-11 items-center gap-3"
-          htmlFor="risk-crownCopy"
-        >
-          <input
-            checked={form.crownCopy}
-            className="size-5"
-            id="risk-crownCopy"
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                crownCopy: event.target.checked,
-              }))
+            Loading caps…
+          </p>
+        ) : null}
+        {caps.type === "error" ? (
+          <p className="text-destructive" role="alert">
+            {caps.message}
+          </p>
+        ) : null}
+        {caps.type === "ready" ? <CapsRules caps={caps.caps} /> : null}
+      </Panel>
+
+      <Panel
+        contentClassName="space-y-4"
+        description={description}
+        headingId="risk-suggestion-heading"
+        title="Sizing suggestion"
+      >
+        {list.type === "loading" ? (
+          <p className="text-muted-foreground text-sm">Loading watchlist…</p>
+        ) : null}
+        {list.type === "error" ? (
+          <p className="text-sm" role="alert">
+            Watchlist unavailable: {list.message} Enter a symbol below to get a
+            suggestion.
+          </p>
+        ) : null}
+        {watchlistEmpty ? (
+          <EmptyState
+            action={
+              <Button asChild variant="outline">
+                <Link href="/watchlist" prefetch={false}>
+                  Open watchlist
+                </Link>
+              </Button>
             }
-            type="checkbox"
+            description="The default suggestion sizes the first symbol on your watchlist. Add a symbol there, open this page with ?symbol=MSFT, or enter a symbol below and select Compute size."
+            headingLevel={3}
+            icon={<ListPlus />}
+            title="No watchlist symbol to size"
           />
-          <span className="text-sm">Crown copy book leg</span>
-        </label>
-        {form.crownCopy
-          ? field("copyNameExposure", "Copy book exposure in this name", {
-              inputMode: "decimal",
-            })
-          : null}
-        {form.crownCopy
-          ? field("copyTotalExposure", "Copy book exposure, all names", {
-              inputMode: "decimal",
-            })
-          : null}
-        <div className="flex items-end">
-          <Button disabled={busy} type="submit">
-            Compute size
-          </Button>
-        </div>
-      </form>
-      {error === null ? null : (
-        <p className="text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-      {result === null ? null : (
-        <div aria-live="polite" className="space-y-4">
-          {result.rows.map((row) => (
-            <ResultRow key={`${row.symbol}-${row.kind}`} row={row} />
-          ))}
-        </div>
-      )}
+        ) : null}
+        <form
+          aria-label="Risk allocator"
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          onSubmit={submit}
+        >
+          {field("symbol", "Symbol", { required: true })}
+          <div className="space-y-1">
+            <Label htmlFor="risk-kind">Instrument</Label>
+            <select
+              aria-describedby="risk-kind-default"
+              className="min-h-11 w-full rounded-md border border-input bg-background px-3"
+              id="risk-kind"
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  kind: event.target.value === "share" ? "share" : "option",
+                }))
+              }
+              value={form.kind}
+            >
+              <option value="option">Option</option>
+              <option value="share">Shares</option>
+            </select>
+            <p
+              className="text-muted-foreground text-xs"
+              data-default-for="kind"
+              id="risk-kind-default"
+            >
+              Default: Option
+            </p>
+          </div>
+          {form.kind === "option"
+            ? field("expiry", "Expiry", {
+                hint: "Default: blank (sized with the shorter-dated cap)",
+                type: "date",
+              })
+            : null}
+          {field("unitCost", unitCostLabel(form.kind), {
+            hint: `Default: ${RISK_ALLOCATOR_DEFAULTS.unitCost} (example cost, not a quote)`,
+            inputMode: "decimal",
+            required: true,
+          })}
+          {field("nlv", "Net liquidation value (USD)", {
+            hint: `Default: ${RISK_ALLOCATOR_DEFAULTS.nlv} (example account size, not yours)`,
+            inputMode: "decimal",
+            required: true,
+          })}
+          {field("asOf", "As of", {
+            hint: "Default: today",
+            required: true,
+            type: "date",
+          })}
+          {field("openPremium", "Option premium already open in this name", {
+            inputMode: "decimal",
+          })}
+          <label
+            className="flex min-h-11 items-center gap-3"
+            htmlFor="risk-crownCopy"
+          >
+            <input
+              checked={form.crownCopy}
+              className="size-5"
+              id="risk-crownCopy"
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  crownCopy: event.target.checked,
+                }))
+              }
+              type="checkbox"
+            />
+            <span className="text-sm">Crown copy book leg</span>
+          </label>
+          {form.crownCopy
+            ? field("copyNameExposure", "Copy book exposure in this name", {
+                inputMode: "decimal",
+              })
+            : null}
+          {form.crownCopy
+            ? field("copyTotalExposure", "Copy book exposure, all names", {
+                inputMode: "decimal",
+              })
+            : null}
+          <div className="flex items-end">
+            <Button disabled={busy} type="submit">
+              Compute size
+            </Button>
+          </div>
+        </form>
+        {error === null ? null : (
+          <p className="text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+        {result === null ? null : (
+          <div aria-live="polite" className="space-y-4">
+            {result.rows.map((row) => (
+              <ResultRow key={`${row.symbol}-${row.kind}`} row={row} />
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <p className="text-muted-foreground text-sm">
+        Advisory only. This page computes sizes from the numbers shown in the
+        form. It sends no order and changes no cap or setting.
+      </p>
     </div>
   );
 };
