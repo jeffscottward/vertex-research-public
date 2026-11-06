@@ -2676,6 +2676,98 @@ export const priceAlertRules = pgTable(
 
 export type PriceAlertRuleRow = typeof priceAlertRules.$inferSelect;
 
+// Owner signal alerts and watches (priceAlerts.signals.*, LuxAlgo P4). The condition is a JSON
+// document validated by the oRPC contract (two lines and an operator); the evaluator lives in
+// packages/api. A watch starts "proposed" (from Quant) and runs only after the owner starts it.
+// Each fire is one signal_alert_events row, insert-once by (rule, bar). Research only: no orders.
+export type SignalAlertKindValue = "alert" | "watch";
+export type SignalAlertOriginValue = "manual" | "strategy" | "quant";
+export type SignalAlertStatusValue =
+  | "proposed"
+  | "active"
+  | "done"
+  | "dismissed";
+export type SignalAlertFrequencyValue = "once" | "per-bar" | "per-bar-close";
+export type SignalAlertTimeframeValue = "5m" | "15m" | "1h" | "1d";
+export type SignalAlertDeliveryValue =
+  | "pending"
+  | "sent"
+  | "not-configured"
+  | "failed";
+
+export const signalAlertRules = pgTable(
+  "signal_alert_rules",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<SignalAlertKindValue>().notNull(),
+    origin: text("origin").$type<SignalAlertOriginValue>().notNull(),
+    name: text("name").notNull(),
+    symbol: text("symbol").notNull(),
+    timeframe: text("timeframe").$type<SignalAlertTimeframeValue>().notNull(),
+    condition: jsonb("condition").$type<Record<string, unknown>>().notNull(),
+    frequency: text("frequency").$type<SignalAlertFrequencyValue>().notNull(),
+    status: text("status").$type<SignalAlertStatusValue>().notNull(),
+    /** When the rule became active: created active, or a proposed watch started. */
+    activatedAt: utcTimestamp("activated_at"),
+    lastCheckedAt: utcTimestamp("last_checked_at"),
+    lastBarAt: utcTimestamp("last_bar_at"),
+    lastFiredBarAt: utcTimestamp("last_fired_bar_at"),
+    lastFiredAt: utcTimestamp("last_fired_at"),
+    fireCount: integer("fire_count").default(0).notNull(),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("signal_alert_rules_user_created_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    index("signal_alert_rules_status_updated_idx").on(
+      table.status,
+      table.updatedAt
+    ),
+    check(
+      "signal_alert_rules_fields_check",
+      sql`${table.symbol} ~ '^[A-Z][A-Z0-9.\\-]{0,9}(=F)?$' and ${table.kind} in ('alert', 'watch') and ${table.origin} in ('manual', 'strategy', 'quant') and ${table.status} in ('proposed', 'active', 'done', 'dismissed') and ${table.frequency} in ('once', 'per-bar', 'per-bar-close') and ${table.timeframe} in ('5m', '15m', '1h', '1d') and char_length(${table.name}) between 1 and 120 and ${table.fireCount} >= 0`
+    ),
+  ]
+);
+
+export type SignalAlertRuleRow = typeof signalAlertRules.$inferSelect;
+
+export const signalAlertEvents = pgTable(
+  "signal_alert_events",
+  {
+    id: text("id").primaryKey(),
+    ruleId: text("rule_id")
+      .notNull()
+      .references(() => signalAlertRules.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    barAt: utcTimestamp("bar_at").notNull(),
+    price: numeric("price").notNull(),
+    delivery: text("delivery").$type<SignalAlertDeliveryValue>().notNull(),
+    firedAt: utcTimestamp("fired_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("signal_alert_events_rule_bar_idx").on(
+      table.ruleId,
+      table.barAt
+    ),
+    index("signal_alert_events_user_fired_idx").on(table.userId, table.firedAt),
+    check(
+      "signal_alert_events_delivery_check",
+      sql`${table.delivery} in ('pending', 'sent', 'not-configured', 'failed')`
+    ),
+  ]
+);
+
+export type SignalAlertEventRow = typeof signalAlertEvents.$inferSelect;
+
 // Sector rotation map (sectorRotation.*): ratio and momentum of each stored sector against its
 // benchmark, recomputed and upserted by (timeframe, symbol, date). Alerts are insert-once by
 // (symbol, quadrant, entered_on), so a rerun never sends the same alert twice. Research only.

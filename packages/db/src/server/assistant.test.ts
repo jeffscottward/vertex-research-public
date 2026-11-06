@@ -117,6 +117,7 @@ describe("0022 assistant migration", () => {
       "0046_click_log",
       "0047_sector_rotation",
       "0048_pick_lists",
+      "0049_signal_alerts",
     ]);
   });
 

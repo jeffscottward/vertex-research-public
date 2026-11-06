@@ -5,6 +5,7 @@ import {
   WATCHLIST_SYMBOL_PATTERN,
   WatchlistDecimalSchema,
 } from "./watchlist.ts";
+import { signalAlertsContract } from "./signal-alerts.ts";
 
 // Price alerts (priceAlerts.*): a rule watches one symbol from the caller's watchlist for a price
 // at or above / at or below a level. A scheduler tick or a manual check evaluates active rules
@@ -198,7 +199,14 @@ const tick = priceAlerts
   .input(PriceAlertTickInputSchema)
   .output(PriceAlertTickOutputSchema);
 
-export const priceAlertsContract = { check, create, list, remove, tick };
+export const priceAlertsContract = {
+  check,
+  create,
+  list,
+  remove,
+  signals: signalAlertsContract,
+  tick,
+};
 
 export type PriceAlertState = z.infer<typeof PriceAlertStateSchema>;
 export type PriceAlertRule = z.infer<typeof PriceAlertRuleSchema>;

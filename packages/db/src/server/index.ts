@@ -196,6 +196,17 @@ export {
   priceAlertRecordOf,
 } from "./price-alerts.ts";
 export {
+  createSignalAlertRepository,
+  SIGNAL_ALERT_RULES_PER_USER_MAX,
+  type SignalAlertEventRecord,
+  type SignalAlertFireInput,
+  SignalAlertLimitError,
+  type SignalAlertRepository,
+  type SignalAlertRuleCreateInput,
+  type SignalAlertRuleRecord,
+  signalAlertRecordOf,
+} from "./signal-alerts.ts";
+export {
   createSectorRotationRepository,
   SECTOR_ROTATION_UPSERT_BATCH,
   type SectorRotationAlertDeliveryValue,

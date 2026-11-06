@@ -34,6 +34,7 @@ import { fetchBoundedJson } from "./research-lenses.ts";
 import type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
 export type { PriceAlertsNtfyConfig } from "./service-config.ts";
+import { signalAlertsRouter } from "./signal-alerts.ts";
 
 // Price alert procedures (priceAlerts.*). Operator-only: a session operator manages their own rules
 // and runs check; an operator agent write key runs tick for every owner (scripts/price-alerts). A run
@@ -437,4 +438,11 @@ const tick = api.priceAlerts.tick
     };
   });
 
-export const priceAlertsRouter = { check, create, list, remove, tick };
+export const priceAlertsRouter = {
+  check,
+  create,
+  list,
+  remove,
+  signals: signalAlertsRouter,
+  tick,
+};
