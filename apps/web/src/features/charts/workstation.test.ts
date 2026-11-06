@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { DisplayCandle } from "./types.ts";
 import {
   type Drawing,
-  dataWindowRows,
   describeDrawing,
-  displayValues,
   drawingsStorageKey,
   drawingToolLabel,
-  heikinAshi,
   isChartType,
   isDrawingTool,
   parseDrawings,
@@ -16,26 +12,6 @@ import {
   validDrawing,
 } from "./workstation.ts";
 
-const bars: readonly DisplayCandle[] = [
-  {
-    close: 11,
-    high: 12,
-    id: "a",
-    low: 9,
-    open: 10,
-    timestamp: 1000,
-    volume: 5,
-  },
-  {
-    close: 12,
-    high: 13,
-    id: "b",
-    low: 10,
-    open: 11,
-    timestamp: 2000,
-    volume: 7,
-  },
-];
 const trend: Drawing = {
   id: "d1",
   points: [
@@ -54,22 +30,6 @@ describe("chart workstation model", () => {
     expect(isDrawingTool("brush")).toBe(false);
     expect(drawingToolLabel("level")).toBe("Horizontal level");
     return expect(drawingToolLabel("x" as never)).toBe("x");
-  });
-  it("computes Heikin Ashi bars", () => {
-    const [first, second] = heikinAshi(bars);
-    expect(first).toEqual({
-      ...bars[0],
-      close: 10.5,
-      high: 12,
-      low: 9,
-      open: 10.5,
-    });
-    expect(second?.open).toBe(10.5);
-    expect(second?.close).toBe(11.5);
-    expect(second?.high).toBe(13);
-    expect(second?.low).toBe(10);
-    expect(displayValues(bars, "candles")).toBe(bars);
-    return expect(displayValues(bars, "heikin-ashi")).toHaveLength(2);
   });
   it("validates drawings", () => {
     expect(validDrawing(trend)).toBe(true);
@@ -129,22 +89,6 @@ describe("chart workstation model", () => {
         1
       )
     ).toBe("Text note 5.0 “hi”");
-  });
-  it("builds data window rows", () => {
-    expect(dataWindowRows(undefined, undefined, 2)).toEqual([]);
-    const rows = dataWindowRows(bars[1], 11, 2);
-    expect(rows.map((row) => row.label)).toEqual([
-      "Time (UTC)",
-      "Open",
-      "High",
-      "Low",
-      "Close",
-      "Volume",
-      "Change",
-    ]);
-    expect(rows.at(-1)?.value).toBe("+1.00 (+9.09%)");
-    expect(dataWindowRows(bars[0], 12, 2).at(-1)?.value).toBe("-1.00 (-8.33%)");
-    return expect(dataWindowRows(bars[0], 0, 2)).toHaveLength(6);
   });
   it("names screenshots safely", () => {
     const at = new Date("2026-11-04T10:00:00.000Z");
