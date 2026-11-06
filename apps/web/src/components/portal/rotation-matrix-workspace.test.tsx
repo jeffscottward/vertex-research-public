@@ -51,8 +51,8 @@ const flush = async () => {
 const gatewayWith = (
   rotationMatrix: ResearchLensesGateway["rotationMatrix"]
 ): ResearchLensesGateway => ({
-  rotationMatrix,
   deepValue: vi.fn(),
+  rotationMatrix,
   score: vi.fn(),
 });
 
@@ -333,6 +333,26 @@ describe("RotationMatrixWorkspace", () => {
     await click(button(container, "Refresh"));
     expect(rotationMatrix).toHaveBeenCalledTimes(2);
     return expect(rotationMatrix).toHaveBeenLastCalledWith("3M");
+  });
+
+  it("keeps parameters it does not own in the URL", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/rotation-matrix?theme=light&period=3M"
+    );
+    const rotationMatrix = vi.fn(async (period: "1D" | "1M" | "3M" | "6M") =>
+      rotationFixture(period)
+    );
+    const container = await render(gatewayWith(rotationMatrix), {
+      period: "3M",
+    });
+    expect(window.location.search).toBe("?theme=light&period=3M");
+    await click(button(container, "6M"));
+    expect(rotationMatrix).toHaveBeenLastCalledWith("6M");
+    expect(window.location.search).toBe("?theme=light&period=6M");
+    await click(button(container, "1M"));
+    return expect(window.location.search).toBe("?theme=light");
   });
 
   it("keeps the newest period when an older response arrives late", async () => {

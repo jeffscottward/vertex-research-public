@@ -26,8 +26,17 @@ import {
   TableScroll,
 } from "@darkfactory/ui";
 import { Pause, Play, RefreshCw, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { TickerLink } from "../ticker-link.tsx";
+import { withQuery, writeQuery } from "./backtest-lab-query.ts";
 import {
   type ChartHighlight,
   QUADRANT_CHIP,
@@ -53,7 +62,8 @@ export const DEFAULT_TAIL_LENGTH = 10;
 /** Time between two dates while the map plays. */
 export const PLAY_STEP_MS = 400;
 const CUSTOM_ID = "custom";
-const UNIVERSE_ID = /^[\w-]{1,64}$/u;
+// Preset ids: "sectors", "watchlist" and "basket:<id>".
+const UNIVERSE_ID = /^[\w:-]{1,64}$/u;
 
 export type SectorRotationSettings = Readonly<{
   tailLength: number;
@@ -81,20 +91,24 @@ export const parseSectorRotationParams = (
   };
 };
 
+// Defaults removed from the URL so the default view keeps a clean address.
+const URL_DEFAULTS = {
+  tail: DEFAULT_TAIL_LENGTH,
+  timeframe: DEFAULT_TIMEFRAME,
+  universe: SECTORS_PRESET.id,
+} as const;
+
+/** The URL parameters this page owns; anything else in the address bar is left alone. */
+const sectorRotationQuery = (settings: SectorRotationSettings) => ({
+  tail: settings.tailLength,
+  timeframe: settings.timeframe,
+  universe: settings.universeId,
+});
+
 /** The query string for the settings, without the defaults ("" when all are default). */
 export const sectorRotationSearch = (
   settings: SectorRotationSettings
-): string => {
-  const params = new URLSearchParams();
-  if (settings.timeframe !== DEFAULT_TIMEFRAME)
-    params.set("timeframe", settings.timeframe);
-  if (settings.universeId !== SECTORS_PRESET.id)
-    params.set("universe", settings.universeId);
-  if (settings.tailLength !== DEFAULT_TAIL_LENGTH)
-    params.set("tail", String(settings.tailLength));
-  const search = params.toString();
-  return search === "" ? "" : `?${search}`;
-};
+): string => withQuery("", sectorRotationQuery(settings), URL_DEFAULTS);
 
 const QUADRANT_ORDER = [
   "leading",
@@ -189,8 +203,52 @@ type LoadState =
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; map: SectorRotationMapOutput }>;
 
+/**
+ * What the map draws: `choice` null for an empty typed list. `pending` while a linked preset
+ * (watchlist, basket) is not known yet: nothing loads until the preset lists arrive.
+ */
+type Selection = Readonly<{
+  choice: SectorRotationUniverseChoice | null;
+  pending: boolean;
+}>;
+
+const PENDING_KEY = "pending";
+const CUSTOM_KEY_PREFIX = "custom:";
+
+/**
+ * A string naming what to draw. The map reloads when this changes, not when an equal preset
+ * object is replaced (the preset lists arrive after the first load).
+ */
+const selectionKey = (
+  universeId: string,
+  customSymbols: readonly string[],
+  presets: readonly SectorRotationUniversePreset[]
+): string => {
+  if (universeId === CUSTOM_ID)
+    return `${CUSTOM_KEY_PREFIX}${customSymbols.join(",")}`;
+  const preset = presets.find((candidate) => candidate.id === universeId);
+  if (preset === undefined) return PENDING_KEY;
+  return preset.universe.kind === "sectors"
+    ? SECTORS_PRESET.id
+    : `${CUSTOM_KEY_PREFIX}${preset.universe.symbols.join(",")}`;
+};
+
+const selectionFromKey = (key: string): Selection => {
+  if (key === PENDING_KEY) return { choice: null, pending: true };
+  if (key === SECTORS_PRESET.id)
+    return { choice: SECTORS_PRESET.universe, pending: false };
+  const symbols = key
+    .slice(CUSTOM_KEY_PREFIX.length)
+    .split(",")
+    .filter((symbol) => symbol !== "");
+  return {
+    choice: symbols.length === 0 ? null : { kind: "custom", symbols },
+    pending: false,
+  };
+};
+
 const selectClass =
-  "h-11 w-full rounded-md border border-border bg-background px-2 text-sm";
+  "h-11 w-full rounded-md border border-border bg-background px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60";
 
 const CustomListForm = ({
   onApply,
@@ -313,7 +371,10 @@ const RotationTable = ({
             onFocus={() => onHighlight(row.symbol)}
             scope="row"
           >
-            <TickerLink className="font-semibold" symbol={row.symbol} />
+            <TickerLink
+              className="inline-flex min-h-11 items-center font-semibold"
+              symbol={row.symbol}
+            />
           </TableHead>
           <TableCell className="whitespace-normal">{row.name ?? "–"}</TableCell>
           {row.point === null ? (
@@ -363,6 +424,7 @@ const RotationControls = ({
   onTailLength,
   onTimeframe,
   onUniverse,
+  pending,
   presets,
   tailLength,
   timeframe,
@@ -371,6 +433,8 @@ const RotationControls = ({
   readonly onTailLength: (length: number) => void;
   readonly onTimeframe: (timeframe: SectorRotationTimeframe) => void;
   readonly onUniverse: (id: string) => void;
+  /** The linked preset is not known yet: the picker waits for the lists. */
+  readonly pending: boolean;
   readonly presets: readonly SectorRotationUniversePreset[];
   readonly tailLength: number;
   readonly timeframe: SectorRotationTimeframe;
@@ -403,10 +467,13 @@ const RotationControls = ({
     <label className="w-full space-y-1 text-sm sm:w-48">
       <span className="block">Universe</span>
       <select
+        aria-busy={pending}
         className={selectClass}
+        disabled={pending}
         onChange={(event) => onUniverse(event.target.value)}
         value={universeId}
       >
+        {pending ? <option value={universeId}>Loading lists…</option> : null}
         {presets.map((preset) => (
           <option key={preset.id} value={preset.id}>
             {preset.label}
@@ -530,6 +597,41 @@ export interface SectorRotationWorkspaceProps {
   readonly initial?: SectorRotationSettings | undefined;
 }
 
+/**
+ * The universe presets, with the sector ETFs always included. Until the lists (watchlist,
+ * baskets) arrive or fail only the sector ETFs are known, so a linked id stays pending. Once
+ * they settle, a linked id missing from them (a deleted list, or the lists failed) is replaced
+ * by the sector ETFs, and the URL effect then drops `universe` from the address bar.
+ */
+const usePresetLists = (
+  gateway: SectorRotationGateway,
+  setUniverseId: Dispatch<SetStateAction<string>>
+): readonly SectorRotationUniversePreset[] => {
+  const [presets, setPresets] = useState<
+    readonly SectorRotationUniversePreset[]
+  >([SECTORS_PRESET]);
+  useEffect(() => {
+    let live = true;
+    const settle = (loaded: readonly SectorRotationUniversePreset[]) => {
+      if (!live) return;
+      const list = loaded.some((preset) => preset.id === SECTORS_PRESET.id)
+        ? loaded
+        : [SECTORS_PRESET, ...loaded];
+      setPresets(list);
+      setUniverseId((current) =>
+        current === CUSTOM_ID || list.some((preset) => preset.id === current)
+          ? current
+          : SECTORS_PRESET.id
+      );
+    };
+    gateway.universes().then(settle, () => settle([]));
+    return () => {
+      live = false;
+    };
+  }, [gateway, setUniverseId]);
+  return presets;
+};
+
 export const SectorRotationWorkspace = ({
   gateway: suppliedGateway,
   initial,
@@ -541,10 +643,8 @@ export const SectorRotationWorkspace = ({
   const [timeframe, setTimeframe] = useState<SectorRotationTimeframe>(
     settings.timeframe
   );
-  const [presets, setPresets] = useState<
-    readonly SectorRotationUniversePreset[]
-  >([SECTORS_PRESET]);
   const [universeId, setUniverseId] = useState(settings.universeId);
+  const presets = usePresetLists(gateway, setUniverseId);
   const [customSymbols, setCustomSymbols] = useState<readonly string[]>([]);
   const [tailLength, setTailLength] = useState<number>(settings.tailLength);
   const [state, setState] = useState<LoadState>({ type: "loading" });
@@ -553,42 +653,21 @@ export const SectorRotationWorkspace = ({
   const [hovered, setHovered] = useState<ChartHighlight>(null);
   const request = useRef(0);
 
-  useEffect(() => {
-    let live = true;
-    gateway.universes().then(
-      (loaded) => {
-        if (live) setPresets(loaded);
-        return;
-      },
-      // The sector ETFs stay available when the other lists fail to load.
-      () => undefined
-    );
-    return () => {
-      live = false;
-    };
-  }, [gateway]);
+  // Only `timeframe`, `universe` and `tail` are ours: other parameters (e.g. `?theme=`) are kept.
+  useEffect(
+    () =>
+      writeQuery(
+        sectorRotationQuery({ tailLength, timeframe, universeId }),
+        URL_DEFAULTS
+      ),
+    [tailLength, timeframe, universeId]
+  );
 
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const search = sectorRotationSearch({ tailLength, timeframe, universeId });
-    if (url.search === search) return;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${url.pathname}${search}${url.hash}`
-    );
-  }, [tailLength, timeframe, universeId]);
-
-  const universe = useMemo((): SectorRotationUniverseChoice | null => {
-    if (universeId === CUSTOM_ID)
-      return customSymbols.length === 0
-        ? null
-        : { kind: "custom", symbols: customSymbols };
-    return (
-      presets.find((preset) => preset.id === universeId)?.universe ??
-      SECTORS_PRESET.universe
-    );
-  }, [customSymbols, presets, universeId]);
+  const key = selectionKey(universeId, customSymbols, presets);
+  const { choice: universe, pending } = useMemo(
+    () => selectionFromKey(key),
+    [key]
+  );
 
   const load = useCallback(
     async (
@@ -625,9 +704,10 @@ export const SectorRotationWorkspace = ({
   );
 
   useEffect(() => {
-    void load(timeframe, universe);
+    // A linked preset waits for the lists, so the sector map is never drawn in its place.
+    if (!pending) void load(timeframe, universe);
     return;
-  }, [load, timeframe, universe]);
+  }, [load, timeframe, pending, universe]);
 
   const map = state.type === "ready" ? state.map : null;
   const dates = useMemo(
@@ -689,6 +769,7 @@ export const SectorRotationWorkspace = ({
             onTailLength={setTailLength}
             onTimeframe={setTimeframe}
             onUniverse={setUniverseId}
+            pending={pending}
             presets={presets}
             tailLength={tailLength}
             timeframe={timeframe}

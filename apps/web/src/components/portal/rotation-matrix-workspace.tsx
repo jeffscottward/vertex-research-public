@@ -37,6 +37,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
 
+import { withQuery, writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
@@ -55,6 +56,8 @@ const HEAT_SCALE: Readonly<Record<RotationPeriod, number>> = {
 };
 
 const DEFAULT_PERIOD: RotationPeriod = "1M";
+// Defaults removed from the URL so the default view keeps a clean address.
+const URL_DEFAULTS = { period: DEFAULT_PERIOD } as const;
 
 export type RotationMatrixSettings = Readonly<{ period: RotationPeriod }>;
 
@@ -71,8 +74,7 @@ export const parseRotationMatrixParams = (
 /** The query string for the settings, without the default ("" for 1M). */
 export const rotationMatrixSearch = (
   settings: RotationMatrixSettings
-): string =>
-  settings.period === DEFAULT_PERIOD ? "" : `?period=${settings.period}`;
+): string => withQuery("", { period: settings.period }, URL_DEFAULTS);
 
 /** Green for gains, red for losses; opacity grows with the size of the move. */
 export const heatColor = (
@@ -376,16 +378,8 @@ export const RotationMatrixWorkspace = ({
     return;
   }, [load, period]);
 
-  useEffect(() => {
-    const url = new URL(window.location.href);
-    const search = rotationMatrixSearch({ period });
-    if (url.search === search) return;
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${url.pathname}${search}${url.hash}`
-    );
-  }, [period]);
+  // Only `period` is ours: other parameters in the address bar (e.g. `?theme=`) are kept.
+  useEffect(() => writeQuery({ period }, URL_DEFAULTS), [period]);
 
   const matrix = state.type === "ready" ? state.matrix : null;
   const groups = useMemo(() => {
