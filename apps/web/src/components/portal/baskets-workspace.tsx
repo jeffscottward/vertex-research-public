@@ -639,6 +639,8 @@ export const BasketsWorkspace = ({
               ))}
             </div>
           }
+          // Panel actions do not shrink; let the basket picker wrap to the panel width on phones.
+          className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
           headingId="basket-chart-heading"
           title={
             selected === undefined ? (
