@@ -306,7 +306,7 @@ describe("PortfolioMonitor", () => {
     const header = find("[data-sort-column=type]");
     expect(header.textContent).toContain("Type");
     const badge = find("td[data-column=type] [data-holding-tone]");
-    expect(badge.textContent).toMatch(/^STK [+-][LS]$/u);
+    expect(badge.textContent).toMatch(/^STK \([LS]\)$/u);
     expect(badge.getAttribute("aria-label")).toMatch(/^(Long|Short) shares$/u);
     await run(() => header.click());
     expect(header.closest("th")?.getAttribute("aria-sort")).toBe("descending");
