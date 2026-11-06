@@ -5,16 +5,18 @@ import { resolve } from "node:path";
 // Python checks run the real research/control sources in a separate
 // interpreter. VERTEX_TEST_PYTHON names that interpreter for every TS-side
 // Python test. An explicitly configured interpreter is always used as given and
-// fails loudly if broken. In CI (CI=true) the interpreter-only suites never
-// skip: a missing VERTEX_TEST_PYTHON fails them instead.
+// fails loudly if broken. In GitHub Actions (GITHUB_ACTIONS=true) the
+// interpreter-only suites never skip: a missing VERTEX_TEST_PYTHON fails them.
 
 export const TEST_PYTHON_VARIABLE = "VERTEX_TEST_PYTHON";
 const configuredTestPython = process.env[TEST_PYTHON_VARIABLE];
 // The interpreter for Python children; python3 on PATH when unset.
 export const testPython = configuredTestPython ?? "python3";
-// Interpreter-only suites skip only outside CI with no configured interpreter.
+// Interpreter-only suites skip only outside GitHub Actions and only when no
+// interpreter is configured.
 export const skipWithoutTestPython =
-  configuredTestPython === undefined && process.env["CI"] !== "true";
+  configuredTestPython === undefined &&
+  process.env["GITHUB_ACTIONS"] !== "true";
 // The configured interpreter, or an error that names the variable.
 export const requireTestPython = (): string => {
   if (configuredTestPython === undefined)
