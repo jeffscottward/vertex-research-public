@@ -16,6 +16,10 @@ import {
   type VertexRuntimeRecipesOptions,
 } from "./vertex-runtime-recipes.ts";
 import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
+import {
+  requireTestPython,
+  skipWithoutTestPython,
+} from "./research-python.test-support.ts";
 
 // Source-only composition. External object storage, reviewer/control service and
 // policy registry fixtures do NOT establish backend durability or live grants.
@@ -711,12 +715,8 @@ const fixture = async () => {
 };
 
 const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
-  const interpreter = process.env["VERTEX_COMPOSITE_TEST_PYTHON"];
-  if (!interpreter)
-    throw new Error(
-      "Explicit existing VERTEX_COMPOSITE_TEST_PYTHON is required; no install or fallback"
-    );
-  const root = process.cwd();
+  const interpreter = requireTestPython();
+  const root = resolve(import.meta.dirname, "../../../..");
   const child = spawn(
     interpreter,
     [
@@ -910,7 +910,7 @@ const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
 
 // Ordinary unit discovery is opt-in; the focused launcher supplies the explicit
 // existing interpreter and requires this exact case to pass (never skip).
-describe.skipIf(!process.env["VERTEX_COMPOSITE_TEST_PYTHON"])(
+describe.skipIf(skipWithoutTestPython)(
   "bounded regime composite reviewed caller source",
   () => {
     return it(

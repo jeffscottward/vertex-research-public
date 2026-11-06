@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.85"
 publish = false
 build = "build.rs"
+autotests = false
 
 [lib]
 name = "vertex_kernel_bridge"

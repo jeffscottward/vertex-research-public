@@ -618,8 +618,11 @@ class ArtifactAdapter(_Port):
                 "participantIds", "synthesizerId", "humanWindowSha256", "predecessors",
                 "turnTokens", "turnCostUsd", "aggregateTokens", "aggregateCostUsd", "derivedContext"}
             v2 = type(profile) is dict and profile.get("profile") == "vertex-research-chat-advisory-v2"
+            # The native-evidence advisory retains exactly the v1 keys under its
+            # own discriminator; the server owns its full profile validation.
             if (type(profile) is not dict
-                    or profile.get("profile") not in ("vertex-research-chat-advisory-v1", "vertex-research-chat-advisory-v2")
+                    or profile.get("profile") not in ("vertex-research-chat-advisory-v1", "vertex-research-chat-advisory-v2",
+                                                      "vertex-research-chat-native-evidence-advisory-v1")
                     or set(profile) != retained_keys | ({"debate"} if v2 else set())
                     or profile.get("executionAuthorized") is not False
                     or v2 and (type(profile["debate"]) is not dict or set(profile["debate"]) != debate_keys

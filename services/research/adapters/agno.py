@@ -296,11 +296,13 @@ def invoke_native_evidence_once(*, endpoint: EndpointPolicy, policy: ModelPolicy
 
     calls = 0
     exchange = None
-    # Pinned Agno _format_message omits None message fields. Validate precisely
-    # that internal proposal (not arbitrary semantic JSON equality), then emit
-    # the original authorized transcript with explicit assistant content:null.
-    sdk_body = {**body, "messages": [{key: value for key, value in message.items() if value is not None}
-                                    for message in body["messages"]]}
+    # Pinned Agno 1.7.12 _format_message omits None message fields, then
+    # re-adds content as "" when it is None (assistant tool-call turns). Validate
+    # precisely that internal proposal (not arbitrary semantic JSON equality),
+    # then emit the original authorized transcript with explicit content:null.
+    sdk_body = {**body, "messages": [{**{key: value for key, value in message.items() if value is not None},
+                                      **({"content": ""} if message.get("content") is None else {})}
+                                     for message in body["messages"]]}
     sdk_bytes = canonical_chat_input_bytes(sdk_body)
 
     class HostTransport(httpx.BaseTransport):

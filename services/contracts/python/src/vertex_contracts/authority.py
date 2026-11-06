@@ -23,6 +23,7 @@ _SOURCE_FILES = frozenset({
     "packages/api/src/contracts/vertex-native-facts.ts",
     "packages/api/src/contracts/vertex-worker.ts",
     "packages/api/src/contracts/vertex-worker-experiment.ts",
+    "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts",
     "packages/api/src/contracts/vertex-policy.ts",
     "packages/api/src/contracts/vertex-model-use.ts",
     "packages/api/src/contracts/vertex-worker-epoch.ts",

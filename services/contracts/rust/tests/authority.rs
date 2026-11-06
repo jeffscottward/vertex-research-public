@@ -34,6 +34,8 @@ fn bundle(schema: Value, expression: Value) -> Value {
         "packages/api/src/contracts/vertex-control.ts": "b".repeat(64),
         "packages/api/src/contracts/vertex-native-facts.ts": "e".repeat(64),
         "packages/api/src/contracts/vertex-worker.ts": "f".repeat(64),
+        "packages/api/src/contracts/vertex-worker-experiment.ts": "4".repeat(64),
+        "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts": "5".repeat(64),
         "packages/api/src/contracts/vertex-policy.ts": "1".repeat(64),
         "packages/api/src/contracts/vertex-model-use.ts": "2".repeat(64),
         "packages/api/src/contracts/vertex-worker-epoch.ts": "3".repeat(64),
@@ -190,7 +192,7 @@ fn structural_subset_and_local_refs_are_conjunctive() {
 fn full_numeric_and_string_ir() {
     let program = json!(["and",
         ["eq",["add",2,3],5], ["eq",["sub",2,3],-1], ["eq",["mod",-7,3],-1],
-        ["eq",["mul",["integer","9007199254740991"],2],["add",9007199254740991,9007199254740991]],
+        ["eq",["mul",["integer","9007199254740991"],2],["add",9_007_199_254_740_991_i64,9_007_199_254_740_991_i64]],
         ["gt",["decimal","0.000000000000000001"],0], ["eq",["decimal","-0.000000000000000001"],-1],
         ["lt",["epoch","1969-12-31T23:59:59.999999999Z"],0], ["le",["integer","0"],0], ["ge",2,2],
         ["ne",true,1], ["not",["eq",null,false]], ["eq",["concat","a","b","c"],"abc"],

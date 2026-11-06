@@ -37,10 +37,7 @@ const TIMEOUT = scaledTimeout(180_000);
 const requireNativeSdk = (
   skip: (condition: boolean, note?: string) => void
 ): void => {
-  const sdk = pinnedPython(
-    "VERTEX_NATIVE_EVIDENCE_TEST_PYTHON",
-    RESEARCH_SDK_DISTRIBUTIONS
-  );
+  const sdk = pinnedPython(RESEARCH_SDK_DISTRIBUTIONS);
   skip(sdk.skip, sdk.note);
 };
 const history = (f: Awaited<ReturnType<typeof nativeProtocolFixture>>) =>
@@ -381,9 +378,12 @@ describe("FirstMate bounded native evidence real-owner composition", () => {
       expect(done.tokenizers).toBeLessThanOrEqual(2);
       expect(done.prepared).toHaveLength(1);
       expect(f.table(nativeTables.phases)).toHaveLength(2);
+      // The privacy owner rejoins every reviewer grant when the worker
+      // submits a candidate, so absent phase-two authority denies the phase-two
+      // prepare itself; later losses deny the worker's review poll instead.
       expect(done.denied).toMatchObject({
         method:
-          scenario === "input-drift"
+          scenario === "input-drift" || scenario === "missing-authority"
             ? "prepareModelPrivacyReview"
             : "readModelPrivacyReview",
         status: expect.any(Number),

@@ -26,6 +26,7 @@ import type { ApiContext } from "./context.ts";
 import {
   CONTRACTS_URL_DISTRIBUTIONS,
   pinnedPython,
+  testPython,
 } from "./research-python.test-support.ts";
 import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
@@ -163,7 +164,7 @@ const sourceNative = async (f: Fixture) => {
     return at;
   };
   const child = spawn(
-    process.env["VERTEX_RENDEZVOUS_TEST_PYTHON"] ?? "python3",
+    testPython,
     [
       resolve(
         root,
@@ -261,10 +262,7 @@ describe("local rights observation source boundary", () => {
     "advances through pinned v2 loader Job factory both RPC owners and native source validators",
     async ({ skip }) => {
       // Native semantics validate URLs through the pinned WHATWG backend.
-      const validator = pinnedPython(
-        "VERTEX_RENDEZVOUS_TEST_PYTHON",
-        CONTRACTS_URL_DISTRIBUTIONS
-      );
+      const validator = pinnedPython(CONTRACTS_URL_DISTRIBUTIONS);
       skip(validator.skip, validator.note);
       const f = await fixture(),
         before = originalRows(f);

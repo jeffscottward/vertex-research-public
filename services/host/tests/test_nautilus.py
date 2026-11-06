@@ -1,6 +1,6 @@
 """Authored-only synthetic tests; never a claim of installed Nautilus acceptance.
 
-All native objects are recorders. Real v1.231.0 import/ABI/instrument replay
+All native objects are recorders. Real 2.0.0rc5 import/ABI/instrument replay
 validation remains deferred until the user's final verification phase.
 """
 import asyncio
@@ -17,11 +17,11 @@ import unittest
 from unittest.mock import patch
 
 from vertex_execution.adapters.callbacks import AsyncTickDrain, BoundedTickBuffer, TickEvent
-from vertex_execution.adapters.nautilus_1231 import EngineUnavailable, OfflineEngineScope
+from vertex_execution.adapters.nautilus_200rc5 import EngineUnavailable, OfflineEngineScope
 from vertex_host.nautilus import (
     CapturedQuote, CapturedQuoteResolver, NativeOfflineEngineFactory, NativeOfflineQuoteEngine,
     NautilusHostUnavailable, ReviewedDistribution, ReviewedNautilusAdapter,
-    ReviewedNautilusLoader, compose_nautilus,
+    ReviewedNautilusLoader, _NativeLane, compose_nautilus,
 )
 
 
@@ -81,7 +81,7 @@ def equity():
             "price_precision": 2, "price_increment": "0.01", "lot_size": "1", "isin": None,
             "margin_init": "0", "margin_maint": "0", "maker_fee": "0", "taker_fee": "0",
             "min_price": None, "max_price": None, "max_quantity": None, "min_quantity": None,
-            "ts_event": 1, "ts_init": 2, "tick_scheme_name": None, "info": {}}
+            "ts_event": 1, "ts_init": 2, "tick_scheme": None, "info": {}}
 
 
 def quotes():
@@ -103,12 +103,12 @@ def fixture(change=None, capture_change=None, mode="research"):
     if capture_change:
         capture_change(capture)
     capture_pin = cache.pin("fixture-capture", "HostNautilusQuoteCapture", capture)
-    distribution = {"name": "nautilus_trader", "version": "1.231.0", "files": {
+    distribution = {"name": "nautilus-trader", "version": "2.0.0rc5", "files": {
         "nautilus_trader/__init__.py": "a" * 64,
-        "nautilus_trader-1.231.0.dist-info/METADATA": "b" * 64,
+        "nautilus_trader-2.0.0rc5.dist-info/METADATA": "b" * 64,
     }}
     distribution["buildSha256"] = authority.digest(distribution)
-    config = {"format": "vertex-host-nautilus-v1", "accountAlias": "fixture-alias", "mode": mode,
+    config = {"format": "vertex-host-nautilus-v2", "accountAlias": "fixture-alias", "mode": mode,
               "traderId": "FIXTURE-001", "distribution": distribution,
               "venue": {"id": "SIM", "currency": "USD", "startingBalance": "100.00", "defaultLeverage": "1",
                         "accountType": "CASH", "omsType": "NETTING", "bookType": "L1_MBP"},
@@ -191,21 +191,27 @@ def native_api():
         value = NativeEngineRecorder(config)
         engines.append(value)
         return value
-    def instrument(values):
-        return SimpleNamespace(id=Identifier(values["id"]), price_precision=values["price_precision"],
-                               size_precision=0, price_increment=NativeNumber(values["price_increment"]),
-                               lot_size=NativeNumber(values["lot_size"]))
+    def instrument(**values):
+        return SimpleNamespace(id=values["instrument_id"], price_precision=values["price_precision"],
+                               size_precision=0, price_increment=values["price_increment"],
+                               lot_size=values["lot_size"], values=values)
+    def currency(value, strict=False):
+        if strict is not True:
+            raise AssertionError("fixture-currency-must-be-strict")
+        return value
+    model = SimpleNamespace(
+        Price=NativeNumber, Quantity=NativeNumber, Money=MoneyRecorder,
+        Currency=SimpleNamespace(from_str=currency),
+        QuoteTick=lambda **values: SimpleNamespace(**values),
+        TraderId=Identifier, Venue=Identifier, Symbol=Identifier,
+        InstrumentId=SimpleNamespace(from_str=Identifier),
+        OmsType=SimpleNamespace(NETTING="NETTING"), AccountType=SimpleNamespace(CASH="CASH"),
+        BookType=SimpleNamespace(L1_MBP="L1_MBP"), Equity=instrument,
+    )
     api = {
-        "model.objects": SimpleNamespace(Price=NativeNumber, Quantity=NativeNumber, Money=MoneyRecorder,
-                                          Currency=SimpleNamespace(from_str=lambda value: value)),
-        "model.data": SimpleNamespace(QuoteTick=lambda **values: SimpleNamespace(**values)),
-        "model.identifiers": SimpleNamespace(TraderId=Identifier, Venue=Identifier),
-        "model.enums": SimpleNamespace(OmsType=SimpleNamespace(NETTING="NETTING"),
-                                        AccountType=SimpleNamespace(CASH="CASH"), BookType=SimpleNamespace(L1_MBP="L1_MBP")),
-        "common.config": SimpleNamespace(LoggingConfig=lambda **values: values),
-        "backtest.config": SimpleNamespace(BacktestEngineConfig=lambda **values: values),
-        "backtest.engine": SimpleNamespace(BacktestEngine=new_engine),
-        "model.instruments.equity": SimpleNamespace(Equity=SimpleNamespace(from_dict=instrument)),
+        "model": model,
+        "common": SimpleNamespace(LoggerConfig=lambda **values: values),
+        "backtest": SimpleNamespace(BacktestEngineConfig=lambda **values: values, BacktestEngine=new_engine),
     }
     return api, engines
 
@@ -213,8 +219,9 @@ def native_api():
 class ComposeTests(unittest.TestCase):
     def test_compose_captures_original_exact_ticks_without_native_import_file_read_or_activation(self):
         values = fixture()
-        with patch("vertex_host.nautilus.importlib.import_module", side_effect=AssertionError("no-import")), \
-                patch("vertex_host.nautilus.read_regular", side_effect=AssertionError("no-file-probe")):
+        # Resolve the read_regular target before import_module is globally patched.
+        with patch("vertex_host.nautilus.read_regular", side_effect=AssertionError("no-file-probe")), \
+                patch("vertex_host.nautilus.importlib.import_module", side_effect=AssertionError("no-import")):
             adapter = compose(values)
             self.assertIsInstance(adapter, ReviewedNautilusAdapter)
             self.assertFalse(adapter.active)
@@ -242,7 +249,7 @@ class ComposeTests(unittest.TestCase):
 
     def test_version_inventory_and_build_digest_must_be_explicit_exact_not_source_tag_inference(self):
         changes = (
-            lambda value: value["distribution"].update(version="2.0.0rc5"),
+            lambda value: value["distribution"].update(version="2.0.0rc4"),
             lambda value: value["distribution"].update(buildSha256="f" * 64),
             lambda value: value["distribution"].update(files={}),
             lambda value: value["distribution"]["files"].update({"../elsewhere.py": "c" * 64}),
@@ -298,7 +305,9 @@ class DistributionTests(unittest.TestCase):
     def files(self, root, authority):
         originals = {
             "nautilus_trader/__init__.py": b"# fixture only; not genuine Nautilus\n",
-            "nautilus_trader-1.231.0.dist-info/METADATA": b"Name: nautilus_trader\nVersion: 1.231.0\n",
+            # Official rc5 ships an empty PEP 561 marker; it is still inventory-pinned.
+            "nautilus_trader/py.typed": b"",
+            "nautilus_trader-2.0.0rc5.dist-info/METADATA": b"Name: nautilus-trader\nVersion: 2.0.0rc5\n",
         }
         inventory = {}
         for name, raw in originals.items():
@@ -307,8 +316,8 @@ class DistributionTests(unittest.TestCase):
             path.write_bytes(raw)
             path.chmod(0o600)
             inventory[name] = sha256(raw).hexdigest()
-        digest = authority.digest({"name": "nautilus_trader", "version": "1.231.0", "files": inventory})
-        return ReviewedDistribution("1.231.0", digest, tuple(sorted(inventory.items())))
+        digest = authority.digest({"name": "nautilus-trader", "version": "2.0.0rc5", "files": inventory})
+        return ReviewedDistribution("2.0.0rc5", digest, tuple(sorted(inventory.items())))
 
     def test_file_measurement_checks_all_original_bytes_and_rejects_extra_paths_and_symlinks(self):
         for failure in ("changed", "extra-file", "extra-directory", "symlink"):
@@ -326,7 +335,7 @@ class DistributionTests(unittest.TestCase):
                     (root / "extra").mkdir()
                 else:
                     (root / "nautilus_trader/__init__.py").unlink()
-                    (root / "nautilus_trader/__init__.py").symlink_to(root / "nautilus_trader-1.231.0.dist-info/METADATA")
+                    (root / "nautilus_trader/__init__.py").symlink_to(root / "nautilus_trader-2.0.0rc5.dist-info/METADATA")
                 with self.subTest(failure=failure), self.assertRaises(Exception):
                     loader._measure(root)
 
@@ -334,8 +343,8 @@ class DistributionTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root, authority = Path(directory), Authority()
             reviewed = self.files(root, authority)
-            path = root / "nautilus_trader-1.231.0.dist-info/METADATA"
-            path.write_bytes(b"Name: nautilus_trader\nVersion: 1.232.0\n")
+            path = root / "nautilus_trader-2.0.0rc5.dist-info/METADATA"
+            path.write_bytes(b"Name: nautilus-trader\nVersion: 2.0.0rc6\n")
             files = dict(reviewed.files)
             files[path.relative_to(root).as_posix()] = sha256(path.read_bytes()).hexdigest()
             reviewed = replace(reviewed, files=tuple(files.items()))
@@ -350,7 +359,7 @@ class DistributionTests(unittest.TestCase):
             reviewed = self.files(root, authority)
             loader = ReviewedNautilusLoader(distribution=reviewed, root=root, contracts=authority,
                                             clock=Clock(), issued_ns=NOW - 10, expires_ns=NOW + 100)
-            with patch.dict("sys.modules", {"nautilus_trader": SimpleNamespace(__version__="1.231.0")}), \
+            with patch.dict("sys.modules", {"nautilus_trader": SimpleNamespace(__version__="2.0.0rc5")}), \
                     patch("vertex_host.nautilus.importlib.util.spec_from_file_location") as spec:
                 with self.assertRaises(NautilusHostUnavailable):
                     loader()
@@ -361,9 +370,14 @@ class NativeOfflineTests(unittest.IsolatedAsyncioTestCase):
     def engine(self):
         api, _ = native_api()
         native = NativeEngineRecorder()
-        instrument = api["model.instruments.equity"].Equity.from_dict(equity())
+        instrument = api["model"].Equity(
+            instrument_id=Identifier(INSTRUMENT), price_precision=2,
+            price_increment=NativeNumber("0.01"), lot_size=NativeNumber("1"))
+        lane = _NativeLane()
+        self.addCleanup(lane.shutdown)
         engine = NativeOfflineQuoteEngine(engine=native, api=api, resolver=CapturedQuoteResolver(quotes()),
-                                          instruments={INSTRUMENT: instrument}, current=lambda: None)
+                                          instruments={INSTRUMENT: instrument}, current=lambda: None,
+                                          lane=lane)
         self.addAsyncCleanup(engine.close)
         return engine, native
 
@@ -425,16 +439,22 @@ class NativeOfflineTests(unittest.IsolatedAsyncioTestCase):
     async def test_factory_constructs_backtest_only_with_explicit_economics_and_no_plugins(self):
         _, _, _, _, config = fixture()
         api, engines = native_api()
-        module = SimpleNamespace(__version__="1.231.0")
+        module = SimpleNamespace(__version__="2.0.0rc5")
         loader = SimpleNamespace(api=lambda candidate: api if candidate is module else None, current=lambda: None)
         factory = NativeOfflineEngineFactory(loader=loader, config=config, resolver=CapturedQuoteResolver(quotes()))
         engine = factory(module, OfflineEngineScope("research"))
         self.addAsyncCleanup(engine.close)
         native = engines[0]
-        self.assertEqual(native.config["strategies"], [])
-        self.assertEqual(native.config["actors"], [])
+        # rc5 BacktestEngineConfig has no strategies/actors keywords; none are passed.
+        self.assertNotIn("strategies", native.config)
+        self.assertNotIn("actors", native.config)
+        self.assertNotIn("exec_algorithms", native.config)
+        self.assertEqual(native.config["catalogs"], [])
+        self.assertIsNone(native.config["streaming"])
         self.assertIsNone(native.config["controller"])
         self.assertFalse(native.config["load_state"])
+        self.assertFalse(native.config["save_state"])
+        self.assertEqual([event[0] for event in native.events], ["venue", "instrument"])
         venue = native.events[0][1]
         self.assertEqual(venue["starting_balances"][0].as_decimal(), Decimal("100.00"))
         self.assertEqual(venue["default_leverage"], Decimal("1"))
@@ -474,7 +494,8 @@ class NativeOfflineTests(unittest.IsolatedAsyncioTestCase):
             def dispose(self):
                 thread_ids.append(("dispose", get_ident()))
                 super().dispose()
-        api["backtest.engine"] = SimpleNamespace(BacktestEngine=AffinityEngine)
+        api["backtest"] = SimpleNamespace(BacktestEngineConfig=api["backtest"].BacktestEngineConfig,
+                                          BacktestEngine=AffinityEngine)
         loader = SimpleNamespace(api=lambda module: api, current=lambda: None)
         factory = NativeOfflineEngineFactory(loader=loader, config=config, resolver=CapturedQuoteResolver(quotes()))
         engine = factory(object(), OfflineEngineScope("research"))

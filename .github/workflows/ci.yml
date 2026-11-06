@@ -112,6 +112,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The packages/api Python child tests (research-python.test-support.ts) run with
+      # VERTEX_TEST_PYTHON from the hash-pinned SDK lock. In CI they never skip.
+      - name: Make the Python test interpreter
+        run: bash scripts/ci/test-python.sh "${RUNNER_TEMP}/vertex-test-python"
+
       - name: Run coverage shard
         run: bun run verify:coverage
 
@@ -264,12 +269,20 @@ jobs:
         if: matrix.lane == 'core'
         run: node --test research/master-rules/check-master-rules.mjs
 
-      # The Python research and execution suites (services/research, services/execution).
-      # The step installs the hash-pinned locks into temporary venvs and runs the suites
-      # listed in services/research/tests/ci-suites*.txt. Fakes only; no network or broker.
-      - name: Python research and execution tests
+      # The Python research, execution and native service suites (services/research,
+      # services/execution and the services listed in ci-suites-services.txt). The step
+      # installs the hash-pinned locks into temporary venvs and runs the suites listed in
+      # services/research/tests/ci-suites*.txt. Fakes only; no network or broker.
+      - name: Python research, execution and service tests
         if: matrix.lane == 'core'
         run: bash scripts/ci/research-python.sh
+
+      # The Rust suites of vertex-contracts, vertex-execution-kernel and
+      # vertex-kernel-bridge, locked by services/kernel-bridge/Cargo.lock. The toolchain
+      # comes from services/kernel-bridge/rust-toolchain.toml (rustup installs it).
+      - name: Rust native service tests
+        if: matrix.lane == 'core'
+        run: bash scripts/ci/native-rust.sh
 
       - name: Run verification lane
         if: matrix.lane != 'browser'
