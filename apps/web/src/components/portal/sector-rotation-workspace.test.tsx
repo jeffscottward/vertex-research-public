@@ -28,8 +28,11 @@ import {
 import {
   formatPeriods,
   PLAY_STEP_MS,
+  parseSectorRotationParams,
+  quadrantCounts,
   rowsAt,
   SectorRotationWorkspace,
+  sectorRotationSearch,
   unionDates,
 } from "./sector-rotation-workspace.tsx";
 
@@ -51,6 +54,7 @@ const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   vi.useRealTimers();
+  window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
 });
 
@@ -72,13 +76,18 @@ const gatewayWith = (
   ]
 ): SectorRotationGateway => ({ map: vi.fn(map), universes: vi.fn(universes) });
 
-const render = async (gateway: SectorRotationGateway) => {
+const render = async (
+  gateway: SectorRotationGateway,
+  initial?: Parameters<typeof SectorRotationWorkspace>[0]["initial"]
+) => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
-    root.render(<SectorRotationWorkspace gateway={gateway} />);
+    root.render(
+      <SectorRotationWorkspace gateway={gateway} initial={initial} />
+    );
     return await flush();
   });
   return container;
@@ -178,6 +187,131 @@ describe("sector rotation workspace helpers", () => {
     expect(formatPeriods(3, "daily")).toBe("3 days");
     expect(formatPeriods(1, "weekly")).toBe("1 week");
     return expect(formatPeriods(2, "weekly")).toBe("2 weeks");
+  });
+});
+
+describe("sector rotation URL settings and quadrant counts", () => {
+  it("parses the URL with defaults for missing or unknown values", () => {
+    expect(parseSectorRotationParams({})).toEqual({
+      tailLength: 10,
+      timeframe: "weekly",
+      universeId: "sectors",
+    });
+    expect(
+      parseSectorRotationParams({
+        tail: "7",
+        timeframe: "monthly",
+        universe: ["a", "b"],
+      })
+    ).toEqual({ tailLength: 10, timeframe: "weekly", universeId: "sectors" });
+    expect(
+      parseSectorRotationParams({ tail: "x", universe: "bad id!" })
+    ).toEqual({ tailLength: 10, timeframe: "weekly", universeId: "sectors" });
+    expect(
+      parseSectorRotationParams({
+        tail: "5",
+        timeframe: "daily",
+        universe: "watchlist",
+      })
+    ).toEqual({ tailLength: 5, timeframe: "daily", universeId: "watchlist" });
+  });
+
+  it("writes only the settings that differ from the defaults", () => {
+    expect(
+      sectorRotationSearch({
+        tailLength: 10,
+        timeframe: "weekly",
+        universeId: "sectors",
+      })
+    ).toBe("");
+    expect(
+      sectorRotationSearch({
+        tailLength: 20,
+        timeframe: "daily",
+        universeId: "watchlist",
+      })
+    ).toBe("?timeframe=daily&universe=watchlist&tail=20");
+  });
+
+  it("counts rows per quadrant, skipping rows without a point", () => {
+    const rows = rowsAt(mapFixture().series, null);
+    const counts = quadrantCounts([
+      ...rows,
+      { name: null, periods: 0, point: null, since: null, symbol: "NONE" },
+    ]);
+    expect(
+      counts.leading + counts.improving + counts.weakening + counts.lagging
+    ).toBe(rows.filter((entry) => entry.point !== null).length);
+    expect(counts.leading).toBeGreaterThanOrEqual(1);
+    expect(counts.improving).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("SectorRotationWorkspace page chrome", () => {
+  it("shows the header, as-of chip, KPI counts, panels and ticker links by default", async () => {
+    const container = await render(gatewayWith(async () => mapFixture()));
+    expect(container.querySelector("h1")?.textContent).toBe("Sector rotation");
+    expect(
+      container.querySelector('[data-slot="badge"]')?.textContent
+    ).toContain("As of 2026-10-30");
+    expect(
+      container.querySelector('[data-quadrant="leading"]')?.textContent
+    ).toContain("Leading");
+    expect(
+      container.querySelector('[data-slot="table-scroll"]')
+    ).not.toBeNull();
+    const links = [
+      ...container.querySelectorAll('a[data-slot="ticker-link"]'),
+    ].map((link) => link.textContent);
+    expect(links).toContain("XLE");
+    expect(links).toContain("XLK");
+    expect(window.location.search).toBe("");
+  });
+
+  it("starts from the URL settings and keeps the URL in sync", async () => {
+    window.history.replaceState(null, "", "/sector-rotation?tail=20");
+    const gateway = gatewayWith(async (input) =>
+      mapFixture({ timeframe: input.timeframe ?? "weekly" })
+    );
+    const container = await render(gateway, {
+      tailLength: 20,
+      timeframe: "daily",
+      universeId: "sectors",
+    });
+    expect(gateway.map).toHaveBeenCalledWith({
+      timeframe: "daily",
+      universe: { kind: "sectors" },
+    });
+    expect(window.location.search).toBe("?timeframe=daily&tail=20");
+    await click(button(container, "Weekly"));
+    expect(window.location.search).toBe("?tail=20");
+    await setValue(selects(container)[0], "watchlist", "change");
+    expect(window.location.search).toBe("?universe=watchlist&tail=20");
+  });
+
+  it("refreshes from the header and shows loading and unavailable chips", async () => {
+    let fail = false;
+    let release: () => void = () => undefined;
+    const gateway = gatewayWith(
+      () =>
+        new Promise((resolve, reject) => {
+          release = () =>
+            fail ? reject(new Error("boom")) : resolve(mapFixture());
+        })
+    );
+    const container = await render(gateway);
+    expect(
+      container.querySelector('[data-slot="badge"]')?.textContent
+    ).toContain("Loading");
+    expect(button(container, "Refresh")?.hasAttribute("disabled")).toBe(true);
+    await act$(() => release());
+    fail = true;
+    await click(button(container, "Refresh"));
+    expect(gateway.map).toHaveBeenCalledTimes(2);
+    await act$(() => release());
+    expect(
+      container.querySelector('[data-slot="badge"]')?.textContent
+    ).toContain("Unavailable");
   });
 });
 
@@ -376,9 +510,13 @@ describe("SectorRotationWorkspace", () => {
       xle?.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }))
     );
     expect(container.querySelector("[data-tooltip]")).toBeNull();
-    const ticker = button(container, "XLK");
+    const ticker = container.querySelector<HTMLAnchorElement>(
+      '[data-row="XLK"] a[data-slot="ticker-link"]'
+    );
     await act$(() => ticker?.focus());
-    expect(ticker?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[data-row="XLK"]')?.className).toContain(
+      "bg-muted"
+    );
     expect(container.querySelector("[data-tooltip]")?.textContent).toContain(
       "XLK"
     );
@@ -393,7 +531,8 @@ describe("SectorRotationWorkspace", () => {
     expect(container.textContent).toContain(
       "No points to draw for this list yet."
     );
-    return expect(container.querySelector("svg")).toBeNull();
+    expect(container.querySelector('svg[role="img"]')).toBeNull();
+    return expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
   });
 
   it("shows loading, the not-collected notice and retries", async () => {
