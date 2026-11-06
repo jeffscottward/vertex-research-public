@@ -30,6 +30,7 @@ import {
   revokeGrant,
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
 import { mutableClone } from "./mutable-clone.test-support.ts";
+import { testPython } from "./research-python.test-support.ts";
 
 // Only selected external historical documents are supplied here. Consent,
 // storage qualification, copy writes, admission, grants and reviews remain owners.
@@ -342,7 +343,7 @@ export const consumeNativeEvidence = async (
     ["read"]
   );
   const child = spawn(
-    process.env["VERTEX_NATIVE_EVIDENCE_TEST_PYTHON"] ?? "python3",
+    testPython,
     [
       resolve(
         root,
@@ -516,8 +517,19 @@ export const consumeNativeEvidence = async (
           value = await nativeWorkerRpc(f, message.method, message.value);
           lastCompletedRPC = inFlightRPC;
           inFlightRPC = null;
-          if (message.method === "prepareNativeEvidencePhaseTwo")
+          if (message.method === "prepareNativeEvidencePhaseTwo") {
             prepared.push(value);
+            // The privacy owner rejoins every reviewer grant on each worker
+            // prepare/read, so independent phase-two authority must exist
+            // before the worker submits the first phase-two candidate.
+            if (scenario !== "missing-authority")
+              for (const operation of ["model-tokenize", "model-completion"])
+                await f.grant(
+                  f.privacyReviewer.actorId,
+                  `research-chat-model-privacy:${f.responseRequestId}:phase-2:${operation}`,
+                  ["review"]
+                );
+          }
           if (message.method === "prepareModelPrivacyReview")
             requests.push(message.value);
           if (
@@ -549,12 +561,6 @@ export const consumeNativeEvidence = async (
               );
             if (phase.phaseOrdinal === 2 && scenario === "expiry")
               f.state.at = "2026-09-25T12:00:00.000000001Z";
-            if (phase.phaseOrdinal === 2 && scenario !== "missing-authority")
-              await f.grant(
-                f.privacyReviewer.actorId,
-                `research-chat-model-privacy:${f.responseRequestId}:phase-2:${message.value.operation}`,
-                ["review"]
-              );
             const selector = {
               ...f.scope,
               responseRequestId: f.responseRequestId,
