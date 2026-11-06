@@ -3,21 +3,36 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 // Python checks run the real research/control sources in a separate
-// interpreter. An explicitly configured interpreter is always used as given and
-// fails loudly if broken; only the unconfigured default skips when it cannot
-// run the sources, so CI never depends on a private or unpinned local tool.
+// interpreter. VERTEX_TEST_PYTHON names that interpreter for every TS-side
+// Python test. An explicitly configured interpreter is always used as given and
+// fails loudly if broken. In CI (CI=true) the interpreter-only suites never
+// skip: a missing VERTEX_TEST_PYTHON fails them instead.
+
+export const TEST_PYTHON_VARIABLE = "VERTEX_TEST_PYTHON";
+const configuredTestPython = process.env[TEST_PYTHON_VARIABLE];
+// The interpreter for Python children; python3 on PATH when unset.
+export const testPython = configuredTestPython ?? "python3";
+// Interpreter-only suites skip only outside CI with no configured interpreter.
+export const skipWithoutTestPython =
+  configuredTestPython === undefined && process.env["CI"] !== "true";
+// The configured interpreter, or an error that names the variable.
+export const requireTestPython = (): string => {
+  if (configuredTestPython === undefined)
+    throw new Error(
+      `Explicit existing ${TEST_PYTHON_VARIABLE} is required; no install or fallback`
+    );
+  return configuredTestPython;
+};
 
 const defaultParityPython = resolve(
   import.meta.dirname,
   "../../../..",
   "private/tools/research-py312/bin/python"
 );
-const configuredParityPython = process.env["VERTEX_CHAT_PARITY_PYTHON"];
-export const researchParityPython =
-  configuredParityPython ?? defaultParityPython;
+export const researchParityPython = configuredTestPython ?? defaultParityPython;
 export const researchParityPythonSkip =
-  configuredParityPython === undefined && !existsSync(defaultParityPython);
-export const researchParityPythonSkipNote = `Python parity interpreter absent: ${defaultParityPython} (git-ignored local tool; set VERTEX_CHAT_PARITY_PYTHON to run)`;
+  configuredTestPython === undefined && !existsSync(defaultParityPython);
+export const researchParityPythonSkipNote = `Python parity interpreter absent: ${defaultParityPython} (git-ignored local tool; set ${TEST_PYTHON_VARIABLE} to run)`;
 
 // services/research/adapters/agno.py DEPENDENCIES: the real SDK invoke path
 // refuses any other version, so these pins decide whether it can run at all.
@@ -66,19 +81,18 @@ const missingDistributions = (
   return missing;
 };
 
-// Resolve the interpreter named by `variable` (default python3) and decide
-// whether a test that needs the given distributions must skip.
+// Resolve the test interpreter (default python3) and decide whether a test
+// that needs the given distributions must skip.
 export const pinnedPython = (
-  variable: string,
   distributions: Distributions
 ): Readonly<{ python: string; skip: boolean; note: string }> => {
-  const configured = process.env[variable];
-  const python = configured ?? "python3";
   const missing =
-    configured === undefined ? missingDistributions(python, distributions) : [];
+    configuredTestPython === undefined
+      ? missingDistributions(testPython, distributions)
+      : [];
   return {
-    python,
+    python: testPython,
     skip: missing.length > 0,
-    note: `python3 lacks ${missing.join(", ")}; set ${variable} to an interpreter with the pinned distributions to run`,
+    note: `python3 lacks ${missing.join(", ")}; set ${TEST_PYTHON_VARIABLE} to an interpreter with the pinned distributions to run`,
   };
 };

@@ -48,6 +48,7 @@ import { VERTEX_WORKER_METHOD_DEFINITIONS } from "../contracts/vertex-worker-rpc
 import {
   pinnedPython,
   RESEARCH_SDK_DISTRIBUTIONS,
+  testPython,
 } from "./research-python.test-support.ts";
 import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 
@@ -285,7 +286,7 @@ const consumeNative = async (f: Fixture) => {
     copies[purpose] = base64(bytes);
   }
   const child = spawn(
-    process.env["VERTEX_RENDEZVOUS_TEST_PYTHON"] ?? "python3",
+    testPython,
     [
       resolve(
         root,
@@ -432,7 +433,7 @@ describe("FirstMate exact-request privacy rendezvous source", () => {
     async ({ skip }) => {
       // The Python consumer imports its pytest HTTP double and invokes the real
       // pinned SDK; without that stack in python3 the round trip cannot run.
-      const consumer = pinnedPython("VERTEX_RENDEZVOUS_TEST_PYTHON", {
+      const consumer = pinnedPython({
         ...RESEARCH_SDK_DISTRIBUTIONS,
         pytest: null,
       });
