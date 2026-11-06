@@ -205,7 +205,8 @@ export const runMonteCarlo = (
 // Prop-firm style rule catalog and pass/fail simulation.
 // Generic rule sets modeled on common evaluation formats; not tied to or endorsed by any firm.
 // All limits are a percent of the starting balance, checked per UTC day. With a complete per-bar
-// equity curve the day uses account equity, so intraday dips count; else closed trade P&L by exit day.
+// equity curve the day uses account equity at each bar, so open-trade drawdown counts (moves
+// inside one bar are not seen); else closed trade P&L by exit day.
 
 export type PropRule = Readonly<{
   id: string;
@@ -290,7 +291,8 @@ export const dailyPnl = (trades: readonly ReportTrade[]): PropDay[] => {
 
 const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 
-// Per-bar account equity grouped by UTC day, so intraday dips count against the limits.
+// Per-bar account equity grouped by UTC day, so open-trade drawdown at each bar counts against
+// the limits. On daily bars that is one point per day.
 export const dailyFromEquity = (
   equity: BacktestRunReportOutput["equity"],
   capital: number
@@ -402,7 +404,7 @@ export const propRulesUseEquity = (
   report: Pick<BacktestRunReportOutput, "bars" | "equity">
 ): boolean => report.equity.length > 0 && report.equity.length === report.bars;
 
-// Uses the per-bar equity curve when complete (intraday dips count); else closed trade P&L.
+// Uses the per-bar equity curve when complete (open-trade drawdown per bar counts); else closed trade P&L.
 export const simulatePropRules = (
   report: Pick<
     BacktestRunReportOutput,
