@@ -18,12 +18,13 @@ pub const SCHEMA_VERSION: &str = "1.0.0";
 pub const BUNDLE_FORMAT: &str = "vertex-native-contract-bundle-v1";
 pub const HASH_PROFILE: &str = "gamma-json-utf8-safe-integer-v1";
 pub const SEMANTIC_PROFILE: &str = "vertex-invariants-v1";
-const SOURCES: [&str; 10] = [
+const SOURCES: [&str; 11] = [
     "packages/api/src/contracts/vertex.ts",
     "packages/api/src/contracts/vertex-control.ts",
     "packages/api/src/contracts/vertex-native-facts.ts",
     "packages/api/src/contracts/vertex-worker.ts",
     "packages/api/src/contracts/vertex-worker-experiment.ts",
+    "packages/api/src/contracts/vertex-model-privacy-rendezvous.ts",
     "packages/api/src/contracts/vertex-policy.ts",
     "packages/api/src/contracts/vertex-model-use.ts",
     "packages/api/src/contracts/vertex-worker-epoch.ts",

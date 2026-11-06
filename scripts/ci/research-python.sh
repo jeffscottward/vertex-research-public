@@ -38,6 +38,13 @@
 # base run also lists tests/test_gs_quant.py and skips it there. The tests block
 # network sockets and use no GsSession: no Goldman Sachs Marquee access.
 #
+# Fifth run: the native service suites in services/research/tests/ci-suites-services.txt
+# (services/contracts/python, control-client, gateway, host, kernel-bridge,
+# market-data and vibe-trading) run in a separate virtual environment from
+# services/research/requirements-services-linux-py312.lock (base pins plus ada-url
+# and cryptography). ci-suites-services.txt must list every test_*.py file in those
+# services, with the same completeness check as the base manifest.
+#
 # Interpreter: VERTEX_RESEARCH_PYTHON, else python3.12 on PATH. The lock holds
 # CPython 3.12 Linux x86_64 wheels only, so any other version stops the run.
 #
@@ -78,15 +85,24 @@ manifest_lines() {
   return 0
 }
 
-# Every test file must be listed in the base manifest.
-listed="$(manifest_lines tests/ci-suites.txt)"
+# require_listed <manifest> <find roots...>: every test_*.py file under the roots
+# (relative to services/research) must be listed in the manifest.
 missing=0
-while IFS= read -r suite; do
-  if ! grep -qxF "${suite}" <<<"${listed}"; then
-    echo "::error::${suite} is not listed in services/research/tests/ci-suites.txt." >&2
-    missing=1
-  fi
-done < <(cd "${research}" && find . ../execution/tests -name 'test_*.py' -path '*/tests/*' | sed 's#^\./##' | sort)
+require_listed() {
+  local manifest="$1" listed suite
+  shift
+  listed="$(manifest_lines "${manifest}")"
+  while IFS= read -r suite; do
+    if ! grep -qxF "${suite}" <<<"${listed}"; then
+      echo "::error::${suite} is not listed in services/research/${manifest}." >&2
+      missing=1
+    fi
+  done < <(cd "${research}" && find "$@" -name 'test_*.py' | sed 's#^\./##' | sort)
+  return 0
+}
+require_listed tests/ci-suites.txt . ../execution/tests -path '*/tests/*'
+service_roots=(../contracts/python ../control-client ../gateway ../host ../kernel-bridge ../market-data ../vibe-trading)
+require_listed tests/ci-suites-services.txt "${service_roots[@]}"
 if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
@@ -126,3 +142,5 @@ run_suites tests/ci-suites-nautilus.txt "${research}/requirements-nautilus-linux
   VERTEX_REQUIRE_NAUTILUS=1
 run_suites tests/ci-suites-gsquant.txt "${research}/requirements-gsquant-linux-py312.lock" \
   VERTEX_REQUIRE_GSQUANT=1
+run_suites tests/ci-suites-services.txt "${research}/requirements-services-linux-py312.lock" \
+  PYTHONPATH="${pythonpath}:${root}/services/kernel-bridge/python:${root}/services/vibe-trading/driver"
