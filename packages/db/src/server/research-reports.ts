@@ -14,7 +14,7 @@ import type { DatabaseExecutor } from "./client.ts";
 import {
   DatabasePersistenceError,
   databaseErrorDetails,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 // Research dossiers (merge plan P1). The importer (scripts/research-reports/) verifies every
 // revision token before it calls replaceCatalog. Revisions, datasets and company-research bodies

@@ -20,7 +20,7 @@ import type { DatabaseExecutor } from "./client.ts";
 import {
   DatabasePersistenceError,
   databaseErrorDetails,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 export const QUANT_LAB_STUDIES_MAX_LISTED = 50;
 export const QUANT_LAB_CAPTURES_MAX_LISTED = 20;

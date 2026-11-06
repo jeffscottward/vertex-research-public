@@ -23,7 +23,7 @@ import {
   InvalidRepositoryInputError,
   type RepositoryDependencies,
   requireNonBlank,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 // Research only: no orders, intents or broker linkage.
 

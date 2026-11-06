@@ -14,7 +14,7 @@ import {
   QUANT_LAB_STUDIES_MAX_LISTED,
   quantLabBacktestPrefix,
 } from "./quant-lab-read.ts";
-import { DatabasePersistenceError } from "./repositories.ts";
+import { DatabasePersistenceError } from "./repository-errors.ts";
 
 const NOW = new Date("2026-11-03T10:00:00.000Z");
 const dialect = new PgDialect();

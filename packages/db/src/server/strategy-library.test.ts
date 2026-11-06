@@ -10,11 +10,11 @@ import {
   strategyPresets,
 } from "../schema/index.ts";
 import type { Database } from "./client.ts";
+import { createStrategyLibraryRepository } from "./repositories.ts";
 import {
-  createStrategyLibraryRepository,
   DatabaseConflictError,
   InvalidRepositoryInputError,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 import {
   normalizeStrategyParams,
   normalizeStrategyPresetValues,

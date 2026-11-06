@@ -422,7 +422,6 @@ export type {
   ProfileRepository,
   RemoveStrategyPresetInput,
   Repositories,
-  RepositoryDependencies,
   ResearchPapersRepository,
   ReserveAssistantRequestInput,
   SaveStrategyPresetInput,
@@ -449,6 +448,7 @@ export type {
   TodoRepository,
   UpdateTodoInput,
 } from "./repositories.ts";
+export type { RepositoryDependencies } from "./repository-errors.ts";
 export {
   AGENT_TERMINAL_STATUSES,
   ARXIV_BASE_ID_PATTERN,
@@ -472,17 +472,19 @@ export {
   createTodoRepository,
   normalizeTodoDueDate,
   normalizeTodoTags,
-  DatabaseConflictError,
-  DatabasePersistenceError,
   DEPLOYMENT_REQUESTS_MAX_LISTED,
-  InvalidRepositoryInputError,
   normalizeWatchlistSymbol,
   OPTIMIZATION_RUNS_MAX_LISTED,
-  OptimisticConcurrencyError,
   STRATEGIES_MAX_LISTED,
   validateAgentLinks,
   validateAgentMetrics,
 } from "./repositories.ts";
+export {
+  DatabaseConflictError,
+  DatabasePersistenceError,
+  InvalidRepositoryInputError,
+  OptimisticConcurrencyError,
+} from "./repository-errors.ts";
 export type {
   BackgroundTaskScheduler,
   DatabaseRequestScope,

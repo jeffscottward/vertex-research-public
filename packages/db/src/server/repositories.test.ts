@@ -22,11 +22,13 @@ import {
   createProfileRepository,
   createRepositories,
   createUserPreferencesRepository,
+} from "./repositories.ts";
+import {
   DatabaseConflictError,
   DatabasePersistenceError,
   InvalidRepositoryInputError,
   OptimisticConcurrencyError,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const QUERY_DIALECT = new PgDialect();

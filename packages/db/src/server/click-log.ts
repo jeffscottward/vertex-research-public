@@ -5,7 +5,7 @@ import type { DatabaseExecutor } from "./client.ts";
 import {
   DatabasePersistenceError,
   databaseErrorDetails,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 // UI click log (card vertex-click-log). The API redacts every event before it calls record; this
 // repository only stores, prunes and reads. Each record call also deletes rows received more than

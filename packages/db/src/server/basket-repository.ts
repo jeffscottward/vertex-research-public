@@ -21,7 +21,7 @@ import {
   InvalidRepositoryInputError,
   type RepositoryDependencies,
   requireNonBlank,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 // Tracking only: no orders, intents, held quantities or broker linkage.
 

@@ -13,8 +13,8 @@ import type { Database } from "./client.ts";
 import {
   createBacktestResultsRepository,
   createResearchPapersRepository,
-  InvalidRepositoryInputError,
 } from "./repositories.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();
