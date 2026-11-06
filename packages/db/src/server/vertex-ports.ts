@@ -1,15 +1,19 @@
 import type { Transaction } from "./client.ts";
+import type {
+  VertexRecord,
+  VertexScope,
+  VertexPrincipal,
+} from "./vertex-primitives.ts";
 import type { VertexResearchChatCopyOperations } from "./vertex-research-chat-copy-ports.ts";
 
 // Internal persistence ports, not alternate public wire schemas. Domain payloads
 // MUST pass the injected authoritative @darkfactory/api/vertex validators.
-export type VertexEnvironment = "research" | "paper" | "live";
-export type VertexScope = Readonly<{
-  accountAlias: string;
-  environment: VertexEnvironment;
-}>;
-export type VertexPrincipal = Readonly<{ actorId: string }>;
-export type VertexRecord = Readonly<Record<string, unknown>>;
+export type {
+  VertexEnvironment,
+  VertexPrincipal,
+  VertexRecord,
+  VertexScope,
+} from "./vertex-primitives.ts";
 export type VertexContractName =
   | "DatasetManifest"
   | "ResearchEvidence"
