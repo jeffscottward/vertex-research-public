@@ -91,7 +91,7 @@ export const wma = (site: Site, bar: number, src: Num, len: number): Num => {
   const window = windowOf(site.record("wma", bar, src), len);
   if (!window) return null;
   let sum = 0;
-  for (let i = 0; i < len; i++) sum += (window[i] ?? 0) * (len - i);
+  for (const [i, value] of window.entries()) sum += value * (len - i);
   return sum / ((len * (len + 1)) / 2);
 };
 
@@ -258,10 +258,10 @@ export const pivot = (
 ): Num => {
   const window = windowOf(site.record("src", bar, src), left + right + 1);
   if (!window) return null;
-  const center = window[right] ?? 0;
-  for (let i = 0; i < window.length; i++) {
+  // windowOf returned exactly left + right + 1 values, so index `right` exists.
+  const center = window[right] as number;
+  for (const [i, value] of window.entries()) {
     if (i === right) continue;
-    const value = window[i] ?? 0;
     const leftSide = i > right;
     const beaten = high
       ? value > center || (leftSide && value === center)

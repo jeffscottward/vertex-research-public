@@ -1,7 +1,7 @@
 // Semantic pass: resolves every name and call against user scopes and the builtin registry,
 // enforces Pine's scope rules, and extracts the declaration, input specs and plot slots.
 
-import type { Arg, Call, Expr, FuncDef, Program, Stmt } from "./ast.ts";
+import type { Arg, Binary, Call, Expr, FuncDef, Program, Stmt } from "./ast.ts";
 import {
   BUILTIN_FUNCTIONS,
   BUILTIN_VARIABLES,
@@ -156,12 +156,12 @@ const isIntLiteral = (expr: Expr): boolean =>
   (expr.kind === "unary" && expr.op === "-" && isIntLiteral(expr.operand));
 
 const constBinary = (
-  expr: Expr,
+  expr: Binary,
   left: Scalar,
   right: Scalar,
   what: string
 ): Scalar => {
-  const op = expr.kind === "binary" ? expr.op : "";
+  const { op } = expr;
   if (typeof left === "string" && typeof right === "string" && op === "+") {
     if (left.length + right.length > SCRIPT_STRING_MAX) {
       return fail(STRING_TOO_LONG, expr);
@@ -215,12 +215,14 @@ const constEval = (expr: Expr, what: string): Scalar | Scalar[] => {
   }
 };
 
-const constString = (expr: Expr | undefined, what: string): string | null => {
-  if (!expr) return null;
+const requireString = (expr: Expr, what: string): string => {
   const value = constEval(expr, what);
   if (typeof value !== "string") return fail(`${what} must be a string`, expr);
   return value;
 };
+
+const constString = (expr: Expr | undefined, what: string): string | null =>
+  expr ? requireString(expr, what) : null;
 
 const constNumber = (expr: Expr | undefined, what: string): number | null => {
   if (!expr) return null;
@@ -768,14 +770,15 @@ class Checker {
     const slots = spec.lengths(args.map((arg) => arg !== undefined));
     const shift = slots[0] === 0 && spec.params[0] === "source" ? 1 : 0;
     for (const slot of slots) {
-      const arg = args[slot];
-      if (arg && priceLike(arg, scope)) {
+      // Point at where the argument starts, not at an operator inside it.
+      const given = call.args.find(
+        (candidate) => candidate.value === args[slot]
+      );
+      if (given && priceLike(given.value, scope)) {
         const param = spec.params[slot + shift] ?? "length";
-        // Point at where the argument starts, not at an operator inside it.
-        const at = call.args.find((given) => given.value === arg) ?? arg;
         fail(
           `${call.callee}: '${param}' must be a whole number, not a price series (missing an argument?)`,
-          at
+          given
         );
       }
     }
@@ -830,7 +833,8 @@ class Checker {
       call
     );
     this.calls.set(call.id, { args, kind: "builtin", name: call.callee, spec });
-    const rawTitle = constString(args[0], `${call.callee} title`) ?? "";
+    // arity: declarations require the title argument.
+    const rawTitle = requireString(args[0] as Expr, `${call.callee} title`);
     if (rawTitle.trim() === "") fail(`${call.callee}() needs a title`, call);
     const title = this.clipped(rawTitle, SCRIPT_TITLE_MAX, "Script title");
     const shortTitle = this.clipped(

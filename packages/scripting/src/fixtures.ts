@@ -6,19 +6,32 @@ const START_MS = Date.UTC(2026, 0, 5, 14, 30);
 const MINUTE_MS = 60_000;
 
 // close: 10 11 12 11 13 14 13 15 16 15; high = close + 1; low = close - 1.
-export const SMALL_CLOSES = [10, 11, 12, 11, 13, 14, 13, 15, 16, 15] as const;
-const SMALL_VOLUMES = [
-  100, 200, 150, 300, 250, 100, 200, 400, 300, 100,
+// [close, volume] per bar.
+const SMALL_ROWS = [
+  [10, 100],
+  [11, 200],
+  [12, 150],
+  [11, 300],
+  [13, 250],
+  [14, 100],
+  [13, 200],
+  [15, 400],
+  [16, 300],
+  [15, 100],
 ] as const;
 
-export const SMALL_BARS: readonly ScriptBar[] = SMALL_CLOSES.map(
-  (close, i) => ({
+export const SMALL_CLOSES: readonly number[] = SMALL_ROWS.map(
+  ([close]) => close
+);
+
+export const SMALL_BARS: readonly ScriptBar[] = SMALL_ROWS.map(
+  ([close, volume], i) => ({
     close,
     high: close + 1,
     low: close - 1,
     open: close - 0.5,
     timestamp: START_MS + i * MINUTE_MS,
-    volume: SMALL_VOLUMES[i] ?? 0,
+    volume,
   })
 );
 

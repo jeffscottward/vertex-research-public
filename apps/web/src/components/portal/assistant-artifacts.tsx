@@ -91,12 +91,14 @@ const applyTeachStep = (
   const drawn = artifact.steps.some(
     (step) => step.drawings !== undefined && step.drawings.length > 0
   );
-  if (!(drawn && teachChartOpen(artifact, onCharts))) return false;
+  const { symbol } = artifact;
+  if (symbol === undefined || !(drawn && teachChartOpen(artifact, onCharts)))
+    return false;
   return sendChartCommand({
     drawings: artifact.steps[index]?.drawings ?? [],
     group: "teach",
     replace: true,
-    symbol: artifact.symbol ?? "",
+    symbol,
     type: "drawings",
   });
 };

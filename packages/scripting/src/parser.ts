@@ -64,13 +64,18 @@ const MAX_NESTING = 64;
 // so the bracket-nesting counter never sees them; the evaluator would recurse that deep.
 const MAX_EXPR_HEIGHT = 256;
 
-const describe = (token: Token): string => {
-  if (token.kind === "newline") return "end of line";
-  if (token.kind === "eof") return "end of script";
-  if (token.kind === "indent" || token.kind === "dedent") return "indentation";
-  if (token.kind === "str") return "string";
-  return `'${token.value}'`;
+// The lexer ends every logical line with NEWLINE before any DEDENT or EOF, so only
+// newline and string labels are reachable today; the rest keep messages readable.
+const LABELS: Readonly<Partial<Record<Token["kind"], string>>> = {
+  dedent: "indentation",
+  eof: "end of script",
+  indent: "indentation",
+  newline: "end of line",
+  str: "string",
 };
+
+const describe = (token: Token): string =>
+  LABELS[token.kind] ?? `'${token.value}'`;
 
 class Parser {
   private readonly tokens: readonly Token[];
@@ -88,13 +93,13 @@ class Parser {
   }
 
   private peek(offset = 0): Token {
-    const last = this.tokens.at(-1) as Token;
-    return this.tokens[this.index + offset] ?? last;
+    const last = this.tokens.length - 1;
+    return this.tokens[Math.min(this.index + offset, last)] as Token;
   }
 
   private next(): Token {
     const token = this.peek();
-    if (this.index < this.tokens.length - 1) this.index++;
+    this.index = Math.min(this.index + 1, this.tokens.length - 1);
     return token;
   }
 
@@ -159,25 +164,15 @@ class Parser {
 
   program(): Stmt[] {
     const body: Stmt[] = [];
-    while (this.peek().kind !== "eof") {
-      if (this.peek().kind === "newline") {
-        this.next();
-        continue;
-      }
-      body.push(this.statement());
-    }
+    while (this.peek().kind !== "eof") body.push(this.statement());
     return body;
   }
 
+  // Every statement ends at a NEWLINE: the lexer emits one before each DEDENT and EOF.
   private endOfStatement(): void {
     const token = this.peek();
-    if (token.kind === "newline") {
-      this.next();
-      return;
-    }
-    if (token.kind !== "eof" && token.kind !== "dedent") {
-      fail(`Unexpected ${describe(token)}`, token);
-    }
+    if (token.kind !== "newline") fail(`Unexpected ${describe(token)}`, token);
+    this.next();
   }
 
   private block(): Stmt[] {
@@ -195,10 +190,8 @@ class Parser {
     }
     this.next();
     const body: Stmt[] = [];
-    while (this.peek().kind !== "dedent" && this.peek().kind !== "eof") {
-      body.push(this.statement());
-    }
-    if (this.peek().kind === "dedent") this.next();
+    while (this.peek().kind !== "dedent") body.push(this.statement());
+    this.next();
     return body;
   }
 
@@ -439,12 +432,12 @@ class Parser {
 
   // Precedence levels, lowest first; each is left-associative.
   private binary(level: number): Expr {
-    if (level >= LEVELS.length) return this.unary();
+    const matches = LEVELS[level];
+    if (!matches) return this.unary();
     let left = this.binary(level + 1);
     for (;;) {
       const token = this.peek();
-      const matches = LEVELS[level]?.(token) ?? false;
-      if (!matches) return left;
+      if (!matches(token)) return left;
       this.next();
       const right = this.binary(level + 1);
       left = this.sized(
@@ -505,8 +498,8 @@ class Parser {
         return {
           kind: "num",
           ...this.meta(token),
-          isInt: token.isInt ?? false,
-          value: token.num ?? 0,
+          isInt: token.isInt === true,
+          value: Number(token.value),
         };
       case "str":
         this.next();

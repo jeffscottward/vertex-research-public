@@ -430,11 +430,11 @@ const utf8Bytes = (text: string): number =>
 // Postgres prints numbers without exponents: 1.5e-7 is stored as 0.00000015 (longer than in JSON).
 const numberBytes = (value: number): number => {
   const text = String(value);
-  const exponent = /^(-?)(\d+)(?:\.(\d+))?e([+-])(\d+)$/u.exec(text);
+  const exponent = /e[+-](\d+)$/u.exec(text);
   if (exponent === null) return text.length;
-  const digits = (exponent[2] ?? "").length + (exponent[3] ?? "").length;
-  const power = Number(exponent[5]);
-  return (exponent[1] ?? "").length + digits + power + 2;
+  // The sign and the digits of the mantissa, without its decimal point.
+  const digits = text.slice(0, exponent.index).replace(".", "").length;
+  return digits + Number(exponent[1]) + 2;
 };
 
 /**
