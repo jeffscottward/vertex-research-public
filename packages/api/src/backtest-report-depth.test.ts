@@ -8,6 +8,7 @@ import {
   histogram,
   PROP_RULES,
   type PropRule,
+  propRulesUseEquity,
   runMonteCarlo,
   simulatePropRule,
   simulatePropRules,
@@ -267,6 +268,11 @@ describe("equity-based prop days", () => {
       10
     );
     expect(results[0]?.outcome.status).toBe("failed");
+  });
+  it("uses equity only when the curve has every bar", () => {
+    expect(propRulesUseEquity({ bars: equity.length, equity })).toBe(true);
+    expect(propRulesUseEquity({ bars: equity.length + 1, equity })).toBe(false);
+    expect(propRulesUseEquity({ bars: 0, equity: [] })).toBe(false);
   });
 });
 

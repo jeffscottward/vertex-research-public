@@ -204,8 +204,8 @@ export const runMonteCarlo = (
 // ---------------------------------------------------------------------------
 // Prop-firm style rule catalog and pass/fail simulation.
 // Generic rule sets modeled on common evaluation formats; not tied to or endorsed by any firm.
-// All limits are a percent of the starting balance. P&L is closed trade P&L grouped by the UTC
-// exit day (intraday open-trade drawdown is not in the report, so it is not simulated).
+// All limits are a percent of the starting balance, checked per UTC day. With a complete per-bar
+// equity curve the day uses account equity, so intraday dips count; else closed trade P&L by exit day.
 
 export type PropRule = Readonly<{
   id: string;
@@ -397,6 +397,11 @@ export type PropSimulation = Readonly<{
   paths: number;
 }>;
 
+// The chart equity series is thinned on long runs; only a full one has every bar.
+export const propRulesUseEquity = (
+  report: Pick<BacktestRunReportOutput, "bars" | "equity">
+): boolean => report.equity.length > 0 && report.equity.length === report.bars;
+
 // Uses the per-bar equity curve when complete (intraday dips count); else closed trade P&L.
 export const simulatePropRules = (
   report: Pick<
@@ -407,11 +412,9 @@ export const simulatePropRules = (
   rules: readonly PropRule[] = PROP_RULES,
   paths = REPORT_MONTE_CARLO_PATHS
 ): PropSimulation[] => {
-  const days =
-    // The chart equity series is thinned on long runs; only a full one has every bar.
-    report.equity.length > 0 && report.equity.length === report.bars
-      ? dailyFromEquity(report.equity, capital)
-      : dailyPnl(report.trades);
+  const days = propRulesUseEquity(report)
+    ? dailyFromEquity(report.equity, capital)
+    : dailyPnl(report.trades);
   return rules.map((rule) => {
     const random = createRandom(seedFrom(`${report.seriesSha256}:${rule.id}`));
     let passed = 0;

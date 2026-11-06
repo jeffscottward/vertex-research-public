@@ -598,6 +598,16 @@ describe("BacktestRunsWorkspace", () => {
     expect(document.body.textContent).toContain("Trade 1 of 2");
     expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(document.querySelectorAll("figure")).toHaveLength(2);
+    // 375 px: the tab bar scrolls inside its box and the form selects shrink to the column.
+    const tabList = document.querySelector('[role="tablist"]');
+    expect(tabList?.className).toContain("overflow-x-auto");
+    expect(tabList?.className).toContain("max-w-full");
+    for (const tab of document.querySelectorAll('[role="tab"]')) {
+      expect(tab.className).toContain("flex-none");
+    }
+    for (const select of document.querySelectorAll("form select")) {
+      expect(select.className).toContain("min-w-0");
+    }
   });
 
   it("switches rule fields and reports invalid input and submit failures", async () => {
