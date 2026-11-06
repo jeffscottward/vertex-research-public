@@ -64,6 +64,17 @@ describe("risk allocator route files", () => {
     expect(workspaceProps(container)).toEqual({ symbol: "MSFT" });
   });
 
+  it("keys the workspace by symbol so a same-page link resets the form", async () => {
+    const withSymbol = await RiskAllocatorPage({
+      searchParams: Promise.resolve({ symbol: "nvda" }),
+    });
+    const without = await RiskAllocatorPage({
+      searchParams: Promise.resolve({}),
+    });
+    expect(withSymbol.key).toBe("NVDA");
+    expect(without.key).toBe("");
+  });
+
   it("renders an accessible loading state", async () => {
     const container = await render(<RiskAllocatorLoading />);
     expect(container.querySelector('[role="status"]')?.textContent).toContain(

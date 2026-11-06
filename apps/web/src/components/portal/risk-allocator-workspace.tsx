@@ -39,6 +39,7 @@ import {
 } from "react";
 
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
+import { writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserRiskAllocatorGateway,
   type RiskAllocatorGateway,
@@ -80,6 +81,13 @@ export const RISK_ALLOCATOR_DEFAULTS = {
 /** Read-only view of the watchlist: the allocator only needs the symbols, in list order. */
 export type RiskAllocatorWatchlist = Pick<WatchlistGateway, "list">;
 
+/** The browser watchlist narrowed to `list`, so no write handle reaches the allocator. */
+export const createBrowserRiskAllocatorWatchlist =
+  (): RiskAllocatorWatchlist => {
+    const { list } = createBrowserWatchlistGateway();
+    return Object.freeze({ list });
+  };
+
 export type RiskAllocatorSettings = Readonly<{ symbol: string | null }>;
 
 type ParamValue = string | readonly string[] | undefined;
@@ -94,12 +102,6 @@ export const parseRiskAllocatorParams = (
     symbol: RISK_ALLOCATOR_SYMBOL_PATTERN.test(text) ? text : null,
   };
 };
-
-/** The query string for the settings ("" without a symbol). */
-export const riskAllocatorSearch = (settings: RiskAllocatorSettings): string =>
-  settings.symbol === null
-    ? ""
-    : `?${new URLSearchParams({ symbol: settings.symbol }).toString()}`;
 
 // A plain non-negative decimal; commas only as thousands separators ("1,500.25"). Empty means 0.
 const AMOUNT_PATTERN = /^(?:\d+|\d{1,3}(?:,\d{3})+)?(?:\.\d+)?$/u;
@@ -394,7 +396,7 @@ export const RiskAllocatorWorkspace = ({
     [provided]
   );
   const watchlist = useMemo(
-    () => providedWatchlist ?? createBrowserWatchlistGateway(),
+    () => providedWatchlist ?? createBrowserRiskAllocatorWatchlist(),
     [providedWatchlist]
   );
   const initialSymbol = initial?.symbol ?? null;
@@ -402,9 +404,13 @@ export const RiskAllocatorWorkspace = ({
   const [list, setList] = useState<WatchlistState>(
     initialSymbol === null ? { type: "loading" } : { type: "skipped" }
   );
-  const [source, setSource] = useState<SymbolSource>(
-    initialSymbol === null ? "form" : "url"
-  );
+  // The symbol and source of the latest computed suggestion (not the live form).
+  const [subject, setSubject] = useState<
+    Readonly<{ source: SymbolSource; symbol: string }>
+  >({
+    source: initialSymbol === null ? "form" : "url",
+    symbol: initialSymbol ?? "",
+  });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RiskAllocatorSuggestion | null>(null);
   const [busy, setBusy] = useState(false);
@@ -441,7 +447,8 @@ export const RiskAllocatorWorkspace = ({
   }, [gateway]);
 
   const suggest = useCallback(
-    async (next: RiskAllocatorForm) => {
+    async (next: RiskAllocatorForm, source: SymbolSource) => {
+      setSubject({ source, symbol: next.symbol.trim().toUpperCase() });
       const invalid = invalidAmountFields(next);
       if (invalid.length > 0) {
         setResult(null);
@@ -467,7 +474,7 @@ export const RiskAllocatorWorkspace = ({
   // Default suggestion: the URL symbol, else the first watchlist symbol, with the default inputs.
   useEffect(() => {
     if (initialSymbol !== null) {
-      void suggest(formRef.current);
+      void suggest(formRef.current, "url");
       return;
     }
     let active = true;
@@ -480,8 +487,7 @@ export const RiskAllocatorWorkspace = ({
         if (first === undefined || formRef.current.symbol.trim() !== "") return;
         const next = { ...formRef.current, symbol: first };
         setForm(next);
-        setSource("watchlist");
-        void suggest(next);
+        void suggest(next, "watchlist");
       },
       (failure: unknown) => {
         if (active)
@@ -502,14 +508,11 @@ export const RiskAllocatorWorkspace = ({
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSource("form");
-    const url = new URL(window.location.href);
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${url.pathname}${riskAllocatorSearch(parseRiskAllocatorParams({ symbol: form.symbol }))}${url.hash}`
-    );
-    void suggest(form);
+    // Only the allocator's own key changes; foreign parameters (e.g. `theme`) are kept.
+    writeQuery({
+      symbol: parseRiskAllocatorParams({ symbol: form.symbol }).symbol,
+    });
+    void suggest(form, "form");
   };
 
   const field = (
@@ -547,10 +550,7 @@ export const RiskAllocatorWorkspace = ({
     </div>
   );
 
-  const description = suggestionDescription(
-    source,
-    form.symbol.trim().toUpperCase()
-  );
+  const description = suggestionDescription(subject.source, subject.symbol);
   const watchlistEmpty =
     list.type === "ready" && list.items.length === 0 && result === null;
 
@@ -711,13 +711,12 @@ export const RiskAllocatorWorkspace = ({
             {error}
           </p>
         )}
-        {result === null ? null : (
-          <div aria-live="polite" className="space-y-4">
-            {result.rows.map((row) => (
-              <ResultRow key={`${row.symbol}-${row.kind}`} row={row} />
-            ))}
-          </div>
-        )}
+        {/* Always mounted so the first result is announced. */}
+        <div aria-live="polite" className="space-y-4" data-risk-results="">
+          {result?.rows.map((row) => (
+            <ResultRow key={`${row.symbol}-${row.kind}`} row={row} />
+          ))}
+        </div>
       </Panel>
 
       <p className="text-muted-foreground text-sm">
