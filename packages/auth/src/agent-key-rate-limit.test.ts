@@ -79,4 +79,17 @@ describe("agent API key limiter", () => {
     expect(await verifyAfter(61_000)).toBe("ok");
     expect(await acceptedBeforeRefusal(verifyAfter, 70_000, 700)).toBe(700);
   });
+
+  it("needs a gap of more than 60 s: exactly 60 s does not reset the count", {
+    timeout: 60_000,
+  }, async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(T0);
+    const { verifyAfter } = await keyWithPlugin();
+    for (let call = 0; call < 600; call += 1)
+      expect(await verifyAfter(1000)).toBe("ok");
+    // The plugin resets only when the time since the last accepted request is > the window.
+    expect(await verifyAfter(60_000)).toBe("RATE_LIMITED");
+    expect(await verifyAfter(1)).toBe("ok");
+  });
 });

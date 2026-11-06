@@ -7,14 +7,15 @@
 // bars and spec on stdin, and post the result (backtestRuns.engine.complete) or the error
 // (backtestRuns.engine.fail). The API builds the report. After a run it claims again at once;
 // after an empty claim it waits VERTEX_WORKER_IDLE_MS (default 3000), then twice as long after
-// each further empty claim up to VERTEX_WORKER_IDLE_MAX_MS (default 40000). `--once` runs one
+// each further empty claim up to VERTEX_WORKER_IDLE_MAX_MS (default 45000). `--once` runs one
 // claim cycle.
 // Request budget: the agent key limiter (better-auth api-key plugin) allows 600 accepted requests
-// per key and resets the count only after 60 s with no accepted request on that key; requests
-// that come less than 60 s apart never reset it. The worker therefore sends at most
+// per key and resets the count only after more than 60 s with no accepted request on that key;
+// requests that come 60 s apart or closer never reset it. The worker therefore sends at most
 // REQUEST_BUDGET requests (a quarter of the limit, so the shared key stays below half of it with
-// the other clients), then sends nothing for QUIET_PAUSE_MS so the count can reset. A 429 answer
-// pauses the same way, or for its Retry-After when that is longer.
+// the other clients), then sends nothing for QUIET_PAUSE_MS. Whether the count then resets
+// depends on the other clients of the key: see QUIET_PAUSE_MS. A 429 answer pauses the same way,
+// or for its Retry-After when that is longer; during a delivery the worker waits at most once.
 // SIGTERM stops the loop; a running engine process is killed and its run fails. After
 // ALERT_AFTER_FAILURES failed cycles in a row (API errors, a result that could not be delivered,
 // an engine crash or timeout; not an input error or an empty claim) it posts one alert line to
@@ -36,8 +37,11 @@ import {
 /** Engine run limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
 export const NAUTILUS_RUN_TIMEOUT_MS = 9 * 60 * 1000;
 export const DEFAULT_IDLE_MS = 3000;
-/** Longest idle wait. Above the 30 s quiet window plus the two-poll check of restart-when-idle.sh. */
-export const DEFAULT_IDLE_MAX_MS = 40_000;
+/**
+ * Longest idle wait. Above the 30 s quiet window plus the two-poll check (5 s) of
+ * restart-when-idle.sh, with slack for an Autopilot tick log line that splits a gap.
+ */
+export const DEFAULT_IDLE_MAX_MS = 45_000;
 /** Accepted requests per key before the limiter refuses (better-auth api-key plugin default). */
 export const AGENT_KEY_LIMIT = 600;
 /** The limiter resets a key's count after this long with no accepted request. */
@@ -45,11 +49,24 @@ export const AGENT_KEY_WINDOW_MS = 60_000;
 /** Requests the worker sends before a quiet pause: a quarter of the key limit. */
 export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
 /**
- * Quiet pause: longer than two limiter windows, so even with one request of another client
- * (at most one per window) inside it there is a gap of more than one window, which resets the count.
+ * Quiet pause: one limiter window plus a margin. The worker sends nothing for this long, so the
+ * count resets when the other clients of the key also leave a gap of more than 60 s. With the
+ * shared Autopilot key that holds only while Autopilot ticks are more than 60 s apart and send one
+ * request each (vertex-autopilot.timer: OnUnitActiveSec=1min plus the run time). If the ticks ever
+ * come 60 s apart or closer, or spread several requests over a tick, the shared key never resets;
+ * the robust fix is a separate worker key (the owner chose to reuse the Autopilot key).
  */
-export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
-/** complete tries after a network error, a 429 or a 5xx answer, with doubling waits from the first. */
+export const QUIET_PAUSE_MS = AGENT_KEY_WINDOW_MS + 5000;
+/**
+ * The API fails a run left running this long (backtestRuns.get, BACKTEST_RUN_STALE_MS); a result
+ * delivered later gets 409 and is lost, so a 429 wait during delivery ends this margin before it.
+ */
+export const API_STALE_MS = 10 * 60 * 1000;
+export const DELIVERY_MARGIN_MS = 30_000;
+/**
+ * complete tries after a network error or a 5xx answer, with doubling waits from the first. A 429
+ * is tried again once, after the limiter wait cut to the time left before the API stale limit.
+ */
 export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
 export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
@@ -374,6 +391,25 @@ const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 /**
+ * The wait before the next delivery try, or null to give up: a network error or a 5xx answer waits
+ * 1, 2, 4 s; a 429 waits once for the limiter, never past the API stale limit of the run.
+ */
+const deliveryWait = (
+  error: unknown,
+  attempt: number,
+  limited: { used: boolean },
+  claimedAt: number
+): number | null => {
+  if (attempt === COMPLETE_ATTEMPTS) return null;
+  if (!(error instanceof ApiError && error.status === 429))
+    return COMPLETE_RETRY_MS * 2 ** (attempt - 1);
+  if (limited.used) return null;
+  limited.used = true;
+  const left = claimedAt + API_STALE_MS - DELIVERY_MARGIN_MS - Date.now();
+  return Math.max(0, Math.min(rateLimitWait(error), left));
+};
+
+/**
  * Posts the result. Returns null when it was stored, "" when the run is no longer running on this
  * engine (409: nothing to do), or the error to store. A network error, a 429 or a 5xx answer is tried
  * again after a wait; any other 4xx is a rejection (the API fails the run itself when the result
@@ -383,8 +419,10 @@ const deliver = async (
   config: Config,
   io: NautilusWorkerIo,
   run: ClaimedRun,
-  result: unknown
+  result: unknown,
+  claimedAt: number
 ): Promise<string | null> => {
+  const limited = { used: false };
   for (let attempt = 1; ; attempt += 1) {
     try {
       await call(config, io, "backtestRuns/engine/complete", {
@@ -402,12 +440,11 @@ const deliver = async (
         error.status !== 429
       )
         return error.status === 409 ? "" : REJECTED_ERROR;
-      if (attempt === COMPLETE_ATTEMPTS) return UNDELIVERED_ERROR;
-      // A 429 waits for the limiter (the quiet pause resets the request budget too).
-      if (error instanceof ApiError && error.status === 429) {
-        await io.sleep(rateLimitWait(error), io.signal);
-        config.budget.requests = 0;
-      } else await io.sleep(COMPLETE_RETRY_MS * 2 ** (attempt - 1), io.signal);
+      const wait = deliveryWait(error, attempt, limited, claimedAt);
+      if (wait === null) return UNDELIVERED_ERROR;
+      await io.sleep(wait, io.signal);
+      // Only a full quiet pause starts a new request budget.
+      if (wait >= QUIET_PAUSE_MS) config.budget.requests = 0;
     }
   }
 };
@@ -432,6 +469,7 @@ const workOnce = async (
     await call(config, io, "backtestRuns/engine/claim", { engine })
   );
   if (run === null) return { failure: null, found: false };
+  const claimedAt = Date.now();
   const outcome = await io.runCommand(
     config.python,
     ["-m", "nautilus_backtest", "run", "-"],
@@ -444,7 +482,7 @@ const workOnce = async (
   );
   const output = readEngineOutput(outcome);
   if ("result" in output) {
-    const error = await deliver(config, io, run, output.result);
+    const error = await deliver(config, io, run, output.result, claimedAt);
     if (error === null) io.stdout.write(`run ${run.id}: succeeded\n`);
     // A refused fail (the run already finished) changes nothing; the next claim goes on.
     else if (error !== "")
@@ -565,7 +603,7 @@ const waitAfter = async (
       `nautilus worker: agent key rate limited; quiet for ${Math.round(cycle.rateLimitMs / 1000)} s\n`
     );
     await quiet(config, io, cycle.rateLimitMs);
-    next = config.idleMaxMs;
+    next = config.idleMs;
   } else if (cycle.found) next = config.idleMs;
   else {
     await io.sleep(idleMs, io.signal);

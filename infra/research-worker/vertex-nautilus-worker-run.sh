@@ -11,7 +11,7 @@ BUN="__BUN__"                          # absolute path of the bun binary
 export VERTEX_ORIGIN="__VERTEX_ORIGIN__"                    # portal origin, https://...
 export VERTEX_NAUTILUS_PYTHON="__NAUTILUS_VENV__/bin/python" # venv with the Nautilus lock
 # export VERTEX_WORKER_IDLE_MS=3000
-# export VERTEX_WORKER_IDLE_MAX_MS=40000  # keep above 35000 (restart-when-idle.sh quiet window)
+# export VERTEX_WORKER_IDLE_MAX_MS=45000  # keep above 35000 (restart-when-idle.sh quiet window)
 # Optional alert route (a loopback chat endpoint that takes {channel, text}); set both to "" for none.
 export VERTEX_ALERT_POST_URL="__ALERT_POST_URL__"  # for example http://127.0.0.1:47821/post
 export VERTEX_ALERT_CHANNEL="__ALERT_CHANNEL__"    # for example trading-alerts
