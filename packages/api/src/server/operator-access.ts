@@ -41,6 +41,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "backtestRuns.list",
   "backtestRuns.get",
   "backtestRuns.sweep",
+  "backtestRuns.comparisons.list",
   "backtestRuns.drift.list",
   "backtestRuns.drift.get",
   "backtestRuns.definitions.validate",

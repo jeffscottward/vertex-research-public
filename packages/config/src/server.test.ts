@@ -185,6 +185,36 @@ describe("parseServerEnv", () => {
     return expect(error.issues.some(({ path }) => path === key)).toBe(true);
   });
 
+  it("defaults engine comparison to off and the host label to web server", () => {
+    const env = parseServerEnv(validCoreEnv());
+    expect(env.VERTEX_ENGINE_COMPARISON).toBe("off");
+    expect(env.VERTEX_HOST_LABEL).toBe("web server");
+    const set = parseServerEnv({
+      ...validCoreEnv(),
+      VERTEX_ENGINE_COMPARISON: "on",
+      VERTEX_HOST_LABEL: " QuantVPS web (in-request) ",
+    });
+    expect(set.VERTEX_ENGINE_COMPARISON).toBe("on");
+    expect(set.VERTEX_HOST_LABEL).toBe("QuantVPS web (in-request)");
+    expect(
+      parseServerEnv({
+        ...validCoreEnv(),
+        VERTEX_ENGINE_COMPARISON: "",
+        VERTEX_HOST_LABEL: "",
+      })
+    ).toMatchObject({
+      VERTEX_ENGINE_COMPARISON: "off",
+      VERTEX_HOST_LABEL: "web server",
+    });
+    for (const [key, value] of [
+      ["VERTEX_ENGINE_COMPARISON", "yes"],
+      ["VERTEX_HOST_LABEL", "x".repeat(101)],
+    ] as const) {
+      const error = captureValidationError({ ...validCoreEnv(), [key]: value });
+      expect(error.issues.some(({ path }) => path === key)).toBe(true);
+    }
+  });
+
   it("defaults the backtest runs engine to typescript and accepts nautilus", () => {
     expect(parseServerEnv(validCoreEnv()).VERTEX_BACKTEST_RUNS_ENGINE).toBe(
       "typescript"

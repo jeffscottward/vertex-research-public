@@ -8,6 +8,8 @@ import {
   type AutopilotCampaignRecord,
   type AutopilotCandidateRecord,
   type AutopilotRepository,
+  type BacktestRunCreateInput,
+  type BacktestRunsRepository,
   DatabaseConflictError,
   DeploymentRequestStateError,
   type DeploymentRequestsRepository,
@@ -36,10 +38,12 @@ import {
 } from "./autopilot-genome.ts";
 import { AUTOPILOT_LIBRARY_SECTION } from "./autopilot-handoff.ts";
 import { createApiClient } from "./client.ts";
+import { ENGINE_COMPARISON_GATE_RUNS_MAX } from "./contracts/engine-comparison.ts";
 import {
   AUTOPILOT_SESSION_REQUIRED_MESSAGE,
   autopilotRouter,
 } from "./server/autopilot.ts";
+import { queueGateComparisons } from "./server/autopilot-comparison.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { clearInstantBacktestCacheForTesting } from "./server/instant-backtest.ts";
@@ -441,6 +445,8 @@ type Harness = Readonly<{
   handoff?: ReturnType<typeof handoffRepositories>;
   withMarketBars?: boolean;
   sectorRotation?: Repositories["sectorRotation"];
+  /** Engine comparison on, with this run storage. */
+  comparisonRuns?: Pick<BacktestRunsRepository, "createMany">;
 }>;
 
 const clientFor = (options: Harness = {}) => {
@@ -460,6 +466,13 @@ const clientFor = (options: Harness = {}) => {
     ...(options.sectorRotation === undefined
       ? {}
       : { sectorRotation: options.sectorRotation }),
+    ...(options.comparisonRuns === undefined
+      ? {}
+      : {
+          backtestRuns: options.comparisonRuns as unknown as NonNullable<
+            Repositories["backtestRuns"]
+          >,
+        }),
     ...(options.handoff === undefined
       ? {}
       : {
@@ -494,6 +507,9 @@ const clientFor = (options: Harness = {}) => {
         },
         operatorEmails: ["operator@domain.test"],
         repositories,
+        ...(options.comparisonRuns === undefined
+          ? {}
+          : { engineComparison: "on" as const, hostLabel: "QuantVPS web" }),
         requestId: "request-1",
         requireRole: async () => {
           throw denied();
@@ -1512,5 +1528,111 @@ describe("autopilot procedures", () => {
       })
     ).results;
     expect(result?.status).toBe("running");
+  });
+});
+
+describe("autopilot gate engine comparison", () => {
+  it("queues the gate's in-sample and full runs on Nautilus, at most 20 per tick", async () => {
+    clearInstantBacktestCacheForTesting();
+    const memory = memoryAutopilot();
+    const created: BacktestRunCreateInput[] = [];
+    const createMany = vi.fn(
+      async (inputs: readonly BacktestRunCreateInput[]) => {
+        created.push(...inputs);
+        return [];
+      }
+    );
+    const client = clientFor({
+      autopilot: memory.repository,
+      comparisonRuns: { createMany },
+    });
+    const campaign = await client.autopilot.campaigns.create({
+      budget,
+      name: "Run",
+      seed: 7,
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const [result] = (await client.autopilot.campaigns.tick({})).results;
+    const gatedRuns = (result?.gated ?? 0) * 2;
+    expect(gatedRuns).toBeGreaterThan(0);
+    expect(result?.comparison).toEqual({
+      dropped: Math.max(0, gatedRuns - ENGINE_COMPARISON_GATE_RUNS_MAX),
+      queued: Math.min(gatedRuns, ENGINE_COMPARISON_GATE_RUNS_MAX),
+    });
+    expect(createMany).toHaveBeenCalledTimes(1);
+    const [inSample, full] = created;
+    expect(inSample?.spec).toMatchObject({
+      comparison: {
+        feature: "autopilotGate",
+        groupId: `autopilot:${campaign.id}`,
+        typescript: { host: "QuantVPS web" },
+      },
+      costBps: 5,
+      from: "2015-01-01",
+      rule: { kind: "dsl" },
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const comparisonOf = (input?: BacktestRunCreateInput) =>
+      (input?.spec.comparison ?? {}) as { label?: string; key?: string };
+    const label = (input?: BacktestRunCreateInput) => comparisonOf(input).label;
+    expect(label(inSample)).toMatch(/: in-sample$/u);
+    expect(label(full)).toMatch(
+      /: full run \(out-of-sample from \d{4}-\d{2}-\d{2}\)$/u
+    );
+    expect(comparisonOf(inSample).key).toBe(comparisonOf(full).key);
+    expect(full?.spec.from).toBe("2015-01-01");
+    expect((inSample?.spec.to ?? "") < (full?.spec.to ?? "")).toBe(true);
+  });
+
+  it("keeps the tick when the comparison queue fails", async () => {
+    clearInstantBacktestCacheForTesting();
+    const memory = memoryAutopilot();
+    const client = clientFor({
+      autopilot: memory.repository,
+      comparisonRuns: {
+        createMany: vi.fn(async () => Promise.reject(new Error("db"))),
+      },
+    });
+    await client.autopilot.campaigns.create({
+      budget,
+      name: "Run",
+      seed: 7,
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const [result] = (await client.autopilot.campaigns.tick({})).results;
+    expect(result?.comparison).toMatchObject({
+      error: "Nautilus gate comparison could not be queued",
+      queued: 0,
+    });
+    expect(result?.gated).toBeGreaterThan(0);
+  });
+
+  it("queues nothing for a tick without gated candidates", async () => {
+    const createMany = vi.fn();
+    const close = Float64Array.from({ length: 300 }, (_, index) => 100 + index);
+    const result = await queueGateComparisons({
+      bars: {
+        c: close,
+        h: close,
+        l: close,
+        o: close,
+        t: close.map((_, i) => i * DAY_MS),
+      },
+      campaign: {
+        id: "c-1",
+        symbol: "TEST",
+        timeframe: "1d",
+      } as AutopilotCampaignRecord,
+      candidates: [],
+      clock: () => 0,
+      costBps: 0,
+      queue: { enqueue: createMany, host: "h" },
+      sectorQuadrants: undefined,
+    });
+    expect(result).toEqual({ dropped: 0, queued: 0 });
+    expect(createMany).not.toHaveBeenCalled();
   });
 });

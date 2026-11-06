@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { type BacktestRunSpec, backtestRuns } from "../schema/index.ts";
 import {
+  BACKTEST_RUN_BATCH_MAX,
   BACKTEST_RUN_CLAIM_ATTEMPTS,
   BACKTEST_RUN_ERROR_MAX_LENGTH,
   boundBacktestRunError,
@@ -135,7 +136,7 @@ describe("createBacktestRunsRepository", () => {
     await repository.list({ limit: 500 });
     await repository.list({ strategyId: "s-1", limit: 0 });
     expect(operations[0]?.limit).toBe(100);
-    expect(operations[0]?.where).toBeUndefined();
+    expect(sqlText(operations[0]?.where)).not.toContain("strategy_id");
     expect(operations[1]?.limit).toBe(1);
     expect(sqlText(operations[1]?.where)).toContain(
       '"backtest_runs"."strategy_id"'
@@ -277,6 +278,125 @@ describe("createBacktestRunsRepository", () => {
       'not exists (select 1 from "backtest_runs" "active" where ("active"."engine_version" = $'
     );
     expect(where).toContain('"active"."started_at" >= $');
+  });
+
+  it("inserts many runs in one statement and returns them in input order", async () => {
+    let id = 0;
+    const ids = { now: () => FIXED_NOW, generateId: () => `run-${++id}` };
+    const { database, operations } = createDouble([
+      [{ id: "run-2" }, { id: "run-1" }],
+    ]);
+    const repository = createBacktestRunsRepository(database, ids);
+    const input = {
+      engineVersion: "nautilus-x",
+      requestedBy: "user-1",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    };
+    await expect(repository.createMany([input, input, input])).resolves.toEqual(
+      [{ id: "run-1" }, { id: "run-2" }]
+    );
+    expect(operations).toHaveLength(1);
+    expect(operations[0]?.values).toEqual(
+      [1, 2, 3].map((n) => ({
+        ...input,
+        createdAt: FIXED_NOW,
+        id: `run-${n}`,
+        status: "queued",
+      }))
+    );
+    await expect(repository.createMany([])).resolves.toEqual([]);
+    expect(operations).toHaveLength(1);
+  });
+
+  it("leaves comparison runs out of the list and lists them on their own", async () => {
+    const { database, operations } = createDouble([[], [], [], []]);
+    const repository = createBacktestRunsRepository(database, dependencies);
+    await repository.list({ limit: 10 });
+    expect(sqlText(operations[0]?.where)).toContain(
+      `"backtest_runs"."spec"->'comparison' is null`
+    );
+    await repository.listComparisons({ limit: 9999 });
+    expect(sqlText(operations[1]?.where)).toContain(
+      `"backtest_runs"."spec"->'comparison' is not null`
+    );
+    expect(operations[1]?.limit).toBe(500);
+    expect(Object.keys(operations[1]?.columns as object)).toEqual(
+      expect.arrayContaining(["engineRun", "differences", "spec"])
+    );
+    expect(Object.keys(operations[1]?.columns as object)).not.toContain(
+      "report"
+    );
+    await repository.listComparisons({
+      feature: "sweep",
+      groupId: "g-1",
+      limit: 0,
+    });
+    const filtered = sqlText(operations[2]?.where);
+    expect(filtered).toContain(`->'comparison'->>'feature' = $`);
+    expect(filtered).toContain(`->'comparison'->>'groupId' = $`);
+    expect(operations[2]?.limit).toBe(1);
+  });
+
+  it("claims a comparison group in one batch and a lone run alone", async () => {
+    const group = { ...spec, comparison: { groupId: "g-1" } };
+    const at = (minute: number) =>
+      new Date(FIXED_NOW.getTime() + minute * 60_000);
+    const first = { createdAt: at(0), id: "a", spec: group };
+    const batch = createDouble([
+      [{ id: "a" }],
+      [first],
+      [
+        { createdAt: at(2), id: "c", spec: group },
+        { createdAt: at(1), id: "d", spec: group },
+        { createdAt: at(1), id: "b", spec: group },
+      ],
+    ]);
+    const claimed = await createBacktestRunsRepository(
+      batch.database,
+      dependencies
+    ).claimBatch("nautilus-x", 4);
+    expect(claimed.map((run) => run.id)).toEqual(["a", "b", "d", "c"]);
+    const where = sqlText(batch.operations[2]?.where);
+    expect(where).toContain(
+      `"backtest_runs"."id" in (select "id" from "backtest_runs" "grouped" where ("grouped"."status" = $`
+    );
+    expect(where).toContain(`"grouped"."spec"->'comparison'->>'groupId' = $`);
+    expect(where).toContain("limit $");
+    expect(batch.operations[2]?.set).toEqual({
+      status: "running",
+      startedAt: FIXED_NOW,
+    });
+
+    const lone = createDouble([[{ id: "x" }], [{ id: "x", spec }]]);
+    const repository = createBacktestRunsRepository(
+      lone.database,
+      dependencies
+    );
+    await expect(repository.claimBatch("nautilus-x", 50)).resolves.toEqual([
+      { id: "x", spec },
+    ]);
+    expect(lone.operations).toHaveLength(2);
+
+    const single = createDouble([[{ id: "a" }], [first]]);
+    await expect(
+      createBacktestRunsRepository(single.database, dependencies).claimBatch(
+        "nautilus-x",
+        1
+      )
+    ).resolves.toEqual([first]);
+    expect(single.operations).toHaveLength(2);
+
+    const empty = createDouble([[]]);
+    await expect(
+      createBacktestRunsRepository(empty.database, dependencies).claimBatch(
+        "nautilus-x",
+        50
+      )
+    ).resolves.toEqual([]);
+    expect(BACKTEST_RUN_BATCH_MAX).toBe(50);
   });
 
   it("is part of createRepositories", () => {

@@ -5,6 +5,8 @@ import {
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
+import { EngineComparisonTimingSchema } from "./engine-comparison.ts";
+
 // Instant backtest: re-runs a parameterized rule over stored bars on each request and returns
 // summary statistics plus a chart-sized equity curve. Research and paper use only; no order path.
 
@@ -97,6 +99,8 @@ export const InstantBacktestRunOutputSchema = z
         computeMs: z.number().nonnegative(),
       })
       .strict(),
+    /** Engine comparison on: the TypeScript engine timing and the queued Nautilus group. */
+    comparison: EngineComparisonTimingSchema.optional(),
   })
   .strict();
 

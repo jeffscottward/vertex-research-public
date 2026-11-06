@@ -2118,6 +2118,12 @@ export interface BacktestRunSpec {
   /** Resolved cost profile (shape owned by the API cost-profile contract); absent: none. */
   costProfile?: Record<string, unknown>;
   initialCapital: number;
+  /**
+   * Engine comparison (dual run): the feature, group and label of a Nautilus run that repeats a
+   * TypeScript result, with that result (shape owned by the API engine-comparison contract).
+   * Absent on ordinary runs.
+   */
+  comparison?: Record<string, unknown>;
 }
 
 export interface BacktestRunStrategySnapshot {

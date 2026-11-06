@@ -41,6 +41,7 @@ import {
   tickAutopilotCampaign,
 } from "./autopilot-runner.ts";
 import type { ApiContext } from "./context.ts";
+import { comparisonQueueFor } from "./engine-comparison.ts";
 import { requireOperator } from "./operator-access.ts";
 import { strategyDefinitionSha256 } from "./strategy-definitions.ts";
 
@@ -204,7 +205,11 @@ const tick = api.autopilot.campaigns.tick
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
-    const dependencies = runnerFor(context, failures);
+    const queue = comparisonQueueFor(context, context.principal.userId);
+    const dependencies = {
+      ...runnerFor(context, failures),
+      ...(queue === null ? {} : { comparison: queue }),
+    };
     let campaigns: AutopilotCampaignRecord[];
     if (input.id === undefined) {
       campaigns = await dependencies.autopilot.dueCampaigns(AUTOPILOT_TICK_MAX);

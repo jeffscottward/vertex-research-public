@@ -18,6 +18,7 @@ import type {
   WaitUntil,
 } from "@darkfactory/observability/port";
 import type { CapabilityProjection } from "../contract.ts";
+import { DEFAULT_HOST_LABEL } from "../contracts/engine-comparison.ts";
 import {
   type AssistantDependencies,
   type AssistantRuntime,
@@ -106,6 +107,11 @@ export type ApiContext = Readonly<{
   // Engine of new backtest runs (VERTEX_BACKTEST_RUNS_ENGINE). "nautilus" queues them for the
   // Nautilus research worker; "typescript" (the default) runs them in this server.
   backtestRunsEngine?: BacktestRunsEngineSetting;
+  // Engine comparison (VERTEX_ENGINE_COMPARISON): "on" also queues instant backtests, sweep cells
+  // and Autopilot gate runs on Nautilus. "off" (the default) changes nothing.
+  engineComparison?: "off" | "on";
+  // Where this server runs (VERTEX_HOST_LABEL), shown next to TypeScript engine times.
+  hostLabel?: string;
   // Tailnet-only human 2FA recovery service (VERTEX_IBKR_RECOVERY_URL, own token
   // VERTEX_IBKR_RECOVERY_TOKEN). Server-only; null => not configured.
   ibkrRecovery?: DeployStatusConfig | null;
@@ -164,6 +170,8 @@ export type ApiContextDependencies = Readonly<{
   // engines.status, markets.json for marketContext.get. null => not configured.
   engineStatus?: string | null;
   backtestRunsEngine?: BacktestRunsEngineSetting;
+  engineComparison?: "off" | "on";
+  hostLabel?: string;
   // Tailnet-only human 2FA recovery service (VERTEX_IBKR_RECOVERY_URL, own token
   // VERTEX_IBKR_RECOVERY_TOKEN). Server-only; null => not configured.
   ibkrRecovery?: DeployStatusConfig | null;
@@ -266,6 +274,8 @@ export const createApiContext = (
     ibkrMonitor: dependencies.ibkrMonitor ?? null,
     engineStatus: dependencies.engineStatus ?? null,
     backtestRunsEngine: dependencies.backtestRunsEngine ?? "typescript",
+    engineComparison: dependencies.engineComparison ?? "off",
+    hostLabel: dependencies.hostLabel ?? DEFAULT_HOST_LABEL,
     ibkrRecovery: dependencies.ibkrRecovery ?? null,
     ...(verifyPassword === undefined
       ? {}

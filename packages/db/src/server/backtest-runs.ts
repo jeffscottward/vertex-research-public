@@ -26,6 +26,8 @@ import type { DatabaseExecutor } from "./client.ts";
 
 export const BACKTEST_RUNS_LIST_MAX = 100;
 export const BACKTEST_RUN_ERROR_MAX_LENGTH = 500;
+/** Most runs one claimBatch returns. */
+export const BACKTEST_RUN_BATCH_MAX = 50;
 /** Candidates claimNext tries when other workers win the race for the oldest run. */
 export const BACKTEST_RUN_CLAIM_ATTEMPTS = 5;
 
@@ -47,6 +49,15 @@ export type BacktestRunRecord = Readonly<{
 
 export type BacktestRunSummaryRecord = Omit<BacktestRunRecord, "report">;
 
+/** A comparison run with the parts of its report that the comparison view needs. */
+export type BacktestRunComparisonRecord = BacktestRunSummaryRecord &
+  Readonly<{
+    engineRun: Record<string, unknown> | null;
+    differences: Record<string, unknown> | null;
+  }>;
+
+const BACKTEST_RUN_COMPARISONS_LIST_MAX = 500;
+
 export type BacktestRunCreateInput = Readonly<{
   strategyId: string | null;
   strategyRevision: string | null;
@@ -59,9 +70,18 @@ export type BacktestRunCreateInput = Readonly<{
 export type BacktestRunsRepository = Readonly<{
   create: (input: BacktestRunCreateInput) => Promise<BacktestRunRecord>;
   get: (id: string) => Promise<BacktestRunRecord | null>;
+  /** Inserts the queued runs in one statement, in input order. */
+  createMany: (
+    inputs: readonly BacktestRunCreateInput[]
+  ) => Promise<BacktestRunRecord[]>;
+  /** Newest first. Comparison runs (spec.comparison) are left out. */
   list: (
     filter: Readonly<{ strategyId?: string; limit: number }>
   ) => Promise<BacktestRunSummaryRecord[]>;
+  /** Comparison runs, newest first, optionally of one feature or group. */
+  listComparisons: (
+    filter: Readonly<{ feature?: string; groupId?: string; limit: number }>
+  ) => Promise<BacktestRunComparisonRecord[]>;
   /** Moves a queued run to running. Returns null when another caller already claimed it. */
   claim: (id: string) => Promise<BacktestRunRecord | null>;
   /**
@@ -69,6 +89,15 @@ export type BacktestRunsRepository = Readonly<{
    * is left. The update is conditional, so two workers never claim the same run.
    */
   claimNext: (engineVersion: string) => Promise<BacktestRunRecord | null>;
+  /**
+   * claimNext, then up to `max - 1` more queued runs of the same engine and comparison group
+   * (oldest first) when the first run belongs to a group. Conditional updates: a run goes to one
+   * caller only. Empty when no queued run is left.
+   */
+  claimBatch: (
+    engineVersion: string,
+    max: number
+  ) => Promise<BacktestRunRecord[]>;
   complete: (
     id: string,
     report: Record<string, unknown>
@@ -108,6 +137,19 @@ const summaryColumns = {
   finishedAt: backtestRuns.finishedAt,
 };
 
+/** The comparison group of a spec (spec.comparison.groupId), or null. */
+const comparisonGroup = sql<
+  string | null
+>`${backtestRuns.spec}->'comparison'->>'groupId'`;
+
+/** Queued runs of one comparison group in the claimBatch subquery. */
+const groupRuns = alias(backtestRuns, "grouped");
+
+/** Oldest first, then by id (the claim order). */
+const byAge = (left: BacktestRunRecord, right: BacktestRunRecord): number =>
+  left.createdAt.getTime() - right.createdAt.getTime() ||
+  left.id.localeCompare(right.id);
+
 /** Other runs of the engine in the failIfUnclaimed subquery (an alias, not the updated row). */
 const activeRuns = alias(backtestRuns, "active");
 
@@ -124,155 +166,254 @@ export const createBacktestRunsRepository = (
     now: () => Date;
     generateId: () => string;
   }>
-): BacktestRunsRepository => ({
-  create: async (input) => {
-    const [row] = await database
-      .insert(backtestRuns)
-      .values({
+): BacktestRunsRepository => {
+  const repository: BacktestRunsRepository = {
+    create: async (input) => {
+      const [row] = await database
+        .insert(backtestRuns)
+        .values({
+          id: dependencies.generateId(),
+          status: "queued",
+          strategyId: input.strategyId,
+          strategyRevision: input.strategyRevision,
+          strategySnapshot: input.strategySnapshot,
+          spec: input.spec,
+          engineVersion: input.engineVersion,
+          requestedBy: input.requestedBy,
+          createdAt: dependencies.now(),
+        })
+        .returning();
+      return row as BacktestRunRecord;
+    },
+    createMany: async (inputs) => {
+      if (inputs.length === 0) return [];
+      const createdAt = dependencies.now();
+      const rows = inputs.map((input) => ({
+        createdAt,
+        engineVersion: input.engineVersion,
         id: dependencies.generateId(),
-        status: "queued",
+        requestedBy: input.requestedBy,
+        spec: input.spec,
+        status: "queued" as const,
         strategyId: input.strategyId,
         strategyRevision: input.strategyRevision,
         strategySnapshot: input.strategySnapshot,
-        spec: input.spec,
-        engineVersion: input.engineVersion,
-        requestedBy: input.requestedBy,
-        createdAt: dependencies.now(),
-      })
-      .returning();
-    return row as BacktestRunRecord;
-  },
-  get: async (id) => {
-    const [row] = await database
-      .select()
-      .from(backtestRuns)
-      .where(eq(backtestRuns.id, id))
-      .limit(1);
-    return (row as BacktestRunRecord | undefined) ?? null;
-  },
-  list: async (filter) =>
-    (await database
-      .select(summaryColumns)
-      .from(backtestRuns)
-      .where(
-        filter.strategyId === undefined
-          ? undefined
-          : eq(backtestRuns.strategyId, filter.strategyId)
-      )
-      .orderBy(desc(backtestRuns.createdAt))
-      .limit(
-        Math.min(Math.max(filter.limit, 1), BACKTEST_RUNS_LIST_MAX)
-      )) as BacktestRunSummaryRecord[],
-  claim: async (id) => {
-    const [row] = await database
-      .update(backtestRuns)
-      .set({ status: "running", startedAt: dependencies.now() })
-      .where(and(eq(backtestRuns.id, id), eq(backtestRuns.status, "queued")))
-      .returning();
-    return (row as BacktestRunRecord | undefined) ?? null;
-  },
-  claimNext: async (engineVersion) => {
-    // Same conditional update as claim: when another worker claims the candidate first, the
-    // update returns no row and the next oldest queued run is tried.
-    for (let attempt = 0; attempt < BACKTEST_RUN_CLAIM_ATTEMPTS; attempt += 1) {
-      const [candidate] = (await database
-        .select({ id: backtestRuns.id })
+      }));
+      const stored = (await database
+        .insert(backtestRuns)
+        .values(rows)
+        .returning()) as BacktestRunRecord[];
+      const byId = new Map(stored.map((row) => [row.id, row]));
+      return rows.flatMap((row) => {
+        const found = byId.get(row.id);
+        return found === undefined ? [] : [found];
+      });
+    },
+    get: async (id) => {
+      const [row] = await database
+        .select()
+        .from(backtestRuns)
+        .where(eq(backtestRuns.id, id))
+        .limit(1);
+      return (row as BacktestRunRecord | undefined) ?? null;
+    },
+    list: async (filter) =>
+      (await database
+        .select(summaryColumns)
         .from(backtestRuns)
         .where(
           and(
-            eq(backtestRuns.status, "queued"),
-            eq(backtestRuns.engineVersion, engineVersion)
+            sql`${backtestRuns.spec}->'comparison' is null`,
+            filter.strategyId === undefined
+              ? undefined
+              : eq(backtestRuns.strategyId, filter.strategyId)
           )
         )
-        .orderBy(asc(backtestRuns.createdAt), asc(backtestRuns.id))
-        .limit(1)) as { id: string }[];
-      if (candidate === undefined) return null;
+        .orderBy(desc(backtestRuns.createdAt))
+        .limit(
+          Math.min(Math.max(filter.limit, 1), BACKTEST_RUNS_LIST_MAX)
+        )) as BacktestRunSummaryRecord[],
+    listComparisons: async (filter) =>
+      (await database
+        .select({
+          ...summaryColumns,
+          differences: sql<Record<
+            string,
+            unknown
+          > | null>`${backtestRuns.report}->'differences'`,
+          engineRun: sql<Record<
+            string,
+            unknown
+          > | null>`${backtestRuns.report}->'engineRun'`,
+        })
+        .from(backtestRuns)
+        .where(
+          and(
+            sql`${backtestRuns.spec}->'comparison' is not null`,
+            filter.feature === undefined
+              ? undefined
+              : sql`${backtestRuns.spec}->'comparison'->>'feature' = ${filter.feature}`,
+            filter.groupId === undefined
+              ? undefined
+              : eq(comparisonGroup, filter.groupId)
+          )
+        )
+        .orderBy(desc(backtestRuns.createdAt), asc(backtestRuns.id))
+        .limit(
+          Math.min(Math.max(filter.limit, 1), BACKTEST_RUN_COMPARISONS_LIST_MAX)
+        )) as BacktestRunComparisonRecord[],
+    claim: async (id) => {
       const [row] = await database
+        .update(backtestRuns)
+        .set({ status: "running", startedAt: dependencies.now() })
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.status, "queued")))
+        .returning();
+      return (row as BacktestRunRecord | undefined) ?? null;
+    },
+    claimNext: async (engineVersion) => {
+      // Same conditional update as claim: when another worker claims the candidate first, the
+      // update returns no row and the next oldest queued run is tried.
+      for (
+        let attempt = 0;
+        attempt < BACKTEST_RUN_CLAIM_ATTEMPTS;
+        attempt += 1
+      ) {
+        const [candidate] = (await database
+          .select({ id: backtestRuns.id })
+          .from(backtestRuns)
+          .where(
+            and(
+              eq(backtestRuns.status, "queued"),
+              eq(backtestRuns.engineVersion, engineVersion)
+            )
+          )
+          .orderBy(asc(backtestRuns.createdAt), asc(backtestRuns.id))
+          .limit(1)) as { id: string }[];
+        if (candidate === undefined) return null;
+        const [row] = await database
+          .update(backtestRuns)
+          .set({ status: "running", startedAt: dependencies.now() })
+          .where(
+            and(
+              eq(backtestRuns.id, candidate.id),
+              eq(backtestRuns.status, "queued"),
+              eq(backtestRuns.engineVersion, engineVersion)
+            )
+          )
+          .returning();
+        if (row !== undefined) return row as BacktestRunRecord;
+      }
+      return null;
+    },
+    claimBatch: async (engineVersion, max) => {
+      const first = await repository.claimNext(engineVersion);
+      if (first === null) return [];
+      const groupId = (
+        first.spec.comparison as { groupId?: unknown } | undefined
+      )?.groupId;
+      const more = Math.min(Math.floor(max), BACKTEST_RUN_BATCH_MAX) - 1;
+      if (typeof groupId !== "string" || more < 1) return [first];
+      // One statement: the outer status check skips rows that another caller claimed after this
+      // subquery read them, so each run goes to one caller.
+      const rest = (await database
         .update(backtestRuns)
         .set({ status: "running", startedAt: dependencies.now() })
         .where(
           and(
-            eq(backtestRuns.id, candidate.id),
             eq(backtestRuns.status, "queued"),
-            eq(backtestRuns.engineVersion, engineVersion)
+            inArray(
+              backtestRuns.id,
+              new QueryBuilder()
+                .select({ id: groupRuns.id })
+                .from(groupRuns)
+                .where(
+                  and(
+                    eq(groupRuns.status, "queued"),
+                    eq(groupRuns.engineVersion, engineVersion),
+                    sql`${groupRuns.spec}->'comparison'->>'groupId' = ${groupId}`
+                  )
+                )
+                .orderBy(asc(groupRuns.createdAt), asc(groupRuns.id))
+                .limit(more)
+            )
+          )
+        )
+        .returning()) as BacktestRunRecord[];
+      return [first, ...rest.sort(byAge)];
+    },
+    complete: async (id, report) => {
+      const [row] = await database
+        .update(backtestRuns)
+        .set({ status: "succeeded", report, finishedAt: dependencies.now() })
+        .where(and(eq(backtestRuns.id, id), eq(backtestRuns.status, "running")))
+        .returning();
+      return (row as BacktestRunRecord | undefined) ?? null;
+    },
+    fail: async (id, error) => {
+      const [row] = await database
+        .update(backtestRuns)
+        .set({
+          status: "failed",
+          error: boundBacktestRunError(error),
+          finishedAt: dependencies.now(),
+        })
+        .where(
+          and(
+            eq(backtestRuns.id, id),
+            // Terminal runs are never rewritten.
+            inArray(backtestRuns.status, ["queued", "running"])
           )
         )
         .returning();
-      if (row !== undefined) return row as BacktestRunRecord;
-    }
-    return null;
-  },
-  complete: async (id, report) => {
-    const [row] = await database
-      .update(backtestRuns)
-      .set({ status: "succeeded", report, finishedAt: dependencies.now() })
-      .where(and(eq(backtestRuns.id, id), eq(backtestRuns.status, "running")))
-      .returning();
-    return (row as BacktestRunRecord | undefined) ?? null;
-  },
-  fail: async (id, error) => {
-    const [row] = await database
-      .update(backtestRuns)
-      .set({
-        status: "failed",
-        error: boundBacktestRunError(error),
-        finishedAt: dependencies.now(),
-      })
-      .where(
-        and(
-          eq(backtestRuns.id, id),
-          // Terminal runs are never rewritten.
-          inArray(backtestRuns.status, ["queued", "running"])
-        )
-      )
-      .returning();
-    return (row as BacktestRunRecord | undefined) ?? null;
-  },
-  failIfStale: async (id, startedBefore, error) => {
-    const rows = await database
-      .update(backtestRuns)
-      .set({
-        status: "failed",
-        error: boundBacktestRunError(error),
-        finishedAt: dependencies.now(),
-      })
-      .where(
-        and(
-          eq(backtestRuns.id, id),
-          eq(backtestRuns.status, "running"),
-          lt(backtestRuns.startedAt, startedBefore)
-        )
-      )
-      .returning({ id: backtestRuns.id });
-    return rows.length > 0;
-  },
-  failIfUnclaimed: async (id, engineVersion, before, error) => {
-    const rows = await database
-      .update(backtestRuns)
-      .set({
-        status: "failed",
-        error: boundBacktestRunError(error),
-        finishedAt: dependencies.now(),
-      })
-      .where(
-        and(
-          eq(backtestRuns.id, id),
-          eq(backtestRuns.status, "queued"),
-          lt(backtestRuns.createdAt, before),
-          notExists(
-            new QueryBuilder()
-              .select({ one: sql`1` })
-              .from(activeRuns)
-              .where(
-                and(
-                  eq(activeRuns.engineVersion, engineVersion),
-                  gte(activeRuns.startedAt, before)
-                )
-              )
+      return (row as BacktestRunRecord | undefined) ?? null;
+    },
+    failIfStale: async (id, startedBefore, error) => {
+      const rows = await database
+        .update(backtestRuns)
+        .set({
+          status: "failed",
+          error: boundBacktestRunError(error),
+          finishedAt: dependencies.now(),
+        })
+        .where(
+          and(
+            eq(backtestRuns.id, id),
+            eq(backtestRuns.status, "running"),
+            lt(backtestRuns.startedAt, startedBefore)
           )
         )
-      )
-      .returning({ id: backtestRuns.id });
-    return rows.length > 0;
-  },
-});
+        .returning({ id: backtestRuns.id });
+      return rows.length > 0;
+    },
+    failIfUnclaimed: async (id, engineVersion, before, error) => {
+      const rows = await database
+        .update(backtestRuns)
+        .set({
+          status: "failed",
+          error: boundBacktestRunError(error),
+          finishedAt: dependencies.now(),
+        })
+        .where(
+          and(
+            eq(backtestRuns.id, id),
+            eq(backtestRuns.status, "queued"),
+            lt(backtestRuns.createdAt, before),
+            notExists(
+              new QueryBuilder()
+                .select({ one: sql`1` })
+                .from(activeRuns)
+                .where(
+                  and(
+                    eq(activeRuns.engineVersion, engineVersion),
+                    gte(activeRuns.startedAt, before)
+                  )
+                )
+            )
+          )
+        )
+        .returning({ id: backtestRuns.id });
+      return rows.length > 0;
+    },
+  };
+  return repository;
+};
