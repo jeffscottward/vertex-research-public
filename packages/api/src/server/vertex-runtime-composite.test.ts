@@ -716,7 +716,7 @@ const fixture = async () => {
 
 const runWorker = async (f: Awaited<ReturnType<typeof fixture>>) => {
   const interpreter = requireTestPython();
-  const root = process.cwd();
+  const root = resolve(import.meta.dirname, "../../../..");
   const child = spawn(
     interpreter,
     [
