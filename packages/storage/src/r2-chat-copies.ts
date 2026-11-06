@@ -23,7 +23,7 @@ import type {
   VertexR2Bucket,
   VertexR2Object,
   VertexR2PutOptions,
-} from "./r2.ts";
+} from "./r2-binding.ts";
 
 export type VertexR2ChatCopyOptions = Readonly<{
   bucket: VertexR2Bucket;
