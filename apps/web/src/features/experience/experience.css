@@ -71,10 +71,6 @@
     line-height: 1.5;
   }
 
-  /* Sections are bordered cards (reference layout): one card per content block, clear separation. */
-
-  /* A grid or flex parent (such as a stack) already spaces its children with gap. */
-
   @media (prefers-reduced-motion: reduce) {
     .vx-experience *,
     .vx-experience *::before,
