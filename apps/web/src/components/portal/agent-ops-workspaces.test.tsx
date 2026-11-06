@@ -395,12 +395,13 @@ describe("papers workspace", () => {
     expect(container.textContent).toContain("gamma unknown");
     expect(container.textContent).toContain("Article");
 
+    await clickButton("Add paper");
     await setValue(byLabel<HTMLInputElement>("Paper title"), "SSRN paper");
     await setValue(
       byLabel<HTMLInputElement>("Paper URL"),
       "https://domain.test/ssrn"
     );
-    await clickButton("Add paper");
+    await clickButton("Save paper");
     expect(gateway.add).toHaveBeenCalledWith({
       title: "SSRN paper",
       sourceUrl: "https://domain.test/ssrn",
@@ -441,6 +442,7 @@ describe("papers workspace", () => {
     };
     const container = await mount(<PapersWorkspace gateway={gateway} />);
     await clickButton("Add paper");
+    await clickButton("Save paper");
     expect(gateway.add).not.toHaveBeenCalled();
     return expect(container.textContent).toContain("Title is required.");
   });

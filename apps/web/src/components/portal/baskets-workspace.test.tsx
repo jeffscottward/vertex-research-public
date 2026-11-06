@@ -31,6 +31,7 @@ beforeAll(() => {
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
+  window.history.replaceState(null, "", "/baskets");
 });
 
 const render = async (element: ReactElement) => {
@@ -77,7 +78,7 @@ const deferred = <Value,>() => {
     resolve = settle;
     reject = fail;
   });
-  return { promise, resolve, reject };
+  return { promise, reject, resolve };
 };
 
 const at = new Date("2026-10-23T00:00:00Z");
@@ -85,102 +86,102 @@ const basket = (
   symbol: string,
   baseDate: string | null = null
 ): BasketOutput => ({
-  id: `id-${symbol}`,
-  symbol,
-  name: `${symbol} name`,
   baseDate,
   baseValue: "100",
-  members: [
-    { symbol: "VSCO", weight: "0.5", basePrice: null, sharesAtBase: null },
-    { symbol: "AVTR", weight: "0.5", basePrice: null, sharesAtBase: null },
-  ],
   createdAt: at,
+  id: `id-${symbol}`,
+  members: [
+    { basePrice: null, sharesAtBase: null, symbol: "VSCO", weight: "0.5" },
+    { basePrice: null, sharesAtBase: null, symbol: "AVTR", weight: "0.5" },
+  ],
+  name: `${symbol} name`,
+  symbol,
   updatedAt: at,
 });
 const valuation = (
   item: BasketOutput,
   overrides: Partial<BasketValuationOutput> = {}
 ): BasketValuationOutput => ({
-  basket: item,
-  baseState: "fixed",
   baseDate: "2026-10-21",
+  baseState: "fixed",
+  basket: item,
   benchmarkSymbol: "SPY",
-  points: [
-    {
-      date: "2026-10-21",
-      value: 100,
-      benchmark: 100,
-      stale: false,
-      missing: [],
-    },
-    {
-      date: "2026-10-22",
-      value: null,
-      benchmark: 101,
-      stale: true,
-      missing: ["AVTR"],
-    },
-    {
-      date: "2026-10-23",
-      value: 104,
-      benchmark: 102,
-      stale: false,
-      missing: [],
-    },
-  ],
+  computedAt: at.toISOString(),
   latest: {
-    date: "2026-10-23",
-    value: 104,
-    changePct: 4,
-    dayChangePct: -1.5,
     benchmark: 102,
+    changePct: 4,
+    date: "2026-10-23",
+    dayChangePct: -1.5,
+    value: 104,
   },
-  staleSymbols: ["AVTR"],
   members: [
     {
+      basePrice: 20,
+      contribution: 5,
+      lastDate: "2026-10-23",
+      lastPrice: 22,
+      returnPct: 10,
+      stale: false,
       symbol: "VSCO",
       weight: 0.5,
-      basePrice: 20,
-      lastPrice: 22,
-      lastDate: "2026-10-23",
-      returnPct: 10,
-      contribution: 5,
-      stale: false,
     },
     {
+      basePrice: 10,
+      contribution: -1,
+      lastDate: "2026-10-22",
+      lastPrice: 9.8,
+      returnPct: -2,
+      stale: true,
       symbol: "AVTR",
       weight: 0.5,
-      basePrice: 10,
-      lastPrice: 9.8,
-      lastDate: "2026-10-22",
-      returnPct: -2,
-      contribution: -1,
-      stale: true,
     },
   ],
-  unavailable: [{ symbol: "SPY", reason: "pacing" }],
-  computedAt: at.toISOString(),
+  points: [
+    {
+      benchmark: 100,
+      date: "2026-10-21",
+      missing: [],
+      stale: false,
+      value: 100,
+    },
+    {
+      benchmark: 101,
+      date: "2026-10-22",
+      missing: ["AVTR"],
+      stale: true,
+      value: null,
+    },
+    {
+      benchmark: 102,
+      date: "2026-10-23",
+      missing: [],
+      stale: false,
+      value: 104,
+    },
+  ],
+  staleSymbols: ["AVTR"],
+  unavailable: [{ reason: "pacing", symbol: "SPY" }],
   ...overrides,
 });
 
 const fakeGateway = (items: BasketOutput[]) => {
   const rows = [...items];
   const gateway = {
-    list: vi.fn(async () => [...rows]),
     create: vi.fn(async (input: BasketCreateInput) => {
       const created = { ...basket(input.symbol), name: input.name };
       rows.push(created);
       return created;
     }),
-    update: vi.fn(async (input: BasketUpdateInput) => {
-      const found = rows.find((row) => row.id === input.id) as BasketOutput;
-      return { ...found, name: input.name ?? found.name };
-    }),
+    list: vi.fn(async () => [...rows]),
     remove: vi.fn(async (id: string) => {
       rows.splice(
         rows.findIndex((row) => row.id === id),
         1
       );
+    }),
+    update: vi.fn(async (input: BasketUpdateInput) => {
+      const found = rows.find((row) => row.id === input.id) as BasketOutput;
+      return { ...found, name: input.name ?? found.name };
     }),
     valuation: vi.fn(async (id: string) =>
       valuation(
@@ -225,10 +226,10 @@ describe("basket client helpers", () => {
   it("maps gateway calls to the oRPC client", async () => {
     const client = {
       baskets: {
-        list: vi.fn(async () => ({ items: [basket("TITY")] })),
         create: vi.fn(async () => basket("TITY")),
-        update: vi.fn(async () => basket("TITY")),
+        list: vi.fn(async () => ({ items: [basket("TITY")] })),
         remove: vi.fn(async () => ({ id: "id-TITY", removed: true })),
+        update: vi.fn(async () => basket("TITY")),
         valuation: vi.fn(async () => valuation(basket("TITY"))),
       },
     };
@@ -236,7 +237,7 @@ describe("basket client helpers", () => {
       client as unknown as Parameters<typeof createBasketGateway>[0]
     );
     expect(await gateway.list()).toHaveLength(1);
-    await gateway.create({ symbol: "TITY", name: "T", members: [] });
+    await gateway.create({ members: [], name: "T", symbol: "TITY" });
     await gateway.update({ id: "id-TITY", name: "T" });
     await expect(gateway.remove("id-TITY")).resolves.toBeUndefined();
     await gateway.valuation("id-TITY");
@@ -251,7 +252,7 @@ describe("basket client helpers", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     for (const call of [
       () => gateway.list(),
-      () => gateway.create({ symbol: "T", name: "T", members: [] }),
+      () => gateway.create({ members: [], name: "T", symbol: "T" }),
       () => gateway.update({ id: "x", name: "n" }),
       () => gateway.remove("x"),
       () => gateway.valuation("x"),
@@ -275,11 +276,11 @@ describe("BasketChart", () => {
         benchmarkSymbol="SPY"
         points={[
           {
-            date: "d",
-            value: null,
             benchmark: null,
-            stale: true,
+            date: "d",
             missing: ["A"],
+            stale: true,
+            value: null,
           },
         ]}
         symbol="TITY"
@@ -297,14 +298,31 @@ describe("BasketsWorkspace", () => {
   it("opens the requested basket and shows value, staleness, chart and contributions", async () => {
     const gateway = fakeGateway([basket("AAA"), basket("TITY", "2026-10-21")]);
     const container = await render(
-      <BasketsWorkspace gateway={gateway} initialSymbol="tity" />
+      <BasketsWorkspace gateway={gateway} initialBasket="tity" />
     );
     expect(gateway.valuation).toHaveBeenCalledWith("id-TITY");
     expect(
       container.querySelector('[data-testid="basket-latest-value"]')
         ?.textContent
-    ).toBe("104.00");
-    expect(container.textContent).toContain("since base +4.00%");
+    ).toContain("104.00");
+    expect(container.textContent).toContain("Since base+4.00%");
+    expect(container.textContent).toContain("Day change-1.50%");
+    expect(container.textContent).toContain("SPY 102.00");
+    expect(
+      container.querySelector('[data-testid="baskets-status"]')?.textContent
+    ).toContain("2 baskets");
+    expect(container.querySelector("h1")?.textContent).toBe("Baskets");
+    expect(window.location.search).toBe("?basket=TITY");
+    expect(
+      [
+        ...container.querySelectorAll(
+          '[data-slot="table-scroll"] [data-slot="ticker-link"]'
+        ),
+      ].map((link) => link.getAttribute("href"))
+    ).toHaveLength(2);
+    expect(
+      container.querySelector('[data-slot="panel"] h2')?.textContent
+    ).toContain("TITY");
     expect(container.textContent).toContain("Stale: AVTR");
     expect(container.textContent).toContain(
       "History unavailable: SPY (pacing)"
@@ -322,36 +340,80 @@ describe("BasketsWorkspace", () => {
     expect(rows[1]).toContain("-1.00");
   });
 
+  it("selects from ?basket= by id or name, defaults to the first and keeps the URL in sync", async () => {
+    window.history.replaceState(null, "", "/baskets?symbol=OLD&view=x");
+    const gateway = fakeGateway([basket("AAA"), basket("BBB")]);
+    await render(<BasketsWorkspace gateway={gateway} initialBasket="id-BBB" />);
+    expect(gateway.valuation).toHaveBeenLastCalledWith("id-BBB");
+    expect(window.location.search).toBe("?view=x&basket=BBB");
+
+    await render(
+      <BasketsWorkspace gateway={gateway} initialBasket="bbb NAME" />
+    );
+    expect(gateway.valuation).toHaveBeenLastCalledWith("id-BBB");
+
+    const fallback = await render(
+      <BasketsWorkspace gateway={gateway} initialBasket="   " />
+    );
+    expect(gateway.valuation).toHaveBeenLastCalledWith("id-AAA");
+    await click(buttonByText(fallback, "BBB"));
+    expect(window.location.search).toBe("?view=x&basket=BBB");
+    expect(buttonByText(fallback, "BBB")?.getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+  });
+
+  it("shows Loading and Unavailable in the status chip", async () => {
+    const gateway = fakeGateway([]);
+    gateway.list.mockReturnValueOnce(new Promise(() => undefined));
+    const loading = await render(<BasketsWorkspace gateway={gateway} />);
+    expect(
+      loading.querySelector('[data-testid="baskets-status"]')?.textContent
+    ).toContain("Loading");
+    gateway.list.mockRejectedValueOnce({ code: "STORAGE_ERROR" });
+    const failed = await render(<BasketsWorkspace gateway={gateway} />);
+    expect(
+      failed.querySelector('[data-testid="baskets-status"]')?.textContent
+    ).toContain("Unavailable");
+    const one = await render(
+      <BasketsWorkspace gateway={fakeGateway([basket("ONE")])} />
+    );
+    expect(
+      one.querySelector('[data-testid="baskets-status"]')?.textContent
+    ).toContain("1 basket");
+  });
+
   it("shows provisional and pending states and null contributions", async () => {
     const item = basket("TITY");
     const gateway = fakeGateway([item]);
     gateway.valuation.mockResolvedValueOnce(
       valuation(item, {
-        baseState: "provisional",
         baseDate: null,
-        staleSymbols: [],
-        unavailable: [],
+        baseState: "provisional",
         latest: null,
         members: [
           {
+            basePrice: null,
+            contribution: null,
+            lastDate: null,
+            lastPrice: null,
+            returnPct: null,
+            stale: false,
             symbol: "VSCO",
             weight: 1,
-            basePrice: null,
-            lastPrice: null,
-            lastDate: null,
-            returnPct: null,
-            contribution: null,
-            stale: false,
           },
         ],
+        staleSymbols: [],
+        unavailable: [],
       })
     );
     const container = await render(<BasketsWorkspace gateway={gateway} />);
     expect(container.textContent).toContain("Provisional base");
     expect(container.textContent).toContain("Last close —");
+    expect(container.querySelector('[data-slot="kpi-row"]')).toBeNull();
     expect(container.querySelector("tbody tr")?.textContent).toContain("—");
     gateway.valuation.mockResolvedValueOnce(
-      valuation(item, { baseState: "pending", baseDate: null })
+      valuation(item, { baseDate: null, baseState: "pending" })
     );
     await click(buttonByText(container, "TITY"));
     expect(container.textContent).toContain("Base pending");
@@ -423,12 +485,12 @@ describe("BasketsWorkspace", () => {
     await act(async () => form.requestSubmit());
     await settle();
     expect(gateway.create).toHaveBeenCalledWith({
-      symbol: "TITY",
-      name: "TITY",
       members: [
         { symbol: "VSCO", weight: "0.50000000" },
         { symbol: "ESTA", weight: "0.50000000" },
       ],
+      name: "TITY",
+      symbol: "TITY",
     });
     expect(container.querySelector("form")).toBeNull();
     expect(gateway.valuation).toHaveBeenCalledWith("id-TITY");
@@ -476,11 +538,11 @@ describe("BasketsWorkspace", () => {
     await settle();
     expect(gateway.update).toHaveBeenLastCalledWith({
       id: "id-TITY",
-      name: "TITY name",
       members: [
         { symbol: "VSCO", weight: "0.4" },
         { symbol: "AVTR", weight: "0.6" },
       ],
+      name: "TITY name",
     });
 
     await click(container.querySelector('[aria-label="Delete ZZZ"]'));
@@ -496,6 +558,7 @@ describe("BasketsWorkspace", () => {
     expect(
       container.querySelector('[data-testid="basket-latest-value"]')
     ).toBeNull();
+    expect(window.location.search).toBe("");
 
     gateway.list.mockResolvedValueOnce([basket("QQQ")]);
     gateway.remove.mockRejectedValueOnce({ code: "NOT_FOUND" });

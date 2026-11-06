@@ -1,10 +1,27 @@
 "use client";
 
 import type { BasketOutput, BasketValuationOutput } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import {
+  Button,
+  Input,
+  KpiCard,
+  KpiRow,
+  PageHeader,
+  Panel,
+  StatusBadge,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableScroll,
+} from "@darkfactory/ui";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { TickerLink } from "../ticker-link.tsx";
 import { BasketChart } from "./basket-chart.tsx";
 import {
   type BasketGateway,
@@ -17,8 +34,8 @@ import {
 
 export interface BasketsWorkspaceProps {
   readonly gateway?: BasketGateway;
-  // Basket symbol to open first (from ?symbol=); defaults to the first basket.
-  readonly initialSymbol?: string | null;
+  // Basket to open first (from ?basket=, by id, symbol or name; legacy ?symbol=); defaults to the first basket.
+  readonly initialBasket?: string | null;
 }
 
 type MemberDraft = Readonly<{ symbol: string; weight: string }>;
@@ -39,9 +56,9 @@ type ValuationState =
 
 const BASE_STATE_TEXT: Record<BasketValuationOutput["baseState"], string> = {
   fixed: "Base fixed",
+  pending: "Base pending: no common daily close for all members yet.",
   provisional:
     "Provisional base (latest full close). The base is fixed at the first full session close after creation.",
-  pending: "Base pending: no common daily close for all members yet.",
 };
 
 const memberKey = (members: readonly MemberDraft[]): string =>
@@ -54,30 +71,178 @@ const memberKey = (members: readonly MemberDraft[]): string =>
 
 const blankDraft = (): FormDraft => ({
   id: null,
-  original: "",
-  symbol: "",
-  name: "",
   members: [
     { symbol: "", weight: "" },
     { symbol: "", weight: "" },
   ],
+  name: "",
+  original: "",
+  symbol: "",
 });
 
 const draftFrom = (basket: BasketOutput): FormDraft => ({
   id: basket.id,
-  original: memberKey(basket.members),
-  symbol: basket.symbol,
-  name: basket.name,
   members: basket.members.map((member) => ({
     symbol: member.symbol,
     weight: member.weight,
   })),
+  name: basket.name,
+  original: memberKey(basket.members),
+  symbol: basket.symbol,
 });
 
 const weightSum = (members: readonly MemberDraft[]): number =>
   members.reduce((total, member) => total + (Number(member.weight) || 0), 0);
 
-const BasketDetail = ({ state }: { readonly state: ValuationState }) => {
+// The basket a ?basket= value names: id, symbol or display name (case-insensitive).
+export const findBasket = (
+  baskets: readonly BasketOutput[],
+  wanted: string | null
+): BasketOutput | undefined => {
+  const key = wanted?.trim().toLowerCase() ?? "";
+  if (key === "") return undefined;
+  return baskets.find(
+    (basket) =>
+      basket.id.toLowerCase() === key ||
+      basket.symbol.toLowerCase() === key ||
+      basket.name.toLowerCase() === key
+  );
+};
+
+// Mirrors the selection into ?basket= (by symbol) without a navigation; drops the legacy ?symbol=.
+const writeBasketParam = (symbol: string | null): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("symbol");
+  if (symbol === null) url.searchParams.delete("basket");
+  else url.searchParams.set("basket", symbol);
+  window.history.replaceState(window.history.state, "", url);
+};
+
+const BasketKpis = ({ data }: { readonly data: BasketValuationOutput }) => {
+  const latest = data.latest;
+  if (latest === null) return null;
+  return (
+    <KpiRow label={`${data.basket.symbol} summary`}>
+      <KpiCard
+        data-testid="basket-latest-value"
+        hint={`Last close ${latest.date}`}
+        label="Level"
+        value={formatIndex(latest.value)}
+      />
+      <KpiCard
+        hint={
+          data.baseDate === null ? "Base not fixed" : `Base ${data.baseDate}`
+        }
+        label="Since base"
+        value={formatPct(latest.changePct)}
+      />
+      <KpiCard
+        hint={`${data.benchmarkSymbol} ${formatIndex(latest.benchmark)}`}
+        label="Day change"
+        value={formatPct(latest.dayChangePct)}
+      />
+    </KpiRow>
+  );
+};
+
+const BasketNotes = ({ data }: { readonly data: BasketValuationOutput }) => (
+  <div className="space-y-2">
+    <p className="text-muted-foreground text-xs">
+      {BASE_STATE_TEXT[data.baseState]}
+      {data.baseDate === null
+        ? ""
+        : ` Base date ${data.baseDate}, value ${data.basket.baseValue}.`}{" "}
+      Last close {data.latest?.date ?? "—"}. Daily closes only (IBKR history);
+      no intraday quotes.
+    </p>
+    {data.staleSymbols.length > 0 && (
+      <p className="text-amber-600 text-sm dark:text-amber-400" role="status">
+        Stale: {data.staleSymbols.join(", ")} has no close on the latest date.
+        Dates without a close for every member are left out, never set to zero.
+      </p>
+    )}
+    {data.unavailable.length > 0 && (
+      <p className="text-destructive text-sm" role="status">
+        History unavailable:{" "}
+        {data.unavailable
+          .map((entry) => `${entry.symbol} (${entry.reason})`)
+          .join("; ")}
+      </p>
+    )}
+  </div>
+);
+
+const BasketConstituents = ({
+  data,
+}: {
+  readonly data: BasketValuationOutput;
+}) => (
+  <Panel
+    description="Weight, base and last daily close, return and index points contributed."
+    flush
+    headingId="basket-constituents-heading"
+    title="Constituents"
+  >
+    <TableScroll label="Basket constituents table" minWidth="40rem">
+      <Table className="w-full text-sm">
+        <TableCaption className="sr-only">Member contribution</TableCaption>
+        <TableHeader>
+          <TableRow className="text-left text-muted-foreground">
+            <TableHead scope="col">Member</TableHead>
+            <TableHead className="text-right" scope="col">
+              Weight
+            </TableHead>
+            <TableHead className="text-right" scope="col">
+              Base
+            </TableHead>
+            <TableHead className="text-right" scope="col">
+              Last
+            </TableHead>
+            <TableHead className="text-right" scope="col">
+              Return
+            </TableHead>
+            <TableHead className="text-right" scope="col">
+              Contribution (pts)
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.members.map((member) => (
+            <TableRow key={member.symbol}>
+              <TableHead className="text-left font-normal" scope="row">
+                <TickerLink symbol={member.symbol} />
+                {member.stale && (
+                  <span className="ml-2 text-amber-600 text-xs dark:text-amber-400">
+                    stale
+                  </span>
+                )}
+              </TableHead>
+              <TableCell className="text-right font-mono">
+                {(member.weight * 100).toFixed(2)}%
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {formatIndex(member.basePrice)}
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {formatIndex(member.lastPrice)}
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {formatPct(member.returnPct)}
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {member.contribution === null
+                  ? "—"
+                  : `${member.contribution >= 0 ? "+" : ""}${member.contribution.toFixed(2)}`}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableScroll>
+  </Panel>
+);
+
+const ValuationBody = ({ state }: { readonly state: ValuationState }) => {
   if (state.type === "idle") return null;
   if (state.type === "loading") {
     return (
@@ -98,123 +263,21 @@ const BasketDetail = ({ state }: { readonly state: ValuationState }) => {
     );
   }
   const { data } = state;
-  const latest = data.latest;
   return (
-    <section aria-label={`${data.basket.symbol} detail`} className="space-y-4">
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-        <h2 className="font-semibold text-xl">
-          {data.basket.symbol}{" "}
-          <span className="font-normal text-base text-muted-foreground">
-            {data.basket.name}
-          </span>
-        </h2>
-        <span className="font-mono text-2xl" data-testid="basket-latest-value">
-          {formatIndex(latest?.value ?? null)}
-        </span>
-        <span className="text-sm">
-          since base {formatPct(latest?.changePct ?? null)} · day{" "}
-          {formatPct(latest?.dayChangePct ?? null)}
-        </span>
-        <span className="text-muted-foreground text-sm">
-          {data.benchmarkSymbol} {formatIndex(latest?.benchmark ?? null)}
-        </span>
-      </div>
-      <p className="text-muted-foreground text-xs">
-        {BASE_STATE_TEXT[data.baseState]}
-        {data.baseDate === null
-          ? ""
-          : ` Base date ${data.baseDate}, value ${data.basket.baseValue}.`}{" "}
-        Last close {latest?.date ?? "—"}. Daily closes only (IBKR history); no
-        intraday quotes.
-      </p>
-      {data.staleSymbols.length > 0 && (
-        <p className="text-amber-600 text-sm dark:text-amber-400" role="status">
-          Stale: {data.staleSymbols.join(", ")} has no close on the latest date.
-          Dates without a close for every member are left out, never set to
-          zero.
-        </p>
-      )}
-      {data.unavailable.length > 0 && (
-        <p className="text-destructive text-sm" role="status">
-          History unavailable:{" "}
-          {data.unavailable
-            .map((entry) => `${entry.symbol} (${entry.reason})`)
-            .join("; ")}
-        </p>
-      )}
+    <div className="space-y-4">
       <BasketChart
         benchmarkSymbol={data.benchmarkSymbol}
         points={data.points}
         symbol={data.basket.symbol}
       />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-sm">
-          <caption className="sr-only">Member contribution</caption>
-          <thead>
-            <tr className="border-b text-left text-muted-foreground">
-              <th className="py-2" scope="col">
-                Member
-              </th>
-              <th className="py-2 text-right" scope="col">
-                Weight
-              </th>
-              <th className="py-2 text-right" scope="col">
-                Base
-              </th>
-              <th className="py-2 text-right" scope="col">
-                Last
-              </th>
-              <th className="py-2 text-right" scope="col">
-                Return
-              </th>
-              <th className="py-2 text-right" scope="col">
-                Contribution (pts)
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.members.map((member) => (
-              <tr className="border-b last:border-0" key={member.symbol}>
-                <th
-                  className="py-2 text-left font-medium font-mono"
-                  scope="row"
-                >
-                  {member.symbol}
-                  {member.stale && (
-                    <span className="ml-2 text-amber-600 text-xs dark:text-amber-400">
-                      stale
-                    </span>
-                  )}
-                </th>
-                <td className="py-2 text-right font-mono">
-                  {(member.weight * 100).toFixed(2)}%
-                </td>
-                <td className="py-2 text-right font-mono">
-                  {formatIndex(member.basePrice)}
-                </td>
-                <td className="py-2 text-right font-mono">
-                  {formatIndex(member.lastPrice)}
-                </td>
-                <td className="py-2 text-right font-mono">
-                  {formatPct(member.returnPct)}
-                </td>
-                <td className="py-2 text-right font-mono">
-                  {member.contribution === null
-                    ? "—"
-                    : `${member.contribution >= 0 ? "+" : ""}${member.contribution.toFixed(2)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <BasketNotes data={data} />
+    </div>
   );
 };
 
 export const BasketsWorkspace = ({
   gateway: suppliedGateway,
-  initialSymbol = null,
+  initialBasket = null,
 }: BasketsWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserBasketGateway()
@@ -244,20 +307,21 @@ export const BasketsWorkspace = ({
   }, [gateway]);
 
   const select = useCallback(
-    async (id: string) => {
+    async (id: string, symbol: string) => {
       setSelectedId(id);
+      writeBasketParam(symbol);
       latestRequest.current = id;
-      setValuation({ type: "loading", id });
+      setValuation({ id, type: "loading" });
       try {
         const data = await gateway.valuation(id);
         if (latestRequest.current !== id) return;
-        return setValuation({ type: "ready", data });
+        return setValuation({ data, type: "ready" });
       } catch (error) {
         if (latestRequest.current !== id) return;
         return setValuation({
-          type: "error",
           id,
           message: describeBasketFailure(error),
+          type: "error",
         });
       }
     },
@@ -267,12 +331,10 @@ export const BasketsWorkspace = ({
   useEffect(() => {
     void (async () => {
       const next = await load();
-      const wanted = initialSymbol?.toUpperCase() ?? null;
-      const first =
-        next?.find((basket) => basket.symbol === wanted) ?? next?.[0];
-      if (first !== undefined) await select(first.id);
+      const first = findBasket(next ?? [], initialBasket) ?? next?.[0];
+      if (first !== undefined) await select(first.id, first.symbol);
     })();
-  }, [initialSymbol, load, select]);
+  }, [initialBasket, load, select]);
 
   const save = async (form: FormDraft) => {
     const sum = weightSum(form.members);
@@ -290,9 +352,9 @@ export const BasketsWorkspace = ({
       const saved =
         form.id === null
           ? await gateway.create({
-              symbol: form.symbol,
-              name: form.name,
               members,
+              name: form.name,
+              symbol: form.symbol,
             })
           : await gateway.update({
               id: form.id,
@@ -302,7 +364,7 @@ export const BasketsWorkspace = ({
       setDraft(null);
       setFormError(null);
       await load();
-      await select(saved.id);
+      await select(saved.id, saved.symbol);
     } catch (error) {
       setFormError(describeBasketFailure(error));
     }
@@ -317,6 +379,7 @@ export const BasketsWorkspace = ({
       if (selectedId === id) {
         latestRequest.current = null;
         setSelectedId(null);
+        writeBasketParam(null);
         setValuation({ type: "idle" });
       }
       await load();
@@ -339,75 +402,40 @@ export const BasketsWorkspace = ({
     });
   };
 
+  const selected = items?.find((basket) => basket.id === selectedId);
+  const ready = valuation.type === "ready" ? valuation.data : null;
+
   return (
     <div className="space-y-6">
-      <p className="text-muted-foreground text-sm">
-        Custom baskets track an equal- or custom-weighted price index of several
-        stocks, like a private ETF. Tracking only: no orders.
-      </p>
+      <PageHeader
+        actions={
+          <Button
+            onClick={() => {
+              setFormError(null);
+              return setDraft(blankDraft());
+            }}
+            type="button"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            New basket
+          </Button>
+        }
+        description="Custom baskets track an equal- or custom-weighted price index of several stocks, like a private ETF. Tracking only: no orders."
+        status={
+          <StatusBadge data-testid="baskets-status" status="neutral">
+            {items === null
+              ? listError === null
+                ? "Loading"
+                : "Unavailable"
+              : `${items.length} ${items.length === 1 ? "basket" : "baskets"}`}
+          </StatusBadge>
+        }
+        title="Baskets"
+      />
       {listError !== null && (
         <p className="text-destructive text-sm" role="alert">
           {listError}
         </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2" data-click-private="">
-        {(items ?? []).map((basket) => (
-          <span className="inline-flex items-center gap-1" key={basket.id}>
-            <Button
-              aria-pressed={selectedId === basket.id}
-              onClick={() => void select(basket.id)}
-              type="button"
-              variant={selectedId === basket.id ? "default" : "secondary"}
-            >
-              <span className="font-mono">{basket.symbol}</span>
-            </Button>
-            <Button
-              aria-label={`Edit ${basket.symbol}`}
-              onClick={() => {
-                setFormError(null);
-                return setDraft(draftFrom(basket));
-              }}
-              type="button"
-              variant="ghost"
-            >
-              <Pencil aria-hidden="true" className="size-4" />
-            </Button>
-            {confirmRemoveId === basket.id ? (
-              <Button
-                aria-label={`Confirm delete ${basket.symbol}`}
-                disabled={busy}
-                onClick={() => void remove(basket.id)}
-                type="button"
-                variant="destructive"
-              >
-                Confirm delete
-              </Button>
-            ) : (
-              <Button
-                aria-label={`Delete ${basket.symbol}`}
-                onClick={() => setConfirmRemoveId(basket.id)}
-                type="button"
-                variant="ghost"
-              >
-                <Trash2 aria-hidden="true" className="size-4" />
-              </Button>
-            )}
-          </span>
-        ))}
-        <Button
-          onClick={() => {
-            setFormError(null);
-            return setDraft(blankDraft());
-          }}
-          type="button"
-          variant="secondary"
-        >
-          <Plus aria-hidden="true" className="size-4" />
-          New basket
-        </Button>
-      </div>
-      {items !== null && items.length === 0 && draft === null && (
-        <p className="text-muted-foreground text-sm">No baskets yet.</p>
       )}
       {draft !== null && (
         <form
@@ -552,7 +580,83 @@ export const BasketsWorkspace = ({
           </div>
         </form>
       )}
-      <BasketDetail state={valuation} />
+      {items !== null && items.length === 0 && draft === null && (
+        <p className="text-muted-foreground text-sm">No baskets yet.</p>
+      )}
+      {ready !== null && <BasketKpis data={ready} />}
+      {items !== null && items.length > 0 && (
+        <Panel
+          actions={
+            <div
+              className="flex flex-wrap items-center gap-2"
+              data-click-private=""
+            >
+              {items.map((basket) => (
+                <span
+                  className="inline-flex items-center gap-1"
+                  key={basket.id}
+                >
+                  <Button
+                    aria-pressed={selectedId === basket.id}
+                    onClick={() => void select(basket.id, basket.symbol)}
+                    type="button"
+                    variant={selectedId === basket.id ? "default" : "secondary"}
+                  >
+                    <span className="font-mono">{basket.symbol}</span>
+                  </Button>
+                  <Button
+                    aria-label={`Edit ${basket.symbol}`}
+                    onClick={() => {
+                      setFormError(null);
+                      return setDraft(draftFrom(basket));
+                    }}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Pencil aria-hidden="true" className="size-4" />
+                  </Button>
+                  {confirmRemoveId === basket.id ? (
+                    <Button
+                      aria-label={`Confirm delete ${basket.symbol}`}
+                      disabled={busy}
+                      onClick={() => void remove(basket.id)}
+                      type="button"
+                      variant="destructive"
+                    >
+                      Confirm delete
+                    </Button>
+                  ) : (
+                    <Button
+                      aria-label={`Delete ${basket.symbol}`}
+                      onClick={() => setConfirmRemoveId(basket.id)}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" className="size-4" />
+                    </Button>
+                  )}
+                </span>
+              ))}
+            </div>
+          }
+          headingId="basket-chart-heading"
+          title={
+            selected === undefined ? (
+              "Index"
+            ) : (
+              <>
+                <span className="font-mono">{selected.symbol}</span>{" "}
+                <span className="font-normal text-muted-foreground text-sm">
+                  {selected.name}
+                </span>
+              </>
+            )
+          }
+        >
+          <ValuationBody state={valuation} />
+        </Panel>
+      )}
+      {ready !== null && <BasketConstituents data={ready} />}
     </div>
   );
 };
