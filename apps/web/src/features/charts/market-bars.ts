@@ -4,6 +4,7 @@ import {
   type MarketBarSize,
 } from "@darkfactory/api";
 import type { ChartMarker, DisplayCandle } from "./types.ts";
+import type { ChartType } from "./workstation.ts";
 
 // Matches the KLine adapter validator cap (validDisplayCandles).
 export const DISPLAY_CANDLE_LIMIT = 4096;
@@ -194,4 +195,63 @@ export const tradeMarkers = (
     place(`trade-${index}-exit`, trade.exit_t, trade.exit_px, "Exit");
   }
   return { markers, shown: markers.length, outside, otherSymbol };
+};
+
+// Heikin Ashi bars from ordinary bars. The first bar seeds open from (O+C)/2.
+export const heikinAshi = (
+  candles: readonly DisplayCandle[]
+): readonly DisplayCandle[] => {
+  const out: DisplayCandle[] = [];
+  for (const bar of candles) {
+    const close = (bar.open + bar.high + bar.low + bar.close) / 4;
+    const before = out.at(-1);
+    const open =
+      before === undefined
+        ? (bar.open + bar.close) / 2
+        : (before.open + before.close) / 2;
+    out.push({
+      close,
+      high: Math.max(bar.high, open, close),
+      id: bar.id,
+      low: Math.min(bar.low, open, close),
+      open,
+      timestamp: bar.timestamp,
+      volume: bar.volume,
+    });
+  }
+  return out;
+};
+
+export const displayValues = (
+  candles: readonly DisplayCandle[],
+  type: ChartType
+): readonly DisplayCandle[] =>
+  type === "heikin-ashi" ? heikinAshi(candles) : candles;
+
+export type DataWindowRow = Readonly<{ label: string; value: string }>;
+
+// Data window rows for the bar under the crosshair (or the latest bar).
+export const dataWindowRows = (
+  bar: DisplayCandle | undefined,
+  previousClose: number | undefined,
+  precision: number
+): readonly DataWindowRow[] => {
+  if (bar === undefined) return [];
+  const rows: DataWindowRow[] = [
+    { label: "Time (UTC)", value: new Date(bar.timestamp).toISOString() },
+    { label: "Open", value: bar.open.toFixed(precision) },
+    { label: "High", value: bar.high.toFixed(precision) },
+    { label: "Low", value: bar.low.toFixed(precision) },
+    { label: "Close", value: bar.close.toFixed(precision) },
+    { label: "Volume", value: bar.volume.toLocaleString("en-US") },
+  ];
+  if (previousClose !== undefined && previousClose !== 0) {
+    const change = bar.close - previousClose;
+    const percent = (change / previousClose) * 100;
+    rows.push({
+      label: "Change",
+      value: `${change >= 0 ? "+" : ""}${change.toFixed(precision)} (${percent >= 0 ? "+" : ""}${percent.toFixed(2)}%)`,
+    });
+  }
+  return rows;
 };
