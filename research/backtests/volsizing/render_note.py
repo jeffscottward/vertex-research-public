@@ -103,7 +103,8 @@ def results_table(strategies) -> str:
 
 def implied_table(strategies, universe) -> str:
     head = "<tr><th>Strategy</th>" + "".join(f"<th>{u}</th>" for u in universe) + \
-        "<th>All entries: mean</th><th>CV</th><th>CV, IV = 252d RV</th><th>CV, IV = Cboe index</th></tr>"
+        "<th>All entries: mean</th><th>CV</th><th>CV, IV = 252d RV</th><th>CV, IV = Cboe index run</th>" \
+        "<th>CV, real-index entries only (n)</th></tr>"
     rows = []
     for s in strategies:
         cur = next(v for v in s["variants"] if v["id"] == "current")
@@ -112,7 +113,9 @@ def implied_table(strategies, universe) -> str:
             f"<td>{pct(by.get(u), 2)}</td>" for u in universe) +
             f'<td>{pct(cur["impliedTauMean"], 2)}</td><td>{num(cur["impliedTauCv"], 2)}</td>'
             f'<td>{num(cur["robustRv252"]["impliedTauCv"], 2)}</td>'
-            f'<td>{num(cur["robustIvIndex"]["impliedTauCv"], 2)}</td></tr>')
+            f'<td>{num(cur["robustIvIndex"]["impliedTauCv"], 2)}</td>'
+            f'<td>{num(cur["robustIvIndex"]["impliedTauCvIndexOnly"], 2)} '
+            f'({cur["robustIvIndex"]["indexOnlyEntries"]})</td></tr>')
     return f'<div class="wrap"><table>{head}{"".join(rows)}</table></div>'
 
 
@@ -139,6 +142,8 @@ def main(src: str, dest: str) -> int:
     tau_cv = max(c["impliedTauCv"] for c in currents)
     tau_cv_ix = max(c["robustIvIndex"]["impliedTauCv"] for c in currents)
     tau_cv_rv = max(c["robustRv252"]["impliedTauCv"] for c in currents)
+    tau_cv_real = max(c["robustIvIndex"]["impliedTauCvIndexOnly"] for c in currents)
+    real_syms = ", ".join(currents[0]["robustIvIndex"]["indexOnlySymbols"])
     cov = r["ivxCoverage"]
     off_zero = [f"{sid} {key}" for sid in by for key in ("vt-matched", "vt-buffer", "brake")
                 if by[sid][key]["sharpeDiffCi"]["p05"] > 0 or by[sid][key]["sharpeDiffCi"]["p95"] < 0]
@@ -179,9 +184,10 @@ Vertex's current rule (fixed % of NLV max loss on a fixed-delta debit spread) al
 to vol parity: the debit of a 0.60/0.30-delta spread grows with implied vol, so a fixed loss budget
 buys fewer contracts when vol is high. Each signal entry's fixed-risk size implies a vol target of
 about {pct(tau_mean, 1)}; its coefficient of variation across entries and instruments is at most
-{num(tau_cv, 2)} with the main vol proxy and {num(tau_cv_ix, 2)} when the spreads are priced off the
-public Cboe implied-vol indices (it widens to {num(tau_cv_rv, 2)} only when prices use a stale
-252-day realized vol). At equal realized risk, vol targeting changed Sharpe by: {matched}. Carver's
+{num(tau_cv, 2)} with the main vol proxy, and {num(tau_cv_real, 2)} over only the entries priced with a real
+public Cboe implied-vol index value ({real_syms}; IWM and SLV have no index history; {num(tau_cv_ix, 2)}
+for that whole run including proxy-priced entries). It widens to {num(tau_cv_rv, 2)} only when prices use a stale
+252-day realized vol. At equal realized risk, vol targeting changed Sharpe by: {matched}. Carver's
 weekly buffered resize: {buffered}. A shrink-only vol brake: {brake}. {zero_text} Carver's default 16% vol target is far above the
 owner gate: the 2% max-loss cap bound on {vt16_bound} of signal entries. If anything from this
 method is worth taking, it is the portfolio layer (correlation-aware total risk, the IDM idea),

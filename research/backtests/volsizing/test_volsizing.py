@@ -119,6 +119,7 @@ def test_simulate_entry_roll_exit_and_cash():
     assert st.entries == 1 and st.skipped == 0
     assert st.rolls == 2  # 195 sessions = ~273 calendar days: rolls at ~90 and ~180 days
     assert len(st.implied_tau) == 1  # recorded on the signal entry only, not on the roll
+    assert st.implied_tau[0][2] is False  # main pricing: never flagged as a real index value
     assert curve[-1] > vs.CAPITAL  # SPY rose ~10% while long the call spread
     assert st.risk_pct[0] <= vs.CURRENT_RISK + 1e-9
     flat_after = curve[201:]
