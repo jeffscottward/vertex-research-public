@@ -74,6 +74,7 @@ export {
 } from "./handler.ts";
 export { clearInstantBacktestCacheForTesting } from "./instant-backtest.ts";
 export { resolveJevConfig } from "./jev-client.ts";
+export { resolveMarketHistoryConfig } from "./market-data.ts";
 export type { CallProcedure, ProcedureResult } from "./mcp.ts";
 export {
   handleMcpHttp,

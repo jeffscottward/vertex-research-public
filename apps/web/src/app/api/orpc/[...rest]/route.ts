@@ -15,6 +15,7 @@ import {
   createVertexRuntimeConfiguredOptions,
   resolveDeployStatusConfig,
   resolveJevConfig,
+  resolveMarketHistoryConfig,
   resolvePriceAlertsNtfyConfig,
   resolveQuantDataConfig,
   setResearchContactEmail,
@@ -310,10 +311,9 @@ const vertexContextDependencies = (
     ),
     // Display-only JEV verdict on /charts (jevVerdict.*); the OpenRouter key stays server-side.
     jev: resolveJevConfig(env.OPENROUTER_API_KEY),
-    marketHistory: resolveDeployStatusConfig(
+    marketHistory: resolveMarketHistoryConfig(
       env.VERTEX_HISTORY_URL,
-      env.VERTEX_DEPLOY_STATUS_TOKEN,
-      { allowLoopbackHttp: true }
+      env.VERTEX_DEPLOY_STATUS_TOKEN
     ),
     // Operator allow-list (fail closed when unset) for agentOps.*, papers.*, agentApiKeys.*.
     operatorEmails: env.VERTEX_OPERATOR_EMAILS,
