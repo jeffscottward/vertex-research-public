@@ -11,6 +11,9 @@ import {
   planSignalAlertRun,
   type SignalBar,
   signalAlertChartUrl,
+  closedBars,
+  isRegularSession,
+  newYorkClock,
   sourceLine,
   yahooSymbolOf,
 } from "./signal-alerts.ts";
@@ -39,49 +42,87 @@ const crossValue = (
 });
 
 describe("signal alert bars", () => {
-  it("parses Yahoo OHLC, drops incomplete bars and sorts oldest first", () => {
-    const result = barsFromYahooChart({
-      chart: {
-        result: [
-          {
-            indicators: {
-              quote: [
-                {
-                  close: [11, null, 10],
-                  high: [12, 5, 11],
-                  low: [10, 4, 9],
-                  open: [10, 5, 10],
-                },
-              ],
-            },
-            timestamp: [200, 300, 100],
+  const doc = (
+    timestamps: readonly number[],
+    closes: readonly (number | null)[]
+  ) => ({
+    chart: {
+      result: [
+        {
+          indicators: {
+            quote: [
+              {
+                close: closes,
+                high: closes.map((close) =>
+                  close === null ? null : close + 1
+                ),
+                low: closes.map((close) => (close === null ? null : close - 1)),
+                open: closes,
+              },
+            ],
           },
-        ],
-      },
-    });
+          timestamp: timestamps,
+        },
+      ],
+    },
+  });
+
+  it("parses Yahoo OHLC, drops incomplete rows, sorts and merges a live row into its bar", () => {
+    const t0 = START / 1000;
+    const result = barsFromYahooChart(
+      doc([t0 + 900, t0 + 1800, t0, t0 + 1000], [11, null, 10, 12]),
+      "15m"
+    );
     expect(result).toEqual({
       bars: [
-        { close: 10, high: 11, low: 9, open: 10, start: new Date(100_000) },
-        { close: 11, high: 12, low: 10, open: 10, start: new Date(200_000) },
+        { close: 10, high: 11, low: 9, open: 10, start: new Date(START) },
+        {
+          close: 12,
+          high: 13,
+          low: 10,
+          open: 11,
+          start: new Date(START + 15 * MINUTE),
+        },
       ],
       ok: true,
     });
   });
 
+  it("merges two daily rows of one New York day", () => {
+    const t0 = START / 1000;
+    const result = barsFromYahooChart(
+      doc([t0, t0 + 3600, t0 + 86_400], [10, 12, 13]),
+      "1d"
+    );
+    expect(result.ok && result.bars.map((entry) => entry.close)).toEqual([
+      12, 13,
+    ]);
+  });
+
   it("reports unexpected or empty documents", () => {
-    expect(barsFromYahooChart({ nope: 1 })).toMatchObject({ ok: false });
-    expect(barsFromYahooChart({ chart: { result: null } })).toEqual({
+    expect(barsFromYahooChart({ nope: 1 }, "15m")).toMatchObject({
+      ok: false,
+    });
+    expect(barsFromYahooChart({ chart: { result: null } }, "15m")).toEqual({
       ok: false,
       reason: "Yahoo has no data for this symbol",
     });
     expect(
-      barsFromYahooChart({
-        chart: { result: [{ indicators: {}, timestamp: [1] }] },
-      })
+      barsFromYahooChart(
+        { chart: { result: [{ indicators: {}, timestamp: [1] }] } },
+        "15m"
+      )
     ).toEqual({ ok: false, reason: "Yahoo has no bars for this symbol" });
     expect(
-      barsFromYahooChart({ chart: { result: [{ indicators: {} }] } })
+      barsFromYahooChart({ chart: { result: [{ indicators: {} }] } }, "1h")
     ).toEqual({ ok: false, reason: "Yahoo has no bars for this symbol" });
+  });
+
+  it("reads the New York clock", () => {
+    expect(newYorkClock(new Date(START))).toEqual({
+      day: "2026-11-02",
+      minute: 570,
+    });
   });
 
   it("maps futures roots to Yahoo continuous contracts and builds the URL", () => {
@@ -156,6 +197,45 @@ describe("signal alert lines", () => {
     ).toEqual([null, null, null, null]);
   });
 
+  it("anchors the opening range at 09:30 New York, ignoring overnight bars", () => {
+    const overnight = [
+      { ...bar(0, 50), start: new Date(START - 9 * 60 * MINUTE) },
+      ...series([10, 12, 11]),
+    ];
+    expect(
+      sourceLine(
+        { minutes: 30, side: "high", type: "opening-range" },
+        overnight,
+        "15m"
+      )
+    ).toEqual([null, null, null, 13]);
+  });
+
+  it("fires the opening range breakout on the first bar after the range", () => {
+    const orb: SignalAlertCondition = {
+      left: { field: "close", type: "price" },
+      operator: "crosses-above",
+      right: { minutes: 30, side: "high", type: "opening-range" },
+    };
+    expect(conditionSeries(orb, series([10, 11, 13, 14]), "15m")).toEqual([
+      false,
+      false,
+      true,
+      false,
+    ]);
+    expect(
+      conditionSeries(
+        {
+          ...orb,
+          operator: "crosses-below",
+          right: { minutes: 30, side: "low", type: "opening-range" },
+        },
+        series([10, 11, 8, 7]),
+        "15m"
+      )
+    ).toEqual([false, false, true, false]);
+  });
+
   it("evaluates crossing up, down, either and level conditions", () => {
     const closes = series([9, 11, 12, 9, 11]);
     expect(
@@ -223,38 +303,43 @@ describe("signal alert lines", () => {
 });
 
 describe("signal alert evaluation", () => {
+  // 09:30-10:45 New York, 15m bars; bar 5 (10:45) is forming at 10:50.
   const closes = series([9, 11, 9, 11, 9, 11]);
-  // Bars 0-4 are closed; bar 5 (start +75m) is forming at +80m.
   const now = new Date(START + 80 * MINUTE);
   const cursor = {
-    createdAt: new Date(START - 60 * MINUTE),
+    activeSince: new Date(START - 60 * MINUTE),
     lastBarAt: null,
     lastFiredBarAt: null,
   };
-  const rule = (frequency: "once" | "per-bar" | "per-bar-close") => ({
+  const rule = (
+    frequency: "once" | "per-bar" | "per-bar-close",
+    regularSession = true
+  ) => ({
     condition: crossValue("crosses-above", "10"),
     frequency,
+    regularSession,
     timeframe: "15m" as const,
   });
 
-  it("per bar close fires on new closed bars only (at most three per run)", () => {
+  it("per bar close fires fresh closed bars only; stale ones just move the cursor", () => {
     const result = evaluateSignalAlert(
       rule("per-bar-close"),
       cursor,
       closes,
       now
     );
-    expect(result.fires.map((fire) => fire.barAt)).toEqual([
-      closes[1]?.start,
-      closes[3]?.start,
-    ]);
+    // Bar 1 (09:45) ended at 10:00, more than two bars before 10:50: stale.
+    expect(result.fires).toEqual([{ barAt: closes[3]?.start, price: 11 }]);
     expect(result.lastBarAt).toEqual(closes[4]?.start);
     expect(result.done).toBe(false);
   });
 
   it("per bar also fires on the forming bar, once per bar", () => {
     const result = evaluateSignalAlert(rule("per-bar"), cursor, closes, now);
-    expect(result.fires.map((fire) => fire.price)).toEqual([11, 11, 11]);
+    expect(result.fires.map((fire) => fire.barAt)).toEqual([
+      closes[3]?.start,
+      closes[5]?.start,
+    ]);
     const again = evaluateSignalAlert(
       rule("per-bar"),
       {
@@ -268,20 +353,20 @@ describe("signal alert evaluation", () => {
     expect(again.fires).toEqual([]);
   });
 
-  it("only once fires the first match and is done", () => {
+  it("only once fires the first fresh match and is done", () => {
     const result = evaluateSignalAlert(rule("once"), cursor, closes, now);
-    expect(result.fires).toEqual([{ barAt: closes[1]?.start, price: 11 }]);
+    expect(result.fires).toEqual([{ barAt: closes[3]?.start, price: 11 }]);
     expect(result.done).toBe(true);
   });
 
-  it("never fires on bars from before the rule existed or already evaluated", () => {
+  it("never fires on bars from before the rule was active or already evaluated", () => {
     const late = evaluateSignalAlert(
-      rule("per-bar-close"),
-      { ...cursor, createdAt: new Date(START + 50 * MINUTE) },
+      rule("per-bar"),
+      { ...cursor, activeSince: new Date(START + 65 * MINUTE) },
       closes,
       now
     );
-    expect(late.fires.map((fire) => fire.barAt)).toEqual([closes[3]?.start]);
+    expect(late.fires.map((fire) => fire.barAt)).toEqual([closes[5]?.start]);
     const seen = evaluateSignalAlert(
       rule("per-bar-close"),
       { ...cursor, lastBarAt: closes[4]?.start ?? null },
@@ -292,19 +377,43 @@ describe("signal alert evaluation", () => {
     expect(seen.lastBarAt).toEqual(closes[4]?.start);
   });
 
-  it("limits a long gap to the newest three fires", () => {
-    const many = series([9, 11, 9, 11, 9, 11, 9, 11, 9, 11]);
+  it("limits a run to the newest three fires", () => {
+    const many = series([11, 11, 11, 11, 11, 11, 11, 11, 11, 11]);
     const result = evaluateSignalAlert(
-      rule("per-bar-close"),
+      { ...rule("per-bar", false), condition: crossValue("above", "10") },
       cursor,
       many,
-      new Date(START + 24 * 60 * MINUTE)
+      new Date(START + 145 * MINUTE)
     );
     expect(result.fires.map((fire) => fire.barAt)).toEqual([
-      many[5]?.start,
       many[7]?.start,
+      many[8]?.start,
       many[9]?.start,
     ]);
+  });
+
+  it("closes bars by a later bar, the interval, or the 16:00 New York close", () => {
+    const daily = [bar(0, 10, 24 * 60), bar(1, 11, 24 * 60)];
+    // Day 2 09:30 bar at 15:59 New York: open; at 16:00: closed for stocks, open for futures.
+    const beforeClose = new Date(START + 24 * 60 * MINUTE + 389 * MINUTE);
+    const atClose = new Date(START + 24 * 60 * MINUTE + 390 * MINUTE);
+    expect(closedBars(daily, "1d", beforeClose, true)).toEqual([true, false]);
+    expect(closedBars(daily, "1d", atClose, true)).toEqual([true, true]);
+    expect(closedBars(daily, "1d", atClose, false)).toEqual([true, false]);
+    // The next New York day closes it too.
+    expect(
+      closedBars(
+        [bar(0, 10, 60)],
+        "1h",
+        new Date(START + 20 * 60 * MINUTE),
+        true
+      )
+    ).toEqual([true]);
+    expect(
+      closedBars([bar(0, 10)], "15m", new Date(START + 15 * MINUTE), false)
+    ).toEqual([true]);
+    expect(isRegularSession("NQ=F")).toBe(false);
+    expect(isRegularSession("SPY")).toBe(true);
   });
 
   it("backfills over closed bars with a day span and recent fires", () => {
@@ -312,7 +421,8 @@ describe("signal alert evaluation", () => {
       crossValue("crosses-above", "10"),
       closes,
       "15m",
-      now
+      now,
+      true
     );
     expect(backfill).toEqual({
       bars: 5,
@@ -323,7 +433,7 @@ describe("signal alert evaluation", () => {
       to: closes[4]?.start,
     });
     expect(
-      backfillSignalAlert(crossValue("above", "1"), [], "1d", now)
+      backfillSignalAlert(crossValue("above", "1"), [], "1d", now, true)
     ).toMatchObject({ bars: 0, count: 0, days: 0, from: null });
   });
 
@@ -423,6 +533,61 @@ describe("watch request parser", () => {
         condition: { right: { minutes: 60, side: "low" } },
       },
     });
+  });
+
+  it("handles the reviewed edge cases without guessing", () => {
+    expect(
+      parseWatchRequest(
+        "Watch NQ and wake me up when a 15m bar closes below 21,500"
+      )
+    ).toMatchObject({
+      proposal: {
+        condition: {
+          operator: "crosses-below",
+          right: { type: "value", value: "21500" },
+        },
+        symbol: "NQ=F",
+      },
+    });
+    expect(
+      parseWatchRequest("watch for TSLA crossing above 300.25")
+    ).toMatchObject({
+      proposal: {
+        condition: { right: { value: "300.25" } },
+        symbol: "TSLA",
+      },
+    });
+    expect(
+      parseWatchRequest("Watch the SPY when it closes above 500")
+    ).toMatchObject({ proposal: { symbol: "SPY" } });
+    expect(
+      parseWatchRequest(
+        "Watch SPY hourly when it closes above the opening range"
+      )
+    ).toMatchObject({ proposal: { condition: { right: { minutes: 60 } } } });
+    expect(
+      parseWatchRequest(
+        "Watch SPY when it crosses above the 50 day moving average"
+      )
+    ).toMatchObject({ ok: false });
+    expect(
+      parseWatchRequest(
+        "Watch SPY daily when it crosses above the 50 day moving average"
+      )
+    ).toMatchObject({ ok: true, proposal: { timeframe: "1d" } });
+    expect(
+      parseWatchRequest("Watch SPY when it goes above 5 or below 4")
+    ).toEqual({ ok: false, reason: 'Say either "above" or "below", not both' });
+    expect(
+      parseWatchRequest(
+        "Watch SPY daily when it closes above the opening range"
+      )
+    ).toEqual({ ok: false, reason: "An opening range needs intraday bars" });
+    expect(
+      parseWatchRequest(
+        "Watch SPY when it closes above the 0 minute opening range"
+      )
+    ).toMatchObject({ proposal: { condition: { right: { minutes: 15 } } } });
   });
 
   it("keeps ambiguous roots as stock symbols unless the contract is written", () => {

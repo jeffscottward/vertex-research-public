@@ -12,7 +12,7 @@ import {
   signalAlertRules,
   users,
 } from "../schema/index.ts";
-import type { DatabaseExecutor } from "./client.ts";
+import { type DatabaseExecutor, withTransaction } from "./client.ts";
 
 // Owner signal alerts and watches (priceAlerts.signals.*). Every owner query is scoped by user id.
 // The condition document is validated by the oRPC contract before it is stored and again when it is
@@ -40,6 +40,8 @@ export type SignalAlertRuleRecord = Readonly<{
   lastFiredAt: Date | null;
   fireCount: number;
   createdAt: Date;
+  /** When the rule became active; null while proposed. */
+  activatedAt: Date | null;
 }>;
 
 export type SignalAlertRuleCreateInput = Readonly<{
@@ -59,7 +61,6 @@ export type SignalAlertFireInput = Readonly<{
   userId: string;
   barAt: Date;
   price: string;
-  firedAt: Date;
   /** "once" rules move to done with their fire. */
   done: boolean;
 }>;
@@ -102,7 +103,10 @@ export type SignalAlertRepository = Readonly<{
   ) => Promise<void>;
   /** Moves active rules to the back of the queue without moving their cursor. */
   markAttempted: (ids: readonly string[]) => Promise<void>;
-  /** Inserts the fire event once per (rule, bar); null when that bar already fired or the rule is not active. */
+  /**
+   * Inserts the fire event once per (rule, bar) with the database clock as its fire time, in one
+   * transaction that locks the rule: null when that bar already fired or the rule is not active.
+   */
   recordFire: (
     input: SignalAlertFireInput
   ) => Promise<SignalAlertEventRecord | null>;
@@ -129,6 +133,7 @@ export class SignalAlertLimitError extends Error {
 export const signalAlertRecordOf = (
   row: SignalAlertRuleRow
 ): SignalAlertRuleRecord => ({
+  activatedAt: row.activatedAt,
   condition: row.condition,
   createdAt: row.createdAt,
   fireCount: row.fireCount,
@@ -173,35 +178,41 @@ export const createSignalAlertRepository = (
   const owned = (id: string, userId: string) =>
     and(eq(signalAlertRules.id, id), eq(signalAlertRules.userId, userId));
   return {
-    create: async (input) => {
-      const [existing] = await database
-        .select({ rules: count() })
-        .from(signalAlertRules)
-        .where(eq(signalAlertRules.userId, input.userId));
-      if ((existing?.rules ?? 0) >= SIGNAL_ALERT_RULES_PER_USER_MAX)
-        throw new SignalAlertLimitError();
-      const timestamp = dependencies.now();
-      const [row] = await database
-        .insert(signalAlertRules)
-        .values({
-          condition: { ...input.condition },
-          createdAt: timestamp,
-          frequency: input.frequency,
-          id: dependencies.generateId(),
-          kind: input.kind,
-          name: input.name,
-          origin: input.origin,
-          status: input.status,
-          symbol: input.symbol,
-          timeframe: input.timeframe,
-          updatedAt: timestamp,
-          userId: input.userId,
-        })
-        .returning();
-      if (row === undefined)
-        throw new Error("signal alert insert returned no row");
-      return signalAlertRecordOf(row);
-    },
+    create: async (input) =>
+      // The per-owner lock makes count-then-insert safe against concurrent creates.
+      withTransaction(database, async (transaction) => {
+        await transaction.execute(
+          sql`select pg_advisory_xact_lock(hashtextextended(${`signal_alert_rules:${input.userId}`}, 0))`
+        );
+        const [existing] = await transaction
+          .select({ rules: count() })
+          .from(signalAlertRules)
+          .where(eq(signalAlertRules.userId, input.userId));
+        if ((existing?.rules ?? 0) >= SIGNAL_ALERT_RULES_PER_USER_MAX)
+          throw new SignalAlertLimitError();
+        const timestamp = dependencies.now();
+        const [row] = await transaction
+          .insert(signalAlertRules)
+          .values({
+            activatedAt: input.status === "active" ? timestamp : null,
+            condition: { ...input.condition },
+            createdAt: timestamp,
+            frequency: input.frequency,
+            id: dependencies.generateId(),
+            kind: input.kind,
+            name: input.name,
+            origin: input.origin,
+            status: input.status,
+            symbol: input.symbol,
+            timeframe: input.timeframe,
+            updatedAt: timestamp,
+            userId: input.userId,
+          })
+          .returning();
+        if (row === undefined)
+          throw new Error("signal alert insert returned no row");
+        return signalAlertRecordOf(row);
+      }),
 
     listActive: async (limit, operatorEmails) => {
       const emails = [
@@ -278,7 +289,8 @@ export const createSignalAlertRepository = (
       await database
         .update(signalAlertRules)
         .set({
-          lastBarAt,
+          // Never backwards: a slower concurrent run cannot move the cursor to an older bar.
+          lastBarAt: sql`greatest(${signalAlertRules.lastBarAt}, ${sql.param(lastBarAt, signalAlertRules.lastBarAt)})`,
           lastCheckedAt: checkedAt,
           updatedAt: dependencies.now(),
         })
@@ -298,51 +310,53 @@ export const createSignalAlertRepository = (
         );
     },
 
-    recordFire: async (input) => {
-      const [rule] = await database
-        .select()
-        .from(signalAlertRules)
-        .where(and(owned(input.ruleId, input.userId), active));
-      if (rule === undefined) return null;
-      const [event] = await database
-        .insert(signalAlertEvents)
-        .values({
-          barAt: input.barAt,
-          delivery: "pending",
-          firedAt: input.firedAt,
-          id: dependencies.generateId(),
-          price: input.price,
-          ruleId: input.ruleId,
-          userId: input.userId,
-        })
-        .onConflictDoNothing({
-          target: [signalAlertEvents.ruleId, signalAlertEvents.barAt],
-        })
-        .returning();
-      if (event === undefined) return null;
-      await database
-        .update(signalAlertRules)
-        .set({
-          fireCount: sql`${signalAlertRules.fireCount} + 1`,
-          lastFiredAt: input.firedAt,
-          lastFiredBarAt: input.barAt,
-          updatedAt: dependencies.now(),
-          ...(input.done ? { status: "done" as const } : {}),
-        })
-        .where(eq(signalAlertRules.id, input.ruleId));
-      return {
-        barAt: event.barAt,
-        delivery: event.delivery,
-        firedAt: event.firedAt,
-        id: event.id,
-        kind: rule.kind,
-        name: rule.name,
-        price: event.price,
-        ruleId: event.ruleId,
-        symbol: rule.symbol,
-        userId: event.userId,
-      };
-    },
+    recordFire: async (input) =>
+      withTransaction(database, async (transaction) => {
+        const [rule] = await transaction
+          .select()
+          .from(signalAlertRules)
+          .where(and(owned(input.ruleId, input.userId), active))
+          .for("update");
+        if (rule === undefined) return null;
+        const [event] = await transaction
+          .insert(signalAlertEvents)
+          .values({
+            barAt: input.barAt,
+            delivery: "pending",
+            firedAt: sql`clock_timestamp()`,
+            id: dependencies.generateId(),
+            price: input.price,
+            ruleId: input.ruleId,
+            userId: input.userId,
+          })
+          .onConflictDoNothing({
+            target: [signalAlertEvents.ruleId, signalAlertEvents.barAt],
+          })
+          .returning();
+        if (event === undefined) return null;
+        await transaction
+          .update(signalAlertRules)
+          .set({
+            fireCount: sql`${signalAlertRules.fireCount} + 1`,
+            lastFiredAt: event.firedAt,
+            lastFiredBarAt: input.barAt,
+            updatedAt: dependencies.now(),
+            ...(input.done ? { status: "done" as const } : {}),
+          })
+          .where(and(eq(signalAlertRules.id, input.ruleId), active));
+        return {
+          barAt: event.barAt,
+          delivery: event.delivery,
+          firedAt: event.firedAt,
+          id: event.id,
+          kind: rule.kind,
+          name: rule.name,
+          price: event.price,
+          ruleId: event.ruleId,
+          symbol: rule.symbol,
+          userId: event.userId,
+        };
+      }),
 
     remove: async (id, userId) => {
       const removed = await database
@@ -356,7 +370,11 @@ export const createSignalAlertRepository = (
       if (from.length === 0) return null;
       const [row] = await database
         .update(signalAlertRules)
-        .set({ status: to, updatedAt: dependencies.now() })
+        .set({
+          status: to,
+          updatedAt: dependencies.now(),
+          ...(to === "active" ? { activatedAt: dependencies.now() } : {}),
+        })
         .where(
           and(owned(id, userId), inArray(signalAlertRules.status, [...from]))
         )

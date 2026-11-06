@@ -20,6 +20,7 @@ CREATE TABLE "signal_alert_rules" (
 	"condition" jsonb NOT NULL,
 	"frequency" text NOT NULL,
 	"status" text NOT NULL,
+	"activated_at" timestamp with time zone,
 	"last_checked_at" timestamp with time zone,
 	"last_bar_at" timestamp with time zone,
 	"last_fired_bar_at" timestamp with time zone,

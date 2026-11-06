@@ -483,8 +483,9 @@ describe("SignalAlertsSection", () => {
       vi.advanceTimersByTime(1000);
       await flush();
     });
+    // Fixed text only: names and prices stay in the page.
     expect(shown).toEqual([
-      "Vertex watch fired|NQ watch at 21050.25. Research only, not an instruction to trade.",
+      "Vertex signal alert|A signal alert or watch fired. Open Vertex to review it. This is not an instruction to trade.",
     ]);
     expect(container.textContent).toContain("NQ watch at 21050.25");
   });
@@ -572,7 +573,8 @@ describe("SignalAlertsSection", () => {
       vi.advanceTimersByTime(1000);
       await flush();
     });
-    expect(shown[0]).toMatch(/^Vertex signal alert\|SPY alert/u);
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).not.toContain("SPY");
 
     const refusing: BrowserNotifier = {
       permission: () => "default",
@@ -666,14 +668,44 @@ describe("SignalAlertsSection", () => {
       labelled<HTMLSelectElement>(container, "Alert on"),
       "price-level"
     );
-    await click(container, "Create alert");
-    expect(gateway.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        condition: expect.objectContaining({
-          right: { type: "value", value: "0" },
-        }),
-      })
+    // No value yet: preview and create stay disabled.
+    const create = [...container.querySelectorAll("button")].find(
+      (node) => node.textContent?.trim() === "Create alert"
     );
+    expect(create?.disabled).toBe(true);
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it("merges a check with later polls without duplicates", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const fired = event({ id: "event-5" });
+    const events = vi
+      .fn<SignalAlertsGateway["events"]>()
+      .mockResolvedValueOnce([fired])
+      .mockResolvedValueOnce([fired]);
+    const gateway = gatewayWith({
+      check: vi.fn(async () => ({
+        checked: 1,
+        delivery: "none" as const,
+        events: [fired],
+        seriesErrors: [],
+      })),
+      events,
+    });
+    const { notifier, shown } = notifierWith("granted");
+    const container = await mount(gateway, notifier, 1000);
+    await click(container, "Check now");
+    await act(async () => {
+      vi.advanceTimersByTime(1000);
+      await flush();
+    });
+    expect(events).toHaveBeenLastCalledWith(FIRED);
+    expect(shown).toEqual([]);
+    expect(
+      [...container.querySelectorAll("li")].filter((node) =>
+        node.textContent?.includes("NQ watch at")
+      )
+    ).toHaveLength(1);
   });
 
   it("reports a load failure", async () => {

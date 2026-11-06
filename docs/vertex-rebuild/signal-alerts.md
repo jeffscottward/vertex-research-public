@@ -7,7 +7,8 @@ anyone to trade.
 
 - **Signal and strategy alerts.** A rule compares two lines on one symbol's bars: price (close,
   open, high, low), a fixed value, an SMA or EMA, the N-bar high or low before the bar, or the
-  session opening range (New York day, first N minutes). Operators: crossing up, crossing down,
+  session opening range (from 09:30 New York, the first N minutes in whole bars; overnight futures
+  bars never count; the first bar after the range is compared with the range itself). Operators: crossing up, crossing down,
   crossing either way, above, below. The page offers the built-in strategies as presets (SMA cross,
   breakout above the N-bar high, breakdown below the N-bar low, opening range breakout) and a custom
   price level. Timeframes: 5m, 15m, 1h, 1d. Futures are written as Yahoo continuous contracts (`NQ=F`,
@@ -27,9 +28,10 @@ anyone to trade.
   guessing. Agents with an operator write key can also propose a structured watch with
   `priceAlerts.signals.propose`. A proposed watch runs only after **Start watching**; **Dismiss**
   stops it.
-- **Notifications.** Every fire is stored as an event (insert-once per rule and bar) and shown under
-  Recent fires. The page polls new fires every minute and, once the owner allows it, shows a
-  browser/OS notification while a Vertex tab is open. A run also sends one fixed-text ntfy push per
+- **Notifications.** Every fire is stored as an event (insert-once per rule and bar, stamped with the
+  database clock) and shown under Recent fires. The page polls new fires every minute and, once the
+  owner allows it, shows one fixed-text browser/OS notification per batch while a Vertex tab is open
+  (names and prices stay on the page). A run also sends one fixed-text ntfy push per
   owner to the price alert destination (`VERTEX_PRICE_ALERTS_NTFY_*`); symbols, prices and
   conditions never leave Vertex in the push.
 
@@ -44,8 +46,13 @@ anyone to trade.
 | `tick` | write key only | Scheduler: up to 100 active rules of every operator owner |
 
 A run fetches each symbol/timeframe series once (at most 20 series per run; other rules wait and
-move to the back of the queue), evaluates arithmetically and never fires a bar from before the rule
-existed. At most three fires per rule per run, so a long gap never floods the owner. A stored
+move to the back of the queue) and evaluates arithmetically. A bar is closed once a later bar exists,
+its interval has passed, or (for stocks and ETFs) the 16:00 New York close has passed on its day; a
+live Yahoo row inside a bar's interval is merged into that bar. A rule never fires a bar from before
+it became active (created active, or a proposed watch started), nor a closed bar that ended more
+than two bar widths ago (after a gap the cursor just moves on). At most three fires per rule per
+run. Conditions that can never fire are refused (an opening range on daily bars or not in whole
+bars, a zero value line). A stored
 condition that no longer parses is listed as unreadable and skipped.
 
 ## Scheduler

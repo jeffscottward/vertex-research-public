@@ -102,8 +102,43 @@ export type SignalBarsResult =
 const positive = (value: number | null | undefined): value is number =>
   typeof value === "number" && Number.isFinite(value) && value > 0;
 
-/** OHLC bars from a Yahoo chart document, oldest first. Bars missing a price are dropped. */
-export const barsFromYahooChart = (raw: unknown): SignalBarsResult => {
+const NEW_YORK_CLOCK = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23",
+  minute: "2-digit",
+  month: "2-digit",
+  timeZone: "America/New_York",
+  year: "numeric",
+});
+
+/** New York calendar day and minute of the day (the US equity session clock). */
+export const newYorkClock = (
+  date: Date
+): Readonly<{ day: string; minute: number }> => {
+  const parts = Object.fromEntries(
+    NEW_YORK_CLOCK.formatToParts(date).map((part) => [part.type, part.value])
+  );
+  return {
+    day: `${parts["year"]}-${parts["month"]}-${parts["day"]}`,
+    minute: Number(parts["hour"]) * 60 + Number(parts["minute"]),
+  };
+};
+
+/** 09:30 and 16:00 New York: the regular US equity session. */
+const SESSION_OPEN_MINUTE = 9 * 60 + 30;
+const SESSION_CLOSE_MINUTE = 16 * 60;
+
+/**
+ * OHLC bars from a Yahoo chart document, oldest first. Bars missing a price are dropped. A row that
+ * falls inside the previous bar's interval (Yahoo's live row stamped with the last trade time, or a
+ * second daily row on the same New York day) is merged into that bar, so a forming bar keeps one
+ * stable start.
+ */
+export const barsFromYahooChart = (
+  raw: unknown,
+  timeframe: SignalAlertTimeframe
+): SignalBarsResult => {
   const parsed = YahooOhlcChartSchema.safeParse(raw);
   if (!parsed.success)
     return { ok: false, reason: "Yahoo returned an unexpected document" };
@@ -111,7 +146,7 @@ export const barsFromYahooChart = (raw: unknown): SignalBarsResult => {
   if (result === undefined)
     return { ok: false, reason: "Yahoo has no data for this symbol" };
   const quote = result.indicators.quote?.[0];
-  const bars = (result.timestamp ?? []).flatMap((time, index) => {
+  const rows = (result.timestamp ?? []).flatMap((time, index) => {
     const open = quote?.open?.[index];
     const high = quote?.high?.[index];
     const low = quote?.low?.[index];
@@ -120,26 +155,58 @@ export const barsFromYahooChart = (raw: unknown): SignalBarsResult => {
       return [];
     return [{ close, high, low, open, start: new Date(time * 1000) }];
   });
+  rows.sort((left, right) => left.start.getTime() - right.start.getTime());
+  const width = SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
+  const bars: SignalBar[] = [];
+  for (const row of rows) {
+    const previous = bars.at(-1);
+    const sameBar =
+      previous !== undefined &&
+      (timeframe === "1d"
+        ? newYorkClock(previous.start).day === newYorkClock(row.start).day
+        : row.start.getTime() < previous.start.getTime() + width);
+    if (previous === undefined || !sameBar) {
+      bars.push(row);
+      continue;
+    }
+    bars[bars.length - 1] = {
+      close: row.close,
+      high: Math.max(previous.high, row.high),
+      low: Math.min(previous.low, row.low),
+      open: previous.open,
+      start: previous.start,
+    };
+  }
   if (bars.length === 0)
     return { ok: false, reason: "Yahoo has no bars for this symbol" };
-  bars.sort((left, right) => left.start.getTime() - right.start.getTime());
   return { bars, ok: true };
 };
 
-/** A bar is closed once its full interval has passed. */
-export const isBarClosed = (
-  bar: SignalBar,
-  timeframe: SignalAlertTimeframe,
-  now: Date
-): boolean =>
-  bar.start.getTime() + SIGNAL_ALERT_TIMEFRAME_MS[timeframe] <= now.getTime();
+/** Futures contracts (NQ=F) trade around the clock; everything else follows the regular session. */
+export const isRegularSession = (symbol: string): boolean =>
+  !symbol.endsWith("=F");
 
-const NEW_YORK_DAY = new Intl.DateTimeFormat("en-CA", {
-  day: "2-digit",
-  month: "2-digit",
-  timeZone: "America/New_York",
-  year: "numeric",
-});
+/**
+ * Which bars are closed: every bar with a later bar, the newest once its interval has passed, and,
+ * for regular-session symbols, the newest once the 16:00 New York close has passed on its day (so a
+ * daily bar closes at the close, not 24 hours after the open).
+ */
+export const closedBars = (
+  bars: readonly SignalBar[],
+  timeframe: SignalAlertTimeframe,
+  now: Date,
+  regularSession: boolean
+): boolean[] => {
+  const width = SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
+  const clock = newYorkClock(now);
+  return bars.map((bar, index) => {
+    if (index < bars.length - 1) return true;
+    if (bar.start.getTime() + width <= now.getTime()) return true;
+    if (!regularSession) return false;
+    const day = newYorkClock(bar.start).day;
+    return clock.day > day || clock.minute >= SESSION_CLOSE_MINUTE;
+  });
+};
 
 /** One value per bar for a source line; null where the line is not defined yet. */
 export const sourceLine = (
@@ -185,38 +252,38 @@ export const sourceLine = (
           : Math.min(...window.map((bar) => bar.low));
       });
     case "opening-range": {
-      // The high/low of the first `minutes` of each New York session day, defined once complete.
-      if (timeframe === "1d") return bars.map(() => null);
-      const width = SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
-      const out: (number | null)[] = [];
+      // The high/low of the bars from 09:30 New York through the first `minutes`, defined once that
+      // window is complete; bars before 09:30 (futures overnight) never count. Daily bars have none.
+      const width = SIGNAL_ALERT_TIMEFRAME_MS[timeframe] / 60_000;
+      const end = SESSION_OPEN_MINUTE + source.minutes;
       let day = "";
-      let open = 0;
-      let high = 0;
-      let low = 0;
-      for (const bar of bars) {
-        const barDay = NEW_YORK_DAY.format(bar.start);
-        const time = bar.start.getTime();
-        if (barDay !== day) {
-          day = barDay;
-          open = time;
-          high = bar.high;
-          low = bar.low;
+      let high: number | null = null;
+      let low: number | null = null;
+      return bars.map((bar) => {
+        if (timeframe === "1d") return null;
+        const clock = newYorkClock(bar.start);
+        if (clock.day !== day) {
+          day = clock.day;
+          high = null;
+          low = null;
         }
-        const end = open + source.minutes * 60_000;
-        if (time + width <= end) {
-          high = Math.max(high, bar.high);
-          low = Math.min(low, bar.low);
-          out.push(null);
-        } else {
-          out.push(source.side === "high" ? high : low);
+        if (clock.minute < SESSION_OPEN_MINUTE) return null;
+        if (clock.minute + width <= end) {
+          high = Math.max(high ?? bar.high, bar.high);
+          low = Math.min(low ?? bar.low, bar.low);
+          return null;
         }
-      }
-      return out;
+        return source.side === "high" ? high : low;
+      });
     }
   }
 };
 
-/** Whether the condition holds on each bar (false where a line is undefined). */
+/**
+ * Whether the condition holds on each bar (false where a line is undefined). A crossing needs both
+ * lines on the bar before, except the bar right after an opening range completes: the last range
+ * bar closed inside the range, so that bar is compared with the range itself.
+ */
 export const conditionSeries = (
   condition: SignalAlertCondition,
   bars: readonly SignalBar[],
@@ -224,6 +291,7 @@ export const conditionSeries = (
 ): boolean[] => {
   const left = sourceLine(condition.left, bars, timeframe);
   const right = sourceLine(condition.right, bars, timeframe);
+  const rangeStart = condition.right.type === "opening-range";
   return bars.map((_, index) => {
     const l = left[index];
     const r = right[index];
@@ -232,9 +300,8 @@ export const conditionSeries = (
     if (condition.operator === "above") return l > r;
     if (condition.operator === "below") return l < r;
     const pl = left[index - 1];
-    const pr = right[index - 1];
-    if (pl === null || pl === undefined || pr === null || pr === undefined)
-      return false;
+    const pr = right[index - 1] ?? (rangeStart ? r : null);
+    if (pl === null || pl === undefined || pr === null) return false;
     const up = pl <= pr && l > r;
     const down = pl >= pr && l < r;
     if (condition.operator === "crosses-above") return up;
@@ -264,11 +331,13 @@ export const backfillSignalAlert = (
   condition: SignalAlertCondition,
   bars: readonly SignalBar[],
   timeframe: SignalAlertTimeframe,
-  now: Date
+  now: Date,
+  regularSession: boolean
 ): SignalAlertBackfill => {
-  const closed = bars.filter((bar) => isBarClosed(bar, timeframe, now));
+  const closedFlags = closedBars(bars, timeframe, now, regularSession);
+  const closed = bars.filter((_, index) => closedFlags[index]);
   const series = conditionSeries(condition, closed, timeframe);
-  const fires = closed.filter((_, index) => series[index] === true);
+  const fires = closed.filter((_, index) => series[index]);
   const from = closed[0]?.start ?? null;
   const to = closed.at(-1)?.start ?? null;
   const days =
@@ -292,7 +361,8 @@ export const backfillSignalAlert = (
 };
 
 export type SignalAlertCursor = Readonly<{
-  createdAt: Date;
+  /** When the rule became active (created active, or a proposed watch started). */
+  activeSince: Date;
   /** Start of the newest closed bar already evaluated; null before the first run. */
   lastBarAt: Date | null;
   /** Start of the bar that last fired; a bar fires at most once. */
@@ -311,17 +381,21 @@ export type SignalAlertEvaluation = Readonly<{
 
 /** At most this many fires per rule per run (a long gap between runs never floods the owner). */
 export const SIGNAL_ALERT_MAX_FIRES_PER_RUN = 3;
+/** A closed bar older than this many bar widths moves the cursor but never fires (stale after a gap). */
+export const SIGNAL_ALERT_STALE_BARS = 2;
 
 /**
  * Evaluates one rule on fresh bars. Closed bars after the cursor are evaluated; the forming bar is
- * evaluated too unless the rule fires per bar close. A bar that began before the rule existed (more
- * than one bar width earlier) never fires.
+ * evaluated too unless the rule fires per bar close. A bar that began before the rule was active
+ * (more than one bar width earlier) never fires, and neither does a closed bar that ended more than
+ * two bar widths ago (after a gap or outage the cursor just moves past it).
  */
 export const evaluateSignalAlert = (
   rule: Readonly<{
     condition: SignalAlertCondition;
     frequency: SignalAlertFrequency;
     timeframe: SignalAlertTimeframe;
+    regularSession: boolean;
   }>,
   cursor: SignalAlertCursor,
   bars: readonly SignalBar[],
@@ -329,18 +403,28 @@ export const evaluateSignalAlert = (
 ): SignalAlertEvaluation => {
   const width = SIGNAL_ALERT_TIMEFRAME_MS[rule.timeframe];
   const series = conditionSeries(rule.condition, bars, rule.timeframe);
-  const floor = cursor.createdAt.getTime() - width;
+  const closedFlags = closedBars(
+    bars,
+    rule.timeframe,
+    now,
+    rule.regularSession
+  );
+  const floor = cursor.activeSince.getTime() - width;
   const after = cursor.lastBarAt?.getTime() ?? Number.NEGATIVE_INFINITY;
   const firedAt = cursor.lastFiredBarAt?.getTime() ?? null;
+  const staleBefore = now.getTime() - SIGNAL_ALERT_STALE_BARS * width;
   let lastBarAt = cursor.lastBarAt;
   const fires: SignalAlertFire[] = [];
   bars.forEach((bar, index) => {
     const time = bar.start.getTime();
-    const closed = isBarClosed(bar, rule.timeframe, now);
+    const closed = closedFlags[index] === true;
     if (closed && (lastBarAt === null || time > lastBarAt.getTime()))
       lastBarAt = bar.start;
-    if (time < floor || series[index] !== true || time === firedAt) return;
-    if (closed ? time <= after : rule.frequency === "per-bar-close") return;
+    if (time < floor || !series[index] || time === firedAt) return;
+    if (closed) {
+      const end = bars[index + 1]?.start.getTime() ?? time + width;
+      if (time <= after || end < staleBefore) return;
+    } else if (rule.frequency === "per-bar-close") return;
     fires.push({ barAt: bar.start, price: bar.close });
   });
   const limited =
@@ -432,29 +516,37 @@ const TIMEFRAME_WORDS: ReadonlyArray<readonly [RegExp, SignalAlertTimeframe]> =
     [/\b(1|one)[ -]?(d|day)\b|\bdaily\b/u, "1d"],
   ];
 
+/** Filler words that may sit between "watch" and the symbol ("watch for the SPY ..."). */
+const FILLER = "(?:(?:for|the|out|on|me|over)\\s+)*";
+const SYMBOL_AFTER_WATCH = new RegExp(
+  `\\bwatch\\s+${FILLER}\\$?([A-Za-z][A-Za-z0-9.=-]{0,9})\\b`,
+  "iu"
+);
 const STOP_WORDS: ReadonlySet<string> = new Set([
   "A",
   "AND",
-  "I",
-  "ME",
-  "THE",
-  "WAKE",
-  "WATCH",
+  "IF",
+  "IT",
   "WHEN",
 ]);
+
+/** A number with optional thousands separators: "21,500.25" -> "21500.25". */
+const LEVEL =
+  /(?:above|over|below|under)\s+\$?(\d{1,3}(?:,\d{3})+|\d{1,9})(\.\d{1,4})?/u;
 
 /**
  * Turns a plain-language watch request into a proposed rule, deterministically (no model call):
  * "Watch NQ and wake me when a 15m bar closes above the opening range". Supported targets: a number,
- * the opening range, an N SMA/EMA (or moving average) and the N-bar high/low.
+ * the opening range, an N SMA/EMA (or moving average) and the N-bar high/low. It refuses rather than
+ * guesses: no symbol, both or neither of above/below, or a "day" average on an intraday timeframe.
  */
 export const parseWatchRequest = (text: string): SignalWatchParse => {
   const raw = text.trim().slice(0, 500);
   const lower = raw.toLowerCase();
-  const symbolMatch =
-    /\bwatch\s+\$?([A-Za-z][A-Za-z0-9.=-]{0,9})\b/iu.exec(raw) ??
-    /\$([A-Za-z][A-Za-z0-9.-]{0,9})\b/u.exec(raw);
-  const written = symbolMatch?.[1]?.toUpperCase();
+  const written = (
+    SYMBOL_AFTER_WATCH.exec(raw)?.[1] ??
+    /\$([A-Za-z][A-Za-z0-9.-]{0,9})\b/u.exec(raw)?.[1]
+  )?.toUpperCase();
   if (
     written === undefined ||
     STOP_WORDS.has(written) ||
@@ -467,44 +559,60 @@ export const parseWatchRequest = (text: string): SignalWatchParse => {
   const symbol = WATCH_FUTURES_ROOTS.has(written) ? `${written}=F` : written;
   const timeframe =
     TIMEFRAME_WORDS.find(([pattern]) => pattern.test(lower))?.[1] ?? "15m";
-  const direction = /\b(above|over|up)\b/u.test(lower)
-    ? "above"
-    : /\b(below|under|down)\b/u.test(lower)
-      ? "below"
-      : null;
-  if (direction === null)
-    return { ok: false, reason: 'Say "above" or "below" the level to watch' };
+  const ups = /\b(above|over)\b/u.test(lower);
+  const downs = /\b(below|under)\b/u.test(lower);
+  if (ups === downs)
+    return {
+      ok: false,
+      reason: ups
+        ? 'Say either "above" or "below", not both'
+        : 'Say "above" or "below" the level to watch',
+    };
+  const direction = ups ? "above" : "below";
   const closes = /\bclos(e|es|ing)\b/u.test(lower);
   const crossing = closes || /\bcross(es|ing)?\b|\bbreaks?\b/u.test(lower);
   let right: SignalAlertSource | null = null;
   const ma =
-    /\b(\d{1,3})[ -]?(?:period|bar|day)?[ -]?(sma|ema|ma|moving average)\b/u.exec(
+    /\b(\d{1,3})[ -]?(period|bar|day)?[ -]?(sma|ema|ma|moving average)\b/u.exec(
       lower
     );
-  const range = /\b(\d{1,3})[ -]?(?:bar|period|day)\s+(high|low)\b/u.exec(
-    lower
-  );
+  const range = /\b(\d{1,3})[ -]?(bar|period|day)\s+(high|low)\b/u.exec(lower);
+  if (timeframe !== "1d" && (ma?.[2] === "day" || range?.[2] === "day"))
+    return {
+      ok: false,
+      reason: `A day average or range needs daily bars; say "daily" or use bars on ${timeframe}`,
+    };
   const orMinutes =
     /\b(\d{1,3})[ -]?(?:m|min|minute)s?\s+opening range\b/u.exec(lower);
+  const level = LEVEL.exec(lower);
   if (/\bopening range\b|\bor high\b|\bor low\b/u.test(lower)) {
+    if (timeframe === "1d")
+      return { ok: false, reason: "An opening range needs intraday bars" };
+    // Whole bars only: a 30-minute range on hourly bars becomes the first hour.
+    const barMinutes = SIGNAL_ALERT_TIMEFRAME_MS[timeframe] / 60_000;
+    const minutes = Number(orMinutes?.[1] ?? 30);
     right = {
-      minutes: Math.min(240, Math.max(5, Number(orMinutes?.[1] ?? 30))),
+      minutes: Math.min(
+        240,
+        Math.max(barMinutes, Math.ceil(minutes / barMinutes) * barMinutes)
+      ),
       side: direction === "above" ? "high" : "low",
       type: "opening-range",
     };
   } else if (ma !== null) {
     right = {
       period: Math.min(500, Math.max(2, Number(ma[1]))),
-      type: ma[2] === "ema" ? "ema" : "sma",
+      type: ma[3] === "ema" ? "ema" : "sma",
     };
-  } else if (range === null) {
-    const level =
-      /(?:above|over|below|under)\s+\$?(\d{1,7}(?:\.\d{1,4})?)/u.exec(lower);
-    if (level?.[1] !== undefined) right = { type: "value", value: level[1] };
-  } else {
+  } else if (range !== null) {
     right = {
       period: Math.min(500, Math.max(2, Number(range[1]))),
-      type: range[2] === "high" ? "highest" : "lowest",
+      type: range[3] === "high" ? "highest" : "lowest",
+    };
+  } else if (level?.[1] !== undefined) {
+    right = {
+      type: "value",
+      value: `${level[1].replaceAll(",", "")}${level[2] ?? ""}`,
     };
   }
   if (right === null)

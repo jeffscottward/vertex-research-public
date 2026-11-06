@@ -1,5 +1,5 @@
 {
-  "id": "d2299a3a-65d6-490c-83ab-b9206639a40d",
+  "id": "0445702f-1ac0-42e5-b4c4-c68594040960",
   "prevId": "1d0de09b-b251-4250-b906-f9b9b40fc82e",
   "version": "7",
   "dialect": "postgresql",
@@ -6874,6 +6874,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "last_checked_at": {
           "name": "last_checked_at",

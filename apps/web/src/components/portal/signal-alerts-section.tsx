@@ -2,6 +2,7 @@
 
 import {
   SIGNAL_ALERT_FREQUENCIES,
+  SIGNAL_ALERT_NOTIFICATION,
   SIGNAL_ALERT_TIMEFRAMES,
   type SignalAlertBackfillOutput,
   type SignalAlertCondition,
@@ -54,8 +55,12 @@ export const browserNotifier: BrowserNotifier = {
       : await Notification.requestPermission(),
   show: (title, body) => {
     if (typeof Notification === "undefined") return;
-    const notification = new Notification(title, { body });
-    notification.onclick = () => window.focus();
+    try {
+      const notification = new Notification(title, { body });
+      notification.onclick = () => window.focus();
+    } catch {
+      // Some mobile browsers only allow service-worker notifications; the in-app list still shows it.
+    }
   },
 };
 
@@ -147,9 +152,25 @@ export const conditionOfForm = (
       return {
         left: close,
         operator: form.direction,
-        right: { type: "value", value: form.value.trim() || "0" },
+        right: { type: "value", value: form.value.trim() },
       };
   }
+};
+
+/** Newest first, one row per event id, at most 50. */
+const mergeEvents = (
+  fresh: readonly SignalAlertEvent[],
+  current: readonly SignalAlertEvent[]
+): SignalAlertEvent[] => {
+  const seen = new Set<string>();
+  return [...fresh, ...current]
+    .filter((event) => {
+      if (seen.has(event.id)) return false;
+      seen.add(event.id);
+      return true;
+    })
+    .sort((left, right) => right.firedAt.getTime() - left.firedAt.getTime())
+    .slice(0, 50);
 };
 
 const utc = (date: Date): string =>
@@ -198,6 +219,15 @@ export function SignalAlertsSection({
   );
   const [permission, setPermission] = useState(() => notifier.permission());
   const seenRef = useRef<Date | null>(null);
+  const knownRef = useRef(new Set<string>());
+  // Every event the page has shown: later polls skip them and the cursor moves to the newest.
+  const remember = useCallback((shown: readonly SignalAlertEvent[]) => {
+    for (const event of shown) {
+      knownRef.current.add(event.id);
+      if (seenRef.current === null || event.firedAt > seenRef.current)
+        seenRef.current = event.firedAt;
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -207,11 +237,11 @@ export function SignalAlertsSection({
       ]);
       setData(list);
       setEvents(recent);
-      seenRef.current = recent[0]?.firedAt ?? new Date();
+      remember(recent);
     } catch (error) {
       setFeedback(describePriceAlertFailure(error));
     }
-  }, [gateway]);
+  }, [gateway, remember]);
 
   useEffect(() => {
     void load();
@@ -224,25 +254,25 @@ export function SignalAlertsSection({
       void (async () => {
         try {
           const fresh = await gateway.events(seenRef.current);
-          const [newest] = fresh;
-          if (newest === undefined) return;
-          seenRef.current = newest.firedAt;
-          setEvents((current) => [...fresh, ...current].slice(0, 50));
+          const unseen = fresh.filter(
+            (event) => !knownRef.current.has(event.id)
+          );
+          remember(fresh);
+          if (unseen.length === 0) return;
+          setEvents((current) => mergeEvents(unseen, current));
+          // Fixed text on the lock screen; the names and prices stay on this page.
           if (notifier.permission() === "granted")
-            for (const event of fresh)
-              notifier.show(
-                event.kind === "watch"
-                  ? "Vertex watch fired"
-                  : "Vertex signal alert",
-                `${event.name} at ${event.price}. Research only, not an instruction to trade.`
-              );
+            notifier.show(
+              SIGNAL_ALERT_NOTIFICATION.title,
+              SIGNAL_ALERT_NOTIFICATION.body
+            );
         } catch {
           // Polling is best effort; the next interval retries.
         }
       })();
     }, pollMs);
     return () => clearInterval(timer);
-  }, [gateway, notifier, pollMs]);
+  }, [gateway, notifier, pollMs, remember]);
 
   const run = async (action: () => Promise<string>) => {
     setBusy(true);
@@ -324,8 +354,8 @@ export function SignalAlertsSection({
   const check = () =>
     run(async () => {
       const result = await gateway.check();
-      if (result.events.length > 0)
-        setEvents((current) => [...result.events, ...current].slice(0, 50));
+      remember(result.events);
+      setEvents((current) => mergeEvents(result.events, current));
       setData(await gateway.list());
       const errors =
         result.seriesErrors.length === 0
@@ -344,6 +374,7 @@ export function SignalAlertsSection({
     });
 
   const needsPeriod = form.preset !== "price-level";
+  const missingValue = !needsPeriod && form.value.trim() === "";
   const needsDirection =
     form.preset === "sma-cross" ||
     form.preset === "price-level" ||
@@ -590,10 +621,14 @@ export function SignalAlertsSection({
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={busy} onClick={previewBackfill} variant="outline">
+          <Button
+            disabled={busy || missingValue}
+            onClick={previewBackfill}
+            variant="outline"
+          >
             Preview backfill
           </Button>
-          <Button disabled={busy} onClick={create}>
+          <Button disabled={busy || missingValue} onClick={create}>
             Create alert
           </Button>
         </div>
