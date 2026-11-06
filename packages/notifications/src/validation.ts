@@ -4,7 +4,7 @@ import type {
   NotificationRequest,
   NotificationResult,
   NotificationNotSentReason,
-} from "./index.ts";
+} from "./types.ts";
 
 export const MAX_NOTIFICATION_TTL_MS = 86_400_000;
 export const MAX_NOTIFICATION_COOLDOWN_MS = 604_800_000;
