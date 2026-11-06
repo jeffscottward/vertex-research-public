@@ -6,7 +6,8 @@
 // oldest run and, for a comparison group, more runs of that group on the same bar series) with an
 // operator agent WRITE key, split the batch over VERTEX_WORKER_PROCESSES engine processes
 // (`python -m nautilus_backtest batch - -` in services/research, the shared bars and the cases on
-// stdin), and post every result or error in one request (backtestRuns.engine.completeMany). Each
+// stdin), and post the results and errors (backtestRuns.engine.completeMany) in as few requests as
+// stay under the API request size limit (DELIVERY_MAX_BYTES; each request counts in the budget). Each
 // result carries where and how long it ran (engineRun). The API builds the reports. After a batch
 // it claims again at once;
 // after an empty claim it waits VERTEX_WORKER_IDLE_MS (default 3000), then twice as long after
@@ -83,6 +84,13 @@ export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
 export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
 export const REJECTED_ERROR = "The API rejected the Nautilus result";
+export const TOO_LARGE_ERROR =
+  "The Nautilus result is larger than the API request limit";
+/**
+ * Serialized size limit of one completeMany request, below the 1 MiB oRPC request limit of the web
+ * app (ORPC_REQUEST_MAX_BYTES). 50 ten-year daily results are about 2.4 MB, so a batch is split.
+ */
+export const DELIVERY_MAX_BYTES = 900_000;
 /** Failed cycles in a row before the one alert of an incident. */
 const ALERT_AFTER_FAILURES = 3;
 /** Engine stderr kept for the worker log. */
@@ -523,18 +531,75 @@ const deliveryWait = (
   return Math.min(rateLimitWait(error), left);
 };
 
+const utf8 = new TextEncoder();
+const byteLength = (value: unknown): number =>
+  utf8.encode(JSON.stringify(value)).length;
+
 /**
- * Posts the items in one request. A network error or a 5xx answer is tried again after a wait, a
- * 429 once (deliveryWait); any other 4xx (the contract refused the request) makes every run fail
- * as rejected, and runs the API could not be told about fail as undelivered (one more request).
+ * Splits the items into chunks whose request body stays at most `maxBytes`, in order. An item
+ * larger than that on its own is a chunk of its own.
+ */
+export const deliveryChunks = <T>(
+  items: readonly T[],
+  maxBytes = DELIVERY_MAX_BYTES
+): T[][] => {
+  const envelope = byteLength({
+    json: { engine: BACKTEST_RUN_NAUTILUS_ENGINE, items: [] },
+  });
+  const chunks: T[][] = [];
+  let chunk: T[] = [];
+  let size = envelope;
+  for (const item of items) {
+    // One more byte for the comma between items.
+    const bytes = byteLength(item) + 1;
+    if (chunk.length > 0 && size + bytes > maxBytes) {
+      chunks.push(chunk);
+      chunk = [];
+      size = envelope;
+    }
+    chunk.push(item);
+    size += bytes;
+  }
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks;
+};
+
+type Delivered = Readonly<{ outcomes: Outcomes; failure: string | null }>;
+
+/**
+ * Posts the items in requests under DELIVERY_MAX_BYTES, one after the other. The 429 wait is shared:
+ * the worker waits for the limiter at most once per delivery. The failure is the first chunk's.
  */
 const deliver = async (
   config: Config,
   io: NautilusWorkerIo,
   items: readonly BacktestRunEngineCompleteItem[],
   claimedAt: number
-): Promise<Readonly<{ outcomes: Outcomes; failure: string | null }>> => {
+): Promise<Delivered> => {
   const limited = { used: false };
+  const outcomes: Outcomes = [];
+  let failure: string | null = null;
+  for (const chunk of deliveryChunks(items)) {
+    const delivered = await deliverChunk(config, io, chunk, claimedAt, limited);
+    outcomes.push(...delivered.outcomes);
+    failure ??= delivered.failure;
+  }
+  return { failure, outcomes };
+};
+
+/**
+ * Posts one chunk in one request. A network error or a 5xx answer is tried again after a wait, a
+ * 429 once (deliveryWait); 413 (an item over the request limit on its own) makes the chunk's runs
+ * fail as too large; any other 4xx (the contract refused the request) makes them fail as rejected.
+ * Runs the API could not be told about fail as undelivered (one more request).
+ */
+const deliverChunk = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  items: readonly BacktestRunEngineCompleteItem[],
+  claimedAt: number,
+  limited: { used: boolean }
+): Promise<Delivered> => {
   const post = async (body: readonly BacktestRunEngineCompleteItem[]) =>
     BacktestRunEngineCompleteManyOutputSchema.parse(
       await call(config, io, "backtestRuns/engine/completeMany", {
@@ -556,6 +621,8 @@ const deliver = async (
       return { failure: null, outcomes: await post(items) };
     } catch (error) {
       io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
+      if (error instanceof ApiError && error.status === 413)
+        return await failAll(TOO_LARGE_ERROR, "result too large");
       if (
         error instanceof ApiError &&
         error.status < 500 &&

@@ -13,7 +13,9 @@ import {
   DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
   DEFAULT_PROCESSES,
+  deliveryChunks,
   DELIVERY_MARGIN_MS,
+  DELIVERY_MAX_BYTES,
   DELIVERY_MIN_WAIT_MS,
   MAX_PROCESSES,
   NAUTILUS_RUN_TIMEOUT_MS,
@@ -28,6 +30,7 @@ import {
   sleep,
   splitRuns,
   stopSignal,
+  TOO_LARGE_ERROR,
   UNDELIVERED_ERROR,
 } from "./nautilus-worker.ts";
 
@@ -325,6 +328,71 @@ describe("nautilus worker cycle", () => {
       "batch: 5 runs in 2 engine processes\n",
     ]);
     expect(DEFAULT_PROCESSES).toBe(8);
+  });
+
+  it("splits completeMany under the request size limit; an item over it alone fails as too large", async () => {
+    // run-1: about 1.1 MB on its own; run-2 and run-3: about 0.6 MB each, so one request each.
+    const equityOf = (id: string) =>
+      Array.from(
+        { length: id === "run-1" ? 100_000 : 55_000 },
+        () => 1.234_567_89
+      );
+    const big = (input: string) => {
+      const request = JSON.parse(input) as { cases: { id: string }[] };
+      return outcome({
+        stdout: JSON.stringify({
+          engine,
+          results: request.cases.map((entry) => ({
+            id: entry.id,
+            result: { ...caseResult, equity: equityOf(entry.id) },
+            wallMs: 12,
+          })),
+          usage: { cpuMs: 80, wallMs: 150 },
+        }),
+      });
+    };
+    const run = harness({
+      claims: [claimedBatch(3)],
+      commands: [big],
+      // The web app refuses a body over 1 MiB with 413.
+      complete: (input) =>
+        JSON.stringify({ json: input }).length > 1024 * 1024
+          ? new Response("too large", { status: 413 })
+          : stored(input),
+      env: { ...env, VERTEX_WORKER_PROCESSES: "1" },
+    });
+    expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
+    const bodies = run.completes().map((call) => String(call.init.body));
+    // The oversized run alone (413), its fail, then one request per other run.
+    expect(bodies).toHaveLength(4);
+    expect(
+      run.completes().map((call) => (call.input as { items: Items }).items)
+    ).toEqual([
+      [expect.objectContaining({ id: "run-1" })],
+      [{ error: TOO_LARGE_ERROR, id: "run-1" }],
+      [expect.objectContaining({ id: "run-2" })],
+      [expect.objectContaining({ id: "run-3" })],
+    ]);
+    for (const body of bodies.slice(1))
+      expect(body.length).toBeLessThanOrEqual(DELIVERY_MAX_BYTES);
+    expect(run.out.slice(0, 3)).toEqual([
+      "run run-1: failed\n",
+      "run run-2: succeeded\n",
+      "run run-3: succeeded\n",
+    ]);
+  });
+
+  it("packs items into chunks under the byte limit, in order", () => {
+    const item = (id: string, size: number) => ({ id, pad: "x".repeat(size) });
+    const items = [item("a", 40), item("b", 40), item("c", 200), item("d", 10)];
+    expect(
+      deliveryChunks(items, 150).map((chunk) => chunk.map((entry) => entry.id))
+    ).toEqual([["a"], ["b"], ["c"], ["d"]]);
+    expect(
+      deliveryChunks(items, 200).map((chunk) => chunk.map((entry) => entry.id))
+    ).toEqual([["a", "b"], ["c"], ["d"]]);
+    expect(deliveryChunks([])).toEqual([]);
+    expect(deliveryChunks(items).map((chunk) => chunk.length)).toEqual([4]);
   });
 
   it("builds a process request with each run's slice, costs and only present sector points", () => {
