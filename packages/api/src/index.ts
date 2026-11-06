@@ -94,6 +94,15 @@ export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/market-data.ts";
 export * from "./contracts/options-analytics.ts";
 export * from "./contracts/jev-verdict.ts";
+export * from "./contracts/options-chain.ts";
+export {
+  blackScholes,
+  daysToExpiry,
+  yearsToExpiry,
+  type BlackScholesInput,
+  type BlackScholesResult,
+  type OptionRight,
+} from "./options-chain-greeks.ts";
 export * from "./contracts/backtest-cost-profiles.ts";
 export * from "./contracts/backtest-runs.ts";
 export * from "./contracts/forward-drift.ts";

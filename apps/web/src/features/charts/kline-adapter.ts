@@ -1,3 +1,4 @@
+import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
 import type {
   CandleRendererFactory,
   ChartMarker,
@@ -263,6 +264,8 @@ export const createKLineRenderer: CandleRendererFactory = async (
   const chart = library.init(element, {
     timezone: "UTC",
     locale: "en-US",
+    // Volume axis and tooltip as 1.2K / 3.4M / 5.6B.
+    customApi: { formatBigNumber },
     styles: {
       grid: {
         horizontal: { color: palette.grid },
@@ -427,14 +430,32 @@ export const createKLineRenderer: CandleRendererFactory = async (
       }
     }
   };
+  const shownPanes = new Set<string>();
+  const setPanes = (wanted: readonly string[]) => {
+    for (const id of BUILTIN_PANE_IDS) {
+      const paneId = `vx_${id.toLowerCase()}_builtin_pane`;
+      if (wanted.includes(id) && !shownPanes.has(id)) {
+        chart.createIndicator({ name: id }, false, { id: paneId, height: 96 });
+        shownPanes.add(id);
+      } else if (!wanted.includes(id) && shownPanes.has(id)) {
+        chart.removeIndicator(paneId, id);
+        shownPanes.delete(id);
+      }
+    }
+  };
   const setStudies = (studies: ChartStudies) => {
     const extra = studies.extra ?? [];
+    const panes: readonly string[] = studies.panes ?? [];
     if (!(validPeriods(studies.sma) && validPeriods(studies.ema)))
       throw new RangeError(
         "Study periods must be 1 to 500, at most four per study"
       );
     if (!extra.every(isVertexStudyId))
       throw new RangeError("Unknown Vertex study");
+    if (
+      !panes.every((id) => (BUILTIN_PANE_IDS as readonly string[]).includes(id))
+    )
+      throw new RangeError("Unknown built-in study");
     if (disposed) return;
     if (studies.volume !== volumeShown) {
       if (studies.volume) {
@@ -449,6 +470,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     smaKey = setAverage("MA", studies.sma, smaKey);
     emaKey = setAverage("EMA", studies.ema, emaKey);
     setExtra(extra);
+    setPanes(panes);
     return;
   };
   let markerKey = "[]";

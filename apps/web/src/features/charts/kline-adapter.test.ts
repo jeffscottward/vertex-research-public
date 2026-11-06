@@ -275,6 +275,44 @@ describe("pinned KLine browser adapter (authored, not executed)", () => {
     ).toThrow("Unknown Vertex study");
     return expect(instance.createIndicator).toHaveBeenCalledTimes(2);
   });
+  it("adds RSI, KDJ, OBV and WR built-ins in their own panes and formats big numbers", async () => {
+    stubBrowser();
+    const instance = studyChart();
+    mocks.init.mockReturnValue(instance);
+    const renderer = await createKLineRenderer(
+      {} as HTMLElement,
+      options(new AbortController().signal)
+    );
+    const init = mocks.init.mock.calls[0]?.[1] as {
+      customApi: { formatBigNumber: (value: number) => string };
+    };
+    expect(init.customApi.formatBigNumber(2_500_000)).toBe("2.5M");
+    renderer.setStudies!({
+      volume: false,
+      sma: [],
+      ema: [],
+      panes: ["RSI", "WR"],
+    });
+    expect(instance.createIndicator).toHaveBeenCalledWith(
+      { name: "RSI" },
+      false,
+      { id: "vx_rsi_builtin_pane", height: 96 }
+    );
+    renderer.setStudies!({ volume: false, sma: [], ema: [], panes: ["WR"] });
+    expect(instance.createIndicator).toHaveBeenCalledTimes(2);
+    expect(instance.removeIndicator).toHaveBeenCalledWith(
+      "vx_rsi_builtin_pane",
+      "RSI"
+    );
+    expect(() =>
+      renderer.setStudies!({
+        volume: false,
+        sma: [],
+        ema: [],
+        panes: ["CCI" as "RSI"],
+      })
+    ).toThrow("Unknown built-in study");
+  });
   it("draws markers as locked simpleAnnotation overlays in one group and clears them", async () => {
     stubBrowser();
     const instance = studyChart();
