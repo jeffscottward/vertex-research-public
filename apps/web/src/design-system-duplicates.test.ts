@@ -65,6 +65,11 @@ const RETIRED_CLASSES = [
   "vx-ex-split",
   "vx-ex-form",
   "vx-ex-choice",
+  "vx-ex-toolbar",
+  "vx-ex-filters",
+  "vx-ex-pagination",
+  "vx-ex-facts",
+  "vx-ex-scope",
 ] as const;
 const SOURCE_ROOT = join(import.meta.dirname);
 

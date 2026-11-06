@@ -65,7 +65,7 @@ export const PortfolioContinuity = ({
       {continuity.freshness.status}
     </p>
     <p>{continuityMessages[continuity.state]}</p>
-    <dl className="vx-ex-facts">
+    <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
       <div>
         <dt>Stream</dt>
         <dd>{continuity.streamId}</dd>
@@ -167,7 +167,7 @@ export const PortfolioCollection = <Row,>({
       className="my-4 border-border border-y [&>summary]:cursor-pointer [&>summary]:py-4 [&>summary]:font-semibold"
       aria-labelledby={headingId}
     >
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ResearchTableHeading id={headingId} title={title}>
           <p>{description}</p>
         </ResearchTableHeading>
@@ -187,7 +187,7 @@ export const PortfolioCollection = <Row,>({
         </EmptyCollection>
       ) : (
         <div>
-          <div className="vx-ex-toolbar">
+          <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
             <label htmlFor={inputId}>Search {title.toLowerCase()}</label>
             <input
               id={inputId}
@@ -253,7 +253,10 @@ export const PortfolioCollection = <Row,>({
                   </TableBody>
                 </ExperienceTable>
               </div>
-              <nav className="vx-ex-pagination" aria-label={`${title} pages`}>
+              <nav
+                className="text-(length:--text-sm) my-4 flex flex-wrap items-center gap-4 border-border border-t pt-4 @min-[42rem]:[&>p]:mr-auto [&>p]:flex-[1_1_100%] @min-[42rem]:[&>p]:basis-auto"
+                aria-label={`${title} pages`}
+              >
                 <Button
                   variant="outline"
                   type="button"
@@ -351,7 +354,7 @@ export const PortfolioObservation = ({
           holdings or live balances.
         </p>
       ) : null}
-      <dl className="vx-ex-facts">
+      <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
         <div>
           <dt>Account alias</dt>
           <dd>{snapshot.accountAlias}</dd>
@@ -400,7 +403,7 @@ export const PortfolioObservation = ({
             ? "Observed simulation cash and NAV"
             : "Research observations — no live NAV"}
       </h2>
-      <dl className="vx-ex-facts">
+      <dl className="my-4 grid text-sm leading-[1.75] [&>div]:grid @min-[42rem]:[&>div]:grid-cols-[minmax(10rem,1fr)_minmax(0,2fr)] @min-[42rem]:[&>div]:gap-6 [&>div]:gap-2 [&>div]:border-border [&>div]:border-b [&>div]:py-3 [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-muted-foreground">
         <div>
           <dt>Cash observation ({snapshot.currency})</dt>
           <dd>{exact(snapshot.cash)}</dd>
@@ -495,7 +498,7 @@ const ScopedPortfolio = ({ scope }: { readonly scope: ExperienceScope }) => {
   }, [resource, scope]);
   return (
     <div className="grid gap-8">
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ScopeLabel scope={scope} />
         <Button
           variant="outline"

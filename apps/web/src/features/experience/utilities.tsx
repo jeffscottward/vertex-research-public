@@ -787,7 +787,7 @@ export const AuditLedger = ({
           source or prove complete reconciliation.
         </p>
       </details>
-      <div className="vx-lookup-form vx-ex-toolbar">
+      <div className="vx-lookup-form my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label htmlFor="audit-search">
           Search returned identities, hashes, source or outcome
         </label>
@@ -933,7 +933,7 @@ export const AuditLedger = ({
         </div>
       )}
       <nav
-        className="vx-ex-toolbar vx-section-toolbar"
+        className="vx-section-toolbar my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]"
         aria-label="Audit observation pages"
       >
         <Button

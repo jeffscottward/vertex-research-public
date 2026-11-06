@@ -102,7 +102,7 @@ const ScopedStrategies = ({ scope }: { readonly scope: ExperienceScope }) => {
   return (
     <div className="grid gap-8">
       <ScopeLabel scope={scope} />
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <Button variant="outline" type="button" onClick={reload}>
           Refresh catalog
         </Button>
@@ -187,7 +187,7 @@ export const StrategyCatalog = ({
           ID.
         </p>
       </ResearchTableHeading>
-      <div className="vx-ex-filters">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label>
           Search identity, hypothesis or instrument
           <input
@@ -321,7 +321,7 @@ const DossierRead = ({
   }, [resource, scope, selected.artifactId]);
   return (
     <section className="grid gap-8" aria-label="Selected strategy dossier">
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <h2>Strategy dossier</h2>
         <Button variant="outline" type="button" onClick={reload}>
           Reload dossier and reviews

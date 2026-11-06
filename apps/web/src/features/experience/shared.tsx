@@ -241,7 +241,7 @@ export const ScopeChooser = ({
       </p>
     );
   return (
-    <div className="vx-ex-scope">
+    <div className="my-6 grid @min-[42rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-4 border-border-strong border-y py-6 [&>:is(p,[role=alert])]:col-span-full">
       <label htmlFor={`${id}-scope`}>{label}</label>
       <select
         id={`${id}-scope`}

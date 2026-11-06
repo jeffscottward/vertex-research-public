@@ -225,7 +225,7 @@ export const TodayDecisionInbox = ({
         </p>
         <p>Links do not include the account scope or private artifact IDs.</p>
       </ResearchTableHeading>
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <label>
           Item type
           <select
@@ -349,7 +349,10 @@ export const TodayDecisionInbox = ({
               </TableBody>
             </ExperienceTable>
           </div>
-          <nav className="vx-ex-pagination" aria-label="Decision inbox pages">
+          <nav
+            className="text-(length:--text-sm) my-4 flex flex-wrap items-center gap-4 border-border border-t pt-4 @min-[42rem]:[&>p]:mr-auto [&>p]:flex-[1_1_100%] @min-[42rem]:[&>p]:basis-auto"
+            aria-label="Decision inbox pages"
+          >
             <Button
               type="button"
               variant="outline"
@@ -387,7 +390,7 @@ const ScopedToday = ({ scope }: { readonly scope: ExperienceScope }) => {
   }, [resource, scope]);
   return (
     <div className="grid gap-8">
-      <div className="vx-ex-toolbar">
+      <div className="my-4 flex flex-wrap items-center gap-4 [&>label]:flex-[1_1_16rem]">
         <ScopeLabel scope={scope} />
         <Button
           variant="outline"
