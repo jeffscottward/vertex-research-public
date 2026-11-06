@@ -14,6 +14,7 @@ import {
   groupPrice,
   roundPrice,
 } from "./price-grid.ts";
+import { defined } from "./defined.ts";
 
 const TPO_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 const VALUE_AREA_SHARE = 0.7;
@@ -43,16 +44,16 @@ export type TpoSession = Readonly<{
   /** Highest price first. */
   levels: readonly TpoLevel[];
   totalTpos: number;
-  poc: number | null;
-  valueAreaHigh: number | null;
-  valueAreaLow: number | null;
+  poc: number;
+  valueAreaHigh: number;
+  valueAreaLow: number;
   valueAreaTpos: number;
   /** Range of the first two periods (one when the session has only one so far). */
   initialBalance: Readonly<{
     high: number;
     low: number;
     periods: number;
-  }> | null;
+  }>;
   singlePrints: readonly number[];
   high: number;
   low: number;
@@ -86,7 +87,7 @@ export const valueAreaRange = (
   const target = total * share;
   let low = pocIndex;
   let high = pocIndex;
-  let tpos = counts[pocIndex] ?? 0;
+  let tpos = defined(counts[pocIndex], "POC level");
   const at = (index: number) => counts[index] ?? 0;
   while (tpos < target && (low > 0 || high < counts.length - 1)) {
     const up = high < counts.length - 1 ? at(high + 1) + at(high + 2) : -1;
@@ -129,7 +130,7 @@ const buildSession = (
     (bar, index): TpoPeriod => ({
       close: bar.c,
       high: bar.h,
-      letter: TPO_LETTERS[index % TPO_LETTERS.length] ?? "?",
+      letter: defined(TPO_LETTERS[index % TPO_LETTERS.length], "TPO letter"),
       low: bar.l,
       open: bar.o,
       start: bar.t,
@@ -158,27 +159,26 @@ const buildSession = (
   }
   const counts = ascending.map((level) => level.count);
   const totalTpos = counts.reduce((sum, count) => sum + count, 0);
+  // Every period adds at least one letter, so the profile always has a POC.
   const poc = pointOfControl(
     ascending.map((level) => ({ price: level.price, volume: level.count }))
-  );
+  ) as number;
   const pocIndex = ascending.findIndex((level) => level.price === poc);
-  const area = pocIndex < 0 ? null : valueAreaRange(counts, pocIndex, share);
+  // Every period adds a letter, so a POC always exists and the value area is never empty.
+  const area = valueAreaRange(counts, pocIndex, share);
   const ib = periods.slice(0, 2);
   return {
-    close: periods.at(-1)?.close ?? 0,
+    close: defined(periods.at(-1), "last period").close,
     date,
     high: Math.max(...periods.map((period) => period.high)),
-    initialBalance:
-      ib.length === 0
-        ? null
-        : {
-            high: Math.max(...ib.map((period) => period.high)),
-            low: Math.min(...ib.map((period) => period.low)),
-            periods: ib.length,
-          },
+    initialBalance: {
+      high: Math.max(...ib.map((period) => period.high)),
+      low: Math.min(...ib.map((period) => period.low)),
+      periods: ib.length,
+    },
     levels: [...ascending].reverse(),
     low: Math.min(...periods.map((period) => period.low)),
-    open: periods[0]?.open ?? 0,
+    open: defined(periods[0], "first period").open,
     periods,
     poc,
     singlePrints: ascending
@@ -186,9 +186,9 @@ const buildSession = (
       .map((level) => level.price)
       .reverse(),
     totalTpos,
-    valueAreaHigh: area === null ? null : (ascending[area.high]?.price ?? null),
-    valueAreaLow: area === null ? null : (ascending[area.low]?.price ?? null),
-    valueAreaTpos: area?.tpos ?? 0,
+    valueAreaHigh: defined(ascending[area.high], "value area high").price,
+    valueAreaLow: defined(ascending[area.low], "value area low").price,
+    valueAreaTpos: area.tpos,
   };
 };
 
@@ -212,7 +212,10 @@ export const buildTpoProfile = (
     group.push(bar);
     groups.set(date, group);
   }
-  const tickSize = deriveTickSize(usable.flatMap((bar) => [bar.h, bar.l]));
+  // Usable bars have finite highs and lows, so a tick size always exists.
+  const tickSize = deriveTickSize(
+    usable.flatMap((bar) => [bar.h, bar.l])
+  ) as number;
   // One step for every session so their profiles compare row for row.
   const priceStep =
     options.priceStep !== undefined && options.priceStep > 0
@@ -220,7 +223,7 @@ export const buildTpoProfile = (
       : Math.max(
           ...[...groups.values()].map((group) =>
             autoPriceStep(
-              tickSize ?? 0.01,
+              tickSize,
               Math.min(...group.map((bar) => bar.l)),
               Math.max(...group.map((bar) => bar.h)),
               TPO_MAX_LEVELS

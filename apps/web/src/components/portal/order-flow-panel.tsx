@@ -27,6 +27,7 @@ import {
   useState,
 } from "react";
 
+import { defined } from "../../features/order-flow/defined.ts";
 import { buildDeltaSeries } from "../../features/order-flow/delta.ts";
 import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
@@ -394,7 +395,7 @@ export const OrderFlowPanel = ({
     };
     const move = target[event.key];
     if (move === undefined) return;
-    const next = ORDER_FLOW_TABS[(move + count) % count] ?? tab;
+    const next = defined(ORDER_FLOW_TABS[(move + count) % count], "tab");
     event.preventDefault();
     setTab(next);
     document.getElementById(tabId(next))?.focus();
@@ -527,9 +528,7 @@ export const OrderFlowPanel = ({
               {formatPrice(footprint.priceStep, priceDigits)} rows and{" "}
               {formatBucketSeconds(footprint.bucketSeconds)} columns; outlined
               cell = the bucket's POC
-              {tickSize === null
-                ? ""
-                : `; tick ${formatPrice(tickSize, priceDigits)} ${minTick === null ? "derived from the prints" : "(IBKR minTick)"}`}
+              {`; tick ${formatPrice(footprint.tickSize, priceDigits)} ${minTick === null ? "derived from the prints" : "(IBKR minTick)"}`}
               .
             </p>
             <FootprintGrid

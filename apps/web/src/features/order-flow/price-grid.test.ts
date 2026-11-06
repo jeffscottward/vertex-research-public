@@ -79,3 +79,15 @@ describe("time buckets", () => {
     expect(formatBucketSeconds(3600)).toBe("1 h");
   });
 });
+
+describe("grid limits", () => {
+  it("caps decimals at 8 for a price no short decimal writes", () => {
+    expect(decimalsOf(Math.PI)).toBe(8);
+  });
+  it("uses the largest step multiple when even it exceeds the level cap", () => {
+    expect(autoPriceStep(0.01, 0, 1_000_000, 10)).toBe(10);
+  });
+  it("uses one-hour buckets when even they give more than 20", () => {
+    expect(autoBucketSeconds(0, 3600 * 100)).toBe(3600);
+  });
+});

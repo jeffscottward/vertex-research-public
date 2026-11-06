@@ -479,3 +479,270 @@ describe("OrderFlowPanel", () => {
     expect(tab(container, "tape")?.getAttribute("aria-selected")).toBe("true");
   });
 });
+
+const selectNamed = (container: HTMLElement, name: string) => {
+  const label = [...container.querySelectorAll("label")].find(
+    (node) => node.textContent?.trim() === name
+  );
+  const select = label?.htmlFor ? document.getElementById(label.htmlFor) : null;
+  if (!(select instanceof HTMLSelectElement))
+    throw new Error(`Missing select ${name}`);
+  return select;
+};
+const choose = async (select: HTMLSelectElement, value: string) => {
+  await act(async () => {
+    select.value = value;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    await flush();
+  });
+};
+const viewText = (container: HTMLElement) => view(container)?.textContent ?? "";
+
+describe("OrderFlowPanel edge states", () => {
+  it("says so when IBKR returns no prints, quotes, book levels or bars", async () => {
+    const gates = gateways({
+      bars: async () => ({
+        ...barsOutput(),
+        bars: [],
+        count: 0,
+        request: { ...barsOutput().request, useRTH: false },
+      }),
+      depth: async () => ({
+        ...depthOutput(),
+        asks: [],
+        bids: [],
+        minTick: null,
+        venues: { depth: [], missing: [], top: [] },
+      }),
+      ticks: async () => ({
+        ...ticksOutput(),
+        asOf: null,
+        minTick: null,
+        quotes: [],
+        request: { ...ticksOutput().request, useRTH: true },
+        trades: [],
+      }),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(viewText(container)).toContain(
+      "IBKR returned no trade prints for this window."
+    );
+    expect(viewText(container)).toContain("regular hours only");
+    expect(viewText(container)).toContain("no bid/ask quotes returned");
+    await click(tab(container, "book"));
+    expect(viewText(container)).toContain(
+      "IBKR returned an empty book for this snapshot."
+    );
+    expect(viewText(container)).toContain("Depth from: —");
+    expect(container.querySelector("[data-venues-missing]")).toBeNull();
+    await click(tab(container, "footprint"));
+    expect(viewText(container)).toContain(
+      "No trade prints to build a footprint from."
+    );
+    expect(
+      [...selectNamed(container, "Bucket").options].map((o) => o.textContent)
+    ).toEqual(["Auto"]);
+    await click(tab(container, "delta"));
+    expect(viewText(container)).toContain(
+      "No trade prints to compute delta from."
+    );
+    await click(tab(container, "tpo"));
+    expect(viewText(container)).toContain(
+      "IBKR returned no 30-minute bars for a profile."
+    );
+    expect(viewText(container)).toContain("all hours");
+  });
+
+  it("shows only the error when ticks and bars fail, and the service detail when it adds nothing new", async () => {
+    const gates = gateways({
+      bars: async () => {
+        throw failure("UNAVAILABLE");
+      },
+      ticks: async () => {
+        throw failure("UPSTREAM_ERROR");
+      },
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    const alert = container.querySelector("[role=alert]");
+    expect(alert?.textContent).toContain("UPSTREAM_ERROR");
+    expect(alert?.textContent).not.toContain("IBKR service said");
+    for (const name of ["footprint", "delta", "tpo"]) {
+      await click(tab(container, name));
+      expect(container.querySelector("[role=alert]")).not.toBeNull();
+      expect(viewText(container)).not.toContain("No trade prints");
+    }
+  });
+
+  it("handles a one-sided futures book with zero sizes and no venues", async () => {
+    const gates = gateways({
+      depth: async () => ({
+        ...depthOutput(),
+        asks: [],
+        bids: [
+          { price: 7400.25, size: 0, venue: null },
+          { price: 7400, size: 0, venue: null },
+        ],
+        minTick: null,
+        request: { ...depthOutput().request, secType: "FUT", smartDepth: true },
+        sizeMultiplier: 1,
+        venues: null,
+      }),
+    });
+    const container = await render(gates, {
+      ...STK,
+      exchange: "CME",
+      secType: "FUT",
+      symbol: "ES",
+    });
+    await click(button(container, "Load order flow"));
+    await click(tab(container, "book"));
+    const summary = container.querySelector("[data-book-summary]");
+    expect(summary?.textContent).toContain("—");
+    expect(summary?.textContent).toContain("contracts");
+    expect(container.querySelector("[data-venue-notice]")).toBeNull();
+    expect(
+      container.querySelector<HTMLElement>(
+        "[data-depth-ladder] [aria-hidden=true]"
+      )?.style.width
+    ).toBe("0%");
+  });
+
+  it("labels a derived tick, leaves empty footprint cells clear and draws a flat delta", async () => {
+    const gates = gateways({
+      ticks: async () => ({
+        ...ticksOutput(),
+        minTick: null,
+        quotes: [],
+        trades: [
+          { c: null, p: 100.01, s: 100, t: t0, x: null },
+          { c: null, p: 100.02, s: 0, t: t0 + 30, x: null },
+          { c: null, p: 100.01, s: 100, t: t0 + 60, x: null },
+        ],
+      }),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(viewText(container)).toContain("—");
+    await click(tab(container, "footprint"));
+    expect(viewText(container)).toContain("derived from the prints");
+    const cells = [...container.querySelectorAll<HTMLElement>("td[style]")];
+    expect(
+      cells.some((cell) => cell.style.backgroundColor === "transparent")
+    ).toBe(true);
+    await click(tab(container, "delta"));
+    expect(container.querySelector("svg")).not.toBeNull();
+  });
+
+  it("refetches with the chosen rows and prints, and switches bucket, step and session", async () => {
+    const twoSessions = (): MarketBarsOutput => {
+      const base = barsOutput();
+      const dayBefore = base.bars.map((item) => ({
+        ...item,
+        t: item.t - 86_400,
+      }));
+      return { ...base, bars: [...dayBefore, ...base.bars], count: 6 };
+    };
+    const gates = gateways({ bars: async () => twoSessions() });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    await choose(selectNamed(container, "Prints"), "1000");
+    await click(container.querySelector("[aria-label='Refresh trade prints']"));
+    expect(gates.orderFlow.ticks).toHaveBeenLastCalledWith(
+      expect.objectContaining({ count: 1000 })
+    );
+    await click(tab(container, "book"));
+    await choose(selectNamed(container, "Rows per side"), "20");
+    await click(container.querySelector("[aria-label='Refresh order book']"));
+    expect(gates.orderFlow.depth).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rows: 20 })
+    );
+    await click(tab(container, "footprint"));
+    const bucket = selectNamed(container, "Bucket");
+    const seconds = [...bucket.options]
+      .map((o) => o.value)
+      .find((v) => v !== "auto");
+    await choose(bucket, seconds ?? "auto");
+    expect(selectNamed(container, "Bucket").value).toBe(seconds);
+    await choose(selectNamed(container, "Bucket"), "auto");
+    expect(selectNamed(container, "Bucket").value).toBe("auto");
+    const step = selectNamed(container, "Price step");
+    const multiple = [...step.options]
+      .map((o) => o.value)
+      .find((v) => v !== "auto");
+    await choose(step, multiple ?? "auto");
+    expect(selectNamed(container, "Price step").value).toBe(multiple);
+    await choose(selectNamed(container, "Price step"), "auto");
+    await click(tab(container, "tpo"));
+    const session = selectNamed(container, "Session");
+    const older = [...session.options].at(-1)?.value ?? "";
+    await choose(session, older);
+    expect(selectNamed(container, "Session").value).toBe(older);
+    const list = container.querySelector("[role=tablist]");
+    await act(async () => {
+      list?.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "a" })
+      );
+      await flush();
+    });
+    expect(tab(container, "tpo")?.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("ignores results that arrive after the panel is gone", async () => {
+    let resolveTicks: (value: MarketTicksOutput) => void = () => undefined;
+    let rejectBars: (reason: unknown) => void = () => undefined;
+    const gates = gateways({
+      bars: () =>
+        new Promise<MarketBarsOutput>((_resolve, reject) => {
+          rejectBars = reject;
+        }),
+      ticks: () =>
+        new Promise<MarketTicksOutput>((resolve) => {
+          resolveTicks = resolve;
+        }),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(viewText(container)).toContain("Loading");
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await act(async () => {
+      resolveTicks(ticksOutput());
+      rejectBars(failure("PACED"));
+      await flush();
+    });
+    expect(container.textContent).toBe("");
+  });
+
+  it("draws a flat delta for one unsigned print and profiles one-period and no-single-print sessions", async () => {
+    const open = Date.parse("2026-10-30T13:30:00Z") / 1000;
+    const gates = gateways({
+      bars: async () => ({
+        ...barsOutput(),
+        bars: [
+          { c: 101, h: 101, l: 100, o: 100, t: open - 86_400, v: 1 },
+          { c: 101, h: 101, l: 100, o: 100, t: open, v: 1 },
+          { c: 101, h: 101, l: 100, o: 100, t: open + 1800, v: 1 },
+        ],
+        count: 3,
+      }),
+      ticks: async () => ({
+        ...ticksOutput(),
+        quotes: [],
+        trades: [{ c: null, p: 100.01, s: 10, t: t0, x: "ARCA" }],
+      }),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    await click(tab(container, "delta"));
+    expect(container.querySelector("svg")).not.toBeNull();
+    await click(tab(container, "tpo"));
+    const summary = () =>
+      container.querySelector("[data-tpo-summary]")?.textContent ?? "";
+    expect(summary()).toContain("Initial balance (A+B)");
+    expect(summary()).toContain("none");
+    const session = selectNamed(container, "Session");
+    await choose(session, [...session.options].at(-1)?.value ?? "");
+    expect(summary()).toContain("Initial balance (A)");
+  });
+});

@@ -13,6 +13,7 @@ import {
   MAX_BUCKETS,
 } from "./price-grid.ts";
 import type { SignedTrade } from "./trade-signing.ts";
+import { defined } from "./defined.ts";
 
 /** Auto price step keeps the footprint to at most this many rows. */
 const FOOTPRINT_MAX_LEVELS = 40;
@@ -47,7 +48,7 @@ export type FootprintBucket = Readonly<{
 export type Footprint = Readonly<{
   bucketSeconds: number;
   priceStep: number;
-  tickSize: number | null;
+  tickSize: number;
   /** Every level from the window high to low, highest first. */
   levels: readonly number[];
   buckets: readonly FootprintBucket[];
@@ -90,14 +91,16 @@ export const pointOfControl = (
 };
 
 export const buildFootprint = (
-  trades: readonly SignedTrade[],
+  prints: readonly SignedTrade[],
   options: FootprintOptions = {}
 ): Footprint | null => {
+  const trades = prints.filter((trade) => Number.isFinite(trade.price));
   if (trades.length === 0) return null;
   const tickSize =
     typeof options.tickSize === "number" && options.tickSize > 0
       ? options.tickSize
-      : deriveTickSize(trades.map((trade) => trade.price));
+      : // Finite prices only, so a tick size always exists.
+        (deriveTickSize(trades.map((trade) => trade.price)) as number);
   let low = Number.POSITIVE_INFINITY;
   let high = Number.NEGATIVE_INFINITY;
   let first = Number.POSITIVE_INFINITY;
@@ -115,7 +118,7 @@ export const buildFootprint = (
     chosenStep > 0 &&
     levelCount(low, high, chosenStep) <= MAX_LEVELS
       ? chosenStep
-      : autoPriceStep(tickSize ?? 0.01, low, high, FOOTPRINT_MAX_LEVELS);
+      : autoPriceStep(tickSize, low, high, FOOTPRINT_MAX_LEVELS);
   const chosenSeconds = options.bucketSeconds;
   const bucketSeconds =
     chosenSeconds !== undefined &&
@@ -134,9 +137,8 @@ export const buildFootprint = (
   for (const trade of trades) {
     const index =
       (bucketStart(trade.t, bucketSeconds) - firstStart) / bucketSeconds;
-    const grid = grids[index];
-    if (grid === undefined) continue;
-    tradeCounts[index] = (tradeCounts[index] ?? 0) + 1;
+    const grid = defined(grids[index], "footprint bucket");
+    tradeCounts[index] = defined(tradeCounts[index], "bucket count") + 1;
     const price = groupPrice(trade.price, priceStep);
     const cell = grid.get(price) ?? { buy: 0, sell: 0, unsigned: 0 };
     if (trade.side === "buy") cell.buy += trade.size;
@@ -168,7 +170,7 @@ export const buildFootprint = (
       poc: pointOfControl(cells),
       sell,
       start,
-      trades: tradeCounts[index] ?? 0,
+      trades: defined(tradeCounts[index], "bucket count"),
       unsigned,
       volume: buy + sell + unsigned,
     };
