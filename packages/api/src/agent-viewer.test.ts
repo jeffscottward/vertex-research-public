@@ -236,6 +236,7 @@ const REVIEWED_READS: readonly string[] = [
   "autopilot.campaigns.get",
   "autopilot.campaigns.list",
   "autopilot.candidates.get",
+  "backtestRuns.comparisons.list",
   "backtestRuns.definitions.get",
   "backtestRuns.definitions.list",
   "backtestRuns.drift.get",

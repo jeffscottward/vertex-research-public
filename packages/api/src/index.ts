@@ -100,6 +100,7 @@ export * from "./contracts/forward-drift.ts";
 export * from "./contracts/strategy-definitions.ts";
 export * from "./contracts/autopilot.ts";
 export * from "./contracts/backtest-sweep.ts";
+export * from "./contracts/engine-comparison.ts";
 export * from "./contracts/instant-backtest.ts";
 export * from "./contracts/setup-replay.ts";
 export * from "./contracts/academy.ts";

@@ -286,6 +286,9 @@ const vertexContextDependencies = (
     },
     // Engine of new backtest runs: typescript (in this server) or nautilus (research worker).
     backtestRunsEngine: env.VERTEX_BACKTEST_RUNS_ENGINE,
+    // Engine comparison (dual run) and the host label of TypeScript engine times.
+    engineComparison: env.VERTEX_ENGINE_COMPARISON,
+    hostLabel: env.VERTEX_HOST_LABEL,
     // Read-only QuantVPS status endpoint; the token stays server-side (agentOps.deployment.status).
     deployStatus: resolveDeployStatusConfig(
       env.VERTEX_DEPLOY_STATUS_URL,

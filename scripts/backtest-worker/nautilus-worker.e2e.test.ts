@@ -5,7 +5,7 @@ import { COST_PROFILE_PRESETS } from "../../packages/api/src/backtest-costs.ts";
 import { buildBacktestRunReport } from "../../packages/api/src/backtest-run-report.ts";
 import {
   BACKTEST_RUN_NAUTILUS_ENGINE,
-  BacktestRunEngineCompleteInputSchema,
+  BacktestRunEngineCompleteManyInputSchema,
 } from "../../packages/api/src/contracts/backtest-runs.ts";
 import {
   barsInPositionOf,
@@ -21,11 +21,12 @@ import {
   sleep,
 } from "./nautilus-worker.ts";
 
-// End to end with the real engine: the worker runs `python -m nautilus_backtest run -` from
-// VERTEX_NAUTILUS_PYTHON (a venv with services/research/requirements-nautilus-linux-py312.lock)
-// against an in-process fake API. The fake API checks the posted result with the contract schema,
-// recomputes the stats as the API does and builds the report with the API code. Without VERTEX_NAUTILUS_PYTHON the suite does not run
-// (the base CI lane has no Nautilus; the Python Nautilus lane covers the engine itself).
+// End to end with the real engine: the worker runs `python -m nautilus_backtest batch - -` from
+// VERTEX_NAUTILUS_PYTHON (a venv with services/research/requirements-nautilus-linux-py312.lock),
+// in two engine processes, against an in-process fake API that hands out one batch. The fake API
+// checks the posted items with the contract schema, recomputes the stats as the API does and
+// builds the report with the API code. Without VERTEX_NAUTILUS_PYTHON the suite does not run (the
+// base CI lane has no Nautilus; the Python Nautilus lane covers the engine itself).
 
 const python = process.env["VERTEX_NAUTILUS_PYTHON"]?.trim() || undefined;
 const DAY_MS = 86_400_000;
@@ -74,8 +75,18 @@ const fakeApi = (runs: readonly unknown[]) => {
     const input = (JSON.parse(String(init.body)) as { json: unknown }).json;
     posted.push({ input, path });
     if (path.endsWith("/claim"))
-      return Response.json({ json: { run: queue.shift() ?? null } });
-    return Response.json({ json: { id: "run-1", status: "succeeded" } });
+      return Response.json({
+        json: { batch: queue.shift() ?? null, run: null },
+      });
+    const items = (input as { items: { id: string; error?: string }[] }).items;
+    return Response.json({
+      json: {
+        outcomes: items.map((item) => ({
+          id: item.id,
+          status: item.error === undefined ? "succeeded" : "failed",
+        })),
+      },
+    });
   };
   return { post, posted };
 };
@@ -85,7 +96,9 @@ const ioFor = (post: NautilusWorkerIo["post"]): NautilusWorkerIo => ({
     VERTEX_AGENT_API_KEY: "test-key",
     VERTEX_NAUTILUS_PYTHON: python,
     VERTEX_ORIGIN: "https://vertex.example.test",
+    VERTEX_WORKER_PROCESSES: "2",
   },
+  hostname: "rig-test",
   post,
   researchDir: fileURLToPath(
     new URL("../../services/research/", import.meta.url)
@@ -103,27 +116,59 @@ describe.skipIf(python === undefined)(
     it("posts a result that passes the contract and builds the same trades as the API engine", {
       timeout: 120_000,
     }, async () => {
+      const costs = { capital: spec.initialCapital, profile };
       const api = fakeApi([
         {
           bars,
-          costs: { capital: spec.initialCapital, profile },
-          id: "run-1",
-          sectorQuadrants: null,
+          runs: [
+            {
+              costs,
+              end: SIZE,
+              first: 0,
+              id: "run-1",
+              sectorQuadrants: null,
+              spec,
+            },
+            // The second half of the bars, in the other engine process.
+            {
+              costs,
+              end: SIZE,
+              first: SIZE / 2,
+              id: "run-2",
+              sectorQuadrants: null,
+              spec,
+            },
+          ],
           seriesSha256: SHA,
-          spec,
         },
       ]);
       expect(await runNautilusWorker(["--once"], ioFor(api.post))).toBe(0);
       const complete = api.posted.find((call) =>
-        call.path.endsWith("/complete")
+        call.path.endsWith("/completeMany")
       );
-      const input = BacktestRunEngineCompleteInputSchema.parse(complete?.input);
-      expect(input).toMatchObject({
-        engine: BACKTEST_RUN_NAUTILUS_ENGINE,
-        id: "run-1",
-        seriesSha256: SHA,
-      });
+      const many = BacktestRunEngineCompleteManyInputSchema.parse(
+        complete?.input
+      );
+      expect(many.engine).toBe(BACKTEST_RUN_NAUTILUS_ENGINE);
+      const [input, half] = many.items;
+      if (
+        input === undefined ||
+        !("result" in input) ||
+        half === undefined ||
+        !("result" in half)
+      )
+        throw new Error("expected two results");
+      expect(input).toMatchObject({ id: "run-1", seriesSha256: SHA });
       expect(input.result.equity).toHaveLength(SIZE);
+      expect(half.result.equity).toHaveLength(SIZE / 2);
+      expect(input.engineRun).toMatchObject({
+        gpu: "not used (Nautilus engine is CPU-only)",
+        host: "rig-test",
+        processCases: 1,
+        processes: 2,
+      });
+      expect(input.engineRun?.cpuMs).toBeGreaterThan(0);
+      expect(input.engineRun?.wallMs).toBeGreaterThan(0);
 
       // The API recomputes the stats from the equity and trades; Nautilus must agree.
       const equity = Float64Array.from(input.result.equity);
@@ -174,25 +219,29 @@ describe.skipIf(python === undefined)(
     it("fails a run with the engine input error message", {
       timeout: 120_000,
     }, async () => {
-      const one = { c: [1], h: [1], l: [1], o: [1], t: [0] };
       const api = fakeApi([
         {
-          bars: one,
-          costs: null,
-          id: "run-1",
-          sectorQuadrants: null,
+          bars,
+          runs: [
+            {
+              costs: null,
+              end: 1,
+              first: 0,
+              id: "run-1",
+              sectorQuadrants: null,
+              spec: { ...spec, costProfile: undefined },
+            },
+          ],
           seriesSha256: SHA,
-          spec: { ...spec, costProfile: undefined },
         },
       ]);
       expect(await runNautilusWorker(["--once"], ioFor(api.post))).toBe(0);
       expect(api.posted.at(-1)).toEqual({
         input: {
           engine: BACKTEST_RUN_NAUTILUS_ENGINE,
-          error: "At least 2 bars needed",
-          id: "run-1",
+          items: [{ error: "At least 2 bars needed", id: "run-1" }],
         },
-        path: "backtestRuns/engine/fail",
+        path: "backtestRuns/engine/completeMany",
       });
     });
   }

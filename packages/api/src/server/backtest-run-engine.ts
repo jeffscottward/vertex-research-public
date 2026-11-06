@@ -1,12 +1,22 @@
-import type { BacktestRunRecord } from "@darkfactory/db/server";
+import type {
+  BacktestRunRecord,
+  MarketBarColumns,
+  MarketBarSeries,
+} from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
-
 import { buildBacktestRunReport } from "../backtest-run-report.ts";
+import { sliceColumnsByDate } from "../bar-slice.ts";
 import { appContract } from "../contract.ts";
 import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
   type BacktestRunEngineClaimOutput,
+  type BacktestRunEngineCompleteItem,
 } from "../contracts/backtest-runs.ts";
+import {
+  EngineComparisonSpecSchema,
+  type EngineDifferences,
+} from "../contracts/engine-comparison.ts";
+import { compareEngineResults } from "../engine-comparison.ts";
 import {
   barsInPositionOf,
   InstantBacktestInputError,
@@ -24,6 +34,7 @@ import {
   loadRunBars,
 } from "./backtest-runs.ts";
 import type { ApiContext } from "./context.ts";
+import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
 import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
 
@@ -33,7 +44,9 @@ import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
 // the bars of the date range, the cost settings and the sector rotation points. A run whose inputs
 // cannot be loaded fails here with the same message as the API engine, and claim tries the next
 // run. complete reloads the bars, checks the result against them and builds the report with the
-// same code as the API engine. Research only; no order path.
+// same code as the API engine. With `max`, claim returns a batch (one comparison group, one bar
+// series) and completeMany stores the batch; a comparison run's report also gets the differences
+// to the TypeScript result it repeats. Research only; no order path.
 
 /** Runs one claim may fail while it loads inputs before it returns no run. */
 export const ENGINE_CLAIM_ATTEMPTS = 5;
@@ -62,16 +75,42 @@ type EngineFailures = Failures &
   Readonly<{ CONFLICT: (options?: { message?: string }) => Error }>;
 
 type ClaimedRun = NonNullable<BacktestRunEngineClaimOutput["run"]>;
+type BacktestRunStatus = BacktestRunRecord["status"];
 
 /** JSON has no NaN; the engine reads null as NaN. */
 const jsonColumn = (values: Float64Array): (number | null)[] =>
   Array.from(values, (value) => (Number.isNaN(value) ? null : value));
 
+const jsonBars = (bars: MarketBarColumns): ClaimedRun["bars"] => ({
+  c: jsonColumn(bars.c),
+  h: jsonColumn(bars.h),
+  l: jsonColumn(bars.l),
+  o: jsonColumn(bars.o),
+  t: jsonColumn(bars.t),
+  ...(bars.v === undefined ? {} : { v: jsonColumn(bars.v) }),
+});
+
+/** The spec the worker needs: the comparison part stays on the server. */
+const engineSpec = (
+  spec: BacktestRunRecord["spec"]
+): Omit<BacktestRunRecord["spec"], "comparison"> =>
+  Object.fromEntries(
+    Object.entries(spec).filter(([key]) => key !== "comparison")
+  ) as Omit<BacktestRunRecord["spec"], "comparison">;
+
+type RunInputs = Readonly<{
+  run: BacktestRunRecord;
+  bars: MarketBarColumns;
+  series: MarketBarSeries;
+  costs: ClaimedRun["costs"];
+  sectorQuadrants: ClaimedRun["sectorQuadrants"];
+}>;
+
 /** The engine inputs of a claimed run, or null after the run was failed. */
-const prepareRun = async (
+const runInputs = async (
   dependencies: BacktestRunExecutionDependencies,
   run: BacktestRunRecord
-): Promise<ClaimedRun | null> => {
+): Promise<RunInputs | null> => {
   const { spec } = run;
   try {
     const loaded = await loadRunBars(dependencies.marketBars, spec);
@@ -95,22 +134,15 @@ const prepareRun = async (
             bars.t[0] as number
           )
         : undefined;
-    const costs = costsForSpec(spec);
     return {
-      bars: {
-        c: jsonColumn(bars.c),
-        h: jsonColumn(bars.h),
-        l: jsonColumn(bars.l),
-        o: jsonColumn(bars.o),
-        t: jsonColumn(bars.t),
-        ...(bars.v === undefined ? {} : { v: jsonColumn(bars.v) }),
-      },
-      costs: costs ?? null,
-      id: run.id,
-      sectorQuadrants: sectorQuadrants ?? null,
-      seriesSha256: series.sourceSha256,
-      spec,
-    } as ClaimedRun;
+      bars,
+      costs: (costsForSpec(spec) ?? null) as ClaimedRun["costs"],
+      run,
+      // The worker reads the points only; readonly arrays are the same JSON.
+      sectorQuadrants: (sectorQuadrants ??
+        null) as ClaimedRun["sectorQuadrants"],
+      series,
+    };
   } catch (error) {
     await dependencies.runs.fail(
       run.id,
@@ -122,19 +154,80 @@ const prepareRun = async (
   }
 };
 
-/** The run, when it is running on the engine; otherwise a typed failure. */
-const runningRun = async (
+/** The engine inputs of a claimed run, or null after the run was failed. */
+const prepareRun = async (
   dependencies: BacktestRunExecutionDependencies,
-  failures: EngineFailures,
-  id: string,
-  engine: string
-): Promise<BacktestRunRecord> => {
-  const run = await dependencies.runs.get(id);
-  if (run === null)
-    throw failures.NOT_FOUND({ message: "Backtest run not found" });
-  if (run.status !== "running" || run.engineVersion !== engine)
-    throw failures.CONFLICT();
-  return run;
+  run: BacktestRunRecord
+): Promise<ClaimedRun | null> => {
+  const inputs = await runInputs(dependencies, run);
+  if (inputs === null) return null;
+  return {
+    bars: jsonBars(inputs.bars),
+    costs: inputs.costs,
+    id: run.id,
+    sectorQuadrants: inputs.sectorQuadrants,
+    seriesSha256: inputs.series.sourceSha256,
+    spec: engineSpec(run.spec),
+  } as ClaimedRun;
+};
+
+type ClaimedBatch = NonNullable<BacktestRunEngineClaimOutput["batch"]>;
+
+/**
+ * The engine inputs of a claimed batch on one shared bar series: the bars from the earliest
+ * `from` to the latest `to`, and each run's index range in them. Runs whose inputs cannot be
+ * loaded, or that are on another series than the first one, fail; null when none is left.
+ */
+const prepareBatch = async (
+  dependencies: BacktestRunExecutionDependencies,
+  runs: readonly BacktestRunRecord[]
+): Promise<ClaimedBatch | null> => {
+  const ready: RunInputs[] = [];
+  for (const run of runs) {
+    const first = ready[0];
+    if (
+      first !== undefined &&
+      (first.run.spec.symbol !== run.spec.symbol ||
+        first.run.spec.timeframe !== run.spec.timeframe)
+    ) {
+      await dependencies.runs.fail(
+        run.id,
+        "The comparison batch mixes bar series; submit the run again"
+      );
+      continue;
+    }
+    const inputs = await runInputs(dependencies, run);
+    if (inputs !== null) ready.push(inputs);
+  }
+  const [head] = ready;
+  if (head === undefined) return null;
+  const from = ready.map((entry) => entry.run.spec.from).sort()[0] as string;
+  const to = ready
+    .map((entry) => entry.run.spec.to)
+    .sort()
+    .at(-1) as string;
+  const shared = sliceColumnsByDate(
+    (await columnsFor(dependencies.marketBars, head.series)).columns,
+    from,
+    to
+  );
+  return {
+    bars: jsonBars(shared),
+    runs: ready.map((entry) => {
+      const start = entry.bars.t[0] as number;
+      let first = 0;
+      while ((shared.t[first] as number) < start) first += 1;
+      return {
+        costs: entry.costs,
+        end: first + entry.bars.t.length,
+        first,
+        id: entry.run.id,
+        sectorQuadrants: entry.sectorQuadrants,
+        spec: engineSpec(entry.run.spec),
+      };
+    }),
+    seriesSha256: head.series.sourceSha256,
+  } as ClaimedBatch;
 };
 
 const api = implement(appContract).$context<ApiContext>();
@@ -146,70 +239,190 @@ const claim = api.backtestRuns.engine.claim
       context,
       errors as unknown as Failures
     );
+    const { max } = input;
     for (let attempt = 0; attempt < ENGINE_CLAIM_ATTEMPTS; attempt += 1) {
-      const run = await dependencies.runs.claimNext(input.engine);
-      if (run === null) return { run: null };
-      const prepared = await prepareRun(dependencies, run);
-      if (prepared !== null) return { run: prepared };
+      if (max === undefined) {
+        const run = await dependencies.runs.claimNext(input.engine);
+        if (run === null) return { run: null };
+        const prepared = await prepareRun(dependencies, run);
+        if (prepared !== null) return { run: prepared };
+      } else {
+        const runs = await dependencies.runs.claimBatch(input.engine, max);
+        if (runs.length === 0) return { batch: null, run: null };
+        const batch = await prepareBatch(dependencies, runs);
+        if (batch !== null) return { batch, run: null };
+      }
     }
-    return { run: null };
+    return max === undefined ? { run: null } : { batch: null, run: null };
   });
+
+type ResultItem = Extract<BacktestRunEngineCompleteItem, { result: unknown }>;
+type ErrorItem = Extract<BacktestRunEngineCompleteItem, { error: string }>;
+
+/** What one result or error did: the stored status, or why nothing changed. */
+type StoreOutcome =
+  | Readonly<{ status: BacktestRunStatus }>
+  | Readonly<{
+      error: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND";
+      message?: string;
+    }>;
+
+/** The run, when it is running on the engine; otherwise the outcome that refuses it. */
+const runningRun = async (
+  dependencies: BacktestRunExecutionDependencies,
+  id: string,
+  engine: string
+): Promise<BacktestRunRecord | StoreOutcome> => {
+  const run = await dependencies.runs.get(id);
+  if (run === null)
+    return { error: "NOT_FOUND", message: "Backtest run not found" };
+  if (run.status !== "running" || run.engineVersion !== engine)
+    return { error: "CONFLICT" };
+  return run;
+};
+
+/** Differences to the TypeScript result of a comparison run; undefined for other runs. */
+const differencesFor = (
+  run: BacktestRunRecord,
+  nautilus: Parameters<typeof compareEngineResults>[1]
+): EngineDifferences | undefined => {
+  if (run.spec.comparison === undefined) return undefined;
+  const parsed = EngineComparisonSpecSchema.safeParse(run.spec.comparison);
+  if (!parsed.success)
+    return {
+      items: [
+        {
+          detail: "The stored TypeScript result could not be read",
+          field: "comparison",
+          nautilus: null,
+          typescript: null,
+        },
+      ],
+      ok: false,
+    };
+  return compareEngineResults(parsed.data.typescript, nautilus);
+};
+
+/**
+ * Checks a result against the stored bars, recomputes its stats and stores the report. A result
+ * that does not fit the bars fails the run, so the user sees the reason.
+ */
+const storeResult = async (
+  dependencies: BacktestRunExecutionDependencies,
+  engine: string,
+  item: ResultItem
+): Promise<StoreOutcome> => {
+  const run = await runningRun(dependencies, item.id, engine);
+  if (!("spec" in run)) return run;
+  const { spec } = run;
+  const reject = async (message: string): Promise<StoreOutcome> => {
+    await dependencies.runs.fail(run.id, message);
+    return { error: "BAD_REQUEST", message };
+  };
+  const loaded = await loadRunBars(dependencies.marketBars, spec);
+  if ("error" in loaded) return await reject(loaded.error);
+  if (loaded.series.sourceSha256 !== item.seriesSha256)
+    return await reject(
+      "The stored bars changed while the backtest was running"
+    );
+  if (loaded.bars.t.length !== item.result.equity.length)
+    return await reject(
+      `The engine result has ${item.result.equity.length} bars; the date range has ${loaded.bars.t.length}`
+    );
+  // The stored stats are the API's own, computed from the worker's equity and trades.
+  const equity = Float64Array.from(item.result.equity);
+  // Same shape; the zod output marks optional fields `| undefined` (exactOptionalPropertyTypes).
+  const trades = item.result.trades as InstantRunResult["trades"];
+  const stats = summarize(
+    loaded.bars,
+    equity,
+    trades,
+    barsInPositionOf(trades)
+  );
+  const mismatch = engineStatsMismatch(item.result.stats, stats);
+  if (mismatch !== null)
+    return await reject(
+      `The engine stats do not match its equity and trades (${mismatch})`
+    );
+  const costs = costsForSpec(spec);
+  const differences = differencesFor(run, { stats, trades });
+  const report = {
+    ...buildBacktestRunReport(
+      loaded.bars,
+      { equity, stats, trades },
+      spec.initialCapital,
+      costs?.profile
+    ),
+    seriesSha256: loaded.series.sourceSha256,
+    ...(item.engineRun === undefined ? {} : { engineRun: item.engineRun }),
+    ...(differences === undefined ? {} : { differences }),
+  };
+  const stored = await dependencies.runs.complete(run.id, report);
+  return stored === null ? { error: "CONFLICT" } : { status: stored.status };
+};
+
+/** Stores the engine error of a running run. */
+const storeError = async (
+  dependencies: BacktestRunExecutionDependencies,
+  engine: string,
+  item: ErrorItem
+): Promise<StoreOutcome> => {
+  const run = await runningRun(dependencies, item.id, engine);
+  if (!("spec" in run)) return run;
+  const stored = await dependencies.runs.fail(run.id, item.error);
+  return stored === null ? { error: "CONFLICT" } : { status: stored.status };
+};
+
+/** The procedure answer of one outcome: the stored status, or the typed error. */
+const answer = (
+  failures: EngineFailures,
+  id: string,
+  outcome: StoreOutcome
+): Readonly<{ id: string; status: BacktestRunStatus }> => {
+  if ("status" in outcome) return { id, status: outcome.status };
+  throw failures[outcome.error](
+    outcome.message === undefined ? undefined : { message: outcome.message }
+  );
+};
 
 const complete = api.backtestRuns.engine.complete
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as EngineFailures;
     const dependencies = dependenciesFor(context, failures);
-    const run = await runningRun(
-      dependencies,
+    const { engine, ...item } = input;
+    return answer(
       failures,
       input.id,
-      input.engine
+      await storeResult(dependencies, engine, item)
     );
-    const { spec } = run;
-    // A result that does not fit the stored bars fails the run, so the user sees the reason.
-    const reject = async (message: string): Promise<never> => {
-      await dependencies.runs.fail(run.id, message);
-      throw failures.BAD_REQUEST({ message });
-    };
-    const loaded = await loadRunBars(dependencies.marketBars, spec);
-    if ("error" in loaded) return await reject(loaded.error);
-    if (loaded.series.sourceSha256 !== input.seriesSha256)
-      return await reject(
-        "The stored bars changed while the backtest was running"
-      );
-    if (loaded.bars.t.length !== input.result.equity.length)
-      return await reject(
-        `The engine result has ${input.result.equity.length} bars; the date range has ${loaded.bars.t.length}`
-      );
-    // The stored stats are the API's own, computed from the worker's equity and trades.
-    const equity = Float64Array.from(input.result.equity);
-    // Same shape; the zod output marks optional fields `| undefined` (exactOptionalPropertyTypes).
-    const trades = input.result.trades as InstantRunResult["trades"];
-    const stats = summarize(
-      loaded.bars,
-      equity,
-      trades,
-      barsInPositionOf(trades)
+  });
+
+const completeMany = api.backtestRuns.engine.completeMany
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const dependencies = dependenciesFor(
+      context,
+      errors as unknown as Failures
     );
-    const mismatch = engineStatsMismatch(input.result.stats, stats);
-    if (mismatch !== null)
-      return await reject(
-        `The engine stats do not match its equity and trades (${mismatch})`
+    const outcomes: Readonly<{
+      id: string;
+      status: BacktestRunStatus | null;
+      error?: "BAD_REQUEST" | "CONFLICT" | "NOT_FOUND";
+      message?: string;
+    }>[] = [];
+    for (const item of input.items) {
+      const outcome =
+        "result" in item
+          ? await storeResult(dependencies, input.engine, item)
+          : await storeError(dependencies, input.engine, item);
+      outcomes.push(
+        "status" in outcome
+          ? { id: item.id, status: outcome.status }
+          : { ...outcome, id: item.id, status: null }
       );
-    const costs = costsForSpec(spec);
-    const report = {
-      ...buildBacktestRunReport(
-        loaded.bars,
-        { equity, stats, trades },
-        spec.initialCapital,
-        costs?.profile
-      ),
-      seriesSha256: loaded.series.sourceSha256,
-    };
-    const stored = await dependencies.runs.complete(run.id, report);
-    if (stored === null) throw failures.CONFLICT();
-    return { id: stored.id, status: stored.status };
+    }
+    return { outcomes };
   });
 
 const fail = api.backtestRuns.engine.fail
@@ -217,15 +430,12 @@ const fail = api.backtestRuns.engine.fail
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as EngineFailures;
     const dependencies = dependenciesFor(context, failures);
-    const run = await runningRun(
-      dependencies,
+    const { engine, ...item } = input;
+    return answer(
       failures,
       input.id,
-      input.engine
+      await storeError(dependencies, engine, item)
     );
-    const stored = await dependencies.runs.fail(run.id, input.error);
-    if (stored === null) throw failures.CONFLICT();
-    return { id: stored.id, status: stored.status };
   });
 
-export const backtestRunEngineRouter = { claim, complete, fail };
+export const backtestRunEngineRouter = { claim, complete, completeMany, fail };

@@ -9,6 +9,7 @@ import {
   sweepValueCount,
 } from "../backtest-sweep-grid.ts";
 import { CalendarDateSchema } from "./calendar-date.ts";
+import { EngineComparisonTimingSchema } from "./engine-comparison.ts";
 import {
   INSTANT_BACKTEST_TIMEFRAMES,
   InstantBacktestBreakoutSchema,
@@ -171,6 +172,14 @@ export const BacktestSweepOutputSchema = z.object({
   bars: z.number().int(),
   /** Row-major: the last dimension changes fastest. */
   cells: z.array(BacktestSweepCellSchema).max(BACKTEST_SWEEP_MAX_CELLS),
+  /**
+   * Engine comparison on: the TypeScript timing, the queued Nautilus group, the cells queued
+   * (the first ENGINE_COMPARISON_SWEEP_CELLS_MAX cells without an engine error) and those left out.
+   */
+  comparison: EngineComparisonTimingSchema.extend({
+    dropped: z.number().int().nonnegative(),
+    queued: z.number().int().nonnegative(),
+  }).optional(),
   computeMs: z.number().nonnegative(),
   dimensions: z.array(
     z.object({

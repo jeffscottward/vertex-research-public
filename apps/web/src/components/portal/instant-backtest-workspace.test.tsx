@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import type {
+  EngineComparisonRun,
   InstantBacktestRunInput,
   InstantBacktestRunOutput,
   InstantBacktestSeries,
@@ -24,6 +25,7 @@ import {
   InstantBacktestWorkspace,
   toRunInput,
 } from "./instant-backtest-workspace.tsx";
+import type { EngineComparisonGateway } from "./engine-comparison.tsx";
 
 vi.mock("../../features/charts/backtest-series.tsx", () => ({
   BacktestSeriesChart: ({
@@ -175,6 +177,66 @@ const statText = (label: string) =>
 
 const statusText = () =>
   document.querySelector("[data-instant-status]")?.textContent ?? "";
+
+/** One Nautilus comparison run as backtestRuns.comparisons.list returns it. */
+const nautilusRun = (
+  overrides: Partial<EngineComparisonRun> = {}
+): EngineComparisonRun => ({
+  comparison: {
+    feature: "instant",
+    groupId: "g-1",
+    label: "SPY 1d smaCross",
+    typescript: {
+      host: "QuantVPS web",
+      stats: {
+        bars: 2,
+        buyHoldMaxDrawdown: 0,
+        buyHoldReturn: 0,
+        cagr: null,
+        exposure: 0,
+        maxDrawdown: 0,
+        profitFactor: null,
+        sharpe: null,
+        sortino: null,
+        totalReturn: 0,
+        trades: 0,
+        winRate: null,
+      },
+      tradeCount: 0,
+      trades: [],
+      wallMs: 1,
+    },
+  },
+  createdAt: new Date(0),
+  differences: { items: [], ok: true },
+  engineRun: {
+    cpuMs: 10,
+    gpu: "not used (Nautilus engine is CPU-only)",
+    host: "rig-1",
+    processCases: 1,
+    processes: 1,
+    processWallMs: 500,
+    wallMs: 400,
+  },
+  engineVersion: "nautilus-trader-1.227.0",
+  error: null,
+  finishedAt: new Date(1000),
+  from: "1970-01-01",
+  id: "n-1",
+  queueWaitMs: 2000,
+  startedAt: new Date(2000),
+  status: "succeeded",
+  symbol: "SPY",
+  timeframe: "1d",
+  to: "1970-04-10",
+  ...overrides,
+});
+
+const comparisonsOf = (
+  runs: EngineComparisonRun[]
+): EngineComparisonGateway => ({
+  comparisons: vi.fn(async () => ({ runs })),
+});
 
 describe("toRunInput and formatters", () => {
   it("builds both rule requests and explains invalid parameters", () => {
@@ -508,5 +570,52 @@ describe("InstantBacktestWorkspace", () => {
     });
     expect(statText("Total return")).toBe("25.0%");
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("instant backtest engine comparison", () => {
+  it("shows the TypeScript timing at once and the Nautilus card of the queued run", async () => {
+    const { gateway, pending } = controlledGateway(async () => ({
+      series: [SPY],
+    }));
+    const comparisons = comparisonsOf([nautilusRun()]);
+    await mount(
+      <InstantBacktestWorkspace
+        comparisonGateway={comparisons}
+        gateway={gateway}
+      />
+    );
+    expect(document.querySelector("[data-engine-comparison]")).toBeNull();
+    await settle(() =>
+      pending[0]?.resolve({
+        ...output(pending[0].input, 0.5),
+        comparison: { groupId: "g-1", host: "QuantVPS web", wallMs: 1 },
+      })
+    );
+    expect(document.querySelector("[data-engine]")?.textContent).toMatch(
+      /^TypeScript · QuantVPS web · \d+ ms \(round trip\) · engine 1 ms$/u
+    );
+    expect(
+      document.querySelector("[data-nautilus-card]")?.textContent
+    ).toContain("Nautilus · rig-1 · 400 ms (queue 2.0 s)Status:match");
+    expect(comparisons.comparisons).toHaveBeenCalledWith("g-1");
+    // A run whose comparison could not be queued shows the reason only.
+    await setNative(field("Cost per side (basis points)"), "5", "input");
+    await settle(() =>
+      pending[1]?.resolve({
+        ...output(pending[1].input, 0.4),
+        comparison: {
+          error: "Nautilus comparison could not be queued",
+          groupId: null,
+          host: "QuantVPS web",
+          wallMs: 1,
+        },
+      })
+    );
+    expect(
+      document
+        .querySelector("[data-nautilus-card]")
+        ?.getAttribute("data-nautilus-card")
+    ).toBe("error");
   });
 });

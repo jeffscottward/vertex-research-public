@@ -64,6 +64,7 @@ import {
 import { deploymentRequestsRouter } from "./deployment-requests.ts";
 import { backtestRunEngineRouter } from "./backtest-run-engine.ts";
 import { backtestRunsRouter } from "./backtest-runs.ts";
+import { engineComparisonsRouter } from "./engine-comparison.ts";
 import { forwardDriftRouter } from "./forward-drift.ts";
 import { strategyDefinitionsRouter } from "./strategy-definitions.ts";
 import { autopilotRouter } from "./autopilot.ts";
@@ -1735,6 +1736,7 @@ export const appRouter = api.router({
     ...backtestRunsRouter,
     definitions: strategyDefinitionsRouter,
     drift: forwardDriftRouter,
+    comparisons: engineComparisonsRouter,
     engine: backtestRunEngineRouter,
   },
   autopilot: autopilotRouter,

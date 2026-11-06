@@ -4,6 +4,7 @@ import {
   type BacktestRun,
   type BacktestSweepOutput,
   type BacktestSweepParam,
+  type EngineComparisonRun,
   type InstantBacktestSeries,
   sweepCoordinates,
 } from "@darkfactory/api";
@@ -42,6 +43,7 @@ import {
   createBacktestSweepsGateway,
   createBrowserBacktestSweepsGateway,
 } from "./backtest-sweeps-workspace.tsx";
+import type { EngineComparisonGateway } from "./engine-comparison.tsx";
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -224,6 +226,66 @@ const GRID = outputOf(
 
 const runOf = (id: string): BacktestRun =>
   ({ id, status: "queued" }) as unknown as BacktestRun;
+
+/** One Nautilus comparison run as backtestRuns.comparisons.list returns it. */
+const nautilusRun = (
+  overrides: Partial<EngineComparisonRun> = {}
+): EngineComparisonRun => ({
+  comparison: {
+    feature: "instant",
+    groupId: "g-1",
+    label: "SPY 1d smaCross",
+    typescript: {
+      host: "QuantVPS web",
+      stats: {
+        bars: 2,
+        buyHoldMaxDrawdown: 0,
+        buyHoldReturn: 0,
+        cagr: null,
+        exposure: 0,
+        maxDrawdown: 0,
+        profitFactor: null,
+        sharpe: null,
+        sortino: null,
+        totalReturn: 0,
+        trades: 0,
+        winRate: null,
+      },
+      tradeCount: 0,
+      trades: [],
+      wallMs: 1,
+    },
+  },
+  createdAt: new Date(0),
+  differences: { items: [], ok: true },
+  engineRun: {
+    cpuMs: 10,
+    gpu: "not used (Nautilus engine is CPU-only)",
+    host: "rig-1",
+    processCases: 1,
+    processes: 1,
+    processWallMs: 500,
+    wallMs: 400,
+  },
+  engineVersion: "nautilus-trader-1.227.0",
+  error: null,
+  finishedAt: new Date(1000),
+  from: "1970-01-01",
+  id: "n-1",
+  queueWaitMs: 2000,
+  startedAt: new Date(2000),
+  status: "succeeded",
+  symbol: "SPY",
+  timeframe: "1d",
+  to: "1970-04-10",
+  ...overrides,
+});
+
+const comparisonsOf = (
+  runs: EngineComparisonRun[]
+): EngineComparisonGateway => ({
+  comparisons: vi.fn(async () => ({ runs })),
+});
 
 const gatewayOf = (
   overrides: Partial<BacktestSweepsGateway> = {}
@@ -955,5 +1017,60 @@ describe("BacktestSweepsWorkspace", () => {
     expect(document.querySelector('[role="alert"]')).toBeNull();
     expect(button("Run sweep").disabled).toBe(false);
     expect(sweepResults()).not.toBeNull();
+  });
+});
+
+describe("parameter sweep engine comparison", () => {
+  it("summarizes the repeated cells and shows each ranked cell's Nautilus status", async () => {
+    const sweep = vi.fn(async () => ({
+      ...GRID,
+      comparison: {
+        dropped: 0,
+        groupId: "g-1",
+        host: "QuantVPS web",
+        queued: 7,
+        wallMs: 12,
+      },
+    }));
+    const comparisons = comparisonsOf([
+      nautilusRun({
+        comparison: { ...nautilusRun().comparison, feature: "sweep", key: "4" },
+      }),
+    ]);
+    await mount(
+      <BacktestSweepsWorkspace
+        comparisonGateway={comparisons}
+        gateway={gatewayOf({ sweep })}
+      />
+    );
+    const summary = document.querySelector("[data-sweep-comparison]");
+    expect(summary?.textContent).toContain(
+      "Nautilus · rig-1 · 1 of 7 cells done, 1 match, 0 differ, 0 failed."
+    );
+    expect(summary?.textContent).toMatch(/TypeScript · QuantVPS web · \d+ ms/u);
+    const headers = [...document.querySelectorAll("th")].map(
+      (cell) => cell.textContent
+    );
+    expect(headers).toContain("Nautilus");
+    const states = [...document.querySelectorAll("[data-nautilus]")].map(
+      (node) => node.getAttribute("data-nautilus")
+    );
+    expect(states).toContain("succeeded");
+    expect(states).toContain("none");
+  });
+
+  it("shows no Nautilus column without engine comparison", async () => {
+    const comparisons = comparisonsOf([]);
+    await mount(
+      <BacktestSweepsWorkspace
+        comparisonGateway={comparisons}
+        gateway={gatewayOf()}
+      />
+    );
+    expect(document.querySelector("[data-sweep-comparison]")).toBeNull();
+    expect(
+      [...document.querySelectorAll("th")].map((cell) => cell.textContent)
+    ).not.toContain("Nautilus");
+    expect(comparisons.comparisons).not.toHaveBeenCalled();
   });
 });

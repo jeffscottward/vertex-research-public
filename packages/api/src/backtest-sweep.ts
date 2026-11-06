@@ -14,9 +14,12 @@ import {
   type BacktestSweepOutput,
   type BacktestSweepRequest,
 } from "./contracts/backtest-sweep.ts";
+import { measureWall, type WallTime } from "./engine-comparison.ts";
 import {
   type BarColumns,
   InstantBacktestInputError,
+  type InstantRunParams,
+  type InstantRunResult,
   runInstantBacktest,
 } from "./instant-backtest-engine.ts";
 
@@ -35,6 +38,20 @@ export type BacktestSweepGrid = Pick<
   "cells" | "dimensions" | "ranking"
 >;
 
+/** One evaluated cell for an observer (engine comparison): its settings, result and wall time. */
+export type SweepCellRun = Readonly<{
+  index: number;
+  params: readonly number[];
+  settings: InstantRunParams;
+  result: InstantRunResult;
+  wall: WallTime;
+}>;
+
+export type SweepObserver = Readonly<{
+  clock: () => number;
+  onCell: (cell: SweepCellRun) => void;
+}>;
+
 export const runBacktestSweep = (
   bars: BarColumns,
   request: Pick<
@@ -45,7 +62,8 @@ export const runBacktestSweep = (
     | "rule"
     | "stopLossPct"
     | "takeProfitPct"
-  >
+  >,
+  observer?: SweepObserver
 ): BacktestSweepGrid => {
   const dimensions = request.dimensions.map((dimension) => ({
     param: dimension.param,
@@ -66,10 +84,22 @@ export const runBacktestSweep = (
       }))
     );
     try {
-      const { stats } = runInstantBacktest(bars, {
-        ...settings,
-        costBps: request.costBps,
-      });
+      const run: InstantRunParams = { ...settings, costBps: request.costBps };
+      let stats: InstantRunResult["stats"];
+      if (observer === undefined) stats = runInstantBacktest(bars, run).stats;
+      else {
+        const measured = measureWall(observer.clock, () =>
+          runInstantBacktest(bars, run)
+        );
+        stats = measured.value.stats;
+        observer.onCell({
+          index,
+          params,
+          result: measured.value,
+          settings: run,
+          wall: measured,
+        });
+      }
       return {
         coordinates,
         error: null,

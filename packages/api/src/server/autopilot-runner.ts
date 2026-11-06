@@ -32,6 +32,7 @@ import {
   AutopilotCampaignConfigSchema,
   type AutopilotTickResult,
 } from "../contracts/autopilot.ts";
+import type { ComparisonQueue } from "../engine-comparison.ts";
 import {
   type BarColumns,
   InstantBacktestInputError,
@@ -41,6 +42,10 @@ import {
   SectorQuadrantDataError,
   type SectorQuadrantSeries,
 } from "../strategy-dsl-compile.ts";
+import {
+  type GatedCandidate,
+  queueGateComparisons,
+} from "./autopilot-comparison.ts";
 import {
   loadSectorQuadrants,
   type SectorQuadrantSource,
@@ -64,6 +69,8 @@ export type AutopilotRunnerDependencies = Readonly<{
   generateId: () => string;
   /** Stored sector rotation points for campaigns with sector filters. */
   sectorRotation?: SectorQuadrantSource;
+  /** Engine comparison on: queue for the Nautilus shadow runs of the gate. */
+  comparison?: ComparisonQueue;
 }>;
 
 const GeneSchema = z.object({
@@ -113,6 +120,8 @@ type Context = Readonly<{
   ledger: { value: AutopilotLedger | null };
   /** Series for the campaign's sector filters; undefined without filters. */
   sectorQuadrants: SectorQuadrantSeries | undefined;
+  /** Candidates gated in this tick (engine comparison shadows them). */
+  gated: GatedCandidate[];
 }>;
 
 const candidateRow = (
@@ -259,6 +268,7 @@ const gateCandidate = async (
   candidate: AutopilotCandidateRecord
 ): Promise<boolean> => {
   const definition = StrategyDefinitionSchema.parse(candidate.definition);
+  context.gated.push({ definition, id: candidate.id });
   const inSample = InSampleStoredSchema.parse(
     candidate.inSample
   ) as InSampleResult;
@@ -418,6 +428,7 @@ const runSlice = async (
     campaign,
     config,
     dependencies,
+    gated: [],
     keys: new Set(await dependencies.autopilot.campaignKeys(campaign.id)),
     ledger: { value: null },
     sectorQuadrants: await loadSectorQuadrants(
@@ -474,6 +485,18 @@ const runSlice = async (
     }
   }
   const cpuMs = elapsed();
+  const comparison =
+    dependencies.comparison === undefined
+      ? undefined
+      : await queueGateComparisons({
+          bars,
+          campaign,
+          candidates: context.gated,
+          clock: dependencies.clock,
+          costBps: config.costBps,
+          queue: dependencies.comparison,
+          sectorQuadrants: context.sectorQuadrants,
+        });
   const exhausted =
     stalled ||
     remaining() <= 0 ||
@@ -493,6 +516,7 @@ const runSlice = async (
   });
   return {
     campaignId: campaign.id,
+    ...(comparison === undefined ? {} : { comparison }),
     cpuMs,
     evaluated,
     gated,

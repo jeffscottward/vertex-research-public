@@ -566,6 +566,12 @@ const baseServerEnvSchema = z.object({
     z.enum(["typescript", "nautilus"]).default("typescript")
   ),
   VERTEX_DEPLOY_STATUS_TOKEN: serviceTokenSchema("VERTEX_DEPLOY_STATUS_TOKEN"),
+  // Engine comparison (dual run): "on" also queues the instant backtest, sweep cells and Autopilot
+  // gate runs for the Nautilus research worker; the TypeScript result is unchanged. Blank: off.
+  VERTEX_ENGINE_COMPARISON: z.preprocess(
+    emptyStringToUndefined,
+    z.enum(["off", "on"]).default("off")
+  ),
   VERTEX_DEPLOY_STATUS_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_URL"),
   // Tailnet-only v2 session snapshot (same token and URL rules).
   VERTEX_DEPLOY_STATUS_V2_URL: tailnetServiceUrl("VERTEX_DEPLOY_STATUS_V2_URL"),
@@ -578,6 +584,17 @@ const baseServerEnvSchema = z.object({
   VERTEX_IBKR_RECOVERY_URL: tailnetServiceUrl("VERTEX_IBKR_RECOVERY_URL"),
   // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
   VERTEX_KB_CHAT_URL: kbChatUrlSchema,
+  // Where this server runs, shown next to TypeScript engine times (for example "QuantVPS web
+  // (in-request)"). Blank: "web server".
+  VERTEX_HOST_LABEL: z.preprocess(
+    emptyStringToUndefined,
+    z
+      .string()
+      .trim()
+      .min(1)
+      .max(100, { error: "VERTEX_HOST_LABEL must be at most 100 characters" })
+      .default("web server")
+  ),
 
   // Vertex safety literals: research/paper only, read-only, no order submission.
   VERTEX_MODE: z.enum(["research", "paper"]).default("research"),

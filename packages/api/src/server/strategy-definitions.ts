@@ -13,7 +13,7 @@ import {
   type StrategyDefinition,
   validateStrategyDefinition,
 } from "../strategy-dsl.ts";
-import { canonicalJson, sha256Hex } from "./backtest-runs.ts";
+import { canonicalJson, sha256Hex } from "../canonical-json.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 

@@ -14,7 +14,7 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 | Procedures, execution, revision hash | `packages/api/src/server/backtest-runs.ts` |
 | Report and metrics (pure) | `packages/api/src/backtest-run-report.ts` |
 | Engine (shared with the instant backtest) | `packages/api/src/instant-backtest-engine.ts` |
-| Nautilus engine worker procedures `backtestRuns.engine.claim`, `complete`, `fail` | `packages/api/src/server/backtest-run-engine.ts`, worker `scripts/backtest-worker/nautilus-worker.ts`, see [nautilus-backtest-engine.md](nautilus-backtest-engine.md#backtest-runs-on-nautilus) |
+| Nautilus engine worker procedures `backtestRuns.engine.claim` (with `max`: a batch), `complete`, `completeMany`, `fail` | `packages/api/src/server/backtest-run-engine.ts`, worker `scripts/backtest-worker/nautilus-worker.ts`, see [nautilus-backtest-engine.md](nautilus-backtest-engine.md#backtest-runs-on-nautilus) |
 | Cost profiles and presets (pure), contract schema | `packages/api/src/backtest-costs.ts`, `packages/api/src/contracts/backtest-cost-profiles.ts` |
 | Table `backtest_runs` | `packages/db/src/schema/index.ts`, migration `0026_backtest_runs`, rollback `packages/db/rollback/0026_backtest_runs.down.sql` |
 | Repository | `packages/db/src/server/backtest-runs.ts` |
@@ -24,6 +24,7 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 | Strategy definitions (rule `dsl`) | [strategy-definitions.md](strategy-definitions.md) |
 | MCP tools | `backtest_runs_submit`, `backtest_runs_get`, `backtest_runs_list` in `packages/api/src/server/mcp.ts` |
 | Parameter sweep `backtestRuns.sweep` | `docs/vertex-rebuild/backtest-sweeps.md` |
+| Engine comparison runs, `backtestRuns.comparisons.list` | `packages/api/src/contracts/engine-comparison.ts`, `packages/api/src/server/engine-comparison.ts`; see [nautilus-backtest-engine.md](nautilus-backtest-engine.md#dual-run-engine-comparison) |
 
 ## Run lifecycle
 
@@ -33,6 +34,8 @@ An operator or an agent queues a backtest of a rule over a date range of stored 
 4. `get` re-schedules a run that is still `queued`, so a lost background task still completes. The Backtest runs and Strategy builder pages poll `get` once a second for at most 1,200 reads (20 minutes, enough for a Nautilus run's queue limit plus its 9-minute run limit). `get` fails the requested run when it stayed `running` for more than 10 minutes. It fails a Nautilus run that stayed `queued` for more than 10 minutes only when no Nautilus run was claimed in those 10 minutes ("Nautilus backtest worker did not pick up the run"), so a busy worker never fails the runs waiting behind it.
 
 The page opens the run named in `?run=<id>`, else the newest succeeded run; the parameter sweep page links there after "Run full backtest".
+
+`backtestRuns.list` leaves engine comparison runs (Nautilus repeats of instant backtests, sweep cells and Autopilot gate runs, `spec.comparison`) out; `backtestRuns.comparisons.list` lists them.
 
 The repository changes only `status`, timing, `error` and `report`. The spec, the strategy snapshot and the revision are written once.
 

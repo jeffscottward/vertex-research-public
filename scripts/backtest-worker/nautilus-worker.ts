@@ -2,10 +2,14 @@
 // live trading node).
 // Usage: VERTEX_ORIGIN=https://vertex.example VERTEX_AGENT_API_KEY=... VERTEX_NAUTILUS_PYTHON=<venv>/bin/python \
 //   bun run vertex:backtest-worker:nautilus [-- --once]
-// Loop: claim the oldest queued Nautilus backtest run (backtestRuns.engine.claim) with an operator
-// agent WRITE key, run `python -m nautilus_backtest run -` in services/research with the run's
-// bars and spec on stdin, and post the result (backtestRuns.engine.complete) or the error
-// (backtestRuns.engine.fail). The API builds the report. After a run it claims again at once;
+// Loop: claim a batch of queued Nautilus backtest runs (backtestRuns.engine.claim with `max`: the
+// oldest run and, for a comparison group, more runs of that group on the same bar series) with an
+// operator agent WRITE key, split the batch over VERTEX_WORKER_PROCESSES engine processes
+// (`python -m nautilus_backtest batch - -` in services/research, the shared bars and the cases on
+// stdin), and post the results and errors (backtestRuns.engine.completeMany) in as few requests as
+// stay under the API request size limit (DELIVERY_MAX_BYTES; each request counts in the budget). Each
+// result carries where and how long it ran (engineRun). The API builds the reports. After a batch
+// it claims again at once;
 // after an empty claim it waits VERTEX_WORKER_IDLE_MS (default 3000), then twice as long after
 // each further empty claim up to VERTEX_WORKER_IDLE_MAX_MS (default 45000). `--once` runs one
 // claim cycle.
@@ -28,14 +32,21 @@ import { spawn } from "node:child_process";
 import { z } from "zod";
 
 import {
+  BACKTEST_RUN_ENGINE_BATCH_MAX,
   BACKTEST_RUN_ENGINE_ERROR_MAX,
   BACKTEST_RUN_NAUTILUS_ENGINE,
   type BacktestRunEngineClaimOutput,
   BacktestRunEngineClaimOutputSchema,
+  type BacktestRunEngineCompleteItem,
+  BacktestRunEngineCompleteManyOutputSchema,
 } from "../../packages/api/src/contracts/backtest-runs.ts";
+import { NAUTILUS_GPU_NOTE } from "../../packages/api/src/contracts/engine-comparison.ts";
 
-/** Engine run limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
+/** Engine process limit. Below the API stale limit (10 min), so the worker reports its own timeout. */
 export const NAUTILUS_RUN_TIMEOUT_MS = 9 * 60 * 1000;
+/** Engine processes per batch (VERTEX_WORKER_PROCESSES): default and most. */
+export const DEFAULT_PROCESSES = 8;
+export const MAX_PROCESSES = 16;
 export const DEFAULT_IDLE_MS = 3000;
 /**
  * Longest idle wait. Above the 30 s quiet window plus the two-poll check (5 s) of
@@ -66,13 +77,20 @@ export const DELIVERY_MARGIN_MS = 30_000;
 /** Below this time left a 429 during delivery gives up instead of trying again. */
 export const DELIVERY_MIN_WAIT_MS = 1000;
 /**
- * complete tries after a network error or a 5xx answer, with doubling waits from the first. A 429
- * is tried again once, after the limiter wait cut to the time left before the API stale limit.
+ * completeMany tries after a network error or a 5xx answer, with doubling waits from the first. A
+ * 429 is tried again once, after the limiter wait cut to the time left before the API stale limit.
  */
 export const COMPLETE_ATTEMPTS = 4;
 export const COMPLETE_RETRY_MS = 1000;
 export const UNDELIVERED_ERROR = "Could not deliver the Nautilus result";
 export const REJECTED_ERROR = "The API rejected the Nautilus result";
+export const TOO_LARGE_ERROR =
+  "The Nautilus result is larger than the API request limit";
+/**
+ * Serialized size limit of one completeMany request, below the 1 MiB oRPC request limit of the web
+ * app (ORPC_REQUEST_MAX_BYTES). 50 ten-year daily results are about 2.4 MB, so a batch is split.
+ */
+export const DELIVERY_MAX_BYTES = 900_000;
 /** Failed cycles in a row before the one alert of an incident. */
 const ALERT_AFTER_FAILURES = 3;
 /** Engine stderr kept for the worker log. */
@@ -109,6 +127,8 @@ export type NautilusWorkerIo = Readonly<{
   researchDir: string;
   /** Aborted on SIGTERM or SIGINT. */
   signal: AbortSignal;
+  /** This host's name, recorded with every result (os.hostname()). */
+  hostname: string;
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   stdout: Readonly<{ write: (text: string) => unknown }>;
   stderr: Readonly<{ write: (text: string) => unknown }>;
@@ -120,11 +140,13 @@ type Config = Readonly<{
   python: string;
   idleMs: number;
   idleMaxMs: number;
+  processes: number;
   /** API requests sent since the last quiet pause. */
   budget: { requests: number };
 }>;
 
-type ClaimedRun = NonNullable<BacktestRunEngineClaimOutput["run"]>;
+type ClaimedBatch = NonNullable<BacktestRunEngineClaimOutput["batch"]>;
+type BatchRun = ClaimedBatch["runs"][number];
 
 /** Runs a command with `input` on stdin; kills it after the timeout or on abort. */
 export const runCommand: RunCommand = (command, args, options) => {
@@ -211,10 +233,13 @@ const required = (
   return value;
 };
 
-/** A positive whole number of milliseconds from the environment, or the default. */
-const milliseconds = (
+/** A positive whole number from the environment (milliseconds or a count), or the default. */
+const positiveInteger = (
   env: NautilusWorkerIo["env"],
-  name: "VERTEX_WORKER_IDLE_MS" | "VERTEX_WORKER_IDLE_MAX_MS",
+  name:
+    | "VERTEX_WORKER_IDLE_MS"
+    | "VERTEX_WORKER_IDLE_MAX_MS"
+    | "VERTEX_WORKER_PROCESSES",
   fallback: number
 ): number => {
   const text = env[name]?.trim();
@@ -225,8 +250,8 @@ const milliseconds = (
 };
 
 const readConfig = (env: NautilusWorkerIo["env"]): Config => {
-  const idleMs = milliseconds(env, "VERTEX_WORKER_IDLE_MS", DEFAULT_IDLE_MS);
-  const idleMaxMs = milliseconds(
+  const idleMs = positiveInteger(env, "VERTEX_WORKER_IDLE_MS", DEFAULT_IDLE_MS);
+  const idleMaxMs = positiveInteger(
     env,
     "VERTEX_WORKER_IDLE_MAX_MS",
     Math.max(DEFAULT_IDLE_MAX_MS, idleMs)
@@ -235,9 +260,17 @@ const readConfig = (env: NautilusWorkerIo["env"]): Config => {
     throw new Error(
       "VERTEX_WORKER_IDLE_MAX_MS must not be below VERTEX_WORKER_IDLE_MS"
     );
+  const processes = positiveInteger(
+    env,
+    "VERTEX_WORKER_PROCESSES",
+    DEFAULT_PROCESSES
+  );
+  if (processes > MAX_PROCESSES)
+    throw new Error(`VERTEX_WORKER_PROCESSES must be at most ${MAX_PROCESSES}`);
   return {
     apiKey: required(env, "VERTEX_AGENT_API_KEY"),
     budget: { requests: 0 },
+    processes,
     idleMaxMs,
     idleMs,
     origin: new URL(required(env, "VERTEX_ORIGIN")).origin,
@@ -310,38 +343,56 @@ const call = async (
     : undefined;
 };
 
-/** The engine request: the run's spec with the resolved costs and sector points. */
-export const engineRequest = (run: ClaimedRun): string =>
+/** The batch request of one engine process: the shared bars and its runs as cases on their slices. */
+export const batchRequest = (
+  bars: ClaimedBatch["bars"],
+  runs: readonly BatchRun[]
+): string =>
   JSON.stringify({
-    bars: run.bars,
-    spec: {
-      ...run.spec,
-      costs: run.costs,
-      ...(run.sectorQuadrants === null
-        ? {}
-        : { sectorQuadrants: run.sectorQuadrants }),
-    },
+    bars,
+    cases: runs.map((run) => ({
+      id: run.id,
+      slice: [run.first, run.end],
+      spec: {
+        ...run.spec,
+        costs: run.costs,
+        ...(run.sectorQuadrants === null
+          ? {}
+          : { sectorQuadrants: run.sectorQuadrants }),
+      },
+    })),
   });
 
-/** `run` prints a RunResult, or {"error": ...} with exit status 2. */
-const CliResultSchema = z.object({
-  engine: z.string(),
-  equity: z.unknown(),
-  stats: z.unknown(),
-  trades: z.unknown(),
-});
-const CliErrorSchema = z.object({ error: z.string() });
+/** Splits the runs into at most `parts` contiguous parts whose sizes differ by at most one. */
+export const splitRuns = <T>(runs: readonly T[], parts: number): T[][] => {
+  const count = Math.min(parts, runs.length);
+  return Array.from({ length: count }, (_, part) =>
+    runs.slice(
+      Math.floor((part * runs.length) / count),
+      Math.floor(((part + 1) * runs.length) / count)
+    )
+  );
+};
 
-type EngineOutput =
-  | Readonly<{
-      result: Readonly<{ equity: unknown; stats: unknown; trades: unknown }>;
-    }>
-  | Readonly<{
-      error: string;
-      detail?: string;
-      /** Error class of an engine failure (crash, timeout); absent for input errors and stops. */
-      failure?: string;
-    }>;
+/** `batch - -` prints one result or input error per case and the process usage. */
+const BatchOutputSchema = z.object({
+  engine: z.string(),
+  results: z.array(
+    z.object({
+      error: z.string().optional(),
+      id: z.string(),
+      result: z
+        .object({
+          equity: z.unknown(),
+          stats: z.unknown(),
+          trades: z.unknown(),
+        })
+        .optional(),
+      wallMs: z.number(),
+    })
+  ),
+  usage: z.object({ cpuMs: z.number(), wallMs: z.number() }),
+});
 
 const parseJson = (text: string): unknown => {
   try {
@@ -351,46 +402,112 @@ const parseJson = (text: string): unknown => {
   }
 };
 
-/** Maps the CLI outcome to a result or a run error (exit 2: input error, exit 3: no Nautilus). */
-export const readEngineOutput = (outcome: CommandOutcome): EngineOutput => {
+/** The completeMany items of one engine process, and the error class when the process failed. */
+export type ProcessOutput = Readonly<{
+  items: BacktestRunEngineCompleteItem[];
+  failure: string | null;
+  detail?: string;
+}>;
+
+/** A whole-process failure: every run of the process gets the same error. */
+const processFailure = (
+  runs: readonly BatchRun[],
+  error: string,
+  failure: string | null,
+  detail?: string
+): ProcessOutput => ({
+  failure,
+  items: runs.map((run) => ({ error, id: run.id })),
+  ...(detail === undefined || detail === "" ? {} : { detail }),
+});
+
+/**
+ * Maps one engine process outcome to one completeMany item per run (exit 3: Nautilus missing). A
+ * case's input error is that run's error and not a worker failure.
+ */
+export const readBatchOutput = (
+  outcome: CommandOutcome,
+  runs: readonly BatchRun[],
+  context: Readonly<{ seriesSha256: string; host: string; processes: number }>
+): ProcessOutput => {
   const detail = outcome.stderr.slice(-STDERR_LOG_MAX);
   if (outcome.stopped)
-    return { error: "The Nautilus worker stopped before the run finished" };
+    return processFailure(
+      runs,
+      "The Nautilus worker stopped before the run finished",
+      null
+    );
   if (outcome.timedOut)
-    return {
-      error: `The Nautilus backtest took longer than ${NAUTILUS_RUN_TIMEOUT_MS / 60_000} minutes`,
-      failure: "engine timeout",
-    };
-  const body = parseJson(outcome.stdout);
-  const inputError = CliErrorSchema.safeParse(body);
-  if (outcome.code === 2 && inputError.success)
-    return {
-      error: inputError.data.error.slice(0, BACKTEST_RUN_ENGINE_ERROR_MAX),
-    };
+    return processFailure(
+      runs,
+      `The Nautilus backtest took longer than ${NAUTILUS_RUN_TIMEOUT_MS / 60_000} minutes`,
+      "engine timeout"
+    );
   if (outcome.code === 3)
-    return {
-      detail,
-      error: "Nautilus is not installed on the research worker",
-      failure: "Nautilus missing (exit 3)",
-    };
-  const parsed = CliResultSchema.safeParse(body);
+    return processFailure(
+      runs,
+      "Nautilus is not installed on the research worker",
+      "Nautilus missing (exit 3)",
+      detail
+    );
+  const parsed = BatchOutputSchema.safeParse(parseJson(outcome.stdout));
   if (outcome.code !== 0 || !parsed.success)
-    return {
-      detail,
-      error: `Nautilus engine failed (exit ${outcome.code})`,
-      failure: `engine exit ${outcome.code}`,
-    };
-  const { engine, equity, stats, trades } = parsed.data;
+    return processFailure(
+      runs,
+      `Nautilus engine failed (exit ${outcome.code})`,
+      `engine exit ${outcome.code}`,
+      detail
+    );
+  const { engine, results, usage } = parsed.data;
   if (engine !== BACKTEST_RUN_NAUTILUS_ENGINE)
+    return processFailure(
+      runs,
+      `The worker engine ${engine} does not match the run engine ${BACKTEST_RUN_NAUTILUS_ENGINE}`,
+      "engine version mismatch"
+    );
+  const byId = new Map(results.map((entry) => [entry.id, entry]));
+  let failure: string | null = null;
+  const items = runs.map((run): BacktestRunEngineCompleteItem => {
+    const entry = byId.get(run.id);
+    if (entry?.result !== undefined)
+      return {
+        engineRun: {
+          cpuMs: usage.cpuMs,
+          gpu: NAUTILUS_GPU_NOTE,
+          host: context.host,
+          processCases: runs.length,
+          processes: context.processes,
+          processWallMs: usage.wallMs,
+          wallMs: entry.wallMs,
+        },
+        id: run.id,
+        // The API validates the result shape (BacktestRunEngineResultSchema).
+        result: entry.result as Extract<
+          BacktestRunEngineCompleteItem,
+          { result: unknown }
+        >["result"],
+        seriesSha256: context.seriesSha256,
+      };
+    if (entry?.error !== undefined)
+      return {
+        error: entry.error.slice(0, BACKTEST_RUN_ENGINE_ERROR_MAX),
+        id: run.id,
+      };
+    failure = "engine output incomplete";
     return {
-      error: `The worker engine ${engine} does not match the run engine ${BACKTEST_RUN_NAUTILUS_ENGINE}`,
-      failure: "engine version mismatch",
+      error: "The Nautilus engine returned no result for the run",
+      id: run.id,
     };
-  return { result: { equity, stats, trades } };
+  });
+  return { failure, items };
 };
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+type Outcomes = z.infer<
+  typeof BacktestRunEngineCompleteManyOutputSchema
+>["outcomes"];
 
 /**
  * The wait before the next delivery try, or null to give up: a network error or a 5xx answer waits
@@ -414,39 +531,107 @@ const deliveryWait = (
   return Math.min(rateLimitWait(error), left);
 };
 
+const utf8 = new TextEncoder();
+const byteLength = (value: unknown): number =>
+  utf8.encode(JSON.stringify(value)).length;
+
 /**
- * Posts the result. Returns null when it was stored, "" when the run is no longer running on this
- * engine (409: nothing to do), or the error to store. A network error, a 429 or a 5xx answer is tried
- * again after a wait; any other 4xx is a rejection (the API fails the run itself when the result
- * does not fit the bars; a contract rejection leaves it running, so the worker fails it).
+ * Splits the items into chunks whose request body stays at most `maxBytes`, in order. An item
+ * larger than that on its own is a chunk of its own.
+ */
+export const deliveryChunks = <T>(
+  items: readonly T[],
+  maxBytes = DELIVERY_MAX_BYTES
+): T[][] => {
+  const envelope = byteLength({
+    json: { engine: BACKTEST_RUN_NAUTILUS_ENGINE, items: [] },
+  });
+  const chunks: T[][] = [];
+  let chunk: T[] = [];
+  let size = envelope;
+  for (const item of items) {
+    // One more byte for the comma between items.
+    const bytes = byteLength(item) + 1;
+    if (chunk.length > 0 && size + bytes > maxBytes) {
+      chunks.push(chunk);
+      chunk = [];
+      size = envelope;
+    }
+    chunk.push(item);
+    size += bytes;
+  }
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks;
+};
+
+type Delivered = Readonly<{ outcomes: Outcomes; failure: string | null }>;
+
+/**
+ * Posts the items in requests under DELIVERY_MAX_BYTES, one after the other. The 429 wait is shared:
+ * the worker waits for the limiter at most once per delivery. The failure is the first chunk's.
  */
 const deliver = async (
   config: Config,
   io: NautilusWorkerIo,
-  run: ClaimedRun,
-  result: unknown,
+  items: readonly BacktestRunEngineCompleteItem[],
   claimedAt: number
-): Promise<string | null> => {
+): Promise<Delivered> => {
   const limited = { used: false };
+  const outcomes: Outcomes = [];
+  let failure: string | null = null;
+  for (const chunk of deliveryChunks(items)) {
+    const delivered = await deliverChunk(config, io, chunk, claimedAt, limited);
+    outcomes.push(...delivered.outcomes);
+    failure ??= delivered.failure;
+  }
+  return { failure, outcomes };
+};
+
+/**
+ * Posts one chunk in one request. A network error or a 5xx answer is tried again after a wait, a
+ * 429 once (deliveryWait); 413 (an item over the request limit on its own) makes the chunk's runs
+ * fail as too large; any other 4xx (the contract refused the request) makes them fail as rejected.
+ * Runs the API could not be told about fail as undelivered (one more request).
+ */
+const deliverChunk = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  items: readonly BacktestRunEngineCompleteItem[],
+  claimedAt: number,
+  limited: { used: boolean }
+): Promise<Delivered> => {
+  const post = async (body: readonly BacktestRunEngineCompleteItem[]) =>
+    BacktestRunEngineCompleteManyOutputSchema.parse(
+      await call(config, io, "backtestRuns/engine/completeMany", {
+        engine: BACKTEST_RUN_NAUTILUS_ENGINE,
+        items: body,
+      })
+    ).outcomes;
+  const failAll = async (error: string, failure: string) => {
+    const outcomes = await post(
+      items.map((item) => ({ error, id: item.id }))
+    ).catch((refused: unknown) => {
+      io.stderr.write(`nautilus worker: ${messageOf(refused)}\n`);
+      return [];
+    });
+    return { failure, outcomes };
+  };
   for (let attempt = 1; ; attempt += 1) {
     try {
-      await call(config, io, "backtestRuns/engine/complete", {
-        engine: BACKTEST_RUN_NAUTILUS_ENGINE,
-        id: run.id,
-        result,
-        seriesSha256: run.seriesSha256,
-      });
-      return null;
+      return { failure: null, outcomes: await post(items) };
     } catch (error) {
-      io.stderr.write(`run ${run.id}: ${messageOf(error)}\n`);
+      io.stderr.write(`nautilus worker: ${messageOf(error)}\n`);
+      if (error instanceof ApiError && error.status === 413)
+        return await failAll(TOO_LARGE_ERROR, "result too large");
       if (
         error instanceof ApiError &&
         error.status < 500 &&
         error.status !== 429
       )
-        return error.status === 409 ? "" : REJECTED_ERROR;
+        return await failAll(REJECTED_ERROR, "result rejected");
       const wait = deliveryWait(error, attempt, limited, claimedAt);
-      if (wait === null) return UNDELIVERED_ERROR;
+      if (wait === null)
+        return await failAll(UNDELIVERED_ERROR, "result not delivered");
       await io.sleep(wait, io.signal);
       // Only a full quiet pause starts a new request budget.
       if (wait >= QUIET_PAUSE_MS) config.budget.requests = 0;
@@ -455,7 +640,7 @@ const deliver = async (
 };
 
 /**
- * One claim cycle: whether a run was claimed, the error class when the cycle failed, and the wait
+ * One claim cycle: whether runs were claimed, the error class when the cycle failed, and the wait
  * a 429 answer asks for.
  */
 type Cycle = Readonly<{
@@ -464,57 +649,77 @@ type Cycle = Readonly<{
   rateLimitMs?: number;
 }>;
 
-/** One claim cycle. Throws on an API error of claim or fail. */
-const workOnce = async (
+/** Runs one part of a batch in one engine process. */
+const runPart = async (
   config: Config,
-  io: NautilusWorkerIo
-): Promise<Cycle> => {
-  const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
-  const { run } = BacktestRunEngineClaimOutputSchema.parse(
-    await call(config, io, "backtestRuns/engine/claim", { engine })
-  );
-  if (run === null) return { failure: null, found: false };
-  const claimedAt = Date.now();
+  io: NautilusWorkerIo,
+  batch: ClaimedBatch,
+  part: readonly BatchRun[],
+  processes: number
+): Promise<ProcessOutput> => {
   const outcome = await io.runCommand(
     config.python,
-    ["-m", "nautilus_backtest", "run", "-"],
+    ["-m", "nautilus_backtest", "batch", "-", "-"],
     {
       cwd: io.researchDir,
-      input: engineRequest(run),
+      input: batchRequest(batch.bars, part),
       signal: io.signal,
       timeoutMs: NAUTILUS_RUN_TIMEOUT_MS,
     }
   );
-  const output = readEngineOutput(outcome);
-  if ("result" in output) {
-    const error = await deliver(config, io, run, output.result, claimedAt);
-    if (error === null) io.stdout.write(`run ${run.id}: succeeded\n`);
-    // A refused fail (the run already finished) changes nothing; the next claim goes on.
-    else if (error !== "")
-      await call(config, io, "backtestRuns/engine/fail", {
-        engine,
-        error,
-        id: run.id,
-      }).catch((refused: unknown) =>
-        io.stderr.write(`run ${run.id}: ${messageOf(refused)}\n`)
-      );
-    const failure =
-      error === null || error === ""
-        ? null
-        : error === UNDELIVERED_ERROR
-          ? "result not delivered"
-          : "result rejected";
-    return { failure, found: true };
-  }
-  if (output.detail !== undefined && output.detail !== "")
-    io.stderr.write(`run ${run.id}: engine stderr: ${output.detail}\n`);
-  await call(config, io, "backtestRuns/engine/fail", {
-    engine,
-    error: output.error,
-    id: run.id,
+  return readBatchOutput(outcome, part, {
+    host: io.hostname,
+    processes,
+    seriesSha256: batch.seriesSha256,
   });
-  io.stdout.write(`run ${run.id}: failed: ${output.error}\n`);
-  return { failure: output.failure ?? null, found: true };
+};
+
+/** One claim cycle. Throws on an API error of claim. */
+const workOnce = async (
+  config: Config,
+  io: NautilusWorkerIo
+): Promise<Cycle> => {
+  const { batch } = BacktestRunEngineClaimOutputSchema.parse(
+    await call(config, io, "backtestRuns/engine/claim", {
+      engine: BACKTEST_RUN_NAUTILUS_ENGINE,
+      max: BACKTEST_RUN_ENGINE_BATCH_MAX,
+    })
+  );
+  if (batch === null || batch === undefined)
+    return { failure: null, found: false };
+  const claimedAt = Date.now();
+  const parts = splitRuns(batch.runs, config.processes);
+  const outputs = await Promise.all(
+    parts.map((part) => runPart(config, io, batch, part, parts.length))
+  );
+  for (const output of outputs)
+    if (output.detail !== undefined)
+      io.stderr.write(`engine stderr: ${output.detail}\n`);
+  const items = outputs.flatMap((output) => output.items);
+  const delivered = await deliver(config, io, items, claimedAt);
+  for (const item of items) {
+    const outcome = delivered.outcomes.find((entry) => entry.id === item.id);
+    const state =
+      outcome === undefined
+        ? "not stored"
+        : outcome.status === null
+          ? `refused (${outcome.error ?? "unknown"})`
+          : "error" in item
+            ? `failed: ${item.error}`
+            : outcome.status;
+    io.stdout.write(`run ${item.id}: ${state}\n`);
+  }
+  io.stdout.write(
+    `batch: ${batch.runs.length} runs in ${parts.length} engine processes\n`
+  );
+  const rejected = delivered.outcomes.some(
+    (outcome) => outcome.error === "BAD_REQUEST"
+  );
+  const failure =
+    delivered.failure ??
+    outputs.find((output) => output.failure !== null)?.failure ??
+    (rejected ? "result rejected" : null);
+  return { failure, found: true };
 };
 
 /** Class of a thrown cycle error for the alert line: the HTTP status or the error name. */

@@ -10,10 +10,20 @@ import {
 import { implement } from "@orpc/server";
 
 import { appContract } from "../contract.ts";
+import { BACKTEST_RUN_DEFAULT_CAPITAL } from "../contracts/backtest-runs.ts";
+import type { EngineComparisonTiming } from "../contracts/engine-comparison.ts";
 import {
   INSTANT_BACKTEST_EQUITY_MAX_POINTS,
+  type InstantBacktestRunInput,
   type InstantBacktestSeries,
 } from "../contracts/instant-backtest.ts";
+import {
+  barDate,
+  comparisonGroupId,
+  measureWall,
+  typescriptSide,
+  type WallTime,
+} from "../engine-comparison.ts";
 import {
   downsampleIndexes,
   InstantBacktestInputError,
@@ -21,6 +31,7 @@ import {
   runInstantBacktest,
 } from "../instant-backtest-engine.ts";
 import type { ApiContext } from "./context.ts";
+import { comparisonQueueFor } from "./engine-comparison.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // Instant backtest procedures. Bars load once per series version into a small in-process cache of
@@ -109,6 +120,59 @@ export const columnsFor = async (
   }
 };
 
+/** Error text of a comparison that could not be queued; the TypeScript result stands. */
+export const COMPARISON_QUEUE_ERROR = "Nautilus comparison could not be queued";
+
+/**
+ * Queues the instant backtest on Nautilus when engine comparison is on: the same rule over the
+ * same bars (the whole series). Returns the timing for the answer, or undefined when off.
+ */
+const queueInstantComparison = async (
+  context: ApiContext & Readonly<{ principal: { userId: string } }>,
+  input: InstantBacktestRunInput,
+  series: MarketBarSeries,
+  columns: MarketBarColumns,
+  result: InstantRunResult,
+  wall: WallTime
+): Promise<EngineComparisonTiming | undefined> => {
+  const queue = comparisonQueueFor(context, context.principal.userId);
+  if (queue === null) return undefined;
+  const timing = { host: queue.host, ...wall };
+  const spec = {
+    costBps: input.costBps,
+    from: barDate(columns.t[0] as number),
+    initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
+    rule: input.rule,
+    stopLossPct: input.stopLossPct,
+    symbol: series.symbol,
+    takeProfitPct: input.takeProfitPct,
+    timeframe: series.timeframe,
+    to: barDate(columns.t.at(-1) as number),
+  };
+  try {
+    // An identical request (same bars, rule and costs) reuses its group; a new one replaces the
+    // older queued instant runs of this user (the page runs again on every parameter change).
+    const enqueued = await queue.enqueue({
+      feature: "instant",
+      groupId: await comparisonGroupId("instant", {
+        seriesSha256: series.sourceSha256,
+        spec,
+      }),
+      runs: [
+        {
+          label: `${input.symbol} ${input.timeframe} ${input.rule.kind}`,
+          spec,
+          typescript: typescriptSide(result, wall, queue.host),
+        },
+      ],
+      latest: true,
+    });
+    return { ...timing, ...enqueued };
+  } catch {
+    return { ...timing, error: COMPARISON_QUEUE_ERROR, groupId: null };
+  }
+};
+
 const api = implement(appContract).$context<ApiContext>();
 
 const instantBacktestSeries = api.instantBacktest.series
@@ -175,13 +239,20 @@ const instantBacktestRun = api.instantBacktest.run
     }
     const computeStarted = performance.now();
     let result: InstantRunResult;
+    let wall: WallTime;
     try {
-      result = runInstantBacktest(loaded.columns, {
-        costBps: input.costBps,
-        rule: input.rule,
-        stopLossPct: input.stopLossPct,
-        takeProfitPct: input.takeProfitPct,
-      });
+      const measured = measureWall(
+        () => performance.now(),
+        () =>
+          runInstantBacktest(loaded.columns, {
+            costBps: input.costBps,
+            rule: input.rule,
+            stopLossPct: input.stopLossPct,
+            takeProfitPct: input.takeProfitPct,
+          })
+      );
+      result = measured.value;
+      wall = measured;
     } catch (error) {
       if (error instanceof InstantBacktestInputError) {
         throw failures.BAD_REQUEST({ message: error.message });
@@ -197,7 +268,19 @@ const instantBacktestRun = api.instantBacktest.run
       t: loaded.columns.t[index] as number,
     }));
     const finished = performance.now();
+    const comparison = await queueInstantComparison(
+      context,
+      input,
+      series,
+      loaded.columns,
+      result,
+      {
+        wallMs: wall.wallMs,
+        ...(wall.wallNote === undefined ? {} : { wallNote: wall.wallNote }),
+      }
+    );
     return {
+      ...(comparison === undefined ? {} : { comparison }),
       equity,
       series: toSeriesOutput(series),
       stats: result.stats,

@@ -9,10 +9,17 @@ import { implement } from "@orpc/server";
 
 import { COST_PROFILE_PRESETS } from "../backtest-costs.ts";
 import { buildBacktestRunReport } from "../backtest-run-report.ts";
-import { runBacktestSweep } from "../backtest-sweep.ts";
+import {
+  type BacktestSweepGrid,
+  runBacktestSweep,
+  type SweepCellRun,
+} from "../backtest-sweep.ts";
 import { sweepValueCount } from "../backtest-sweep-grid.ts";
+import { sliceColumnsByDate } from "../bar-slice.ts";
+import { canonicalJson, sha256Hex } from "../canonical-json.ts";
 import { appContract } from "../contract.ts";
 import {
+  BACKTEST_RUN_DEFAULT_CAPITAL,
   BACKTEST_RUN_ENGINE_VERSION,
   BACKTEST_RUN_NAUTILUS_ENGINE,
   type BacktestRun,
@@ -21,7 +28,20 @@ import {
 import {
   BACKTEST_SWEEP_MAX_BAR_STEPS,
   BACKTEST_SWEEP_SPIKE_RATIO,
+  type BacktestSweepOutput,
+  type BacktestSweepRequest,
 } from "../contracts/backtest-sweep.ts";
+import {
+  ENGINE_COMPARISON_SWEEP_CELLS_MAX,
+  TIMER_FROZEN_NOTE,
+} from "../contracts/engine-comparison.ts";
+import {
+  type ComparisonBaseSpec,
+  type ComparisonQueue,
+  comparisonGroupId,
+  typescriptSide,
+  type WallTime,
+} from "../engine-comparison.ts";
 import {
   InstantBacktestInputError,
   type InstantRunResult,
@@ -32,7 +52,8 @@ import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
 import { runStrategyDefinition } from "../strategy-dsl-compile.ts";
 import { costsForSpec, runParamsForSpec } from "./backtest-run-params.ts";
 import type { ApiContext } from "./context.ts";
-import { columnsFor } from "./instant-backtest.ts";
+import { comparisonQueueFor } from "./engine-comparison.ts";
+import { COMPARISON_QUEUE_ERROR, columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
   loadSectorQuadrants,
@@ -55,7 +76,6 @@ export const NAUTILUS_UNCLAIMED_ERROR =
   "Nautilus backtest worker did not pick up the run";
 export const BACKTEST_RUN_STORAGE_ERROR =
   "Backtest failed: bar storage or engine error";
-const DAY_MS = 86_400_000;
 
 export type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
@@ -69,54 +89,6 @@ export type BacktestRunExecutionDependencies = Readonly<{
   /** Stored sector rotation points for definitions with sector filters. */
   sectorRotation?: SectorQuadrantSource;
 }>;
-
-/** Deterministic JSON with sorted object keys, used for the strategy revision hash. */
-export const canonicalJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (typeof value === "object" && value !== null) {
-    const entries = Object.entries(value)
-      .filter(([, entry]) => entry !== undefined)
-      // Object keys are unique, so equal keys never compare.
-      .sort(([left], [right]) => (left < right ? -1 : 1))
-      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`);
-    return `{${entries.join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
-
-export const sha256Hex = async (text: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text)
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0")
-  ).join("");
-};
-
-/** Copies the bars whose time falls on or between the two UTC calendar dates. */
-export const sliceColumnsByDate = (
-  columns: MarketBarColumns,
-  from: string,
-  to: string
-): MarketBarColumns => {
-  const start = Date.parse(`${from}T00:00:00Z`);
-  const end = Date.parse(`${to}T00:00:00Z`) + DAY_MS;
-  let first = 0;
-  while (first < columns.t.length && (columns.t[first] as number) < start)
-    first += 1;
-  let last = first;
-  while (last < columns.t.length && (columns.t[last] as number) < end)
-    last += 1;
-  return {
-    c: columns.c.slice(first, last),
-    h: columns.h.slice(first, last),
-    l: columns.l.slice(first, last),
-    o: columns.o.slice(first, last),
-    t: columns.t.slice(first, last),
-    ...(columns.v === undefined ? {} : { v: columns.v.slice(first, last) }),
-  };
-};
 
 export type LoadedRunBars =
   | Readonly<{ bars: MarketBarColumns; series: MarketBarSeries }>
@@ -400,12 +372,44 @@ const sweep = api.backtestRuns.sweep
       throw failures.BAD_REQUEST({
         message: `The sweep needs ${cells} cells x ${size} bars; the limit is ${BACKTEST_SWEEP_MAX_BAR_STEPS.toLocaleString("en-US")} bar steps. Narrow the date range or the grid.`,
       });
+    const queue = comparisonQueueFor(context, context.principal.userId);
+    // Full cell results only for the cells Nautilus repeats; the wall time of every cell.
+    const cellRuns: SweepCellRun[] = [];
+    const walls: SweepWalls = { cells: 0, frozen: false, totalMs: 0 };
     const started = performance.now();
-    const grid = runBacktestSweep(bars, input);
+    const grid = runBacktestSweep(
+      bars,
+      input,
+      queue === null
+        ? undefined
+        : {
+            clock: () => performance.now(),
+            onCell: (cell) => {
+              walls.cells += 1;
+              if (cell.wall.wallMs === null) walls.frozen = true;
+              else walls.totalMs += cell.wall.wallMs;
+              if (cellRuns.length < ENGINE_COMPARISON_SWEEP_CELLS_MAX)
+                cellRuns.push(cell);
+            },
+          }
+    );
+    const computeMs = performance.now() - started;
+    const comparison =
+      queue === null
+        ? undefined
+        : await queueSweepComparison(
+            queue,
+            input,
+            series.sourceSha256,
+            grid,
+            cellRuns,
+            walls
+          );
     return {
       ...grid,
+      ...(comparison === undefined ? {} : { comparison }),
       bars: size,
-      computeMs: performance.now() - started,
+      computeMs,
       engineVersion: BACKTEST_RUN_ENGINE_VERSION,
       firstT: bars.t[0] as number,
       from: input.from,
@@ -418,6 +422,84 @@ const sweep = api.backtestRuns.sweep
       to: input.to,
     };
   });
+
+/** The evaluated cell count and summed wall time of a sweep; `frozen` when a cell clock froze. */
+interface SweepWalls {
+  cells: number;
+  frozen: boolean;
+  totalMs: number;
+}
+
+/**
+ * Queues the first ENGINE_COMPARISON_SWEEP_CELLS_MAX evaluated cells of a sweep on Nautilus (one
+ * run per cell, labelled with the cell's parameters) and returns the comparison answer. `queued`
+ * holds only those cells; `walls` covers every evaluated cell.
+ */
+const queueSweepComparison = async (
+  queue: ComparisonQueue,
+  input: BacktestSweepRequest,
+  seriesSha256: string,
+  grid: BacktestSweepGrid,
+  queued: readonly SweepCellRun[],
+  walls: SweepWalls
+): Promise<NonNullable<BacktestSweepOutput["comparison"]>> => {
+  const dropped = walls.cells - queued.length;
+  // One frozen cell clock makes the total unknown (measureWall in ../engine-comparison.ts).
+  const wall: WallTime = walls.frozen
+    ? { wallMs: null, wallNote: TIMER_FROZEN_NOTE }
+    : { wallMs: walls.totalMs };
+  const timing = { dropped, host: queue.host, queued: queued.length, ...wall };
+  if (queued.length === 0) return { ...timing, groupId: null };
+  try {
+    // An identical sweep (same bars, range, rule, grid and costs) reuses its group; a new one
+    // replaces the older queued sweep runs of this user (the page runs again on every change).
+    const enqueued = await queue.enqueue({
+      dropped,
+      feature: "sweep",
+      groupId: await comparisonGroupId("sweep", {
+        costBps: input.costBps,
+        dimensions: input.dimensions,
+        from: input.from,
+        rule: input.rule,
+        seriesSha256,
+        stopLossPct: input.stopLossPct,
+        takeProfitPct: input.takeProfitPct,
+        to: input.to,
+      }),
+      runs: queued.map((cell) => ({
+        key: String(cell.index),
+        label: grid.dimensions
+          .map(
+            (dimension, position) =>
+              `${dimension.param}=${cell.params[position]}`
+          )
+          .join(", "),
+        spec: {
+          costBps: input.costBps,
+          from: input.from,
+          initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
+          // A sweep rule is the input's smaCross or breakout rule with swept values.
+          rule: cell.settings.rule as ComparisonBaseSpec["rule"],
+          stopLossPct: cell.settings.stopLossPct,
+          symbol: input.symbol,
+          takeProfitPct: cell.settings.takeProfitPct,
+          timeframe: input.timeframe,
+          to: input.to,
+        },
+        typescript: typescriptSide(cell.result, cell.wall, queue.host),
+      })),
+      latest: true,
+    });
+    return { ...timing, ...enqueued };
+  } catch {
+    return {
+      ...timing,
+      error: COMPARISON_QUEUE_ERROR,
+      groupId: null,
+      queued: 0,
+    };
+  }
+};
 
 /** Short run label: strategy or symbol, timeframe, rule and date range. */
 export const describeRun = (run: BacktestRunRecord): string =>
