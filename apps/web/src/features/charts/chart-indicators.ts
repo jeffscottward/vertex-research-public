@@ -5,7 +5,7 @@ import {
   type VertexStudyId,
 } from "./vertex-studies.ts";
 
-// Indicator menus for the symbol chart (ported from the CHARAN signal chart): price overlays
+// Indicator menus for the symbol chart (ported from the reference signal chart): price overlays
 // (MA, EMA, BOLL, SAR, ...) and studies in panes below the price (MACD, RSI, KDJ, OBV, WR, ...).
 // BOLL, SAR, MACD and the other Vertex studies use the Vertex indicator math; RSI, KDJ, OBV
 // and WR are KLineCharts 9.8.12 built-ins. Display only: never trading inputs.
@@ -45,7 +45,7 @@ export const STUDY_OPTIONS: readonly ChartIndicatorOption[] = Object.freeze([
   vertexOption("rvol"),
 ]);
 
-/** CHARAN defaults: MA on the price, MACD below it. */
+/** Signal chart defaults: MA on the price, MACD below it. */
 export const DEFAULT_CHART_INDICATORS: readonly ChartIndicatorKey[] =
   Object.freeze(["MA", "macd"]);
 

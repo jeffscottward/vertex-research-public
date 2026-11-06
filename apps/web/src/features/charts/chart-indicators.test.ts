@@ -11,7 +11,7 @@ import {
 } from "./chart-indicators.ts";
 
 describe("chart indicators", () => {
-  it("offers the CHARAN overlay and study menus", () => {
+  it("offers the signal chart overlay and study menus", () => {
     expect(OVERLAY_OPTIONS.map((option) => option.key)).toEqual([
       "MA",
       "EMA",

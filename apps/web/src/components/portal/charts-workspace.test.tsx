@@ -277,7 +277,7 @@ describe("ChartsWorkspace", () => {
       "5"
     );
     expect(chartProps.last?.["candles"]).toHaveLength(5);
-    // CHARAN defaults: MA on the price, MACD below, volume pane.
+    // Signal chart defaults: MA on the price, MACD below, volume pane.
     expect(chartProps.last?.["studies"]).toEqual({
       volume: true,
       sma: [20, 50],
@@ -660,6 +660,7 @@ describe("ChartsWorkspace intervals", () => {
       <ChartsWorkspace
         backtests={backtestsGateway()}
         marketData={market}
+        jevVerdict={jevGateway()}
         optionsAnalytics={optionsGateway()}
       />
     );
@@ -678,6 +679,7 @@ describe("ChartsWorkspace intervals", () => {
       <ChartsWorkspace
         backtests={backtestsGateway()}
         marketData={market}
+        jevVerdict={jevGateway()}
         optionsAnalytics={optionsGateway()}
       />
     );
@@ -697,6 +699,7 @@ describe("ChartsWorkspace intervals", () => {
       <ChartsWorkspace
         backtests={backtestsGateway()}
         marketData={market}
+        jevVerdict={jevGateway()}
         optionsAnalytics={optionsGateway()}
       />
     );
@@ -748,6 +751,7 @@ describe("ChartsWorkspace intervals", () => {
       <ChartsWorkspace
         backtests={backtests}
         marketData={marketGateway(async () => output(10))}
+        jevVerdict={jevGateway()}
         optionsAnalytics={optionsGateway()}
       />
     );
