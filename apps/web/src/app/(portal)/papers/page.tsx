@@ -1,14 +1,20 @@
-import { PageHeader } from "@darkfactory/ui";
-
 import { PapersWorkspace } from "../../../components/portal/papers-workspace.tsx";
 
 export const metadata = { title: "Papers" };
 
-export default function PapersPage() {
+type PapersSearchParams = Promise<
+  Readonly<Record<string, string | string[] | undefined>>
+>;
+
+export default async function PapersPage({
+  searchParams,
+}: Readonly<{ searchParams: PapersSearchParams }>) {
+  const { status } = await searchParams;
   return (
     <div className="space-y-8">
-      <PageHeader title="Papers" />
-      <PapersWorkspace />
+      <PapersWorkspace
+        initialStatus={typeof status === "string" ? status : null}
+      />
     </div>
   );
 }
