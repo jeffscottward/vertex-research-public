@@ -9,7 +9,7 @@ import {
   type ClickLogInsert,
   createClickLogRepository,
 } from "./click-log.ts";
-import { DatabasePersistenceError } from "./repositories.ts";
+import { DatabasePersistenceError } from "./repository-errors.ts";
 
 interface Operation {
   kind: "select" | "insert" | "delete";

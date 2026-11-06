@@ -9,7 +9,7 @@ import {
   researchReports,
 } from "../schema/index.ts";
 import type { DatabaseExecutor } from "./client.ts";
-import { DatabasePersistenceError } from "./repositories.ts";
+import { DatabasePersistenceError } from "./repository-errors.ts";
 import {
   createResearchReportsRepository,
   type ResearchCatalogImport,

@@ -16,10 +16,8 @@ import {
   normalizeAssistantToolTrace,
 } from "./assistant-records.ts";
 import type { Database } from "./client.ts";
-import {
-  createAssistantRepository,
-  InvalidRepositoryInputError,
-} from "./repositories.ts";
+import { createAssistantRepository } from "./repositories.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();

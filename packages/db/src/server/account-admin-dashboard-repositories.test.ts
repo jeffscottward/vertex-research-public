@@ -10,10 +10,8 @@ import {
   createDashboardRepository,
   DashboardPersistenceError,
 } from "./dashboard-repository.ts";
-import {
-  createFeatureItemRepository,
-  InvalidRepositoryInputError,
-} from "./repositories.ts";
+import { createFeatureItemRepository } from "./repositories.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 describe("admin user directory cursor", () => {
   it("round-trips an opaque deterministic keyset cursor", () => {

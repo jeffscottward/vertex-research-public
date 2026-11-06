@@ -15,10 +15,8 @@ import {
   normalizeDeploymentTimeframe,
   resolveDeploymentParams,
 } from "./deployment-requests.ts";
-import {
-  createDeploymentRequestsRepository,
-  InvalidRepositoryInputError,
-} from "./repositories.ts";
+import { createDeploymentRequestsRepository } from "./repositories.ts";
+import { InvalidRepositoryInputError } from "./repository-errors.ts";
 
 const FIXED_NOW = new Date("2026-01-02T03:04:05.000Z");
 const dialect = new PgDialect();

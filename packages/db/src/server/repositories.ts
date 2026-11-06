@@ -1,4 +1,4 @@
-// What: Drizzle repositories for profiles, addresses, preferences, feature items and theme; typed persistence errors.
+// What: Drizzle repositories for profiles, addresses, preferences, feature items and theme. Typed persistence errors live in repository-errors.ts.
 // Used by: packages/db/src/server/index.ts (re-export), packages/api/src/server/router.ts services, packages/db/src/seeds/*.
 // See: docs/debugging.md#symptom--where-to-look; packages/db/src/schema/index.ts; packages/db/src/server/client.ts#withTransaction.
 import {
@@ -233,45 +233,21 @@ import {
   type SectorRotationRepository,
 } from "./sector-rotation.ts";
 import { required } from "./required.ts";
+import {
+  DatabaseConflictError,
+  DatabasePersistenceError,
+  databaseErrorDetails,
+  InvalidRepositoryInputError,
+  OptimisticConcurrencyError,
+  type RepositoryDependencies,
+  requireNonBlank,
+} from "./repository-errors.ts";
 
 const FEATURE_METADATA_LIMIT_BYTES = 16 * 1024;
 const nextOptimisticVersion = (candidate: Date, expected: Date): Date => {
   return new Date(Math.max(candidate.getTime(), expected.getTime() + 1));
 };
 const MAX_ADDRESSES_PER_USER = 20;
-
-export class DatabaseConflictError extends Error {
-  constructor(entity: string) {
-    super(`${entity} conflicts with an existing record`);
-    this.name = "DatabaseConflictError";
-  }
-}
-
-export class OptimisticConcurrencyError extends DatabaseConflictError {
-  constructor(entity: string) {
-    super(entity);
-    this.name = "OptimisticConcurrencyError";
-  }
-}
-
-export class DatabasePersistenceError extends Error {
-  constructor(operation: string) {
-    super(`Database operation failed: ${operation}`);
-    this.name = "DatabasePersistenceError";
-  }
-}
-
-export class InvalidRepositoryInputError extends Error {
-  constructor(message: string) {
-    super(`Invalid repository input: ${message}`);
-    this.name = "InvalidRepositoryInputError";
-  }
-}
-
-export type RepositoryDependencies = Readonly<{
-  now?: () => Date;
-  generateId?: () => string;
-}>;
 
 type ResolvedRepositoryDependencies = Readonly<{
   now: () => Date;
@@ -284,33 +260,6 @@ const resolveDependencies = (
   now: dependencies.now ?? (() => new Date()),
   generateId: dependencies.generateId ?? (() => crypto.randomUUID()),
 });
-
-export const databaseErrorDetails = (
-  error: unknown
-): Readonly<{ code?: unknown; constraint?: unknown }> => {
-  const visited = new Set<object>();
-  let current = error;
-
-  while (typeof current === "object" && current !== null) {
-    if (visited.has(current)) break;
-    visited.add(current);
-
-    const candidate = current as {
-      cause?: unknown;
-      code?: unknown;
-      constraint?: unknown;
-    };
-    if (typeof candidate.code === "string") {
-      return {
-        code: candidate.code,
-        constraint: candidate.constraint,
-      };
-    }
-    current = candidate.cause;
-  }
-
-  return {};
-};
 
 const isUniqueViolation = (error: unknown): boolean => {
   return databaseErrorDetails(error).code === "23505";
@@ -336,12 +285,6 @@ const mapFeatureMutationError = (error: unknown): never => {
     throw new DatabasePersistenceError("feature item mutation");
   }
   throw error;
-};
-
-export const requireNonBlank = (value: string, field: string): void => {
-  if (value.trim().length === 0) {
-    throw new InvalidRepositoryInputError(`${field} must not be blank`);
-  }
 };
 
 const invalidJsonMetadata = (): never => {

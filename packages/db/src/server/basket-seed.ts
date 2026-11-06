@@ -12,7 +12,7 @@ import type { DatabaseExecutor } from "./client.ts";
 import {
   DatabaseConflictError,
   InvalidRepositoryInputError,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 // Tracking only: seeding writes basket rows; it never creates orders or broker intents.
 

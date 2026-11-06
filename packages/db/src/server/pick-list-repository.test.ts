@@ -18,7 +18,7 @@ import {
 import {
   DatabasePersistenceError,
   InvalidRepositoryInputError,
-} from "./repositories.ts";
+} from "./repository-errors.ts";
 
 const NOW = new Date("2026-11-05T12:00:00.000Z");
 const dialect = new PgDialect();
