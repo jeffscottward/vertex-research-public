@@ -421,8 +421,10 @@ const PortalTopbar = ({
 }: PortalTopbarProps) => {
   const pathname = usePathname() ?? "";
   return (
+    // Sticky below lg so the assistant toggle stays reachable after scrolling on phones; it stays
+    // in flow (no layout shift) and keeps the original static header from lg up.
     <header
-      className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-in-out group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
+      className="sticky top-0 z-30 flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-background transition-[width,height] ease-in-out group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) lg:static lg:z-auto lg:bg-transparent"
       data-slot="portal-topbar"
     >
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
