@@ -33,12 +33,14 @@ export type {
   ResearchChatOutputMetadata,
   ResearchChatOutputPort,
   ResearchChatOutputPrepared,
+} from "./vertex-research-chat-output-ports.ts";
+export type {
   ResearchChatPreparedSources,
   ResearchChatSourceInputPort,
   ResearchChatSourceInputs,
   ResearchChatSourceRecheck,
   ResearchChatSourceRequest,
-} from "./vertex-research-chat-output-ports.ts";
+} from "./vertex-research-chat-source-ports.ts";
 export { createResearchChatOperations } from "./vertex-research-chat-store.ts";
 export {
   createResearchChatWorkerOperations,

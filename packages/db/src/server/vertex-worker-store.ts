@@ -52,9 +52,11 @@ import {
 import type {
   ResearchChatOutputPort,
   ResearchChatOutputPrepared,
+} from "./vertex-research-chat-output-ports.ts";
+import type {
   ResearchChatSourceInputs,
   ResearchChatSourceRequest,
-} from "./vertex-research-chat-output-ports.ts";
+} from "./vertex-research-chat-source-ports.ts";
 import type { ResearchChatWorkerOperations } from "./vertex-research-chat-worker-store.ts";
 import { readResearchProposalForTransaction } from "./vertex-research-proposal-read.ts";
 import {
