@@ -397,12 +397,18 @@ describe("pickLists access", () => {
       "FORBIDDEN",
       403
     );
+    await expectCode(
+      clientFor(session("outsider"), repository).pickLists.proposal({}),
+      "FORBIDDEN",
+      403
+    );
     expect(repository.listByUser).not.toHaveBeenCalled();
   });
 
   it("reports missing storage", async () => {
     await expectCode(operator().list({}), "STORAGE_ERROR", 503);
     await expectCode(operator().screen({ id: "x" }), "STORAGE_ERROR", 503);
+    await expectCode(operator().proposal({}), "STORAGE_ERROR", 503);
     await expectCode(
       operator(pickListRepository()).syncBucket({ id: "x", bucketSymbol: "B" }),
       "STORAGE_ERROR",
@@ -981,5 +987,119 @@ describe("pickLists.screen", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+describe("pickLists.proposal", () => {
+  const now = new Date("2026-11-05T21:00:00.000Z");
+  const useYahoo = (specs: Readonly<Record<string, ChartSpec>>) => {
+    const fetch = yahooWith(specs);
+    setPickListOptionsForTesting({ fetch, now: () => now });
+    return fetch;
+  };
+  const fetchedSymbols = (fetch: ReturnType<typeof yahooWith>) =>
+    fetch.mock.calls.map(([url]) => symbolOf(url));
+
+  it("proposes a defined-risk spread per member of every bucketed list", async () => {
+    const fetch = useYahoo({
+      SPY: { closes: rising(120, 400, 1) },
+      AAA: { closes: rising(120) },
+      XLK: { closes: rising(120, 200, 0.3) },
+      BBB: { closes: rising(120, 300, -0.5) },
+    });
+    const repository = pickListRepository([
+      pickList(
+        "wish",
+        [row("BBB", { rank: 2 }), row("AAA", { rank: 1 })],
+        "WISH"
+      ),
+      pickList(
+        "moby",
+        [row("AAA", { sector: "Technology" }), row("CCC")],
+        "TMOBY"
+      ),
+      pickList("loose", [row("ZZZ")]),
+    ]);
+    const result = await operator(repository).proposal({});
+    expect(fetchedSymbols(fetch)).toEqual(["SPY", "AAA", "CCC", "BBB", "XLK"]);
+    expect(result.proposalOnly).toBe(true);
+    expect(result.computedAt).toBe(now.toISOString());
+    expect(result.rules.maxLossGatePct).toBe(2);
+    expect(result.buckets).toEqual([
+      {
+        symbol: "TMOBY",
+        listId: "moby",
+        listName: "moby picks",
+        memberCount: 2,
+      },
+      {
+        symbol: "WISH",
+        listId: "wish",
+        listName: "wish picks",
+        memberCount: 2,
+      },
+    ]);
+    expect(result.rows.map((entry) => entry.symbol)).toEqual([
+      "AAA",
+      "CCC",
+      "BBB",
+    ]);
+    const [aaa, ccc, bbb] = result.rows;
+    expect(aaa).toMatchObject({
+      buckets: ["TMOBY", "WISH"],
+      status: "pass",
+      sectorEtf: "XLK",
+    });
+    expect(["full", "half"]).toContain(aaa?.tier);
+    expect(aaa?.structure).toMatchObject({
+      kind: "call-debit-spread",
+      expiry: "2027-03-19",
+      dte: 134,
+    });
+    expect(aaa?.maxLossPctNlv).toBeGreaterThan(0);
+    expect(aaa?.maxLossPctNlv).toBeLessThanOrEqual(2);
+    expect(ccc).toMatchObject({
+      tier: "none",
+      structure: null,
+      notes: "No entry: data missing (Yahoo chart returned HTTP 404).",
+    });
+    expect(bbb).toMatchObject({ tier: "none", buckets: ["WISH"] });
+    expect(result.totalMaxLossPct).toBe(aaa?.maxLossPctNlv);
+    expect(result.notProposed).toEqual([]);
+  });
+
+  it("proposes the first 60 members and reports the rest", async () => {
+    const ranked = Array.from({ length: 61 }, (_, index) =>
+      row(`M${String(index).padStart(3, "0")}`, { rank: index + 1 })
+    );
+    const fetch = useYahoo({});
+    const result = await operator(
+      pickListRepository([
+        pickList("a", ranked.slice(0, 40), "AAA"),
+        pickList("b", ranked.slice(40), "BBB"),
+      ])
+    ).proposal({});
+    expect(fetchedSymbols(fetch)).toHaveLength(61);
+    expect(result.rows).toHaveLength(60);
+    expect(result.notProposed).toEqual(["M060"]);
+    expect(result.totalMaxLossPct).toBe(0);
+  });
+
+  it("returns an empty proposal without buckets", async () => {
+    useYahoo({});
+    const result = await operator(
+      pickListRepository([pickList("loose", [row("ZZZ")])])
+    ).proposal({});
+    expect(result.buckets).toEqual([]);
+    expect(result.rows).toEqual([]);
+  });
+
+  it("reports storage failures", async () => {
+    useYahoo({});
+    const repository = pickListRepository();
+    repository.listByUser = vi.fn(async () => {
+      throw new DatabasePersistenceError("list");
+    });
+    await expectCode(operator(repository).proposal({}), "STORAGE_ERROR", 503);
   });
 });

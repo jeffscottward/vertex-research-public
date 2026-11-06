@@ -147,6 +147,80 @@ export const PickListScreenSchema = z.object({
   members: z.array(PickListScreenMemberSchema),
 });
 
+// Buy proposal (pickLists.proposal): one row per member of every bucketed list, built from the
+// screen. Proposal only: the procedure has no order path, and the web page shows no order control.
+// The owner rules it applies are options only, defined risk, and max loss per new position at most
+// 2% NLV (owner 2026-11-02); the premium cap per name is the risk allocator's caps snapshot.
+export const PICK_LIST_PROPOSAL_TIERS = ["full", "half", "none"] as const;
+export type PickListProposalTier = (typeof PICK_LIST_PROPOSAL_TIERS)[number];
+
+export const PickListProposalStructureSchema = z.object({
+  kind: z.literal("call-debit-spread"),
+  /** Monthly expiry (third Friday) used for the estimate; the live chain decides at entry. */
+  expiry: CalendarDateSchema,
+  dte: z.number().int().positive(),
+  longStrike: positive,
+  shortStrike: positive,
+  /** Black-Scholes call deltas at the rounded strikes. */
+  longDelta: z.number().finite(),
+  shortDelta: z.number().finite(),
+  /** Estimated net debit per share (USD). */
+  estDebit: z.number().finite().nonnegative(),
+  /** Max loss of one spread (USD): the debit times 100. */
+  maxLossPerSpread: z.number().finite().nonnegative(),
+  /** Max profit of one spread (USD): strike width times 100 minus the debit. */
+  maxProfitPerSpread: z.number().finite(),
+});
+
+export const PickListProposalRowSchema = z.object({
+  symbol: outputSymbol,
+  /** Bucket symbols that hold this member. */
+  buckets: z.array(z.string().regex(BASKET_SYMBOL_PATTERN)).min(1),
+  status: z.enum(PICK_LIST_SCREEN_STATUSES),
+  last: z.number().finite().nullable(),
+  lastDate: z.string().nullable(),
+  sectorEtf: z.string().nullable(),
+  quadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
+  sectorQuadrant: z.enum(SECTOR_ROTATION_QUADRANTS).nullable(),
+  tier: z.enum(PICK_LIST_PROPOSAL_TIERS),
+  /** Proposed max loss for the whole position as % of NLV; 0 when no entry is proposed. */
+  maxLossPctNlv: z.number().finite().nonnegative(),
+  /** Annualized realized volatility (fraction) from one year of daily closes. */
+  volatility: z.number().finite().positive().nullable(),
+  structure: PickListProposalStructureSchema.nullable(),
+  notes: z.string(),
+});
+
+export const PickListProposalSchema = z.object({
+  proposalOnly: z.literal(true),
+  computedAt: z.string(),
+  rules: z.object({
+    fullMaxLossPct: positive,
+    halfMaxLossPct: positive,
+    maxLossGatePct: positive,
+    namePremiumCapPct: positive,
+    dteMin: z.number().int().positive(),
+    dteMax: z.number().int().positive(),
+    targetDte: z.number().int().positive(),
+    longDelta: positive,
+    shortDelta: positive,
+    riskFreeRate: z.number().finite(),
+  }),
+  buckets: z.array(
+    z.object({
+      symbol: z.string().regex(BASKET_SYMBOL_PATTERN),
+      listId: z.string(),
+      listName: z.string(),
+      memberCount: z.number().int().nonnegative(),
+    })
+  ),
+  rows: z.array(PickListProposalRowSchema),
+  /** Members past the per-call screen limit: no bars were read and no row was built. */
+  notProposed: z.array(outputSymbol),
+  /** Sum of maxLossPctNlv over every row. */
+  totalMaxLossPct: z.number().finite().nonnegative(),
+});
+
 export const PICK_LIST_API_ERRORS = {
   NOT_FOUND: { status: 404, message: "Pick list not found" },
   CONFLICT: {
@@ -227,9 +301,22 @@ const syncBucket = pickLists
     })
   );
 
+const proposal = pickLists
+  .route({
+    method: "GET",
+    operationId: "pickLists.proposal",
+    path: "/pick-lists/proposal",
+    summary:
+      "Read-only buy proposal (defined-risk option structures) for every bucketed list; places no order",
+    tags,
+  })
+  .input(z.object({}).strict())
+  .output(PickListProposalSchema);
+
 export const pickListsContract = {
   import: importSnapshot,
   list,
+  proposal,
   screen,
   syncBucket,
 };
@@ -240,5 +327,12 @@ export type PickListMemberOutput = z.infer<typeof PickListMemberSchema>;
 export type PickListScreenOutput = z.infer<typeof PickListScreenSchema>;
 export type PickListScreenMemberOutput = z.infer<
   typeof PickListScreenMemberSchema
+>;
+export type PickListProposalOutput = z.infer<typeof PickListProposalSchema>;
+export type PickListProposalRowOutput = z.infer<
+  typeof PickListProposalRowSchema
+>;
+export type PickListProposalStructureOutput = z.infer<
+  typeof PickListProposalStructureSchema
 >;
 export { IdInputSchema as PickListIdInputSchema };

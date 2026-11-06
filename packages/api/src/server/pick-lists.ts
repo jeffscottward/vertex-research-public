@@ -18,7 +18,15 @@ import {
   PICK_LIST_SCREEN_MAX_MEMBERS,
   type PickListImportInput,
   type PickListOutput,
+  type PickListProposalOutput,
 } from "../contracts/pick-lists.ts";
+import {
+  orderProposalRows,
+  PROPOSAL_RULES,
+  proposalCandidates,
+  proposeMember,
+  totalMaxLossPct,
+} from "../pick-list-proposal.ts";
 import { SECTOR_ROTATION_BENCHMARK } from "../contracts/sector-rotation.ts";
 import {
   closesOf,
@@ -501,9 +509,92 @@ const screen = api.pickLists.screen
     };
   });
 
+const proposal = api.pickLists.proposal
+  .use(requireOperator)
+  .handler(async ({ context, errors }): Promise<PickListProposalOutput> => {
+    const failures = factories(errors);
+    const repository = pickListsFor(context, failures);
+    let lists: PickListWithLatest[];
+    try {
+      lists = await repository.listByUser(context.principal.userId);
+    } catch (error) {
+      return mapError(error, failures);
+    }
+    const buckets = lists
+      .flatMap((entry) => {
+        const symbol = entry.list.bucketSymbol;
+        if (symbol === null) return [];
+        const { kept } = orderForBucket(entry.latest.members);
+        const sectors = new Map(
+          entry.latest.members.map((member) => [member.symbol, member.sector])
+        );
+        return [
+          {
+            bucketSymbol: symbol,
+            listId: entry.list.id,
+            listName: entry.list.name,
+            members: kept.map((member) => ({
+              symbol: member,
+              sector: sectors.get(member) ?? null,
+            })),
+          },
+        ];
+      })
+      .sort((a, b) => a.bucketSymbol.localeCompare(b.bucketSymbol));
+    const candidates = proposalCandidates(buckets);
+    const proposed = candidates.slice(0, PICK_LIST_SCREEN_MAX_MEMBERS);
+    const loaded = await loadAllBars([
+      ...new Set([
+        SECTOR_ROTATION_BENCHMARK,
+        ...proposed.map((candidate) => candidate.symbol),
+        ...proposed.flatMap(
+          (candidate) => sectorEtfFor(candidate.sector) ?? []
+        ),
+      ]),
+    ]);
+    const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
+    const now = clock();
+    const asOf = now.toISOString().slice(0, 10);
+    const rows = proposed.map((candidate) => {
+      // Every proposed symbol was requested, so its result exists.
+      const result = loaded.get(candidate.symbol) as BarsResult;
+      const etf = sectorEtfFor(candidate.sector);
+      return proposeMember({
+        screened: screenMember({
+          symbol: candidate.symbol,
+          sector: candidate.sector,
+          bars: result.ok ? result.bars : null,
+          reason: result.ok ? null : result.reason,
+          benchmark,
+          sectorCloses: etf === null ? null : closesFrom(loaded.get(etf)),
+        }),
+        closes: result.ok ? result.bars.map((bar) => bar.c) : null,
+        buckets: candidate.buckets,
+        asOf,
+      });
+    });
+    return {
+      proposalOnly: true,
+      computedAt: now.toISOString(),
+      rules: PROPOSAL_RULES,
+      buckets: buckets.map((bucket) => ({
+        symbol: bucket.bucketSymbol,
+        listId: bucket.listId,
+        listName: bucket.listName,
+        memberCount: bucket.members.length,
+      })),
+      rows: orderProposalRows(rows),
+      notProposed: candidates
+        .slice(PICK_LIST_SCREEN_MAX_MEMBERS)
+        .map((candidate) => candidate.symbol),
+      totalMaxLossPct: totalMaxLossPct(rows),
+    };
+  });
+
 export const pickListsRouter = {
   import: importSnapshot,
   list: listPickLists,
+  proposal,
   screen,
   syncBucket,
 };

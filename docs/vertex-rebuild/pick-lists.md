@@ -1,17 +1,18 @@
 # Pick lists
 
-Updated: 2026-11-05. Research only. A pick list is a dated snapshot of an external stock-pick list (a newsletter's picks, a strategy's holdings, the owner's wish list), stored with provenance on every row. A list can become a bucket (an equal-weight basket), and a daily screen reports trend gates and rotation quadrants per member. No procedure places an order, creates an intent or touches a broker; a pick, a passing gate or a quadrant never authorizes a trade.
+Updated: 2026-11-05. Research only. A pick list is a dated snapshot of an external stock-pick list (a newsletter's picks, a strategy's holdings, the owner's wish list), stored with provenance on every row. A list can become a bucket (an equal-weight basket), a daily screen reports trend gates and rotation quadrants per member, and a read-only buy proposal suggests one defined-risk option structure per bucket member. No procedure places an order, creates an intent or touches a broker; a pick, a passing gate or a quadrant never authorizes a trade.
 
 ## Parts
 
 | Part | File |
 | --- | --- |
-| oRPC contract `pickLists.import`, `.list`, `.screen`, `.syncBucket` | `packages/api/src/contracts/pick-lists.ts` |
+| oRPC contract `pickLists.import`, `.list`, `.proposal`, `.screen`, `.syncBucket` | `packages/api/src/contracts/pick-lists.ts` |
 | Procedures | `packages/api/src/server/pick-lists.ts` |
 | Pure screen math (gates, sector ETF map, quadrants) | `packages/api/src/pick-list-screen.ts` |
+| Pure buy-proposal math (tier, size, call debit spread estimate) | `packages/api/src/pick-list-proposal.ts` |
 | Data-source port, registry and adapters | `packages/api/src/pick-list-sources.ts` |
 | Tables `pick_lists`, `pick_list_snapshots`, `pick_list_members` and repository | `packages/db/src/schema/index.ts`, `packages/db/src/server/pick-list-repository.ts`, migration `0048_pick_lists`, rollback in `packages/db/rollback/` |
-| Portal page `/pick-lists` | `apps/web/src/app/(portal)/pick-lists/page.tsx`, `apps/web/src/components/portal/pick-lists-workspace.tsx` |
+| Portal page `/pick-lists` | `apps/web/src/app/(portal)/pick-lists/page.tsx`, `apps/web/src/components/portal/pick-lists-workspace.tsx`, `apps/web/src/components/portal/pick-list-proposal-panel.tsx` |
 | Importer | `scripts/pick-lists/import.ts`, `scripts/vertex-pick-lists.ts`, `bun run vertex:pick-lists` |
 
 ## Provenance
@@ -23,7 +24,7 @@ Updated: 2026-11-05. Research only. A pick list is a dated snapshot of an extern
 ## Access
 
 - Every procedure is operator-only and scoped to the caller's user id.
-- Agent keys: `pickLists.import` needs a write key (the importer); `pickLists.list` and `pickLists.screen` accept a read key. `pickLists.syncBucket` is session-only, so a key never edits baskets.
+- Agent keys: `pickLists.import` needs a write key (the importer); `pickLists.list`, `pickLists.proposal` and `pickLists.screen` accept a read key. `pickLists.syncBucket` is session-only, so a key never edits baskets.
 
 ## Buckets
 
@@ -51,6 +52,16 @@ The newest bar is dropped while its session is still running, so every gate uses
 - Status: `unknown` when bars are missing or any gate is `null`; `pass` when every gate holds; otherwise `fail`. `reason` explains missing bars.
 - `quadrant` is the member's latest daily rotation quadrant against SPY, and `sectorQuadrant` the same for its sector ETF, both from the sector rotation formula with the daily parameters ([sector-rotation.md](sector-rotation.md)) on the same unadjusted closes as the gates (the sector rotation map uses adjusted closes, so a quadrant can differ around dividends). Either is `null` when the history is shorter than the warm-up or SPY could not be read; the gates are still computed.
 - The sector ETF comes from the member's sector name, case-insensitive: Technology, Information Technology, Tech → XLK; Health Care, Healthcare → XLV; Consumer Discretionary, Consumer Cyclical → XLY; Consumer Staples, Consumer Defensive → XLP; Materials, Basic Materials → XLB; Communication Services, Communications, Communication, Telecommunications → XLC; Financials, Financial Services, Financial, Finance → XLF; Industrials, Industrial → XLI; Energy → XLE; Utilities → XLU; Real Estate → XLRE. Other names have no sector ETF.
+
+## Buy proposal
+
+`pickLists.proposal {}` builds a proposal from every list that has a bucket. Proposal only: the procedure has no order path, and the "Buy proposal" table on `/pick-lists` has no order control (its only button refreshes the proposal). A proposal never authorizes a trade; trading stays an owner decision.
+
+- Members: each bucket's members (rank order, first 50), merged across buckets into one row per symbol that lists every bucket holding it. The first 60 symbols (`PICK_LIST_SCREEN_MAX_MEMBERS`) are screened with the same bars, gates and quadrants as `pickLists.screen`; the rest are returned in `notProposed`.
+- Tier and size (max loss as % NLV): `full` 0.50% when all 3 gates pass and the sector ETF quadrant (without a sector ETF: the member's own quadrant) is leading or improving; `half` 0.25% when all gates pass otherwise; `none` (watch only) when a gate fails or data is missing. Each size is also capped by the owner's max-loss gate (2% NLV per new position, owner 2026-11-02) and the premium cap per name for options under 365 DTE (`OWNER_RISK_CAPS.shortPremiumPct`).
+- Structure: a call debit spread (defined risk: the max loss is the debit) on the first monthly expiry (third Friday) at least 120 DTE, inside the 90-180 DTE window; long the ~0.60 delta call, short the ~0.30 delta call. Strikes solve the Black-Scholes delta and are rounded to a typical strike spacing (0.5 below $25, 1 below $100, 2.5 below $250, else 5).
+- Estimates: Black-Scholes without dividends, r = 4%, σ = annualized realized volatility of up to 252 daily log returns (needs 60). Each row gives the estimated debit per share, the max loss and max profit per spread, and notes (why, and entry in 3 tranches 40/30/30). Live quotes, skew and dividends differ; strikes and expiry are picked from the live chain at entry.
+- The page accepts an optional NLV that stays in the browser tab. It converts % NLV into dollars and a whole-spread count; it is never sent to the server.
 
 ## Sources and import
 
