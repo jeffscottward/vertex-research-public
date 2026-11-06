@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BAR_REPLAY_IDLE,
   barReplayReducer,
+  dailyFromEquity,
   dailyPnl,
   histogram,
   PROP_RULES,
@@ -182,6 +183,8 @@ describe("prop rules", () => {
   });
   it("simulates the catalog with reshuffled pass rates", () => {
     const report = {
+      bars: 10,
+      equity: [],
       seriesSha256: "s",
       trades: Array.from({ length: 10 }, (_, i) =>
         trade(i + 1, i % 3 === 0 ? -100 : 250)
@@ -194,7 +197,10 @@ describe("prop rules", () => {
       expect(result.paths).toBe(100);
     }
     expect(
-      simulatePropRules({ seriesSha256: "s", trades: [] }, 10_000)[0]?.paths
+      simulatePropRules(
+        { bars: 0, equity: [], seriesSha256: "s", trades: [] },
+        10_000
+      )[0]?.paths
     ).toBe(0);
   });
 });
@@ -223,5 +229,100 @@ describe("barReplayReducer", () => {
     expect(
       barReplayReducer(BAR_REPLAY_IDLE, { total: 0, type: "start" })
     ).toEqual(BAR_REPLAY_IDLE);
+  });
+});
+
+describe("equity-based prop days", () => {
+  const H = 60 * 60 * 1000;
+  const equity = [
+    { drawdownPct: 0, equity: 10_000, t: T0 + H },
+    { drawdownPct: 0, equity: 9400, t: T0 + 2 * H },
+    { drawdownPct: 0, equity: 10_100, t: T0 + 3 * H },
+    { drawdownPct: 0, equity: 10_300, t: T0 + DAY + H },
+  ];
+  it("groups equity by day with the intraday low", () => {
+    expect(dailyFromEquity(equity, 10_000)).toEqual([
+      { day: "2024-01-01", low: -600, pnl: 100 },
+      { day: "2024-01-02", low: 0, pnl: 200 },
+    ]);
+    expect(dailyFromEquity([], 10_000)).toEqual([]);
+  });
+  it("fails a daily limit on an intraday dip that closed green", () => {
+    const out = simulatePropRule(dailyFromEquity(equity, 10_000), 10_000, {
+      ...rule,
+      maxDailyLossPct: 10,
+    });
+    expect(out.status).toBe("open");
+    const tight = simulatePropRule(dailyFromEquity(equity, 10_000), 10_000, {
+      ...rule,
+      maxDailyLossPct: 5,
+      maxLossPct: 5,
+    });
+    expect(tight.status).toBe("failed");
+    expect(tight.reason).toContain("Daily loss 6.00%");
+    const results = simulatePropRules(
+      { bars: equity.length, equity, seriesSha256: "e", trades: [] },
+      10_000,
+      [{ ...rule, maxDailyLossPct: 5 }],
+      10
+    );
+    expect(results[0]?.outcome.status).toBe("failed");
+  });
+});
+
+describe("barReplayReducer when idle", () => {
+  it("ignores play, step, seek, tick and resize", () => {
+    for (const action of [
+      { type: "play" },
+      { by: 1, type: "step" },
+      { index: 3, type: "seek" },
+      { type: "tick" },
+      { total: 5, type: "resize" },
+    ] as const)
+      expect(barReplayReducer(BAR_REPLAY_IDLE, action)).toBe(BAR_REPLAY_IDLE);
+    const active = barReplayReducer(BAR_REPLAY_IDLE, {
+      total: 4,
+      type: "start",
+    });
+    expect(active.index).toBe(2);
+    expect(barReplayReducer(active, { type: "tick" })).toBe(active);
+    expect(barReplayReducer(active, { total: 0, type: "resize" }).active).toBe(
+      false
+    );
+    const end = barReplayReducer(active, { index: 3, type: "seek" });
+    expect(barReplayReducer(end, { type: "play" })).toBe(end);
+  });
+});
+
+describe("prop rule review cases", () => {
+  it("does not count flat days as trading days", () => {
+    const out = simulatePropRule(
+      [
+        { day: "a", low: 0, pnl: 0 },
+        { day: "b", low: 0, pnl: 1100 },
+      ],
+      10_000,
+      rule
+    );
+    expect(out.status).toBe("open");
+    expect(out.days).toBe(1);
+  });
+  it("falls back to trades when the equity series is thinned", () => {
+    const equity = [{ drawdownPct: 0, equity: 1, t: T0 }];
+    const [result] = simulatePropRules(
+      {
+        bars: 5,
+        equity,
+        seriesSha256: "x",
+        trades: [trade(1, 600), trade(2, 600)],
+      },
+      10_000,
+      [rule],
+      5
+    );
+    expect(result?.outcome.status).toBe("passed");
+  });
+  it("keeps break-even trades out of losses", () => {
+    expect(tradesAnalysis([trade(1, 0), trade(2, 10)]).losses).toBe(0);
   });
 });
