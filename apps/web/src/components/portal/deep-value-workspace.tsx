@@ -319,7 +319,7 @@ const AdhocResult = ({
 );
 
 const selectClass =
-  "h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:w-auto";
+  "h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm sm:flex-none";
 
 export interface DeepValueWorkspaceProps {
   readonly gateway?: ResearchLensesGateway;
@@ -520,7 +520,7 @@ export const DeepValueWorkspace = ({
       <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Filter</span>
         <Input
-          className="h-11 w-full sm:w-44"
+          className="h-11 min-w-0 flex-1 sm:w-44 sm:flex-none"
           onChange={(event) => setText(event.target.value)}
           placeholder="Symbol, name or industry"
           type="search"
@@ -559,6 +559,8 @@ export const DeepValueWorkspace = ({
 
       <Panel
         actions={screenControls}
+        // Panel actions do not shrink; let the filter row wrap to the panel width on phones.
+        className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
         description={
           scorecard === null ? undefined : (
             <>

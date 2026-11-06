@@ -443,7 +443,7 @@ export const RotationMatrixWorkspace = ({
       <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Filter</span>
         <Input
-          className="h-11 w-full sm:w-48"
+          className="h-11 min-w-0 flex-1 sm:w-48 sm:flex-none"
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Industry, sector or symbol"
           type="search"
@@ -520,6 +520,8 @@ export const RotationMatrixWorkspace = ({
 
       <Panel
         actions={controls}
+        // Panel actions do not shrink; let the filter row wrap to the panel width on phones.
+        className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
         description={
           matrix === null
             ? undefined
