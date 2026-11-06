@@ -66,6 +66,7 @@
     "@darkfactory/db": "workspace:*",
     "@darkfactory/notifications": "workspace:*",
     "@darkfactory/observability": "workspace:*",
+    "@darkfactory/scripting": "workspace:*",
     "@darkfactory/shared": "workspace:*",
     "@darkfactory/storage": "workspace:*",
     "@orpc/client": "catalog:",
