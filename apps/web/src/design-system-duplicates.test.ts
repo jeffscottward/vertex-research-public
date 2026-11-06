@@ -87,6 +87,15 @@ const webSources = (): { file: string; source: string }[] =>
     .map((entry) => join(entry.parentPath, entry.name))
     .map((file) => ({ file, source: readFileSync(file, "utf8") }));
 
+// Browser specs select elements by class too; the browser lane is off, so the guard checks them here.
+const E2E_ROOT = join(import.meta.dirname, "../../../tests/e2e");
+
+const e2eSources = (): { file: string; source: string }[] =>
+  readdirSync(E2E_ROOT, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ts$/u.test(entry.name))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .map((file) => ({ file, source: readFileSync(file, "utf8") }));
+
 describe("design-system duplicates", () => {
   it("uses the shared Button instead of the retired vx-button classes", () => {
     const pattern = new RegExp(
@@ -96,6 +105,17 @@ describe("design-system duplicates", () => {
     const offenders = webSources()
       .filter(({ source }) => pattern.test(source))
       .map(({ file }) => relative(SOURCE_ROOT, file));
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps browser specs off the retired classes", () => {
+    const pattern = new RegExp(
+      `\\b(?:${RETIRED_CLASSES.join("|")})(?![\\w-])`,
+      "u"
+    );
+    const offenders = e2eSources()
+      .filter(({ source }) => pattern.test(source))
+      .map(({ file }) => relative(E2E_ROOT, file));
     expect(offenders).toEqual([]);
   });
 
