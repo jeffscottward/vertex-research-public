@@ -24,7 +24,7 @@ import { barsToDisplayCandles } from "../charts/market-bars.ts";
 import { ChartRendererBoundary } from "../charts/renderer-host.tsx";
 import type { ChartMarker } from "../charts/types.ts";
 
-// Symbol price chart for /stock/<SYMBOL>: IBKR bars for the selected interval with the CHARAN
+// Symbol price chart for /stock/<SYMBOL>: IBKR bars for the selected interval with the reference signal chart
 // controls (interval, Overlay, Study, Volume). Loads on mount; no input is needed.
 
 // KLineCharts needs a browser: load it lazily, only after bars arrive (same as /charts).

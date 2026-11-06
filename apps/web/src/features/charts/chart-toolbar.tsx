@@ -15,8 +15,8 @@ import {
 } from "./chart-indicators.ts";
 import { CHART_INTERVALS, type ChartInterval } from "./chart-intervals.ts";
 
-// Chart controls ported from the CHARAN signal chart: interval picker, Overlay and Study
-// menus and a volume pane toggle. Vertex tokens only; no CHARAN colors.
+// Chart controls ported from the reference signal chart: interval picker, Overlay and Study
+// menus and a volume pane toggle. Vertex tokens only; no colors from the reference chart.
 
 const controlClass =
   "inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md border border-border-strong bg-surface px-3 text-sm focus-visible:outline-2 focus-visible:outline-foreground focus-visible:outline-offset-2";

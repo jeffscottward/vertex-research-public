@@ -126,7 +126,7 @@ test("Overlay and Study menus add and remove Vertex chart studies", async ({
   );
   await page.goto("/charts");
 
-  // CHARAN-style menus: Overlay (price) and Study (panes below the price).
+  // Signal-chart menus: Overlay (price) and Study (panes below the price).
   const menu = async (label: "Overlay" | "Study") => {
     const trigger = page.locator(`[data-chart-menu="${label}"]`);
     if ((await trigger.getAttribute("aria-expanded")) !== "true")
