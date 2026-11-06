@@ -643,6 +643,9 @@ describe("watch request parser", () => {
     expect(parseWatchRequest("watch price on QQQ above 400")).toMatchObject({
       proposal: { symbol: "QQQ" },
     });
+    expect(
+      parseWatchRequest("Watch my NQ=F when price crosses above 21000")
+    ).toMatchObject({ proposal: { symbol: "NQ=F" } });
     expect(parseWatchRequest("watch price above 400")).toMatchObject({
       ok: false,
     });

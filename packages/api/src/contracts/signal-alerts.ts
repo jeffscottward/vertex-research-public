@@ -199,14 +199,24 @@ const refineConditionForTimeframe = (
     if (
       source.type === "opening-range" &&
       (input.timeframe === "1d" ||
-        source.minutes % BAR_MINUTES[input.timeframe] !== 0 ||
-        // Futures hourly bars start on the hour, so no bar lines up with 09:30.
-        (input.timeframe === "1h" && input.symbol.endsWith("=F")))
+        source.minutes % BAR_MINUTES[input.timeframe] !== 0)
     )
       context.addIssue({
         code: "custom",
         message:
           "An opening range needs intraday bars and a whole number of bars",
+        path: ["condition"],
+      });
+    // Futures and crypto hourly bars start on the hour, so no bar lines up with 09:30.
+    if (
+      source.type === "opening-range" &&
+      input.timeframe === "1h" &&
+      /[=-]/u.test(input.symbol)
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "Futures and crypto hourly bars start on the hour; use 5m or 15m bars for an opening range",
         path: ["condition"],
       });
   }

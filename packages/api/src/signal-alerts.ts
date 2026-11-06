@@ -534,7 +534,7 @@ const TIMEFRAME_WORDS: ReadonlyArray<readonly [RegExp, SignalAlertTimeframe]> =
   ];
 
 /** Filler words that may sit between "watch" and the symbol ("watch for the SPY ..."). */
-const FILLER = "(?:(?:for|the|out|on|me|over)\\s+)*";
+const FILLER = "(?:(?:for|the|out|on|me|my|over)\\s+)*";
 const SYMBOL_AFTER_WATCH = new RegExp(
   `\\bwatch\\s+${FILLER}\\$?([A-Za-z][A-Za-z0-9.=-]{0,9})\\b`,
   "iu"
@@ -615,7 +615,7 @@ export const parseWatchRequest = (text: string): SignalWatchParse => {
   if (/\bopening range\b|\bor high\b|\bor low\b/u.test(lower)) {
     if (timeframe === "1d")
       return { ok: false, reason: "An opening range needs intraday bars" };
-    if (timeframe === "1h" && symbol.endsWith("=F"))
+    if (timeframe === "1h" && /[=-]/u.test(symbol))
       return {
         ok: false,
         reason:

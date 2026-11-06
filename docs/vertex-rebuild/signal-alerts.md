@@ -61,7 +61,8 @@ condition that no longer parses is listed as unreadable and skipped.
   exchanges are not supported.
 - The scheduler runs 13-21 UTC on weekdays and stale bars never fire, so overnight futures moves
   are not alerted; Check now evaluates on demand.
-- An opening range on futures needs 5m or 15m bars (Yahoo's futures hourly bars start on the hour).
+- An opening range on futures or crypto needs 5m or 15m bars (their hourly bars start on the hour).
+- Half-day early closes (13:00 New York) are not modeled: daily bars still close at 16:00.
 
 ## Scheduler
 
