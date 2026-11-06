@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the read-only IBKR history service (systemd unit vertex-history, 127.0.0.1:8791, IB client id 77)
+# Installs the read-only IBKR history service (bars, ticks, depth; systemd unit vertex-history, 127.0.0.1:8791, IB client id 77)
 # and adds /vertex-history/v1/* to the tailnet Caddy site. Run as root on QuantVPS through the rig-side
 # deployer, which substitutes __TS__ and the base64 payloads. Touches only /opt/vertex-history, the
 # vertex-history unit, /opt/vertex-status/Caddyfile.tailnet and the vertex-status-tailnet container.
@@ -62,7 +62,7 @@ echo "python=$("$H/venv/bin/python" -V 2>&1) ibapi_sha=$LOCAL_IBAPI stack_ibapi_
 
 # 2) tests (incl. the static no-order scan) with the venv interpreter, and config validation
 (cd "$STAGE" && "$H/venv/bin/python" -W ignore test_vertex_history.py 2>&1 | tail -3)
-"$H/venv/bin/python" -c 'import ibapi.client as c; assert all(hasattr(c.EClient, m) for m in ("reqContractDetails","reqHistoricalData","cancelHistoricalData"))'
+"$H/venv/bin/python" -c 'import ibapi.client as c; assert all(hasattr(c.EClient, m) for m in ("reqContractDetails","reqHistoricalData","cancelHistoricalData","reqHistoricalTicks","reqMktDepth","cancelMktDepth"))'
 if ! docker run --rm --network none -e VERTEX_STATUS_TOKEN=x -v "$STAGE/Caddyfile.tailnet:/etc/caddy/Caddyfile:ro" caddy:2-alpine \
   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then echo "TAILNET CONFIG INVALID - nothing installed"; exit 4; fi
 echo "tailnet config valid; diff vs deployed:"
