@@ -18,6 +18,7 @@ import {
   AcademyGallery,
   type AcademyMediaEntry,
 } from "../../components/portal/academy/academy-gallery.tsx";
+import { readAcademyGalleryQuery } from "../../components/portal/academy/academy-gallery-query.ts";
 import { AcademyLesson } from "../../components/portal/academy/academy-lesson.tsx";
 import type {
   BacktestsGateway,
@@ -169,8 +170,9 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "academy",
-    render: () => (
+    render: (params) => (
       <AcademyGallery
+        initialQuery={readAcademyGalleryQuery(Object.fromEntries(params))}
         lessons={lessonSummaries()}
         media={academyMedia}
         sourceCount={

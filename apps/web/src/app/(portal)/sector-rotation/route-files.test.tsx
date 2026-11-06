@@ -7,9 +7,17 @@ import SectorRotationError from "./error.tsx";
 import SectorRotationLoading from "./loading.tsx";
 import SectorRotationPage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/sector-rotation-workspace.tsx", () => ({
-  SectorRotationWorkspace: () => <div data-workspace="sector-rotation" />,
-}));
+vi.mock(
+  "../../../components/portal/sector-rotation-workspace.tsx",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../components/portal/sector-rotation-workspace.tsx")
+    >()),
+    SectorRotationWorkspace: (props: { initial: unknown }) => (
+      <div data-workspace={JSON.stringify(props.initial)} />
+    ),
+  })
+);
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -32,11 +40,37 @@ const render = async (element: ReactElement) => {
 };
 
 describe("sector rotation route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<SectorRotationPage />);
+  it("renders the workspace with the default settings", async () => {
+    const container = await render(
+      await SectorRotationPage({ searchParams: Promise.resolve({}) })
+    );
     expect(metadata).toEqual({ title: "Sector rotation" });
-    expect(container.querySelector("h1")?.textContent).toBe("Sector rotation");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(
+      JSON.parse(
+        container
+          .querySelector("[data-workspace]")
+          ?.getAttribute("data-workspace") ?? "null"
+      )
+    ).toEqual({ tailLength: 10, timeframe: "weekly", universeId: "sectors" });
+  });
+
+  it("passes the URL settings to the workspace", async () => {
+    const container = await render(
+      await SectorRotationPage({
+        searchParams: Promise.resolve({
+          tail: "20",
+          timeframe: "daily",
+          universe: "watchlist",
+        }),
+      })
+    );
+    expect(
+      JSON.parse(
+        container
+          .querySelector("[data-workspace]")
+          ?.getAttribute("data-workspace") ?? "null"
+      )
+    ).toEqual({ tailLength: 20, timeframe: "daily", universeId: "watchlist" });
   });
 
   it("renders an accessible loading state", async () => {

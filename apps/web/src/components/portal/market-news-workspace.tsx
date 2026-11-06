@@ -9,11 +9,21 @@ import {
   type MarketNewsTicker,
   type MarketNewsWatchlistOutput,
 } from "@darkfactory/api";
-import { Badge, Button, EmptyState } from "@darkfactory/ui";
-import { ListChecks, RotateCcw } from "lucide-react";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  KpiCard,
+  KpiRow,
+  PageHeader,
+  Panel,
+  StatusBadge,
+} from "@darkfactory/ui";
+import { FileText, ListChecks, Newspaper, RotateCcw, Tags } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { TickerLink } from "../ticker-link.tsx";
 import {
   createBrowserMarketNewsGateway,
   describeMarketNewsFailure,
@@ -28,6 +38,33 @@ const MARKET_NEWS_WINDOW_LABELS: Readonly<Record<MarketNewsHours, string>> = {
   72: "last 3 days",
   168: "last 7 days",
   720: "last 30 days",
+};
+
+/** `?days=` value for each window; 3 days (72 hours) when the URL names none or an unknown one. */
+const MARKET_NEWS_DAYS: Readonly<Record<MarketNewsHours, number>> = {
+  24: 1,
+  72: 3,
+  168: 7,
+  720: 30,
+};
+
+const DEFAULT_MARKET_NEWS_HOURS: MarketNewsHours = 72;
+
+export const parseNewsDays = (value: string | undefined): MarketNewsHours =>
+  MARKET_NEWS_HOURS.find(
+    (hours) => String(MARKET_NEWS_DAYS[hours]) === value
+  ) ?? DEFAULT_MARKET_NEWS_HOURS;
+
+// Keeps ?days= in the address bar so a window can be linked and restored; the default drops it.
+const writeNewsDays = (hours: MarketNewsHours): void => {
+  const url = new URL(window.location.href);
+  if (hours === DEFAULT_MARKET_NEWS_HOURS) url.searchParams.delete("days");
+  else url.searchParams.set("days", String(MARKET_NEWS_DAYS[hours]));
+  window.history.replaceState(
+    window.history.state,
+    "",
+    `${url.pathname}${url.search}${url.hash}`
+  );
 };
 
 export const MARKET_NEWS_TAG_LABELS: Readonly<
@@ -146,25 +183,18 @@ const TickerSection = ({
     ? ticker.headlines
     : ticker.headlines.slice(0, HEADLINE_PREVIEW_COUNT);
   return (
-    <section
-      aria-labelledby={`news-${ticker.symbol}`}
-      className="min-w-0 space-y-3 rounded-lg border border-border p-4"
+    <Panel
+      className="rounded-none border-0 shadow-none"
+      contentClassName="space-y-3"
+      data-news-symbol={ticker.symbol}
+      description={`${ticker.headlines.length} headlines · ${ticker.filings.length} 8-K${important === 0 ? "" : ` (${important} important)`}`}
+      headingId={`news-${ticker.symbol}`}
+      headingLevel={3}
+      title={<TickerLink className="text-base" symbol={ticker.symbol} />}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2
-          className="font-mono font-semibold text-lg"
-          id={`news-${ticker.symbol}`}
-        >
-          {ticker.symbol}
-        </h2>
-        <p className="text-muted-foreground text-xs">
-          {ticker.headlines.length} headlines · {ticker.filings.length} 8-K
-          {important === 0 ? "" : ` (${important} important)`}
-        </p>
-      </div>
       <div className="grid gap-4 lg:grid-cols-[2fr_3fr]">
         <div className="min-w-0 space-y-2">
-          <h3 className="font-medium text-sm">8-K filings</h3>
+          <h4 className="font-medium text-sm">8-K filings</h4>
           {failures.filings === null ? null : (
             <p className="text-sm">
               8-K filings unavailable: {failures.filings}
@@ -184,7 +214,7 @@ const TickerSection = ({
           )}
         </div>
         <div className="min-w-0 space-y-2">
-          <h3 className="font-medium text-sm">Headlines</h3>
+          <h4 className="font-medium text-sm">Headlines</h4>
           {failures.headlines === null ? null : (
             <p className="text-sm">
               Headlines unavailable: {failures.headlines}
@@ -222,7 +252,7 @@ const TickerSection = ({
           Source gaps: {failures.other.join("; ")}
         </p>
       )}
-    </section>
+    </Panel>
   );
 };
 
@@ -233,15 +263,76 @@ type NewsState =
 
 export interface MarketNewsWorkspaceProps {
   readonly gateway?: MarketNewsGateway;
+  /** `?days=` from the request (1, 3, 7 or 30); anything else opens the 3-day window. */
+  readonly initialDays?: string;
 }
+
+const NewsStatus = ({ state }: { readonly state: NewsState }) => {
+  if (state.type === "loading")
+    return <StatusBadge status="info">Loading</StatusBadge>;
+  if (state.type === "error")
+    return <StatusBadge status="destructive">Unavailable</StatusBadge>;
+  const { tickers } = state.news;
+  if (tickers.length === 0)
+    return <StatusBadge status="neutral">No symbols</StatusBadge>;
+  const gaps = tickers.some((ticker) => ticker.errors.length > 0);
+  return (
+    <StatusBadge status={gaps ? "warning" : "success"}>
+      {tickers.length} {tickers.length === 1 ? "symbol" : "symbols"} watched
+    </StatusBadge>
+  );
+};
+
+const NewsKpis = ({
+  news,
+  windowLabel,
+}: {
+  readonly news: MarketNewsWatchlistOutput;
+  readonly windowLabel: string;
+}) => {
+  const count = (pick: (ticker: MarketNewsTicker) => number): number =>
+    news.tickers.reduce((total, ticker) => total + pick(ticker), 0);
+  const gaps = count((ticker) => (ticker.errors.length > 0 ? 1 : 0));
+  const important = count(
+    (ticker) => ticker.filings.filter((filing) => filing.important).length
+  );
+  return (
+    <KpiRow label="News summary">
+      <KpiCard
+        data-kpi="symbols"
+        hint={gaps === 0 ? "All sources answered" : `${gaps} with source gaps`}
+        icon={<Tags />}
+        label="Symbols"
+        value={news.tickers.length}
+      />
+      <KpiCard
+        data-kpi="headlines"
+        hint={`In the ${windowLabel}`}
+        icon={<Newspaper />}
+        label="Headlines"
+        value={count((ticker) => ticker.headlines.length)}
+      />
+      <KpiCard
+        data-kpi="filings"
+        hint={`${important} important`}
+        icon={<FileText />}
+        label="8-K filings"
+        value={count((ticker) => ticker.filings.length)}
+      />
+    </KpiRow>
+  );
+};
 
 export const MarketNewsWorkspace = ({
   gateway: suppliedGateway,
+  initialDays,
 }: MarketNewsWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserMarketNewsGateway()
   );
-  const [hours, setHours] = useState<MarketNewsHours>(72);
+  const [hours, setHours] = useState<MarketNewsHours>(() =>
+    parseNewsDays(initialDays)
+  );
   const [reload, setReload] = useState(0);
   const [state, setState] = useState<NewsState>({ type: "loading" });
 
@@ -267,95 +358,114 @@ export const MarketNewsWorkspace = ({
   }, [gateway, hours, reload]);
 
   const windowLabel = MARKET_NEWS_WINDOW_LABELS[hours];
+  const chooseWindow = (next: MarketNewsHours) => {
+    setHours(next);
+    writeNewsDays(next);
+  };
 
   return (
     <div className="space-y-6">
-      <p className="max-w-3xl text-muted-foreground text-sm">
-        Yahoo Finance headlines and SEC 8-K filings for the 25 newest symbols on
-        your watchlist. Important 8-K items (earnings, officer changes,
-        impairments, delisting and similar) are highlighted. Research only; no
-        orders.
-      </p>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="space-y-1 text-sm">
-          <span className="block">Window</span>
-          <select
-            className="min-h-11 rounded-md border border-border bg-background px-2"
-            onChange={(event) =>
-              setHours(Number(event.target.value) as MarketNewsHours)
-            }
-            value={hours}
-          >
-            {MARKET_NEWS_HOURS.map((option) => (
-              <option key={option} value={option}>
-                {MARKET_NEWS_WINDOW_LABELS[option]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button
-          className="min-h-11"
-          disabled={state.type === "loading"}
-          onClick={() => setReload((count) => count + 1)}
-          variant="secondary"
-        >
-          <RotateCcw aria-hidden="true" className="size-4" />
-          Refresh
-        </Button>
-      </div>
-
-      {state.type === "loading" ? (
-        <p
-          aria-busy="true"
-          className="text-muted-foreground text-sm"
-          role="status"
-        >
-          Loading news…
-        </p>
-      ) : null}
-      {state.type === "error" ? (
-        <div className="space-y-2" role="alert">
-          <p className="text-sm">News unavailable: {state.message}</p>
+      <PageHeader
+        actions={
           <Button
             className="min-h-11"
+            disabled={state.type === "loading"}
             onClick={() => setReload((count) => count + 1)}
-            size="sm"
             variant="secondary"
           >
             <RotateCcw aria-hidden="true" className="size-4" />
-            Try again
+            Refresh
           </Button>
-        </div>
-      ) : null}
-      {state.type === "ready" && state.news.tickers.length === 0 ? (
-        <EmptyState
-          action={
-            <Button asChild className="min-h-11">
-              <Link href="/watchlist" prefetch={false}>
-                Open watchlist
-              </Link>
-            </Button>
-          }
-          description="Add symbols to your watchlist to see their headlines and 8-K filings here."
-          icon={<ListChecks />}
-          title="Your watchlist is empty"
-        />
-      ) : null}
+        }
+        description="Yahoo Finance headlines and SEC 8-K filings for the 25 newest symbols on your watchlist. Research only; no orders."
+        status={<NewsStatus state={state} />}
+        title="News monitor"
+      />
       {state.type === "ready" && state.news.tickers.length > 0 ? (
-        <div className="space-y-4">
-          {state.news.tickers.map((ticker) => (
-            <TickerSection
-              key={ticker.symbol}
-              ticker={ticker}
-              windowLabel={windowLabel}
-            />
-          ))}
-          <p className="text-muted-foreground text-xs">
-            Sources: Yahoo Finance headline RSS and SEC EDGAR 8-K feeds, cached
-            for 5 minutes. Updated {formatNewsTime(state.news.receivedAt)}.
-          </p>
-        </div>
+        <NewsKpis news={state.news} windowLabel={windowLabel} />
       ) : null}
+      <Panel
+        actions={
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Window</span>
+            <select
+              className="min-h-11 rounded-md border border-border bg-background px-2"
+              onChange={(event) =>
+                chooseWindow(Number(event.target.value) as MarketNewsHours)
+              }
+              value={hours}
+            >
+              {MARKET_NEWS_HOURS.map((option) => (
+                <option key={option} value={option}>
+                  {MARKET_NEWS_WINDOW_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+        }
+        description="Important 8-K items (earnings, officer changes, impairments, delisting and similar) are highlighted."
+        flush
+        headingId="news-watchlist"
+        title="Watchlist news"
+      >
+        {state.type === "loading" ? (
+          <p
+            aria-busy="true"
+            className="p-4 text-muted-foreground text-sm"
+            role="status"
+          >
+            Loading news…
+          </p>
+        ) : null}
+        {state.type === "error" ? (
+          <div className="space-y-2 p-4" role="alert">
+            <p className="text-sm">News unavailable: {state.message}</p>
+            <Button
+              className="min-h-11"
+              onClick={() => setReload((count) => count + 1)}
+              size="sm"
+              variant="secondary"
+            >
+              <RotateCcw aria-hidden="true" className="size-4" />
+              Try again
+            </Button>
+          </div>
+        ) : null}
+        {state.type === "ready" && state.news.tickers.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              action={
+                <Button asChild className="min-h-11">
+                  <Link href="/watchlist" prefetch={false}>
+                    Open watchlist
+                  </Link>
+                </Button>
+              }
+              description="Add symbols to your watchlist to see their headlines and 8-K filings here."
+              icon={<ListChecks />}
+              title="Your watchlist is empty"
+            />
+          </div>
+        ) : null}
+        {state.type === "ready" && state.news.tickers.length > 0 ? (
+          <>
+            <div className="divide-y">
+              {state.news.tickers.map((ticker) => (
+                <TickerSection
+                  key={ticker.symbol}
+                  ticker={ticker}
+                  windowLabel={windowLabel}
+                />
+              ))}
+            </div>
+            <p className="border-t px-4 py-3 text-muted-foreground text-xs">
+              Sources: Yahoo Finance headline RSS and SEC EDGAR 8-K feeds,
+              cached for 5 minutes. Updated{" "}
+              {formatNewsTime(state.news.receivedAt)}.
+            </p>
+          </>
+        ) : null}
+      </Panel>
     </div>
   );
 };

@@ -8,6 +8,7 @@ import {
 } from "@darkfactory/api";
 import {
   Button,
+  Panel,
   StatusBadge,
   Table,
   TableBody,
@@ -16,11 +17,17 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from "@darkfactory/ui";
 import { ExternalLink, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { TickerLink } from "../ticker-link.tsx";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
+import {
+  feedsSourceStatus,
+  type MarketSourceStatus,
+} from "./market-source-status.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 // Market feeds (card vertex-markets-gex-macro-news): GEX for SPY/QQQ, macro series and macro news from
@@ -53,8 +60,8 @@ const when = (value: string | null): string =>
       });
 
 const COMPACT = new Intl.NumberFormat("en-US", {
-  notation: "compact",
   maximumFractionDigits: 1,
+  notation: "compact",
 });
 
 const num = (value: number | null, digits = 2): string =>
@@ -75,15 +82,15 @@ const AsOf = ({
   label,
   value,
 }: Readonly<{ label: string; value: string | null }>) => (
-  <p className="text-muted-foreground text-xs" data-as-of={label}>
+  <span className="text-xs" data-as-of={label}>
     As of {when(value)}
-  </p>
+  </span>
 );
 
 const GexRow = ({ row }: Readonly<{ row: GexIndexRow }>) => (
   <TableRow data-gex={row.symbol}>
-    <TableHead className="font-mono" scope="row">
-      {row.symbol}
+    <TableHead scope="row">
+      <TickerLink symbol={row.symbol} />
     </TableHead>
     <TableCell className="tabular-nums">{num(row.spot)}</TableCell>
     <TableCell className="tabular-nums">{dollars(row.netGex)}</TableCell>
@@ -100,10 +107,10 @@ const GexRow = ({ row }: Readonly<{ row: GexIndexRow }>) => (
       {num(row.flip)}
       {row.spotVsFlip === null ? "" : ` (spot ${row.spotVsFlip})`}
     </TableCell>
-    <TableCell className="hidden tabular-nums sm:table-cell">
+    <TableCell className="tabular-nums">
       {num(row.callWall)} / {num(row.putWall)}
     </TableCell>
-    <TableCell className="hidden tabular-nums md:table-cell">
+    <TableCell className="whitespace-normal tabular-nums">
       {row.zeroDte === null
         ? "—"
         : `${row.zeroDte.expiry ?? "?"}: flip ${num(row.zeroDte.flip)}, walls ${num(row.zeroDte.callWall)} / ${num(row.zeroDte.putWall)}`}
@@ -112,88 +119,95 @@ const GexRow = ({ row }: Readonly<{ row: GexIndexRow }>) => (
 );
 
 const GexSection = ({ gex }: Readonly<{ gex: MarketContextOutput["gex"] }>) => (
-  <section aria-labelledby="mf-gex" className="space-y-3" data-section="gex">
-    <h2 className="font-heading font-semibold text-lg" id="mf-gex">
-      Gamma exposure (GEX)
-    </h2>
+  <Panel
+    data-section="gex"
+    {...(gex === null
+      ? {}
+      : { description: <AsOf label="gex" value={gex.asOf} /> })}
+    flush
+    headingId="mf-gex"
+    title="Gamma exposure (GEX)"
+  >
     {gex === null ? (
-      <p className="text-muted-foreground text-sm">GEX not available.</p>
+      <p className="p-4 text-muted-foreground text-sm">GEX not available.</p>
     ) : (
       <>
-        <AsOf label="gex" value={gex.asOf} />
-        <p className="text-muted-foreground text-xs">
-          {gex.label ?? "Estimate"}
-          {gex.oiSession === null
-            ? ""
-            : ` Open interest from ${gex.oiSession}.`}{" "}
-          Net GEX is dollars per 1% move.
-        </p>
-        <Table className="text-sm">
-          <TableCaption className="sr-only">GEX by index</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">Index</TableHead>
-              <TableHead scope="col">Spot</TableHead>
-              <TableHead scope="col">Net GEX</TableHead>
-              <TableHead scope="col">Regime</TableHead>
-              <TableHead scope="col">Gamma flip</TableHead>
-              <TableHead className="hidden sm:table-cell" scope="col">
-                Call / put wall
-              </TableHead>
-              <TableHead className="hidden md:table-cell" scope="col">
-                Nearest expiry
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {gex.index.map((row) => (
-              <GexRow key={row.symbol} row={row} />
-            ))}
-          </TableBody>
-        </Table>
-        {gex.index.map((row) =>
-          row.notes.length === 0 && row.fadeNote === null ? null : (
-            <ul
-              className="list-disc space-y-1 pl-5 text-sm"
-              data-gex-notes={row.symbol}
-              key={row.symbol}
-            >
-              {row.notes.map((note) => (
-                <li key={note}>
-                  {row.symbol}: {note}
-                </li>
+        <TableScroll label="GEX by index" minWidth="44rem">
+          <Table className="text-sm">
+            <TableCaption className="sr-only">GEX by index</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Index</TableHead>
+                <TableHead scope="col">Spot</TableHead>
+                <TableHead scope="col">Net GEX</TableHead>
+                <TableHead scope="col">Regime</TableHead>
+                <TableHead scope="col">Gamma flip</TableHead>
+                <TableHead scope="col">Call / put wall</TableHead>
+                <TableHead scope="col">Nearest expiry</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {gex.index.map((row) => (
+                <GexRow key={row.symbol} row={row} />
               ))}
-              {row.fadeNote === null ? null : (
-                <li>
-                  {row.symbol}: {row.fadeNote}
-                </li>
-              )}
-            </ul>
-          )
-        )}
+            </TableBody>
+          </Table>
+        </TableScroll>
+        <div className="space-y-2 border-t px-4 py-3">
+          <p className="text-muted-foreground text-xs">
+            {gex.label ?? "Estimate"}
+            {gex.oiSession === null
+              ? ""
+              : ` Open interest from ${gex.oiSession}.`}{" "}
+            Net GEX is dollars per 1% move.
+          </p>
+          {gex.index.map((row) =>
+            row.notes.length === 0 && row.fadeNote === null ? null : (
+              <ul
+                className="list-disc space-y-1 pl-5 text-sm"
+                data-gex-notes={row.symbol}
+                key={row.symbol}
+              >
+                {[
+                  ...row.notes,
+                  ...(row.fadeNote === null ? [] : [row.fadeNote]),
+                ].map((note) => (
+                  <li key={note}>
+                    <TickerLink symbol={row.symbol} />: {note}
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
+        </div>
       </>
     )}
-  </section>
+  </Panel>
 );
 
 const MacroSection = ({
   macro,
 }: Readonly<{ macro: MarketContextOutput["macro"] }>) => (
-  <section
-    aria-labelledby="mf-macro"
-    className="space-y-3"
+  <Panel
     data-section="macro"
+    {...(macro === null
+      ? {}
+      : { description: <AsOf label="macro" value={macro.asOf} /> })}
+    flush
+    headingId="mf-macro"
+    title="Macro"
   >
-    <h2 className="font-heading font-semibold text-lg" id="mf-macro">
-      Macro
-    </h2>
     {macro === null ? (
-      <p className="text-muted-foreground text-sm">Macro data not available.</p>
+      <p className="p-4 text-muted-foreground text-sm">
+        Macro data not available.
+      </p>
     ) : (
       <>
-        <AsOf label="macro" value={macro.asOf} />
         {macro.regimes.length === 0 ? null : (
-          <ul className="flex flex-wrap gap-2 text-sm" data-macro-regimes="">
+          <ul
+            className="flex flex-wrap gap-2 border-b px-4 py-3 text-sm"
+            data-macro-regimes=""
+          >
             {macro.regimes.map((regime) => (
               <li key={regime.id} title={regime.rule ?? undefined}>
                 <StatusBadge status="neutral">
@@ -203,63 +217,60 @@ const MacroSection = ({
             ))}
           </ul>
         )}
-        <Table className="text-sm">
-          <TableCaption className="sr-only">Macro series</TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead scope="col">Series</TableHead>
-              <TableHead scope="col">Value</TableHead>
-              <TableHead className="hidden sm:table-cell" scope="col">
-                Date
-              </TableHead>
-              <TableHead className="hidden sm:table-cell" scope="col">
-                1d / 1m
-              </TableHead>
-              <TableHead className="hidden md:table-cell" scope="col">
-                1y percentile
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {macro.series.map((series) => (
-              <TableRow data-macro={series.id} key={series.id}>
-                <TableHead className="whitespace-normal" scope="row">
-                  {series.sourceUrl === null ? (
-                    series.label
-                  ) : (
-                    <a
-                      className="underline-offset-4 hover:underline"
-                      href={series.sourceUrl}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    >
-                      {series.label}
-                    </a>
-                  )}
-                  {series.status === "ok" && !series.stale
-                    ? ""
-                    : ` (${series.stale ? "stale" : series.status})`}
-                </TableHead>
-                <TableCell className="tabular-nums">
-                  {series.value === null
-                    ? "—"
-                    : `${series.value} ${series.units}`.trim()}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {series.date ?? "—"}
-                </TableCell>
-                <TableCell className="hidden tabular-nums sm:table-cell">
-                  {signed(series.change1d)} / {signed(series.change1m)}
-                </TableCell>
-                <TableCell className="hidden tabular-nums md:table-cell">
-                  {num(series.pct1y, 0)}
-                </TableCell>
+        <TableScroll label="Macro series" minWidth="36rem">
+          <Table className="text-sm">
+            <TableCaption className="sr-only">Macro series</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Series</TableHead>
+                <TableHead scope="col">Value</TableHead>
+                <TableHead scope="col">Date</TableHead>
+                <TableHead scope="col">1d / 1m</TableHead>
+                <TableHead scope="col">1y percentile</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {macro.series.map((series) => (
+                <TableRow data-macro={series.id} key={series.id}>
+                  <TableHead className="whitespace-normal" scope="row">
+                    {series.sourceUrl === null ? (
+                      series.label
+                    ) : (
+                      <a
+                        className="underline-offset-4 hover:underline"
+                        href={series.sourceUrl}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        {series.label}
+                      </a>
+                    )}
+                    {series.status === "ok" && !series.stale
+                      ? ""
+                      : ` (${series.stale ? "stale" : series.status})`}
+                  </TableHead>
+                  <TableCell className="tabular-nums">
+                    {series.value === null
+                      ? "—"
+                      : `${series.value} ${series.units}`.trim()}
+                  </TableCell>
+                  <TableCell>{series.date ?? "—"}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {signed(series.change1d)} / {signed(series.change1m)}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {num(series.pct1y, 0)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableScroll>
         {macro.events.length === 0 ? null : (
-          <div className="space-y-1 text-sm" data-macro-events="">
+          <div
+            className="space-y-1 border-t px-4 py-3 text-sm"
+            data-macro-events=""
+          >
             <h3 className="font-medium">Next releases</h3>
             <ul className="space-y-1">
               {macro.events.map((event) => (
@@ -273,26 +284,32 @@ const MacroSection = ({
         )}
       </>
     )}
-  </section>
+  </Panel>
 );
 
 const NewsSection = ({
   news,
 }: Readonly<{ news: MarketContextOutput["news"] }>) => (
-  <section aria-labelledby="mf-news" className="space-y-3" data-section="news">
-    <h2 className="font-heading font-semibold text-lg" id="mf-news">
-      Macro news
-    </h2>
+  <Panel
+    data-section="news"
+    {...(news === null
+      ? {}
+      : { description: <AsOf label="news" value={news.asOf} /> })}
+    headingId="mf-news"
+    title="Macro news"
+  >
     {news === null ? (
       <p className="text-muted-foreground text-sm">News not available.</p>
     ) : (
-      <>
-        <AsOf label="news" value={news.asOf} />
+      <div className="space-y-3">
         {news.themes.length === 0 ? null : (
           <ul className="flex flex-wrap gap-2 text-sm" data-news-themes="">
             {news.themes.map((theme) => (
-              <li data-theme={theme.id} key={theme.id}>
-                <StatusBadge status={theme.shock ? "destructive" : "neutral"}>
+              <li className="max-w-full" data-theme={theme.id} key={theme.id}>
+                <StatusBadge
+                  className="max-w-full whitespace-normal text-left"
+                  status={theme.shock ? "destructive" : "neutral"}
+                >
                   {theme.label}: {theme.count24h} in 24 h, sentiment{" "}
                   {signed(theme.sentiment24h)}
                   {theme.shock ? ", shock" : ""}
@@ -308,7 +325,7 @@ const NewsSection = ({
             {news.headlines.map((headline) => (
               <li className="space-y-1 py-2" key={headline.url}>
                 <a
-                  className="inline-flex min-h-11 items-center gap-1 font-medium underline-offset-4 hover:underline"
+                  className="inline-flex min-h-11 items-center gap-1 break-words font-medium underline-offset-4 hover:underline"
                   href={headline.url}
                   rel="noopener noreferrer"
                   target="_blank"
@@ -338,9 +355,9 @@ const NewsSection = ({
             ))}
           </ul>
         )}
-      </>
+      </div>
     )}
-  </section>
+  </Panel>
 );
 
 type State =
@@ -349,33 +366,67 @@ type State =
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; data: MarketContextOutput }>;
 
+export interface MarketFeedsWorkspaceProps {
+  readonly gateway?: MarketFeedsGateway;
+  /** Called with whether a load is in flight, so the page header can hold Refresh. */
+  readonly onBusyChange?: (busy: boolean) => void;
+  /** Called with the load state, for the page header chip. */
+  readonly onStatusChange?: (status: MarketSourceStatus) => void;
+  /** Each new value reloads now (the page header Refresh). */
+  readonly refreshSignal?: number;
+}
+
 export const MarketFeedsWorkspace = ({
   gateway: supplied,
-}: Readonly<{ gateway?: MarketFeedsGateway }>) => {
+  onStatusChange,
+  onBusyChange,
+  refreshSignal = 0,
+}: MarketFeedsWorkspaceProps) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserMarketFeedsGateway()
   );
   const [state, setState] = useState<State>({ type: "loading" });
+  const [busy, setBusy] = useState(true);
+  // Each load takes the next number; only the newest may write, so a slow older answer
+  // (the timer, Refresh or Retry overlapping) never overwrites a newer one.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    latest.current += 1;
+    const request = latest.current;
+    setBusy(true);
     try {
-      return setState({ type: "ready", data: await gateway.context() });
+      const data = await gateway.context();
+      if (request === latest.current) setState({ data, type: "ready" });
     } catch (error) {
+      if (request !== latest.current) return;
       const failure = describePortfolioMonitorFailure(error);
-      return setState(
+      setState(
         failure.kind === "forbidden"
           ? { type: "forbidden" }
-          : { type: "error", message: `${failure.code}: ${failure.message}` }
+          : { message: `${failure.code}: ${failure.message}`, type: "error" }
       );
+    } finally {
+      if (request === latest.current) setBusy(false);
     }
   }, [gateway]);
   useEffect(() => {
+    // refreshSignal is a dependency only so the header Refresh reloads now and restarts the timer.
+    void refreshSignal;
     void load();
     const timer = window.setInterval(
       () => void load(),
       MARKET_FEEDS_REFRESH_MS
     );
-    return () => window.clearInterval(timer);
-  }, [load]);
+    return () => {
+      window.clearInterval(timer);
+      // A Refresh restart or unmount drops the answer still in flight.
+      latest.current += 1;
+    };
+  }, [load, refreshSignal]);
+  const status: MarketSourceStatus =
+    state.type === "ready" ? feedsSourceStatus(state.data) : state.type;
+  useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
+  useEffect(() => onBusyChange?.(busy), [onBusyChange, busy]);
 
   if (state.type === "forbidden")
     return <OperatorAccessRequired feature="market-context" />;
@@ -395,7 +446,7 @@ export const MarketFeedsWorkspace = ({
         <p className="text-sm" role="alert">
           GEX, macro and news unavailable. {state.message}
         </p>
-        <Button onClick={() => void load()} variant="outline">
+        <Button disabled={busy} onClick={() => void load()} variant="outline">
           <RotateCcw aria-hidden="true" className="size-4" />
           Retry now
         </Button>
@@ -404,7 +455,7 @@ export const MarketFeedsWorkspace = ({
 
   const { data } = state;
   return (
-    <div className="space-y-8" data-feeds-state="ready">
+    <div className="space-y-4" data-feeds-state="ready">
       <p className="text-muted-foreground text-xs" role="note">
         Public market data from market-watch-bot on the rig (QuantData, FRED,
         EIA, BLS, news feeds). Read-only; no account data. Pushed{" "}

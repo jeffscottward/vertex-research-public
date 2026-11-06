@@ -1,14 +1,22 @@
-import { PageHeader } from "@darkfactory/ui";
-
-import { DeepValueWorkspace } from "../../../components/portal/deep-value-workspace.tsx";
+import {
+  DeepValueWorkspace,
+  parseDeepValueParams,
+} from "../../../components/portal/deep-value-workspace.tsx";
 
 export const metadata = { title: "Deep value screen" };
 
-export default function DeepValuePage() {
+type SearchParams = Promise<
+  Readonly<Record<string, string | readonly string[] | undefined>>
+>;
+
+/**
+ * `?symbol=&show=&min=&hide=1&q=` restore the scored ticker and the screen filters; the workspace
+ * renders the header and keeps the URL in sync.
+ */
+export default async function DeepValuePage({
+  searchParams,
+}: Readonly<{ searchParams: SearchParams }>) {
   return (
-    <div className="space-y-8">
-      <PageHeader title="Deep value screen" />
-      <DeepValueWorkspace />
-    </div>
+    <DeepValueWorkspace initial={parseDeepValueParams(await searchParams)} />
   );
 }

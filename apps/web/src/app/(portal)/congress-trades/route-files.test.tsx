@@ -7,9 +7,17 @@ import CongressTradesError from "./error.tsx";
 import CongressTradesLoading from "./loading.tsx";
 import CongressTradesPage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/congress-trades-workspace.tsx", () => ({
-  CongressTradesWorkspace: () => <div data-workspace="congress-trades" />,
-}));
+vi.mock(
+  "../../../components/portal/congress-trades-workspace.tsx",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../components/portal/congress-trades-workspace.tsx")
+    >()),
+    CongressTradesWorkspace: (props: { initial: unknown }) => (
+      <div data-workspace={JSON.stringify(props.initial)} />
+    ),
+  })
+);
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -31,12 +39,32 @@ const render = async (element: ReactElement) => {
   return container;
 };
 
+const workspaceProps = (container: HTMLElement) =>
+  JSON.parse(
+    container
+      .querySelector("[data-workspace]")
+      ?.getAttribute("data-workspace") ?? "null"
+  );
+
 describe("congress trades route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<CongressTradesPage />);
+  it("renders the workspace with the default window and all members", async () => {
+    const container = await render(
+      await CongressTradesPage({ searchParams: Promise.resolve({}) })
+    );
     expect(metadata).toEqual({ title: "Congress trades" });
-    expect(container.querySelector("h1")?.textContent).toBe("Congress trades");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(workspaceProps(container)).toEqual({ days: 30, member: "" });
+  });
+
+  it("passes the URL window and member to the workspace", async () => {
+    const container = await render(
+      await CongressTradesPage({
+        searchParams: Promise.resolve({ days: "7", member: "Rick Larsen" }),
+      })
+    );
+    expect(workspaceProps(container)).toEqual({
+      days: 7,
+      member: "Rick Larsen",
+    });
   });
 
   it("renders an accessible loading state", async () => {

@@ -18,9 +18,9 @@ import {
 } from "vitest";
 
 import {
-  parseMetricsText,
   type AgentOpsGateway,
   type PapersGateway,
+  parseMetricsText,
 } from "./agent-ops-client.tsx";
 import { AgentRunsWorkspace } from "./agent-runs-workspace.tsx";
 import { MissionControl } from "./mission-control.tsx";
@@ -60,19 +60,19 @@ const task = (
   id: string,
   overrides: Partial<AgentTaskOutput> = {}
 ): AgentTaskOutput => ({
+  agent: "omp",
+  createdAt: at,
+  finishedAt: null,
   id,
   kind: "backtest",
-  agent: "omp",
-  title: `Task ${id}`,
-  summary: null,
-  status: "queued",
-  metrics: {},
   links: [],
+  metrics: {},
   paperId: null,
-  createdAt: at,
-  updatedAt: at,
   startedAt: null,
-  finishedAt: null,
+  status: "queued",
+  summary: null,
+  title: `Task ${id}`,
+  updatedAt: at,
   ...overrides,
 });
 
@@ -80,47 +80,47 @@ const paper = (
   id: string,
   overrides: Partial<ResearchPaperOutput> = {}
 ): ResearchPaperOutput => ({
-  id,
-  title: `Paper ${id}`,
   authors: null,
-  year: null,
-  sourceUrl: null,
+  blockers: null,
+  createdAt: at,
+  id,
   identifier: null,
   kind: "paper",
-  stage: "queued",
-  verdict: "pending",
-  blockers: null,
   notes: null,
   reportedMetrics: {},
   reproducedMetrics: {},
-  createdAt: at,
+  sourceUrl: null,
+  stage: "queued",
+  title: `Paper ${id}`,
   updatedAt: at,
+  verdict: "pending",
+  year: null,
   ...overrides,
 });
 
 const summary = (
   overrides: Partial<AgentOpsSummaryOutput> = {}
 ): AgentOpsSummaryOutput => ({
-  statusCounts: {
-    queued: 0,
-    running: 1,
-    needs_review: 1,
-    blocked: 0,
-    succeeded: 1,
-    failed: 1,
-    cancelled: 0,
-  },
   failedLast24h: 1,
+  latestEvents: [],
   paperStageCounts: {
-    queued: 3,
-    ingested: 0,
-    spec_extracted: 1,
-    implemented: 0,
     backtested: 0,
     forward_tested: 0,
+    implemented: 0,
+    ingested: 0,
+    queued: 3,
+    spec_extracted: 1,
     verdict: 0,
   },
-  latestEvents: [],
+  statusCounts: {
+    blocked: 0,
+    cancelled: 0,
+    failed: 1,
+    needs_review: 1,
+    queued: 0,
+    running: 1,
+    succeeded: 1,
+  },
   ...overrides,
 });
 
@@ -128,33 +128,33 @@ const agentGateway = (
   tasks: AgentTaskOutput[],
   overrides: Partial<AgentOpsGateway> = {}
 ): AgentOpsGateway => ({
-  summary: vi.fn(async () => summary()),
-  listTasks: vi.fn(async () => tasks),
-  getTask: vi.fn(async (id: string) => ({
-    task: tasks.find((row) => row.id === id)!,
-    events: [
-      {
-        id: "e1",
-        taskId: id,
-        at,
-        level: "info" as const,
-        message: "fold 3 done",
-      },
-    ],
+  appendEvent: vi.fn(async (input) => ({
+    at,
+    id: "e2",
+    level: input.level ?? "info",
+    message: input.message,
+    taskId: input.taskId,
   })),
   createTask: vi.fn(async (input) =>
-    task("new", { title: input.title, kind: input.kind, agent: input.agent })
+    task("new", { agent: input.agent, kind: input.kind, title: input.title })
   ),
+  getTask: vi.fn(async (id: string) => ({
+    events: [
+      {
+        at,
+        id: "e1",
+        level: "info" as const,
+        message: "fold 3 done",
+        taskId: id,
+      },
+    ],
+    task: tasks.find((row) => row.id === id)!,
+  })),
+  listTasks: vi.fn(async () => tasks),
+  summary: vi.fn(async () => summary()),
   updateTask: vi.fn(async (input) => ({
     ...tasks.find((row) => row.id === input.id)!,
     status: input.status ?? "queued",
-  })),
-  appendEvent: vi.fn(async (input) => ({
-    id: "e2",
-    taskId: input.taskId,
-    at,
-    level: input.level ?? "info",
-    message: input.message,
   })),
   ...overrides,
 });
@@ -219,8 +219,8 @@ describe("mission control", () => {
   it("shows counters and splits tasks into needs-you, running and recent results", async () => {
     const gateway = agentGateway([
       task("a", { status: "needs_review" }),
-      task("b", { status: "running", startedAt: at }),
-      task("c", { status: "succeeded", metrics: { sharpe: 0.7 } }),
+      task("b", { startedAt: at, status: "running" }),
+      task("c", { metrics: { sharpe: 0.7 }, status: "succeeded" }),
       task("d", { status: "failed" }),
     ]);
     const container = await mount(<MissionControl gateway={gateway} />);
@@ -312,16 +312,16 @@ describe("agent runs workspace", () => {
     );
     await clickButton("Create task");
     expect(gateway.createTask).toHaveBeenCalledWith({
-      kind: "research",
       agent: "operator",
+      kind: "research",
       title: "Fit jump model",
     });
     expect(container.textContent).toContain("Created Fit jump model");
 
     await setValue(byLabel<HTMLSelectElement>("Filter by status"), "running");
     expect(gateway.listTasks).toHaveBeenLastCalledWith({
-      status: "running",
       limit: 200,
+      status: "running",
     });
 
     await clickButton("Expand Task a");
@@ -335,9 +335,9 @@ describe("agent runs workspace", () => {
       status: "needs_review",
     });
     return expect(gateway.appendEvent).toHaveBeenCalledWith({
-      taskId: "a",
       level: "info",
       message: "Operator set status queued -> needs_review",
+      taskId: "a",
     });
   });
 
@@ -369,41 +369,44 @@ describe("papers workspace", () => {
   it("adds a paper with title and URL, then edits stage, verdict, blockers and metrics inline", async () => {
     let rows = [paper("p1", { blockers: "gamma unknown", kind: "article" })];
     const gateway: PapersGateway = {
-      list: vi.fn(async () => rows),
       add: vi.fn(async (input) => {
         const created = paper("p2", {
-          title: input.title,
           sourceUrl: input.sourceUrl ?? null,
+          title: input.title,
         });
         rows = [...rows, created];
         return created;
       }),
+      addFromArxiv: vi.fn(),
+      list: vi.fn(async () => rows),
       update: vi.fn(async (input) => {
         const next = {
           ...rows.find((row) => row.id === input.id)!,
-          stage: input.stage!,
-          verdict: input.verdict!,
           blockers: input.blockers ?? null,
           reproducedMetrics: input.reproducedMetrics ?? {},
+          stage: input.stage!,
+          verdict: input.verdict!,
         };
         rows = rows.map((row) => (row.id === next.id ? next : row));
         return next;
       }),
-      addFromArxiv: vi.fn(),
     };
     const container = await mount(<PapersWorkspace gateway={gateway} />);
     expect(container.textContent).toContain("gamma unknown");
     expect(container.textContent).toContain("Article");
 
+    await clickButton("Add paper");
     await setValue(byLabel<HTMLInputElement>("Paper title"), "SSRN paper");
     await setValue(
-      byLabel<HTMLInputElement>("Paper URL"),
+      [...document.querySelectorAll("label")]
+        .find((label) => /^Source URL/u.test(label.textContent ?? ""))
+        ?.querySelector("input") as HTMLInputElement,
       "https://domain.test/ssrn"
     );
-    await clickButton("Add paper");
+    await clickButton("Save paper");
     expect(gateway.add).toHaveBeenCalledWith({
-      title: "SSRN paper",
       sourceUrl: "https://domain.test/ssrn",
+      title: "SSRN paper",
     });
     expect(container.querySelectorAll("tbody tr[data-paper-id]")).toHaveLength(
       2
@@ -419,13 +422,13 @@ describe("papers workspace", () => {
     );
     await clickButton("Save");
     expect(gateway.update).toHaveBeenCalledWith({
-      id: "p1",
-      stage: "implemented",
-      verdict: "promising",
       blockers: null,
+      id: "p1",
       notes: null,
       reportedMetrics: {},
-      reproducedMetrics: { sharpe: 0.5, sample: "2004-2025" },
+      reproducedMetrics: { sample: "2004-2025", sharpe: 0.5 },
+      stage: "implemented",
+      verdict: "promising",
     });
     return expect(
       container.querySelector('[data-paper-id="p1"] [data-stage]')?.textContent
@@ -434,13 +437,14 @@ describe("papers workspace", () => {
 
   return it("rejects a blank title without calling the API", async () => {
     const gateway: PapersGateway = {
-      list: vi.fn(async () => []),
       add: vi.fn(),
-      update: vi.fn(),
       addFromArxiv: vi.fn(),
+      list: vi.fn(async () => []),
+      update: vi.fn(),
     };
     const container = await mount(<PapersWorkspace gateway={gateway} />);
     await clickButton("Add paper");
+    await clickButton("Save paper");
     expect(gateway.add).not.toHaveBeenCalled();
     return expect(container.textContent).toContain("Title is required.");
   });

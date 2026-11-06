@@ -7,9 +7,17 @@ import RiskAllocatorError from "./error.tsx";
 import RiskAllocatorLoading from "./loading.tsx";
 import RiskAllocatorPage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/risk-allocator-workspace.tsx", () => ({
-  RiskAllocatorWorkspace: () => <div data-workspace="risk-allocator" />,
-}));
+vi.mock(
+  "../../../components/portal/risk-allocator-workspace.tsx",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../components/portal/risk-allocator-workspace.tsx")
+    >()),
+    RiskAllocatorWorkspace: (props: { initial: unknown }) => (
+      <div data-workspace={JSON.stringify(props.initial)} />
+    ),
+  })
+);
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -31,12 +39,40 @@ const render = async (element: ReactElement) => {
   return container;
 };
 
+const workspaceProps = (container: HTMLElement) =>
+  JSON.parse(
+    container
+      .querySelector("[data-workspace]")
+      ?.getAttribute("data-workspace") ?? "null"
+  );
+
 describe("risk allocator route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<RiskAllocatorPage />);
+  it("renders the workspace without a symbol by default (first watchlist symbol)", async () => {
+    const container = await render(
+      await RiskAllocatorPage({ searchParams: Promise.resolve({}) })
+    );
     expect(metadata).toEqual({ title: "Risk allocator" });
-    expect(container.querySelector("h1")?.textContent).toBe("Risk allocator");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(workspaceProps(container)).toEqual({ symbol: null });
+  });
+
+  it("passes the URL symbol to the workspace", async () => {
+    const container = await render(
+      await RiskAllocatorPage({
+        searchParams: Promise.resolve({ symbol: "msft" }),
+      })
+    );
+    expect(workspaceProps(container)).toEqual({ symbol: "MSFT" });
+  });
+
+  it("keys the workspace by symbol so a same-page link resets the form", async () => {
+    const withSymbol = await RiskAllocatorPage({
+      searchParams: Promise.resolve({ symbol: "nvda" }),
+    });
+    const without = await RiskAllocatorPage({
+      searchParams: Promise.resolve({}),
+    });
+    expect(withSymbol.key).toBe("NVDA");
+    expect(without.key).toBe("");
   });
 
   it("renders an accessible loading state", async () => {

@@ -35,6 +35,7 @@ import {
   HEADLINE_PREVIEW_COUNT,
   MARKET_NEWS_TAG_LABELS,
   MarketNewsWorkspace,
+  parseNewsDays,
 } from "./market-news-workspace.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -54,6 +55,7 @@ afterAll(() => {
 const roots: Root[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await act(async () => root.unmount());
+  window.history.replaceState(null, "", "/");
   return document.body.replaceChildren();
 });
 
@@ -120,19 +122,36 @@ const news = (tickers: MarketNewsTicker[]): MarketNewsWatchlistOutput => ({
   tickers,
 });
 
-const render = async (gateway?: MarketNewsGateway) => {
+const render = async (gateway?: MarketNewsGateway, initialDays?: string) => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   roots.push(root);
   await act(async () => {
     root.render(
-      <MarketNewsWorkspace {...(gateway === undefined ? {} : { gateway })} />
+      <MarketNewsWorkspace
+        {...(gateway === undefined ? {} : { gateway })}
+        {...(initialDays === undefined ? {} : { initialDays })}
+      />
     );
     await flush();
   });
   return container;
 };
+
+/** Heading of the first symbol panel. */
+const firstSymbol = (container: HTMLElement) =>
+  container.querySelector("[data-news-symbol] h3")?.textContent;
+
+/** Header chip text without StatusBadge's screen-reader "Status:" prefix. */
+const chipTone = (container: HTMLElement) =>
+  container.querySelector('[data-slot="page-status"] [data-slot="badge"]')
+    ?.className;
+
+const chip = (container: HTMLElement) =>
+  container
+    .querySelector('[data-slot="page-status"]')
+    ?.textContent?.replace(/^Status:\s*/u, "");
 
 const choose = async (container: HTMLElement, hours: MarketNewsHours) => {
   const select = container.querySelector("select") as HTMLSelectElement;
@@ -158,10 +177,24 @@ describe("news monitor workspace", () => {
     const watchlist = vi.fn(async () => news([aapl, spy]));
     const container = await render({ watchlist });
     expect(watchlist).toHaveBeenCalledWith(72);
-    const sections = container.querySelectorAll("section");
+    expect(container.querySelector("h1")?.textContent).toBe("News monitor");
+    expect(chip(container)).toBe("2 symbols watched");
+    // SPY's failed sources turn the chip amber.
+    expect(chipTone(container)).toContain("text-warning-foreground");
+    const kpi = (name: string) =>
+      container.querySelector(`[data-kpi="${name}"]`)?.textContent;
+    expect(kpi("symbols")).toBe("Symbols21 with source gaps");
+    expect(kpi("headlines")).toBe("Headlines2In the last 3 days");
+    expect(kpi("filings")).toBe("8-K filings21 important");
+    const sections = container.querySelectorAll("[data-news-symbol]");
     expect(
-      [...sections].map((section) => section.querySelector("h2")?.textContent)
+      [...sections].map((section) => section.querySelector("h3")?.textContent)
     ).toEqual(["AAPL", "SPY"]);
+    expect(
+      sections[0]
+        ?.querySelector('h3 a[data-slot="ticker-link"]')
+        ?.getAttribute("href")
+    ).toBe("/stock/AAPL");
     const first = sections[0] as HTMLElement;
     expect(first.textContent).toContain("2 headlines · 2 8-K (1 important)");
     const important = first.querySelector('[data-important="true"]');
@@ -174,7 +207,7 @@ describe("news monitor workspace", () => {
     expect(first.textContent).toContain("Reuters");
     expect(first.textContent).toContain(MARKET_NEWS_TAG_LABELS.legal);
     expect(first.textContent).toContain(MARKET_NEWS_TAG_LABELS.deal);
-    const links = [...container.querySelectorAll("a")];
+    const links = [...container.querySelectorAll("a[target]")];
     expect(links).toHaveLength(4);
     for (const link of links) {
       expect(link.getAttribute("target")).toBe("_blank");
@@ -201,6 +234,8 @@ describe("news monitor workspace", () => {
     const container = await render();
     expect(browser.watchlist).toHaveBeenCalledWith(72);
     expect(container.textContent).toContain("Your watchlist is empty");
+    expect(chip(container)).toBe("No symbols");
+    expect(container.querySelector("[data-kpi]")).toBeNull();
     return expect(
       container.querySelector('a[href="/watchlist"]')?.textContent
     ).toBe("Open watchlist");
@@ -250,7 +285,9 @@ describe("news monitor workspace", () => {
     const container = await render({ watchlist });
     await choose(container, 24);
     expect(watchlist).toHaveBeenLastCalledWith(24);
-    expect(container.querySelector("h2")?.textContent).toBe("H24");
+    expect(window.location.search).toBe("?days=1");
+    expect(firstSymbol(container)).toBe("H24");
+    expect(chip(container)).toBe("1 symbol watched");
     expect(container.textContent).toContain(
       "No headlines in the last 24 hours."
     );
@@ -259,6 +296,7 @@ describe("news monitor workspace", () => {
     expect(watchlist).toHaveBeenLastCalledWith(24);
     await choose(container, 720);
     expect(watchlist).toHaveBeenLastCalledWith(720);
+    expect(window.location.search).toBe("?days=30");
     return expect(container.textContent).toContain(
       "No headlines in the last 30 days."
     );
@@ -276,26 +314,53 @@ describe("news monitor workspace", () => {
           pending.push({ fail, hours, settle });
         })
     );
+    window.history.replaceState(null, "", "/news?days=3#top");
     const container = await render({ watchlist });
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "Loading news…"
     );
+    expect(chip(container)).toBe("Loading");
+    const refresh = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "Refresh"
+    );
+    expect(refresh?.disabled).toBe(true);
     await choose(container, 168);
     await act(async () => {
       pending[1]?.settle(news([{ ...spy, symbol: "NEW" }]));
       pending[0]?.settle(news([{ ...spy, symbol: "OLD" }]));
       await flush();
     });
-    expect(container.querySelector("h2")?.textContent).toBe("NEW");
+    expect(firstSymbol(container)).toBe("NEW");
     await choose(container, 24);
     await choose(container, 72);
+    // The default window keeps a clean address.
+    expect(window.location.search).toBe("");
     await act(async () => {
       pending[2]?.fail({ code: "STORAGE_ERROR" });
       pending[3]?.settle(news([{ ...spy, symbol: "WEEK" }]));
       await flush();
     });
     expect(container.querySelector('[role="alert"]')).toBeNull();
-    return expect(container.querySelector("h2")?.textContent).toBe("WEEK");
+    return expect(firstSymbol(container)).toBe("WEEK");
+  });
+
+  it("opens the window named by ?days= and falls back to 3 days", async () => {
+    expect(parseNewsDays("1")).toBe(24);
+    expect(parseNewsDays("7")).toBe(168);
+    expect(parseNewsDays("30")).toBe(720);
+    expect(parseNewsDays("3")).toBe(72);
+    expect(parseNewsDays(undefined)).toBe(72);
+    expect(parseNewsDays("2")).toBe(72);
+    expect(parseNewsDays("7d")).toBe(72);
+    const watchlist = vi.fn(async () => news([aapl]));
+    const container = await render({ watchlist }, "7");
+    expect(watchlist).toHaveBeenCalledWith(168);
+    expect(container.querySelector("select")?.value).toBe("168");
+    expect(chip(container)).toBe("1 symbol watched");
+    expect(chipTone(container)).toContain("text-success-foreground");
+    return expect(
+      container.querySelector('[data-kpi="headlines"]')?.textContent
+    ).toContain("In the last 7 days");
   });
 
   return it("shows a failure with a retry", async () => {
@@ -307,8 +372,9 @@ describe("news monitor workspace", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "News unavailable: Session expired. Sign in again."
     );
+    expect(chip(container)).toBe("Unavailable");
     await click(container, "Try again");
     expect(container.querySelector('[role="alert"]')).toBeNull();
-    return expect(container.querySelector("h2")?.textContent).toBe("AAPL");
+    return expect(firstSymbol(container)).toBe("AAPL");
   });
 });

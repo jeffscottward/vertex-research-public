@@ -5,9 +5,12 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import {
+  countCatalogReports,
   DATASET_LABELS,
   DATASET_TABS,
+  filterCatalogGroups,
   reportHref,
+  toCatalogSummary,
   toCatalogViewModel,
   toDatasetViewModel,
 } from "./view-model.ts";
@@ -112,6 +115,67 @@ describe("research dossier catalog view-model", () => {
       Object.keys(DATASET_LABELS)
     );
     expect(DATASET_LABELS["options-analysis"]).toBe("Options analysis");
+  });
+
+  it("sums the catalog for the KPI row: reports, groups, research, newest update", () => {
+    const output = {
+      categories: [
+        { description: "", id: "one", label: "One", reportIds: ["AAA"] },
+      ],
+      reports: [
+        summary({ sourceUpdatedAt: new Date("2026-08-01T00:00:00.000Z") }),
+        summary({
+          companyResearch: null,
+          id: "BBB",
+          sourceUpdatedAt: null,
+          symbol: "BBB",
+        }),
+        summary({
+          id: "CCC",
+          sourceUpdatedAt: new Date("2026-10-02T09:00:00.000Z"),
+          symbol: "CCC",
+        }),
+        summary({
+          id: "DDD",
+          sourceUpdatedAt: new Date("2026-09-01T00:00:00.000Z"),
+          symbol: "DDD",
+        }),
+      ],
+    };
+    expect(toCatalogSummary(output, toCatalogViewModel(output))).toEqual({
+      dossiers: 4,
+      groups: 2,
+      lastUpdated: "2026-10-02",
+      research: 3,
+    });
+    expect(toCatalogSummary({ categories: [], reports: [] }, [])).toEqual({
+      dossiers: 0,
+      groups: 0,
+      lastUpdated: "—",
+      research: 0,
+    });
+  });
+
+  it("filters by symbol or name, drops empty groups and counts each report once", () => {
+    const groups = toCatalogViewModel({
+      categories: [
+        { description: "", id: "one", label: "One", reportIds: ["AAA", "BBB"] },
+        { description: "", id: "two", label: "Two", reportIds: ["AAA"] },
+      ],
+      reports: [
+        summary(),
+        summary({ id: "BBB", name: "Beta Holdings", symbol: "BBB" }),
+      ],
+    });
+    expect(filterCatalogGroups(groups, "  ")).toBe(groups);
+    expect(countCatalogReports(groups)).toBe(2);
+    const bySymbol = filterCatalogGroups(groups, "aaa");
+    expect(bySymbol.map((group) => group.id)).toEqual(["one", "two"]);
+    expect(countCatalogReports(bySymbol)).toBe(1);
+    const byName = filterCatalogGroups(groups, " beta ");
+    expect(byName.map((group) => group.id)).toEqual(["one"]);
+    expect(byName[0]?.reports.map((report) => report.id)).toEqual(["BBB"]);
+    expect(filterCatalogGroups(groups, "zzz")).toEqual([]);
   });
 });
 

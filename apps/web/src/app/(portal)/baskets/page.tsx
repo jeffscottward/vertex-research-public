@@ -1,5 +1,3 @@
-import { PageHeader } from "@darkfactory/ui";
-
 import { BasketsWorkspace } from "../../../components/portal/baskets-workspace.tsx";
 
 export const metadata = { title: "Baskets" };
@@ -11,12 +9,12 @@ type BasketsSearchParams = Promise<
 export default async function BasketsPage({
   searchParams,
 }: Readonly<{ searchParams: BasketsSearchParams }>) {
-  const { symbol } = await searchParams;
+  const { basket, symbol } = await searchParams;
+  const wanted = typeof basket === "string" ? basket : symbol;
   return (
     <div className="space-y-8">
-      <PageHeader title="Baskets" />
       <BasketsWorkspace
-        initialSymbol={typeof symbol === "string" ? symbol : null}
+        initialBasket={typeof wanted === "string" ? wanted : null}
       />
     </div>
   );

@@ -139,12 +139,6 @@
       "functions": 0.0,
       "statements": 0.0
     },
-    "apps/web/src/app/(portal)/papers/page.tsx": {
-      "lines": 0.0,
-      "branches": 100.0,
-      "functions": 0.0,
-      "statements": 0.0
-    },
     "apps/web/src/app/(portal)/settings/workspace/page.tsx": {
       "lines": 0.0,
       "branches": 100.0,
@@ -319,12 +313,6 @@
       "functions": 86.66,
       "statements": 90.76
     },
-    "apps/web/src/components/portal/papers-workspace.tsx": {
-      "lines": 90.21,
-      "branches": 86.36,
-      "functions": 87.09,
-      "statements": 89.36
-    },
     "apps/web/src/components/portal/strategy-library-detail.tsx": {
       "lines": 90.2,
       "branches": 74.59,
@@ -483,15 +471,9 @@
     },
     "apps/web/src/features/experience/research-chat-view.tsx": {
       "lines": 95.06,
-      "branches": 95.0,
+      "branches": 95.18,
       "functions": 97.1,
       "statements": 94.79
-    },
-    "apps/web/src/features/experience/research.tsx": {
-      "lines": 88.0,
-      "branches": 84.21,
-      "functions": 66.66,
-      "statements": 86.53
     },
     "apps/web/src/features/experience/review-model.ts": {
       "lines": 96.06,
