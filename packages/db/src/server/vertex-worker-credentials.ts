@@ -1,6 +1,7 @@
 import { deepFreezeArtifact } from "@darkfactory/shared/vertex";
 import { sql } from "drizzle-orm";
 import type { Database, Transaction } from "./client.ts";
+import { databaseErrorDetails } from "./repository-errors.ts";
 import {
   array,
   digestString,
@@ -105,8 +106,11 @@ export const createVertexWorkerCredentials = (
       );
     } catch (error) {
       if (error instanceof VertexStoreError) throw error;
-      const code = (error as { code?: string })?.code;
-      if (["23505", "40001", "40P01"].includes(code ?? ""))
+      const { code } = databaseErrorDetails(error);
+      if (
+        typeof code === "string" &&
+        ["23505", "40001", "40P01"].includes(code)
+      )
         return fail("conflict");
       return fail("unavailable");
     }
