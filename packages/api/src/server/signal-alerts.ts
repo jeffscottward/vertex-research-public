@@ -24,6 +24,7 @@ import {
   barsFromYahooChart,
   describeSignalCondition,
   evaluateSignalAlert,
+  isRegularSession,
   parseWatchRequest,
   planSignalAlertRun,
   SIGNAL_ALERT_NOTIFICATION,
@@ -97,7 +98,7 @@ const fetchSeries = async (
         timeoutMs: SERIES_TIMEOUT_MS,
       }
     );
-    return barsFromYahooChart(raw);
+    return barsFromYahooChart(raw, timeframe);
   } catch (error) {
     return { ok: false, reason: (error as Error).message };
   }
@@ -209,9 +210,14 @@ const runSignalAlerts = async (
       }
       checked += 1;
       const evaluation = evaluateSignalAlert(
-        { condition, frequency: rule.frequency, timeframe: rule.timeframe },
         {
-          createdAt: rule.createdAt,
+          condition,
+          frequency: rule.frequency,
+          regularSession: isRegularSession(rule.symbol),
+          timeframe: rule.timeframe,
+        },
+        {
+          activeSince: rule.activatedAt ?? rule.createdAt,
           lastBarAt: rule.lastBarAt,
           lastFiredBarAt: rule.lastFiredBarAt,
         },
@@ -222,7 +228,6 @@ const runSignalAlerts = async (
         const event = await repository.recordFire({
           barAt: fire.barAt,
           done: evaluation.done,
-          firedAt: now,
           price: formatPrice(fire.price),
           ruleId: rule.id,
           userId: rule.userId,
@@ -286,7 +291,8 @@ const backfillFor = async (
       input.condition,
       result.bars,
       input.timeframe,
-      currentTime()
+      currentTime(),
+      isRegularSession(input.symbol)
     ),
     ok: true as const,
   };

@@ -2710,6 +2710,8 @@ export const signalAlertRules = pgTable(
     condition: jsonb("condition").$type<Record<string, unknown>>().notNull(),
     frequency: text("frequency").$type<SignalAlertFrequencyValue>().notNull(),
     status: text("status").$type<SignalAlertStatusValue>().notNull(),
+    /** When the rule became active: created active, or a proposed watch started. */
+    activatedAt: utcTimestamp("activated_at"),
     lastCheckedAt: utcTimestamp("last_checked_at"),
     lastBarAt: utcTimestamp("last_bar_at"),
     lastFiredBarAt: utcTimestamp("last_fired_bar_at"),

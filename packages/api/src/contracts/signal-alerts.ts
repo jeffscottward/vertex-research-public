@@ -170,6 +170,45 @@ export const SIGNAL_ALERT_API_ERRORS = {
 const signals = oc.errors(SIGNAL_ALERT_API_ERRORS);
 const tags = ["Signal alerts"];
 
+const BAR_MINUTES: Readonly<Record<SignalAlertTimeframe, number>> = {
+  "15m": 15,
+  "1d": 1440,
+  "1h": 60,
+  "5m": 5,
+};
+
+/**
+ * A condition that can never fire is refused: an opening range on daily bars or not made of whole
+ * bars, and a zero value line.
+ */
+const refineConditionForTimeframe = (
+  input: Readonly<{
+    condition: SignalAlertCondition;
+    timeframe: SignalAlertTimeframe;
+  }>,
+  context: z.RefinementCtx
+): void => {
+  for (const source of [input.condition.left, input.condition.right]) {
+    if (source.type === "value" && Number(source.value) === 0)
+      context.addIssue({
+        code: "custom",
+        message: "A value line must be greater than 0",
+        path: ["condition"],
+      });
+    if (
+      source.type === "opening-range" &&
+      (input.timeframe === "1d" ||
+        source.minutes % BAR_MINUTES[input.timeframe] !== 0)
+    )
+      context.addIssue({
+        code: "custom",
+        message:
+          "An opening range needs intraday bars and a whole number of bars",
+        path: ["condition"],
+      });
+  }
+};
+
 const ruleFields = {
   condition: SignalAlertConditionSchema,
   frequency: z.enum(SIGNAL_ALERT_FREQUENCIES),
@@ -189,7 +228,8 @@ export const SignalAlertCreateInputSchema = z
     name: name.optional(),
     origin: z.enum(["manual", "strategy"]).default("manual"),
   })
-  .strict();
+  .strict()
+  .superRefine(refineConditionForTimeframe);
 export const SignalAlertRuleOutputSchema = z.object({
   rule: SignalAlertRuleSchema,
 });
@@ -200,7 +240,8 @@ export const SignalAlertBackfillInputSchema = z
     symbol,
     timeframe: z.enum(SIGNAL_ALERT_TIMEFRAMES),
   })
-  .strict();
+  .strict()
+  .superRefine(refineConditionForTimeframe);
 export const SignalAlertBackfillOutputSchema = z.object({
   backfill: SignalAlertBackfillSchema,
   description: z.string(),
@@ -208,7 +249,10 @@ export const SignalAlertBackfillOutputSchema = z.object({
 
 /** Quant proposes a watch: structured fields (agent API) or a plain-language request (parser). */
 export const SignalAlertProposeInputSchema = z.union([
-  z.object({ ...ruleFields, name: name.optional() }).strict(),
+  z
+    .object({ ...ruleFields, name: name.optional() })
+    .strict()
+    .superRefine(refineConditionForTimeframe),
   z.object({ text: z.string().trim().min(3).max(500) }).strict(),
 ]);
 export const SignalAlertProposeOutputSchema = z.discriminatedUnion("ok", [

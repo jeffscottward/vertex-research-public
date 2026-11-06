@@ -24,6 +24,7 @@ const dialect = new PgDialect();
 interface Operation {
   kind: "select" | "insert" | "update" | "delete";
   conflict?: unknown;
+  lock?: string;
   join?: unknown;
   limit?: number;
   orderBy?: unknown[];
@@ -41,6 +42,10 @@ const createDouble = (outcomes: Array<readonly Record<string, unknown>[]>) => {
     const chain: Record<string, unknown> = {
       from: (table: unknown) => {
         operation.table = table;
+        return chain;
+      },
+      for: (lock: string) => {
+        operation.lock = lock;
         return chain;
       },
       innerJoin: (table: unknown) => {
@@ -77,13 +82,22 @@ const createDouble = (outcomes: Array<readonly Record<string, unknown>[]>) => {
     };
     return chain;
   };
+  const executed: SQL[] = [];
   const database = {
     delete: (table: unknown) => builder({ kind: "delete", table }),
+    execute: async (query: SQL) => {
+      executed.push(query);
+      return [];
+    },
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: () => builder({ kind: "select" }),
+    // The double runs the transaction body on itself.
+    transaction: async (
+      operation: (transaction: unknown) => Promise<unknown>
+    ) => operation(database),
     update: (table: unknown) => builder({ kind: "update", table }),
   } as unknown as Database;
-  return { database, operations };
+  return { database, executed, operations };
 };
 
 const whereOf = (operation: Operation | undefined) => {
@@ -100,6 +114,7 @@ const condition = {
 const row = (
   overrides: Partial<SignalAlertRuleRow> = {}
 ): SignalAlertRuleRow => ({
+  activatedAt: CREATED,
   condition,
   createdAt: CREATED,
   fireCount: 0,
@@ -161,7 +176,11 @@ describe("createSignalAlertRepository", () => {
       userId: "user-a",
     });
     expect(created.id).toBe("rule-1");
+    expect(dialect.sqlToQuery(double.executed[0] as SQL).params).toEqual([
+      "signal_alert_rules:user-a",
+    ]);
     expect(double.operations[1]?.values).toMatchObject({
+      activatedAt: NOW,
       createdAt: NOW,
       id: "gen-1",
       status: "active",
@@ -189,12 +208,13 @@ describe("createSignalAlertRepository", () => {
         kind: "alert",
         name: "x",
         origin: "manual",
-        status: "active",
+        status: "proposed",
         symbol: "SPY",
         timeframe: "1d",
         userId: "user-a",
       })
     ).rejects.toThrow("signal alert insert returned no row");
+    expect(empty.operations[1]?.values).toMatchObject({ activatedAt: null });
   });
 
   it("lists active rules of operator owners only, least recently attempted first", async () => {
@@ -259,11 +279,15 @@ describe("createSignalAlertRepository", () => {
     await repository.markAttempted(["rule-1"]);
     await repository.markChecked("rule-1", BAR, NOW);
     expect(double.operations[0]?.set).toEqual({ updatedAt: NOW });
-    expect(double.operations[1]?.set).toEqual({
-      lastBarAt: BAR,
-      lastCheckedAt: NOW,
-      updatedAt: NOW,
-    });
+    const checkedSet = double.operations[1]?.set ?? {};
+    expect(checkedSet["lastCheckedAt"]).toEqual(NOW);
+    const cursor = dialect.sqlToQuery(checkedSet["lastBarAt"] as SQL);
+    expect(cursor.sql).toBe('greatest("signal_alert_rules"."last_bar_at", $1)');
+    expect(cursor.params).toEqual([BAR.toISOString()]);
+    await repository.markChecked("rule-1", null, NOW);
+    expect(
+      dialect.sqlToQuery(double.operations[2]?.set?.["lastBarAt"] as SQL).params
+    ).toEqual([null]);
     expect(whereOf(double.operations[1]).params).toEqual(["rule-1", "active"]);
   });
 
@@ -286,7 +310,6 @@ describe("createSignalAlertRepository", () => {
     const fired = await repositoryFor(double).recordFire({
       barAt: BAR,
       done: true,
-      firedAt: NOW,
       price: "11",
       ruleId: "rule-1",
       userId: "user-a",
@@ -303,6 +326,8 @@ describe("createSignalAlertRepository", () => {
       symbol: "SPY",
       userId: "user-a",
     });
+    expect(double.operations[0]?.lock).toBe("update");
+    expect(double.operations[1]?.values?.["firedAt"]).toBeTypeOf("object");
     expect(double.operations[1]?.conflict).toEqual({
       target: [signalAlertEvents.ruleId, signalAlertEvents.barAt],
     });
@@ -317,7 +342,6 @@ describe("createSignalAlertRepository", () => {
       await repositoryFor(repeat).recordFire({
         barAt: BAR,
         done: false,
-        firedAt: NOW,
         price: "11",
         ruleId: "rule-1",
         userId: "user-a",
@@ -330,7 +354,6 @@ describe("createSignalAlertRepository", () => {
       await repositoryFor(gone).recordFire({
         barAt: BAR,
         done: false,
-        firedAt: NOW,
         price: "11",
         ruleId: "rule-1",
         userId: "user-a",
@@ -341,7 +364,6 @@ describe("createSignalAlertRepository", () => {
     await repositoryFor(kept).recordFire({
       barAt: BAR,
       done: false,
-      firedAt: NOW,
       price: "11",
       ruleId: "rule-1",
       userId: "user-a",
@@ -368,9 +390,11 @@ describe("createSignalAlertRepository", () => {
       "user-a",
       "active",
     ]);
+    expect(double.operations[2]?.set).not.toHaveProperty("activatedAt");
     expect(
       await repository.transition("rule-1", "user-a", ["proposed"], "active")
     ).toBeNull();
+    expect(double.operations[3]?.set).toMatchObject({ activatedAt: NOW });
     expect(
       await repository.transition("rule-1", "user-a", [], "active")
     ).toBeNull();

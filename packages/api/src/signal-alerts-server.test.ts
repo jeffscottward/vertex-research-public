@@ -76,6 +76,7 @@ const condition = {
 const record = (
   overrides: Partial<SignalAlertRuleRecord> = {}
 ): SignalAlertRuleRecord => ({
+  activatedAt: null,
   condition,
   createdAt: CREATED,
   fireCount: 0,
@@ -170,7 +171,7 @@ const memoryRules = (initial: SignalAlertRuleRecord[] = [], limit = 50) => {
       const event: SignalAlertEventRecord = {
         barAt: input.barAt,
         delivery: "pending",
-        firedAt: input.firedAt,
+        firedAt: NOW,
         id: `event-${events.length + 1}`,
         kind: row.kind,
         name: row.name,
@@ -183,7 +184,7 @@ const memoryRules = (initial: SignalAlertRuleRecord[] = [], limit = 50) => {
       replace({
         ...row,
         fireCount: row.fireCount + 1,
-        lastFiredAt: input.firedAt,
+        lastFiredAt: NOW,
         lastFiredBarAt: input.barAt,
         ...(input.done ? { status: "done" as const } : {}),
       });
@@ -202,7 +203,11 @@ const memoryRules = (initial: SignalAlertRuleRecord[] = [], limit = 50) => {
         (entry) => entry.id === id && entry.userId === userId
       );
       if (row === undefined || !from.includes(row.status)) return null;
-      return replace({ ...row, status: to });
+      return replace({
+        ...row,
+        status: to,
+        ...(to === "active" ? { activatedAt: NOW } : {}),
+      });
     }),
   };
   return { events, repository, rows };
@@ -376,6 +381,20 @@ describe("priceAlerts.signals", () => {
       "BAD_REQUEST",
       400
     );
+    for (const [timeframe, right] of [
+      ["1d", { minutes: 30, side: "high", type: "opening-range" }],
+      ["1h", { minutes: 30, side: "high", type: "opening-range" }],
+      ["15m", { type: "value", value: "0" }],
+    ] as const)
+      await expectCode(
+        client.priceAlerts.signals.backfill({
+          condition: { ...condition, right },
+          symbol: "SPY",
+          timeframe,
+        }),
+        "BAD_REQUEST",
+        400
+      );
     await expectCode(
       client.priceAlerts.signals.create({
         condition,
@@ -442,9 +461,28 @@ describe("priceAlerts.signals", () => {
       "NOT_FOUND",
       404
     );
+    // A watch started now never fires on bars from before it was started.
+    expect(await client.priceAlerts.signals.check({})).toMatchObject({
+      checked: 1,
+      delivery: "none",
+      events: [],
+    });
+    expect(rows[0]?.activatedAt).toEqual(NOW);
+  });
+
+  it("fires fresh bars once, pushes fixed text and lists events", async () => {
+    useFakes();
+    const { repository, rows } = memoryRules([
+      record({ frequency: "per-bar" }),
+    ]);
+    const client = clientFor({ ntfy: NTFY, rules: repository });
     const checked = await client.priceAlerts.signals.check({});
     expect(checked).toMatchObject({ checked: 1, delivery: "sent" });
-    expect(checked.events.map((event) => event.price)).toEqual(["11", "11"]);
+    // Bar 3 closed recently; bar 5 is forming; bar 1 is stale.
+    expect(checked.events.map((event) => event.barAt)).toEqual([
+      new Date(START + 45 * MINUTE),
+      new Date(START + 75 * MINUTE),
+    ]);
     expect(checked.events.every((event) => event.delivery === "sent")).toBe(
       true
     );
@@ -549,7 +587,7 @@ describe("priceAlerts.signals", () => {
     expect(result).toEqual({
       checked: 1,
       deliveries: { failed: 0, notConfigured: 0, sent: 1 },
-      fired: 2,
+      fired: 1,
       seriesErrors: [],
     });
   });
@@ -623,10 +661,11 @@ describe("priceAlerts.signals", () => {
       record({
         condition: { ...condition, right: { type: "value", value: "1000" } },
         symbol: "BIG",
+        frequency: "per-bar",
       }),
     ]);
     events.push({
-      barAt: new Date(START + 15 * MINUTE),
+      barAt: new Date(START + 45 * MINUTE),
       delivery: "sent",
       firedAt: CREATED,
       id: "event-0",
@@ -641,7 +680,7 @@ describe("priceAlerts.signals", () => {
       rules: repository,
     }).priceAlerts.signals.check({});
     expect(checked.events.map((event) => event.price)).toEqual(["1100"]);
-    expect(checked.events[0]?.barAt).toEqual(new Date(START + 45 * MINUTE));
+    expect(checked.events[0]?.barAt).toEqual(new Date(START + 75 * MINUTE));
   });
 
   it("defers rules beyond the per-run series budget", async () => {
@@ -691,10 +730,17 @@ describe("priceAlerts.signals", () => {
         apiKey: PLAINTEXT,
         rules: repository,
       }).priceAlerts.signals.tick({});
+      // Days later every bar is stale: the cursor moves, nothing fires.
       expect(result).toMatchObject({
-        deliveries: { notConfigured: 1, sent: 0 },
-        fired: 3,
+        checked: 1,
+        deliveries: { notConfigured: 0, sent: 0 },
+        fired: 0,
       });
+      expect(repository.markChecked).toHaveBeenCalledWith(
+        "rule-1",
+        new Date(START + 75 * MINUTE),
+        expect.any(Date)
+      );
     } finally {
       vi.unstubAllGlobals();
     }
