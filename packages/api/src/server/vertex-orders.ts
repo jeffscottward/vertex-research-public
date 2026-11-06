@@ -39,22 +39,14 @@ import {
   type OrderAccount,
   sameContract,
 } from "./vertex-orders-rules.ts";
+import type { VertexOrdersConfig } from "./service-config.ts";
+
+export type { VertexOrdersConfig } from "./service-config.ts";
 
 // Owner order screen (vertexOrders.*). Operator allow-list only (requireOperator; agent API keys
 // cannot reach this namespace). The handler origin check covers CSRF for every POST. Each mutating
 // call is rate-limited per user and audit-logged as a semantic event (user id, contract, result;
 // never account numbers). VERTEX_ORDERS_ENABLED off => the mock gateway only; IBKR is never called.
-
-export type VertexOrdersConfig = Readonly<{
-  enabled: boolean;
-  // VERTEX_ORDER_SUBMISSION, the repo-wide submission gate ("disabled" by default).
-  // Live orders need BOTH this gate open and VERTEX_ORDERS_ENABLED; otherwise the mock is used.
-  submission: string;
-  bridgeUrl: string | null;
-  // VERTEX_ORDER_BRIDGE_TOKEN: shared secret the bridge requires on every call. Never logged.
-  bridgeToken?: string | null;
-  confirmSecret: string;
-}>;
 
 interface Dependencies {
   mock: OrderGatewayPort;

@@ -31,6 +31,9 @@ import type { ApiContext } from "./context.ts";
 import type { DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
 import { fetchBoundedJson } from "./research-lenses.ts";
+import type { PriceAlertsNtfyConfig } from "./service-config.ts";
+
+export type { PriceAlertsNtfyConfig } from "./service-config.ts";
 
 // Price alert procedures (priceAlerts.*). Operator-only: a session operator manages their own rules
 // and runs check; an operator agent write key runs tick for every owner (scripts/price-alerts). A run
@@ -49,13 +52,6 @@ const NTFY_TIMEOUT_MS = 10_000;
 const NOTIFICATION_TENANT = "vertex";
 const NOTIFICATION_RECIPIENT = "price-alerts";
 const NOTIFICATION_CONFIGURATION = "price-alerts-ntfy";
-
-/** Server-only ntfy destination (VERTEX_PRICE_ALERTS_NTFY_*). Never returned to clients or logged. */
-export type PriceAlertsNtfyConfig = Readonly<{
-  origin: string;
-  topic: string;
-  token: string | null;
-}>;
 
 /** Configured only when both the origin and the topic are set. */
 export const resolvePriceAlertsNtfyConfig = (
