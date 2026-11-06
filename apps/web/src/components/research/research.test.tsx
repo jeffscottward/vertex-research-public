@@ -406,7 +406,7 @@ describe("Vertex rendered research states", () => {
       expect(html).not.toMatch(/Run backtest|Place order|Start execution/);
     }
     const workflow = renderToStaticMarkup(<ResearchPage />);
-    expect(workflow).toContain("<h1>Research</h1>");
+    expect(workflow).toMatch(/<h1[^>]*>Research<\/h1>/u);
     expect(workflow).toContain("This view cannot verify the research session");
     expect(workflow).not.toContain("research-conversations");
     expect(workflow).not.toContain("<form");
