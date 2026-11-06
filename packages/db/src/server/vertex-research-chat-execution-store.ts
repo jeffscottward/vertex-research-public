@@ -26,7 +26,7 @@ import {
   researchChatContextUseResource,
   type VertexResearchChatExecutionOptions,
 } from "./vertex-research-chat-execution-ports.ts";
-import type { ResearchChatSourceInputs } from "./vertex-research-chat-output-ports.ts";
+import type { ResearchChatSourceInputs } from "./vertex-research-chat-source-ports.ts";
 import { createResearchChatOperations } from "./vertex-research-chat-store.ts";
 // Request-scoped private storage evidence approvals share the review owner,
 // not the public AcceptedReview/StrategySpec catalog or its foreign keys.
