@@ -9,13 +9,14 @@ import {
 import type { ComponentProps } from "react";
 
 // Record tables in the experience destinations: roomy top-aligned cells that wrap long
-// identities, a surface header band and a bordered region that scrolls horizontally.
+// identities, the shared tinted header band and a rounded bordered region that scrolls
+// horizontally.
 const cell =
   "h-auto min-w-36 max-w-[25rem] whitespace-normal px-4 py-3 align-top [overflow-wrap:anywhere]";
 const numeric = "whitespace-nowrap text-right";
 
 export const experienceTableScroll =
-  "w-full max-w-full overflow-x-auto overscroll-x-contain border-border-strong border-y";
+  "w-full max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-border";
 
 export const ExperienceTable = ({
   className,
@@ -45,10 +46,7 @@ export const ExperienceTableHeader = ({
   className,
   ...props
 }: ComponentProps<typeof TableHeader>) => (
-  <TableHeader
-    className={cn("bg-surface text-foreground", className)}
-    {...props}
-  />
+  <TableHeader className={cn("[&_th]:py-2", className)} {...props} />
 );
 
 interface CellOptions {
