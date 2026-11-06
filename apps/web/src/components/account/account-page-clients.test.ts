@@ -2222,3 +2222,36 @@ describe("account page mutation recovery", () => {
     return expect(form.key).toBe("1");
   });
 });
+
+describe("injected account gateways (UI lab seam)", () => {
+  it("reads through a supplied gateway instead of the browser client", async () => {
+    // gatewayRuntime stays null: the browser factory throws if any client reaches for it.
+    const gateway = gatewayWith();
+    const listSessions = vi.fn(async () => ({
+      currentSessionId: null,
+      sessions: [],
+    }));
+    storeRuntime.current = uiStore();
+    for (const render of [
+      () => ProfilePageClient({ gateway }),
+      () => AddressPageClient({ gateway }),
+      () => PreferencesPageClient({ gateway }),
+      () =>
+        SecurityPageClient({
+          gateway: {
+            changePassword: vi.fn(async () => undefined),
+            listSessions,
+            revokeOtherSessions: vi.fn(async () => undefined),
+          },
+        }),
+    ]) {
+      hookRuntime.reset();
+      mount(render).render();
+      await flushMicrotasks();
+    }
+    expect(gateway.getProfile).toHaveBeenCalledTimes(1);
+    expect(gateway.listAddresses).toHaveBeenCalledTimes(1);
+    expect(gateway.getPreferences).toHaveBeenCalledTimes(1);
+    return expect(listSessions).toHaveBeenCalledTimes(1);
+  });
+});

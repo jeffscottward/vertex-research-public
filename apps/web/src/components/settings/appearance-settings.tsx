@@ -12,11 +12,20 @@ import {
 
 import { useState } from "react";
 
-import { useAppearanceSelection } from "../theme-menu.tsx";
+import {
+  type AppearanceSelection,
+  useAppearanceSelection,
+} from "../theme-menu.tsx";
 
-export const AppearanceSettings = () => {
+/** `selection` replaces the saving selection (UI lab: never persists or applies a theme). */
+export const AppearanceSettings = ({
+  selection: injected,
+}: {
+  readonly selection?: AppearanceSelection;
+} = {}) => {
   const { preference: saved } = useTheme();
-  const selection = useAppearanceSelection();
+  const live = useAppearanceSelection();
+  const selection = injected ?? live;
   // A trusted save applies after the server confirms it. Show the chosen
   // option as checked while the save is in flight, then the saved value.
   const [chosen, setChosen] = useState<Readonly<ThemePreference> | null>(null);

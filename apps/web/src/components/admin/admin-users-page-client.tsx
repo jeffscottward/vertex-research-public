@@ -4,6 +4,7 @@ import type { AdminUserSummaryOutput } from "@darkfactory/api";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  type AdminUsersGateway,
   adminFailureKind,
   createAdminRequestGuard,
   createBrowserAdminUsersGateway,
@@ -24,8 +25,15 @@ const mergeUsers = (
   return [...merged.values()];
 };
 
-export const AdminUsersPageClient = () => {
-  const [gateway] = useState(createBrowserAdminUsersGateway);
+/** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
+export const AdminUsersPageClient = ({
+  gateway: injected,
+}: {
+  readonly gateway?: AdminUsersGateway;
+} = {}) => {
+  const [gateway] = useState(
+    () => injected ?? createBrowserAdminUsersGateway()
+  );
   const [requests] = useState(createAdminRequestGuard);
   const [query, setQuery] = useState("");
   const [state, setState] = useState<AdminUsersDirectoryState>({

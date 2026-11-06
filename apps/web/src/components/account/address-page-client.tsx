@@ -10,6 +10,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  type AccountGateway,
   accountFailureKind,
   createBrowserAccountGateway,
   createLatestRequestGuard,
@@ -40,8 +41,13 @@ export const addressMutationMessage = (
   input: AddressCreateInput | AddressUpdateInput
 ): string => ("id" in input ? "Address updated." : "Address created.");
 
-export const AddressPageClient = () => {
-  const [gateway] = useState(createBrowserAccountGateway);
+/** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
+export const AddressPageClient = ({
+  gateway: injected,
+}: {
+  readonly gateway?: AccountGateway;
+} = {}) => {
+  const [gateway] = useState(() => injected ?? createBrowserAccountGateway());
   const [state, setState] = useState<AddressBookState>({ type: "loading" });
   const [formTarget, setFormTarget] = useState<FormTarget>(null);
   const [formVersion, setFormVersion] = useState(0);

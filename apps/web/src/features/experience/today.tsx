@@ -5,6 +5,7 @@ import { Button } from "@darkfactory/ui";
 import { useEffect, useMemo, useState } from "react";
 import { timestampToEpochNanoseconds } from "@darkfactory/shared/vertex";
 import type { AcceptedReview } from "@darkfactory/api/vertex";
+import type { SectorRotationSnapshot } from "@darkfactory/api";
 import { SectorRotationChanges } from "../../components/portal/sector-rotation-changes.tsx";
 import { ResearchTableHeading } from "../../components/research/research-table-heading.tsx";
 import type { DecisionInbox, ExperienceScope } from "./ports.ts";
@@ -385,11 +386,18 @@ const ScopedToday = ({ scope }: { readonly scope: ExperienceScope }) => {
   );
 };
 
-export const TodayWorkspace = () => {
+export interface TodayWorkspaceProps {
+  // Sector rotation card loader; defaults to the browser API client.
+  readonly sectorRotation?: (() => Promise<SectorRotationSnapshot>) | undefined;
+}
+
+export const TodayWorkspace = ({
+  sectorRotation,
+}: TodayWorkspaceProps = {}) => {
   const [scope, setScope] = useState<ExperienceScope | null>(null);
   return (
     <ExperienceFrame title="Decision inbox">
-      <SectorRotationChanges />
+      <SectorRotationChanges load={sectorRotation} />
       <ScopeChooser
         onSelect={setScope}
         onRetire={() => setScope(null)}

@@ -6,6 +6,7 @@ import {
   type AgentOpsSummaryOutput,
   type AgentTaskOutput,
   RESEARCH_PAPER_STAGE_VALUES,
+  type SectorRotationSnapshot,
 } from "@darkfactory/api";
 import {
   Button,
@@ -37,6 +38,8 @@ import { SectorRotationChanges } from "./sector-rotation-changes.tsx";
 
 export interface MissionControlProps {
   readonly gateway?: AgentOpsGateway;
+  // Sector rotation card loader; defaults to the browser API client.
+  readonly sectorRotation?: (() => Promise<SectorRotationSnapshot>) | undefined;
   // Server session check outcome from the page; "error" only adds a notice, data still loads client-side.
   readonly summaryState?: Readonly<{ type: string }>;
 }
@@ -158,6 +161,7 @@ const TaskTable = ({
 export const MissionControl = ({
   gateway: suppliedGateway,
   summaryState,
+  sectorRotation,
 }: MissionControlProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserAgentOpsGateway()
@@ -308,7 +312,7 @@ export const MissionControl = ({
           Reload
         </Button>
       </div>
-      <SectorRotationChanges />
+      <SectorRotationChanges load={sectorRotation} />
       <Panel
         headingId="mc-papers"
         title={
