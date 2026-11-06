@@ -265,6 +265,8 @@ const REVIEWED_READS: readonly string[] = [
   "marketNews.watchlist",
   "nautilusArm.status",
   "optionsAnalytics.snapshot",
+  "optionsChain.chain",
+  "optionsChain.expiries",
   "papers.list",
   "pickLists.list",
   "pickLists.proposal",
