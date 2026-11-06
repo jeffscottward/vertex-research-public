@@ -44,6 +44,7 @@ import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
 import { marketDataContract } from "./contracts/market-data.ts";
 import { optionsAnalyticsContract } from "./contracts/options-analytics.ts";
 import { jevVerdictContract } from "./contracts/jev-verdict.ts";
+import { optionsChainContract } from "./contracts/options-chain.ts";
 import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
 import { enginesContract } from "./contracts/engines.ts";
 import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
@@ -307,6 +308,7 @@ export const appContract = {
   marketData: marketDataContract,
   optionsAnalytics: optionsAnalyticsContract,
   jevVerdict: jevVerdictContract,
+  optionsChain: optionsChainContract,
   instantBacktest: instantBacktestContract,
   setupReplay: setupReplayContract,
   academy: academyContract,

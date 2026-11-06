@@ -1,5 +1,6 @@
-// What: UI lab entry for /charts: the real ChartsWorkspace with fake bars and options analytics.
-// The workspace reads ?symbol= itself (default SPY), so /lab/charts?symbol=NVDA opens NVDA.
+// What: UI lab entries for /charts and /stock/<SYMBOL>: the real ChartsWorkspace and
+// StockDetailWorkspace with fake bars, options chain and analytics. /charts reads ?symbol= itself
+// (default SPY); the stock entry takes ?symbol= (default SPY), so /lab/stock?symbol=NVDA opens NVDA.
 "use client";
 
 import { PageHeader } from "@darkfactory/ui";
@@ -15,6 +16,12 @@ import {
   labJevVerdict,
   labOptionsAnalytics,
 } from "../fixtures/market.ts";
+import {
+  createFakeMarketDataGateway,
+  createFakeOptionsChainGateway,
+} from "../../features/stock-detail/fake-gateways.ts";
+import { StockDetailWorkspace } from "../../features/stock-detail/stock-detail-workspace.tsx";
+import { readLabSymbol } from "../params.ts";
 import type { LabEntry } from "../registry.ts";
 
 const labMarketDataGateway: MarketDataGateway = {
@@ -40,6 +47,10 @@ const labChartsBacktests: BacktestsGateway = {
   list: () => Promise.resolve([]),
 };
 
+// The stock page's own dummy gateways (deterministic bars and a Black-Scholes chain).
+const labStockMarketData = createFakeMarketDataGateway();
+const labStockOptionsChain = createFakeOptionsChainGateway();
+
 export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: "Markets & Research",
@@ -57,5 +68,25 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/charts",
     title: "Charts",
+  },
+  {
+    group: "Markets & Research",
+    id: "stock",
+    render: (params) => {
+      const symbol = readLabSymbol(params, "SPY");
+      return (
+        <div className="space-y-6">
+          <PageHeader title={symbol} />
+          <StockDetailWorkspace
+            marketData={labStockMarketData}
+            optionsAnalytics={labOptionsAnalyticsGateway}
+            optionsChain={labStockOptionsChain}
+            symbol={symbol}
+          />
+        </div>
+      );
+    },
+    route: "/stock/[symbol]",
+    title: "Stock detail",
   },
 ];

@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { scaledTimeout } from "../../../../scripts/lib/test-timeout-scale.ts";
 import { expect } from "vitest";
 import { handleApiRequest } from "./handler.ts";
 import type { ApiContext } from "./context.ts";
@@ -31,6 +32,9 @@ import {
 } from "./vertex-research-chat-conversation-runtime.test-support.ts";
 import { mutableClone } from "./mutable-clone.test-support.ts";
 import { testPython } from "./research-python.test-support.ts";
+
+// Wall-clock budget for one native evidence child; stays below the suites' scaled 180 s test timeout.
+const CHILD_TIMEOUT_MS = scaledTimeout(150_000);
 
 // Only selected external historical documents are supplied here. Consent,
 // storage qualification, copy writes, admission, grants and reviews remain owners.
@@ -396,10 +400,13 @@ export const consumeNativeEvidence = async (
   let lastCompletedRPC: string | null = null,
     inFlightRPC: string | null = null,
     lastKnownPhase: 1 | 2 | null = null;
+  // The child deadline scales with the CPU shortage like the Vitest test timeout
+  // (scaledTimeout(180_000) in the suites). A fixed 120 s killed slow but progressing
+  // children in the nested init acceptance run (card vertex-ci-native-evidence-flake).
   const timer = setTimeout(() => {
     timeout = true;
     return child.kill("SIGKILL");
-  }, 120_000);
+  }, CHILD_TIMEOUT_MS);
   const reviewed: SubprocessJson[] = [],
     requests: SubprocessJson[] = [],
     methods: string[] = [],

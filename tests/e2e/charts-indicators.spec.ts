@@ -113,7 +113,7 @@ const chartCanvases = (page: Page) =>
 
 test.beforeAll(() => resetDatabase());
 
-test("indicator checkboxes add and remove Vertex chart studies", async ({
+test("Overlay and Study menus add and remove Vertex chart studies", async ({
   page,
 }, testInfo) => {
   await signInAs(page, E2E_IDENTITIES.alice);
@@ -126,14 +126,23 @@ test("indicator checkboxes add and remove Vertex chart studies", async ({
   );
   await page.goto("/charts");
 
-  const indicators = page.locator("[data-vertex-studies]");
-  await expect(indicators.getByRole("checkbox")).toHaveCount(9);
+  // Signal-chart menus: Overlay (price) and Study (panes below the price).
+  const menu = async (label: "Overlay" | "Study") => {
+    const trigger = page.locator(`[data-chart-menu="${label}"]`);
+    if ((await trigger.getAttribute("aria-expanded")) !== "true")
+      await trigger.click();
+    return page.getByRole("group", { name: `${label} indicators` });
+  };
   await expect(chartCanvases(page).first()).toBeVisible({ timeout: 20_000 });
   const options = page.locator('[data-options-analytics="SPY"]');
   await expect(options).toBeVisible();
   // The mocked snapshot reached the panel: three empty sections, no error.
   await expect(options.locator('[data-section-status="empty"]')).toHaveCount(3);
   await expect(options.locator("[data-error-code]")).toHaveCount(0);
+  // The default MACD pane is removed first so the baseline has no study panes.
+  await (await menu("Study"))
+    .getByRole("checkbox", { name: "MACD 12, 26, 9" })
+    .uncheck();
   const baseline = await chartCanvases(page).count();
   const candlePane = chartCanvases(page).first();
   const before = await candlePane.screenshot();
@@ -146,7 +155,9 @@ test("indicator checkboxes add and remove Vertex chart studies", async ({
     "SMMA 20",
     "LWMA 20",
   ])
-    await indicators.getByRole("checkbox", { name: label }).check();
+    await (await menu("Overlay"))
+      .getByRole("checkbox", { name: label })
+      .check();
   await expect(chartCanvases(page)).toHaveCount(baseline);
   await expect
     .poll(async () => (await candlePane.screenshot()).equals(before))
@@ -159,7 +170,7 @@ test("indicator checkboxes add and remove Vertex chart studies", async ({
     "ADX 14",
     "RVOL at time 20",
   ])
-    await indicators.getByRole("checkbox", { name: label }).check();
+    await (await menu("Study")).getByRole("checkbox", { name: label }).check();
   await expect
     .poll(async () => await chartCanvases(page).count())
     .toBeGreaterThan(baseline);
@@ -183,9 +194,11 @@ test("indicator checkboxes add and remove Vertex chart studies", async ({
     "ADX 14",
     "RVOL at time 20",
   ])
-    await indicators.getByRole("checkbox", { name: label }).uncheck();
+    await (await menu("Study"))
+      .getByRole("checkbox", { name: label })
+      .uncheck();
   await expect(chartCanvases(page)).toHaveCount(baseline);
   await expect(
-    indicators.getByRole("checkbox", { name: "Bollinger 20, 2" })
+    (await menu("Overlay")).getByRole("checkbox", { name: "Bollinger 20, 2" })
   ).toBeChecked();
 });

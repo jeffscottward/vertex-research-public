@@ -271,6 +271,7 @@ export const ChartWorkstation = ({
                 ...studies.sma.map((period) => `SMA ${period}`),
                 ...studies.ema.map((period) => `EMA ${period}`),
                 ...(studies.extra ?? []).map((id) => VERTEX_STUDIES[id].label),
+                ...(studies.panes ?? []),
                 markers.length > 0 ? `Trade markers (${markers.length})` : null,
               ]
                 .filter((entry): entry is string => entry !== null)

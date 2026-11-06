@@ -124,9 +124,9 @@ const change = async (
 };
 const submit = async () => {
   const button = [...document.querySelectorAll("button")].find(
-    (node) => node.textContent?.trim() === "Load bars"
+    (node) => node.textContent?.trim() === "Open"
   );
-  if (button === undefined) throw new Error("Missing Load bars");
+  if (button === undefined) throw new Error("Missing Open");
   return await act(async () => {
     button.click();
     return await flush();
@@ -277,30 +277,44 @@ describe("ChartsWorkspace", () => {
       "5"
     );
     expect(chartProps.last?.["candles"]).toHaveLength(5);
+    // Signal chart defaults: MA on the price, MACD below, volume pane.
     expect(chartProps.last?.["studies"]).toEqual({
       volume: true,
-      sma: [],
+      sma: [20, 50],
       ema: [],
-      extra: [],
+      extra: ["macd"],
+      panes: [],
     });
+    expect(container.querySelector("h2")?.textContent).toBe("SPY · 1D");
+    expect(container.querySelector('a[href="/stock/SPY"]')?.textContent).toBe(
+      "Options chain"
+    );
+    const openMenu = async (label: string) =>
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(`[data-chart-menu="${label}"]`)
+          ?.click()
+      );
     const indicator = (label: string) =>
-      [
-        ...container.querySelectorAll<HTMLInputElement>(
-          "[data-vertex-studies] input[type=checkbox]"
-        ),
-      ].find((input) => input.parentElement?.textContent === label);
+      [...container.querySelectorAll<HTMLInputElement>("fieldset input")].find(
+        (input) => input.parentElement?.textContent === label
+      );
     const click = async (input: HTMLInputElement | undefined) =>
       await act(async () => input?.click());
-    expect(
-      container.querySelectorAll("[data-vertex-studies] input")
-    ).toHaveLength(9);
-    await click(indicator("MACD 12, 26, 9"));
+    await openMenu("Overlay");
     await click(indicator("Bollinger 20, 2"));
-    expect(chartProps.last?.["studies"]).toMatchObject({
-      extra: ["boll", "macd"],
-    });
+    await openMenu("Study");
+    await click(indicator("RSI 14"));
     await click(indicator("MACD 12, 26, 9"));
-    expect(chartProps.last?.["studies"]).toMatchObject({ extra: ["boll"] });
+    expect(chartProps.last?.["studies"]).toMatchObject({
+      extra: ["boll"],
+      panes: ["RSI"],
+    });
+    const volume = [
+      ...container.querySelectorAll<HTMLInputElement>("label input"),
+    ].find((input) => input.parentElement?.textContent === "Volume");
+    await click(volume);
+    expect(chartProps.last?.["studies"]).toMatchObject({ volume: false });
     expect(container.querySelector("[data-return-stats]")).not.toBeNull();
     expect(container.querySelector("[data-weekday-stats]")).not.toBeNull();
     return expect(container.querySelector("[data-hour-stats]")).toBeNull();
@@ -620,5 +634,131 @@ describe("ChartsWorkspace ?symbol= deep link", () => {
     });
     expect(market.bars).toHaveBeenCalledTimes(2);
     expect(scrolled).not.toHaveBeenCalled();
+  });
+});
+
+describe("ChartsWorkspace intervals", () => {
+  const intervalButton = (label: string): HTMLButtonElement => {
+    const button = [
+      ...document.querySelectorAll<HTMLButtonElement>(
+        "[data-chart-toolbar] button"
+      ),
+    ].find((node) => node.textContent === label);
+    if (button === undefined) throw new Error(`Missing interval ${label}`);
+    return button;
+  };
+  const press = async (button: HTMLButtonElement) =>
+    await act(async () => {
+      button.click();
+      return await flush();
+    });
+
+  it("loads ?interval= and merges daily bars into weekly candles", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=SPY&interval=1W");
+    const market = marketGateway(async () => output(10));
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        jevVerdict={jevGateway()}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ barSize: "1 day", duration: "1 Y" })
+    );
+    // 2024-01-01 is a Monday: ten daily bars make two weeks.
+    expect(chartProps.last?.["candles"]).toHaveLength(2);
+    expect(intervalButton("1W").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("switches the interval from the toolbar and keeps it in the URL", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=SPY");
+    const market = marketGateway(async () => output());
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        jevVerdict={jevGateway()}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    await press(intervalButton("1h"));
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ barSize: "1 hour", duration: "1 M" })
+    );
+    expect(window.location.search).toBe("?symbol=SPY&interval=1h");
+    expect(container.querySelector("h2")?.textContent).toBe("SPY · 1h");
+    await press(intervalButton("1D"));
+    expect(window.location.search).toBe("?symbol=SPY");
+  });
+
+  it("names a custom bar request and keeps 1W on a plain submit", async () => {
+    const market = marketGateway(async () => output());
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        jevVerdict={jevGateway()}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    await change(select("Duration"), "6 M");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({ duration: "6 M" })
+    );
+    expect(container.querySelector("h2")?.textContent).toBe("SPY · 1 day");
+    // Custom settings match no interval button, so none shows as pressed.
+    expect(
+      document.querySelectorAll(
+        '[data-chart-toolbar] button[aria-pressed="true"]'
+      )
+    ).toHaveLength(0);
+    expect(window.location.search).toBe("?symbol=SPY");
+    await press(intervalButton("1W"));
+    await submit();
+    expect(container.querySelector("h2")?.textContent).toBe("SPY · 1W");
+    expect(window.location.search).toBe("?symbol=SPY&interval=1W");
+  });
+
+  it("places trade markers over a whole merged week", async () => {
+    window.history.replaceState(null, "", "/charts?symbol=SPY&interval=1W");
+    const backtests: BacktestsGateway = {
+      ...backtestsGateway(),
+      get: vi.fn(
+        async () =>
+          ({
+            backtest: {
+              id: "bt-1",
+              trades: [
+                {
+                  entry_t: "2024-01-09",
+                  exit_t: "2024-01-10",
+                  side: "long",
+                  qty: 1,
+                  entry_px: 108,
+                  exit_px: 109,
+                  pnl: 1,
+                },
+              ],
+            },
+            task: null,
+          }) as unknown as BacktestGetOutput
+      ),
+    };
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtests}
+        marketData={marketGateway(async () => output(10))}
+        jevVerdict={jevGateway()}
+        optionsAnalytics={optionsGateway()}
+      />
+    );
+    await change(select("Backtest trades"), "bt-1");
+    // Both fills fall in the week that starts 2024-01-08 (the last weekly candle).
+    expect(
+      container.querySelector("[data-marker-summary]")?.textContent
+    ).toContain("2 shown · 0 outside");
   });
 });

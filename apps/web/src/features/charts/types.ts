@@ -6,6 +6,7 @@ import type {
   SourceIdentity,
 } from "@darkfactory/api/vertex";
 import type { DeepReadonly } from "@darkfactory/shared/vertex";
+import type { BuiltinPaneId } from "./chart-indicators.ts";
 import type { VertexStudyId } from "./vertex-studies.ts";
 import type { ChartType, Drawing, DrawingTool } from "./workstation.ts";
 
@@ -98,6 +99,8 @@ export type ChartStudies = Readonly<{
   ema: readonly number[];
   // Vertex-computed studies (indicator-math.ts). Missing means none.
   extra?: readonly VertexStudyId[];
+  // KLineCharts built-in studies, one pane each (RSI, KDJ, OBV, WR). Missing means none.
+  panes?: readonly BuiltinPaneId[];
 }>;
 // Point annotation at a candle time (ms) and price; text is short display copy.
 export type ChartMarker = Readonly<{

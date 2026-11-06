@@ -1,6 +1,6 @@
 // What: oRPC implementation of appContract: binds each procedure to feature, account, theme and contact services,
 // plus the Vertex research surface (vertex.*, vertexWorker.*, agentOps.*, papers.*, agentApiKeys.*,
-// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, jevVerdict.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, baskets.*, pickLists.*, assistant.*).
+// strategyLibrary.*, deploymentRequests.*, marketData.*, optionsAnalytics.*, jevVerdict.*, optionsChain.*, instantBacktest.*, backtestRuns.*, autopilot.*, researchLenses.*, watchlist.*, baskets.*, pickLists.*, assistant.*).
 // Used by: packages/api/src/server/handler.ts, packages/api/src/server/index.ts (appRouter).
 // See: packages/api/src/contract.ts#appContract; docs/getting-started.md#add-your-first-feature.
 import {
@@ -77,6 +77,7 @@ import { riskAllocatorRouter } from "./risk-allocator.ts";
 import { marketDataRouter } from "./market-data.ts";
 import { optionsAnalyticsRouter } from "./options-analytics.ts";
 import { jevVerdictRouter } from "./jev-verdict.ts";
+import { optionsChainRouter } from "./options-chain.ts";
 import { optimizationsRouter } from "./optimizations.ts";
 import { quantLabRouter } from "./quant-lab.ts";
 import { researchReportsRouter } from "./research-reports.ts";
@@ -1729,6 +1730,7 @@ export const appRouter = api.router({
   marketData: marketDataRouter,
   optionsAnalytics: optionsAnalyticsRouter,
   jevVerdict: jevVerdictRouter,
+  optionsChain: optionsChainRouter,
   instantBacktest: instantBacktestRouter,
   setupReplay: setupReplayRouter,
   academy: academyRouter,
