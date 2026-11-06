@@ -1,33 +1,8 @@
-.vx-chart-workbench,
-.vx-chart-panel,
-.vx-chart-flow,
-.vx-chart-profile,
-.vx-chart-exact,
-.vx-chart-indicator,
-.vx-chart-annotations,
-.vx-chart-status {
+.vx-chart-panel {
   min-inline-size: 0;
   max-inline-size: 100%;
   color: var(--foreground);
   font: inherit;
-}
-
-.vx-chart-workbench {
-  container: vx-chart-workbench / inline-size;
-  display: grid;
-  gap: var(--space-6);
-}
-
-.vx-chart-workbench > header {
-  border-block-start: 3px solid var(--vx-gold);
-  padding-block-start: var(--space-4);
-}
-
-.vx-chart-workbench > header h2 {
-  font-family: var(--font-heading);
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
 .vx-chart-tanstack {
@@ -37,24 +12,8 @@
   color: var(--foreground);
 }
 
-.vx-chart-workbench *,
-.vx-chart-panel *,
-.vx-chart-flow *,
-.vx-chart-profile *,
-.vx-chart-exact *,
-.vx-chart-indicator *,
-.vx-chart-annotations *,
-.vx-chart-status * {
+.vx-chart-panel * {
   box-sizing: border-box;
-}
-
-.vx-chart-grid,
-.vx-chart-comparison {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-6);
-  min-inline-size: 0;
-  max-inline-size: 100%;
 }
 
 .vx-chart-panel {
@@ -63,20 +22,13 @@
   padding-block-start: var(--space-4);
 }
 
-.vx-chart-panel > *,
-.vx-chart-grid > *,
-.vx-chart-comparison > * {
+.vx-chart-panel > * {
   min-inline-size: 0;
   max-inline-size: 100%;
 }
 
-/* biome-ignore lint/style/noDescendingSpecificity: panel headings are not inside .vx-chart-workbench > header, so source order does not decide the cascade. */
 .vx-chart-panel h2,
-.vx-chart-panel h3,
-.vx-chart-flow h3,
-.vx-chart-profile h3,
-.vx-chart-indicator h3,
-.vx-chart-annotations h3 {
+.vx-chart-panel h3 {
   margin-block: 0 var(--space-3);
   font-family: var(--font-heading);
   font-size: var(--text-xl);
@@ -85,77 +37,9 @@
   overflow-wrap: anywhere;
 }
 
-.vx-chart-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: end;
-  gap: var(--space-3);
-  margin-block-end: var(--space-4);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-}
-
-.vx-chart-controls label {
-  display: grid;
-  gap: var(--space-2);
-  min-inline-size: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-controls :is(input, select, button),
-.vx-chart-pagination button {
-  min-inline-size: 44px;
-  min-block-size: 44px;
-  max-inline-size: 100%;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--text-base);
-  line-height: 1.5;
-}
-
-.vx-chart-controls :is(input, select) {
-  inline-size: 100%;
-  min-inline-size: 0;
-}
-
-.vx-chart-controls button,
-.vx-chart-pagination button,
-.vx-chart-source summary {
-  cursor: pointer;
-}
-
-.vx-chart-controls button:disabled,
-.vx-chart-pagination button:disabled {
-  color: var(--muted-foreground);
-  background: var(--muted);
-  cursor: not-allowed;
-}
-
-.vx-chart-workbench :focus-visible,
-.vx-chart-panel :focus-visible,
-.vx-chart-table-scroll:focus-visible,
-.vx-chart-pagination button:focus-visible,
-.vx-chart-controls :focus-visible,
-.vx-chart-source summary:focus-visible {
+.vx-chart-panel :focus-visible {
   outline: 2px solid var(--foreground);
   outline-offset: 3px;
-}
-
-.vx-chart-controls button[aria-pressed="true"] {
-  border-color: var(--foreground);
-  background: var(--vx-gold);
-  color: var(--vx-charcoal);
-}
-
-.vx-chart-renderer-host {
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  margin: var(--space-4) 0;
 }
 
 .vx-chart-canvas {
@@ -173,8 +57,7 @@
   background: var(--background);
 }
 
-.vx-chart-note,
-.vx-chart-figure figcaption {
+.vx-chart-note {
   margin-block: var(--space-3);
   color: var(--muted-foreground);
   font-size: var(--text-sm);
@@ -182,292 +65,10 @@
   overflow-wrap: anywhere;
 }
 
-.vx-chart-status {
-  padding-block: var(--space-4);
-  border-block: 1px solid var(--border);
-}
-
-.vx-chart-status > [role="status"] {
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.vx-chart-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: var(--space-3) var(--space-6);
-  margin: var(--space-3) 0;
-}
-
-.vx-chart-facts > div {
-  min-inline-size: 0;
-}
-
-.vx-chart-facts dt {
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-}
-
-.vx-chart-facts dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-source {
-  margin-block: var(--space-2);
-  min-inline-size: 0;
-  max-inline-size: 100%;
-}
-
-.vx-chart-source summary {
-  min-block-size: 44px;
-  padding-block: var(--space-3);
-  color: var(--foreground);
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-source[open] > summary {
-  text-decoration: underline;
-  text-decoration-color: var(--border-strong);
-  text-underline-offset: var(--space-1);
-}
-
-.vx-chart-record-source,
-.vx-chart-record-source p {
-  min-inline-size: 0;
-  margin-block: var(--space-2);
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-table-block {
-  min-inline-size: 0;
-  max-inline-size: 100%;
-}
-
-.vx-chart-table-scroll {
-  inline-size: 100%;
-  max-inline-size: 100%;
-  overflow: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-gutter: stable;
-  border-block: 1px solid var(--border-strong);
-}
-
-.vx-chart-table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  color: var(--foreground);
-  text-align: start;
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.6;
-}
-
-.vx-chart-table caption {
-  padding-block: var(--space-3);
-  color: var(--foreground);
-  text-align: start;
-  font-family: var(--font-heading);
-  font-size: var(--text-base);
-  font-weight: 600;
-}
-
-.vx-chart-table th,
-.vx-chart-table td {
-  min-inline-size: 8rem;
-  max-inline-size: 30rem;
-  padding: var(--space-3);
-  border-block-end: 1px solid var(--border);
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-table thead th {
-  background: var(--muted);
-  font-weight: 600;
-}
-
-.vx-chart-table tbody th {
-  font-weight: 500;
-}
-
-.vx-chart-table td:last-child {
-  min-inline-size: 18rem;
-}
-
-.vx-chart-table .vx-chart-facts {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.vx-chart-pagination {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-block: var(--space-3);
-  min-inline-size: 0;
-}
-
-.vx-chart-pagination p {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-.vx-chart-page-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.vx-chart-figure {
-  margin: var(--space-4) 0;
-  min-inline-size: 0;
-  max-inline-size: 100%;
-}
-
-.vx-chart-svg {
-  display: block;
-  inline-size: 100%;
-  block-size: auto;
-  max-inline-size: 100%;
-  background: var(--background);
-}
-
-.vx-chart-axis {
-  stroke: var(--border-strong);
-  stroke-width: 1;
-}
-
-.vx-chart-axis-label {
-  fill: var(--foreground);
-  font: inherit;
-  font-size: 14px;
-}
-
-.vx-chart-segment {
-  stroke: var(--foreground);
-  stroke-width: 1;
-  vector-effect: non-scaling-stroke;
-}
-
-.vx-chart-segment-buy {
-  fill: var(--vx-gold);
-}
-
-.vx-chart-segment-sell {
-  fill: var(--foreground);
-}
-
-.vx-chart-segment-unknown {
-  fill: var(--muted);
-  stroke-dasharray: 3 2;
-}
-
-.vx-chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3) var(--space-6);
-  margin: var(--space-3) 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-sm);
-}
-
-.vx-chart-legend li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.vx-chart-swatch {
-  display: inline-block;
-  flex: 0 0 var(--space-4);
-  inline-size: var(--space-4);
-  block-size: var(--space-3);
-  border: 1px solid var(--foreground);
-}
-
-.vx-chart-swatch-buy {
-  background: var(--vx-gold);
-}
-
-.vx-chart-swatch-sell {
-  background: var(--foreground);
-}
-
-.vx-chart-swatch-unknown {
-  background: var(--muted);
-  border-style: dashed;
-}
-
-@container vx-chart-workbench (min-width: 60rem) {
-  .vx-chart-grid,
-  .vx-chart-comparison {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .vx-chart-controls {
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
-  }
-}
-
-@container vx-chart-panel (max-width: 30rem) {
-  .vx-chart-controls {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .vx-chart-pagination {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .vx-chart-page-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .vx-chart-facts {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (hover: hover) {
-  .vx-chart-controls button:not(:disabled):hover,
-  .vx-chart-pagination button:not(:disabled):hover {
-    border-color: var(--foreground);
-    background: var(--muted);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .vx-chart-workbench *,
-  .vx-chart-panel *,
-  .vx-chart-flow *,
-  .vx-chart-profile * {
+  .vx-chart-panel * {
     scroll-behavior: auto;
     animation: none;
     transition: none;
-  }
-}
-
-@media (forced-colors: active) {
-  .vx-chart-segment,
-  .vx-chart-swatch {
-    stroke: CanvasText;
-    border-color: CanvasText;
-  }
-
-  .vx-chart-segment-buy,
-  .vx-chart-segment-unknown {
-    fill: Canvas;
-  }
-
-  .vx-chart-segment-sell {
-    fill: CanvasText;
   }
 }
