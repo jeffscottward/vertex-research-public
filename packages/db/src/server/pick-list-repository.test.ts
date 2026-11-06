@@ -407,6 +407,8 @@ describe("pick list repository", () => {
     expect(result.map((item) => item.list.id)).toEqual(["list-1", "list-2"]);
     const emailQuery = double.operations[0]?.where;
     expect(sqlOf(emailQuery)).toContain('lower("user"."email") in ($1, $2)');
+    expect(sqlOf(emailQuery)).toContain('"user"."email_verified" = $3');
+    expect(sqlOf(emailQuery)).toContain('"user"."status" = $4');
     expect(sqlOf(double.operations[1]?.where)).toContain(
       '"user_id" in ($1, $2)'
     );

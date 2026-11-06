@@ -95,7 +95,7 @@ export type PickListRepository = Readonly<{
   /** Lists ordered by source, slug; capped at 200. */
   listByUser: (userId: string) => Promise<PickListWithLatest[]>;
   /**
-   * Lists of every user whose email (case-insensitive) is given, ordered by source, slug; capped
+   * Lists of every active, email-verified user whose email (case-insensitive) is given, ordered by source, slug; capped
    * at 200. Read-only. Used for the agent viewer's read of the operator buckets (owner decision
    * 2026-11-05, card vertex-bucket-buy-proposal). No emails, or no matching user, gives [].
    */
@@ -489,7 +489,14 @@ export const createPickListRepository = (
         const owners = await database
           .select({ id: users.id })
           .from(users)
-          .where(inArray(sql`lower(${users.email})`, normalized));
+          .where(
+            // The same account checks as the operator gate: verified email, active status.
+            andWhere(
+              inArray(sql`lower(${users.email})`, normalized),
+              eq(users.emailVerified, true),
+              eq(users.status, "active")
+            )
+          );
         if (owners.length === 0) return [];
         const rows = await database
           .select()

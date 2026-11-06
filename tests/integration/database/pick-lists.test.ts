@@ -162,6 +162,21 @@ describe("pick list repository (Postgres)", () => {
     expect(await repository.listByUserEmails(["other@example.test"])).toEqual(
       []
     );
+    // A suspended account is not read, even when its email is listed.
+    const joined = new Date("2026-11-05T12:00:00.000Z");
+    await database().insert(users).values({
+      createdAt: joined,
+      email: "suspended@example.test",
+      emailVerified: true,
+      id: "user-suspended",
+      name: "Suspended",
+      status: "suspended",
+      updatedAt: joined,
+    });
+    await repository.importSnapshot(snapshot({ userId: "user-suspended" }));
+    expect(
+      await repository.listByUserEmails(["suspended@example.test"])
+    ).toEqual([]);
     expect(await repository.listByUserEmails(["nobody@example.test"])).toEqual(
       []
     );
