@@ -33,6 +33,14 @@
 #  - A unit that is not active has nothing to protect and counts as idle.
 # Limit: a streamed response that already sent bytes and then stalls longer than the quiet window,
 # with no other traffic, reads as idle.
+# Worker pause: the Nautilus backtest worker (infra/research-worker, same user on this host) polls
+# the API every few seconds, so vertex-web would never be quiet for the window. Right before the
+# idle wait this script writes its PID and the time to the worker pause file
+# (VERTEX_WORKER_PAUSE_FILE, default ${XDG_STATE_HOME:-$HOME/.local/state}/vertex-nautilus-worker.pause).
+# While it exists the worker claims nothing (a run in progress finishes and delivers first; that
+# traffic only delays the idle decision). The file is removed on every exit (trap EXIT; INT, TERM
+# and HUP exit through it). The worker ignores a file older than 90 min, so a killed script
+# (SIGKILL) cannot stop it for good. --dry-run never touches the file.
 #
 # Give-up: when the waiter has not seen two idle polls in a row VERTEX_RESTART_GIVE_UP_AFTER
 # wall-clock seconds after the first busy poll (default 3600), the restart is abandoned with ONE
@@ -55,7 +63,8 @@
 # Test hooks: VERTEX_WEB_SSH (remote command runner, gets one shell command string), VERTEX_WEB_DIR,
 #   VERTEX_RESTART_SLEEP, VERTEX_RESTART_ALERT (alert command, gets the text), VERTEX_RESTART_LOCK,
 #   VERTEX_RESTART_POLL, VERTEX_RESTART_QUIET, VERTEX_RESTART_GIVE_UP_AFTER,
-#   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_DEPLOY_GIT_DIR (checkout for the
+#   VERTEX_RESTART_HEALTH_TIMEOUT (wall-clock seconds), VERTEX_WORKER_PAUSE_FILE (worker pause
+#   file), VERTEX_DEPLOY_GIT_DIR (checkout for the
 #   ancestry check, default this repository). `--decide` is the pure idle decision used
 #   by the tests: `restart-when-idle.sh --decide <probe-file> <quiet-seconds>`.
 set -uo pipefail
@@ -294,6 +303,20 @@ if ! source_ts="$(remote "$CANDIDATE" 2>/dev/null)" || ! [[ "$source_ts" =~ ^[0-
 fi
 echo "gate: build output ok; rollback source $source_ts"
 version_guard || exit 9
+
+# Worker pause for the idle wait and the restart (see "Worker pause" above). A pause file that
+# cannot be written is only a warning: the wait may then give up while the worker polls.
+PAUSE_FILE="${VERTEX_WORKER_PAUSE_FILE:-${XDG_STATE_HOME:-$HOME/.local/state}/vertex-nautilus-worker.pause}"
+trap 'rm -f "$PAUSE_FILE"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+if mkdir -p "$(dirname "$PAUSE_FILE")" 2>/dev/null &&
+  printf 'pid %s\nsince %s\n' "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$PAUSE_FILE" 2>/dev/null; then
+  echo "worker paused: $PAUSE_FILE"
+else
+  echo "warning: cannot write the worker pause file $PAUSE_FILE; a polling worker can keep vertex-web busy"
+fi
 
 # The give-up limit is wall-clock time: ssh and probe time count too.
 busy_since=""; streak=0; d=""
