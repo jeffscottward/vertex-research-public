@@ -42,6 +42,22 @@ describe("runPriceAlertTick", () => {
     expect(harness.out).toEqual(['{"checked":0}\n']);
   });
 
+  it("calls priceAlerts.signals.tick for signal alerts and watches", async () => {
+    const harness = harnessFor(env, new Response("denied", { status: 403 }));
+    await expect(
+      runPriceAlertTick({
+        ...harness.io,
+        procedure: "priceAlerts/signals/tick",
+      })
+    ).resolves.toBe(1);
+    expect(harness.post.mock.calls[0]?.[0]).toBe(
+      "https://vertex.test/api/orpc/priceAlerts/signals/tick"
+    );
+    expect(harness.err.join("")).toContain(
+      "priceAlerts.signals.tick returned HTTP 403"
+    );
+  });
+
   it("prints null for an empty body", async () => {
     const harness = harnessFor(env, new Response("{}"));
     await runPriceAlertTick(harness.io);

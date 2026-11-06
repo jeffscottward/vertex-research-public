@@ -1114,6 +1114,7 @@ describe("feature item mutation repository", () => {
       "assistantActions",
       "autopilot",
       "priceAlerts",
+      "signalAlerts",
       "researchReports",
       "sectorRotation",
       "clickLog",
