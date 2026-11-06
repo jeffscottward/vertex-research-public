@@ -195,15 +195,27 @@ describe("proposal helpers", () => {
 });
 
 describe("PickListProposalPanel", () => {
-  it("says proposal only and asks for a bucket when none exists", async () => {
-    const gateway = gatewayWith(async () => proposal());
+  it("says proposal only and asks for a bucket when the server has none", async () => {
+    const gateway = gatewayWith(async () =>
+      proposal({ buckets: [], rows: [], totalMaxLossPct: 0 })
+    );
     const { container } = await mount(
       <PickListProposalPanel gateway={gateway} lists={[list(null)]} />
     );
     expect(container.textContent).toContain("Proposal only — no orders.");
     expect(container.textContent).toContain("No buckets yet.");
-    expect(gateway.proposal).not.toHaveBeenCalled();
+    expect(gateway.proposal).toHaveBeenCalledTimes(1);
     expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it("loads the proposal even without own lists (agent viewer)", async () => {
+    const gateway = gatewayWith(async () => proposal());
+    const { container } = await mount(
+      <PickListProposalPanel gateway={gateway} lists={[]} />
+    );
+    expect(gateway.proposal).toHaveBeenCalledTimes(1);
+    expect(rowFor(container, "NVDA")).toBeDefined();
   });
 
   it("loads the proposal and shows one row per member, without order controls", async () => {

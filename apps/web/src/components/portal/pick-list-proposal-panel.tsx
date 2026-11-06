@@ -189,8 +189,10 @@ export const PickListProposalPanel = ({
     }
   }, [gateway]);
 
+  // Always ask the server: it decides whose buckets count (the read-only agent viewer has no
+  // lists of its own and reads the operator buckets). The key only triggers a reload.
   useEffect(() => {
-    if (key !== "") void load();
+    void load();
   }, [key, load]);
 
   const nlv = parseNlv(nlvText);
@@ -211,98 +213,94 @@ export const PickListProposalPanel = ({
             places, stages or changes an order. Trading stays an owner decision.
           </p>
         </div>
-        {key === "" ? (
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <label className="space-y-1 text-sm" htmlFor={fieldId}>
+            <span className="block">
+              NLV for sizing (USD, optional; stays in this tab)
+            </span>
+            <Input
+              className="w-48 font-mono"
+              id={fieldId}
+              inputMode="decimal"
+              onChange={(event) => setNlvText(event.target.value)}
+              placeholder="100000"
+              value={nlvText}
+            />
+          </label>
+          <Button
+            loading={loading}
+            loadingLabel="Building proposal"
+            onClick={() => void load()}
+            type="button"
+            variant="secondary"
+          >
+            <RefreshCw aria-hidden="true" className="size-4" />
+            Refresh proposal
+          </Button>
+        </div>
+        {failure === null ? null : (
+          <p className="text-destructive text-sm" role="alert">
+            {failure}
+          </p>
+        )}
+        {data === null ? null : data.buckets.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             No buckets yet. Make a bucket from a list below to get a buy
             proposal.
           </p>
         ) : (
           <>
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <label className="space-y-1 text-sm" htmlFor={fieldId}>
-                <span className="block">
-                  NLV for sizing (USD, optional; stays in this tab)
+            <p className="text-sm">
+              <span role="status">
+                {`${data.rows.length} names · ${proposed.length} proposed · total max loss ${percent(data.totalMaxLossPct)} NLV · computed ${data.computedAt}`}
+              </span>
+              {nlv === null ? null : (
+                <span data-nlv-total="">
+                  {` · at this NLV: ${usd.format((data.totalMaxLossPct / 100) * nlv)}`}
                 </span>
-                <Input
-                  className="w-48 font-mono"
-                  id={fieldId}
-                  inputMode="decimal"
-                  onChange={(event) => setNlvText(event.target.value)}
-                  placeholder="100000"
-                  value={nlvText}
-                />
-              </label>
-              <Button
-                loading={loading}
-                loadingLabel="Building proposal"
-                onClick={() => void load()}
-                type="button"
-                variant="secondary"
-              >
-                <RefreshCw aria-hidden="true" className="size-4" />
-                Refresh proposal
-              </Button>
-            </div>
-            {failure === null ? null : (
-              <p className="text-destructive text-sm" role="alert">
-                {failure}
+              )}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              {`Rules: options only, defined risk. Max loss per new position ≤ ${data.rules.maxLossGatePct}% NLV; premium per name ≤ ${data.rules.namePremiumCapPct}% NLV (< 365 DTE). Full size ${data.rules.fullMaxLossPct}% NLV, half size ${data.rules.halfMaxLossPct}% NLV. Call debit spread ${data.rules.dteMin}-${data.rules.dteMax} DTE, long ~${data.rules.longDelta} delta, short ~${data.rules.shortDelta} delta. Estimates: Black-Scholes on 1-year realized volatility, r = ${data.rules.riskFreeRate * 100}%. Strikes and expiry are picked from the live chain at entry.`}
+            </p>
+            <Table>
+              <TableCaption className="sr-only">
+                Buy proposal by bucket member (proposal only, no orders)
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">Symbol</TableHead>
+                  <TableHead scope="col">Bucket</TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Last
+                  </TableHead>
+                  <TableHead scope="col">Size</TableHead>
+                  <TableHead scope="col">Structure</TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Est. debit
+                  </TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Max loss / spread
+                  </TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Max loss % NLV
+                  </TableHead>
+                  <TableHead className="text-right" scope="col">
+                    Spreads at NLV
+                  </TableHead>
+                  <TableHead scope="col">Notes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.rows.map((row) => (
+                  <ProposalRow key={row.symbol} nlv={nlv} row={row} />
+                ))}
+              </TableBody>
+            </Table>
+            {data.notProposed.length === 0 ? null : (
+              <p className="text-muted-foreground text-sm">
+                {`Not proposed (first ${PICK_LIST_SCREEN_MAX_MEMBERS} names per run): ${data.notProposed.join(", ")}.`}
               </p>
-            )}
-            {data === null ? null : (
-              <>
-                <p className="text-sm">
-                  <span role="status">
-                    {`${data.rows.length} names · ${proposed.length} proposed · total max loss ${percent(data.totalMaxLossPct)} NLV · computed ${data.computedAt}`}
-                  </span>
-                  {nlv === null ? null : (
-                    <span data-nlv-total="">
-                      {` · at this NLV: ${usd.format((data.totalMaxLossPct / 100) * nlv)}`}
-                    </span>
-                  )}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  {`Rules: options only, defined risk. Max loss per new position ≤ ${data.rules.maxLossGatePct}% NLV; premium per name ≤ ${data.rules.namePremiumCapPct}% NLV (< 365 DTE). Full size ${data.rules.fullMaxLossPct}% NLV, half size ${data.rules.halfMaxLossPct}% NLV. Call debit spread ${data.rules.dteMin}-${data.rules.dteMax} DTE, long ~${data.rules.longDelta} delta, short ~${data.rules.shortDelta} delta. Estimates: Black-Scholes on 1-year realized volatility, r = ${data.rules.riskFreeRate * 100}%. Strikes and expiry are picked from the live chain at entry.`}
-                </p>
-                <Table>
-                  <TableCaption className="sr-only">
-                    Buy proposal by bucket member (proposal only, no orders)
-                  </TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">Symbol</TableHead>
-                      <TableHead scope="col">Bucket</TableHead>
-                      <TableHead className="text-right" scope="col">
-                        Last
-                      </TableHead>
-                      <TableHead scope="col">Size</TableHead>
-                      <TableHead scope="col">Structure</TableHead>
-                      <TableHead className="text-right" scope="col">
-                        Est. debit
-                      </TableHead>
-                      <TableHead className="text-right" scope="col">
-                        Max loss / spread
-                      </TableHead>
-                      <TableHead className="text-right" scope="col">
-                        Max loss % NLV
-                      </TableHead>
-                      <TableHead className="text-right" scope="col">
-                        Spreads at NLV
-                      </TableHead>
-                      <TableHead scope="col">Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.rows.map((row) => (
-                      <ProposalRow key={row.symbol} nlv={nlv} row={row} />
-                    ))}
-                  </TableBody>
-                </Table>
-                {data.notProposed.length === 0 ? null : (
-                  <p className="text-muted-foreground text-sm">
-                    {`Not proposed (first ${PICK_LIST_SCREEN_MAX_MEMBERS} names per run): ${data.notProposed.join(", ")}.`}
-                  </p>
-                )}
-              </>
             )}
           </>
         )}
