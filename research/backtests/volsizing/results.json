@@ -111,6 +111,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": null,
           "robustRv252": {
             "cagr": 0.006750436205747334,
@@ -119,7 +122,10 @@
             "maxDrawdown": -0.07413674321467467,
             "contractsMean": 17.302452316076295,
             "impliedTauMean": 0.03969612840606683,
-            "impliedTauCv": 0.19206404784790965
+            "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": []
           },
           "robustIvIndex": {
             "cagr": 0.01091878891359177,
@@ -128,7 +134,10 @@
             "maxDrawdown": -0.06147061570640244,
             "contractsMean": 18.8283378746594,
             "impliedTauMean": 0.03838592974327153,
-            "impliedTauCv": 0.1336187639721739
+            "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"]
           }
         },
         {
@@ -165,6 +174,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.04385523814111045,
             "p95": 0.044424789831821514
@@ -177,6 +189,9 @@
             "contractsMean": 17.455040871934607,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.0530048895369693,
               "p95": 0.10487869811196808
@@ -190,6 +205,9 @@
             "contractsMean": 18.482288828337875,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.06209040891871472,
               "p95": 0.02554045854960333
@@ -230,6 +248,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.06024615177581451,
             "p95": 0.08974828032530828
@@ -242,6 +263,9 @@
             "contractsMean": 16.588555858310627,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.026134497698804153,
               "p95": 0.1379195972257232
@@ -255,6 +279,9 @@
             "contractsMean": 17.493188010899182,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.06893059280001956,
               "p95": 0.04487082752588559
@@ -295,6 +322,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.1425202260160752,
             "p95": 0.028989234367967926
@@ -307,6 +337,9 @@
             "contractsMean": 16.425,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.12201746846020389,
               "p95": 0.027655026503388098
@@ -320,6 +353,9 @@
             "contractsMean": 17.8121546961326,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.13804609030213294,
               "p95": 0.017836672678297187
@@ -360,6 +396,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.006882153894505291,
             "p95": 0.05402971191649965
@@ -372,6 +411,9 @@
             "contractsMean": 71.70299727520435,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.020525891156013294,
               "p95": 0.04630919366650807
@@ -385,6 +427,9 @@
             "contractsMean": 90.05177111716621,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.029123071987813342,
               "p95": 0.016189408082897663
@@ -1684,6 +1729,9 @@
             "SLV": 0.037705349771704165,
             "GLD": 0.036740917674375345
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": null,
           "robustRv252": {
             "cagr": 0.00841352298267184,
@@ -1692,7 +1740,10 @@
             "maxDrawdown": -0.059090716363183304,
             "contractsMean": 17.941176470588236,
             "impliedTauMean": 0.040812284701395515,
-            "impliedTauCv": 0.22929449659263046
+            "impliedTauCv": 0.22929449659263046,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": []
           },
           "robustIvIndex": {
             "cagr": 0.005127381415893639,
@@ -1701,7 +1752,10 @@
             "maxDrawdown": -0.050749494185730715,
             "contractsMean": 15.916666666666666,
             "impliedTauMean": 0.03302951775577093,
-            "impliedTauCv": 0.16318265638900248
+            "impliedTauCv": 0.16318265638900248,
+            "impliedTauCvIndexOnly": 0.16278503202130876,
+            "indexOnlyEntries": 200,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"]
           }
         },
         {
@@ -1738,6 +1792,9 @@
             "SLV": 0.037705349771704165,
             "GLD": 0.036740917674375345
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.10956305491178137,
             "p95": -0.011254553918365492
@@ -1750,6 +1807,9 @@
             "contractsMean": 14.802768166089965,
             "impliedTauMean": 0.040812284701395515,
             "impliedTauCv": 0.2292944965926305,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.038916977046362565,
               "p95": 0.10199627276299181
@@ -1763,6 +1823,9 @@
             "contractsMean": 14.86159169550173,
             "impliedTauMean": 0.03302951775577093,
             "impliedTauCv": 0.16318265638900248,
+            "impliedTauCvIndexOnly": 0.16278503202130876,
+            "indexOnlyEntries": 200,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.04305930860951567,
               "p95": 0.07739582098325283
@@ -1803,6 +1866,9 @@
             "SLV": 0.037705349771704165,
             "GLD": 0.036740917674375345
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.10723358807121879,
             "p95": 0.005967645592708313
@@ -1815,6 +1881,9 @@
             "contractsMean": 15.470588235294118,
             "impliedTauMean": 0.040812284701395515,
             "impliedTauCv": 0.2292944965926305,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.12042438597697193,
               "p95": 0.04932863943211075
@@ -1828,6 +1897,9 @@
             "contractsMean": 15.69204152249135,
             "impliedTauMean": 0.03302951775577093,
             "impliedTauCv": 0.16318265638900245,
+            "impliedTauCvIndexOnly": 0.16278503202130876,
+            "indexOnlyEntries": 200,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.04212840865321243,
               "p95": 0.08569203921980925
@@ -1868,6 +1940,9 @@
             "SLV": 0.037705349771704165,
             "GLD": 0.036740917674375345
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.02663259852293481,
             "p95": 0.11672237895654634
@@ -1880,6 +1955,9 @@
             "contractsMean": 17.06993006993007,
             "impliedTauMean": 0.040812284701395515,
             "impliedTauCv": 0.2292944965926305,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.040131912903236006,
               "p95": 0.1012068418363816
@@ -1893,6 +1971,9 @@
             "contractsMean": 15.366197183098592,
             "impliedTauMean": 0.03302951775577093,
             "impliedTauCv": 0.16318265638900245,
+            "impliedTauCvIndexOnly": 0.16278503202130876,
+            "indexOnlyEntries": 200,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.023016245941702044,
               "p95": 0.13147162750705496
@@ -1933,6 +2014,9 @@
             "SLV": 0.037705349771704165,
             "GLD": 0.036740917674375345
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.05572118170803364,
             "p95": 0.004056005138972194
@@ -1945,6 +2029,9 @@
             "contractsMean": 78.59861591695501,
             "impliedTauMean": 0.040812284701395515,
             "impliedTauCv": 0.2292944965926305,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.028900431041830436,
               "p95": 0.058839130576113584
@@ -1958,6 +2045,9 @@
             "contractsMean": 69.69204152249135,
             "impliedTauMean": 0.03302951775577093,
             "impliedTauCv": 0.16318265638900242,
+            "impliedTauCvIndexOnly": 0.16278503202130873,
+            "indexOnlyEntries": 200,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.03968675807634171,
               "p95": 0.028471772754731114
@@ -3267,6 +3357,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": null,
           "robustRv252": {
             "cagr": 0.0008556831389945341,
@@ -3275,7 +3368,10 @@
             "maxDrawdown": -0.056707144590813274,
             "contractsMean": 16.61307901907357,
             "impliedTauMean": 0.03969612840606683,
-            "impliedTauCv": 0.19206404784790965
+            "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": []
           },
           "robustIvIndex": {
             "cagr": 0.002136301983337363,
@@ -3284,7 +3380,10 @@
             "maxDrawdown": -0.03926407894737549,
             "contractsMean": 17.542234332425068,
             "impliedTauMean": 0.03838592974327153,
-            "impliedTauCv": 0.1336187639721739
+            "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"]
           }
         },
         {
@@ -3321,6 +3420,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.047646462562564176,
             "p95": 0.049931827578886916
@@ -3333,6 +3435,9 @@
             "contractsMean": 16.929155313351497,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.05611457955340485,
               "p95": 0.09150985963428751
@@ -3346,6 +3451,9 @@
             "contractsMean": 17.51226158038147,
             "impliedTauMean": 0.03838592974327152,
             "impliedTauCv": 0.13361876397217393,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.05507994815959315,
               "p95": 0.04430499383463404
@@ -3386,6 +3494,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.049920832358763066,
             "p95": 0.07268022724038031
@@ -3398,6 +3509,9 @@
             "contractsMean": 15.934604904632153,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.045029387201091536,
               "p95": 0.1020741639055864
@@ -3411,6 +3525,9 @@
             "contractsMean": 16.4850136239782,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.036366409021867156,
               "p95": 0.06623383135149483
@@ -3451,6 +3568,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.09211854573692352,
             "p95": 0.014663560536665704
@@ -3463,6 +3583,9 @@
             "contractsMean": 15.793871866295264,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": -0.0975867384508131,
               "p95": 0.01380668961123482
@@ -3476,6 +3599,9 @@
             "contractsMean": 16.854748603351954,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.13468370289957413,
               "p95": -0.008264454593476696
@@ -3516,6 +3642,9 @@
             "SPY": 0.0401969281376832,
             "DIA": 0.03961144220300444
           },
+          "impliedTauCvIndexOnly": null,
+          "indexOnlyEntries": 0,
+          "indexOnlySymbols": [],
           "sharpeDiffCi": {
             "p05": -0.040194589363310336,
             "p95": 0.02179046698477887
@@ -3528,6 +3657,9 @@
             "contractsMean": 61.64577656675749,
             "impliedTauMean": 0.03969612840606683,
             "impliedTauCv": 0.19206404784790965,
+            "impliedTauCvIndexOnly": null,
+            "indexOnlyEntries": 0,
+            "indexOnlySymbols": [],
             "sharpeDiffCi": {
               "p05": 0.0014895670396798079,
               "p95": 0.06869540773026064
@@ -3541,6 +3673,9 @@
             "contractsMean": 68.66485013623978,
             "impliedTauMean": 0.03838592974327153,
             "impliedTauCv": 0.1336187639721739,
+            "impliedTauCvIndexOnly": 0.14508295889740197,
+            "indexOnlyEntries": 248,
+            "indexOnlySymbols": ["DIA", "GLD", "QQQ", "SPY", "USO"],
             "sharpeDiffCi": {
               "p05": -0.023673176791165585,
               "p95": 0.030596893965607018

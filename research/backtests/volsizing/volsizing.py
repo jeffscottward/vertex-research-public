@@ -401,6 +401,8 @@ class Market:
     slow: dict
     entries: dict  # symbol -> {date: (entry_price, exit_date, exit_price)}
     idm: float
+    # symbol -> per-session True where the ivx column holds a real index value (not the proxy)
+    ivx_real: dict = field(default_factory=dict)
 
 
 def check_gate(contracts: int, loss_pc: float, nlv: float) -> None:
@@ -439,7 +441,8 @@ def simulate(m: Market, variant: str, tau: float = CARVER_VOL_TARGET, iv_key: st
         bound = c < wanted and c == cap
         if kind == "entry":
             if per_tau > 0:
-                stats.implied_tau.append((sym, CURRENT_RISK * nlv / loss_pc / per_tau))
+                real = iv_key == "ivx" and bool(m.ivx_real.get(sym, [False] * (j + 1))[j])
+                stats.implied_tau.append((sym, CURRENT_RISK * nlv / loss_pc / per_tau, real))
             stats.gate_bound += bound
         else:
             stats.rolls += 1
@@ -590,14 +593,23 @@ def implied_tau_summary(pairs) -> dict:
     fixed-risk size implies (per instrument mean, and the coefficient of variation)."""
     if not pairs:
         return {}
-    values = [v for _, v in pairs]
-    mean = sum(values) / len(values)
-    sd = math.sqrt(sum((v - mean) ** 2 for v in values) / max(1, len(values) - 1))
+    def cv(values):
+        mean = sum(values) / len(values)
+        sd = math.sqrt(sum((v - mean) ** 2 for v in values) / max(1, len(values) - 1))
+        return mean, sd / mean
+
+    values = [v for _, v, _ in pairs]
+    mean, spread = cv(values)
     by = {}
-    for sym, v in pairs:
+    for sym, v, _ in pairs:
         by.setdefault(sym, []).append(v)
-    return {"impliedTauMean": mean, "impliedTauCv": sd / mean,
-            "impliedTauBySymbol": {k: sum(v) / len(v) for k, v in by.items()}}
+    real = [v for _, v, flag in pairs if flag]
+    return {"impliedTauMean": mean, "impliedTauCv": spread,
+            "impliedTauBySymbol": {k: sum(v) / len(v) for k, v in by.items()},
+            # only entries priced with a real Cboe index value (ivx run): the proxy-free check
+            "impliedTauCvIndexOnly": cv(real)[1] if len(real) > 1 else None,
+            "indexOnlyEntries": len(real),
+            "indexOnlySymbols": sorted({sym for sym, _, flag in pairs if flag})}
 
 
 def sharpe_diff_ci(base, other, block: int = 21, draws: int = 1000, seed: int = 7) -> dict:
@@ -673,7 +685,7 @@ def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: di
                  end: date) -> tuple[Market, dict, dict]:
     calendar = tuple(d for d in series["SPY"].days if START <= d <= end)
     cols_out = {k: {} for k in ("close", "iv", "rv", "ivx", "vol", "fast", "slow")}
-    entries, signal, coverage = {}, {}, {}
+    entries, signal, coverage, ivx_real = {}, {}, {}, {}
     cal = set(calendar)
     for sym, ser in series.items():
         rets = returns(ser.c)
@@ -689,6 +701,11 @@ def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: di
         own = ivx.get(sym, {})
         aligned["ivx"] = ivx_series(calendar, own, aligned["iv"])
         coverage[sym] = sum(d in own for d in calendar) / len(calendar)
+        started = False
+        ivx_real[sym] = []
+        for d in calendar:
+            started = started or d in own
+            ivx_real[sym].append(started)
         for name in cols_out:
             cols_out[name][sym] = aligned[name]
         trades = nautilus_trades(ser, definition)
@@ -700,7 +717,7 @@ def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: di
                 entries[sym][e] = (t["entryPrice"], x, t["exitPrice"])
     c = cols_out
     market = Market(calendar, c["close"], c["iv"], c["rv"], c["ivx"], c["vol"], c["fast"],
-                    c["slow"], entries, idm)
+                    c["slow"], entries, idm, ivx_real)
     return market, signal, coverage
 
 
@@ -712,7 +729,7 @@ VARIANTS = (
     ("vt-16", "Vol target 16% (Carver default, in-sample IDM), 2% gate", "vt"),
 )
 ROBUST_KEYS = ("cagr", "sharpe", "vol", "maxDrawdown", "contractsMean", "impliedTauMean",
-               "impliedTauCv")
+               "impliedTauCv", "impliedTauCvIndexOnly", "indexOnlyEntries", "indexOnlySymbols")
 
 
 def main(argv=None) -> int:
