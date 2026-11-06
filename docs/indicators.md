@@ -8,7 +8,7 @@ Vertex has one indicator formula set in two places. Both are for research, backt
 |---|---|---|
 |Python research library|`services/research/indicators/`|Pure functions for research and backtest code. No pandas, numpy, clock, network or provider access.|
 |Web chart math|`apps/web/src/features/charts/indicator-math.ts`|The same formulas as IEEE doubles, for drawing only.|
-|Web chart studies|`apps/web/src/features/charts/vertex-studies.ts`|Registers each study as a KLineCharts 9.8.12 custom indicator. The `/charts` page shows one checkbox per study.|
+|Web chart studies|`apps/web/src/features/charts/vertex-studies.ts`|Registers each study as a KLineCharts 9.8.12 custom indicator. The `/charts` and `/stock/<SYMBOL>` charts list them in the Overlay and Study menus (`chart-indicators.ts`), with the KLineCharts built-ins RSI, KDJ, OBV and WR.|
 |Exact indicator series|`apps/web/src/features/charts/indicators.ts`|Unchanged: SMA, EMA, VWAP and RSI with exact bigint arithmetic and data-rights checks.|
 
 ## Indicators

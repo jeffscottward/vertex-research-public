@@ -111,7 +111,13 @@ const mount = async (
           {...(clock ? { now: clock } : {})}
           pricePrecision={2}
           storage={storage}
-          studies={{ ema: [9], extra: ["macd"], sma: [20], volume: true }}
+          studies={{
+            ema: [9],
+            extra: ["macd"],
+            panes: ["RSI"],
+            sma: [20],
+            volume: true,
+          }}
           symbol={nextSymbol}
         />
       )
@@ -166,6 +172,7 @@ describe("chart workstation", () => {
       "SMA 20",
       "EMA 9",
       "MACD",
+      "RSI",
       "Trade markers (1)",
       "Horizontal level 10.00",
     ])

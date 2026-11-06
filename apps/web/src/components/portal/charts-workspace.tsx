@@ -10,7 +10,8 @@ import {
   type MarketBarsOutput,
   type MarketSecType,
 } from "@darkfactory/api";
-import { Button, Input } from "@darkfactory/ui";
+import { Button, Input, Panel } from "@darkfactory/ui";
+import Link from "next/link";
 import {
   lazy,
   Suspense,
@@ -40,13 +41,23 @@ import {
   tradeMarkers,
   type TradeLike,
 } from "../../features/charts/market-bars.ts";
-import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
-import type { ChartMarker, ChartStudies } from "../../features/charts/types.ts";
 import {
-  VERTEX_STUDIES,
-  VERTEX_STUDY_IDS,
-  type VertexStudyId,
-} from "../../features/charts/vertex-studies.ts";
+  type ChartIndicatorKey,
+  DEFAULT_CHART_INDICATORS,
+  studiesFor,
+} from "../../features/charts/chart-indicators.ts";
+import {
+  aggregateCandles,
+  CANDLE_PERIOD_SECONDS,
+  type ChartInterval,
+  DEFAULT_CHART_INTERVAL,
+  INTERVAL_BARS,
+  intervalForBars,
+  parseIntervalParam,
+} from "../../features/charts/chart-intervals.ts";
+import { ChartToolbar } from "../../features/charts/chart-toolbar.tsx";
+import { ChartRendererBoundary } from "../../features/charts/renderer-host.tsx";
+import type { ChartMarker } from "../../features/charts/types.ts";
 import {
   OPERATOR_ACCESS_REQUIRED_TEXT,
   createBrowserBacktestsGateway,
@@ -123,17 +134,30 @@ const buildBarsInput = (form: ChartsForm): MarketBarsInput => {
   };
 };
 
-const formFromUrl = (
-  search: string
-): Readonly<{ form: ChartsForm; error: string | null }> => {
+type UrlChart = Readonly<{
+  form: ChartsForm;
+  interval: ChartInterval;
+  error: string | null;
+  linked: boolean;
+}>;
+
+// `?symbol=` and `?interval=` (1m..1M); missing values keep the SPY 1D default.
+const formFromUrl = (search: string): UrlChart => {
+  const interval = parseIntervalParam(search);
+  const { barSize, duration } = INTERVAL_BARS[interval];
+  const base = { ...DEFAULT_CHARTS_FORM, barSize, duration };
   const param = parseSymbolParam(search);
   if (param.type === "valid")
     return {
-      form: { ...DEFAULT_CHARTS_FORM, symbol: param.symbol },
       error: null,
+      form: { ...base, symbol: param.symbol },
+      interval,
+      linked: true,
     };
   return {
-    form: DEFAULT_CHARTS_FORM,
+    form: base,
+    interval,
+    linked: false,
     error:
       param.type === "invalid"
         ? `"${param.raw}" is not a valid ticker. Showing ${DEFAULT_CHARTS_FORM.symbol}.`
@@ -141,26 +165,29 @@ const formFromUrl = (
   };
 };
 
-// Adds a history entry only when the loaded symbol differs from the URL, and
-// only for STK requests the link can reproduce: a reloaded link rebuilds the
-// stock defaults, so a futures entry would re-request the root as a stock.
-const pushSymbolUrl = ({ secType, symbol }: MarketBarsInput): void => {
+// Adds a history entry only when the loaded symbol or interval differs from the
+// URL, and only for STK requests the link can reproduce: a reloaded link rebuilds
+// the stock defaults, so a futures entry would re-request the root as a stock.
+const pushChartUrl = (
+  { secType, symbol }: MarketBarsInput,
+  interval: ChartInterval | null
+): void => {
   if (!(secType === "STK" && isLinkableSymbol(symbol))) return;
   const { pathname, search } = window.location;
-  const current = parseSymbolParam(search);
-  if (current.type === "valid" && current.symbol === symbol) return;
-  window.history.pushState(
-    null,
-    "",
-    `${pathname}${withSymbolParam(search, symbol)}`
-  );
+  const params = new URLSearchParams(withSymbolParam(search, symbol));
+  if (interval === null || interval === DEFAULT_CHART_INTERVAL)
+    params.delete("interval");
+  else params.set("interval", interval);
+  const next = `?${params.toString()}`;
+  if (next === search) return;
+  window.history.pushState(null, "", `${pathname}${next}`);
 };
 
 // Syncs the form with `?symbol=` on demand and on back/forward. After a linked
 // symbol loads, scrolls the results into view (the form fills a phone screen).
 // A failed linked load or a manual submit cancels the pending scroll.
 const useSymbolDeepLink = (
-  setForm: (form: ChartsForm) => void,
+  apply: (form: ChartsForm, interval: ChartInterval) => void,
   load: (input: MarketBarsInput) => Promise<void>,
   barsType: BarsState["type"]
 ) => {
@@ -170,10 +197,10 @@ const useSymbolDeepLink = (
   const applyUrlSymbol = useCallback((): ChartsForm => {
     const next = formFromUrl(window.location.search);
     setLinkError(next.error);
-    setForm(next.form);
-    scrollPending.current = next.form !== DEFAULT_CHARTS_FORM;
+    apply(next.form, next.interval);
+    scrollPending.current = next.linked;
     return next.form;
-  }, [setForm]);
+  }, [apply]);
   useEffect(() => {
     const chartsPath = window.location.pathname;
     const onPop = () => {
@@ -230,18 +257,6 @@ type TradesState =
   | Readonly<{ type: "ready"; id: string; trades: readonly TradeLike[] }>
   | Readonly<{ type: "error"; id: string; message: string }>;
 
-type StudyToggles = Readonly<{
-  volume: boolean;
-  sma20: boolean;
-  sma50: boolean;
-  ema20: boolean;
-}>;
-const STUDY_LABELS: readonly (readonly [keyof StudyToggles, string])[] = [
-  ["volume", "Volume"],
-  ["sma20", "SMA 20"],
-  ["sma50", "SMA 50"],
-  ["ema20", "EMA 20"],
-];
 const NO_MARKERS: readonly ChartMarker[] = Object.freeze([]);
 
 const SEC_TYPE_LABELS: Readonly<Record<MarketSecType, string>> = {
@@ -320,145 +335,153 @@ const BarsForm = ({
   return (
     <form
       aria-label="Bar request"
-      className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5"
+      className="flex flex-wrap items-center gap-2"
       onSubmit={submit}
     >
-      <Field controlId={`${fieldId}-symbol`} label="Symbol">
-        <Input
-          id={`${fieldId}-symbol`}
-          aria-label="Symbol"
-          autoCapitalize="characters"
-          maxLength={12}
-          onChange={(event) =>
-            onChange({ ...form, symbol: event.target.value })
-          }
-          required
-          spellCheck={false}
-          value={form.symbol}
-        />
-      </Field>
-      <Field controlId={`${fieldId}-security-type`} label="Security type">
-        <select
-          id={`${fieldId}-security-type`}
-          aria-label="Security type"
-          className={selectClass}
-          onChange={changeSecType}
-          value={form.secType}
-        >
-          {MARKET_SEC_TYPES.map((value) => (
-            <option key={value} value={value}>
-              {SEC_TYPE_LABELS[value]}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field controlId={`${fieldId}-exchange`} label="Exchange">
-        <Input
-          id={`${fieldId}-exchange`}
-          aria-label="Exchange"
-          maxLength={16}
-          onChange={(event) =>
-            onChange({ ...form, exchange: event.target.value })
-          }
-          spellCheck={false}
-          value={form.exchange}
-        />
-      </Field>
-      <Field controlId={`${fieldId}-currency`} label="Currency">
-        <Input
-          id={`${fieldId}-currency`}
-          aria-label="Currency"
-          maxLength={3}
-          onChange={(event) =>
-            onChange({ ...form, currency: event.target.value })
-          }
-          spellCheck={false}
-          value={form.currency}
-        />
-      </Field>
-      {form.secType === "FUT" ? (
-        <Field controlId={`${fieldId}-contract-month`} label="Contract month">
-          <Input
-            id={`${fieldId}-contract-month`}
-            aria-label="Contract month"
-            inputMode="numeric"
-            maxLength={8}
-            onChange={(event) =>
-              onChange({ ...form, contractMonth: event.target.value })
-            }
-            placeholder="YYYYMM"
-            value={form.contractMonth}
-          />
-        </Field>
-      ) : null}
-      <Field controlId={`${fieldId}-bar-size`} label="Bar size">
-        <select
-          id={`${fieldId}-bar-size`}
-          aria-label="Bar size"
-          className={selectClass}
-          onChange={changeBarSize}
-          value={form.barSize}
-        >
-          {MARKET_BAR_SIZES.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field controlId={`${fieldId}-duration`} label="Duration">
-        <select
-          id={`${fieldId}-duration`}
-          aria-label="Duration"
-          className={selectClass}
-          onChange={(event) =>
-            onChange({ ...form, duration: event.target.value })
-          }
-          value={form.duration}
-        >
-          {durations.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field controlId={`${fieldId}-data`} label="Data">
-        <select
-          id={`${fieldId}-data`}
-          aria-label="Data"
-          className={selectClass}
-          onChange={(event) =>
-            onChange({
-              ...form,
-              whatToShow: event.target.value as ChartsForm["whatToShow"],
-            })
-          }
-          value={form.whatToShow}
-        >
-          {MARKET_WHAT_TO_SHOW.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <label className="flex min-h-11 items-center gap-2 self-end text-sm">
-        <input
-          checked={form.useRTH}
-          className="size-5"
-          onChange={(event) =>
-            onChange({ ...form, useRTH: event.target.checked })
-          }
-          type="checkbox"
-        />
-        Regular trading hours only
+      <label className="sr-only" htmlFor={`${fieldId}-symbol`}>
+        Symbol
       </label>
-      <div className="flex items-end">
-        <Button disabled={busy} type="submit">
-          Load bars
-        </Button>
-      </div>
+      <Input
+        aria-label="Symbol"
+        autoCapitalize="characters"
+        className="h-11 w-28 font-medium uppercase"
+        id={`${fieldId}-symbol`}
+        maxLength={12}
+        onChange={(event) => onChange({ ...form, symbol: event.target.value })}
+        required
+        spellCheck={false}
+        value={form.symbol}
+      />
+      <Button disabled={busy} type="submit">
+        Open
+      </Button>
+      <details className="relative" data-bar-settings="">
+        <summary className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border-strong px-3 text-sm">
+          Settings
+        </summary>
+        <div className="absolute right-0 z-20 mt-1 grid w-[min(92vw,36rem)] gap-3 rounded-md border border-border-strong bg-popover p-4 text-popover-foreground shadow-md sm:grid-cols-2">
+          <Field controlId={`${fieldId}-security-type`} label="Security type">
+            <select
+              aria-label="Security type"
+              className={selectClass}
+              id={`${fieldId}-security-type`}
+              onChange={changeSecType}
+              value={form.secType}
+            >
+              {MARKET_SEC_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {SEC_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field controlId={`${fieldId}-exchange`} label="Exchange">
+            <Input
+              aria-label="Exchange"
+              id={`${fieldId}-exchange`}
+              maxLength={16}
+              onChange={(event) =>
+                onChange({ ...form, exchange: event.target.value })
+              }
+              spellCheck={false}
+              value={form.exchange}
+            />
+          </Field>
+          <Field controlId={`${fieldId}-currency`} label="Currency">
+            <Input
+              aria-label="Currency"
+              id={`${fieldId}-currency`}
+              maxLength={3}
+              onChange={(event) =>
+                onChange({ ...form, currency: event.target.value })
+              }
+              spellCheck={false}
+              value={form.currency}
+            />
+          </Field>
+          {form.secType === "FUT" ? (
+            <Field
+              controlId={`${fieldId}-contract-month`}
+              label="Contract month"
+            >
+              <Input
+                aria-label="Contract month"
+                id={`${fieldId}-contract-month`}
+                inputMode="numeric"
+                maxLength={8}
+                onChange={(event) =>
+                  onChange({ ...form, contractMonth: event.target.value })
+                }
+                placeholder="YYYYMM"
+                value={form.contractMonth}
+              />
+            </Field>
+          ) : null}
+          <Field controlId={`${fieldId}-bar-size`} label="Bar size">
+            <select
+              aria-label="Bar size"
+              className={selectClass}
+              id={`${fieldId}-bar-size`}
+              onChange={changeBarSize}
+              value={form.barSize}
+            >
+              {MARKET_BAR_SIZES.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field controlId={`${fieldId}-duration`} label="Duration">
+            <select
+              aria-label="Duration"
+              className={selectClass}
+              id={`${fieldId}-duration`}
+              onChange={(event) =>
+                onChange({ ...form, duration: event.target.value })
+              }
+              value={form.duration}
+            >
+              {durations.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field controlId={`${fieldId}-data`} label="Data">
+            <select
+              aria-label="Data"
+              className={selectClass}
+              id={`${fieldId}-data`}
+              onChange={(event) =>
+                onChange({
+                  ...form,
+                  whatToShow: event.target.value as ChartsForm["whatToShow"],
+                })
+              }
+              value={form.whatToShow}
+            >
+              {MARKET_WHAT_TO_SHOW.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <label className="flex min-h-11 items-center gap-2 self-end text-sm">
+            <input
+              checked={form.useRTH}
+              className="size-5"
+              onChange={(event) =>
+                onChange({ ...form, useRTH: event.target.checked })
+              }
+              type="checkbox"
+            />
+            Regular trading hours only
+          </label>
+        </div>
+      </details>
     </form>
   );
 };
@@ -577,39 +600,6 @@ export interface ChartsWorkspaceProps {
   readonly autoLoad?: boolean;
 }
 
-// Vertex-computed indicator overlays (display only, fixed default parameters).
-const IndicatorToggles = ({
-  onChange,
-  selected,
-}: Readonly<{
-  onChange: (next: readonly VertexStudyId[]) => void;
-  selected: readonly VertexStudyId[];
-}>) => (
-  <fieldset
-    className="flex flex-wrap items-center gap-3 text-sm"
-    data-vertex-studies=""
-  >
-    <legend className="sr-only">Indicators</legend>
-    {VERTEX_STUDY_IDS.map((id) => (
-      <label className="flex min-h-11 items-center gap-2" key={id}>
-        <input
-          checked={selected.includes(id)}
-          className="size-5"
-          onChange={(event) =>
-            onChange(
-              VERTEX_STUDY_IDS.filter((other) =>
-                other === id ? event.target.checked : selected.includes(other)
-              )
-            )
-          }
-          type="checkbox"
-        />
-        {VERTEX_STUDIES[id].label}
-      </label>
-    ))}
-  </fieldset>
-);
-
 export const ChartsWorkspace = ({
   marketData: suppliedMarketData,
   optionsAnalytics,
@@ -625,15 +615,14 @@ export const ChartsWorkspace = ({
     () => suppliedBacktests ?? createBrowserBacktestsGateway()
   );
   const [form, setForm] = useState<ChartsForm>(DEFAULT_CHARTS_FORM);
+  // Null when the settings request a bar size and duration no interval button matches.
+  const [interval, setInterval] = useState<ChartInterval | null>(
+    DEFAULT_CHART_INTERVAL
+  );
   const [bars, setBars] = useState<BarsState>({ type: "idle" });
-  const [toggles, setToggles] = useState<StudyToggles>({
-    volume: true,
-    sma20: false,
-    sma50: false,
-    ema20: false,
-  });
-  const [extraStudies, setExtraStudies] = useState<readonly VertexStudyId[]>(
-    []
+  const [volume, setVolume] = useState(true);
+  const [indicators, setIndicators] = useState<readonly ChartIndicatorKey[]>(
+    DEFAULT_CHART_INDICATORS
   );
   const [backtestList, setBacktestList] = useState<BacktestListState>({
     type: "loading",
@@ -664,8 +653,15 @@ export const ChartsWorkspace = ({
     [marketData]
   );
 
+  const applyUrl = useCallback(
+    (next: ChartsForm, nextInterval: ChartInterval) => {
+      setForm(next);
+      setInterval(nextInterval);
+    },
+    []
+  );
   const { linkError, clearLink, applyUrlSymbol, resultsRef } =
-    useSymbolDeepLink(setForm, load, bars.type);
+    useSymbolDeepLink(applyUrl, load, bars.type);
 
   useEffect(() => {
     if (started.current) return;
@@ -687,10 +683,32 @@ export const ChartsWorkspace = ({
 
   const submit = useCallback(() => {
     const input = buildBarsInput(form);
+    // Keep 1W/1M (daily bars, merged) when the settings still request daily bars.
+    const kept =
+      interval !== null &&
+      INTERVAL_BARS[interval].barSize === form.barSize &&
+      INTERVAL_BARS[interval].duration === form.duration
+        ? interval
+        : intervalForBars(form.barSize, form.duration);
+    setInterval(kept);
     clearLink();
-    pushSymbolUrl(input);
+    pushChartUrl(input, kept);
     void load(input);
-  }, [clearLink, form, load]);
+  }, [clearLink, form, interval, load]);
+
+  const chooseInterval = useCallback(
+    (next: ChartInterval) => {
+      const { barSize, duration } = INTERVAL_BARS[next];
+      const nextForm = { ...form, barSize, duration };
+      const input = buildBarsInput(nextForm);
+      setForm(nextForm);
+      setInterval(next);
+      clearLink();
+      pushChartUrl(input, next);
+      void load(input);
+    },
+    [clearLink, form, load]
+  );
 
   const chooseBacktest = useCallback(
     async (id: string) => {
@@ -723,18 +741,21 @@ export const ChartsWorkspace = ({
   );
 
   const data = bars.type === "ready" ? bars.data : null;
-  const display = useMemo(
-    () => (data === null ? null : barsToDisplayCandles(data.bars)),
-    [data]
-  );
-  const studies = useMemo<ChartStudies>(
-    () => ({
-      volume: toggles.volume,
-      sma: [...(toggles.sma20 ? [20] : []), ...(toggles.sma50 ? [50] : [])],
-      ema: toggles.ema20 ? [20] : [],
-      extra: extraStudies,
-    }),
-    [toggles, extraStudies]
+  // 1W/1M merge daily bars into week or month candles.
+  const requested =
+    interval === null ? null : INTERVAL_BARS[interval].aggregate;
+  const aggregate =
+    data === null || data.request.barSize !== "1 day" ? null : requested;
+  const display = useMemo(() => {
+    if (data === null) return null;
+    const result = barsToDisplayCandles(data.bars);
+    return aggregate === null
+      ? result
+      : { ...result, candles: aggregateCandles(result.candles, aggregate) };
+  }, [data, aggregate]);
+  const studies = useMemo(
+    () => studiesFor(volume, indicators),
+    [volume, indicators]
   );
   const overlay = useMemo(() => {
     if (trades.type !== "ready" || data === null || display === null)
@@ -742,160 +763,183 @@ export const ChartsWorkspace = ({
     return tradeMarkers(
       trades.trades,
       display.candles,
-      BAR_SECONDS[data.request.barSize],
+      // A merged candle covers its whole week or month.
+      aggregate === null
+        ? BAR_SECONDS[data.request.barSize]
+        : CANDLE_PERIOD_SECONDS[aggregate],
       [data.request.symbol, data.contract.localSymbol]
     );
-  }, [trades, data, display]);
+  }, [trades, data, display, aggregate]);
   const markers = overlay?.markers ?? NO_MARKERS;
   const selectedBacktest = trades.type === "none" ? "" : trades.id;
 
+  const shown = data?.request.symbol ?? form.symbol.trim().toUpperCase();
+  const stockLink =
+    data !== null && data.request.secType === "STK"
+      ? data.request.symbol
+      : null;
+
   return (
     <div className="space-y-6">
-      <BarsForm
-        busy={bars.type === "loading"}
-        form={form}
-        onChange={setForm}
-        onSubmit={submit}
-      />
-      <LinkError message={linkError} />
-      <div className="flex flex-wrap items-end gap-4">
-        <fieldset className="flex flex-wrap items-center gap-3 text-sm">
-          <legend className="sr-only">Studies</legend>
-          {STUDY_LABELS.map(([key, label]) => {
-            return (
-              <label className="flex min-h-11 items-center gap-2" key={key}>
-                <input
-                  checked={toggles[key]}
-                  className="size-5"
-                  onChange={(event) =>
-                    setToggles({ ...toggles, [key]: event.target.checked })
-                  }
-                  type="checkbox"
-                />
-                {label}
-              </label>
-            );
-          })}
-        </fieldset>
-        <IndicatorToggles onChange={setExtraStudies} selected={extraStudies} />
-        <div className="min-w-64 space-y-1 text-xs">
-          <label
-            className="block text-muted-foreground"
-            htmlFor={backtestSelectId}
-          >
-            Backtest trades
-          </label>
-          {backtestList.type === "forbidden" ? (
-            <span className="block text-sm" role="status">
-              {OPERATOR_ACCESS_REQUIRED_TEXT}
-            </span>
-          ) : backtestList.type === "error" ? (
-            <span className="block text-sm" role="status">
-              {backtestList.message}
-            </span>
-          ) : (
-            <select
-              aria-label="Backtest trades"
-              className={selectClass}
-              id={backtestSelectId}
-              disabled={backtestList.type === "loading"}
-              onChange={(event) => void chooseBacktest(event.target.value)}
-              value={selectedBacktest}
-            >
-              <option value="">None</option>
-              {backtestList.type === "ready"
-                ? backtestList.rows.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.strategy} · {row.instruments} · {row.periodStart} to{" "}
-                      {row.periodEnd}
-                    </option>
-                  ))
-                : null}
-            </select>
-          )}
-        </div>
-      </div>
-      {trades.type === "loading" ? (
-        <p aria-busy="true" className="text-muted-foreground text-xs">
-          Loading trades…
-        </p>
-      ) : null}
-      {trades.type === "error" ? (
-        <p className="text-xs" role="alert">
-          {trades.message}
-        </p>
-      ) : null}
-      {overlay === null ? null : (
-        <p
-          className="font-mono text-muted-foreground text-xs"
-          data-marker-summary=""
-          role="status"
-        >
-          Trade markers: {overlay.shown} shown · {overlay.outside} outside
-          loaded bars
-          {overlay.otherSymbol > 0
-            ? ` · ${overlay.otherSymbol} trades for other symbols skipped`
-            : ""}
-        </p>
-      )}
-      {bars.type === "loading" ? (
-        <p aria-busy="true" className="text-muted-foreground text-sm">
-          Loading bars…
-        </p>
-      ) : bars.type === "error" ? (
-        <div
-          className="space-y-1 rounded-md border border-border p-4"
-          data-error-code={bars.failure.code}
-          role="alert"
-        >
-          <p className="font-mono text-sm">{bars.failure.code}</p>
-          <p className="text-sm">{bars.failure.message}</p>
-        </div>
-      ) : null}
-      {data !== null && display !== null ? (
-        <div className="space-y-6" data-chart-results="" ref={resultsRef}>
-          <SourceSummary
-            data={data}
-            dropped={display.dropped}
-            skipped={display.skipped}
-          />
-          {display.candles.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No bars returned.</p>
-          ) : (
-            <ChartRendererBoundary>
-              <Suspense
-                fallback={
-                  <p className="text-muted-foreground text-xs">
-                    Loading chart…
-                  </p>
-                }
+      <Panel
+        actions={
+          <>
+            <BarsForm
+              busy={bars.type === "loading"}
+              form={form}
+              onChange={setForm}
+              onSubmit={submit}
+            />
+            {stockLink === null ? null : (
+              <Link
+                prefetch={false}
+                className="inline-flex min-h-11 items-center rounded-md px-3 font-medium text-sm underline-offset-4 hover:underline"
+                href={`/stock/${encodeURIComponent(stockLink)}`}
               >
-                <LazyMarketBarsChart
-                  candles={display.candles}
-                  label={`${data.contract.localSymbol} ${data.request.barSize} bars`}
-                  markers={markers}
-                  pricePrecision={pricePrecisionFor(data)}
-                  studies={studies}
-                  symbol={data.contract.localSymbol}
-                />
-              </Suspense>
-            </ChartRendererBoundary>
+                Options chain
+              </Link>
+            )}
+          </>
+        }
+        data-chart-panel=""
+        description="IBKR historical bars. The symbol and interval stay in the URL."
+        title={`${shown} · ${interval ?? form.barSize}`}
+      >
+        <div className="space-y-4">
+          <LinkError message={linkError} />
+          <ChartToolbar
+            indicators={indicators}
+            interval={interval}
+            onIndicators={setIndicators}
+            onInterval={chooseInterval}
+            onVolume={setVolume}
+            volume={volume}
+          >
+            <div className="flex min-w-64 items-center gap-2 text-sm">
+              <label
+                className="whitespace-nowrap text-muted-foreground"
+                htmlFor={backtestSelectId}
+              >
+                Backtest trades
+              </label>
+              {backtestList.type === "forbidden" ? (
+                <span className="block text-sm" role="status">
+                  {OPERATOR_ACCESS_REQUIRED_TEXT}
+                </span>
+              ) : backtestList.type === "error" ? (
+                <span className="block text-sm" role="status">
+                  {backtestList.message}
+                </span>
+              ) : (
+                <select
+                  aria-label="Backtest trades"
+                  className={selectClass}
+                  disabled={backtestList.type === "loading"}
+                  id={backtestSelectId}
+                  onChange={(event) => void chooseBacktest(event.target.value)}
+                  value={selectedBacktest}
+                >
+                  <option value="">None</option>
+                  {backtestList.type === "ready"
+                    ? backtestList.rows.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.strategy} · {row.instruments} · {row.periodStart}{" "}
+                          to {row.periodEnd}
+                        </option>
+                      ))
+                    : null}
+                </select>
+              )}
+            </div>
+          </ChartToolbar>
+          {trades.type === "loading" ? (
+            <p aria-busy="true" className="text-muted-foreground text-xs">
+              Loading trades…
+            </p>
+          ) : null}
+          {trades.type === "error" ? (
+            <p className="text-xs" role="alert">
+              {trades.message}
+            </p>
+          ) : null}
+          {overlay === null ? null : (
+            <p
+              className="font-mono text-muted-foreground text-xs"
+              data-marker-summary=""
+              role="status"
+            >
+              Trade markers: {overlay.shown} shown · {overlay.outside} outside
+              loaded bars
+              {overlay.otherSymbol > 0
+                ? ` · ${overlay.otherSymbol} trades for other symbols skipped`
+                : ""}
+            </p>
           )}
-          <Analysis data={data} />
-          {/* QuantData covers US-listed equities only; the JEV verdict uses the same scope. */}
-          {data.request.secType === "STK" && data.request.currency === "USD" ? (
-            <>
-              <JevVerdictPanel
-                gateway={jevVerdict}
-                symbol={data.request.symbol}
+          {bars.type === "loading" ? (
+            <p aria-busy="true" className="text-muted-foreground text-sm">
+              Loading bars…
+            </p>
+          ) : bars.type === "error" ? (
+            <div
+              className="space-y-1 rounded-md border border-border p-4"
+              data-error-code={bars.failure.code}
+              role="alert"
+            >
+              <p className="font-mono text-sm">{bars.failure.code}</p>
+              <p className="text-sm">{bars.failure.message}</p>
+            </div>
+          ) : null}
+          {data !== null && display !== null ? (
+            <div className="space-y-4" data-chart-results="" ref={resultsRef}>
+              {display.candles.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No bars returned.
+                </p>
+              ) : (
+                <ChartRendererBoundary>
+                  <Suspense
+                    fallback={
+                      <p className="text-muted-foreground text-xs">
+                        Loading chart…
+                      </p>
+                    }
+                  >
+                    <LazyMarketBarsChart
+                      candles={display.candles}
+                      label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
+                      markers={markers}
+                      pricePrecision={pricePrecisionFor(data)}
+                      studies={studies}
+                      symbol={data.contract.localSymbol}
+                    />
+                  </Suspense>
+                </ChartRendererBoundary>
+              )}
+              <SourceSummary
+                data={data}
+                dropped={display.dropped}
+                skipped={display.skipped}
               />
-              <OptionsAnalyticsPanel
-                gateway={optionsAnalytics}
-                symbol={data.request.symbol}
-              />
-            </>
+            </div>
           ) : null}
         </div>
+      </Panel>
+      {data === null ? null : (
+        <Panel data-return-analysis="" title="Return analysis">
+          <Analysis data={data} />
+        </Panel>
+      )}
+      {/* QuantData covers US-listed equities only; the JEV verdict uses the same scope. */}
+      {data !== null &&
+      data.request.secType === "STK" &&
+      data.request.currency === "USD" ? (
+        <>
+          <JevVerdictPanel gateway={jevVerdict} symbol={data.request.symbol} />
+          <OptionsAnalyticsPanel
+            gateway={optionsAnalytics}
+            symbol={data.request.symbol}
+          />
+        </>
       ) : null}
     </div>
   );

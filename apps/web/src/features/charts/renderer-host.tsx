@@ -193,7 +193,9 @@ export const CandleCanvas = ({
         className="vx-chart-canvas"
         style={
           {
-            "--vx-chart-sub-panes": paneStudyCount(studies?.extra ?? []),
+            "--vx-chart-sub-panes":
+              paneStudyCount(studies?.extra ?? []) +
+              (studies?.panes?.length ?? 0),
           } as CSSProperties
         }
         role="group"
