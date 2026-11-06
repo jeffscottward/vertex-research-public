@@ -22,15 +22,21 @@ import { requireOperator } from "./operator-access.ts";
 // changes the TypeScript answer. Research only.
 
 /**
- * The comparison queue of a request, or null when the setting is off or run storage is missing.
- * `requestedBy` is the caller's user id.
+ * The comparison queue of a request, or null when the setting is off, run storage is missing or
+ * the caller may not write (a read-access agent key or a read-only viewer: backtestRuns.sweep is
+ * a read procedure, and queueing runs is a write). `requestedBy` is the caller's user id.
  */
 export const comparisonQueueFor = (
   context: ApiContext,
   requestedBy: string
 ): ComparisonQueue | null => {
   const runs = context.repositories.backtestRuns;
-  if (context.engineComparison !== "on" || runs === undefined) return null;
+  if (
+    context.engineComparison !== "on" ||
+    runs === undefined ||
+    context.callerCanWrite !== true
+  )
+    return null;
   return createComparisonQueue(
     runs,
     context.hostLabel ?? DEFAULT_HOST_LABEL,

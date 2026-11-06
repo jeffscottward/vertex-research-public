@@ -59,6 +59,8 @@ Storage: no new table. Each repeated run is a backtest run with the Nautilus eng
 
 No flooding: the instant backtest and the sweep page run again on every form change. An identical request (same group id) whose group has a run from the last 24 hours that was not superseded queues nothing new and shows that group (`reused: true`). A new group of the same feature from the same user fails that user's still-queued runs of older groups of the feature with "Superseded by a newer request" (one conditional update; running runs are never touched; the answer reports `superseded`). Both happen in one transaction under an advisory lock on the group id, so two identical requests at once store the group once. A superseded request that is asked for again gets new runs in its group; the pages show the newest run per cell and "superseded" for the replaced ones. The gate's campaign group takes every tick's runs (no reuse, no superseding).
 
+Only a caller that may write queues comparison runs: an operator session or a write-access agent key. `backtestRuns.sweep` is a read procedure, so a read-access key or a read-only agent viewer gets the TypeScript result without `comparison` and nothing is queued.
+
 | Feature | What is repeated | Cap |
 | --- | --- | --- |
 | Instant backtest | The run over the whole stored series (`from` and `to` are the first and last bar dates) | One run per request |

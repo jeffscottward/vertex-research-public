@@ -1,5 +1,6 @@
 import {
   AUTHORIZATION_ERROR_CODES,
+  type AgentApiKeyService,
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
@@ -463,6 +464,8 @@ type Harness = Readonly<{
   sectorRotation?: SectorQuadrantSource;
   engine?: "typescript" | "nautilus";
   comparison?: "off" | "on";
+  /** Calls with an x-api-key of this access instead of the session. */
+  apiKeyAccess?: "read" | "write";
 }>;
 
 const clientFor = (harness: Harness) => {
@@ -484,7 +487,24 @@ const clientFor = (harness: Harness) => {
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
+    const { apiKeyAccess } = harness;
+    if (apiKeyAccess !== undefined) request.headers.set("x-api-key", "key");
     const context = createApiContext(request, {
+      ...(apiKeyAccess === undefined
+        ? {}
+        : {
+            agentApiKeys: {
+              authenticate: async () => ({
+                access: apiKeyAccess,
+                apiKeyId: "key-1",
+                email: "operator@domain.test",
+                emailVerified: true,
+                role: "member" as const,
+                status: "active" as const,
+                userId: "user-key",
+              }),
+            } as unknown as AgentApiKeyService,
+          }),
       capabilities: {
         ai: false,
         analytics: false,
@@ -2906,6 +2926,37 @@ describe("engine comparison (dual run)", () => {
     expect(comparison.typescript.tradeCount).toBe(answer.stats.trades);
     // Comparison runs stay out of the backtest run list.
     expect((await client.backtestRuns.list({})).runs).toEqual([]);
+  });
+
+  it("queues sweep comparison runs only for a write caller, never for a read key", async () => {
+    // backtestRuns.sweep is a read procedure; queueing Nautilus runs is a write.
+    const sweep = {
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast" as const, step: 5, to: 10 }],
+    };
+    const runs = memoryRuns();
+    const read = clientFor({
+      apiKeyAccess: "read",
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    });
+    const answer = await read.backtestRuns.sweep(sweep);
+    expect(answer.comparison).toBeUndefined();
+    expect(answer.cells.length).toBeGreaterThan(0);
+    expect(comparisonRuns(runs)).toHaveLength(0);
+    const write = clientFor({
+      apiKeyAccess: "write",
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    });
+    const queued = await write.backtestRuns.sweep(sweep);
+    expect(queued.comparison).toMatchObject({ queued: 2 });
+    expect(comparisonRuns(runs).map((row) => row.requestedBy)).toEqual([
+      "user-key",
+      "user-key",
+    ]);
   });
 
   it("reuses an identical request's group and supersedes older queued runs of the same feature", async () => {

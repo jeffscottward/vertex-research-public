@@ -219,8 +219,18 @@ describe("comparison queue", () => {
       )
     ).toBeNull();
     expect(
-      comparisonQueueFor(context({ engineComparison: "on" }), "u")?.host
+      comparisonQueueFor(
+        context({ callerCanWrite: true, engineComparison: "on" }),
+        "u"
+      )?.host
     ).toBe("web server");
+    // A read-access key or a read-only viewer queues nothing (sweep is a read procedure).
+    expect(
+      comparisonQueueFor(
+        context({ callerCanWrite: false, engineComparison: "on" }),
+        "u"
+      )
+    ).toBeNull();
     expect(barDate(Date.parse("2026-11-05T23:59:00Z"))).toBe("2026-11-05");
   });
 

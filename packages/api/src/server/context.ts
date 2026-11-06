@@ -77,6 +77,10 @@ export type ApiContext = Readonly<{
   // cookie is ignored for them.
   agentApiKeyPresented?: boolean;
   agentApiKeys?: ApiAgentApiKeys;
+  // Set by requireOperator: true for an operator session or a write-access agent key, false for a
+  // read-access key or a read-only agent viewer. Read procedures with a side effect (the engine
+  // comparison queue of backtestRuns.sweep) run it only when this is true.
+  callerCanWrite?: boolean;
   // Lower-cased operator allow-list (VERTEX_OPERATOR_EMAILS). Absent/empty => no
   // operators; agentOps.*, papers.* and agentApiKeys.* then deny everyone.
   operatorEmails?: readonly string[];
