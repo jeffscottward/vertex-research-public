@@ -38,6 +38,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "strategyLibrary.list",
   "strategyLibrary.get",
   "marketData.bars",
+  "marketData.ticks",
   "backtestRuns.list",
   "backtestRuns.get",
   "backtestRuns.sweep",

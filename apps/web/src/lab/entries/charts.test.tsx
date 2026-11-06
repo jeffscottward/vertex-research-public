@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { JevVerdictOutputSchema } from "@darkfactory/api";
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../features/charts/market-chart.tsx", () => ({
@@ -11,6 +12,7 @@ import {
   CHARTS_LAB_ENTRIES,
   labJevVerdictGateway,
   labOptionsAnalyticsGateway,
+  labOrderFlowNoDepthGateway,
 } from "./charts.tsx";
 
 afterEach(async () => {
@@ -28,6 +30,64 @@ describe("charts lab entry", () => {
     expect(host.querySelector("h1")?.textContent).toBe("Charts");
     expect(host.textContent).toContain("NVDA");
     expect(host.textContent).toContain("fake data");
+  });
+
+  it("renders every order flow tab from fictional fixtures", async () => {
+    window.history.replaceState(null, "", "/lab/charts");
+    const [entry] = CHARTS_LAB_ENTRIES;
+    const host = await mountLab(entry?.render(new URLSearchParams()));
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-order-flow]")).not.toBeNull()
+    );
+    const load = [...host.querySelectorAll("button")].find(
+      (node) => node.textContent === "Load order flow"
+    );
+    await act(async () => load?.click());
+    const open = async (tab: string, selector: string) => {
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>(`[data-order-flow-tab="${tab}"]`)
+          ?.click()
+      );
+      await vi.waitFor(() =>
+        expect(host.querySelector(selector)).not.toBeNull()
+      );
+    };
+    await open("tape", "[data-time-sales]");
+    await open("book", "[data-depth-ladder]");
+    expect(host.querySelector("[data-venue-notice]")?.textContent).toContain(
+      "LAB-D"
+    );
+    await open("footprint", "[data-footprint]");
+    await open("delta", "[data-cvd-chart]");
+    await open("tpo", "[data-tpo-profile]");
+  });
+
+  it("fails the depth snapshot with ENTITLEMENT for ?depth=entitlement", async () => {
+    await expect(
+      labOrderFlowNoDepthGateway.depth({ symbol: "SPY" })
+    ).rejects.toMatchObject({ code: "ENTITLEMENT" });
+    const [entry] = CHARTS_LAB_ENTRIES;
+    const host = await mountLab(
+      entry?.render(new URLSearchParams("depth=entitlement"))
+    );
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-order-flow]")).not.toBeNull()
+    );
+    const load = [...host.querySelectorAll("button")].find(
+      (node) => node.textContent === "Load order flow"
+    );
+    await act(async () => load?.click());
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>('[data-order-flow-tab="book"]')
+        ?.click()
+    );
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[data-error-code="ENTITLEMENT"]')?.textContent
+      ).toContain("no L2 market depth permission")
+    );
   });
 
   it("serves options analytics with the default flow window", async () => {

@@ -1,5 +1,7 @@
 import {
   MarketBarsOutputSchema,
+  MarketDepthOutputSchema,
+  MarketTicksOutputSchema,
   OptionsAnalyticsOutputSchema,
 } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
@@ -16,7 +18,14 @@ import {
   labReadOnly,
   roundTo,
 } from "./core.ts";
-import { labBars, labBarsOutput, labOptionsAnalytics } from "./market.ts";
+import {
+  labBars,
+  labBarsOutput,
+  labDepthEntitlementError,
+  labDepthOutput,
+  labOptionsAnalytics,
+  labTicksOutput,
+} from "./market.ts";
 
 describe("lab fixture core", () => {
   it("gives the same random sequence for the same seed", () => {
@@ -107,5 +116,57 @@ describe("lab market fixtures", () => {
       expect(labOptionsAnalytics(symbol)).toEqual(snapshot);
     }
     expect(labOptionsAnalytics("SPY", 6).flow.hours).toBe(6);
+  });
+});
+
+describe("lab order flow fixtures", () => {
+  it("builds valid, deterministic fictional prints and quotes", () => {
+    const ticks = labTicksOutput({ symbol: "nvda" });
+    expect(labTicksOutput({ symbol: "NVDA" })).toEqual(ticks);
+    expect(MarketTicksOutputSchema.parse(ticks)).toEqual(ticks);
+    expect(ticks.trades).toHaveLength(500);
+    expect(ticks.quotes.length).toBeGreaterThan(0);
+    // The first prints come before the first quote.
+    expect(ticks.quotes[0]?.t ?? 0).toBeGreaterThan(ticks.trades[0]?.t ?? 0);
+    expect(new Set(ticks.trades.map((trade) => trade.x))).toEqual(
+      new Set(["LAB-A", "LAB-B"])
+    );
+    expect(ticks.contract.longName).toContain("fake data");
+    const futures = labTicksOutput({
+      count: 100,
+      exchange: "CME",
+      quotes: false,
+      secType: "FUT",
+      symbol: "ES",
+    });
+    expect(MarketTicksOutputSchema.parse(futures).trades).toHaveLength(100);
+    expect(futures.quotes).toEqual([]);
+    for (const trade of futures.trades) {
+      expect((trade.p * 4) % 1).toBe(0);
+      expect(trade.x).toBeNull();
+    }
+  });
+
+  it("builds a valid SMART book with a venue notice and a single-exchange futures book", () => {
+    const depth = labDepthOutput({ symbol: "SPY" });
+    expect(MarketDepthOutputSchema.parse(depth)).toEqual(depth);
+    expect(depth.bids).toHaveLength(10);
+    expect(depth.asks[0]?.price ?? 0).toBeGreaterThan(
+      depth.bids[0]?.price ?? 0
+    );
+    expect(depth).toMatchObject({
+      request: { smartDepth: true },
+      sizeMultiplier: 100,
+      venues: { missing: ["LAB-D"] },
+    });
+    const futures = labDepthOutput({
+      exchange: "CME",
+      rows: 5,
+      secType: "FUT",
+      symbol: "ES",
+    });
+    expect(MarketDepthOutputSchema.parse(futures).asks).toHaveLength(5);
+    expect(futures).toMatchObject({ sizeMultiplier: 1, venues: null });
+    expect(labDepthEntitlementError()).toMatchObject({ code: "ENTITLEMENT" });
   });
 });

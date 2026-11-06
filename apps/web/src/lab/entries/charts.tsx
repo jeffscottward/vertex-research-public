@@ -1,6 +1,8 @@
 // What: UI lab entries for /charts and /stock/<SYMBOL>: the real ChartsWorkspace and
 // StockDetailWorkspace with fake bars, options chain and analytics. /charts reads ?symbol= itself
 // (default SPY); the stock entry takes ?symbol= (default SPY), so /lab/stock?symbol=NVDA opens NVDA.
+// Order flow uses fictional prints and depth; /lab/charts?depth=entitlement makes the depth snapshot
+// fail with ENTITLEMENT (no L2 permission) while the other order flow views still load.
 "use client";
 
 import { PageHeader } from "@darkfactory/ui";
@@ -10,18 +12,22 @@ import { ChartsWorkspace } from "../../components/portal/charts-workspace.tsx";
 import type { JevVerdictGateway } from "../../components/portal/jev-verdict-client.ts";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { OptionsAnalyticsGateway } from "../../components/portal/options-analytics-client.ts";
-import { labReadOnly } from "../fixtures/core.ts";
-import {
-  labBarsOutput,
-  labJevVerdict,
-  labOptionsAnalytics,
-} from "../fixtures/market.ts";
+import type { OrderFlowGateway } from "../../features/order-flow/order-flow-client.ts";
 import {
   createFakeMarketDataGateway,
   createFakeOptionsChainGateway,
 } from "../../features/stock-detail/fake-gateways.ts";
 import { StockDetailWorkspace } from "../../features/stock-detail/stock-detail-workspace.tsx";
-import { readLabSymbol } from "../params.ts";
+import { labReadOnly } from "../fixtures/core.ts";
+import {
+  labBarsOutput,
+  labDepthEntitlementError,
+  labDepthOutput,
+  labJevVerdict,
+  labOptionsAnalytics,
+  labTicksOutput,
+} from "../fixtures/market.ts";
+import { readLabChoice, readLabSymbol } from "../params.ts";
 import type { LabEntry } from "../registry.ts";
 
 const labMarketDataGateway: MarketDataGateway = {
@@ -41,6 +47,18 @@ export const labJevVerdictGateway: JevVerdictGateway = {
   refresh: labReadOnly,
 };
 
+/** Fictional trade prints, quotes and an L2 book, so every order flow tab renders. */
+const labOrderFlowGateway: OrderFlowGateway = {
+  depth: (input) => Promise.resolve(labDepthOutput(input)),
+  ticks: (input) => Promise.resolve(labTicksOutput(input)),
+};
+
+/** Same prints, but the depth snapshot fails like an account without L2 for the venue. */
+export const labOrderFlowNoDepthGateway: OrderFlowGateway = {
+  depth: () => Promise.reject(labDepthEntitlementError()),
+  ticks: labOrderFlowGateway.ticks,
+};
+
 /** No backtests in the charts lab: the trade-marker picker shows its empty list. */
 const labChartsBacktests: BacktestsGateway = {
   get: labReadOnly,
@@ -55,7 +73,7 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: "Markets & Research",
     id: "charts",
-    render: () => (
+    render: (params) => (
       <div className="space-y-8">
         <PageHeader title="Charts" />
         <ChartsWorkspace
@@ -63,6 +81,12 @@ export const CHARTS_LAB_ENTRIES: readonly LabEntry[] = [
           jevVerdict={labJevVerdictGateway}
           marketData={labMarketDataGateway}
           optionsAnalytics={labOptionsAnalyticsGateway}
+          orderFlow={
+            readLabChoice(params, "depth", ["ok", "entitlement"], "ok") ===
+            "entitlement"
+              ? labOrderFlowNoDepthGateway
+              : labOrderFlowGateway
+          }
         />
       </div>
     ),

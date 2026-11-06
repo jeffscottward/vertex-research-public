@@ -262,6 +262,8 @@ const REVIEWED_READS: readonly string[] = [
   "jevVerdict.get",
   "marketContext.get",
   "marketData.bars",
+  "marketData.depth",
+  "marketData.ticks",
   "marketNews.watchlist",
   "nautilusArm.status",
   "optionsAnalytics.snapshot",
