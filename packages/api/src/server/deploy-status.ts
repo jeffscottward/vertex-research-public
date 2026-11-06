@@ -6,6 +6,9 @@ import {
   type DeployUpstreamStatus,
   type DeploymentStatusOutput,
 } from "../contracts/agent-ops.ts";
+import type { DeployStatusConfig } from "./service-config.ts";
+
+export type { DeployStatusConfig } from "./service-config.ts";
 
 // Bounded, read-only fetch of the QuantVPS deployment status document (vertex-deploy-status-v1).
 // GET only, bearer token in the Authorization header, 5 s timeout, 64 KiB cap, redirects never
@@ -16,8 +19,6 @@ const DEPLOY_STATUS_MAX_BYTES = 64 * 1024;
 const DEPLOY_STATUS_TOKEN_MIN = 32;
 // The tailnet v2 snapshot carries session blocks; the collector keeps it under 60 KiB but may reach 256 KiB.
 const DEPLOY_STATUS_V2_MAX_BYTES = 256 * 1024;
-
-export type DeployStatusConfig = Readonly<{ url: string; token: string }>;
 
 export class DeployStatusNotConfiguredError extends Error {
   constructor() {
