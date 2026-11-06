@@ -46,6 +46,8 @@ All of these must be true. The quiet window is 30 s (`VERTEX_RESTART_QUIET`).
 
 Limit: a streamed response that already sent some bytes and then stalls for longer than the quiet window, with no other traffic, reads as idle.
 
+Clients that poll `vertex-web` must leave gaps longer than the quiet window plus one poll (35 s), or the app never reads as idle. The Nautilus backtest worker on the rig waits up to 45 s between empty claims for this reason (`VERTEX_WORKER_IDLE_MAX_MS`, [infra/research-worker/README.md](../research-worker/README.md#request-budget)). The Autopilot tick (once a minute) also logs a line, which can split a quiet gap; the 45 s cap leaves room for it. Changing the quiet window or that cap needs the other one checked.
+
 ## Deploy a new web build
 
 1. On the rig, build the merged SHA in a worktree: `pnpm install --frozen-lockfile && bun run build`, then record it: `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`.

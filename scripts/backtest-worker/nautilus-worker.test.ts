@@ -2,15 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BACKTEST_RUN_NAUTILUS_ENGINE } from "../../packages/api/src/contracts/backtest-runs.ts";
 import {
+  AGENT_KEY_LIMIT,
+  AGENT_KEY_WINDOW_MS,
+  API_STALE_MS,
   COMPLETE_ATTEMPTS,
   COMPLETE_RETRY_MS,
   type CommandOutcome,
+  DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
+  DELIVERY_MARGIN_MS,
+  DELIVERY_MIN_WAIT_MS,
   engineRequest,
   NAUTILUS_RUN_TIMEOUT_MS,
   type NautilusWorkerIo,
+  QUIET_PAUSE_MS,
   REJECTED_ERROR,
+  REQUEST_BUDGET,
   readEngineOutput,
+  retryAfterMs,
   runCommand,
   runNautilusWorker,
   sleep,
@@ -337,7 +346,8 @@ describe("nautilus worker cycle", () => {
     ).toHaveLength(4);
     expect(flaky.sleep.mock.calls.map(([ms]) => ms)).toEqual([
       COMPLETE_RETRY_MS,
-      2 * COMPLETE_RETRY_MS,
+      // The 429 waits for the agent key limiter instead of the short retry wait.
+      QUIET_PAUSE_MS,
       4 * COMPLETE_RETRY_MS,
     ]);
     expect(flaky.out).toEqual(["run run-1: succeeded\n"]);
@@ -355,6 +365,57 @@ describe("nautilus worker cycle", () => {
       error: UNDELIVERED_ERROR,
       id: "run-1",
     });
+  });
+
+  it("waits for the limiter at most once per delivery and never past the stale limit", async () => {
+    const limited = () => new Response("slow down", { status: 429 });
+    const twice = harness({ claims: [claimedRun], complete: limited });
+    expect(await runNautilusWorker(["--once"], twice.io)).toBe(0);
+    expect(
+      twice.paths().filter((path) => path.endsWith("/complete"))
+    ).toHaveLength(2);
+    expect(twice.sleep.mock.calls.map(([ms]) => ms)).toEqual([QUIET_PAUSE_MS]);
+    expect(twice.calls.at(-1)?.input).toEqual({
+      engine,
+      error: UNDELIVERED_ERROR,
+      id: "run-1",
+    });
+    // A run claimed long ago waits only for the time left (and not at all once it is past).
+    const now = vi.spyOn(Date, "now");
+    const claimedAt = 1_000_000;
+    const late = (elapsed: number) => {
+      now.mockReturnValueOnce(claimedAt).mockReturnValue(claimedAt + elapsed);
+      let answers = 0;
+      return harness({
+        claims: [claimedRun],
+        complete: () => {
+          answers += 1;
+          return answers === 1 ? limited() : Response.json({ json: {} });
+        },
+      });
+    };
+    const cut = late(API_STALE_MS - DELIVERY_MARGIN_MS - 20_000);
+    expect(await runNautilusWorker(["--once"], cut.io)).toBe(0);
+    expect(cut.sleep.mock.calls.map(([ms]) => ms)).toEqual([20_000]);
+    expect(cut.out).toEqual(["run run-1: succeeded\n"]);
+    // Less than DELIVERY_MIN_WAIT_MS left: no second try, the run fails as undelivered.
+    for (const elapsed of [
+      API_STALE_MS - DELIVERY_MARGIN_MS - DELIVERY_MIN_WAIT_MS + 1,
+      API_STALE_MS,
+    ]) {
+      const over = late(elapsed);
+      expect(await runNautilusWorker(["--once"], over.io)).toBe(0);
+      expect(over.sleep).not.toHaveBeenCalled();
+      expect(
+        over.paths().filter((path) => path.endsWith("/complete"))
+      ).toHaveLength(1);
+      expect(over.calls.at(-1)?.input).toEqual({
+        engine,
+        error: UNDELIVERED_ERROR,
+        id: "run-1",
+      });
+    }
+    now.mockRestore();
   });
 
   it("reports API failures with exit 1 in --once mode, never with the key", async () => {
@@ -406,6 +467,123 @@ describe("nautilus worker loop", () => {
     expect(run.sleep).toHaveBeenCalledTimes(2);
     expect(run.sleep).toHaveBeenCalledWith(250, run.io.signal);
     expect(run.err.join("")).toContain("API restarting");
+  });
+
+  it("doubles the idle wait after each empty claim up to the cap and resets it after work", async () => {
+    const run = harness({
+      claimAnswers: { 7: () => Response.json({ json: { run: claimedRun } }) },
+      env: {
+        ...env,
+        VERTEX_WORKER_IDLE_MAX_MS: "20000",
+        VERTEX_WORKER_IDLE_MS: "3000",
+      },
+    });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 9) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(run.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      3000, 6000, 12_000, 20_000, 20_000, 20_000, 3000, 6000,
+    ]);
+  });
+
+  it("uses a 45 s cap by default, and the floor when the floor is higher", async () => {
+    const run = harness();
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 7) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(run.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      3000, 6000, 12_000, 24_000, 45_000, 45_000, 45_000,
+    ]);
+    const slow = harness({ env: { ...env, VERTEX_WORKER_IDLE_MS: "50000" } });
+    slow.sleep.mockImplementation(async () => {
+      if (slow.claimCount() >= 2) slow.controller.abort();
+    });
+    expect(await runNautilusWorker([], slow.io)).toBe(0);
+    expect(slow.sleep.mock.calls.map(([ms]) => ms)).toEqual([50_000, 50_000]);
+  });
+
+  it("refuses a cap below the floor", async () => {
+    const run = harness({
+      env: {
+        ...env,
+        VERTEX_WORKER_IDLE_MAX_MS: "1000",
+        VERTEX_WORKER_IDLE_MS: "3000",
+      },
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(1);
+    expect(run.err.join("")).toContain(
+      "VERTEX_WORKER_IDLE_MAX_MS must not be below VERTEX_WORKER_IDLE_MS"
+    );
+    const bad = harness({ env: { ...env, VERTEX_WORKER_IDLE_MAX_MS: "-5" } });
+    expect(await runNautilusWorker([], bad.io)).toBe(1);
+    expect(bad.err.join("")).toContain(
+      "VERTEX_WORKER_IDLE_MAX_MS must be a positive whole number"
+    );
+  });
+
+  it("waits for the limiter after a 429 claim: Retry-After when longer, else the quiet pause", async () => {
+    const limited = (retryAfter?: string) => () =>
+      new Response("Agent API key rate limit exceeded", {
+        status: 429,
+        ...(retryAfter === undefined
+          ? {}
+          : { headers: { "retry-after": retryAfter } }),
+      });
+    const run = harness({
+      claimAnswers: { 1: limited(), 2: limited("600"), 3: limited("5") },
+    });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 4) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    // After a 429 pause the idle wait starts again at the floor.
+    expect(run.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      QUIET_PAUSE_MS,
+      600_000,
+      QUIET_PAUSE_MS,
+      DEFAULT_IDLE_MS,
+    ]);
+    expect(run.err.join("")).toContain(
+      "agent key rate limited; quiet for 125 s"
+    );
+  });
+
+  it("takes a quiet pause after the request budget and starts a new budget", async () => {
+    const run = harness({ env: { ...env, VERTEX_WORKER_IDLE_MAX_MS: "3000" } });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= REQUEST_BUDGET + 3) run.controller.abort();
+    });
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    const waits = run.sleep.mock.calls.map(([ms]) => ms);
+    expect(waits.indexOf(QUIET_PAUSE_MS)).toBe(REQUEST_BUDGET);
+    expect(waits.filter((ms) => ms === QUIET_PAUSE_MS)).toHaveLength(1);
+    expect(run.out.join("")).toContain(
+      `${REQUEST_BUDGET} requests sent; quiet for 125 s`
+    );
+  });
+
+  it("keeps the shared key below half of its limit", () => {
+    expect(REQUEST_BUDGET).toBeLessThanOrEqual(AGENT_KEY_LIMIT / 4);
+    // With one other request inside the pause, one of the two gaps is longer than a window.
+    expect(QUIET_PAUSE_MS / 2).toBeGreaterThan(AGENT_KEY_WINDOW_MS);
+    // The cap exceeds the restart script's 30 s quiet window plus one 5 s poll.
+    expect(DEFAULT_IDLE_MAX_MS).toBeGreaterThan(35_000);
+    // A full limiter wait after a 9-minute run would pass the API stale limit; deliver cuts it.
+    expect(NAUTILUS_RUN_TIMEOUT_MS + QUIET_PAUSE_MS).toBeGreaterThan(
+      API_STALE_MS - DELIVERY_MARGIN_MS
+    );
+  });
+
+  it("reads Retry-After as seconds or an HTTP date", () => {
+    const now = Date.parse("2026-11-05T12:00:00Z");
+    expect(retryAfterMs(null, now)).toBeNull();
+    expect(retryAfterMs(" ", now)).toBeNull();
+    expect(retryAfterMs("30", now)).toBe(30_000);
+    expect(retryAfterMs("Thu, 05 Nov 2026 12:01:00 GMT", now)).toBe(60_000);
+    expect(retryAfterMs("Thu, 05 Nov 2026 11:00:00 GMT", now)).toBe(0);
+    expect(retryAfterMs("soon", now)).toBeNull();
   });
 
   it("uses the default idle time and does not start after a stop", async () => {
