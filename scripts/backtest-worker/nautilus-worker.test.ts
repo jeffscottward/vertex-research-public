@@ -11,6 +11,7 @@ import {
   DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
   DELIVERY_MARGIN_MS,
+  DELIVERY_MIN_WAIT_MS,
   engineRequest,
   NAUTILUS_RUN_TIMEOUT_MS,
   type NautilusWorkerIo,
@@ -382,22 +383,37 @@ describe("nautilus worker cycle", () => {
     // A run claimed long ago waits only for the time left (and not at all once it is past).
     const now = vi.spyOn(Date, "now");
     const claimedAt = 1_000_000;
-    for (const [elapsed, wait] of [
-      [API_STALE_MS - DELIVERY_MARGIN_MS - 20_000, 20_000],
-      [API_STALE_MS, 0],
-    ] as const) {
+    const late = (elapsed: number) => {
       now.mockReturnValueOnce(claimedAt).mockReturnValue(claimedAt + elapsed);
       let answers = 0;
-      const late = harness({
+      return harness({
         claims: [claimedRun],
         complete: () => {
           answers += 1;
           return answers === 1 ? limited() : Response.json({ json: {} });
         },
       });
-      expect(await runNautilusWorker(["--once"], late.io)).toBe(0);
-      expect(late.sleep.mock.calls.map(([ms]) => ms)).toEqual([wait]);
-      expect(late.out).toEqual(["run run-1: succeeded\n"]);
+    };
+    const cut = late(API_STALE_MS - DELIVERY_MARGIN_MS - 20_000);
+    expect(await runNautilusWorker(["--once"], cut.io)).toBe(0);
+    expect(cut.sleep.mock.calls.map(([ms]) => ms)).toEqual([20_000]);
+    expect(cut.out).toEqual(["run run-1: succeeded\n"]);
+    // Less than DELIVERY_MIN_WAIT_MS left: no second try, the run fails as undelivered.
+    for (const elapsed of [
+      API_STALE_MS - DELIVERY_MARGIN_MS - DELIVERY_MIN_WAIT_MS + 1,
+      API_STALE_MS,
+    ]) {
+      const over = late(elapsed);
+      expect(await runNautilusWorker(["--once"], over.io)).toBe(0);
+      expect(over.sleep).not.toHaveBeenCalled();
+      expect(
+        over.paths().filter((path) => path.endsWith("/complete"))
+      ).toHaveLength(1);
+      expect(over.calls.at(-1)?.input).toEqual({
+        engine,
+        error: UNDELIVERED_ERROR,
+        id: "run-1",
+      });
     }
     now.mockRestore();
   });
@@ -530,7 +546,7 @@ describe("nautilus worker loop", () => {
       DEFAULT_IDLE_MS,
     ]);
     expect(run.err.join("")).toContain(
-      "agent key rate limited; quiet for 65 s"
+      "agent key rate limited; quiet for 125 s"
     );
   });
 
@@ -544,14 +560,14 @@ describe("nautilus worker loop", () => {
     expect(waits.indexOf(QUIET_PAUSE_MS)).toBe(REQUEST_BUDGET);
     expect(waits.filter((ms) => ms === QUIET_PAUSE_MS)).toHaveLength(1);
     expect(run.out.join("")).toContain(
-      `${REQUEST_BUDGET} requests sent; quiet for 65 s`
+      `${REQUEST_BUDGET} requests sent; quiet for 125 s`
     );
   });
 
   it("keeps the shared key below half of its limit", () => {
     expect(REQUEST_BUDGET).toBeLessThanOrEqual(AGENT_KEY_LIMIT / 4);
-    // The pause is longer than one limiter window (the limiter resets only on a gap > 60 s).
-    expect(QUIET_PAUSE_MS).toBeGreaterThan(AGENT_KEY_WINDOW_MS);
+    // With one other request inside the pause, one of the two gaps is longer than a window.
+    expect(QUIET_PAUSE_MS / 2).toBeGreaterThan(AGENT_KEY_WINDOW_MS);
     // The cap exceeds the restart script's 30 s quiet window plus one 5 s poll.
     expect(DEFAULT_IDLE_MAX_MS).toBeGreaterThan(35_000);
     // A full limiter wait after a 9-minute run would pass the API stale limit; deliver cuts it.

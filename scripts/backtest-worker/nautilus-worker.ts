@@ -49,20 +49,22 @@ export const AGENT_KEY_WINDOW_MS = 60_000;
 /** Requests the worker sends before a quiet pause: a quarter of the key limit. */
 export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
 /**
- * Quiet pause: one limiter window plus a margin. The worker sends nothing for this long, so the
- * count resets when the other clients of the key also leave a gap of more than 60 s. With the
- * shared Autopilot key that holds only while Autopilot ticks are more than 60 s apart and send one
- * request each (vertex-autopilot.timer: OnUnitActiveSec=1min plus the run time). If the ticks ever
- * come 60 s apart or closer, or spread several requests over a tick, the shared key never resets;
- * the robust fix is a separate worker key (the owner chose to reuse the Autopilot key).
+ * Quiet pause: two limiter windows plus a margin (125 s). The worker sends nothing for this long.
+ * The other client of the shared key is the Autopilot tick (vertex-autopilot.timer:
+ * OnUnitActiveSec=1min plus the run time, one request per tick). With one tick inside the pause,
+ * the two gaps add up to 125 s, so one is over 60 s; with two ticks, the gap between them is over
+ * 60 s. Either way the count resets. It depends on ticks being more than 60 s apart with one
+ * request each; a separate worker key is the robust fix (the owner chose to reuse the Autopilot key).
  */
-export const QUIET_PAUSE_MS = AGENT_KEY_WINDOW_MS + 5000;
+export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
 /**
  * The API fails a run left running this long (backtestRuns.get, BACKTEST_RUN_STALE_MS); a result
  * delivered later gets 409 and is lost, so a 429 wait during delivery ends this margin before it.
  */
 export const API_STALE_MS = 10 * 60 * 1000;
 export const DELIVERY_MARGIN_MS = 30_000;
+/** Below this time left a 429 during delivery gives up instead of trying again. */
+export const DELIVERY_MIN_WAIT_MS = 1000;
 /**
  * complete tries after a network error or a 5xx answer, with doubling waits from the first. A 429
  * is tried again once, after the limiter wait cut to the time left before the API stale limit.
@@ -392,7 +394,8 @@ const messageOf = (error: unknown): string =>
 
 /**
  * The wait before the next delivery try, or null to give up: a network error or a 5xx answer waits
- * 1, 2, 4 s; a 429 waits once for the limiter, never past the API stale limit of the run.
+ * 1, 2, 4 s; a 429 waits once for the limiter, never past the API stale limit of the run, and gives
+ * up when less than DELIVERY_MIN_WAIT_MS is left.
  */
 const deliveryWait = (
   error: unknown,
@@ -406,7 +409,9 @@ const deliveryWait = (
   if (limited.used) return null;
   limited.used = true;
   const left = claimedAt + API_STALE_MS - DELIVERY_MARGIN_MS - Date.now();
-  return Math.max(0, Math.min(rateLimitWait(error), left));
+  // No time left for a wait: a try at once would meet the same limiter.
+  if (left < DELIVERY_MIN_WAIT_MS) return null;
+  return Math.min(rateLimitWait(error), left);
 };
 
 /**
