@@ -196,6 +196,64 @@ describe("Market feeds", () => {
     );
     expect(container.querySelector("[data-feeds-stale]")).toBeNull();
     expect(container.querySelector("[data-feeds-missing]")).toBeNull();
+    // Every symbol links to its stock page: the GEX row header and its notes.
+    expect(
+      container
+        .querySelector('[data-gex="QQQ"] th a[data-slot="ticker-link"]')
+        ?.getAttribute("href")
+    ).toBe("/stock/QQQ");
+    expect(
+      container
+        .querySelector('[data-gex-notes="SPY"] a[data-slot="ticker-link"]')
+        ?.getAttribute("href")
+    ).toBe("/stock/SPY");
+    // Wide tables scroll sideways on a phone instead of squeezing columns.
+    expect(
+      [...container.querySelectorAll('[data-slot="table-scroll"]')].map(
+        (region) => region.getAttribute("aria-label")
+      )
+    ).toEqual(["GEX by index", "Macro series"]);
+    expect(
+      container.querySelector('[data-section="gex"] h2')?.textContent
+    ).toBe("Gamma exposure (GEX)");
+  });
+
+  it("reports its state to the page and reloads on the refresh signal", async () => {
+    const statuses: string[] = [];
+    const onStatusChange = (status: string) => {
+      statuses.push(status);
+    };
+    let stale = false;
+    const context = vi.fn(async () => ready({ stale }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <MarketFeedsWorkspace
+          gateway={{ context }}
+          onStatusChange={onStatusChange}
+        />
+      )
+    );
+    expect(statuses).toEqual(["loading", "ready"]);
+    stale = true;
+    await act(async () =>
+      root.render(
+        <MarketFeedsWorkspace
+          gateway={{ context }}
+          onStatusChange={onStatusChange}
+          refreshSignal={1}
+        />
+      )
+    );
+    expect(context).toHaveBeenCalledTimes(2);
+    expect(statuses.at(-1)).toBe("stale");
+    const denied = await mount(async () => {
+      throw { code: "FORBIDDEN", status: 403, message: "Forbidden" };
+    });
+    expect(denied.querySelector("[data-feeds-state]")).toBeNull();
   });
 
   it("states missing, stale and unknown values without inventing them", async () => {

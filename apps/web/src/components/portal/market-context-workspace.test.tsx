@@ -88,6 +88,53 @@ describe("Market context", () => {
       container.querySelector('[data-band="review"]')?.textContent
     ).toContain("Review: large move");
     expect(container.querySelector("[data-source-errors]")).toBeNull();
+    expect(
+      container.querySelector('[role="group"][aria-label="Volatility"]')
+        ?.children
+    ).toHaveLength(4);
+    expect(container.querySelector('[data-series="VIX"] dd')?.textContent).toBe(
+      "17.20"
+    );
+    expect(container.querySelector("#mc-move")?.textContent).toBe(
+      "S&P 500 move today"
+    );
+  });
+
+  it("reports its state to the page and reloads on the refresh signal", async () => {
+    const statuses: string[] = [];
+    const onStatusChange = (status: string) => {
+      statuses.push(status);
+    };
+    let fail = false;
+    const volatility = vi.fn(async () => {
+      if (fail) throw { code: "UNAVAILABLE", message: "down" };
+      return ready();
+    });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <MarketContextWorkspace
+          gateway={{ volatility }}
+          onStatusChange={onStatusChange}
+        />
+      )
+    );
+    expect(statuses).toEqual(["loading", "ready"]);
+    fail = true;
+    await act(async () =>
+      root.render(
+        <MarketContextWorkspace
+          gateway={{ volatility }}
+          onStatusChange={onStatusChange}
+          refreshSignal={1}
+        />
+      )
+    );
+    expect(volatility).toHaveBeenCalledTimes(2);
+    expect(statuses.at(-1)).toBe("error");
   });
 
   it("states unknown sections and source errors without inventing values", async () => {

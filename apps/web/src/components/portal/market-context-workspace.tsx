@@ -5,11 +5,12 @@ import {
   type MarketVolatilityOutput,
   type VolatilitySeries,
 } from "@darkfactory/api";
-import { Button, StatCard, StatusBadge } from "@darkfactory/ui";
+import { Button, KpiCard, KpiRow, Panel, StatusBadge } from "@darkfactory/ui";
 import { RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
+import type { MarketSourceStatus } from "./market-source-status.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 // Market context (audit phase 5): public volatility read by ibkr-monitor through
@@ -53,12 +54,17 @@ const SeriesCard = ({
   series,
 }: Readonly<{ label: string; series: VolatilitySeries | null }>) =>
   series === null ? (
-    <StatCard data-series={label} label={label} value="Unknown" />
-  ) : (
-    <StatCard
+    <KpiCard
       data-series={label}
+      hint="No reading"
       label={label}
-      description={`1d ${signed(series.change1d)} · 1y percentile ${fixed(series.pct1y, 0)} · as of ${series.asOf}${series.stale ? " · stale" : ""}`}
+      value="Unknown"
+    />
+  ) : (
+    <KpiCard
+      data-series={label}
+      hint={`1d ${signed(series.change1d)} · 1y pct ${fixed(series.pct1y, 0)} · as of ${series.asOf}${series.stale ? " · stale" : ""}`}
+      label={label}
       value={fixed(series.value)}
     />
   );
@@ -69,9 +75,19 @@ type State =
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; data: MarketVolatilityOutput }>;
 
+export interface MarketContextWorkspaceProps {
+  readonly gateway?: MarketContextGateway;
+  /** Called with the load state, for the page header chip. */
+  readonly onStatusChange?: (status: MarketSourceStatus) => void;
+  /** Each new value reloads now (the page header Refresh). */
+  readonly refreshSignal?: number;
+}
+
 export const MarketContextWorkspace = ({
   gateway: supplied,
-}: Readonly<{ gateway?: MarketContextGateway }>) => {
+  onStatusChange,
+  refreshSignal = 0,
+}: MarketContextWorkspaceProps) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserMarketContextGateway()
   );
@@ -90,13 +106,16 @@ export const MarketContextWorkspace = ({
     }
   }, [gateway]);
   useEffect(() => {
+    // refreshSignal is a dependency only so the header Refresh reloads now and restarts the timer.
+    void refreshSignal;
     void load();
     const timer = window.setInterval(
       () => void load(),
       MARKET_CONTEXT_REFRESH_MS
     );
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, refreshSignal]);
+  useEffect(() => onStatusChange?.(state.type), [onStatusChange, state.type]);
 
   if (state.type === "forbidden")
     return <OperatorAccessRequired feature="ibkr-monitor" />;
@@ -125,7 +144,7 @@ export const MarketContextWorkspace = ({
 
   const { data } = state;
   return (
-    <div className="space-y-6" data-market-state="ready">
+    <div className="space-y-4" data-market-state="ready">
       <p className="text-muted-foreground text-xs" role="note">
         Public market data from ibkr-monitor (Cboe, Yahoo). Read-only; refreshes
         every minute.
@@ -137,31 +156,23 @@ export const MarketContextWorkspace = ({
           ))}
         </ul>
       ) : null}
-      <section aria-labelledby="mc-vol" className="space-y-3">
-        <h2 className="font-heading font-semibold text-lg" id="mc-vol">
-          Volatility
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <SeriesCard label="VIX" series={data.vix} />
-          <SeriesCard label="VIXEQ" series={data.vixeq} />
-          <SeriesCard label="VIXEQ − VIX" series={data.spread} />
-          <SeriesCard label="VVIX" series={data.vvix} />
-        </div>
-      </section>
-      <section aria-labelledby="mc-move" className="space-y-3">
-        <h2 className="font-heading font-semibold text-lg" id="mc-move">
-          S&amp;P 500 move today
-        </h2>
+      <KpiRow className="grid-cols-2" label="Volatility">
+        <SeriesCard label="VIX" series={data.vix} />
+        <SeriesCard label="VIXEQ" series={data.vixeq} />
+        <SeriesCard label="VIXEQ − VIX" series={data.spread} />
+        <SeriesCard label="VVIX" series={data.vvix} />
+      </KpiRow>
+      <Panel headingId="mc-move" title="S&amp;P 500 move today">
         {data.spx === null ? (
           <p className="text-muted-foreground text-sm">
             S&amp;P 500 quote unknown.
           </p>
         ) : (
           <div
-            className="flex flex-wrap items-center gap-3 text-sm"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm"
             data-spx=""
           >
-            <span className="tabular-nums">
+            <span className="font-semibold tabular-nums">
               {fixed(data.spx.price)} ({signed(data.spx.movePct)}%)
             </span>
             <span className="text-muted-foreground">
@@ -185,7 +196,7 @@ export const MarketContextWorkspace = ({
             )}
           </div>
         )}
-      </section>
+      </Panel>
     </div>
   );
 };
