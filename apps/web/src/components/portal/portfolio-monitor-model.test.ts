@@ -665,10 +665,10 @@ describe("isOptionPosition", () => {
   it("builds compact coloured Type badges with the full words as label", () => {
     expect(
       holdingBadge(fixturePosition({ position: 10, secType: "STK" }))
-    ).toEqual({ label: "Long shares", text: "STK +L", tone: "long" });
+    ).toEqual({ label: "Long shares", text: "STK (L)", tone: "long" });
     expect(
       holdingBadge(fixturePosition({ position: -5, secType: "STK" }))
-    ).toEqual({ label: "Short shares", text: "STK -S", tone: "short" });
+    ).toEqual({ label: "Short shares", text: "STK (S)", tone: "short" });
     expect(
       holdingBadge(fixturePosition({ position: 0, secType: "STK" }))
     ).toEqual({ label: "Flat shares", text: "STK", tone: "flat" });
@@ -680,7 +680,7 @@ describe("isOptionPosition", () => {
           secType: "OPT",
         })
       )
-    ).toEqual({ label: "Long Call 2026-12-18", text: "+C", tone: "long" });
+    ).toEqual({ label: "Long Call 2026-12-18", text: "C (L)", tone: "long" });
     expect(
       holdingBadge(
         fixturePosition({
@@ -689,12 +689,12 @@ describe("isOptionPosition", () => {
           secType: "OPT",
         })
       )
-    ).toEqual({ label: "Short Put", text: "-P", tone: "short" });
+    ).toEqual({ label: "Short Put", text: "P (S)", tone: "short" });
     expect(
       holdingBadge(
         fixturePosition({ description: "ESZ6", position: 1, secType: "FUT" })
       )
-    ).toEqual({ label: "Long Contract", text: "+FUT", tone: "long" });
+    ).toEqual({ label: "Long Contract", text: "FUT (L)", tone: "long" });
     return expect(
       holdingBadge(
         fixturePosition({
