@@ -31,6 +31,12 @@ import {
   UniverseSelect,
   visibleSeries,
 } from "./backtest-universe.tsx";
+import {
+  createBrowserEngineComparisonGateway,
+  type EngineComparisonGateway,
+  NautilusCard,
+  TypeScriptEngineLine,
+} from "./engine-comparison.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 
 // Instant backtest: parameter changes run the backtest again with at most one request in flight;
@@ -355,14 +361,21 @@ const statusText = (run: RunState): string => {
 
 export interface InstantBacktestWorkspaceProps {
   readonly gateway?: InstantBacktestGateway;
+  /** Engine comparison: where the Nautilus status of a run is read. */
+  readonly comparisonGateway?: EngineComparisonGateway;
 }
 
 export const InstantBacktestWorkspace = ({
   gateway: injected,
+  comparisonGateway: injectedComparisons,
 }: InstantBacktestWorkspaceProps) => {
   const gateway = useMemo(
     () => injected ?? createBrowserInstantBacktestGateway(),
     [injected]
+  );
+  const comparisonGateway = useMemo(
+    () => injectedComparisons ?? createBrowserEngineComparisonGateway(),
+    [injectedComparisons]
   );
   const [seriesState, setSeriesState] = useState<SeriesState>({
     type: "loading",
@@ -585,6 +598,19 @@ export const InstantBacktestWorkspace = ({
           >
             {statusText(run)}
           </p>
+        )}
+        {run.result?.output.comparison === undefined ? null : (
+          <div className="space-y-2" data-engine-comparison="on">
+            <TypeScriptEngineLine
+              clientMs={run.result.roundTripMs}
+              timing={run.result.output.comparison}
+            />
+            <NautilusCard
+              gateway={comparisonGateway}
+              key={run.result.output.comparison.groupId ?? "none"}
+              timing={run.result.output.comparison}
+            />
+          </div>
         )}
         {run.result === null ? null : <Results result={run.result} />}
       </section>

@@ -12,6 +12,7 @@ Owner decisions (2026-11-05): use NautilusTrader as the only backtest engine, an
 | Parity suite | CLI `scripts/research-nautilus-parity.ts`, logic and tests in `scripts/research/nautilus-parity.ts` and `nautilus-parity.test.ts`. Latest report: [`research/backtests/nautilus-parity/README.md`](../../research/backtests/nautilus-parity/README.md). |
 | CI | `services/research/tests/test_nautilus_backtest_signals.py` (base lane) and `test_nautilus_backtest_engine.py` (Nautilus lane, `VERTEX_REQUIRE_NAUTILUS=1`). |
 | Features on Nautilus | Backtest runs: switchable by the setting `VERTEX_BACKTEST_RUNS_ENGINE` (`typescript` by default, `nautilus` sends new runs to the research worker); see [Backtest runs on Nautilus](#backtest-runs-on-nautilus). Every other feature still uses the TypeScript engine; each switches only after its parity passes; see [Switch plan](#switch-plan). |
+| Dual run | Instant backtest, parameter sweeps and the Autopilot gate: with `VERTEX_ENGINE_COMPARISON=on` they keep the TypeScript result and also queue the same runs on Nautilus (research worker on the rig), with where it ran, wall time, queue wait, CPU time and the differences recorded; see [Dual run](#dual-run-engine-comparison). Default off. |
 
 ## Run it
 
@@ -36,7 +37,7 @@ Backtest runs (Backtest lab, Strategy builder, Autopilot "Run full backtest", li
 
 1. `backtestRuns.submit` stores the run with the engine id `nautilus-trader-1.227.0` and does not run it in the API server.
 2. The worker (`scripts/backtest-worker/nautilus-worker.ts`, `bun run vertex:backtest-worker:nautilus`) runs on the research host as a user systemd service ([infra/research-worker/README.md](../../infra/research-worker/README.md)). It calls `backtestRuns.engine.claim` over HTTPS with an operator agent write key. Claim moves the oldest queued run of the engine to `running` with a conditional update, so two workers never run the same run. It returns the spec, the bars of the date range (the same slice the API engine uses; JSON `null` for a missing value), the resolved cost settings and the sector rotation points that the definition's filters need. A run whose inputs cannot be loaded fails at claim with the API engine's message.
-3. The worker runs `python -m nautilus_backtest run -` in `services/research` with `{"bars": ..., "spec": ...}` on stdin. Exit 0: it posts `equity`, `trades` and `stats` with `backtestRuns.engine.complete`. After a network error or a 5xx answer it tries `complete` again (4 tries, waits of 1, 2 and 4 seconds; a 429 is tried again once, after at most 125 s) and then fails the run with "Could not deliver the Nautilus result"; a 409 (the run is no longer running) needs nothing; any other 4xx fails the run with "The API rejected the Nautilus result". Exit 2: it posts the input error message with `backtestRuns.engine.fail` (the same message as the TypeScript engine). Exit 3 (no Nautilus), any other exit, a different engine version, a run over 9 minutes or a worker stop: it fails the run with a short message and logs the engine stderr locally.
+3. The worker claims with `max` 50, so it gets a batch (one run, or up to 50 runs of one comparison group on one bar series), runs it in `VERTEX_WORKER_PROCESSES` processes of `python -m nautilus_backtest batch - -` in `services/research` (the shared bars and one case per run, with its index range, on stdin), and posts every result (`equity`, `trades`, `stats`, `engineRun`) and every input error (the same message as the TypeScript engine) with one `backtestRuns.engine.completeMany`. After a network error or a 5xx answer it tries again (4 tries, waits of 1, 2 and 4 seconds; a 429 is tried again once, after at most 125 s) and then fails the runs with "Could not deliver the Nautilus result"; any other 4xx fails them with "The API rejected the Nautilus result". Exit 3 (no Nautilus), any other exit, a different engine version, a process over 9 minutes or a worker stop: every run of that process fails with a short message, and the worker logs the engine stderr locally.
 4. `complete` checks the result with the contract: finite numbers, unit equity above 0 at every bar, trade prices and units above 0, `stats.bars` equal to the equity length, trade bar indexes inside the series. It reloads the bars and refuses a result whose bar count or `seriesSha256` differs from the stored bars. It recomputes the stats from the stored bars and the worker's equity and trades with the TypeScript `summarize` and refuses a result whose stats differ by more than 1e-9 (relative); the refused run fails with the reason. It stores the API's own stats and builds the report with `buildBacktestRunReport`, the same code as the API engine. `complete` and `fail` change only a run that is `running` on the same engine; anything else returns `CONFLICT` and changes nothing.
 5. `backtestRuns.get` fails a Nautilus run that waited more than 10 minutes while no Nautilus run was claimed in those 10 minutes, so no worker is active ("Nautilus backtest worker did not pick up the run"). A busy worker never fails its backlog. A run left `running` for more than 10 minutes fails as for API runs. The Backtest runs and Strategy builder pages follow a run for up to 20 minutes.
 
@@ -49,6 +50,30 @@ The engine procedures need an operator agent write key; read keys and agent view
 ```sh
 VERTEX_NAUTILUS_PYTHON=<venv>/bin/python pnpm exec vitest run --config vitest.config.ts --project operations scripts/backtest-worker
 ```
+
+## Dual run (engine comparison)
+
+Owner decision (2026-11-05): Nautilus runs only on the rig worker, never on QuantVPS. The instant backtest, the parameter sweep and the Autopilot gate run both engines on the same request: the TypeScript result is shown at once on the unchanged path, and the same run(s) are queued on Nautilus. Nothing switches. The setting is `VERTEX_ENGINE_COMPARISON` (`off` by default, `on`); `VERTEX_HOST_LABEL` names where the web server runs (default `web server`).
+
+Storage: no new table. Each repeated run is a backtest run with the Nautilus engine id and `spec.comparison`: `feature` (`instant`, `sweep`, `autopilotGate`), `groupId` (one per request; `autopilot:<campaign id>` for the gate), `label`, `key` (sweep cell index or Autopilot candidate id), `dropped` (runs the cap left out) and `typescript`: its stats (the `InstantStats` fields), the trades as `[entry bar, exit bar, exit reason]` (at most 5,000), the trade count, `wallMs` and `host`. `backtestRuns.list` leaves comparison runs out; `backtestRuns.comparisons.list({feature?, groupId?, limit})` lists them (read keys may call it) with the status, the queue wait (`startedAt - createdAt`), `engineRun` and `differences`.
+
+| Feature | What is repeated | Cap |
+| --- | --- | --- |
+| Instant backtest | The run over the whole stored series (`from` and `to` are the first and last bar dates) | One run per request |
+| Parameter sweep | One run per evaluated cell (cells the TypeScript engine refused are not repeated), labelled with the cell's parameters | First 100 cells per sweep; the UI states it |
+| Autopilot gate | For each candidate a tick gated: the in-sample slice and the full run whose tail is the out-of-sample part, as date ranges | 20 runs per tick; the runs record how many the cap left out |
+
+For the gate the TypeScript side is computed again on exactly the bars of each date range (for daily bars these are the gate's own bars; for minute bars the in-sample range ends with a whole day), and counts in the tick's time.
+
+Timing: the server measures the TypeScript engine call. A Worker runtime does not advance `performance.now`/`Date.now` during pure compute, so a zero time is stored as `wallMs: null` with `wallNote: "timer frozen in Worker runtime"`, never as 0. The page also shows the browser round trip as the time the user saw. The worker records per run `engineRun`: `host` (`os.hostname()`), `wallMs` (engine time of the case), `processWallMs` and `cpuMs` (user + system CPU time of the engine process, from `getrusage`), `processes`, `processCases` and `gpu: "not used (Nautilus engine is CPU-only)"`.
+
+Batches: `backtestRuns.engine.claim` takes `max` (1 to 50) and then returns a batch: the oldest queued run and, when it belongs to a comparison group, more runs of that group (a run without a group comes alone), with the bars from the earliest `from` to the latest `to` and each run's index range. The worker splits the batch over `VERTEX_WORKER_PROCESSES` engine processes (default 8, at most 16; measured on the rig: 184 cells on 6,587 daily bars took 73.9 s in one process, 11.8 s in 8 and 7.7 s in 24) and posts all results and errors with one `backtestRuns.engine.completeMany` (one outcome per run; same checks and stats recomputation as `complete`). So a claimed batch costs two API requests.
+
+Differences: when a comparison run completes, the API compares the Nautilus result (with the API's own recomputed stats) with `comparison.typescript`: the trade count, the first trade that differs in entry bar, exit bar or exit reason, and total return, Sharpe and max drawdown with the [parity tolerances](#parity-tolerances) (1e-5, 1e-3, 1e-5). It stores `report.differences = {ok, items[]}`.
+
+Report for the owner (from the stored data): per feature, where it ran (`comparison.typescript.host`, `engineRun.host`), wall time p50/p95 over 20 runs (`typescript.wallMs` and the page round trip; `engineRun.wallMs`), queue wait, CPU (`engineRun.cpuMs`), GPU (not used) and the differences.
+
+Pages: the instant backtest shows "TypeScript · host · round trip" at once and a Nautilus card that follows the group until its run is done (queued, running, engine time and queue wait, then a match or differences badge with the list). The sweep shows a summary line and a Nautilus column in the ranked cells. An Autopilot campaign shows a Nautilus check per gated candidate.
 
 ## Order and fill model
 
@@ -73,9 +98,9 @@ Every case must give the same trades (entry bar, exit bar, exit reason, same ord
 | Feature | Where it runs today | Engine call | Needs |
 | --- | --- | --- | --- |
 | Backtest runs (Backtest lab, Strategy builder, Autopilot "Run full backtest", library re-runs with `strategyId`) | API server, queued run, `executeClaimed` in `packages/api/src/server/backtest-runs.ts`; with `VERTEX_BACKTEST_RUNS_ENGINE=nautilus` the research worker | `runInstantBacktest`, `runStrategyDefinition`, or the Nautilus engine | Stored daily or minute bars, cost profile, capital, sector quadrants |
-| Instant backtest | API server, in the request (`packages/api/src/server/instant-backtest.ts`) | `runInstantBacktest` | Stored bars, `costBps` |
-| Parameter sweeps | API server, in the request (`packages/api/src/backtest-sweep.ts`) | `runInstantBacktest` per cell | Stored bars |
-| Autopilot gate | API server (`packages/api/src/server/autopilot-runner.ts`, `autopilot-gate.ts`) | `runStrategyDefinition` on slices | In-sample, out-of-sample, folds, cost stress |
+| Instant backtest | API server, in the request (`packages/api/src/server/instant-backtest.ts`); with `VERTEX_ENGINE_COMPARISON=on` also queued on the rig worker | `runInstantBacktest` | Stored bars, `costBps` |
+| Parameter sweeps | API server, in the request (`packages/api/src/backtest-sweep.ts`); with comparison on, the first 100 cells also on the rig worker | `runInstantBacktest` per cell | Stored bars |
+| Autopilot gate | API server (`packages/api/src/server/autopilot-runner.ts`, `autopilot-gate.ts`); with comparison on, the in-sample and full runs (20 per tick) also on the rig worker | `runStrategyDefinition` on slices | In-sample, out-of-sample, folds, cost stress |
 | Paper forward | API server (`packages/api/src/paper-forward.ts`) | Fixed rules | Latest bars |
 | Setup replay | API server (`packages/api/src/setup-replay.ts`) | `runSignalBacktest` | Daily bars, ATR stops |
 | Academy | `packages/academy/src/backtest.ts` | Own Black-Scholes options simulator | Modelled option prices (no real option quotes) |
