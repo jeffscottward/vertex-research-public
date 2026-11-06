@@ -3,6 +3,9 @@ import {
   BasketSchema,
   BasketValuationSchema,
   MarketNewsWatchlistOutputSchema,
+  PickListProposalSchema,
+  PickListSchema,
+  PickListScreenSchema,
   PriceAlertListOutputSchema,
   ResearchPaperSchema,
   ResearchReportDatasetOutputSchema,
@@ -14,6 +17,7 @@ import {
   VertexResearchChatReadTranscriptPageOutputSchema,
   VertexResearchChatRosterOutputSchema,
 } from "@darkfactory/api/vertex";
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The vendor chat surface needs a Copilot runtime; the lab test keeps everything around it real.
@@ -22,6 +26,8 @@ vi.mock("@copilotkit/react-core/v2", () => ({ CopilotChatView: () => null }));
 import {
   LAB_BASKETS,
   LAB_PAPERS,
+  LAB_PICK_LIST_PROPOSAL,
+  LAB_PICK_LISTS,
   LAB_PRICE_ALERTS,
   LAB_RESEARCH_REPORTS,
   LAB_RESEARCH_ROSTER,
@@ -30,6 +36,7 @@ import {
   LAB_WATCHLIST,
   labBasketValuation,
   labMarketNews,
+  labPickListScreen,
   labResearchDataset,
   labResearchTranscript,
 } from "../fixtures/research.ts";
@@ -72,6 +79,11 @@ describe("research lab fixtures", () => {
         BasketValuationSchema.parse(labBasketValuation(basket.id));
       }
       for (const paper of LAB_PAPERS) ResearchPaperSchema.parse(paper);
+      for (const list of LAB_PICK_LISTS) {
+        PickListSchema.parse(list);
+        PickListScreenSchema.parse(labPickListScreen(list.id));
+      }
+      PickListProposalSchema.parse(LAB_PICK_LIST_PROPOSAL);
     }).not.toThrow();
   });
 
@@ -140,6 +152,21 @@ describe("research lab entries", () => {
     const host = await render("baskets", "symbol=demomtl");
     expect(host.querySelector("h1")?.textContent).toBe("Baskets");
     await vi.waitFor(() => expect(host.textContent).toContain("SLV"));
+  });
+
+  it("shows the fake pick lists", async () => {
+    const host = await render("pick-lists");
+    expect(host.querySelector("h1")?.textContent).toBe("Pick lists");
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("Demo pick list")
+    );
+    const screen = [...host.querySelectorAll("button")].find((item) =>
+      item.textContent?.includes("Run screen")
+    );
+    await act(async () => screen?.click());
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("close 80.00 < EMA20 85.00")
+    );
   });
 
   it("shows the fake papers", async () => {

@@ -1,5 +1,5 @@
 // What: UI lab fixtures for the Markets & Research pages: research chat, dossiers, watchlist,
-// price alerts, news, baskets and papers. Every value is fictional and deterministic.
+// price alerts, news, baskets, pick lists and papers. Every value is fictional and deterministic.
 // Used by: apps/web/src/lab/entries/research.tsx.
 import type {
   BasketOutput,
@@ -7,6 +7,11 @@ import type {
   MarketNewsHours,
   MarketNewsTicker,
   MarketNewsWatchlistOutput,
+  PickListMemberOutput,
+  PickListOutput,
+  PickListProposalOutput,
+  PickListScreenMemberOutput,
+  PickListScreenOutput,
   PriceAlertListOutput,
   PriceAlertRule,
   ResearchPaperOutput,
@@ -610,3 +615,111 @@ export const LAB_PAPERS: ResearchPaperOutput[] = [
     year: 2026,
   },
 ];
+
+const pickMember = (
+  symbol: string,
+  overrides: Partial<PickListMemberOutput> = {}
+): PickListMemberOutput => ({
+  addedOn: null,
+  rank: null,
+  rating: null,
+  sector: null,
+  symbol,
+  targetPrice: null,
+  thesis: null,
+  weight: null,
+  ...overrides,
+});
+
+export const LAB_PICK_LISTS: PickListOutput[] = [
+  {
+    bucketSymbol: null,
+    id: "demo-pick-list",
+    latest: {
+      asOf: "2026-11-02",
+      id: "demo-pick-snapshot",
+      importedAt: "2026-11-02T12:00:00.000Z",
+      members: [
+        pickMember("NVDA", {
+          rank: 1,
+          rating: "Demo buy",
+          sector: "Technology",
+          targetPrice: 210,
+          thesis: "Demo thesis: data center demand",
+        }),
+        pickMember("XOM", { rank: 2, sector: "Energy" }),
+        pickMember("GLD", { rank: 3, sector: "Materials" }),
+      ],
+      method: "manual",
+    },
+    name: "Demo pick list",
+    slug: "demo-picks",
+    snapshotCount: 1,
+    source: "demo",
+    sourceLabel: "Demo source",
+  },
+];
+
+const pickGate = (ok: boolean | null, detail: string) => ({ detail, ok });
+const screenedPick = (
+  symbol: string,
+  overrides: Partial<PickListScreenMemberOutput> = {}
+): PickListScreenMemberOutput => ({
+  gates: {
+    aboveVwap20: pickGate(true, "close 100.00 >= VWAP20 98.00"),
+    emaTrend: pickGate(true, "close 100.00 > EMA20 95.00 > EMA50 90.00"),
+    notOverextended: pickGate(true, "close 100.00 <= 105.00"),
+  },
+  last: 100,
+  lastDate: "2026-11-02",
+  quadrant: "leading",
+  reason: null,
+  sector: "Technology",
+  sectorEtf: "XLK",
+  sectorQuadrant: "improving",
+  status: "pass",
+  symbol,
+  ...overrides,
+});
+
+export const labPickListScreen = (listId: string): PickListScreenOutput => ({
+  computedAt: "2026-11-02T14:00:00.000Z",
+  listId,
+  members: [
+    screenedPick("NVDA"),
+    screenedPick("XOM", {
+      gates: {
+        aboveVwap20: pickGate(true, "close 80.00 >= VWAP20 79.00"),
+        emaTrend: pickGate(false, "close 80.00 < EMA20 85.00"),
+        notOverextended: pickGate(true, "close 80.00 <= 90.00"),
+      },
+      quadrant: null,
+      sector: "Energy",
+      sectorEtf: null,
+      sectorQuadrant: null,
+      status: "fail",
+    }),
+  ],
+  snapshotId: "demo-pick-snapshot",
+});
+
+export const LAB_PICK_LIST_PROPOSAL: PickListProposalOutput = {
+  buckets: [],
+  computedAt: "2026-11-02T14:00:00.000Z",
+  notProposed: [],
+  proposalOnly: true,
+  rows: [],
+  rules: {
+    dteMax: 180,
+    dteMin: 90,
+    fullMaxLossPct: 0.5,
+    halfMaxLossPct: 0.25,
+    longDelta: 0.6,
+    maxLossGatePct: 2,
+    namePremiumCapPct: 2,
+    riskFreeRate: 0.04,
+    shortDelta: 0.3,
+    targetDte: 120,
+  },
+  totalMaxLossPct: 0,
+};

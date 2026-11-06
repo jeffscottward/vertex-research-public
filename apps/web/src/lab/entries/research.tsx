@@ -1,5 +1,5 @@
 // What: UI lab entries for Markets & Research: research chat, dossiers, watchlist, price alerts,
-// news, baskets and papers. Each renders the real page body with fake gateways.
+// news, baskets, pick lists and papers. Each renders the real page body with fake gateways.
 // Used by: apps/web/src/lab/entries/index.ts.
 "use client";
 
@@ -12,6 +12,8 @@ import { BasketsWorkspace } from "../../components/portal/baskets-workspace.tsx"
 import type { MarketNewsGateway } from "../../components/portal/market-news-client.ts";
 import { MarketNewsWorkspace } from "../../components/portal/market-news-workspace.tsx";
 import { PapersWorkspace } from "../../components/portal/papers-workspace.tsx";
+import type { PickListGateway } from "../../components/portal/pick-lists-client.ts";
+import { PickListsWorkspace } from "../../components/portal/pick-lists-workspace.tsx";
 import type { PriceAlertsGateway } from "../../components/portal/price-alerts-client.ts";
 import { PriceAlertsWorkspace } from "../../components/portal/price-alerts-workspace.tsx";
 import {
@@ -35,6 +37,8 @@ import { labReadOnly } from "../fixtures/core.ts";
 import {
   LAB_BASKETS,
   LAB_PAPERS,
+  LAB_PICK_LIST_PROPOSAL,
+  LAB_PICK_LISTS,
   LAB_PRICE_ALERTS,
   LAB_RESEARCH_DEFAULT_REPORT,
   LAB_RESEARCH_REPORTS,
@@ -45,6 +49,7 @@ import {
   LAB_WATCHLIST,
   labBasketValuation,
   labMarketNews,
+  labPickListScreen,
   labResearchDataset,
   labResearchTranscript,
 } from "../fixtures/research.ts";
@@ -113,6 +118,14 @@ const labPriceAlertsGateway: PriceAlertsGateway = {
 
 const labMarketNewsGateway: MarketNewsGateway = {
   watchlist: (hours) => Promise.resolve(labMarketNews(hours)),
+};
+
+const labPickListGateway: PickListGateway = {
+  import: labReadOnly,
+  list: () => Promise.resolve(LAB_PICK_LISTS),
+  proposal: () => Promise.resolve(LAB_PICK_LIST_PROPOSAL),
+  screen: (id) => Promise.resolve(labPickListScreen(id)),
+  syncBucket: labReadOnly,
 };
 
 const labPapersGateway: PapersGateway = {
@@ -208,6 +221,18 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/baskets",
     title: "Baskets",
+  },
+  {
+    group: GROUP,
+    id: "pick-lists",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Pick lists" />
+        <PickListsWorkspace gateway={labPickListGateway} />
+      </div>
+    ),
+    route: "/pick-lists",
+    title: "Pick lists",
   },
   {
     group: GROUP,
