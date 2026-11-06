@@ -97,6 +97,59 @@ export const toCatalogViewModel = (
   return groups.filter((group) => group.reports.length > 0);
 };
 
+export type CatalogSummaryView = Readonly<{
+  dossiers: number;
+  groups: number;
+  research: number;
+  lastUpdated: string;
+}>;
+
+/** KPI numbers for the catalog page: imported reports, shown groups, accepted company research, newest source update. */
+export const toCatalogSummary = (
+  output: ResearchReportsListOutput,
+  groups: readonly CatalogGroupView[]
+): CatalogSummaryView => {
+  const newest = output.reports.reduce<Date | null>(
+    (latest, report) =>
+      report.sourceUpdatedAt !== null &&
+      (latest === null || report.sourceUpdatedAt > latest)
+        ? report.sourceUpdatedAt
+        : latest,
+    null
+  );
+  return {
+    dossiers: output.reports.length,
+    groups: groups.length,
+    lastUpdated: dateLabel(newest),
+    research: output.reports.filter((report) => report.companyResearch !== null)
+      .length,
+  };
+};
+
+/** The catalog filter (`?q=`): a case-insensitive match on symbol or name; groups left empty drop out. */
+export const filterCatalogGroups = (
+  groups: readonly CatalogGroupView[],
+  query: string
+): readonly CatalogGroupView[] => {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return groups;
+  return groups.flatMap((group) => {
+    const reports = group.reports.filter(
+      (report) =>
+        report.symbol.toLowerCase().includes(needle) ||
+        report.name.toLowerCase().includes(needle)
+    );
+    return reports.length === 0 ? [] : [{ ...group, reports }];
+  });
+};
+
+/** Distinct reports across groups (one report may sit in more than one category). */
+export const countCatalogReports = (
+  groups: readonly CatalogGroupView[]
+): number =>
+  new Set(groups.flatMap((group) => group.reports.map((report) => report.id)))
+    .size;
+
 export type MetricView = Readonly<{
   label: string;
   value: string;
