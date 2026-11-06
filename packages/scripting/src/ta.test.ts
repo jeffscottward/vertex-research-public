@@ -408,3 +408,21 @@ describe("agreement with reference formulas on a long series", () => {
     expect(SMALL_BARS.map((b) => b.close)).toEqual([...SMALL_CLOSES]);
   });
 });
+
+describe("degenerate inputs", () => {
+  it("ta.rsi is 0 when the source only falls", () => {
+    expect(ta("ta.rsi(-bar_index, 2)").slice(1, 4)).toEqual([null, 0, 0]);
+  });
+
+  it("ta.stoch and ta.cci are na on a flat window", () => {
+    expect(ta("ta.stoch(1, 1, 1, 2)").every((v) => v === null)).toBe(true);
+    expect(ta("ta.cci(1, 3)").every((v) => v === null)).toBe(true);
+  });
+
+  it("ta.vwma and ta.cum skip na sources", () => {
+    // close: 10 11 12 11 13 ...; only closes above 12 count.
+    const src = "close > 12 ? close : na";
+    expect(ta(`ta.vwma(${src}, 1)`).slice(3, 5)).toEqual([null, 13]);
+    expect(ta(`ta.cum(${src})`).slice(3, 6)).toEqual([0, 13, 27]);
+  });
+});

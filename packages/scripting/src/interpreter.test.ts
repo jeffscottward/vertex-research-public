@@ -589,6 +589,15 @@ describe("inputs", () => {
     expect(plots(result)[1]?.[0]).toBe(1);
   });
 
+  it("warns on overrides of the wrong type for bool, source and string inputs", () => {
+    const result = run(source, { inputs: { mode: 3, show: 1, src: "zz" } });
+    expect(result.warnings).toEqual([
+      "Input 'show' ignored: expected true or false",
+      "Input 'mode' ignored: expected a string",
+      "Input 'src' ignored: expected a price source such as close",
+    ]);
+  });
+
   it("rejects non-constant input arguments and inputs in local scope", () => {
     expect(errors("x = input.int(close)")[0]?.message).toBe(
       "input.int default value must be a constant"
@@ -747,5 +756,104 @@ describe("more language coverage", () => {
       errors: [{ message: "Script stopped: operation budget used" }],
       ok: false,
     });
+  });
+});
+
+describe("operators and statements at run time", () => {
+  it("computes modulo and inequality", () => {
+    expect(series("plot(close % 3)\nplot(close != 11 ? 1 : 0)")).toEqual([
+      [1, 2, 0, 2, 1, 2, 1, 0, 1, 0],
+      [1, 0, 1, 0, 1, 1, 1, 1, 1, 1],
+    ]);
+  });
+
+  it("applies unary operators and propagates na", () => {
+    expect(series("plot(-na)\nplot(+close)")).toEqual([
+      new Array(10).fill(null),
+      [10, 11, 12, 11, 13, 14, 13, 15, 16, 15],
+    ]);
+    expect(series("plot(close[na])")[0]).toEqual(new Array(10).fill(null));
+  });
+
+  it("reports type errors the checker cannot see through function parameters", () => {
+    const message = (body: string) => errors(body)[0]?.message;
+    expect(message("f() => [1, 2]\nplot(f() == f() ? 1 : 0)")).toBe(
+      "Tuples cannot be compared"
+    );
+    expect(message('f(x) => x < 2\nplot(f("a") ? 1 : 0)')).toBe(
+      "Operator '<' needs numbers, got string and number"
+    );
+    expect(message('f(x) => -x\nplot(f("a") ? 1 : 0)')).toBe(
+      "Operator '-' needs a number, got string"
+    );
+    expect(
+      message("f() => [1, 2]\ng() => [f(), 1]\n[a, b] = g()\nplot(a)")
+    ).toBe("Tuples cannot be nested");
+    expect(message("f() => 1\n[a, b] = f()\nplot(a)")).toBe(
+      "Expected 2 values on the right, got number"
+    );
+    expect(
+      message(
+        'f(x) =>\n    s = 0.0\n    for i = 0 to x\n        s += 1\n    s\nplot(f("a"))'
+      )
+    ).toBe("Loop end must be a number");
+    expect(message("f(x) => close[x]\nplot(f(-1))")).toBe(
+      "History offset must be a non-negative number"
+    );
+  });
+
+  it("skips loops with an na bound and rejects a zero step", () => {
+    expect(
+      series(
+        "s = 0.0\nfor i = 0 to na\n    s += 1\nfor i = 0 to 3 by na\n    s += 1\nplot(s)"
+      )[0]
+    ).toEqual(new Array(10).fill(0));
+    expect(
+      errors("s = 0.0\nfor i = 0 to 5 by 0\n    s += 1\nplot(s)")[0]
+    ).toMatchObject({
+      message: "Loop step must not be 0",
+    });
+  });
+
+  it("drops markers shifted before the first bar", () => {
+    const result = run("plotshape(true, offset=-2)");
+    expect(result.signals).toHaveLength(8);
+    expect(result.signals[0]?.timestamp).toBe(SMALL_BARS[0]?.timestamp);
+  });
+
+  it("reads the strategy position size history", () => {
+    const result = run(
+      'if bar_index == 2\n    strategy.entry("L", strategy.long)\nplot(strategy.position_size[1])',
+      {},
+      SMALL_BARS,
+      'strategy("s")'
+    );
+    expect(plots(result)[0]).toEqual([null, 0, 0, 1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it("charges windowed kernels against the operation budget", () => {
+    expect(
+      runScript('indicator("t")\nplot(ta.sma(close, 4000))\n', SMALL_BARS, {
+        maxOps: 100,
+      })
+    ).toMatchObject({
+      errors: [{ message: "Script stopped: operation budget used" }],
+      ok: false,
+    });
+  });
+
+  it("rejects non-finite bar fields and treats null options as none", () => {
+    const bad = [{ ...SMALL_BARS[0]!, close: Number.NaN }];
+    expect(runScript('indicator("t")\nplot(close)\n', bad)).toMatchObject({
+      errors: [{ message: "Bar 0 has a missing or non-finite field" }],
+      ok: false,
+    });
+    expect(
+      runScript(
+        'indicator("t")\nplot(close)\n',
+        SMALL_BARS,
+        null as unknown as RunOptions
+      ).ok
+    ).toBe(true);
   });
 });

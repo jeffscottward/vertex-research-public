@@ -652,3 +652,24 @@ describe("storableTrace", () => {
     ).toHaveLength(64);
   });
 });
+
+describe("chart tool edge cases", () => {
+  it("turns a throwing tool into an error outcome", () => {
+    const args = {
+      get symbol(): string {
+        throw new Error("boom");
+      },
+    };
+    return expect(runChartTool("chart_draw", args, contextFor())).toEqual({
+      error: "Chart tool failed",
+    });
+  });
+
+  // An upper bound: sign, mantissa digits, the exponent and two more.
+  it("sizes exponent numbers and values that are not JSON", () => {
+    expect(jsonbTextBytes(1.5e-7)).toBe(11);
+    expect(jsonbTextBytes(-1.25e-7)).toBe(13);
+    expect(jsonbTextBytes(1e21)).toBe(24);
+    return expect(jsonbTextBytes(() => 1)).toBe(4);
+  });
+});

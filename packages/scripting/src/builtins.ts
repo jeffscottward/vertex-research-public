@@ -135,9 +135,9 @@ const lengthArg = (
 ): number => {
   const n = numberArg(value, env, param);
   if (n === null || n < 1 || !Number.isInteger(n)) {
-    fail(`${env.name}: '${param}' must be a positive integer`, env.at);
+    return fail(`${env.name}: '${param}' must be a positive integer`, env.at);
   }
-  const length = Math.floor(n ?? 1);
+  const length = Math.floor(n);
   env.charge(Math.ceil(length / WINDOW_ELEMENTS_PER_OP));
   return length;
 };
@@ -149,9 +149,12 @@ const countArg = (
 ): number => {
   const n = numberArg(value, env, param);
   if (n === null || n < 0 || !Number.isInteger(n)) {
-    fail(`${env.name}: '${param}' must be a non-negative integer`, env.at);
+    return fail(
+      `${env.name}: '${param}' must be a non-negative integer`,
+      env.at
+    );
   }
-  return Math.floor(n ?? 0);
+  return Math.floor(n);
 };
 
 // Pine conditions: bools, or numbers (non-zero, not na). na is false.

@@ -280,4 +280,28 @@ describe("createScriptRunner", () => {
       errors: [{ message: "Script runner stopped." }],
     });
   });
+  it("ignores a late ready signal and stops queued runs on dispose", async () => {
+    const fake = fakeWorker(false);
+    const runner = createScriptRunner({ createWorker: () => fake.worker });
+    const first = runner.run("a", [], {});
+    await flush();
+    fake.reply({ id: 1, result: ok });
+    await expect(first).resolves.toEqual(ok);
+    fake.ready();
+    const second = runner.run("b", [], {});
+    const queued = runner.run("c", [], {});
+    await flush();
+    runner.dispose();
+    await expect(second).resolves.toMatchObject({
+      errors: [{ message: "Script runner stopped." }],
+    });
+    await expect(queued).resolves.toMatchObject({
+      errors: [{ message: "Script runner stopped." }],
+    });
+    // Disposing an idle runner settles nothing.
+    const idle = createScriptRunner({
+      createWorker: () => fakeWorker().worker,
+    });
+    expect(() => idle.dispose()).not.toThrow();
+  });
 });

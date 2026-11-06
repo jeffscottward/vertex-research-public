@@ -12,7 +12,12 @@ import {
   type StrategyPosition,
   truthy,
 } from "./builtins.ts";
-import { type Compiled, check, type PlotSlot } from "./checker.ts";
+import {
+  type Compiled,
+  check,
+  type PlotSlot,
+  type ResolvedCall,
+} from "./checker.ts";
 import { fail, type Position, START, toScriptError } from "./errors.ts";
 import {
   type CompileResult,
@@ -67,12 +72,11 @@ const seriesFor = (map: Map<number, Series>, id: number): Series => {
   return series;
 };
 
-const lookup = (scope: Scope, name: string, at: Position): Series => {
-  for (let s: Scope | null = scope; s; s = s.parent) {
-    const series = s.vars.get(name);
-    if (series) return series;
-  }
-  return fail(`Undeclared identifier '${name}'`, at);
+// The checker resolved every name before run time, so some enclosing scope declares it.
+const lookup = (scope: Scope, name: string): Series => {
+  let s = scope;
+  while (!s.vars.has(name)) s = s.parent as Scope;
+  return s.vars.get(name) as Series;
 };
 
 type NumberOp<T> = (a: number, b: number) => T;
@@ -330,9 +334,9 @@ class Runtime implements RuntimeHost {
   // RuntimeHost ----------------------------------------------------------
 
   plot(nodeId: number, value: number | null, colorHex: string | null): void {
-    const slot = this.compiled.plots.get(nodeId);
-    const state = slot ? this.plotStates.get(slot.index) : undefined;
-    if (!state) return;
+    // The checker gave every plot call a slot, and the constructor a state per slot.
+    const slot = this.compiled.plots.get(nodeId) as PlotSlot;
+    const state = this.plotStates.get(slot.index) as PlotState;
     state.values[this.bar] = value;
     if (colorHex) state.color = colorHex;
   }
@@ -367,7 +371,8 @@ class Runtime implements RuntimeHost {
     const source = this.sourceInputs.get(nodeId);
     const bar = this.bars[this.bar];
     if (source && bar) return source(bar);
-    return this.inputValues.get(nodeId) ?? null;
+    // Every input call has a compiled slot: a source reader or a resolved value.
+    return this.inputValues.get(nodeId) as Value;
   }
 
   obv(bar: number): number | null {
@@ -381,11 +386,15 @@ class Runtime implements RuntimeHost {
       });
       this.obvValues = values;
     }
-    return this.obvValues[bar] ?? null;
+    // Callers pass a bar in [0, current bar], and every bar has a value.
+    return this.obvValues[bar] as number;
   }
 
   positionSize(bar: number): number {
-    return bar === this.bar ? this.currentSize() : (this.positions[bar] ?? 0);
+    // Earlier bars all recorded their size at the end of the bar.
+    return bar === this.bar
+      ? this.currentSize()
+      : (this.positions[bar] as number);
   }
 
   private currentSize(): number {
@@ -445,7 +454,7 @@ class Runtime implements RuntimeHost {
         return "normal";
       }
       case "assign": {
-        const series = lookup(env.scope, stmt.name, stmt);
+        const series = lookup(env.scope, stmt.name);
         let value = this.expr(stmt.value, env);
         if (stmt.op !== ":=")
           value = arithmetic(stmt.op.slice(0, 1), series.back(0), value, stmt);
@@ -484,10 +493,12 @@ class Runtime implements RuntimeHost {
     };
     const from = bound(stmt.from, "start");
     const to = bound(stmt.to, "end");
+    // A zero step can only come from an explicit `by`, so the error points at it.
+    const stepAt: Position = stmt.step ?? stmt;
     const step = stmt.step ? bound(stmt.step, "step") : 1;
     this.lastValue = null;
     if (from === null || to === null || step === null) return "normal";
-    if (step === 0) return fail("Loop step must not be 0", stmt.step ?? stmt);
+    if (step === 0) return fail("Loop step must not be 0", stepAt);
     const delta = (from <= to ? 1 : -1) * Math.abs(step);
     const counter = seriesFor(env.ctx.series, stmt.id);
     for (let i = from; delta > 0 ? i <= to : i >= to; i += delta) {
@@ -573,7 +584,7 @@ class Runtime implements RuntimeHost {
   ): Value {
     const ref = this.compiled.names.get(expr.id);
     if (!ref || ref.kind === "user")
-      return lookup(env.scope, expr.name, expr).back(back);
+      return lookup(env.scope, expr.name).back(back);
     if (ref.kind === "constant") return ref.value;
     const bar = this.bar - back;
     return bar < 0 ? null : ref.read(this, bar);
@@ -595,8 +606,8 @@ class Runtime implements RuntimeHost {
   }
 
   private call(expr: Call, env: Env): Value {
-    const resolved = this.compiled.calls.get(expr.id);
-    if (!resolved) return fail(`Unknown function '${expr.callee}'`, expr);
+    // The checker resolved every call (unknown functions are compile errors).
+    const resolved = this.compiled.calls.get(expr.id) as ResolvedCall;
     const skip =
       resolved.kind === "builtin" && SKIPS_ARGS.has(resolved.spec.kind);
     const args = resolved.args.map((arg) =>
@@ -638,10 +649,8 @@ class Runtime implements RuntimeHost {
     fn.params.forEach((param, i) => {
       const fallback = param.fallback ? this.expr(param.fallback, env) : null;
       const series = seriesFor(child.series, -1 - i);
-      series.set(
-        this.bar,
-        args[i] === undefined ? fallback : (args[i] ?? null)
-      );
+      const arg = args[i];
+      series.set(this.bar, arg === undefined ? fallback : arg);
       vars.set(param.name, series);
     });
     this.lastValue = null;

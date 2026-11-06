@@ -77,8 +77,7 @@ const NUMBER_PATTERN = /(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/y;
 const IDENT_PATTERN = /[A-Za-z_][A-Za-z0-9_]*/y;
 const COLOR_PATTERN = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6})(?![0-9a-zA-Z_])/y;
 
-const isDigit = (ch: string | undefined): boolean =>
-  ch !== undefined && ch >= "0" && ch <= "9";
+const NUMBER_START = /\d|\.\d/y;
 
 class Lexer {
   private readonly src: string;
@@ -189,7 +188,7 @@ class Lexer {
   }
 
   private scanToken(): void {
-    const ch = this.src[this.pos] ?? "";
+    const ch = this.src.charAt(this.pos);
     if (ch === "\n") {
       this.lineBreak();
       return;
@@ -202,7 +201,7 @@ class Lexer {
       this.comment();
       return;
     }
-    if (isDigit(ch) || (ch === "." && isDigit(this.src[this.pos + 1]))) {
+    if (this.match(NUMBER_START)) {
       this.number();
       return;
     }
@@ -255,7 +254,8 @@ class Lexer {
 
   private number(): void {
     const at = this.here();
-    const text = this.match(NUMBER_PATTERN)?.[0] ?? "";
+    // scanToken saw a digit (or ".digit"), so the pattern always matches here.
+    const text = (this.match(NUMBER_PATTERN) as RegExpExecArray)[0];
     const value = Number(text);
     if (!Number.isFinite(value)) fail("Invalid number", at);
     this.tokens.push({
@@ -294,10 +294,13 @@ class Lexer {
   private color(): void {
     const at = this.here();
     const match = this.match(COLOR_PATTERN);
-    if (!match) fail("Invalid color literal; use #rrggbb", at);
-    const hex = (match?.[1] ?? "").slice(0, 6).toLowerCase();
+    if (!match) {
+      fail("Invalid color literal; use #rrggbb", at);
+      return;
+    }
+    const hex = match[0].slice(1, 7).toLowerCase();
     this.push("color", `#${hex}`, at);
-    this.advance(match?.[0].length ?? 1);
+    this.advance(match[0].length);
   }
 
   private finish(): void {

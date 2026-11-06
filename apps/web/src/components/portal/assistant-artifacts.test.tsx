@@ -25,6 +25,7 @@ import {
   sendChartCommand,
 } from "../../features/charts/chart-bus.ts";
 import {
+  AssistantArtifacts,
   artifactKey,
   autoApplyChartArtifact,
   chartHref,
@@ -613,5 +614,86 @@ describe("AssistantWorkspace chart artifacts and Teach", () => {
     return expect(artifactKey(clear)).not.toBe(
       artifactKey({ kind: "chart_clear", symbol: "NQ" })
     );
+  });
+});
+
+describe("AssistantArtifacts cards", () => {
+  const onCharts = { onCharts: true, symbol: "ES" } as const;
+
+  it("renders several drawings, a replace note, text-less drawings and a pane script", async () => {
+    const container = await mount(
+      <AssistantArtifacts
+        artifacts={[
+          {
+            drawings: [
+              ...drawings.drawings,
+              {
+                id: "quant-turn0001-9",
+                points: [{ timestamp: JAN_2, value: 5100 }],
+                text: "",
+                tool: "level",
+              },
+            ],
+            kind: "chart_drawings",
+            replace: true,
+            symbol: "ES",
+          },
+          { ...script, overlay: false },
+          { kind: "chart_clear", symbol: "ES" },
+        ]}
+        target={onCharts}
+      />
+    );
+    expect(container.textContent).toContain("2 drawings on ES");
+    expect(container.textContent).toContain(
+      "replaces earlier assistant drawings"
+    );
+    expect(container.textContent).toContain("level · 5100");
+    expect(container.textContent).toContain("In its own pane");
+    await click(link("Clear on chart", container));
+    expect(sent).toHaveBeenLastCalledWith({
+      symbol: "ES",
+      type: "clear_quant",
+    });
+  });
+
+  it("renders nothing for a walkthrough without steps", async () => {
+    const container = await mount(
+      <AssistantArtifacts
+        artifacts={[{ ...teach, steps: [] } as AssistantArtifact]}
+        target={onCharts}
+      />
+    );
+    expect(container.querySelector("[data-artifact='teach']")).toBeNull();
+  });
+
+  it("asks to open the chart for a walkthrough without a symbol", async () => {
+    const { symbol: _omit, ...noSymbol } = teach;
+    const container = await mount(
+      <AssistantArtifacts
+        artifacts={[noSymbol as AssistantArtifact]}
+        target={onCharts}
+      />
+    );
+    await click(button("Next", container));
+    expect(container.textContent).toContain(
+      "Open the  chart to see this step's drawings."
+    );
+    expect(sent).not.toHaveBeenCalled();
+  });
+
+  it("clears the teach drawings on a step without drawings", async () => {
+    const container = await mount(
+      <AssistantArtifacts artifacts={[teach]} target={onCharts} />
+    );
+    await click(button("Next", container));
+    await click(button("Next", container));
+    expect(sent).toHaveBeenLastCalledWith({
+      drawings: [],
+      group: "teach",
+      replace: true,
+      symbol: "ES",
+      type: "drawings",
+    });
   });
 });
