@@ -274,6 +274,8 @@ const REVIEWED_READS: readonly string[] = [
   "preferences.get",
   "preferences.theme.get",
   "priceAlerts.list",
+  "priceAlerts.signals.events",
+  "priceAlerts.signals.list",
   "quantLab.list",
   "researchLenses.deepValue",
   "researchLenses.deepValueScore",
