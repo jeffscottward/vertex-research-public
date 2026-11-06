@@ -154,6 +154,12 @@ describe("OptionsAnalyticsPanel", () => {
     expect(view.querySelector("[data-skew] tbody")?.textContent).toContain(
       "33.0%"
     );
+    // Grid items shrink below their nowrap tables so the tables scroll inside
+    // their own box at 375 px instead of widening the page.
+    for (const table of ["[data-term-structure]", "[data-skew]"]) {
+      const item = view.querySelector(table)?.closest(".space-y-1");
+      expect(item?.classList.contains("min-w-0")).toBe(true);
+    }
     expect(
       view.querySelector("[data-iv-surface] tbody")?.textContent
     ).toContain("—");
