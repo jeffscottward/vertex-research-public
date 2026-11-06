@@ -16,15 +16,14 @@ import {
   DRAWING_TOOLS,
   type Drawing,
   type DrawingTool,
-  dataWindowRows,
   describeDrawing,
-  displayValues,
   drawingsStorageKey,
   isChartType,
   parseDrawings,
   screenshotFileName,
   upsertDrawing,
 } from "./workstation.ts";
+import { dataWindowRows, displayValues } from "./market-bars.ts";
 
 export type ChartWorkstationProps = Readonly<{
   candles: readonly DisplayCandle[];

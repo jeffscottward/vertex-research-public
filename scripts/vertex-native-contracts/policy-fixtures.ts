@@ -1,6 +1,6 @@
 import { computeRuntimePolicySelectionHash } from "../../packages/api/src/contracts/vertex-policy.ts";
 import type { RuntimePolicySelection } from "../../packages/api/src/contracts/vertex-policy.ts";
-import type { ContractFixture } from "./fixtures.ts";
+import type { ContractFixture } from "./contract-fixture.ts";
 import { canonicalJsonSha256 } from "./generate.ts";
 
 // All references are synthetic opaque identifiers, never secret values or live
