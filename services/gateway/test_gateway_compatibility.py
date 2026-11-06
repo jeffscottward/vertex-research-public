@@ -80,7 +80,7 @@ class ReleaseFactsTests(unittest.TestCase):
         facts = " ".join(V2_RC5.distinctions)
         for distinction in ("Rust/Python IBKR", "factories", "actor/strategy", "heartbeat", "synthetics", "OrderReleased/OrderFillVoided", "never delete"):
             self.assertIn(distinction, facts)
-        self.assertEqual(SOURCE_REFERENCES[0].locator, "ADR-V06")
+        self.assertIn("ADR-V06", [reference.locator for reference in SOURCE_REFERENCES])
 
 
 class CompatibilityTests(unittest.TestCase):

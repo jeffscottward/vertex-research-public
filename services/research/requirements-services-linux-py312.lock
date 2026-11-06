@@ -1,0 +1,11 @@
+# Additive plan for the native service suites; the base lock remains unchanged.
+# Target: CPython 3.12, Linux x86_64, glibc >= 2.28.
+# Pins match services/contracts/python (ada-url==4.0.0) and services/host native-approval
+# (cryptography==46.0.3); cffi and pycparser are their runtime closure. Hashes are official
+# PyPI wheel digests. scripts/ci/research-python.sh installs this lock with --require-hashes
+# in a temporary venv for services/research/tests/ci-suites-services.txt.
+-r requirements-linux-py312.lock
+ada-url==4.0.0 --hash=sha256:da1510328ffbb5a505815f322061137527946a3698bbb70dc53ec086b8086e21
+cffi==2.0.0 --hash=sha256:3e17ed538242334bf70832644a32a7aae3d83b57567f9fd60a26257e992b79ba
+cryptography==46.0.3 --hash=sha256:01ca9ff2885f3acc98c29f1860552e37f6d7c7d013d7334ff2a9de43a449315d --hash=sha256:a2c0cd47381a3229c403062f764160d57d4d175e022c1df84e168c6251a22eec --hash=sha256:10b01676fc208c3e6feeb25a8b83d81767e8059e1fe86e1dc62d10a3018fa926 --hash=sha256:15ab9b093e8f09daab0f2159bb7e47532596075139dd74365da52ecc9cb46c5d --hash=sha256:1000713389b75c449a6e979ffc7dcc8ac90b437048766cef052d4d30b8220971 --hash=sha256:402b58fc32614f00980b66d6e56a5b4118e6cb362ae8f3fda141ba4689bd4506
+pycparser==2.23 --hash=sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934
