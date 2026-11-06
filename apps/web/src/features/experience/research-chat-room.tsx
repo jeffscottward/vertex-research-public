@@ -1351,11 +1351,17 @@ const useResearchConversation = (
   };
 };
 
-const ResearchRoom = ({ scope }: { readonly scope: ResearchScope }) => {
+const ResearchRoom = ({
+  scope,
+  initialThreadId = null,
+}: {
+  readonly scope: ResearchScope;
+  readonly initialThreadId?: string | null;
+}) => {
   const services = useExperienceServices();
   const port = services.researchChat ?? null;
   const [threadCursor, setThreadCursor] = useState<string | null>(null);
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(initialThreadId);
   const [messageCursor, setMessageCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [requestedParticipantIds, setRequestedParticipantIds] = useState<
@@ -1813,12 +1819,16 @@ const ResearchRoom = ({ scope }: { readonly scope: ResearchScope }) => {
 
 export const ResearchChatRoom = ({
   scope,
+  initialThreadId = null,
 }: {
   readonly scope: ExperienceScope;
+  /** Opens this thread first instead of waiting for a pick (the UI lab uses it). */
+  readonly initialThreadId?: string | null;
 }) =>
   scope.environment === "research" ? (
     <ResearchRoom
       scope={{ accountAlias: scope.accountAlias, environment: "research" }}
+      initialThreadId={initialThreadId}
       key={scope.accountAlias}
     />
   ) : (

@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useUiStoreApi } from "../../lib/ui-store.tsx";
 import {
   type AccountFailureKind,
+  type AccountGateway,
   accountFailureKind,
   createBrowserAccountGateway,
   safeAccountFeedback,
@@ -28,8 +29,13 @@ type PreferencesState =
       version: number;
     }>;
 
-export const PreferencesPageClient = () => {
-  const [gateway] = useState(createBrowserAccountGateway);
+/** `gateway` replaces the browser API client (UI lab, tests); omitted in the portal. */
+export const PreferencesPageClient = ({
+  gateway: injected,
+}: {
+  readonly gateway?: AccountGateway;
+} = {}) => {
+  const [gateway] = useState(() => injected ?? createBrowserAccountGateway());
   const store = useUiStoreApi();
   const [state, setState] = useState<PreferencesState>({ type: "loading" });
   const [feedback, setFeedback] = useState<AccountFeedback | null>(null);

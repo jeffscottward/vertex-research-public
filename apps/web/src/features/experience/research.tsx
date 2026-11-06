@@ -16,7 +16,12 @@ const ResearchChatRoom = lazy(async () => ({
 // chart lookup were removed; Vertex has no list of collections, datasets or
 // evidence to offer instead. The chat room opens on the first granted research
 // scope (else the first granted scope).
-export const ResearchWorkspace = () => {
+export const ResearchWorkspace = ({
+  initialThreadId = null,
+}: {
+  /** Opens this research thread first (the UI lab uses it); null waits for a pick. */
+  readonly initialThreadId?: string | null;
+} = {}) => {
   const [scope, setScope] = useState<ExperienceScope | null>(null);
   return (
     <ExperienceFrame title="Research">
@@ -34,7 +39,11 @@ export const ResearchWorkspace = () => {
               </p>
             }
           >
-            <ResearchChatRoom scope={scope} key={JSON.stringify(scope)} />
+            <ResearchChatRoom
+              scope={scope}
+              initialThreadId={initialThreadId}
+              key={JSON.stringify(scope)}
+            />
           </Suspense>
         )}
       </section>

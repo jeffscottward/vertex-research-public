@@ -294,3 +294,25 @@ describe("appearance settings form", () => {
     );
   });
 });
+
+describe("injected appearance selection (UI lab seam)", () => {
+  it("uses a supplied selection instead of the saving one", () => {
+    const live = selection({ disabled: true });
+    const injected = selection();
+    runtime.selection = live;
+    const tree = AppearanceSettings({ selection: injected });
+    const elements = elementsOf(tree);
+    expect(
+      elements
+        .filter((element) => element.type === "fieldset")
+        .every((fieldset) => fieldset.props["disabled"] === false)
+    ).toBe(true);
+    const radio = elements.find((element) => element.type === "input");
+    const onChange = radio?.props["onChange"];
+    if (typeof onChange !== "function")
+      throw new Error("Expected a radio change handler.");
+    onChange();
+    expect(injected.select).toHaveBeenCalledTimes(1);
+    return expect(live.select).not.toHaveBeenCalled();
+  });
+});
