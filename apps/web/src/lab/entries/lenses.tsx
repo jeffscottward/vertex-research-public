@@ -74,7 +74,7 @@ export const labRiskAllocatorGateway: RiskAllocatorGateway = {
 };
 
 /** Read-only fake watchlist for the risk allocator's default suggestion (first symbol: SPY). */
-export const labRiskAllocatorWatchlist: RiskAllocatorWatchlist = {
+const labRiskAllocatorWatchlist: RiskAllocatorWatchlist = {
   list: () => Promise.resolve(LAB_WATCHLIST),
 };
 

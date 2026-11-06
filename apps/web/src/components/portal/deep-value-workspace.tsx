@@ -101,7 +101,7 @@ const normalizeSymbol = (value: string): string | null => {
 };
 
 /** Whole-number min score inside 0..MAX_TOTAL; anything not a number becomes 0. */
-export const clampMinTotal = (value: number): number =>
+const clampMinTotal = (value: number): number =>
   Number.isFinite(value)
     ? Math.min(MAX_TOTAL, Math.max(0, Math.trunc(value)))
     : 0;
