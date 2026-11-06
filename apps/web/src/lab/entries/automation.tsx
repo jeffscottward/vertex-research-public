@@ -3,7 +3,7 @@
 // The run detail reads ?id= (default: the first fake run).
 "use client";
 
-import { PageHeader } from "@darkfactory/ui";
+import { PageHeader, Panel, StatusBadge } from "@darkfactory/ui";
 
 import { AgentApiKeysSection } from "../../components/portal/agent-api-keys-section.tsx";
 import type { AgentFrameworksGateway } from "../../components/portal/agent-frameworks-client.ts";
@@ -219,13 +219,23 @@ export const AUTOMATION_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: "Linked pages",
     id: "knowledge",
+    // Mirrors the server page's "no kb-chat address" state (the page itself reads server env).
     render: () => (
       <div className="space-y-6">
-        <PageHeader title="Knowledge chat" />
-        <p className="text-muted-foreground text-sm" data-kb-chat="unavailable">
-          Available on the owner's tailnet device when the rig is online. This
-          server has no kb-chat address (VERTEX_KB_CHAT_URL).
-        </p>
+        <PageHeader
+          description="Ask the trading and commodities knowledge bases that run on the rig."
+          status={<StatusBadge status="warning">Not configured</StatusBadge>}
+          title="Knowledge chat"
+        />
+        <Panel title="Trading and commodities knowledge bases">
+          <p
+            className="text-muted-foreground text-sm"
+            data-kb-chat="unavailable"
+          >
+            Available on the owner's tailnet device when the rig is online. This
+            server has no kb-chat address (VERTEX_KB_CHAT_URL).
+          </p>
+        </Panel>
       </div>
     ),
     route: "/knowledge",
