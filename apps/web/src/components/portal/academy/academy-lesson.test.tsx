@@ -144,6 +144,23 @@ describe("AcademyLesson", () => {
     expect(container.querySelector("[data-lesson-backtest]")).toBeNull();
     expect(container.querySelector("[data-lesson-deploy]")).toBeNull();
     expect(container.textContent).toContain("Concept lesson");
+    const header = container.querySelector("header[data-variant=portal]");
+    expect(header?.querySelector("h1")?.textContent).toBe(lesson.title);
+    const crumb = header?.querySelector(
+      '[data-slot="page-breadcrumb"] nav[aria-label="Breadcrumb"] a'
+    );
+    expect(crumb?.getAttribute("href")).toBe("/academy");
+    expect(crumb?.textContent?.trim()).toBe("Academy");
+    const kind = header?.querySelector(
+      '[data-slot="page-status"] [data-lesson-kind]'
+    );
+    expect(kind?.getAttribute("data-lesson-kind")).toBe("concept");
+    expect(kind?.getAttribute("data-status")).toBe("neutral");
+    expect(kind?.textContent).toContain("Concept lesson");
+    expect(header?.textContent).toContain(lesson.summary);
+    expect(
+      header?.querySelector('button[aria-label^="Switch the Academy"]')
+    ).not.toBeNull();
     expect(
       [
         ...container.querySelectorAll('nav[aria-label="Lesson sections"] a'),
@@ -159,6 +176,10 @@ describe("AcademyLesson", () => {
 
   it("colors the step caption with the element color and moves the scrubber in time", async () => {
     const container = await mount(gateway());
+    const kind = container.querySelector("[data-lesson-kind]");
+    expect(kind?.getAttribute("data-lesson-kind")).toBe("strategy");
+    expect(kind?.getAttribute("data-status")).toBe("info");
+    expect(kind?.textContent).toContain("Strategy");
     const chart = container.querySelector("[data-interactive-chart]");
     const before = chart?.getAttribute("data-time");
     await act(async () =>
