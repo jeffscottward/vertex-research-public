@@ -94,18 +94,20 @@ const draftFrom = (basket: BasketOutput): FormDraft => ({
 const weightSum = (members: readonly MemberDraft[]): number =>
   members.reduce((total, member) => total + (Number(member.weight) || 0), 0);
 
-// The basket a ?basket= value names: id, symbol or display name (case-insensitive).
+// The basket a ?basket= value names (case-insensitive). Separate passes so an exact id always
+// wins, then a symbol, then a display name: a basket named "TECH" never shadows symbol TECH.
 export const findBasket = (
   baskets: readonly BasketOutput[],
   wanted: string | null
 ): BasketOutput | undefined => {
   const key = wanted?.trim().toLowerCase() ?? "";
   if (key === "") return undefined;
-  return baskets.find(
-    (basket) =>
-      basket.id.toLowerCase() === key ||
-      basket.symbol.toLowerCase() === key ||
-      basket.name.toLowerCase() === key
+  const by = (field: (basket: BasketOutput) => string) =>
+    baskets.find((basket) => field(basket).toLowerCase() === key);
+  return (
+    by((basket) => basket.id) ??
+    by((basket) => basket.symbol) ??
+    by((basket) => basket.name)
   );
 };
 

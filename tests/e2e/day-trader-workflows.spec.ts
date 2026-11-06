@@ -322,7 +322,7 @@ test("live screenshots of the four day-trader pages", async ({
 
     await openPage(page, "/news", "News monitor");
     await expect(
-      page.getByRole("heading", { level: 2, name: "TSLA" })
+      page.getByRole("heading", { level: 3, name: "TSLA" })
     ).toBeVisible({ timeout: LIVE_TIMEOUT_MS });
     await shoot("news", viewport.width);
 

@@ -26,8 +26,8 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 import {
   createBrowserResearchReportsGateway,
   ResearchReportDetail,
-  type ResearchReportsGateway,
   ResearchReportsCatalog,
+  type ResearchReportsGateway,
 } from "./research-reports.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -413,6 +413,35 @@ describe("research dossier detail", () => {
     expect(container.textContent).toContain("news summary");
   });
 
+  it("links the report's real symbol, not its id", async () => {
+    const base = catalog();
+    const brk = { ...base.reports[0]!, id: "brk-b", symbol: "BRK.B" };
+    const container = await mount(
+      <ResearchReportDetail
+        gateway={gatewayOf({
+          list: async () => ({ ...base, reports: [brk] }),
+        })}
+        reportId="brk-b"
+      />
+    );
+    expect(
+      container.querySelector("[data-slot='ticker-link']")?.getAttribute("href")
+    ).toBe("/stock/BRK.B");
+  });
+
+  it("shows no ticker link when the symbol is unknown", async () => {
+    for (const list of [
+      async () => catalog(),
+      async () => Promise.reject(new Error("down")),
+    ]) {
+      const container = await mount(
+        <ResearchReportDetail gateway={gatewayOf({ list })} reportId="ZZZ" />
+      );
+      expect(container.querySelector("[data-slot='ticker-link']")).toBeNull();
+      expect(container.textContent).toContain("Imported research for ZZZ,");
+    }
+  });
+
   it("opens the dataset named by ?tab= without reading the default first", async () => {
     window.history.replaceState(null, "", "/research/reports/AAA?tab=market");
     const read = vi.fn(gatewayOf().dataset);
@@ -546,7 +575,7 @@ describe("research dossier gateway and entry point", () => {
     expect(Object.isFrozen(gateway)).toBe(true);
     await mount(<ResearchReportsCatalog />);
     await mount(<ResearchReportDetail reportId="AAA" />);
-    expect(list).toHaveBeenCalledTimes(2);
+    expect(list).toHaveBeenCalledTimes(3);
     expect(read).toHaveBeenCalledTimes(2);
   });
 });
