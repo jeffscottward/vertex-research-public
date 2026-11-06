@@ -75,10 +75,11 @@ export const REQUEST_BUDGET = AGENT_KEY_LIMIT / 4;
  */
 export const QUIET_PAUSE_MS = 2 * AGENT_KEY_WINDOW_MS + 5000;
 /**
- * VERTEX_WORKER_REQUEST_BUDGET limit: below the key limit with room for a few deliveries and
+ * VERTEX_WORKER_REQUEST_BUDGET limit. The budget is checked after each cycle, so the 20 requests
+ * of room below the key limit cover one cycle's claim and delivery retries (a few chunks) plus
  * hand-made requests. With its own key (no other client) 550 is the intended value.
  */
-export const MAX_REQUEST_BUDGET = 590;
+export const MAX_REQUEST_BUDGET = 580;
 /**
  * Shortest VERTEX_WORKER_QUIET_PAUSE_MS: just over one limiter window. Use at least 65000 (a 5 s
  * margin) when the worker has its own key, and the default (125000) when the key is shared.

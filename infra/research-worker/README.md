@@ -31,7 +31,7 @@ Logs: `journalctl --user -u vertex-nautilus-worker.service`. The worker never pr
 | `VERTEX_NAUTILUS_PYTHON` | Python of the Nautilus venv. |
 | `VERTEX_WORKER_IDLE_MS` | First wait after an empty claim. Default 3000. Each further empty claim doubles the wait; a claim that returns work resets it. |
 | `VERTEX_WORKER_IDLE_MAX_MS` | Longest wait between empty claims. Default 45000 (not below `VERTEX_WORKER_IDLE_MS`). The web restart pauses the worker with the pause file, so a short cap (3000 with its own key) does not block restarts: see [Web restarts](#web-restarts). |
-| `VERTEX_WORKER_REQUEST_BUDGET` | Requests before a quiet pause. Default 150 (shared key); 1 to 590. With its own key: 550. See [Request budget](#request-budget). |
+| `VERTEX_WORKER_REQUEST_BUDGET` | Requests before a quiet pause. Default 150 (shared key); 1 to 580. With its own key: 550. See [Request budget](#request-budget). |
 | `VERTEX_WORKER_QUIET_PAUSE_MS` | Length of the quiet pause and of the wait after a 429. Default 125000 (shared key); at least 61000, refused below. With its own key use at least 65000. |
 | `VERTEX_WORKER_PAUSE_FILE` | Pause file. Default `${XDG_STATE_HOME:-$HOME/.local/state}/vertex-nautilus-worker.pause`. While it exists and is younger than 90 min the worker claims nothing. |
 | `VERTEX_WORKER_PROCESSES` | Engine processes per claimed batch. Default 8, at most 16. A batch (up to 50 runs of one comparison group on one bar series) is split over them; on the rig 184 sweep cells took 73.9 s in 1 process, 11.8 s in 8 and 7.7 s in 24. |
@@ -63,7 +63,7 @@ What the quiet pause depends on: the count resets only after a gap of more than 
 
 With a write key that no other client uses, one quiet gap of more than 60 s resets the count. The intended settings (commented in the start script template) are `VERTEX_WORKER_IDLE_MS=3000`, `VERTEX_WORKER_IDLE_MAX_MS=3000`, `VERTEX_WORKER_REQUEST_BUDGET=550` and `VERTEX_WORKER_QUIET_PAUSE_MS=65000`. The worker then claims every 3 s (a run waits about 1.5 s in the queue on average, at most about 3 s plus the claim), sends 20 requests a minute, and takes one 65 s pause about every 27 minutes (550 requests). During that pause a new run waits up to 65 s.
 
-Trade-off: a larger budget means fewer pauses but less room under the 600 limit for hand-made requests with the same key and for deliveries (each delivery chunk is one request); 590 is the largest accepted value. A shorter pause means less waiting, but it must stay above 60 s with a margin: below 61000 the worker refuses to start, and 65000 leaves 5 s for clock and request timing. Never use these settings on a shared key: the other client's requests can fill the 65 s gap, and the key then refuses everyone after 600 requests. A shared key keeps the defaults (150, 125000).
+Trade-off: a larger budget means fewer pauses but less room under the 600 limit for hand-made requests with the same key and for deliveries (each delivery chunk is one request); 580 is the largest accepted value (the budget is checked after each cycle, so one cycle may add a claim and several delivery requests). A shorter pause means less waiting, but it must stay above 60 s with a margin: below 61000 the worker refuses to start, and 65000 leaves 5 s for clock and request timing. Never use these settings on a shared key: the other client's requests can fill the 65 s gap, and the key then refuses everyone after 600 requests. A shared key keeps the defaults (150, 125000).
 
 ## Web restarts
 

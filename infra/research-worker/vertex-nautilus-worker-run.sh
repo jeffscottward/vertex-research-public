@@ -16,7 +16,7 @@ export VERTEX_NAUTILUS_PYTHON="__NAUTILUS_VENV__/bin/python" # venv with the Nau
 # 65 s pause about every 27 min), uncomment all four:
 # export VERTEX_WORKER_IDLE_MS=3000
 # export VERTEX_WORKER_IDLE_MAX_MS=3000
-# export VERTEX_WORKER_REQUEST_BUDGET=550       # 1..590
+# export VERTEX_WORKER_REQUEST_BUDGET=550       # 1..580
 # export VERTEX_WORKER_QUIET_PAUSE_MS=65000     # at least 61000; 65000 or more with its own key
 # Web restarts pause the worker through this file (infra/quantvps/restart-when-idle.sh):
 # export VERTEX_WORKER_PAUSE_FILE="$HOME/.local/state/vertex-nautilus-worker.pause"

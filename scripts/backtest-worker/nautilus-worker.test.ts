@@ -252,7 +252,7 @@ describe("nautilus worker configuration", () => {
       ],
       [
         { VERTEX_WORKER_REQUEST_BUDGET: String(MAX_REQUEST_BUDGET + 1) },
-        "VERTEX_WORKER_REQUEST_BUDGET must be at most 590",
+        "VERTEX_WORKER_REQUEST_BUDGET must be at most 580",
       ],
       [
         { VERTEX_WORKER_QUIET_PAUSE_MS: String(MIN_QUIET_PAUSE_MS - 1) },
