@@ -115,7 +115,7 @@ const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
       title="Implied volatility"
     >
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <h4 className="text-muted-foreground text-xs">
             ATM IV term structure
           </h4>
@@ -172,7 +172,7 @@ const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
             </Table>
           </div>
         </div>
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <h4 className="text-muted-foreground text-xs">
             Skew (IV by delta; puts negative)
           </h4>
