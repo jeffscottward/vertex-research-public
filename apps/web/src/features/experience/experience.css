@@ -72,25 +72,8 @@
   }
 
   /* Sections are bordered cards (reference layout): one card per content block, clear separation. */
-  .vx-ex-section,
-  .vx-ex-utility-section {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
-    background: var(--card);
-    color: var(--card-foreground);
-    padding: var(--space-4) var(--space-5) var(--space-5);
-  }
 
   /* A grid or flex parent (such as a stack) already spaces its children with gap. */
-  :not(.grid, .flex) > .vx-ex-section + .vx-ex-section,
-  :not(.grid, .flex) > .vx-ex-utility-section + .vx-ex-utility-section {
-    margin-top: var(--space-6);
-  }
-
-  .vx-ex-section > :first-child,
-  .vx-ex-utility-section > :first-child {
-    margin-top: 0;
-  }
 
   @media (prefers-reduced-motion: reduce) {
     .vx-experience *,

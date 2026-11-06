@@ -216,7 +216,10 @@ export const TodayDecisionInbox = ({
     (currentPage + 1) * PAGE_SIZE
   );
   return (
-    <section className="vx-ex-section" aria-labelledby="decision-inbox-title">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-labelledby="decision-inbox-title"
+    >
       <ResearchTableHeading id="decision-inbox-title" title="Decision inbox">
         <p>
           Supplied approval requests, blocked or failed jobs, pending

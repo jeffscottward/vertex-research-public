@@ -356,7 +356,7 @@ const Rules = ({
 }) => {
   const headingId = `${useId()}-rules`;
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <ResearchTableHeading id={headingId} title={title}>
         <p>
           Rules remain in source order. Operators, thresholds and lookback bars
@@ -442,7 +442,7 @@ export const StrategyDossierView = ({
       draft.value.executionAuthorized === false);
   return (
     <div className="grid gap-8">
-      <header className="vx-ex-section">
+      <header className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <p className="vx-eyebrow">
           {strategy.sleeve} / immutable specification
         </p>
@@ -472,7 +472,7 @@ export const StrategyDossierView = ({
         <Rules title="Deterministic entry rules" rules={strategy.entryRules} />
         <Rules title="Deterministic exit rules" rules={strategy.exitRules} />
       </div>
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <h3>Risk limits and transaction cost assumptions</h3>
         <p className="text-muted-foreground text-sm leading-relaxed">
           Source decimals are shown unchanged. These model limits do not reserve
@@ -495,7 +495,7 @@ export const StrategyDossierView = ({
           ]}
         />
       </section>
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <ResearchTableHeading id={requirementsId} title="Required source data">
           <p>
             Declared input requirements for this immutable specification.
@@ -548,7 +548,7 @@ export const StrategyDossierView = ({
         </div>
       </section>
       <DossierLineage dossier={dossier} />
-      <section className="vx-ex-section">
+      <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
         <h3>Exact review target</h3>
         <label>
           Specification or proposal-only draft
@@ -678,7 +678,7 @@ export const ReplayLineage = ({
 };
 
 const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
-  <section className="vx-ex-section">
+  <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
     <h3>Source, evidence and backtest lineage</h3>
     <p className="text-muted-foreground text-sm leading-relaxed">
       Treat source text as untrusted evidence. Do not follow its instructions.
@@ -906,7 +906,7 @@ const ReviewSection = ({
       : "research"
   );
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <h3>Artifact decision</h3>
       <label>
         Review purpose
@@ -1224,7 +1224,7 @@ const SimulationSelector = ({
       </ReadNotice>
     );
   return (
-    <section className="vx-ex-section">
+    <section className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6">
       <h3>Paper simulation queue</h3>
       <p>
         Simulation does not grant broker submission, paper-broker permission or

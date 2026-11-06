@@ -51,7 +51,7 @@ export const PortfolioContinuity = ({
   readonly continuity: ProjectionContinuity;
 }) => (
   <section
-    className="vx-ex-section"
+    className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
     id="continuity"
     aria-label="Projection continuity"
   >
@@ -334,7 +334,10 @@ export const PortfolioObservation = ({
   readonly snapshot: PortfolioSnapshot;
 }) => (
   <div className="grid gap-8">
-    <section className="vx-ex-section" aria-label="Portfolio source">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-label="Portfolio source"
+    >
       <h2>Source observation</h2>
       <p className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
         {snapshot.environment}
@@ -395,7 +398,10 @@ export const PortfolioObservation = ({
       </p>
     </section>
     <PortfolioContinuity continuity={snapshot.continuity} />
-    <section className="vx-ex-section" aria-label="Observed cash and NAV">
+    <section
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
+      aria-label="Observed cash and NAV"
+    >
       <h2>
         {snapshot.environment === "live"
           ? "Observed cash and live NAV"

@@ -112,7 +112,7 @@ export const GatewayObservation = ({
 
 const HumanConnectionSteps = () => (
   <section
-    className="vx-boundary vx-ex-utility-section"
+    className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
     aria-labelledby="connection-human-steps"
   >
     <p className="vx-eyebrow">Required human actions</p>
@@ -694,7 +694,7 @@ export const AuditLedger = ({
   }
   return (
     <section
-      className="vx-ex-utility-section"
+      className="rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="audit-ledger-heading"
     >
       <ResearchTableHeading
@@ -1033,7 +1033,7 @@ export const AuditWorkspace = () => (
 export const SettingsWorkspaceContent = () => (
   <>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-account-heading"
     >
       <h2 id="settings-account-heading">Account settings</h2>
@@ -1051,7 +1051,7 @@ export const SettingsWorkspaceContent = () => (
       </p>
     </section>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-privacy-heading"
     >
       <h2 id="settings-privacy-heading">Session privacy and temporary data</h2>
@@ -1074,7 +1074,7 @@ export const SettingsWorkspaceContent = () => (
       </p>
     </section>
     <section
-      className="vx-boundary vx-ex-utility-section"
+      className="vx-boundary rounded-xl border border-border bg-card px-5 pt-4 pb-5 text-card-foreground [&>:first-child]:mt-0 [:not(.grid,.flex)>&+&]:mt-6"
       aria-labelledby="settings-utilities-heading"
     >
       <h2 id="settings-utilities-heading">Workspace utilities</h2>
