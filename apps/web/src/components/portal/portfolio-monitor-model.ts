@@ -473,7 +473,8 @@ export type HoldingBadge = Readonly<{
   tone: "long" | "short" | "flat";
 }>;
 
-// Compact Type badge: shares "STK +L" / "STK -S", options "+C" / "-P"; the full words stay in label.
+// Compact Type badge in owner shorthand (2026-11-04): shares "STK (L)" / "STK (S)",
+// options "C (L)" / "P (S)"; flat positions drop the side tag; full words stay in label.
 export const holdingBadge = (
   position: PortfolioMonitorPosition
 ): HoldingBadge => {
@@ -481,11 +482,10 @@ export const holdingBadge = (
   const tone = qtyValue > 0 ? "long" : qtyValue < 0 ? "short" : "flat";
   const sideWord =
     tone === "long" ? "Long" : tone === "short" ? "Short" : "Flat";
-  const sign = tone === "long" ? "+" : tone === "short" ? "-" : "";
+  const tag = tone === "long" ? " (L)" : tone === "short" ? " (S)" : "";
   const kind = holdingKind(position.secType);
   const full = holdingLabel(position);
   if (kind === "Shares") {
-    const tag = tone === "long" ? " +L" : tone === "short" ? " -S" : "";
     return { text: `STK${tag}`, label: `${sideWord} shares`, tone };
   }
   const match = TRAILING_RIGHT.exec(positionName(position));
@@ -493,10 +493,10 @@ export const holdingBadge = (
   if (kind === "Contract" && right !== undefined) {
     const rightWord = right === "C" ? "Call" : "Put";
     const word = full.startsWith(rightWord) ? full : rightWord;
-    return { text: `${sign}${right}`, label: `${sideWord} ${word}`, tone };
+    return { text: `${right}${tag}`, label: `${sideWord} ${word}`, tone };
   }
   const code = position.secType.trim().toUpperCase() || DASH;
-  return { text: `${sign}${code}`, label: `${sideWord} ${full}`, tone };
+  return { text: `${code}${tag}`, label: `${sideWord} ${full}`, tone };
 };
 
 const sortValue = (
