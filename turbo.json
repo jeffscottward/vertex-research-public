@@ -34,7 +34,8 @@
     "test:unit": {
       "cache": false,
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "passThroughEnv": ["VERTEX_TEST_PYTHON"]
     },
     "test:integration": {
       "cache": false,
