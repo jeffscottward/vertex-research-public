@@ -249,6 +249,25 @@ describe("user functions", () => {
     expect(band?.[0]).toBe(10.5);
   });
 
+  it("runs parameter defaults that use named constants", () => {
+    const source = [
+      "f(x, m = math.pi) => x * m",
+      "g(x, m = -math.pi) => x * m",
+      "h(x, c = color.red) => x",
+      "plot(f(close))",
+      "plot(f(close, 2))",
+      "plot(g(close))",
+      "plot(h(close))",
+      "plot(h(close, color.blue))",
+    ].join("\n");
+    const [pi, two, minus, plain, blue] = series(source);
+    expect(pi?.[0]).toBeCloseTo(10 * Math.PI);
+    expect(two?.[0]).toBe(20);
+    expect(minus?.[0]).toBeCloseTo(-10 * Math.PI);
+    expect(plain?.[0]).toBe(10);
+    expect(blue?.[0]).toBe(10);
+  });
+
   it("returns tuples from functions", () => {
     const source =
       "pair(x) =>\n    [x, x * 2]\n[a, b] = pair(close)\nplot(a + b)";
