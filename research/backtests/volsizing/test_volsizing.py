@@ -14,11 +14,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import volsizing as vs  # noqa: E402
 
 
-def test_black_scholes_put_call_parity_and_delta_strikes():
+def test_black_scholes_value_and_delta_strikes():
     s, k, t, sig = 100.0, 105.0, 0.5, 0.2
     call = vs.bs_call(s, k, t, sig)
-    put_from_parity = call - s + k * math.exp(-vs.RISK_FREE * t)
-    assert put_from_parity > 0
+    assert vs.bs_call(s, k + 5, t, sig) < call < vs.bs_call(s, k - 5, t, sig)
+    assert vs.bs_call(s, k, 0.0, sig) == 0.0 and vs.bs_call(110.0, k, 0.0, sig) == 5.0
     assert math.isclose(call, 4.377, abs_tol=0.005)  # hand-computed: d1 = -0.1329, d2 = -0.2743
     k60 = vs.strike_for_delta(500.0, 0.60, 120 / 365, 0.18)
     k30 = vs.strike_for_delta(500.0, 0.30, 120 / 365, 0.18)
@@ -84,3 +84,54 @@ def test_ewma_and_carver_vol_on_constant_returns():
     assert math.isclose(fast[-1], 0.01 * math.sqrt(252), rel_tol=1e-6)
     blend = vs.carver_vol(rets)
     assert math.isclose(blend[-1], fast[-1], rel_tol=1e-3)
+
+
+def _market(days: int = 260, vol_after=None, entries=None) -> vs.Market:
+    """Synthetic 7-symbol market: SPY drifts up 0.05%/day, the others are flat at 50."""
+    from datetime import timedelta
+
+    calendar, d = [], date(2010, 1, 4)
+    while len(calendar) < days:
+        if d.weekday() < 5:
+            calendar.append(d)
+        d += timedelta(days=1)
+    close = {s: [50.0] * days for s in vs.UNIVERSE}
+    close["SPY"] = [400.0 * 1.0005 ** i for i in range(days)]
+    flat = {s: [0.2] * days for s in vs.UNIVERSE}
+    vol = {s: list(v) for s, v in flat.items()}
+    if vol_after is not None:
+        at, value = vol_after
+        vol["SPY"] = [0.2 if i < at else value for i in range(days)]
+    ent = {s: {} for s in vs.UNIVERSE}
+    for day_index, exit_index in (entries or [(5, 200)]):
+        ent["SPY"][calendar[day_index]] = (close["SPY"][day_index], calendar[exit_index],
+                                           close["SPY"][exit_index])
+    return vs.Market(tuple(calendar), close, flat, flat, flat, vol, flat, flat, ent, 1.4)
+
+
+def test_simulate_entry_roll_exit_and_cash():
+    m = _market()
+    curve, st = vs.simulate(m, "current")
+    assert len(curve) == len(m.calendar)
+    assert st.entries == 1 and st.skipped == 0
+    assert st.rolls == 2  # 195 sessions = ~273 calendar days: rolls at ~90 and ~180 days
+    assert len(st.implied_tau) == 1  # recorded on the signal entry only, not on the roll
+    assert curve[-1] > vs.CAPITAL  # SPY rose ~10% while long the call spread
+    assert st.risk_pct[0] <= vs.CURRENT_RISK + 1e-9
+    flat_after = curve[201:]
+    assert max(flat_after) - min(flat_after) < 1e-6  # no position after the exit: cash only
+
+
+def test_simulate_gate_holds_at_entry_roll_and_adds():
+    m = _market()
+    for variant in ("vt", "vt-buffer"):
+        _, st = vs.simulate(m, variant, tau=50.0)  # absurd target: the gate must bind
+        assert st.gate_bound == 1 and st.roll_gate_bound == 2
+        assert all(r <= vs.MAX_LOSS_GATE + 1e-9 for r in st.risk_pct)
+
+
+def test_zero_size_resize_frees_the_symbol():
+    m = _market(vol_after=(10, 500.0), entries=[(5, 40), (60, 200)])
+    _, st = vs.simulate(m, "vt-buffer", tau=0.16)
+    assert st.resizes >= 1  # the vol spike cut the target to zero and closed the spread
+    assert st.entries == 2  # the second signal was not blocked by an empty position

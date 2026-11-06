@@ -13,9 +13,12 @@ code. Card `vertex-volsizing-research`; the note is `~/Documents/reports/web/ver
 - `results.json`: derived statistics only (dummy $1,000,000 account, public Yahoo bars that are not
   in the repository).
 - `render_note.py`: writes the dark HTML note with the chart from `results.json`.
-- `test_volsizing.py`: unit tests (option math, gate, sizing, buffer, IDM, vol estimators).
+- `test_volsizing.py`: unit tests (option math, gate, sizing, buffer, IDM, vol estimators) and
+  synthetic-market tests of `simulate()` (entry, rolls, exit, cash, gate at entry/roll/add).
 
 ```sh
+uv run --no-project --python 3.12 --with yfinance==0.2.66 \
+  python research/backtests/volsizing/fetch_ivx.py --out ~/Documents/reports/vertex-core7/data
 <nautilus-venv>/bin/python research/backtests/volsizing/volsizing.py \
   --data ~/Documents/reports/vertex-core7/data --out research/backtests/volsizing/results.json
 npx biome format --write research/backtests/volsizing/results.json
@@ -24,7 +27,14 @@ python3 research/backtests/volsizing/render_note.py research/backtests/volsizing
 <nautilus-venv>/bin/python -m pytest research/backtests/volsizing/test_volsizing.py -q
 ```
 
-Finding: with fixed-delta strikes the current fixed-risk rule is already vol-parity sizing (every
-entry implies a vol target of about 4% with a coefficient of variation near 0.11), so vol
-targeting changes Sharpe only within noise; buffered resizing adds cost. Recommendation: not
-worth building as a hot-swap tool.
+Finding: with fixed-delta strikes the current fixed-risk rule already sizes close to vol parity
+(every signal entry implies a vol target of about 4%, coefficient of variation 0.11 with the vol
+proxy and 0.16 with the Cboe implied-vol indices), so vol targeting changes Sharpe only within
+noise (paired block-bootstrap CIs) and buffered resizing adds orders for no clear gain.
+Recommendation: not worth building as a hot-swap tool. The finding depends on fixed-delta strikes
+and on option prices that track implied vol; with a stale 252-day vol in the prices, or
+fixed-width strikes, the current rule would drift further from vol parity.
+
+`fetch_ivx.py` fetches the Cboe implied-vol indices (VIX, VXN, VXD, GVZ, OVX) for the robustness
+run into `<data>/ivx/` (not in the repository); IWM and SLV have no Yahoo history and keep the
+proxy.

@@ -72,39 +72,47 @@ def chart(strategies) -> str:
             f'</div><p class="legend">{legend}</p>')
 
 
+def ci(c) -> str:
+    return "–" if not c else f"{c['p05']:+.2f} to {c['p95']:+.2f}"
+
+
 def results_table(strategies) -> str:
     head = ("<tr><th>Strategy</th><th>Sizing</th><th>τ</th><th>CAGR</th><th>Sharpe</th>"
-            "<th>Vol</th><th>Max DD</th><th>Worst month</th><th>Contracts/trade (mean / max)</th>"
-            "<th>Max loss/trade (mean / max)</th><th>Gate bound</th><th>Resizes</th>"
-            "<th>Costs (% start cap.)</th><th>Sharpe / CAGR, IV = 252d RV</th></tr>")
+            "<th>ΔSharpe vs current, 90% CI</th><th>Vol</th><th>Max DD</th><th>Worst month</th>"
+            "<th>Contracts/trade (mean / max)</th><th>Max loss/trade (mean / max)</th>"
+            "<th>Gate bound: entries / rolls</th><th>Resizes</th><th>Costs (% start cap.)</th>"
+            "<th>Sharpe (ΔCI), IV = 252d RV</th><th>Sharpe (ΔCI), IV = Cboe index</th></tr>")
     rows = []
     for s in strategies:
         for v in s["variants"]:
-            rb = v["robustRv252"]
+            rb, rx = v["robustRv252"], v["robustIvIndex"]
             rows.append(
                 f'<tr><td>{html.escape(s["id"])}</td><td style="color:{COLORS[v["id"]]}">'
                 f'{html.escape(v["label"])}</td><td>{pct(v["tau"], 1)}</td><td>{pct(v["cagr"])}</td>'
-                f'<td>{num(v["sharpe"])}</td><td>{pct(v["vol"], 1)}</td>'
-                f'<td>{pct(v["maxDrawdown"], 1)}</td>'
+                f'<td>{num(v["sharpe"])}</td><td>{ci(v["sharpeDiffCi"])}</td>'
+                f'<td>{pct(v["vol"], 1)}</td><td>{pct(v["maxDrawdown"], 1)}</td>'
                 f'<td>{pct(v["worstMonth"])} ({v["worstMonthAt"]})</td>'
                 f'<td>{num(v["contractsMean"], 1)} / {v["contractsMax"]}</td>'
                 f'<td>{pct(v["riskPctMean"])} / {pct(v["riskPctMax"])}</td>'
-                f'<td>{v["gateBound"]} of {v["entries"]}</td><td>{v["resizes"]}</td>'
-                f'<td>{pct(v["costsPctCapital"], 1)}</td>'
-                f'<td>{num(rb["sharpe"])} / {pct(rb["cagr"])}</td></tr>')
+                f'<td>{v["gateBound"]} of {v["entries"]} / {v["rollGateBound"]} of {v["rolls"]}</td>'
+                f'<td>{v["resizes"]}</td><td>{pct(v["costsPctCapital"], 1)}</td>'
+                f'<td>{num(rb["sharpe"])} ({ci(rb.get("sharpeDiffCi"))})</td>'
+                f'<td>{num(rx["sharpe"])} ({ci(rx.get("sharpeDiffCi"))})</td></tr>')
     return f'<div class="wrap"><table>{head}{"".join(rows)}</table></div>'
 
 
 def implied_table(strategies, universe) -> str:
     head = "<tr><th>Strategy</th>" + "".join(f"<th>{u}</th>" for u in universe) + \
-        "<th>All entries: mean</th><th>CV</th></tr>"
+        "<th>All entries: mean</th><th>CV</th><th>CV, IV = 252d RV</th><th>CV, IV = Cboe index</th></tr>"
     rows = []
     for s in strategies:
         cur = next(v for v in s["variants"] if v["id"] == "current")
         by = cur["impliedTauBySymbol"]
         rows.append(f'<tr><td>{s["id"]}</td>' + "".join(
             f"<td>{pct(by.get(u), 2)}</td>" for u in universe) +
-            f'<td>{pct(cur["impliedTauMean"], 2)}</td><td>{num(cur["impliedTauCv"], 2)}</td></tr>')
+            f'<td>{pct(cur["impliedTauMean"], 2)}</td><td>{num(cur["impliedTauCv"], 2)}</td>'
+            f'<td>{num(cur["robustRv252"]["impliedTauCv"], 2)}</td>'
+            f'<td>{num(cur["robustIvIndex"]["impliedTauCv"], 2)}</td></tr>')
     return f'<div class="wrap"><table>{head}{"".join(rows)}</table></div>'
 
 
@@ -114,18 +122,30 @@ def main(src: str, dest: str) -> int:
     by = {s["id"]: {v["id"]: v for v in s["variants"]} for s in strategies}
 
     def d_sharpe(sid, key):
-        return by[sid][key]["sharpe"] - by[sid]["current"]["sharpe"]
+        v = by[sid][key]
+        c = v["sharpeDiffCi"]
+        return f"{sid} {v['sharpe'] - by[sid]['current']['sharpe']:+.2f} (90% CI {c['p05']:+.2f} to {c['p95']:+.2f})"
 
-    vt16_bound = ", ".join(
-        f'{sid} {by[sid]["vt-16"]["gateBound"] / by[sid]["vt-16"]["entries"]:.0%}'
-        for sid in by)
-    matched = ", ".join(f"{sid} {d_sharpe(sid, 'vt-matched'):+.2f}" for sid in by)
-    buffered = ", ".join(f"{sid} {d_sharpe(sid, 'vt-buffer'):+.2f}" for sid in by)
-    brake = ", ".join(f"{sid} {d_sharpe(sid, 'brake'):+.2f}" for sid in by)
-    tau_mean = sum(next(v for v in s["variants"] if v["id"] == "current")["impliedTauMean"]
-                   for s in strategies) / len(strategies)
-    tau_cv = max(next(v for v in s["variants"] if v["id"] == "current")["impliedTauCv"]
-                 for s in strategies)
+    def bound(sid):
+        v = by[sid]["vt-16"]
+        return f"{sid} {v['gateBound'] / v['entries']:.0%}"
+
+    vt16_bound = ", ".join(bound(sid) for sid in by)
+    matched = "; ".join(d_sharpe(sid, "vt-matched") for sid in by)
+    buffered = "; ".join(d_sharpe(sid, "vt-buffer") for sid in by)
+    brake = "; ".join(d_sharpe(sid, "brake") for sid in by)
+    currents = [next(v for v in s["variants"] if v["id"] == "current") for s in strategies]
+    tau_mean = sum(c["impliedTauMean"] for c in currents) / len(currents)
+    tau_cv = max(c["impliedTauCv"] for c in currents)
+    tau_cv_ix = max(c["robustIvIndex"]["impliedTauCv"] for c in currents)
+    tau_cv_rv = max(c["robustRv252"]["impliedTauCv"] for c in currents)
+    cov = r["ivxCoverage"]
+    off_zero = [f"{sid} {key}" for sid in by for key in ("vt-matched", "vt-buffer", "brake")
+                if by[sid][key]["sharpeDiffCi"]["p05"] > 0 or by[sid][key]["sharpeDiffCi"]["p95"] < 0]
+    zero_text = ("Every one of these 9 intervals includes zero." if not off_zero else
+                 f"{9 - len(off_zero)} of these 9 intervals include zero; the exception{'s' if len(off_zero) > 1 else ''}: "
+                 f"{', '.join(off_zero)}.")
+    covered = ", ".join(f"{k} {v:.0%}" for k, v in cov.items())
     universe = r["universe"]
     twins = ", ".join(f"{u} ({r['futureOf'][u]})" for u in universe)
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -148,15 +168,17 @@ below is described in our own words from Carver's books and the pysystemtrade do
 Yahoo daily bars (derived statistics only), dummy $1,000,000 account.</p>
 
 <div class="box"><b>Recommendation: not worth building vol-target sizing as a hot-swap tool.</b>
-Vertex's current rule (fixed % of NLV max loss on a fixed-delta debit spread) is already
-vol-parity sizing: the debit of a 0.60/0.30-delta spread grows with implied vol, so a fixed loss
-budget buys fewer contracts when vol is high. Every entry's fixed-risk size implies a vol target
-of {pct(tau_mean, 1)} with at most {num(tau_cv, 2)} coefficient of variation across entries and
-instruments. Risk-matched vol targeting changed Sharpe by {matched}; adding Carver's weekly
-buffered resize cost Sharpe ({buffered}); a shrink-only vol brake was mixed ({brake}). Carver's
-default 16% vol target is far above the owner gate: the 2% max-loss cap bound on
-{vt16_bound} of entries. If anything from this method is worth taking, it is the portfolio layer
-(correlation-aware total risk, the IDM idea), not per-trade sizing.</div>
+Vertex's current rule (fixed % of NLV max loss on a fixed-delta debit spread) already sizes close
+to vol parity: the debit of a 0.60/0.30-delta spread grows with implied vol, so a fixed loss budget
+buys fewer contracts when vol is high. Each signal entry's fixed-risk size implies a vol target of
+about {pct(tau_mean, 1)}; its coefficient of variation across entries and instruments is at most
+{num(tau_cv, 2)} with the main vol proxy and {num(tau_cv_ix, 2)} when the spreads are priced off the
+public Cboe implied-vol indices (it widens to {num(tau_cv_rv, 2)} only when prices use a stale
+252-day realized vol). At equal realized risk, vol targeting changed Sharpe by: {matched}. Carver's
+weekly buffered resize: {buffered}. A shrink-only vol brake: {brake}. {zero_text} Carver's default 16% vol target is far above the
+owner gate: the 2% max-loss cap bound on {vt16_bound} of signal entries. If anything from this
+method is worth taking, it is the portfolio layer (correlation-aware total risk, the IDM idea),
+not per-trade sizing.</div>
 
 <h2>1. Carver's method (own words)</h2>
 <ul>
@@ -220,25 +242,34 @@ account per strategy across all 7.</li>
 <li><b>Options model:</b> Black-Scholes, r = 4%, no dividends; implied vol proxy 1.1 × EWMA(20)
 realized vol (floor 8%); roll to a new 120 DTE spread at 30 DTE; close when the signal exits.
 Costs: IBKR Pro $0.65/contract/leg ($1 minimum), OCC+CAT $0.0253/contract/leg, half spread
-max($0.01, 0.5% of leg premium) per leg each way. Robustness column re-prices with the proposal
-model's 252-day realized vol.</li>
+max($0.01, 0.5% of leg premium) per leg each way. Two robustness runs re-price every spread: with
+the proposal model's 252-day realized vol, and with the public Cboe implied-vol index of each twin
+(VIX, VXN, VXD, GVZ, OVX; Yahoo has no RVX or VXSLV history, so IWM and SLV keep the proxy;
+coverage of the window: {covered}).</li>
+<li><b>Timing:</b> signal entries and exits fill at the Nautilus fill price (bar open, or the
+stop/target level) and are priced and sized with the previous session's vol and account value;
+rolls, buffered resizes and marks use the session close.</li>
 <li><b>Vol target inputs:</b> equal weights 1/7, IDM {num(r["idm"], 2)} from weekly correlations of
-the 7 twins (in-sample), forecast 10 when long. "Risk-matched" τ is solved so the strategy's
-realized portfolio vol equals the current rule's, so CAGR and drawdown compare like for like.</li>
+the 7 twins (in-sample; τ × IDM is what matters, and the risk-matched rows solve τ, so only the 16%
+row is inflated by it), forecast 10 when long. "Risk-matched" τ is solved so the strategy's
+realized portfolio vol equals the current rule's, so CAGR and drawdown compare like for like.
+The buffered resize sizes each held spread at its entry delta (one spread = the exposure it was
+bought as), checked every 5 sessions.</li>
 </ul>
 {chart(strategies)}
 <p class="note">Account value / starting capital, month ends, log scale.</p>
 {results_table(strategies)}
-<p class="note">Max loss/trade = contracts × (debit + charges) ÷ NLV at entry. Gate bound = entries
-where the 2% gate cut the vol-target size. Costs are cumulative option charges over the window as a
+<p class="note">Max loss/trade = contracts × (debit + charges) ÷ NLV at a signal entry. Gate bound =
+signal entries / rolls where the 2% gate cut the size. ΔSharpe CI: paired moving-block bootstrap
+(21-session blocks, 1,000 draws) of the daily returns against the current rule. Costs are cumulative option charges over the window as a
 share of starting capital. Contracts are for the dummy $1M account (SLV and USO carry the largest
 counts because of their low prices).</p>
 
 <h2>4. Risks and limits</h2>
 <ul>
 <li>No historical option chains: implied vol is a realized-vol proxy with no skew, term structure
-or event premia, and fills are modeled, not quoted. Real debits in a selloff rise faster than the
-proxy, which makes the current rule shrink even more (favoring the current rule).</li>
+or event premia in the main run, and fills are modeled, not quoted. The Cboe-index run checks the
+main claim with real implied-vol levels (no skew); it held.</li>
 <li>The finding depends on fixed-delta strikes. A fixed-width or fixed-moneyness spread would not
 be vol-parity by construction, and then vol targeting would matter.</li>
 <li>Binary library signals carry no forecast strength, so Carver's forecast scaling (the part of
@@ -254,8 +285,9 @@ neither.</li>
 <h2>5. Recommendation and effort</h2>
 <ul>
 <li><b>Vol-target sizing as a hot-swap tool: not worth it now.</b> It reproduces what the current
-rule already does for fixed-delta debit spreads; the measured Sharpe difference is within noise,
-and buffered resizing adds cost. Estimated effort if built anyway: 4–6 days (TS sizing policy in
+rule already does for fixed-delta debit spreads; the measured Sharpe differences are within noise
+(one is significantly worse), and buffered resizing adds hundreds of extra combo orders for no
+clear gain. Estimated effort if built anyway: 4–6 days (TS sizing policy in
 proposals and the backtest overlay, vol estimators, IDM estimation, buffered resize state, UI
 switch, docs, Nautilus parity tests).</li>
 <li><b>Cheaper option, only if wanted:</b> the shrink-only vol brake as a pure function in the
