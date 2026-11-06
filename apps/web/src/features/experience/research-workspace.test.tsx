@@ -16,6 +16,8 @@ import { ResearchWorkspace } from "./research.tsx";
 // Owner rule (2026-10-30): Research opens on the first granted scope, and no
 // exact-ID lookup (job collection, evidence, dataset chart) remains.
 
+// The stand-in renders the chat view's create-room form (id research-new-room) only for the
+// "with-form" and "locked" threads, so the default render keeps no input at all.
 vi.mock("./research-chat-room.tsx", () => ({
   ResearchChatRoom: ({
     scope,
@@ -24,9 +26,17 @@ vi.mock("./research-chat-room.tsx", () => ({
     readonly scope: ExperienceScope;
     readonly initialThreadId?: string | null;
   }) => (
-    <p data-testid="chat-room" data-thread={initialThreadId ?? "none"}>
-      chat for {scope.accountAlias} / {scope.environment}
-    </p>
+    <>
+      <p data-testid="chat-room" data-thread={initialThreadId ?? "none"}>
+        chat for {scope.accountAlias} / {scope.environment}
+      </p>
+      {initialThreadId === "with-form" || initialThreadId === "locked" ? (
+        <details id="research-new-room">
+          <summary>Create a research room</summary>
+          <input disabled={initialThreadId === "locked"} name="title" />
+        </details>
+      ) : null}
+    </>
   ),
 }));
 
@@ -76,6 +86,14 @@ const mount = async (
   return container;
 };
 
+const scopeStatus = (container: HTMLElement) =>
+  container.querySelector("[data-research-scope-status]")?.textContent;
+// A well-known node: the page header always renders the New room action.
+const newRoom = (container: HTMLElement) =>
+  container.querySelector(
+    "[data-action='new-research-room']"
+  ) as HTMLButtonElement;
+
 describe("ResearchWorkspace", () => {
   it("opens the chat room on the first granted scope with no ID fields", async () => {
     const container = await mount(() => Promise.resolve([research]));
@@ -98,6 +116,58 @@ describe("ResearchWorkspace", () => {
     expect(
       container.querySelector('a[href="/knowledge"]')?.textContent
     ).toContain("Open the knowledge chat");
+  });
+
+  it("shows one Research h1 with the scope chip, a purpose line and New room", async () => {
+    const container = await mount(() => Promise.resolve([research]));
+    await vi.waitFor(() =>
+      expect(scopeStatus(container)).toBe("Status:Research only")
+    );
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(container.querySelector("h1")?.textContent).toBe("Research");
+    expect(container.querySelector("header p")?.textContent).toBe(
+      "Discuss evidence with corpus-based research agents. Research only: nothing here authorizes a trade."
+    );
+    expect(newRoom(container).disabled).toBe(false);
+    expect(newRoom(container).textContent).toBe("New room");
+    // No create-room form is mounted in this stand-in: New room does nothing.
+    await act(async () => newRoom(container).click());
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("New room opens the create-room form and focuses its title", async () => {
+    const container = await mount(
+      () => Promise.resolve([research]),
+      "with-form"
+    );
+    await vi.waitFor(() =>
+      expect(container.querySelector("#research-new-room")).not.toBeNull()
+    );
+    const form = container.querySelector(
+      "#research-new-room"
+    ) as HTMLDetailsElement;
+    expect(form.open).toBe(false);
+    await act(async () => newRoom(container).click());
+    expect(form.open).toBe(true);
+    expect(document.activeElement).toBe(form.querySelector("input"));
+  });
+
+  it("New room focuses the form summary while the title field is locked", async () => {
+    const container = await mount(() => Promise.resolve([research]), "locked");
+    await vi.waitFor(() =>
+      expect(container.querySelector("#research-new-room")).not.toBeNull()
+    );
+    await act(async () => newRoom(container).click());
+    expect(document.activeElement?.textContent).toBe("Create a research room");
+  });
+
+  it("labels a live scope read only", async () => {
+    const container = await mount(() =>
+      Promise.resolve([{ accountAlias: "fictional-live", environment: "live" }])
+    );
+    await vi.waitFor(() =>
+      expect(scopeStatus(container)).toBe("Status:Live scope · read only")
+    );
   });
 
   it("opens the given initial thread instead of waiting for a pick", async () => {
@@ -133,6 +203,7 @@ describe("ResearchWorkspace", () => {
         "chat for fictional-paper / paper"
       )
     );
+    expect(scopeStatus(container)).toBe("Status:Paper scope");
   });
 
   it("prefers a research scope even when a paper scope is listed first", async () => {
@@ -152,5 +223,7 @@ describe("ResearchWorkspace", () => {
     const container = await mount(() => Promise.resolve([]));
     expect(container.textContent).toContain("No account scopes yet");
     expect(container.querySelector('[data-testid="chat-room"]')).toBeNull();
+    expect(scopeStatus(container)).toBe("Status:No scope yet");
+    expect(newRoom(container).disabled).toBe(true);
   });
 });

@@ -699,6 +699,9 @@ export const ResearchConversationPanel = ({
       <Button
         type="button"
         data-action="approve-response"
+        // The label runs to ~70 characters: let it wrap inside the column instead of
+        // widening the page at 375 px (the chrome is nowrap and h-9 by default).
+        className="max-w-full [&>[data-slot=button-chrome]]:h-auto [&>[data-slot=button-chrome]]:min-h-9 [&>[data-slot=button-chrome]]:min-w-0 [&>[data-slot=button-chrome]]:whitespace-normal [&>[data-slot=button-chrome]]:py-2 [&>[data-slot=button-chrome]]:text-left"
         disabled={!canApprove}
         onClick={() => {
           if (canApprove) return controls.onApprove();
@@ -1369,7 +1372,12 @@ export const ResearchChatView = (props: ResearchChatViewProps) => {
             </ul>
           </nav>
           {threads.length === 0 ? <p>No rooms loaded.</p> : null}
-          <details className="vx-chat-create" open={threads.length === 0}>
+          {/* id: the Research page's New room action opens this form (research.tsx). */}
+          <details
+            className="vx-chat-create"
+            id="research-new-room"
+            open={threads.length === 0}
+          >
             <summary>Create a research room</summary>
             <form onSubmit={createThread} aria-label="Create research room">
               <label>
