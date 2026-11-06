@@ -11,6 +11,11 @@ import {
 import {
   Button,
   Input,
+  KpiCard,
+  KpiRow,
+  PageHeader,
+  Panel,
+  StatusBadge,
   Table,
   TableBody,
   TableCaption,
@@ -18,10 +23,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableScroll,
 } from "@darkfactory/ui";
-import { ExternalLink, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ExternalLink,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { TickerLink } from "../ticker-link.tsx";
+
+import { withQuery, writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
@@ -38,6 +54,27 @@ const HEAT_SCALE: Readonly<Record<RotationPeriod, number>> = {
   "3M": 20,
   "6M": 30,
 };
+
+const DEFAULT_PERIOD: RotationPeriod = "1M";
+// Defaults removed from the URL so the default view keeps a clean address.
+const URL_DEFAULTS = { period: DEFAULT_PERIOD } as const;
+
+export type RotationMatrixSettings = Readonly<{ period: RotationPeriod }>;
+
+type ParamValue = string | readonly string[] | undefined;
+
+/** Reads `?period=`; anything unknown falls back to the default (1M). */
+export const parseRotationMatrixParams = (
+  params: Readonly<Record<string, ParamValue>>
+): RotationMatrixSettings => ({
+  period:
+    ROTATION_PERIODS.find((key) => key === params["period"]) ?? DEFAULT_PERIOD,
+});
+
+/** The query string for the settings, without the default ("" for 1M). */
+export const rotationMatrixSearch = (
+  settings: RotationMatrixSettings
+): string => withQuery("", { period: settings.period }, URL_DEFAULTS);
 
 /** Green for gains, red for losses; opacity grows with the size of the move. */
 export const heatColor = (
@@ -72,9 +109,6 @@ type LoadState =
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; matrix: RotationMatrixOutput }>;
 
-const finvizQuote = (symbol: string) =>
-  `https://finviz.com/quote.ashx?t=${encodeURIComponent(symbol)}`;
-
 const CellDetail = ({
   selection,
   period,
@@ -97,18 +131,16 @@ const CellDetail = ({
       ? ""
       : ` Industry rank ${industry.rank} (quintile ${industry.quintile}).`;
   return (
-    <section
-      aria-label="Selected cell"
-      className="space-y-2 rounded-md border border-border p-3"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-medium text-sm">
-          {industry.industry} · {cap === "all" ? "All caps" : cap} · {period}
-        </h3>
+    <Panel
+      actions={
         <Button onClick={onClose} size="sm" variant="secondary">
           Close
         </Button>
-      </div>
+      }
+      aria-label="Selected cell"
+      contentClassName="space-y-2"
+      title={`${industry.industry} · ${cap === "all" ? "All caps" : cap} · ${period}`}
+    >
       <p className="text-muted-foreground text-sm">
         {industry.sector}. Median {formatReturn(stats.retMedian)}, cap-weighted{" "}
         {formatReturn(stats.retCapWeighted)}, {stats.breadth ?? "–"}% of{" "}
@@ -121,22 +153,14 @@ const CellDetail = ({
             key={entry.symbol}
             style={{ background: heatColor(entry.ret, period) }}
           >
-            <a
-              className="font-mono font-semibold underline-offset-2 hover:underline"
-              href={finvizQuote(entry.symbol)}
-              rel="noreferrer noopener"
-              target="_blank"
-            >
-              {entry.symbol}
-            </a>{" "}
-            {formatReturn(entry.ret)}{" "}
+            <TickerLink symbol={entry.symbol} /> {formatReturn(entry.ret)}{" "}
             <span className="text-muted-foreground">
               {formatCap(entry.marketCap)}
             </span>
           </li>
         ))}
       </ul>
-    </section>
+    </Panel>
   );
 };
 
@@ -175,7 +199,12 @@ const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
         ) : (
           <>
             Leaders in leading industries (1M and 3M top quintile):{" "}
-            <b>{opportunities.map((name) => name.symbol).join(", ")}</b>
+            {opportunities.map((name, index) => (
+              <span key={name.symbol}>
+                {index === 0 ? "" : ", "}
+                <TickerLink symbol={name.symbol} />
+              </span>
+            ))}
           </>
         )}
       </p>
@@ -183,51 +212,57 @@ const OurNames = ({ matrix }: { readonly matrix: RotationMatrixOutput }) => {
         <summary className="cursor-pointer text-sm">
           {covered.length} tracked names by cell
         </summary>
-        <Table className="mt-2 w-full text-xs">
-          <TableCaption className="sr-only">
-            Our names by rotation cell
-          </TableCaption>
-          <TableHeader>
-            <TableRow className="border-border border-b text-left text-muted-foreground">
-              <TableHead className="text-muted-foreground" scope="col">
-                Symbol
-              </TableHead>
-              <TableHead className="text-muted-foreground" scope="col">
-                Role
-              </TableHead>
-              <TableHead className="text-muted-foreground" scope="col">
-                Industry
-              </TableHead>
-              <TableHead className="text-muted-foreground" scope="col">
-                1M
-              </TableHead>
-              <TableHead className="text-muted-foreground" scope="col">
-                3M
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {covered.map((name) => (
-              <TableRow className="border-border border-b" key={name.symbol}>
-                <TableHead className="whitespace-normal font-mono" scope="row">
-                  {name.symbol}
+        <TableScroll
+          className="mt-2"
+          label="Our names by rotation cell"
+          minWidth="24rem"
+        >
+          <Table className="w-full text-xs">
+            <TableCaption className="sr-only">
+              Our names by rotation cell
+            </TableCaption>
+            <TableHeader>
+              <TableRow className="border-border border-b text-left text-muted-foreground">
+                <TableHead className="text-muted-foreground" scope="col">
+                  Symbol
                 </TableHead>
-                <TableCell className="whitespace-normal">
-                  {name.roles.join(", ")}
-                </TableCell>
-                <TableCell className="whitespace-normal">
-                  {name.industry ?? "–"}
-                </TableCell>
-                <TableCell className="whitespace-normal">
-                  {name.cell1M ?? "–"}
-                </TableCell>
-                <TableCell className="whitespace-normal">
-                  {name.cell3M ?? "–"}
-                </TableCell>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Role
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  Industry
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  1M
+                </TableHead>
+                <TableHead className="text-muted-foreground" scope="col">
+                  3M
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {covered.map((name) => (
+                <TableRow className="border-border border-b" key={name.symbol}>
+                  <TableHead className="whitespace-normal" scope="row">
+                    <TickerLink symbol={name.symbol} />
+                  </TableHead>
+                  <TableCell className="whitespace-normal">
+                    {name.roles.join(", ")}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {name.industry ?? "–"}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {name.cell1M ?? "–"}
+                  </TableCell>
+                  <TableCell className="whitespace-normal">
+                    {name.cell3M ?? "–"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableScroll>
       </details>
     </div>
   );
@@ -258,35 +293,82 @@ const HeatButton = ({
   </button>
 );
 
+const RotationKpis = ({
+  matrix,
+  period,
+}: {
+  readonly matrix: RotationMatrixOutput;
+  readonly period: RotationPeriod;
+}) => {
+  const leading = matrix.top[0];
+  const lagging = matrix.bottom[0];
+  const standout = matrix.standouts[0];
+  return (
+    <KpiRow label={`Rotation summary for ${period}`}>
+      <KpiCard
+        data-kpi="leading"
+        hint={leading?.industry ?? "No ranked industry"}
+        icon={<TrendingUp />}
+        label={`Leading industry (${period})`}
+        value={formatReturn(leading?.retMedian)}
+      />
+      <KpiCard
+        data-kpi="lagging"
+        hint={lagging?.industry ?? "No ranked industry"}
+        icon={<TrendingDown />}
+        label={`Lagging industry (${period})`}
+        value={formatReturn(lagging?.retMedian)}
+      />
+      <KpiCard
+        data-kpi="standouts"
+        hint={
+          standout === undefined
+            ? "None above 2σ"
+            : `Top: ${standout.symbol} ${formatReturn(standout.ret)}`
+        }
+        icon={<Sparkles />}
+        label="Standouts (> 2σ vs industry)"
+        value={matrix.standouts.length.toLocaleString("en-US")}
+      />
+    </KpiRow>
+  );
+};
+
 export interface RotationMatrixWorkspaceProps {
   readonly gateway?: ResearchLensesGateway;
+  /** Settings restored from the URL (`?period=`); the workspace keeps the URL in sync. */
+  readonly initial?: RotationMatrixSettings;
 }
 
 export const RotationMatrixWorkspace = ({
   gateway: suppliedGateway,
+  initial,
 }: RotationMatrixWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserResearchLensesGateway()
   );
-  const [period, setPeriod] = useState<RotationPeriod>("1M");
+  const [period, setPeriod] = useState<RotationPeriod>(
+    initial?.period ?? DEFAULT_PERIOD
+  );
   const [state, setState] = useState<LoadState>({ type: "loading" });
   const [filter, setFilter] = useState("");
   const [selection, setSelection] = useState<Selection | null>(null);
+  const latest = useRef(0);
 
   const load = useCallback(
     async (next: RotationPeriod) => {
+      latest.current += 1;
+      const request = latest.current;
       setState({ type: "loading" });
-      try {
-        return setState({
-          type: "ready",
-          matrix: await gateway.rotationMatrix(next),
-        });
-      } catch (error) {
-        return setState({
-          type: "error",
+      const loaded: LoadState = await gateway.rotationMatrix(next).then(
+        (loadedMatrix) => ({ matrix: loadedMatrix, type: "ready" }),
+        (error: unknown) => ({
           message: describeResearchLensFailure(error),
-        });
-      }
+          type: "error",
+        })
+      );
+      // A newer period choice wins over a slower, older response.
+      if (request === latest.current) setState(loaded);
     },
     [gateway]
   );
@@ -295,6 +377,9 @@ export const RotationMatrixWorkspace = ({
     void load(period);
     return;
   }, [load, period]);
+
+  // Only `period` is ours: other parameters in the address bar (e.g. `?theme=`) are kept.
+  useEffect(() => writeQuery({ period }, URL_DEFAULTS), [period]);
 
   const matrix = state.type === "ready" ? state.matrix : null;
   const groups = useMemo(() => {
@@ -316,127 +401,165 @@ export const RotationMatrixWorkspace = ({
     }
     return matrix.sectors.flatMap((sector) => {
       const industries = bySector.get(sector.sector);
-      return industries === undefined ? [] : [{ sector, industries }];
+      return industries === undefined ? [] : [{ industries, sector }];
     });
   }, [matrix, filter]);
 
+  const status =
+    state.type === "loading" ? (
+      <StatusBadge status="info">Loading</StatusBadge>
+    ) : state.type === "error" ? (
+      <StatusBadge status="destructive">Unavailable</StatusBadge>
+    ) : (
+      <StatusBadge status="neutral">
+        As of {state.matrix.asOf ?? "unknown"}
+      </StatusBadge>
+    );
+
+  const controls = (
+    <>
+      <div aria-label="Period" className="flex gap-1" role="group">
+        {ROTATION_PERIODS.map((key) => (
+          <Button
+            aria-pressed={key === period}
+            key={key}
+            onClick={() => {
+              setSelection(null);
+              setPeriod(key);
+            }}
+            size="sm"
+            variant={key === period ? "primary" : "outline"}
+          >
+            {key}
+          </Button>
+        ))}
+      </div>
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
+        <span>Filter</span>
+        <Input
+          className="h-11 min-w-0 flex-1 sm:w-48 sm:flex-none"
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Industry, sector or symbol"
+          type="search"
+          value={filter}
+        />
+      </label>
+    </>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-3xl text-muted-foreground text-sm">
-          {matrix === null
-            ? "Sector → industry → cap bucket median returns for US-listed stocks."
-            : `Sector → industry → cap bucket median returns for ${matrix.universeSize.toLocaleString("en-US")} US-listed stocks. Daily close ${matrix.asOf ?? "unknown"}. Color scale ±${HEAT_SCALE[period]}%.`}
-        </p>
-        <div aria-label="Period" className="flex gap-1" role="tablist">
-          {ROTATION_PERIODS.map((key) => (
-            <Button
-              aria-selected={key === period}
-              key={key}
-              onClick={() => {
-                setSelection(null);
-                setPeriod(key);
-              }}
-              role="tab"
-              size="sm"
-              variant={key === period ? "primary" : "secondary"}
-            >
-              {key}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {state.type === "loading" ? (
-        <p aria-busy="true" className="text-muted-foreground text-sm">
-          Loading rotation matrix…
-        </p>
-      ) : null}
-      {state.type === "error" ? (
-        <div className="space-y-2" role="alert">
-          <p className="text-sm">
-            Rotation matrix unavailable: {state.message}
-          </p>
+      <PageHeader
+        actions={
           <Button
+            disabled={state.type === "loading"}
             onClick={() => void load(period)}
             size="sm"
-            variant="secondary"
           >
-            <RotateCcw aria-hidden="true" className="size-4" />
-            Try again
+            <RefreshCw aria-hidden="true" className="size-4" />
+            Refresh
           </Button>
-        </div>
-      ) : null}
+        }
+        description="Median returns by sector, industry and cap bucket, with your watchlist names. Research only."
+        status={status}
+        title="Rotation matrix"
+      />
 
       {matrix === null ? null : (
-        <>
-          <section
-            aria-label="Rotation summary"
-            className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-          >
-            <RankedList
-              rows={matrix.top}
-              title={`Leading industries (${period})`}
-              tone="text-green-600"
-            />
-            <RankedList
-              rows={matrix.bottom}
-              title={`Lagging industries (${period})`}
-              tone="text-red-600"
-            />
-            <div className="space-y-1">
-              <h3 className="font-medium text-sm">
-                Standouts (&gt; 2σ vs industry)
-              </h3>
-              <ul className="space-y-0.5 text-sm">
-                {matrix.standouts.slice(0, 8).map((entry) => (
-                  <li key={entry.symbol}>
-                    <b className="font-mono">{entry.symbol}</b>{" "}
-                    {formatReturn(entry.ret)}{" "}
-                    <span className="text-muted-foreground text-xs">
-                      z={entry.z} · {entry.industry}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <OurNames matrix={matrix} />
-          </section>
+        <RotationKpis matrix={matrix} period={period} />
+      )}
 
-          {selection === null ? null : (
-            <CellDetail
-              onClose={() => setSelection(null)}
-              period={period}
-              selection={selection}
-            />
-          )}
-
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="space-y-1 text-sm">
-              <span className="block">Filter</span>
-              <Input
-                onChange={(event) => setFilter(event.target.value)}
-                placeholder="Industry, sector or symbol"
-                type="search"
-                value={filter}
-              />
-            </label>
-            <a
-              className="inline-flex items-center gap-1 text-sm underline-offset-2 hover:underline"
-              href={
-                matrix.source?.finvizMap ??
-                "https://finviz.com/map.ashx?t=sec_all"
-              }
-              rel="noreferrer noopener"
-              target="_blank"
-            >
-              Open the Finviz map
-              <ExternalLink aria-hidden="true" className="size-3" />
-            </a>
+      {matrix === null ? null : (
+        <Panel
+          contentClassName="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+          headingId="rotation-summary-heading"
+          title="Leaders, laggards and our names"
+        >
+          <RankedList
+            rows={matrix.top}
+            title={`Leading industries (${period})`}
+            tone="text-green-600"
+          />
+          <RankedList
+            rows={matrix.bottom}
+            title={`Lagging industries (${period})`}
+            tone="text-red-600"
+          />
+          <div className="space-y-1">
+            <h3 className="font-medium text-sm">
+              Standouts (&gt; 2σ vs industry)
+            </h3>
+            <ul className="space-y-0.5 text-sm">
+              {matrix.standouts.slice(0, 8).map((entry) => (
+                <li key={entry.symbol}>
+                  <TickerLink symbol={entry.symbol} /> {formatReturn(entry.ret)}{" "}
+                  <span className="text-muted-foreground text-xs">
+                    z={entry.z} · {entry.industry}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
+          <OurNames matrix={matrix} />
+        </Panel>
+      )}
 
-          <div className="overflow-x-auto">
-            <Table className="w-full min-w-[640px] text-sm">
+      {selection === null ? null : (
+        <CellDetail
+          onClose={() => setSelection(null)}
+          period={period}
+          selection={selection}
+        />
+      )}
+
+      <Panel
+        actions={controls}
+        // Panel actions do not shrink; let the filter row wrap to the panel width on phones.
+        className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
+        description={
+          matrix === null
+            ? undefined
+            : `Median returns for ${matrix.universeSize.toLocaleString("en-US")} US-listed stocks by sector, industry and cap bucket. Color scale ±${HEAT_SCALE[period]}%.`
+        }
+        flush
+        headingId="rotation-matrix-heading"
+        title="Matrix"
+      >
+        {state.type === "loading" ? (
+          <p
+            aria-busy="true"
+            className="p-4 text-muted-foreground text-sm"
+            role="status"
+          >
+            Loading rotation matrix…
+          </p>
+        ) : null}
+        {state.type === "error" ? (
+          <div className="space-y-2 p-4" role="alert">
+            <p className="text-sm">
+              Rotation matrix unavailable: {state.message}
+            </p>
+            <Button
+              onClick={() => void load(period)}
+              size="sm"
+              variant="secondary"
+            >
+              <RotateCcw aria-hidden="true" className="size-4" />
+              Try again
+            </Button>
+          </div>
+        ) : null}
+
+        {matrix === null ? null : groups.length === 0 ? (
+          <div className="flex flex-wrap items-center gap-3 p-4 text-sm">
+            <p>No industry, sector or symbol matches “{filter.trim()}”.</p>
+            <Button onClick={() => setFilter("")} size="sm" variant="outline">
+              Clear filter
+            </Button>
+          </div>
+        ) : (
+          <TableScroll label={`Rotation matrix for ${period}`} minWidth="40rem">
+            <Table className="w-full text-sm">
               <TableCaption className="sr-only">
                 Rotation matrix for {period}
               </TableCaption>
@@ -505,7 +628,7 @@ export const RotationMatrixWorkspace = ({
                               <HeatButton
                                 label={`${industry.industry} ${cap}: ${formatReturn(cell.retMedian)}, ${cell.n} names`}
                                 n={cell.n}
-                                onSelect={() => setSelection({ industry, cap })}
+                                onSelect={() => setSelection({ cap, industry })}
                                 period={period}
                                 ret={cell.retMedian}
                               />
@@ -518,7 +641,7 @@ export const RotationMatrixWorkspace = ({
                           label={`${industry.industry} all caps: ${formatReturn(industry.retMedian)}, ${industry.n} names`}
                           n={industry.n}
                           onSelect={() =>
-                            setSelection({ industry, cap: "all" })
+                            setSelection({ cap: "all", industry })
                           }
                           period={period}
                           ret={industry.retMedian}
@@ -529,14 +652,28 @@ export const RotationMatrixWorkspace = ({
                 </TableBody>
               ))}
             </Table>
-          </div>
-          <p className="text-muted-foreground text-xs">
+          </TableScroll>
+        )}
+        {matrix === null ? null : (
+          <p className="border-t px-4 py-3 text-muted-foreground text-xs">
             Sources: {matrix.source?.metadata ?? "unknown"};{" "}
             {matrix.source?.bars ?? "unknown"}. Generated {matrix.generatedAt}.
-            Read-only research view; no orders.
+            Read-only research view; no orders.{" "}
+            <a
+              className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
+              href={
+                matrix.source?.finvizMap ??
+                "https://finviz.com/map.ashx?t=sec_all"
+              }
+              rel="noreferrer noopener"
+              target="_blank"
+            >
+              Open the Finviz map
+              <ExternalLink aria-hidden="true" className="size-3" />
+            </a>
           </p>
-        </>
-      )}
+        )}
+      </Panel>
     </div>
   );
 };

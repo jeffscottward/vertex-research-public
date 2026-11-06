@@ -8,7 +8,9 @@ import NewsLoading from "./loading.tsx";
 import NewsPage, { metadata } from "./page.tsx";
 
 vi.mock("../../../components/portal/market-news-workspace.tsx", () => ({
-  MarketNewsWorkspace: () => <div data-workspace="news" />,
+  MarketNewsWorkspace: ({ initialDays }: { initialDays?: string }) => (
+    <div data-days={initialDays ?? "none"} data-workspace="news" />
+  ),
 }));
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -32,11 +34,25 @@ const render = async (element: ReactElement) => {
 };
 
 describe("news monitor route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<NewsPage />);
+  it("renders the workspace, which owns the header, with ?days= from the request", async () => {
+    const container = await render(
+      await NewsPage({ searchParams: Promise.resolve({ days: "7" }) })
+    );
     expect(metadata).toEqual({ title: "News monitor" });
-    expect(container.querySelector("h1")?.textContent).toBe("News monitor");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(
+      container.querySelector("[data-workspace]")?.getAttribute("data-days")
+    ).toBe("7");
+  });
+
+  it("passes no window when ?days= is missing or repeated", async () => {
+    for (const days of [undefined, ["1", "7"]]) {
+      const container = await render(
+        await NewsPage({ searchParams: Promise.resolve({ days }) })
+      );
+      expect(
+        container.querySelector("[data-workspace]")?.getAttribute("data-days")
+      ).toBe("none");
+    }
   });
 
   it("renders an accessible loading state", async () => {

@@ -7,11 +7,8 @@ import MarketsError from "./error.tsx";
 import MarketsLoading from "./loading.tsx";
 import MarketsPage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/market-context-workspace.tsx", () => ({
-  MarketContextWorkspace: () => <div data-workspace="markets" />,
-}));
-vi.mock("../../../components/portal/market-feeds-workspace.tsx", () => ({
-  MarketFeedsWorkspace: () => <div data-workspace="market-feeds" />,
+vi.mock("../../../components/portal/market-context-page.tsx", () => ({
+  MarketContextPage: () => <div data-workspace="markets" />,
 }));
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -35,15 +32,11 @@ const render = async (element: ReactElement) => {
 };
 
 describe("market context route files", () => {
-  it("renders the page header and workspace", async () => {
+  it("renders the client page, which owns the header and both workspaces", async () => {
     const container = await render(<MarketsPage />);
     expect(metadata).toEqual({ title: "Market context" });
-    expect(container.querySelector("h1")?.textContent).toBe("Market context");
     expect(
       container.querySelector('[data-workspace="markets"]')
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-workspace="market-feeds"]')
     ).not.toBeNull();
   });
 

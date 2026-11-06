@@ -8,8 +8,8 @@ import BasketsLoading from "./loading.tsx";
 import BasketsPage, { metadata } from "./page.tsx";
 
 vi.mock("../../../components/portal/baskets-workspace.tsx", () => ({
-  BasketsWorkspace: ({ initialSymbol }: { initialSymbol: string | null }) => (
-    <div data-symbol={initialSymbol ?? "none"} data-workspace="baskets" />
+  BasketsWorkspace: ({ initialBasket }: { initialBasket: string | null }) => (
+    <div data-basket={initialBasket ?? "none"} data-workspace="baskets" />
   ),
 }));
 
@@ -34,23 +34,23 @@ const render = async (element: ReactElement) => {
 };
 
 describe("baskets route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(
-      await BasketsPage({ searchParams: Promise.resolve({ symbol: "TITY" }) })
-    );
+  it("passes ?basket= (or the legacy ?symbol=) to the workspace", async () => {
+    const basketOf = async (
+      searchParams: Record<string, string | string[] | undefined>
+    ) =>
+      (
+        await render(
+          await BasketsPage({ searchParams: Promise.resolve(searchParams) })
+        )
+      )
+        .querySelector("[data-workspace]")
+        ?.getAttribute("data-basket");
     expect(metadata).toEqual({ title: "Baskets" });
-    expect(container.querySelector("h1")?.textContent).toBe("Baskets");
-    expect(
-      container.querySelector("[data-workspace]")?.getAttribute("data-symbol")
-    ).toBe("TITY");
-    const repeated = await render(
-      await BasketsPage({
-        searchParams: Promise.resolve({ symbol: ["A", "B"] }),
-      })
-    );
-    expect(
-      repeated.querySelector("[data-workspace]")?.getAttribute("data-symbol")
-    ).toBe("none");
+    expect(await basketOf({ basket: "id-1" })).toBe("id-1");
+    expect(await basketOf({ basket: "TITY", symbol: "OTHER" })).toBe("TITY");
+    expect(await basketOf({ symbol: "TITY" })).toBe("TITY");
+    expect(await basketOf({ symbol: ["A", "B"] })).toBe("none");
+    expect(await basketOf({ basket: ["A", "B"] })).toBe("none");
   });
 
   it("renders an accessible loading state", async () => {

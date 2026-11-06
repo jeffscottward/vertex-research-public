@@ -7,9 +7,17 @@ import RotationMatrixError from "./error.tsx";
 import RotationMatrixLoading from "./loading.tsx";
 import RotationMatrixPage, { metadata } from "./page.tsx";
 
-vi.mock("../../../components/portal/rotation-matrix-workspace.tsx", () => ({
-  RotationMatrixWorkspace: () => <div data-workspace="rotation-matrix" />,
-}));
+vi.mock(
+  "../../../components/portal/rotation-matrix-workspace.tsx",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../../components/portal/rotation-matrix-workspace.tsx")
+    >()),
+    RotationMatrixWorkspace: (props: { initial: unknown }) => (
+      <div data-workspace={JSON.stringify(props.initial)} />
+    ),
+  })
+);
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -31,12 +39,35 @@ const render = async (element: ReactElement) => {
   return container;
 };
 
+const workspaceProps = (container: HTMLElement) =>
+  JSON.parse(
+    container
+      .querySelector("[data-workspace]")
+      ?.getAttribute("data-workspace") ?? "null"
+  );
+
 describe("rotation matrix route files", () => {
-  it("renders the page header and workspace", async () => {
-    const container = await render(<RotationMatrixPage />);
+  it("renders the workspace with the default period", async () => {
+    const container = await render(
+      await RotationMatrixPage({ searchParams: Promise.resolve({}) })
+    );
     expect(metadata).toEqual({ title: "Rotation matrix" });
-    expect(container.querySelector("h1")?.textContent).toBe("Rotation matrix");
-    expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(workspaceProps(container)).toEqual({ period: "1M" });
+  });
+
+  it("passes the URL period and ignores unknown values", async () => {
+    const sixMonths = await render(
+      await RotationMatrixPage({
+        searchParams: Promise.resolve({ period: "6M" }),
+      })
+    );
+    expect(workspaceProps(sixMonths)).toEqual({ period: "6M" });
+    const unknown = await render(
+      await RotationMatrixPage({
+        searchParams: Promise.resolve({ period: ["1D", "3M"] }),
+      })
+    );
+    expect(workspaceProps(unknown)).toEqual({ period: "1M" });
   });
 
   it("renders an accessible loading state", async () => {

@@ -8,25 +8,35 @@ import {
   RiskAllocatorInputSchema,
   suggestAllocation,
 } from "@darkfactory/api";
-import { PageHeader } from "@darkfactory/ui";
 
 import type { CongressTradesGateway } from "../../components/portal/congress-trades-client.ts";
-import { CongressTradesWorkspace } from "../../components/portal/congress-trades-workspace.tsx";
-import { DeepValueWorkspace } from "../../components/portal/deep-value-workspace.tsx";
 import {
-  type MarketContextGateway,
-  MarketContextWorkspace,
-} from "../../components/portal/market-context-workspace.tsx";
+  CongressTradesWorkspace,
+  parseCongressTradesParams,
+} from "../../components/portal/congress-trades-workspace.tsx";
 import {
-  type MarketFeedsGateway,
-  MarketFeedsWorkspace,
-} from "../../components/portal/market-feeds-workspace.tsx";
+  DeepValueWorkspace,
+  parseDeepValueParams,
+} from "../../components/portal/deep-value-workspace.tsx";
+import { MarketContextPage } from "../../components/portal/market-context-page.tsx";
+import type { MarketContextGateway } from "../../components/portal/market-context-workspace.tsx";
+import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
 import type { ResearchLensesGateway } from "../../components/portal/research-lenses-client.ts";
 import type { RiskAllocatorGateway } from "../../components/portal/risk-allocator-client.ts";
-import { RiskAllocatorWorkspace } from "../../components/portal/risk-allocator-workspace.tsx";
-import { RotationMatrixWorkspace } from "../../components/portal/rotation-matrix-workspace.tsx";
+import {
+  parseRiskAllocatorParams,
+  type RiskAllocatorWatchlist,
+  RiskAllocatorWorkspace,
+} from "../../components/portal/risk-allocator-workspace.tsx";
+import {
+  parseRotationMatrixParams,
+  RotationMatrixWorkspace,
+} from "../../components/portal/rotation-matrix-workspace.tsx";
 import type { SectorRotationGateway } from "../../components/portal/sector-rotation-client.ts";
-import { SectorRotationWorkspace } from "../../components/portal/sector-rotation-workspace.tsx";
+import {
+  parseSectorRotationParams,
+  SectorRotationWorkspace,
+} from "../../components/portal/sector-rotation-workspace.tsx";
 import { labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,
@@ -38,6 +48,7 @@ import {
   labRotationMatrix,
   labSectorRotationMap,
 } from "../fixtures/lenses.ts";
+import { LAB_WATCHLIST } from "../fixtures/research.ts";
 import type { LabEntry } from "../registry.ts";
 
 export const labResearchLensesGateway: ResearchLensesGateway = {
@@ -62,6 +73,11 @@ export const labRiskAllocatorGateway: RiskAllocatorGateway = {
     Promise.resolve(suggestAllocation(RiskAllocatorInputSchema.parse(input))),
 };
 
+/** Read-only fake watchlist for the risk allocator's default suggestion (first symbol: SPY). */
+const labRiskAllocatorWatchlist: RiskAllocatorWatchlist = {
+  list: () => Promise.resolve(LAB_WATCHLIST),
+};
+
 const labMarketContextGateway: MarketContextGateway = {
   volatility: () => Promise.resolve(LAB_MARKET_VOLATILITY),
 };
@@ -76,11 +92,11 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "rotation-matrix",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Rotation matrix" />
-        <RotationMatrixWorkspace gateway={labResearchLensesGateway} />
-      </div>
+    render: (params) => (
+      <RotationMatrixWorkspace
+        gateway={labResearchLensesGateway}
+        initial={parseRotationMatrixParams(Object.fromEntries(params))}
+      />
     ),
     route: "/rotation-matrix",
     title: "Rotation matrix",
@@ -88,11 +104,11 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "sector-rotation",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Sector rotation" />
-        <SectorRotationWorkspace gateway={labSectorRotationGateway} />
-      </div>
+    render: (params) => (
+      <SectorRotationWorkspace
+        gateway={labSectorRotationGateway}
+        initial={parseSectorRotationParams(Object.fromEntries(params))}
+      />
     ),
     route: "/sector-rotation",
     title: "Sector rotation",
@@ -100,11 +116,11 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "deep-value",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Deep value screen" />
-        <DeepValueWorkspace gateway={labResearchLensesGateway} />
-      </div>
+    render: (params) => (
+      <DeepValueWorkspace
+        gateway={labResearchLensesGateway}
+        initial={parseDeepValueParams(Object.fromEntries(params))}
+      />
     ),
     route: "/deep-value",
     title: "Deep value screen",
@@ -112,11 +128,11 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "congress-trades",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Congress trades" />
-        <CongressTradesWorkspace gateway={labCongressTradesGateway} />
-      </div>
+    render: (params) => (
+      <CongressTradesWorkspace
+        gateway={labCongressTradesGateway}
+        initial={parseCongressTradesParams(Object.fromEntries(params))}
+      />
     ),
     route: "/congress-trades",
     title: "Congress trades",
@@ -124,14 +140,13 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "risk-allocator",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Risk allocator" />
-        <RiskAllocatorWorkspace
-          gateway={labRiskAllocatorGateway}
-          initialAsOf={labDaysAgo(0)}
-        />
-      </div>
+    render: (params) => (
+      <RiskAllocatorWorkspace
+        gateway={labRiskAllocatorGateway}
+        initial={parseRiskAllocatorParams(Object.fromEntries(params))}
+        initialAsOf={labDaysAgo(0)}
+        watchlist={labRiskAllocatorWatchlist}
+      />
     ),
     route: "/risk-allocator",
     title: "Risk allocator",
@@ -140,11 +155,10 @@ export const LENSES_LAB_ENTRIES: readonly LabEntry[] = [
     group: GROUP,
     id: "markets",
     render: () => (
-      <div className="space-y-8">
-        <PageHeader title="Market context" />
-        <MarketContextWorkspace gateway={labMarketContextGateway} />
-        <MarketFeedsWorkspace gateway={labMarketFeedsGateway} />
-      </div>
+      <MarketContextPage
+        contextGateway={labMarketContextGateway}
+        feedsGateway={labMarketFeedsGateway}
+      />
     ),
     route: "/markets",
     title: "Market context",

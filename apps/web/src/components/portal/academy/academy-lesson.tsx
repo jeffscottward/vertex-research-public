@@ -1,6 +1,7 @@
 "use client";
 
 import type { Lesson } from "@darkfactory/academy";
+import { PageHeader, StatusBadge } from "@darkfactory/ui";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -78,23 +79,32 @@ export const AcademyLesson = ({
         className="mx-auto flex max-w-7xl flex-col gap-8"
         data-academy-lesson={lesson.slug}
       >
-        <header className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Link
-              className="inline-flex min-h-11 items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-              href="/academy"
-              prefetch={false}
-            >
-              <ArrowLeft aria-hidden className="size-4" /> All lessons
-            </Link>
-            <AcademyThemeToggle />
-          </div>
+        <div className="flex flex-col gap-3">
+          <PageHeader
+            actions={<AcademyThemeToggle />}
+            breadcrumb={
+              <nav aria-label="Breadcrumb">
+                <Link
+                  className="inline-flex min-h-11 items-center gap-1 hover:text-foreground"
+                  href="/academy"
+                  prefetch={false}
+                >
+                  <ArrowLeft aria-hidden className="size-4" /> Academy
+                </Link>
+              </nav>
+            }
+            description={lesson.summary}
+            status={
+              <StatusBadge
+                data-lesson-kind={strategy ? "strategy" : "concept"}
+                status={strategy ? "info" : "neutral"}
+              >
+                {strategy ? "Strategy" : "Concept lesson"}
+              </StatusBadge>
+            }
+            title={lesson.title}
+          />
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded px-2 py-0.5 font-medium text-xs ${strategy ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}
-            >
-              {strategy ? "Strategy" : "Concept lesson"}
-            </span>
             {[
               ...lesson.tags.regime,
               ...lesson.tags.instruments,
@@ -109,10 +119,6 @@ export const AcademyLesson = ({
               </span>
             ))}
           </div>
-          <h1 className="font-heading font-semibold text-2xl sm:text-3xl">
-            {lesson.title}
-          </h1>
-          <p className="max-w-4xl text-muted-foreground">{lesson.summary}</p>
           <nav aria-label="Lesson sections" className="flex flex-wrap gap-2">
             {sections.map(([id, label]) => (
               <a
@@ -124,7 +130,7 @@ export const AcademyLesson = ({
               </a>
             ))}
           </nav>
-        </header>
+        </div>
         <Section id="video" title="Chart video">
           <LessonVideo lesson={lesson} media={media} />
         </Section>

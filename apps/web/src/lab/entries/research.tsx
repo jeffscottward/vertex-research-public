@@ -164,6 +164,7 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     render: (params) => (
       <ResearchReportDetail
         gateway={labResearchReportsGateway}
+        initialTab={params.get("tab") ?? undefined}
         reportId={readLabSymbol(params, LAB_RESEARCH_DEFAULT_REPORT, "id")}
       />
     ),
@@ -198,11 +199,11 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "news",
-    render: () => (
-      <div className="space-y-8">
-        <PageHeader title="News monitor" />
-        <MarketNewsWorkspace gateway={labMarketNewsGateway} />
-      </div>
+    render: (params) => (
+      <MarketNewsWorkspace
+        gateway={labMarketNewsGateway}
+        initialDays={params.get("days") ?? ""}
+      />
     ),
     route: "/news",
     title: "News monitor",
@@ -212,10 +213,9 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     id: "baskets",
     render: (params) => (
       <div className="space-y-8">
-        <PageHeader title="Baskets" />
         <BasketsWorkspace
           gateway={labBasketGateway}
-          initialSymbol={params.get("symbol")}
+          initialBasket={params.get("basket") ?? params.get("symbol")}
         />
       </div>
     ),
@@ -237,10 +237,12 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
     id: "papers",
-    render: () => (
+    render: (params) => (
       <div className="space-y-8">
-        <PageHeader title="Papers" />
-        <PapersWorkspace gateway={labPapersGateway} />
+        <PapersWorkspace
+          gateway={labPapersGateway}
+          initialStatus={params.get("status")}
+        />
       </div>
     ),
     route: "/papers",

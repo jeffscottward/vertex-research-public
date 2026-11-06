@@ -1,14 +1,21 @@
-import { PageHeader } from "@darkfactory/ui";
-
-import { SectorRotationWorkspace } from "../../../components/portal/sector-rotation-workspace.tsx";
+import {
+  parseSectorRotationParams,
+  SectorRotationWorkspace,
+} from "../../../components/portal/sector-rotation-workspace.tsx";
 
 export const metadata = { title: "Sector rotation" };
 
-export default function SectorRotationPage() {
+type SearchParams = Promise<
+  Readonly<Record<string, string | readonly string[] | undefined>>
+>;
+
+/** `?timeframe=&universe=&tail=` restore the map settings; the workspace keeps the URL in sync. */
+export default async function SectorRotationPage({
+  searchParams,
+}: Readonly<{ searchParams: SearchParams }>) {
   return (
-    <div className="space-y-8">
-      <PageHeader title="Sector rotation" />
-      <SectorRotationWorkspace />
-    </div>
+    <SectorRotationWorkspace
+      initial={parseSectorRotationParams(await searchParams)}
+    />
   );
 }

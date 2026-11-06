@@ -617,6 +617,8 @@ describe("controlled research conversation view", () => {
       participants: [],
     });
     expect(html(value)).toContain("Create a research room");
+    // The Research page's New room action (research.tsx) opens this form by id.
+    expect(html(value)).toContain('id="research-new-room"');
     expect(html(value)).toContain("No participants supplied");
     expect(value.onCreateThread).not.toHaveBeenCalled();
     expect(html(props({ messages: [] }))).toContain("No messages recorded");
@@ -890,6 +892,10 @@ describe("one-expert explicit consent presentation", () => {
     });
     expect(value.onApprove).not.toHaveBeenCalled();
     expect(action(tree, "approve-response").props["disabled"]).toBe(false);
+    // The long approval label wraps inside the column (no page overflow at 375 px).
+    expect(action(tree, "approve-response").props["className"]).toContain(
+      "[&>[data-slot=button-chrome]]:whitespace-normal"
+    );
     click(action(tree, "approve-response"));
     expect(value.onApprove).toHaveBeenCalledOnce();
     expect(value.onApprove).toHaveBeenCalledWith();
