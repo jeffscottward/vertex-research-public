@@ -250,9 +250,6 @@ importers:
       '@darkfactory/operator':
         specifier: workspace:*
         version: link:packages/operator
-      '@darkfactory/scripting':
-        specifier: workspace:*
-        version: link:packages/scripting
       '@darkfactory/state':
         specifier: workspace:*
         version: link:packages/state
