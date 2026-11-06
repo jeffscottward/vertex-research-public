@@ -468,7 +468,7 @@ export const StrategyDossierView = ({
           ]}
         />
       </header>
-      <div className="vx-ex-split">
+      <div className="grid @min-[42rem]:grid-cols-2 gap-6">
         <Rules title="Deterministic entry rules" rules={strategy.entryRules} />
         <Rules title="Deterministic exit rules" rules={strategy.exitRules} />
       </div>
@@ -584,7 +584,7 @@ export const StrategyDossierView = ({
           <DraftFacts draft={draft} />
         )}
         {draft === null ? null : (
-          <ul className="vx-ex-record-list">
+          <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
             {draft.value.reasonEvidenceIds.map((id) => (
               <li key={id}>
                 {id} ·{" "}
@@ -689,7 +689,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
     {dossier.datasets.length === 0 ? (
       <p>No dataset manifests were supplied for this dossier.</p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.datasets.map((dataset) => (
           <li key={dataset.datasetId}>
             <details>
@@ -715,7 +715,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
                 Instrument universe: {dataset.instrumentUniverse.join(", ")}
               </p>
               <ReplayLineage provenance={dataset.gammaProvenance} />
-              <ul className="vx-ex-record-list">
+              <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
                 {dataset.sources.map((source) => (
                   <li
                     key={`${source.provider}:${source.sourceId}:${source.snapshotId}`}
@@ -742,7 +742,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
     {dossier.evidence.length === 0 ? (
       <p>No source evidence records were supplied.</p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.evidence.map((evidence) => (
           <li key={evidence.evidenceId}>
             <details>
@@ -795,7 +795,7 @@ const DossierLineage = ({ dossier }: { readonly dossier: StrategyDossier }) => (
         inferred.
       </p>
     ) : (
-      <ul className="vx-ex-record-list">
+      <ul className="my-4 grid list-none gap-4 p-0 [&>li]:border-border [&>li]:border-b [&>li]:py-4 [&>li]:[overflow-wrap:anywhere] [&_summary]:cursor-pointer [&_summary]:py-3 [&_summary]:font-semibold">
         {dossier.backtests.map((backtest) => (
           <li key={`${backtest.artifactId}:${backtest.sha256}`}>
             <details>
@@ -1113,13 +1113,13 @@ const ReviewForm = ({
   return (
     <div className="grid gap-8">
       <form
-        className="vx-ex-form"
+        className="grid gap-6 [&_fieldset]:grid [&_fieldset]:gap-3 [&_fieldset]:border [&_fieldset]:border-border-strong [&_fieldset]:p-4 [&_legend]:px-2 [&_legend]:font-semibold"
         onSubmit={submit}
         aria-label="Exact artifact review"
       >
         <fieldset disabled={submitted || model.status === "invalid"}>
           <legend>Explicit decision for this artifact</legend>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="radio"
               name={`${formId}-decision`}
@@ -1128,7 +1128,7 @@ const ReviewForm = ({
             />
             Accept for {purpose} only
           </label>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="radio"
               name={`${formId}-decision`}
@@ -1137,7 +1137,7 @@ const ReviewForm = ({
             />
             Reject for {purpose}
           </label>
-          <label className="vx-ex-choice">
+          <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
             <input
               type="checkbox"
               checked={acknowledgedTarget !== null}
@@ -1365,11 +1365,11 @@ const SimulationQueueForm = ({
         <ReadNotice title="Admission is not eligible">{blocked}</ReadNotice>
       )}
       <form
-        className="vx-ex-form"
+        className="grid gap-6 [&_fieldset]:grid [&_fieldset]:gap-3 [&_fieldset]:border [&_fieldset]:border-border-strong [&_fieldset]:p-4 [&_legend]:px-2 [&_legend]:font-semibold"
         onSubmit={submit}
         aria-label="Queue admitted paper simulation"
       >
-        <label className="vx-ex-choice">
+        <label className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-3 [&_input:is([type=checkbox],[type=radio])]:m-0 [&_input:is([type=checkbox],[type=radio])]:size-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:min-h-[1.25rem] [&_input:is([type=checkbox],[type=radio])]:flex-[0_0_1.25rem] [&_input:is([type=checkbox],[type=radio])]:accent-foreground">
           <input
             type="checkbox"
             checked={acknowledged}

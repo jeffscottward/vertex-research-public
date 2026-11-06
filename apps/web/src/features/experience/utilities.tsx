@@ -221,7 +221,7 @@ const ConnectionsContent = () => {
               </ReadNotice>
             ) : (
               <section
-                className="vx-ex-collection"
+                className="my-4 border-border border-y [&>summary]:cursor-pointer [&>summary]:py-4 [&>summary]:font-semibold"
                 aria-labelledby="gateway-list-title"
               >
                 <ResearchTableHeading

@@ -163,7 +163,10 @@ export const PortfolioCollection = <Row,>({
     (currentPage + 1) * PAGE_SIZE
   );
   return (
-    <section className="vx-ex-collection" aria-labelledby={headingId}>
+    <section
+      className="my-4 border-border border-y [&>summary]:cursor-pointer [&>summary]:py-4 [&>summary]:font-semibold"
+      aria-labelledby={headingId}
+    >
       <div className="vx-ex-toolbar">
         <ResearchTableHeading id={headingId} title={title}>
           <p>{description}</p>
