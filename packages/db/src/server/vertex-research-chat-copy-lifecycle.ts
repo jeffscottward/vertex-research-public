@@ -45,7 +45,7 @@ import {
   nativeEvidenceCopyKey,
   nativeEvidenceCopyPurposes,
 } from "./vertex-research-chat-native-phase-store.ts";
-import type { ResearchChatSourceInputs } from "./vertex-research-chat-output-ports.ts";
+import type { ResearchChatSourceInputs } from "./vertex-research-chat-source-ports.ts";
 
 const purposes = ["context", "tokenizeInput", "completionInput"] as const;
 const nativeInitialPurposes = [...purposes, "evidenceBundle"] as const;

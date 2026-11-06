@@ -33,7 +33,7 @@ import {
   nativeEvidenceCopyKey,
   nativeEvidenceCopyPurposes,
 } from "./vertex-research-chat-native-phase-store.ts";
-import type { ResearchChatSourceInputs } from "./vertex-research-chat-output-ports.ts";
+import type { ResearchChatSourceInputs } from "./vertex-research-chat-source-ports.ts";
 
 type Scope = Readonly<{ accountAlias: string; environment: "research" }>;
 type Execution = ReturnType<typeof createResearchChatExecutionOperations>;

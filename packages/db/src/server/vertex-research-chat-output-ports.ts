@@ -1,12 +1,17 @@
 import type { Transaction } from "./client.ts";
 import type { VertexPrincipal, VertexRecord } from "./vertex-ports.ts";
 import type { ResearchChatWorkerOperations } from "./vertex-research-chat-worker-store.ts";
+import type {
+  ResearchChatSourceInputPort,
+  ResearchChatSourceInputs,
+  ResearchChatSourceRequest,
+} from "./vertex-research-chat-source-ports.ts";
 import type { WorkerServiceIdentity } from "./vertex-worker-credentials.ts";
 
 // Private server composition only. The DB depends on the actual operations it
 // consumes, never on the higher-layer API implementation or its declaration tree.
 // These types issue no authority and replace no source/privacy/provenance checks.
-type Scope = Readonly<{ accountAlias: string; environment: "research" }>;
+type Scope = ResearchChatSourceRequest["scope"];
 type Copies = ResearchChatWorkerOperations["copies"];
 type Original = Exclude<
   NonNullable<
@@ -40,48 +45,6 @@ export type ResearchChatOutputPrepared = Readonly<{
   bytes: Uint8Array;
   duplicate: boolean;
   sourceInputs?: ResearchChatSourceInputs;
-}>;
-// Invocation-private reference capability. Its shape is not authority: only the
-// concrete output owner's WeakMap recognizes references that it issued live.
-export type ResearchChatPreparedSources = Readonly<{
-  kind: "research-chat-prepared-sources-v1";
-}>;
-export type ResearchChatSourceRequest = Readonly<{
-  scope: Scope;
-  ownerActorId: string;
-  requesterActorId: string;
-  threadId: string;
-  responseRequestId: string;
-  requestSha256: string;
-  planSha256: string | null;
-  planExpiresAt: string | null;
-  purpose: string;
-  predecessors: readonly VertexRecord[];
-}>;
-export type ResearchChatSourceInputs = Readonly<{
-  request: ResearchChatSourceRequest;
-  token: ResearchChatPreparedSources;
-}>;
-export type ResearchChatSourceRecheck = Readonly<{
-  expiresAt: string;
-  sources: readonly Readonly<{
-    pin: VertexRecord;
-    expiresAt: string;
-    bytes?: Uint8Array;
-  }>[];
-}>;
-export type ResearchChatSourceInputPort = Readonly<{
-  prepareSourceInputs: (
-    request: ResearchChatSourceRequest
-  ) => Promise<ResearchChatPreparedSources>;
-  recheckSourceInputsForTransaction: (
-    tx: Transaction,
-    request: ResearchChatSourceRequest,
-    token: ResearchChatPreparedSources,
-    at: string,
-    includeBytes?: boolean
-  ) => Promise<ResearchChatSourceRecheck>;
-  disposeSourceInputs: (token: ResearchChatPreparedSources) => void;
 }>;
 export type ResearchChatOutputPort = ResearchChatSourceInputPort &
   Readonly<{
