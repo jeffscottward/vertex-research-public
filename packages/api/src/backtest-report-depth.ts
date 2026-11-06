@@ -40,17 +40,14 @@ export const histogram = (
   }
   const count = high === low ? 1 : Math.max(1, Math.floor(bins));
   const width = high === low ? 1 : (high - low) / count;
-  const result = Array.from({ length: count }, (_, index) => ({
-    count: 0,
+  const indexes = finite.map((value) =>
+    Math.min(count - 1, Math.floor((value - low) / width))
+  );
+  return Array.from({ length: count }, (_, index) => ({
+    count: indexes.filter((at) => at === index).length,
     from: low + index * width,
     to: low + (index + 1) * width,
   }));
-  for (const value of finite) {
-    const index = Math.min(count - 1, Math.floor((value - low) / width));
-    const bin = result[index];
-    if (bin !== undefined) bin.count += 1;
-  }
-  return result;
 };
 
 // ---------------------------------------------------------------------------
@@ -102,28 +99,29 @@ const groupRows = (
     list.push(trade);
     groups.set(key, list);
   }
-  return order
-    .filter((key) => groups.has(key))
-    .map((key) => {
-      const list = groups.get(key) ?? [];
-      const wins = list.filter((trade) => trade.pnl > 0).length;
-      const netPnl = list.reduce((total, trade) => total + trade.pnl, 0);
-      return {
+  return order.flatMap((key) => {
+    const list = groups.get(key);
+    if (list === undefined) return [];
+    const wins = list.filter((trade) => trade.pnl > 0).length;
+    const netPnl = list.reduce((total, trade) => total + trade.pnl, 0);
+    return [
+      {
         avgPnl: netPnl / list.length,
         key,
         netPnl,
         trades: list.length,
         winRate: wins / list.length,
         wins,
-      };
-    });
+      },
+    ];
+  });
 };
 
 export const tradesAnalysis = (
   trades: readonly ReportTrade[]
 ): TradesAnalysis => {
   const wins = trades.filter((trade) => trade.pnl > 0);
-  const losses = trades.filter((trade) => trade.pnl <= 0);
+  const losses = trades.filter((trade) => trade.pnl < 0);
   const hold = (trade: ReportTrade) => trade.exitT - trade.entryT;
   const avgWin = average(wins.map((trade) => trade.pnl));
   const avgLoss = average(losses.map((trade) => trade.pnl));
@@ -142,7 +140,11 @@ export const tradesAnalysis = (
     ]),
     byWeekday: groupRows(
       trades,
-      (trade) => WEEKDAYS[new Date(trade.entryT).getUTCDay()] ?? "?",
+      (trade) =>
+        new Date(trade.entryT).toLocaleDateString("en-US", {
+          timeZone: "UTC",
+          weekday: "short",
+        }),
       WEEKDAYS
     ),
     expectancy: average(pnls),
@@ -260,7 +262,9 @@ export const PROP_RULES: readonly PropRule[] = [
   },
 ];
 
-export type PropDay = Readonly<{ day: string; pnl: number }>;
+// One trading day: closing P&L and, from the equity curve, the lowest point of the day relative
+// to the day's starting balance (`low` <= min(0, pnl)). Without `low` the day uses closed P&L only.
+export type PropDay = Readonly<{ day: string; pnl: number; low?: number }>;
 
 export type PropOutcome = Readonly<{
   status: "passed" | "failed" | "open";
@@ -276,12 +280,36 @@ export type PropOutcome = Readonly<{
 export const dailyPnl = (trades: readonly ReportTrade[]): PropDay[] => {
   const days = new Map<string, number>();
   for (const trade of trades) {
-    const day = new Date(trade.exitT).toISOString().slice(0, 10);
+    const day = utcDay(trade.exitT);
     days.set(day, (days.get(day) ?? 0) + trade.pnl);
   }
   return [...days.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .sort(([a], [b]) => a.localeCompare(b))
     .map(([day, pnl]) => ({ day, pnl }));
+};
+
+const utcDay = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+// Per-bar account equity grouped by UTC day, so intraday dips count against the limits.
+export const dailyFromEquity = (
+  equity: BacktestRunReportOutput["equity"],
+  capital: number
+): PropDay[] => {
+  const byDay = new Map<string, { close: number; min: number }>();
+  for (const point of equity) {
+    const day = utcDay(point.t);
+    const seen = byDay.get(day);
+    byDay.set(day, {
+      close: point.equity,
+      min: Math.min(seen?.min ?? point.equity, point.equity),
+    });
+  }
+  let start = capital;
+  return [...byDay].map(([day, { close, min }]) => {
+    const row = { day, low: Math.min(0, min - start), pnl: close - start };
+    start = close;
+    return row;
+  });
 };
 
 const fmt = (value: number) => `${value.toFixed(2)}%`;
@@ -295,10 +323,12 @@ export const simulatePropRule = (
   let peak = capital;
   let bestDay = 0;
   const pct = (value: number) => (value / capital) * 100;
-  for (let index = 0; index < days.length; index += 1) {
-    const day = days[index];
-    if (day === undefined) continue;
-    const used = index + 1;
+  // Trading days: days with any P&L movement (flat days on the equity curve do not count).
+  let used = 0;
+  for (const day of days) {
+    const dayLow = day.low ?? Math.min(0, day.pnl);
+    if (day.pnl !== 0 || dayLow !== 0) used += 1;
+    const lowest = balance + dayLow;
     balance += day.pnl;
     bestDay = Math.max(bestDay, day.pnl);
     const result = (
@@ -312,17 +342,17 @@ export const simulatePropRule = (
       reason,
       status,
     });
-    if (rule.maxDailyLossPct !== null && pct(-day.pnl) >= rule.maxDailyLossPct)
+    if (rule.maxDailyLossPct !== null && pct(-dayLow) >= rule.maxDailyLossPct)
       return result(
         "failed",
-        `Daily loss ${fmt(pct(-day.pnl))} hit the ${fmt(rule.maxDailyLossPct)} limit`
+        `Daily loss ${fmt(pct(-dayLow))} hit the ${fmt(rule.maxDailyLossPct)} limit`
       );
-    // Trailing floor follows the closed-balance peak and stops rising at the starting balance.
+    // Trailing floor follows the end-of-day balance peak and stops rising at the starting balance.
     const floor =
       rule.drawdown === "static"
         ? capital * (1 - rule.maxLossPct / 100)
         : Math.min(capital, peak - (capital * rule.maxLossPct) / 100);
-    if (balance <= floor)
+    if (Math.min(lowest, balance) <= floor)
       return result(
         "failed",
         `${rule.drawdown === "static" ? "Max loss" : "Trailing drawdown"} ${fmt(rule.maxLossPct)} breached`
@@ -344,13 +374,13 @@ export const simulatePropRule = (
   let openReason = `Target ${fmt(rule.profitTargetPct)} not reached`;
   if (pct(finalProfit) >= rule.profitTargetPct) {
     openReason =
-      days.length < rule.minTradingDays
-        ? `Target reached but only ${days.length} of ${rule.minTradingDays} trading days`
+      used < rule.minTradingDays
+        ? `Target reached but only ${used} of ${rule.minTradingDays} trading days`
         : `Target reached but best day is over ${rule.consistencyPct}% of profit`;
   }
   return {
     bestDayPct: pct(bestDay),
-    days: days.length,
+    days: used,
     decidedOn: null,
     finalPct: pct(finalProfit),
     reason: openReason,
@@ -367,13 +397,21 @@ export type PropSimulation = Readonly<{
   paths: number;
 }>;
 
+// Uses the per-bar equity curve when complete (intraday dips count); else closed trade P&L.
 export const simulatePropRules = (
-  report: Pick<BacktestRunReportOutput, "trades" | "seriesSha256">,
+  report: Pick<
+    BacktestRunReportOutput,
+    "bars" | "equity" | "trades" | "seriesSha256"
+  >,
   capital: number,
   rules: readonly PropRule[] = PROP_RULES,
   paths = REPORT_MONTE_CARLO_PATHS
 ): PropSimulation[] => {
-  const days = dailyPnl(report.trades);
+  const days =
+    // The chart equity series is thinned on long runs; only a full one has every bar.
+    report.equity.length > 0 && report.equity.length === report.bars
+      ? dailyFromEquity(report.equity, capital)
+      : dailyPnl(report.trades);
   return rules.map((rule) => {
     const random = createRandom(seedFrom(`${report.seriesSha256}:${rule.id}`));
     let passed = 0;
@@ -491,7 +529,5 @@ export const barReplayReducer = (
               total: action.total,
             }
         : state;
-    default:
-      return state;
   }
 };
