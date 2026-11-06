@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { defineChart, lineY } from "@tanstack/charts";
 import { Chart } from "@tanstack/charts/react";
 import { scaleLinear, scaleUtc } from "d3-scale";
-import "./charts.css";
 
 // Backtest equity and drawdown lines on the same TanStack Charts 0.18.0 package family and
 // compositional API as tanstack-adapter.ts (lineY over a UTC time scale). Display only; the
@@ -80,13 +79,13 @@ const MountedSeries = ({
     [points, yLabel]
   );
   return (
-    <figure className="vx-chart-panel">
+    <figure className="@container min-w-0 max-w-full border-border-strong border-t-2 pt-4 text-foreground [&>*]:min-w-0 [&>*]:max-w-full motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:scroll-auto motion-reduce:[&_*]:transition-none [&_:focus-visible]:outline-2 [&_:focus-visible]:outline-foreground [&_:focus-visible]:outline-solid [&_:focus-visible]:outline-offset-3">
       <Chart
         definition={definition}
         ariaLabel={label}
         ariaDescription={`${label}. Exact values are in the tables below and in the API payload.`}
         height={height}
-        className="vx-chart-tanstack"
+        className="w-full min-w-0 bg-background text-foreground"
       />
       <figcaption className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]">
         {caption}

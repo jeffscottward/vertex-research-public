@@ -70,6 +70,9 @@ const RETIRED_CLASSES = [
   "vx-ex-pagination",
   "vx-ex-facts",
   "vx-ex-scope",
+  "vx-chart-panel",
+  "vx-chart-canvas",
+  "vx-chart-tanstack",
 ] as const;
 const SOURCE_ROOT = join(import.meta.dirname);
 

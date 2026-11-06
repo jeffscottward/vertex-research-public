@@ -3,7 +3,6 @@
 import { ChartWorkstation } from "./chart-workstation.tsx";
 import { createKLineRenderer } from "./kline-adapter.ts";
 import type { ChartMarker, ChartStudies, DisplayCandle } from "./types.ts";
-import "./charts.css";
 
 // Lazy-loaded entry for the /charts page: KLineCharts workstation with chart types,
 // drawings, data window, object tree and PNG screenshot.
