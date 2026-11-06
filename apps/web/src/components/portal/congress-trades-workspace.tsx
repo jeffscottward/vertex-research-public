@@ -362,7 +362,7 @@ export const CongressTradesWorkspace = ({
 
   const controls = (
     <>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span className="whitespace-nowrap">Filed in the last</span>
         <select
           className={selectClass}
@@ -379,7 +379,7 @@ export const CongressTradesWorkspace = ({
           ))}
         </select>
       </label>
-      <label className="flex items-center gap-2 text-sm">
+      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Member</span>
         <select
           className={selectClass}
@@ -414,6 +414,7 @@ export const CongressTradesWorkspace = ({
             Refresh
           </Button>
         }
+        description="House members' STOCK Act trade filings (PTRs), newest first, with links to each report. Research only."
         status={status}
         title="Congress trades"
       />
