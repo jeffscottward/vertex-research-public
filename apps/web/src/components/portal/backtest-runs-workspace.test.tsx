@@ -598,14 +598,23 @@ describe("BacktestRunsWorkspace", () => {
     expect(document.body.textContent).toContain("Trade 1 of 2");
     expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(document.querySelectorAll("figure")).toHaveLength(2);
-    // 375 px: the tab bar scrolls inside its box and the form selects shrink to the column.
+    // 375 px: a padded wrapper scrolls the tab bar (the list itself must not clip the 44 px
+    // trigger boxes), triggers keep their width, and the form selects shrink to the column.
     const tabList = document.querySelector('[role="tablist"]');
-    expect(tabList?.className).toContain("overflow-x-auto");
-    expect(tabList?.className).toContain("max-w-full");
-    for (const tab of document.querySelectorAll('[role="tab"]')) {
+    expect(tabList?.className).not.toContain("overflow");
+    const scroller = tabList?.parentElement;
+    expect(scroller?.hasAttribute("data-report-tabs-scroll")).toBe(true);
+    expect(scroller?.className).toContain("overflow-x-auto");
+    expect(scroller?.className).toContain("py-1.5");
+    const tabs = document.querySelectorAll('[role="tab"]');
+    expect(tabs).toHaveLength(4);
+    for (const tab of tabs) {
       expect(tab.className).toContain("flex-none");
+      expect(tab.className).not.toMatch(/(^|\s)flex-1(\s|$)/);
     }
-    for (const select of document.querySelectorAll("form select")) {
+    const selects = document.querySelectorAll("form select");
+    expect(selects.length).toBeGreaterThanOrEqual(5);
+    for (const select of selects) {
       expect(select.className).toContain("min-w-0");
     }
   });

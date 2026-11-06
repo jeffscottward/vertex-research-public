@@ -249,8 +249,8 @@ const PropRulesTable = ({
         firm. Limits are a percent of the starting balance ({money(capital)})
         per UTC day,{" "}
         {propRulesUseEquity(report)
-          ? "measured on per-bar account equity, so intraday dips count."
-          : "measured on closed trade P/L (this report has no full per-bar equity curve, so intraday dips are not seen)."}{" "}
+          ? "measured on account equity at each bar, so open-trade drawdown counts (moves inside one bar are not seen)."
+          : "measured on closed trade P/L (this report has no full per-bar equity curve, so open-trade drawdown is not seen)."}{" "}
         Pass rate reshuffles the order of the same trading days.
       </p>
       <div className="overflow-auto rounded-md border">

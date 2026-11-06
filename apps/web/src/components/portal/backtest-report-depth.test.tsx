@@ -92,8 +92,17 @@ describe("report depth panels", () => {
     const withEquity = render(
       <SimulationPanel capital={10_000} report={{ ...truncated, equity }} />
     ).textContent;
-    expect(withEquity).toContain("intraday dips count");
+    expect(withEquity).toContain("open-trade drawdown counts");
     expect(withEquity).toContain("use the full equity curve");
+    // A thinned curve (fewer points than bars) falls back to the kept trades.
+    const thinned = render(
+      <SimulationPanel
+        capital={10_000}
+        report={{ ...truncated, equity: equity.slice(1) }}
+      />
+    ).textContent;
+    expect(thinned).toContain("measured on closed trade P/L");
+    expect(thinned).toContain("also use only those trades");
   });
 
   it("covers all-win, truncated and flat reports", () => {
