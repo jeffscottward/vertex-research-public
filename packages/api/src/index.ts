@@ -113,6 +113,7 @@ export * from "./contracts/engine-comparison.ts";
 export * from "./contracts/instant-backtest.ts";
 export * from "./contracts/setup-replay.ts";
 export * from "./signal-alerts.ts";
+export * from "./backtest-report-depth.ts";
 export * from "./contracts/academy.ts";
 export * from "./strategy-dsl.ts";
 export * from "./contracts/research-lenses.ts";
