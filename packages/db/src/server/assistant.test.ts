@@ -202,6 +202,66 @@ describe("assistant record rules", () => {
     ).toThrow(/at most 64/);
   });
 
+  it("keeps a chart tool's artifact object and refuses a non-object one", () => {
+    const artifact = { kind: "chart_clear", symbol: "ES" };
+    expect(
+      normalizeAssistantToolTrace([
+        {
+          tool: "chart_clear_drawings",
+          args: "{}",
+          ok: true,
+          error: null,
+          durationMs: 1,
+          artifact,
+        },
+      ])
+    ).toEqual([
+      {
+        tool: "chart_clear_drawings",
+        args: "{}",
+        ok: true,
+        error: null,
+        durationMs: 1,
+        artifact,
+      },
+    ]);
+    expect(
+      normalizeAssistantToolTrace([
+        {
+          tool: "teach_steps",
+          args: `${"é".repeat(299)}\uD83D\uDE00`,
+          ok: true,
+          error: "bad\u0000\uD83D",
+          durationMs: 1,
+          artifact: {
+            kind: "teach",
+            topic: "Lev\u0000els\uD83D",
+            steps: [{ title: "T\u007f", body: "line 1\n\tline 2\u0001 😀" }],
+          },
+        },
+      ])
+    ).toEqual([
+      {
+        tool: "teach_steps",
+        // Cut at 300 code units inside the emoji: the lone half is removed.
+        args: "é".repeat(299),
+        ok: true,
+        error: "bad ",
+        durationMs: 1,
+        artifact: {
+          kind: "teach",
+          topic: "Levels",
+          steps: [{ title: "T", body: "line 1\n\tline 2 😀" }],
+        },
+      },
+    ]);
+    return expect(() =>
+      normalizeAssistantToolTrace([
+        { tool: "chart_draw", args: "", ok: true, durationMs: 1, artifact: [] },
+      ])
+    ).toThrow(/artifact must be an object/);
+  });
+
   return it("uses UTC calendar days for the budget", () =>
     expect(assistantBudgetDay(new Date("2026-01-02T23:59:59.000-05:00"))).toBe(
       "2026-01-03"

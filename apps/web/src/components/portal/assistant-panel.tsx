@@ -1,9 +1,11 @@
 // What: Assistant side panel on every portal page: a right column from lg, a modal bottom sheet with a floating toggle below lg. One open state, shared with the topbar toggle, saved in the "vx.assistantPanel" cookie so the server renders it.
 // Used by: apps/web/src/components/portal-shell.tsx.
-// See: apps/web/src/components/portal/assistant-workspace.tsx (variant "panel"); apps/web/src/lib/assistant-panel-cookie.ts; apps/web/src/lib/portal-page-title.ts.
+// See: apps/web/src/components/portal/assistant-workspace.tsx (variant "panel"); apps/web/src/lib/assistant-panel-cookie.ts; apps/web/src/lib/portal-page-title.ts; apps/web/src/features/charts/chart-bus.ts (what the chart shows on /charts).
 "use client";
 
 import {
+  type AssistantPageChart,
+  AssistantPageChartSchema,
   type AssistantPageContext,
   AssistantPageContextSchema,
 } from "@darkfactory/api";
@@ -28,6 +30,11 @@ import {
   isRouteExposed,
 } from "../../lib/navigation.ts";
 import { portalPageTitle } from "../../lib/portal-page-title.ts";
+import {
+  type ChartContext,
+  currentChartContext,
+} from "../../features/charts/chart-bus.ts";
+import { isChartsPath } from "./assistant-artifacts.tsx";
 import type { AssistantGateway } from "./assistant-client.ts";
 import { AssistantWorkspace } from "./assistant-workspace.tsx";
 
@@ -52,6 +59,25 @@ export const assistantPageContext = (
   });
   return parsed.success ? parsed.data : undefined;
 };
+
+/** What the chart workstation shows, as the contract's page chart; none when it does not fit. */
+export const assistantPageChart = (
+  chart: ChartContext | null
+): AssistantPageChart | undefined => {
+  if (chart === null) return undefined;
+  const parsed = AssistantPageChartSchema.safeParse({
+    bars: chart.bars,
+    firstTimestamp: chart.firstTimestamp,
+    lastClose: chart.lastClose,
+    lastTimestamp: chart.lastTimestamp,
+    symbol: chart.symbol.trim().toUpperCase(),
+  });
+  return parsed.success ? parsed.data : undefined;
+};
+
+// Read at send time: the chart publishes its context without rendering the panel.
+const readPageChart = (): AssistantPageChart | undefined =>
+  assistantPageChart(currentChartContext());
 
 type AssistantPanelState = Readonly<{
   /** The operator may use the assistant and this is not the /assistant page itself. */
@@ -266,6 +292,7 @@ export const AssistantPanel = ({ gateway }: AssistantPanelProps) => {
             <AssistantWorkspace
               {...(gateway === undefined ? {} : { gateway })}
               {...(pageContext === undefined ? {} : { pageContext })}
+              {...(isChartsPath(pathname) ? { pageChart: readPageChart } : {})}
               variant="panel"
             />
           ) : null}

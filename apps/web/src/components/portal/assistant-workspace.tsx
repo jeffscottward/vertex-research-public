@@ -5,6 +5,7 @@ import type {
   AssistantActionOutput,
   AssistantMessageOutput,
   AssistantModeValue,
+  AssistantPageChart,
   AssistantPageContext,
   AssistantSendEvent,
   AssistantStatusOutput,
@@ -15,6 +16,7 @@ import type {
 import { Button, IconButton, Textarea } from "@darkfactory/ui";
 import {
   Check,
+  GraduationCap,
   History,
   MessageSquarePlus,
   SendHorizontal,
@@ -30,7 +32,6 @@ import {
   type UIEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -52,12 +53,23 @@ import {
   formatToolDuration,
   threadTitleFrom,
 } from "./assistant-client.ts";
+import {
+  type AssistantChartTarget,
+  AssistantArtifacts,
+  artifactKey,
+  autoApplyChartArtifact,
+  isChartsPath,
+  toolArtifacts,
+} from "./assistant-artifacts.tsx";
 import { AssistantMarkdown } from "./assistant-markdown.tsx";
 
 // Research assistant: threads on the left, transcript and composer on the right. Plan mode (default)
 // gives the model read-only tools; Act mode adds record-keeping writes. While a turn runs, its reply
 // text appears as the model writes it, with a card for each finished tool call. Confirm cards (save a
 // strategy definition, run a backtest, run a sweep) show under their reply and run only after Approve.
+// Chart tool calls carry display-only artifacts (drawings, a script, a Teach walkthrough) shown under
+// their reply; on /charts a new turn's drawings apply to the chart once, as they arrive. Teach (a
+// toggle beside the mode) asks for step-by-step explanations.
 // Two layouts share one state hook: "page" (the /assistant page) and "panel" (the narrow side panel
 // in the portal shell, which also sends the portal page the operator is on as context).
 
@@ -65,9 +77,27 @@ export interface AssistantWorkspaceProps {
   readonly gateway?: AssistantGateway;
   /** Sent with every message when set: the portal page the operator is on. */
   readonly pageContext?: AssistantPageContext;
+  /** On /charts: reads what the chart shows at send time (it changes without a render here). */
+  readonly pageChart?: () => AssistantPageChart | undefined;
   /** "page" (default): the /assistant layout. "panel": the narrow portal side panel. */
   readonly variant?: "page" | "panel";
 }
+
+/** What one message carries besides its text: the page (on /charts also what the chart shows now)
+ * and Teach mode when it is on. */
+const messageContext = (
+  pageContext: AssistantPageContext | undefined,
+  pageChart: (() => AssistantPageChart | undefined) | undefined,
+  teach: boolean
+): { page?: AssistantPageContext; teach?: true } => {
+  const extras = teach ? { teach: true as const } : {};
+  if (pageContext === undefined) return extras;
+  const chart = pageChart?.();
+  return {
+    ...extras,
+    page: chart === undefined ? pageContext : { ...pageContext, chart },
+  };
+};
 
 type ListState =
   | Readonly<{ type: "loading" }>
@@ -324,11 +354,13 @@ const MessageView = ({
   actions,
   decisions,
   onDecide,
+  target,
 }: Readonly<{
   message: AssistantMessageOutput;
   actions: readonly AssistantActionOutput[];
   decisions: DecisionState;
   onDecide: DecideHandler;
+  target: AssistantChartTarget;
 }>) => {
   const mine = message.role === "user";
   return (
@@ -374,6 +406,10 @@ const MessageView = ({
             source={message.content.length > 0 ? message.content : "(no reply)"}
           />
         )}
+        <AssistantArtifacts
+          artifacts={toolArtifacts(message.toolCalls)}
+          target={target}
+        />
         {actions.length > 0 ? (
           <div
             aria-label={`${actions.length} confirm cards`}
@@ -396,7 +432,10 @@ const MessageView = ({
   );
 };
 
-const LiveTurnView = ({ live }: Readonly<{ live: LiveTurn }>) => {
+const LiveTurnView = ({
+  live,
+  target,
+}: Readonly<{ live: LiveTurn; target: AssistantChartTarget }>) => {
   const [next] = live.running;
   return (
     <li className="flex justify-start" data-message-role="streaming">
@@ -413,6 +452,10 @@ const LiveTurnView = ({ live }: Readonly<{ live: LiveTurn }>) => {
             ))}
           </div>
         ) : null}
+        <AssistantArtifacts
+          artifacts={toolArtifacts(live.tools)}
+          target={target}
+        />
         {next === undefined ? null : (
           <p className="text-muted-foreground text-xs" data-running-tool="">
             Calling <span className="font-mono">{next}</span>…
@@ -476,12 +519,14 @@ const BudgetMeter = ({
 type AssistantChatOptions = Readonly<{
   gateway: AssistantGateway | undefined;
   pageContext: AssistantPageContext | undefined;
+  pageChart: (() => AssistantPageChart | undefined) | undefined;
 }>;
 
 /** All assistant state and actions; both layouts (page and side panel) render from it. */
 const useAssistantChat = ({
   gateway: suppliedGateway,
   pageContext,
+  pageChart,
 }: AssistantChatOptions) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserAssistantGateway()
@@ -492,6 +537,8 @@ const useAssistantChat = ({
   });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mode, setMode] = useState<AssistantModeValue>("plan");
+  // Teach mode: kept for this session (component state), sent with every message while on.
+  const [teach, setTeach] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [live, setLive] = useState<LiveTurn>(EMPTY_LIVE_TURN);
@@ -508,6 +555,22 @@ const useAssistantChat = ({
   // new messages and live text keep it there; scrolling up to read turns it off until they return.
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
+  // Where the panel is now (the operator may navigate while a turn streams), read when an artifact
+  // arrives; and the artifacts already applied, so the streamed call and the stored reply that
+  // repeats it apply once.
+  const where = useRef({ pageChart, pageContext });
+  useEffect(() => {
+    where.current = { pageChart, pageContext };
+  }, [pageChart, pageContext]);
+  const currentTarget = useCallback(
+    (): AssistantChartTarget => ({
+      onCharts: isChartsPath(where.current.pageContext?.path),
+      symbol: where.current.pageChart?.()?.symbol ?? null,
+    }),
+    []
+  );
+  const appliedArtifacts = useRef(new Set<string>());
+  const turnCount = useRef(0);
 
   const loadList = useCallback(async () => {
     try {
@@ -587,10 +650,36 @@ const useAssistantChat = ({
     return setStopNote(null);
   };
 
-  const pageInput = useMemo(
-    () => (pageContext === undefined ? {} : { page: pageContext }),
-    [pageContext]
-  );
+  // Applies a turn's new artifacts on /charts once, from the streamed "tool" events or else from
+  // the stored reply's trace (which repeats them); invalid or unknown artifacts are skipped.
+  const startArtifactTurn = useCallback(() => {
+    turnCount.current += 1;
+    const turn = `turn-${turnCount.current}`;
+    // Content keys: the streamed calls and the stored trace repeat the same artifacts in the same
+    // order, though not always at the same trace positions. The n-th copy of one artifact in the
+    // turn (two identical clears, say) keeps its own key.
+    const applier = () => {
+      const seen = new Map<string, number>();
+      return (calls: readonly AssistantToolTraceOutput[]) => {
+        for (const artifact of toolArtifacts(calls)) {
+          const content = artifactKey(artifact);
+          const copy = (seen.get(content) ?? 0) + 1;
+          seen.set(content, copy);
+          const key = `${turn}:${content}:${copy}`;
+          if (appliedArtifacts.current.has(key)) continue;
+          appliedArtifacts.current.add(key);
+          autoApplyChartArtifact(artifact, currentTarget());
+        }
+      };
+    };
+    const streamed = applier();
+    return {
+      event: (event: AssistantSendEvent) => {
+        if (event.type === "tool") streamed([event.call]);
+      },
+      stored: applier(),
+    };
+  }, [currentTarget]);
 
   const send = useCallback(
     async (text: string) => {
@@ -605,6 +694,8 @@ const useAssistantChat = ({
       const controller = new AbortController();
       stopper.current = controller;
       let threadId = activeId;
+      const artifacts = startArtifactTurn();
+      const context = messageContext(pageContext, pageChart, teach);
       try {
         if (threadId === null) {
           const thread = await gateway.create(threadTitleFrom(message));
@@ -623,11 +714,16 @@ const useAssistantChat = ({
             message,
             mode,
             threadId,
-            ...pageInput,
+            ...context,
           },
           controller.signal,
-          (event) => setLive((current) => applyLiveEvent(current, event))
+          (event) => {
+            artifacts.event(event);
+            setLive((current) => applyLiveEvent(current, event));
+          }
         );
+        // Artifacts the stream did not deliver (the stored trace repeats the streamed ones).
+        artifacts.stored(output.trace);
         setDraft("");
         setTranscript((current) => {
           const same =
@@ -671,7 +767,18 @@ const useAssistantChat = ({
         setLive(EMPTY_LIVE_TURN);
       }
     },
-    [activeId, gateway, loadList, mode, openThread, pageInput, pending]
+    [
+      activeId,
+      gateway,
+      loadList,
+      mode,
+      openThread,
+      pageChart,
+      pageContext,
+      pending,
+      startArtifactTurn,
+      teach,
+    ]
   );
 
   const decide = useCallback(
@@ -729,6 +836,11 @@ const useAssistantChat = ({
     actions: transcript.type === "ready" ? transcript.actions : [],
     activeId,
     busy,
+    // For artifact cards: on /charts they apply to the chart; the symbol keeps the editor link on it.
+    chartTarget: {
+      onCharts: isChartsPath(pageContext?.path),
+      symbol: pageChart?.()?.symbol ?? null,
+    } satisfies AssistantChartTarget,
     configured: status?.configured ?? false,
     decide,
     decisions,
@@ -749,12 +861,14 @@ const useAssistantChat = ({
     sendError,
     setDraft,
     setMode,
+    setTeach,
     showStarters:
       transcript.type !== "loading" && messages.length === 0 && !busy,
     status,
     stop: () => stopper.current?.abort(),
     stopNote,
     submit,
+    teach,
     threads: list.type === "ready" ? list.threads : [],
     transcript,
   };
@@ -792,6 +906,33 @@ const ModeToggle = ({
         );
       })}
     </div>
+  );
+};
+
+const TEACH_HELP =
+  "Teach: the assistant explains step by step, with a walkthrough you can step through (and chart drawings on /charts). No trading advice.";
+
+const TEACH_ON_HELP = "Teach is on: step-by-step explanations.";
+
+// Teach mode: a toggle button beside the mode control; on for this session until turned off.
+const TeachToggle = ({
+  chat,
+  compact = false,
+}: ChatProps & Readonly<{ compact?: boolean }>) => {
+  return (
+    <button
+      aria-pressed={chat.teach}
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border text-sm ${compact ? "px-2" : "px-3"} ${chat.teach ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+      data-click-label="Teach"
+      data-teach-toggle=""
+      disabled={chat.busy}
+      onClick={() => chat.setTeach(!chat.teach)}
+      title={TEACH_HELP}
+      type="button"
+    >
+      <GraduationCap aria-hidden="true" className="size-4" />
+      Teach
+    </button>
   );
 };
 
@@ -855,6 +996,7 @@ const TranscriptScroll = ({
             key={message.id}
             message={message}
             onDecide={(id, decision) => void chat.decide(id, decision)}
+            target={chat.chartTarget}
           />
         ))}
         {chat.pending === null ? null : (
@@ -864,7 +1006,7 @@ const TranscriptScroll = ({
                 {chat.pending}
               </p>
             </li>
-            <LiveTurnView live={chat.live} />
+            <LiveTurnView live={chat.live} target={chat.chartTarget} />
           </>
         )}
       </ol>
@@ -1048,9 +1190,15 @@ const AssistantPageLayout = ({ chat }: ChatProps) => {
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
-            <ModeToggle chat={chat} />
+            <div className="flex flex-wrap items-center gap-2">
+              <ModeToggle chat={chat} />
+              <TeachToggle chat={chat} />
+            </div>
             <p className="text-muted-foreground text-xs" data-mode-help="">
               {ASSISTANT_MODE_HELP[chat.mode]}
+              {chat.teach ? (
+                <span data-teach-help=""> {TEACH_ON_HELP}</span>
+              ) : null}
             </p>
           </div>
           {chat.status === null ? null : (
@@ -1183,6 +1331,7 @@ const AssistantPanelLayout = ({
           <History aria-hidden="true" />
         </IconButton>
         <ModeToggle chat={chat} compact describedBy={PANEL_MODE_HELP_ID} />
+        <TeachToggle chat={chat} compact />
         <IconButton
           aria-label="New chat"
           className="ml-auto"
@@ -1202,6 +1351,7 @@ const AssistantPanelLayout = ({
         id={PANEL_MODE_HELP_ID}
       >
         {ASSISTANT_MODE_HELP[chat.mode]}
+        {chat.teach ? <span data-teach-help=""> {TEACH_ON_HELP}</span> : null}
       </p>
       <ChatNotices chat={chat} />
       <TranscriptScroll chat={chat}>
@@ -1245,9 +1395,10 @@ const AssistantPanelLayout = ({
 export const AssistantWorkspace = ({
   gateway,
   pageContext,
+  pageChart,
   variant = "page",
 }: AssistantWorkspaceProps) => {
-  const chat = useAssistantChat({ gateway, pageContext });
+  const chat = useAssistantChat({ gateway, pageChart, pageContext });
   if (chat.list.type === "forbidden")
     return <OperatorAccessRequired feature="assistant" />;
   return variant === "panel" ? (
