@@ -50,14 +50,20 @@ describe("AcademyThemeScope", () => {
     expect(button.getAttribute("aria-label")).toBe(
       "Switch the Academy to light mode"
     );
-    expect(button.textContent).toBe("Light mode");
+    expect(
+      button.querySelector("[data-academy-theme-label]")?.textContent
+    ).toBe("Light mode");
+    expect(button.querySelector(".invisible")?.textContent).toBe("Dark mode");
     await act(async () => button.click());
     expect(scope?.getAttribute("data-academy-theme")).toBe("light");
     expect(scope?.getAttribute("data-theme")).toBe("default-light");
     expect(button.getAttribute("aria-label")).toBe(
       "Switch the Academy to dark mode"
     );
-    expect(button.textContent).toBe("Dark mode");
+    expect(
+      button.querySelector("[data-academy-theme-label]")?.textContent
+    ).toBe("Dark mode");
+    expect(button.querySelector(".invisible")?.textContent).toBe("Light mode");
     expect(window.localStorage.getItem("vertex-academy-theme")).toBe("light");
     await act(async () => button.click());
     expect(scope?.getAttribute("data-academy-theme")).toBe("dark");
