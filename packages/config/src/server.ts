@@ -17,6 +17,7 @@ import {
   RequestDatabaseEndpointError,
   validateRequestDatabaseEndpoint,
 } from "./database.ts";
+import { APP_ENVIRONMENTS } from "./environment.ts";
 
 const emptyStringToUndefined = (value: unknown): unknown => {
   return typeof value === "string" && value.trim() === "" ? undefined : value;
@@ -458,7 +459,7 @@ const baseServerEnvSchema = z.object({
   AI_PROVIDER: z.enum(AI_ADAPTERS).default("groq"),
 
   ANALYTICS_PROVIDER: z.enum(ANALYTICS_ADAPTERS).default("posthog"),
-  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
+  APP_ENV: z.enum(APP_ENVIRONMENTS).default("development"),
   APP_NAME: z.string().trim().min(1).default("Vertex Research"),
   APP_URL: appOriginUrl("APP_URL").default(CANONICAL_APP_URL),
 
