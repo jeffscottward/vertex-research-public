@@ -20,11 +20,14 @@ import {
   TableScroll,
 } from "@darkfactory/ui";
 import { ExternalLink, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
 import { OperatorAccessRequired } from "./agent-ops-client.tsx";
-import type { MarketSourceStatus } from "./market-source-status.ts";
+import {
+  feedsSourceStatus,
+  type MarketSourceStatus,
+} from "./market-source-status.ts";
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 
 // Market feeds (card vertex-markets-gex-macro-news): GEX for SPY/QQQ, macro series and macro news from
@@ -57,8 +60,8 @@ const when = (value: string | null): string =>
       });
 
 const COMPACT = new Intl.NumberFormat("en-US", {
-  notation: "compact",
   maximumFractionDigits: 1,
+  notation: "compact",
 });
 
 const num = (value: number | null, digits = 2): string =>
@@ -365,6 +368,8 @@ type State =
 
 export interface MarketFeedsWorkspaceProps {
   readonly gateway?: MarketFeedsGateway;
+  /** Called with whether a load is in flight, so the page header can hold Refresh. */
+  readonly onBusyChange?: (busy: boolean) => void;
   /** Called with the load state, for the page header chip. */
   readonly onStatusChange?: (status: MarketSourceStatus) => void;
   /** Each new value reloads now (the page header Refresh). */
@@ -374,22 +379,34 @@ export interface MarketFeedsWorkspaceProps {
 export const MarketFeedsWorkspace = ({
   gateway: supplied,
   onStatusChange,
+  onBusyChange,
   refreshSignal = 0,
 }: MarketFeedsWorkspaceProps) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserMarketFeedsGateway()
   );
   const [state, setState] = useState<State>({ type: "loading" });
+  const [busy, setBusy] = useState(true);
+  // Each load takes the next number; only the newest may write, so a slow older answer
+  // (the timer, Refresh or Retry overlapping) never overwrites a newer one.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    latest.current += 1;
+    const request = latest.current;
+    setBusy(true);
     try {
-      return setState({ type: "ready", data: await gateway.context() });
+      const data = await gateway.context();
+      if (request === latest.current) setState({ data, type: "ready" });
     } catch (error) {
+      if (request !== latest.current) return;
       const failure = describePortfolioMonitorFailure(error);
-      return setState(
+      setState(
         failure.kind === "forbidden"
           ? { type: "forbidden" }
-          : { type: "error", message: `${failure.code}: ${failure.message}` }
+          : { message: `${failure.code}: ${failure.message}`, type: "error" }
       );
+    } finally {
+      if (request === latest.current) setBusy(false);
     }
   }, [gateway]);
   useEffect(() => {
@@ -400,11 +417,16 @@ export const MarketFeedsWorkspace = ({
       () => void load(),
       MARKET_FEEDS_REFRESH_MS
     );
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      // A Refresh restart or unmount drops the answer still in flight.
+      latest.current += 1;
+    };
   }, [load, refreshSignal]);
   const status: MarketSourceStatus =
-    state.type === "ready" && state.data.stale ? "stale" : state.type;
+    state.type === "ready" ? feedsSourceStatus(state.data) : state.type;
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
+  useEffect(() => onBusyChange?.(busy), [onBusyChange, busy]);
 
   if (state.type === "forbidden")
     return <OperatorAccessRequired feature="market-context" />;
@@ -424,7 +446,7 @@ export const MarketFeedsWorkspace = ({
         <p className="text-sm" role="alert">
           GEX, macro and news unavailable. {state.message}
         </p>
-        <Button onClick={() => void load()} variant="outline">
+        <Button disabled={busy} onClick={() => void load()} variant="outline">
           <RotateCcw aria-hidden="true" className="size-4" />
           Retry now
         </Button>
