@@ -10,6 +10,9 @@ import {
 } from "./workstation.ts";
 
 export const QUANT_DRAWING_PREFIX = "quant-";
+// Drawings of one teaching walkthrough; still Quant drawings (they start with "quant-").
+export const QUANT_TEACH_PREFIX = "quant-teach-";
+const DRAWINGS_MAX = 200;
 export const CHART_COMMAND_EVENT = "vx:chart-command";
 export const PENDING_SCRIPT_KEY = "vx.charts.script.pending";
 const PENDING_SOURCE_MAX = 16_000;
@@ -22,10 +25,12 @@ export type ChartCommand =
   | Readonly<{
       type: "drawings";
       symbol: string;
-      // Ids are re-prefixed with QUANT_DRAWING_PREFIX on apply.
+      // Ids are re-prefixed with QUANT_DRAWING_PREFIX (QUANT_TEACH_PREFIX with group) on apply.
       drawings: readonly Drawing[];
-      // true: remove Quant's earlier drawings on this symbol first.
+      // true: remove Quant's earlier drawings on this symbol first (with group "teach":
+      // only earlier teach drawings).
       replace: boolean;
+      group?: "teach";
     }>
   | Readonly<{ type: "clear_quant"; symbol: string }>
   | Readonly<{ type: "script"; title: string; source: string }>;
@@ -42,26 +47,45 @@ const browserStore = (): Store | null => {
   }
 };
 
-const quantId = (id: string): string =>
-  id.startsWith(QUANT_DRAWING_PREFIX) ? id : `${QUANT_DRAWING_PREFIX}${id}`;
+const quantId = (id: string, prefix: string): string =>
+  id.startsWith(prefix) ? id : `${prefix}${id}`;
 
-// Pure: the stored drawings after one drawings/clear command.
+/**
+ * Pure: the stored drawings after one drawings/clear command. At most 200 are kept and the
+ * operator's own drawings are never dropped for Quant's: the oldest Quant drawings go
+ * first, and when the operator's drawings alone fill the limit, Quant's are refused.
+ */
 export const applyDrawingCommand = (
   current: readonly Drawing[],
   command: Extract<ChartCommand, { type: "drawings" | "clear_quant" }>
 ): readonly Drawing[] => {
+  const teach = command.type === "drawings" && command.group === "teach";
+  const removed = (drawing: Drawing) =>
+    teach ? drawing.id.startsWith(QUANT_TEACH_PREFIX) : isQuantDrawing(drawing);
   const kept =
-    command.type === "clear_quant" || command.replace
-      ? current.filter((drawing) => !isQuantDrawing(drawing))
+    command.type === "clear_quant" || command.replace === true
+      ? current.filter((drawing) => !removed(drawing))
       : current;
   if (command.type === "clear_quant") return kept;
-  const added = command.drawings
-    .map((drawing) => ({ ...drawing, id: quantId(drawing.id) }))
+  const prefix = teach ? QUANT_TEACH_PREFIX : QUANT_DRAWING_PREFIX;
+  const added = (Array.isArray(command.drawings) ? command.drawings : [])
+    .filter(
+      (drawing: unknown) =>
+        typeof drawing === "object" &&
+        drawing !== null &&
+        typeof (drawing as Drawing).id === "string"
+    )
+    .map((drawing) => ({ ...drawing, id: quantId(drawing.id, prefix) }))
     .filter(validDrawing);
   const ids = new Set(added.map((drawing) => drawing.id));
-  return [...kept.filter((drawing) => !ids.has(drawing.id)), ...added].slice(
-    -200
-  );
+  const merged = [...kept.filter((drawing) => !ids.has(drawing.id)), ...added];
+  const operator = merged.filter((drawing) => !isQuantDrawing(drawing)).length;
+  let excess = merged.length - operator - Math.max(0, DRAWINGS_MAX - operator);
+  return merged.filter((drawing) => {
+    if (excess <= 0 || !isQuantDrawing(drawing)) return true;
+    excess -= 1;
+    return false;
+  });
 };
 
 export const readPendingScript = (
@@ -128,8 +152,10 @@ export const sendChartCommand = (
 
 export const subscribeChartCommands = (
   listener: (command: ChartCommand) => void,
-  target: Pick<EventTarget, "addEventListener" | "removeEventListener"> | null =
-    typeof window === "undefined" ? null : window
+  target: Pick<
+    EventTarget,
+    "addEventListener" | "removeEventListener"
+  > | null = typeof window === "undefined" ? null : window
 ): (() => void) => {
   const handler = (event: Event) => {
     const detail = (event as CustomEvent<unknown>).detail;

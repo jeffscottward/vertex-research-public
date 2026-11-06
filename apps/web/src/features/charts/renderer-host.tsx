@@ -1,7 +1,7 @@
 "use client";
 
-import { Component, useEffect, useId, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+import { Component, useEffect, useId, useRef, useState } from "react";
 import type {
   CandleRenderer,
   CandleRendererFactory,
@@ -21,12 +21,12 @@ const readChartPalette = (element: HTMLElement): ChartPalette => {
   const foreground = token("--foreground", style.color);
   const background = token("--background", style.backgroundColor);
   return {
-    foreground,
+    accent: token("--vx-gold", foreground),
     background,
+    falling: token("--muted-foreground", foreground),
+    foreground,
     grid: token("--border", foreground),
     rising: foreground,
-    falling: token("--muted-foreground", foreground),
-    accent: token("--vx-gold", foreground),
   };
 };
 
@@ -43,6 +43,8 @@ export type CandleCanvasProps = Readonly<{
   captions?: Readonly<{ ready: string; loading: string; error: string }>;
   // Receives each mounted renderer, and null when it goes away.
   onRenderer?: (renderer: CandleRenderer | null) => void;
+  // Panes the host adds below the candles besides pane studies (script layers).
+  extraPanes?: number;
 }>;
 export const CandleCanvas = ({
   values,
@@ -54,6 +56,7 @@ export const CandleCanvas = ({
   markers,
   captions,
   onRenderer,
+  extraPanes = 0,
 }: CandleCanvasProps) => {
   const latestOnRenderer = useRef(onRenderer);
   latestOnRenderer.current = onRenderer;
@@ -85,8 +88,8 @@ export const CandleCanvas = ({
         const instance = await factory(target, {
           palette: readChartPalette(target),
           pricePrecision,
-          volumePrecision,
           signal: controller.signal,
+          volumePrecision,
         });
         if (!active || mine !== generation) {
           instance.dispose();
@@ -136,8 +139,8 @@ export const CandleCanvas = ({
         return void mount();
       });
       theme.observe(document.documentElement, {
-        attributes: true,
         attributeFilter: ["class", "data-theme", "data-palette", "style"],
+        attributes: true,
       });
     }
     return () => {
@@ -187,22 +190,23 @@ export const CandleCanvas = ({
     return;
   }, [markers]);
   return (
-    <figure className="vx-chart-panel" aria-label={label}>
+    <figure aria-label={label} className="vx-chart-panel">
       <div
-        ref={element}
+        aria-describedby={description}
+        aria-label={label}
         className="vx-chart-canvas"
+        ref={element}
+        role="group"
         style={
           {
             "--vx-chart-sub-panes":
               paneStudyCount(studies?.extra ?? []) +
-              (studies?.panes?.length ?? 0),
+              (studies?.panes?.length ?? 0) +
+              extraPanes,
           } as CSSProperties
         }
-        role="group"
-        aria-label={label}
-        aria-describedby={description}
       />
-      <figcaption id={description} className="vx-chart-note">
+      <figcaption className="vx-chart-note" id={description}>
         {captions === undefined
           ? phase === "error"
             ? "Chart renderer unavailable. Exact data remains in the table."
@@ -226,7 +230,7 @@ export class ChartRendererBoundary extends Component<
   override render() {
     if (this.state.failed)
       return (
-        <p role="status" className="vx-chart-note">
+        <p className="vx-chart-note" role="status">
           The renderer could not display the selected data. The exact table
           remains available.
         </p>
