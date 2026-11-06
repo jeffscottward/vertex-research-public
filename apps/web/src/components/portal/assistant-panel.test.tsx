@@ -243,13 +243,12 @@ describe("AssistantPanel open state", () => {
     expect(panel()?.hidden).toBe(true);
     expect(chat()).toBeNull();
     expect(saved()).toBeUndefined();
-    const fab = byLabel("Open assistant");
-    expect(fab?.hidden).toBe(false);
-    expect(fab?.getAttribute("aria-expanded")).toBe("false");
-    expect(fab?.getAttribute("aria-controls")).toBe("assistant-panel");
-    await press(fab);
+    const toggle = byLabel("Toggle assistant panel");
+    expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+    expect(toggle?.getAttribute("aria-controls")).toBe("assistant-panel");
+    await press(toggle);
     expect(panel()?.hidden).toBe(false);
-    expect(fab?.hidden).toBe(true);
+    expect(toggle?.getAttribute("aria-pressed")).toBe("true");
     expect(saved()).toBe(true);
     return expect(chat()).not.toBeNull();
   });
@@ -276,10 +275,26 @@ describe("AssistantPanel open state", () => {
     vi.stubGlobal("matchMedia", undefined);
     await render();
     expect(panel()?.hidden).toBe(true);
-    await press(byLabel("Open assistant"));
+    await press(byLabel("Toggle assistant panel"));
     expect(panel()?.getAttribute("role")).toBe("dialog");
     await pressEscape();
     return expect(panel()?.hidden).toBe(true);
+  });
+
+  it("offers only the topbar toggle, at every width: no floating button over page content", async () => {
+    await render();
+    const toggle = byLabel("Toggle assistant panel");
+    // A fixed launcher covered page controls at 375px (Mission control "Reload"); the toggle sits in
+    // the topbar row instead, and no class hides it on narrow screens.
+    expect(toggle?.className.split(/\s+/u)).not.toContain("hidden");
+    expect([
+      ...document.querySelectorAll('[aria-controls="assistant-panel"]'),
+    ]).toEqual([toggle]);
+    return expect(
+      [...document.querySelectorAll<HTMLElement>("button")].filter(
+        (node) => /\bfixed\b/u.test(node.className) && !node.hidden
+      )
+    ).toEqual([]);
   });
 
   it("needs its provider", () => {
@@ -296,9 +311,9 @@ describe("AssistantPanel open state", () => {
 describe("AssistantPanel sheet and column", () => {
   it("is a modal dialog below lg: focus moves in, Tab stays inside, Escape returns focus", async () => {
     await render();
-    const fab = byLabel("Open assistant");
-    fab?.focus();
-    await press(fab);
+    const launcher = byLabel("Toggle assistant panel");
+    launcher?.focus();
+    await press(launcher);
     const sheet = panel();
     expect(sheet?.getAttribute("role")).toBe("dialog");
     expect(sheet?.getAttribute("aria-modal")).toBe("true");
@@ -336,8 +351,8 @@ describe("AssistantPanel sheet and column", () => {
 
     await pressEscape();
     expect(sheet?.hidden).toBe(true);
-    expect(fab?.hidden).toBe(false);
-    expect(document.activeElement).toBe(fab);
+    expect(launcher?.getAttribute("aria-pressed")).toBe("false");
+    expect(document.activeElement).toBe(launcher);
     return expect(saved()).toBe(false);
   });
 
@@ -357,7 +372,7 @@ describe("AssistantPanel sheet and column", () => {
 
   it("skips hidden controls in the Tab trap", async () => {
     await render();
-    await press(byLabel("Open assistant"));
+    await press(byLabel("Toggle assistant panel"));
     const sheet = panel();
     const visibleControls = [
       ...(sheet?.querySelectorAll<HTMLElement>(
@@ -380,43 +395,43 @@ describe("AssistantPanel sheet and column", () => {
 
   it("returns focus to the opener after the close button and the backdrop", async () => {
     await render();
-    const fab = byLabel("Open assistant");
-    fab?.focus();
-    await press(fab);
+    const launcher = byLabel("Toggle assistant panel");
+    launcher?.focus();
+    await press(launcher);
     await press(byLabel("Close assistant panel"));
     expect(panel()?.hidden).toBe(true);
-    expect(document.activeElement).toBe(fab);
+    expect(document.activeElement).toBe(launcher);
     expect(
       document.querySelector("[data-assistant-panel-backdrop]")
     ).toBeNull();
-    await press(fab);
+    await press(launcher);
     const backdrop = document.querySelector<HTMLElement>(
       "[data-assistant-panel-backdrop]"
     );
     backdrop?.focus();
     await press(backdrop);
     expect(panel()?.hidden).toBe(true);
-    return expect(document.activeElement).toBe(fab);
+    return expect(document.activeElement).toBe(launcher);
   });
 
   it("restores focus when nothing was focused, and not when focus moved elsewhere", async () => {
     await render();
-    const fab = byLabel("Open assistant");
-    fab?.focus();
-    await press(fab);
+    const launcher = byLabel("Toggle assistant panel");
+    launcher?.focus();
+    await press(launcher);
     (document.activeElement as HTMLElement | null)?.blur();
     await press(byLabel("Close assistant panel"));
-    expect(document.activeElement).toBe(fab);
+    expect(document.activeElement).toBe(launcher);
 
-    await press(fab);
+    await press(launcher);
     const nothing = vi
       .spyOn(document, "activeElement", "get")
       .mockReturnValue(null);
     await press(byLabel("Close assistant panel"));
     nothing.mockRestore();
-    expect(document.activeElement).toBe(fab);
+    expect(document.activeElement).toBe(launcher);
 
-    await press(fab);
+    await press(launcher);
     const field = byLabel("Page field");
     field?.focus();
     await press(byLabel("Toggle assistant panel"));
@@ -430,7 +445,7 @@ describe("AssistantPanel sheet and column", () => {
     svg.setAttribute("tabindex", "0");
     document.body.append(svg);
     svg.focus();
-    await press(byLabel("Open assistant"));
+    await press(byLabel("Toggle assistant panel"));
     await press(byLabel("Close assistant panel"));
     expect(panel()?.hidden).toBe(true);
     return expect(document.activeElement).not.toBe(svg);
@@ -527,7 +542,6 @@ describe("AssistantPanel pages and routes", () => {
     const first = await render(fakeGateway(), OPERATOR_ROUTES, true);
     expect(panel()).toBeNull();
     expect(byLabel("Toggle assistant panel")).toBeNull();
-    expect(byLabel("Open assistant")).toBeNull();
     navigation.pathname = "/engines";
     await first.rerender();
     const mounted = chat();
@@ -539,13 +553,12 @@ describe("AssistantPanel pages and routes", () => {
     expect(chat()).toBe(mounted);
     expect(byLabel("Toggle assistant panel")).toBeNull();
     await pressEscape();
-    return expect(byLabel("Open assistant")).toBeNull();
+    return expect(byLabel("Toggle assistant panel")).toBeNull();
   });
 
   it("is absent for routes without the assistant (non-operators)", async () => {
     await render(fakeGateway(), ["/dashboard"]);
     expect(panel()).toBeNull();
-    expect(byLabel("Toggle assistant panel")).toBeNull();
-    return expect(byLabel("Open assistant")).toBeNull();
+    return expect(byLabel("Toggle assistant panel")).toBeNull();
   });
 });
