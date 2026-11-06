@@ -135,6 +135,11 @@ describe("Market context page", () => {
     expect(volatility).toHaveBeenCalledTimes(2);
     expect(context).toHaveBeenCalledTimes(2);
     expect(chip(container)).toBe("Stale");
+    // Loads that settle before the busy render must not leave Refresh disabled.
+    expect(refreshButton(container)?.disabled).toBe(false);
+    await act(async () => refreshButton(container)?.click());
+    expect(volatility).toHaveBeenCalledTimes(3);
+    expect(refreshButton(container)?.disabled).toBe(false);
   });
 
   it.each<[string, MarketVolatilityOutput, MarketContextOutput, string]>([
