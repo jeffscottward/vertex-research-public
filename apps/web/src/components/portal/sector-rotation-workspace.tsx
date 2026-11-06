@@ -57,8 +57,8 @@ import {
 // Research only: a quadrant describes past prices and never authorizes a trade.
 
 const TAIL_LENGTHS = [5, 10, 20] as const;
-export const DEFAULT_TIMEFRAME: SectorRotationTimeframe = "weekly";
-export const DEFAULT_TAIL_LENGTH = 10;
+const DEFAULT_TIMEFRAME: SectorRotationTimeframe = "weekly";
+const DEFAULT_TAIL_LENGTH = 10;
 /** Time between two dates while the map plays. */
 export const PLAY_STEP_MS = 400;
 const CUSTOM_ID = "custom";
