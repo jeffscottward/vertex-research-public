@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createResearchReadScope,
   ResearchReadScopeProvider,
 } from "../../components/research/read-scope.tsx";
 import type { ExperienceScope, ExperienceServices } from "./ports.ts";
+import { ResearchWorkspace } from "./research.tsx";
 import {
   createUnavailableExperienceServices,
   ExperienceProvider,
 } from "./shared.tsx";
-import { ResearchWorkspace } from "./research.tsx";
 
 // Owner rule (2026-10-30): Research opens on the first granted scope, and no
 // exact-ID lookup (job collection, evidence, dataset chart) remains.
@@ -130,6 +131,14 @@ describe("ResearchWorkspace", () => {
     );
     expect(newRoom(container).disabled).toBe(false);
     expect(newRoom(container).textContent).toBe("New room");
+    // The scope chooser and chat room sit in one bordered panel under the header.
+    const panel = container.querySelector(
+      'section[data-slot="panel"][aria-labelledby="research-rooms-heading"]'
+    );
+    expect(panel?.querySelector("h2")?.textContent).toBe(
+      "Research conversations"
+    );
+    expect(panel?.querySelector("#research-conversations")).not.toBeNull();
     // No create-room form is mounted in this stand-in: New room does nothing.
     await act(async () => newRoom(container).click());
     expect(document.activeElement).toBe(document.body);

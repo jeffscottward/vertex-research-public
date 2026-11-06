@@ -3,6 +3,7 @@
 import {
   Button,
   PageHeader,
+  Panel,
   StatusBadge,
   type StatusBadgeProps,
 } from "@darkfactory/ui";
@@ -11,6 +12,7 @@ import { lazy, Suspense, useState } from "react";
 import { ResearchScopedWorkspace } from "../../components/research/read-scope.tsx";
 import type { ExperienceScope } from "./ports.ts";
 import { ScopeChooser } from "./shared.tsx";
+
 // The research chat accepts only research-environment scopes.
 const researchScope = (scope: ExperienceScope): boolean =>
   scope.environment === "research";
@@ -82,49 +84,55 @@ export const ResearchWorkspace = ({
         }
         title="Research"
       />
-      <div className="vx-experience">
-        <ResearchScopedWorkspace>
-          <section id="research-conversations" tabIndex={-1}>
-            <ScopeChooser
-              onSelect={setScope}
-              onRetire={() => setScope(null)}
-              prefer={researchScope}
-            />
-            {scope === null ? null : (
-              <Suspense
-                fallback={
-                  <p className="vx-caption" role="status">
-                    Loading research chat…
-                  </p>
-                }
-              >
-                <ResearchChatRoom
-                  scope={scope}
-                  initialThreadId={initialThreadId}
-                  key={JSON.stringify(scope)}
-                />
-              </Suspense>
-            )}
-          </section>
-          <p className="vx-caption">
-            <a className="vx-text-link" href="/assistant">
-              Open the research assistant
-            </a>
-            {" · "}
-            <a className="vx-text-link" href="/research/reports">
-              Research dossiers
-            </a>
-            {" · "}
-            <a className="vx-text-link" href="/knowledge">
-              Open the knowledge chat
-            </a>
-            {" · "}
-            <a className="vx-text-link" href="/strategies">
-              Exact-version strategy review
-            </a>
-          </p>
-        </ResearchScopedWorkspace>
-      </div>
+      <Panel
+        description="Pick a research scope, then open or create a room."
+        headingId="research-rooms-heading"
+        title="Research conversations"
+      >
+        <div className="vx-experience">
+          <ResearchScopedWorkspace>
+            <section id="research-conversations" tabIndex={-1}>
+              <ScopeChooser
+                onRetire={() => setScope(null)}
+                onSelect={setScope}
+                prefer={researchScope}
+              />
+              {scope === null ? null : (
+                <Suspense
+                  fallback={
+                    <p className="vx-caption" role="status">
+                      Loading research chat…
+                    </p>
+                  }
+                >
+                  <ResearchChatRoom
+                    initialThreadId={initialThreadId}
+                    key={JSON.stringify(scope)}
+                    scope={scope}
+                  />
+                </Suspense>
+              )}
+            </section>
+            <p className="vx-caption">
+              <a className="vx-text-link" href="/assistant">
+                Open the research assistant
+              </a>
+              {" · "}
+              <a className="vx-text-link" href="/research/reports">
+                Research dossiers
+              </a>
+              {" · "}
+              <a className="vx-text-link" href="/knowledge">
+                Open the knowledge chat
+              </a>
+              {" · "}
+              <a className="vx-text-link" href="/strategies">
+                Exact-version strategy review
+              </a>
+            </p>
+          </ResearchScopedWorkspace>
+        </div>
+      </Panel>
     </div>
   );
 };
