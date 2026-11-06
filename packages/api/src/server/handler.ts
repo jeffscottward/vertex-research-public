@@ -31,7 +31,7 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // read key; sectorRotation.map stays session-only. The click-log CLI (scripts/vertex-click-log.ts)
 // reads clicks with an operator key; clickLog.record stays session-only, so a key never writes
 // clicks for a user. The pick-list importer (scripts/vertex-pick-lists.ts) stores snapshots with a
-// write key and research agents read lists and screens with a read key; pickLists.syncBucket stays
+// write key and research agents read lists, screens and the buy proposal with a read key; pickLists.syncBucket stays
 // session-only, so a key never edits baskets.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
@@ -41,6 +41,7 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "clickLog.query",
   "pickLists.import",
   "pickLists.list",
+  "pickLists.proposal",
   "pickLists.screen",
 ]);
 
@@ -64,7 +65,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list and pickLists.screen",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal and pickLists.screen",
       })
     );
   }

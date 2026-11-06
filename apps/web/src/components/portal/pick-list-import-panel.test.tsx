@@ -81,6 +81,9 @@ const savedList = (count: number): PickListOutput => ({
 const gatewayWith = (importFn: PickListGateway["import"]): PickListGateway => ({
   import: importFn,
   list: async () => [],
+  proposal: async () => {
+    throw new Error("unused");
+  },
   screen: async () => {
     throw new Error("unused");
   },

@@ -6,6 +6,7 @@ import {
   type PickListImportInput,
   type PickListImportMethod,
   type PickListOutput,
+  type PickListProposalOutput,
   type PickListScreenOutput,
   type PickListScreenStatus,
 } from "@darkfactory/api";
@@ -21,6 +22,8 @@ export type PickListBucketResult = Readonly<{
 export interface PickListGateway {
   readonly import: (input: PickListImportInput) => Promise<PickListOutput>;
   readonly list: () => Promise<PickListOutput[]>;
+  /** Read-only buy proposal for every bucketed list; it never places an order. */
+  readonly proposal: () => Promise<PickListProposalOutput>;
   readonly screen: (id: string) => Promise<PickListScreenOutput>;
   readonly syncBucket: (
     id: string,
@@ -31,6 +34,7 @@ export interface PickListGateway {
 export const createPickListGateway = (client: ApiClient): PickListGateway => ({
   import: (input) => client.pickLists.import(input),
   list: async () => (await client.pickLists.list({})).items,
+  proposal: () => client.pickLists.proposal({}),
   screen: (id) => client.pickLists.screen({ id }),
   syncBucket: (id, bucketSymbol) =>
     client.pickLists.syncBucket({ id, bucketSymbol }),
@@ -47,6 +51,7 @@ export const createBrowserPickListGateway = (): PickListGateway => {
   return Object.freeze({
     import: (input: PickListImportInput) => current().import(input),
     list: () => current().list(),
+    proposal: () => current().proposal(),
     screen: (id: string) => current().screen(id),
     syncBucket: (id: string, bucketSymbol: string) =>
       current().syncBucket(id, bucketSymbol),

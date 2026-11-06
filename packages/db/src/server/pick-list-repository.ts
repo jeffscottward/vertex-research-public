@@ -1,7 +1,7 @@
 // What: Drizzle repository for dated pick-list snapshots (external stock-pick lists with provenance).
 // Used by: packages/db/src/server/repositories.ts (createRepositories), packages/api/src/server/pick-lists.ts.
 // See: packages/db/migrations/0048_pick_lists.sql; packages/api/src/contracts/pick-lists.ts.
-import { and as andWhere, asc, desc, eq, inArray } from "drizzle-orm";
+import { and as andWhere, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import {
   BASKET_SYMBOL_PATTERN,
@@ -13,6 +13,7 @@ import {
   pickListMembers,
   pickListSnapshots,
   pickLists,
+  users,
   WATCHLIST_SYMBOL_PATTERN,
 } from "../schema/index.ts";
 import { type DatabaseExecutor, withTransaction } from "./client.ts";
@@ -93,6 +94,14 @@ export type PickListRepository = Readonly<{
   ) => Promise<PickListWithLatest>;
   /** Lists ordered by source, slug; capped at 200. */
   listByUser: (userId: string) => Promise<PickListWithLatest[]>;
+  /**
+   * Lists of every active, email-verified user whose email (case-insensitive) is given, ordered by source, slug; capped
+   * at 200. Read-only. Used for the agent viewer's read of the operator buckets (owner decision
+   * 2026-11-05, card vertex-bucket-buy-proposal). No emails, or no matching user, gives [].
+   */
+  listByUserEmails: (
+    emails: readonly string[] | undefined
+  ) => Promise<PickListWithLatest[]>;
   get: (id: string, userId: string) => Promise<PickListWithLatest | null>;
   /** Sets bucket_symbol and bucket_basket_id; null when the list is missing for that user. */
   setBucket: (
@@ -459,6 +468,45 @@ export const createPickListRepository = (
           .select()
           .from(pickLists)
           .where(eq(pickLists.userId, userId))
+          .orderBy(asc(pickLists.source), asc(pickLists.slug))
+          .limit(MAX_PICK_LISTS_LISTED);
+        return await withLatest(database, rows);
+      } catch (error) {
+        return mapPickListError(error);
+      }
+    },
+
+    listByUserEmails: async (emails) => {
+      const normalized = [
+        ...new Set(
+          (emails ?? [])
+            .map((email) => email.trim().toLowerCase())
+            .filter((email) => email !== "")
+        ),
+      ];
+      if (normalized.length === 0) return [];
+      try {
+        const owners = await database
+          .select({ id: users.id })
+          .from(users)
+          .where(
+            // The same account checks as the operator gate: verified email, active status.
+            andWhere(
+              inArray(sql`lower(${users.email})`, normalized),
+              eq(users.emailVerified, true),
+              eq(users.status, "active")
+            )
+          );
+        if (owners.length === 0) return [];
+        const rows = await database
+          .select()
+          .from(pickLists)
+          .where(
+            inArray(
+              pickLists.userId,
+              owners.map((owner) => owner.id)
+            )
+          )
           .orderBy(asc(pickLists.source), asc(pickLists.slug))
           .limit(MAX_PICK_LISTS_LISTED);
         return await withLatest(database, rows);

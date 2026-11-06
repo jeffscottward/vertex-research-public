@@ -270,6 +270,7 @@ describe("agent API key scope", () => {
       "clickLog.query",
       "pickLists.import",
       "pickLists.list",
+      "pickLists.proposal",
       "pickLists.screen",
     ]);
     expect(isAgentApiKeyProcedurePath(["autopilot", "campaigns", "tick"])).toBe(

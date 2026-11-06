@@ -104599,6 +104599,580 @@
         ]
       }
     },
+    "/pick-lists/proposal": {
+      "get": {
+        "operationId": "pickLists.proposal",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "buckets": {
+                      "items": {
+                        "properties": {
+                          "listId": {
+                            "type": "string"
+                          },
+                          "listName": {
+                            "type": "string"
+                          },
+                          "memberCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "symbol": {
+                            "pattern": "^[A-Z][A-Z0-9]{0,9}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "symbol",
+                          "listId",
+                          "listName",
+                          "memberCount"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "computedAt": {
+                      "type": "string"
+                    },
+                    "notProposed": {
+                      "items": {
+                        "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "proposalOnly": {
+                      "const": true
+                    },
+                    "rows": {
+                      "items": {
+                        "properties": {
+                          "buckets": {
+                            "items": {
+                              "pattern": "^[A-Z][A-Z0-9]{0,9}$",
+                              "type": "string"
+                            },
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "last": {
+                            "anyOf": [
+                              {
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastDate": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "maxLossPctNlv": {
+                            "minimum": 0,
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "quadrant": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "leading",
+                                  "weakening",
+                                  "lagging",
+                                  "improving"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sectorEtf": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sectorQuadrant": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "leading",
+                                  "weakening",
+                                  "lagging",
+                                  "improving"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "status": {
+                            "enum": [
+                              "pass",
+                              "fail",
+                              "unknown"
+                            ],
+                            "type": "string"
+                          },
+                          "structure": {
+                            "anyOf": [
+                              {
+                                "properties": {
+                                  "dte": {
+                                    "exclusiveMinimum": 0,
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "estDebit": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "expiry": {
+                                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                    "type": "string"
+                                  },
+                                  "kind": {
+                                    "const": "call-debit-spread"
+                                  },
+                                  "longDelta": {
+                                    "type": "number"
+                                  },
+                                  "longStrike": {
+                                    "exclusiveMinimum": 0,
+                                    "type": "number"
+                                  },
+                                  "maxLossPerSpread": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "maxProfitPerSpread": {
+                                    "type": "number"
+                                  },
+                                  "shortDelta": {
+                                    "type": "number"
+                                  },
+                                  "shortStrike": {
+                                    "exclusiveMinimum": 0,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "expiry",
+                                  "dte",
+                                  "longStrike",
+                                  "shortStrike",
+                                  "longDelta",
+                                  "shortDelta",
+                                  "estDebit",
+                                  "maxLossPerSpread",
+                                  "maxProfitPerSpread"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "symbol": {
+                            "pattern": "^[A-Z][A-Z0-9.-]{0,9}$",
+                            "type": "string"
+                          },
+                          "tier": {
+                            "enum": [
+                              "full",
+                              "half",
+                              "none"
+                            ],
+                            "type": "string"
+                          },
+                          "volatility": {
+                            "anyOf": [
+                              {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "symbol",
+                          "buckets",
+                          "status",
+                          "last",
+                          "lastDate",
+                          "sectorEtf",
+                          "quadrant",
+                          "sectorQuadrant",
+                          "tier",
+                          "maxLossPctNlv",
+                          "volatility",
+                          "structure",
+                          "notes"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rules": {
+                      "properties": {
+                        "dteMax": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "dteMin": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        },
+                        "fullMaxLossPct": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "halfMaxLossPct": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "longDelta": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "maxLossGatePct": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "namePremiumCapPct": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "riskFreeRate": {
+                          "type": "number"
+                        },
+                        "shortDelta": {
+                          "exclusiveMinimum": 0,
+                          "type": "number"
+                        },
+                        "targetDte": {
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991,
+                          "minimum": -9007199254740991,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "fullMaxLossPct",
+                        "halfMaxLossPct",
+                        "maxLossGatePct",
+                        "namePremiumCapPct",
+                        "dteMin",
+                        "dteMax",
+                        "targetDte",
+                        "longDelta",
+                        "shortDelta",
+                        "riskFreeRate"
+                      ],
+                      "type": "object"
+                    },
+                    "totalMaxLossPct": {
+                      "minimum": 0,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "proposalOnly",
+                    "computedAt",
+                    "rules",
+                    "buckets",
+                    "rows",
+                    "notProposed",
+                    "totalMaxLossPct"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "VALIDATION_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid pick list request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Pick list not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Another basket already uses this symbol",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Pick list storage is unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read-only buy proposal (defined-risk option structures) for every bucketed list; places no order",
+        "tags": [
+          "Pick lists"
+        ]
+      }
+    },
     "/portfolio-monitor/snapshot": {
       "get": {
         "operationId": "portfolioMonitor.snapshot",

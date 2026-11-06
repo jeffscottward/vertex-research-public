@@ -2,6 +2,7 @@
 import type {
   PickListMemberOutput,
   PickListOutput,
+  PickListProposalOutput,
   PickListScreenMemberOutput,
   PickListScreenOutput,
 } from "@darkfactory/api";
@@ -170,10 +171,32 @@ const screenResult: PickListScreenOutput = {
   ],
 };
 
+const proposalResult: PickListProposalOutput = {
+  proposalOnly: true,
+  computedAt: "2026-11-05T14:00:00.000Z",
+  rules: {
+    fullMaxLossPct: 0.5,
+    halfMaxLossPct: 0.25,
+    maxLossGatePct: 2,
+    namePremiumCapPct: 2,
+    dteMin: 90,
+    dteMax: 180,
+    targetDte: 120,
+    longDelta: 0.6,
+    shortDelta: 0.3,
+    riskFreeRate: 0.04,
+  },
+  buckets: [],
+  rows: [],
+  notProposed: [],
+  totalMaxLossPct: 0,
+};
+
 const fakeGateway = (overrides: Partial<PickListGateway> = {}) => {
   const gateway = {
     import: vi.fn<PickListGateway["import"]>(async () => pickList()),
     list: vi.fn<PickListGateway["list"]>(async () => [pickList()]),
+    proposal: vi.fn<PickListGateway["proposal"]>(async () => proposalResult),
     screen: vi.fn<PickListGateway["screen"]>(async () => screenResult),
     syncBucket: vi.fn<PickListGateway["syncBucket"]>(
       async (id, bucketSymbol): Promise<PickListBucketResult> => ({
@@ -216,6 +239,7 @@ describe("pick lists client", () => {
       pickLists: {
         import: vi.fn(async () => pickList()),
         list: vi.fn(async () => ({ items: [pickList()] })),
+        proposal: vi.fn(async () => proposalResult),
         screen: vi.fn(async () => screenResult),
         syncBucket: vi.fn(async () => ({
           list: pickList(),
@@ -241,6 +265,8 @@ describe("pick lists client", () => {
     expect(client.pickLists.import).toHaveBeenCalledWith(input);
     await gateway.screen("list-1");
     await gateway.syncBucket("list-1", "WISH");
+    expect(await gateway.proposal()).toBe(proposalResult);
+    expect(client.pickLists.proposal).toHaveBeenCalledWith({});
     expect(client.pickLists.list).toHaveBeenCalledWith({});
     expect(client.pickLists.screen).toHaveBeenCalledWith({ id: "list-1" });
     expect(client.pickLists.syncBucket).toHaveBeenCalledWith({
@@ -268,6 +294,7 @@ describe("pick lists client", () => {
         }),
       () => gateway.screen("x"),
       () => gateway.syncBucket("x", "WISH"),
+      () => gateway.proposal(),
     ]) {
       await expect(call()).rejects.toBeDefined();
     }

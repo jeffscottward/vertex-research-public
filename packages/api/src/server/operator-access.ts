@@ -60,6 +60,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.frameworks",
   "clickLog.query",
   "pickLists.list",
+  "pickLists.proposal",
   "pickLists.screen",
 ]);
 
