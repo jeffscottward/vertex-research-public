@@ -42,6 +42,10 @@ import {
   type TradeLike,
 } from "../../features/charts/market-bars.ts";
 import {
+  BarReplayControls,
+  useBarReplayView,
+} from "../../features/charts/bar-replay.tsx";
+import {
   type ChartIndicatorKey,
   DEFAULT_CHART_INDICATORS,
   studiesFor,
@@ -770,7 +774,14 @@ export const ChartsWorkspace = ({
       [data.request.symbol, data.contract.localSymbol]
     );
   }, [trades, data, display, aggregate]);
-  const markers = overlay?.markers ?? NO_MARKERS;
+  const allMarkers = overlay?.markers ?? NO_MARKERS;
+  const {
+    candles: replayCandles,
+    dispatch: replayDispatch,
+    label: replayLabel,
+    markers,
+    state: replay,
+  } = useBarReplayView(display, allMarkers);
   const selectedBacktest = trades.type === "none" ? "" : trades.id;
 
   const shown = data?.request.symbol ?? form.symbol.trim().toUpperCase();
@@ -897,6 +908,12 @@ export const ChartsWorkspace = ({
                 </p>
               ) : (
                 <ChartRendererBoundary>
+                  <BarReplayControls
+                    dispatch={replayDispatch}
+                    label={replayLabel}
+                    state={replay}
+                    total={display.candles.length}
+                  />
                   <Suspense
                     fallback={
                       <p className="text-muted-foreground text-xs">
@@ -905,7 +922,7 @@ export const ChartsWorkspace = ({
                     }
                   >
                     <LazyMarketBarsChart
-                      candles={display.candles}
+                      candles={replayCandles}
                       label={`${data.contract.localSymbol} ${interval ?? data.request.barSize} bars`}
                       markers={markers}
                       pricePrecision={pricePrecisionFor(data)}
