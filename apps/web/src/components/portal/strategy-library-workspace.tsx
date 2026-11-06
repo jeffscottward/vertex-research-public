@@ -119,7 +119,7 @@ const writeLocation = (id: string | null, tab: StrategyTab): void => {
 };
 
 const toggleClass = (pressed: boolean): string => {
-  return `inline-flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm ${pressed ? "border-primary bg-primary/10 font-medium" : "border-border text-muted-foreground hover:text-foreground"}`;
+  return `inline-flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm ${pressed ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`;
 };
 
 const FavoriteButton = ({
