@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const load = async (python: string | undefined, ci: string | undefined) => {
   vi.resetModules();
   vi.stubEnv("VERTEX_TEST_PYTHON", python);
-  vi.stubEnv("CI", ci);
+  vi.stubEnv("GITHUB_ACTIONS", ci);
   return import("./research-python.test-support.ts");
 };
 
@@ -28,7 +28,7 @@ describe("VERTEX_TEST_PYTHON resolution", () => {
     });
   });
 
-  it("skips locally and fails in CI without an interpreter", async () => {
+  it("skips locally and fails in GitHub Actions without an interpreter", async () => {
     const local = await load(undefined, undefined);
     expect(local.testPython).toBe("python3");
     expect(local.skipWithoutTestPython).toBe(true);
