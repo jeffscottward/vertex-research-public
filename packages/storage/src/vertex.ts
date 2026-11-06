@@ -6,7 +6,7 @@ import type {
   StoragePort,
   StorageResult,
   StoredObject,
-} from "./index.ts";
+} from "./ports.ts";
 
 export const MAX_VERTEX_STORAGE_BYTES = 1_048_576;
 
