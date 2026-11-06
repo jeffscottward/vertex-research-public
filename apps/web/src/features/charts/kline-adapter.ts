@@ -1,10 +1,27 @@
 import { BUILTIN_PANE_IDS, formatBigNumber } from "./chart-indicators.ts";
+import {
+  SCRIPT_BARS_MAX,
+  SCRIPT_PLOTS_MAX,
+  SCRIPT_SIGNALS_MAX,
+  type ScriptPlot,
+  type ScriptSignal,
+} from "@darkfactory/scripting";
 import type {
   CandleRendererFactory,
   ChartMarker,
+  ChartPalette,
   ChartStudies,
   DisplayCandle,
+  ScriptLayer,
 } from "./types.ts";
+import {
+  indicatorTemplate,
+  isVertexStudyId,
+  studyPaneId,
+  VERTEX_STUDIES,
+  VERTEX_STUDY_IDS,
+  type VertexStudyId,
+} from "./vertex-studies.ts";
 import {
   type ChartType,
   type Drawing,
@@ -12,14 +29,6 @@ import {
   type DrawingTool,
   validDrawing,
 } from "./workstation.ts";
-import {
-  VERTEX_STUDIES,
-  VERTEX_STUDY_IDS,
-  type VertexStudyId,
-  indicatorTemplate,
-  isVertexStudyId,
-  studyPaneId,
-} from "./vertex-studies.ts";
 
 const KLINECHARTS_VERSION = "9.8.12" as const;
 // API source: https://unpkg.com/klinecharts@9.8.12/dist/index.d.ts
@@ -230,6 +239,254 @@ const validChartMarkers = (markers: readonly ChartMarker[]): boolean => {
   );
 };
 
+// Script layers: one indicator instance per applied script. KLineCharts 9.8.12 keys
+// indicators by template name within a pane (a second instance of one name is rejected as
+// "Duplicate indicators"), so a fixed set of slot templates is registered once and each
+// layer's calc, figures and short name are supplied per instance through IndicatorCreate.
+export const SCRIPT_LAYERS_MAX = 8;
+const SCRIPT_INDICATOR_PREFIX = "VX_SCRIPT" as const;
+export const SCRIPT_SIGNAL_GROUP_ID = "vx_script_signals" as const;
+export const SCRIPT_SIGNAL_OVERLAY = "vxScriptSignal" as const;
+export const scriptIndicatorName = (slot: number): string =>
+  `${SCRIPT_INDICATOR_PREFIX}_${slot}`;
+export const scriptPaneId = (slot: number): string => `vx_script_${slot}_pane`;
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const SCRIPT_PLOT_KINDS: Readonly<Record<ScriptPlot["kind"], true>> = {
+  circles: true,
+  histogram: true,
+  hline: true,
+  line: true,
+};
+const SCRIPT_SIGNAL_KINDS: Readonly<Record<ScriptSignal["kind"], true>> = {
+  exit: true,
+  long: true,
+  shape: true,
+  short: true,
+};
+const boundedText = (value: unknown, max: number): boolean =>
+  typeof value === "string" && value.length <= max;
+const validScriptPlot = (plot: ScriptPlot): boolean =>
+  typeof plot === "object" &&
+  plot !== null &&
+  boundedText(plot.id, 64) &&
+  // The engine does not cap plot titles; the figure shows only the first 40 characters.
+  boundedText(plot.title, 500) &&
+  Object.hasOwn(SCRIPT_PLOT_KINDS, plot.kind) &&
+  boundedText(plot.color, 32) &&
+  Array.isArray(plot.values) &&
+  plot.values.length <= SCRIPT_BARS_MAX &&
+  plot.values.every(
+    (value) =>
+      value === null || (typeof value === "number" && Number.isFinite(value))
+  );
+const validScriptSignal = (signal: ScriptSignal): boolean =>
+  typeof signal === "object" &&
+  signal !== null &&
+  Number.isSafeInteger(signal.timestamp) &&
+  Math.abs(signal.timestamp) <= 8_640_000_000_000_000 &&
+  Number.isFinite(signal.value) &&
+  boundedText(signal.text, 40) &&
+  Object.hasOwn(SCRIPT_SIGNAL_KINDS, signal.kind) &&
+  (signal.location === "abovebar" || signal.location === "belowbar");
+// One layer the renderer can draw; a host drops the ones that fail (validScriptLayers is all-or-nothing).
+export const validScriptLayer = (layer: ScriptLayer): boolean =>
+  typeof layer === "object" &&
+  layer !== null &&
+  typeof layer.id === "string" &&
+  layer.id.length > 0 &&
+  layer.id.length <= 160 &&
+  boundedText(layer.title, 80) &&
+  typeof layer.overlay === "boolean" &&
+  Array.isArray(layer.plots) &&
+  layer.plots.length <= SCRIPT_PLOTS_MAX &&
+  layer.plots.every(validScriptPlot) &&
+  Array.isArray(layer.signals) &&
+  layer.signals.length <= SCRIPT_SIGNALS_MAX &&
+  layer.signals.every(validScriptSignal);
+export const validScriptLayers = (layers: readonly ScriptLayer[]): boolean =>
+  Array.isArray(layers) &&
+  layers.length <= SCRIPT_LAYERS_MAX &&
+  layers.every(validScriptLayer) &&
+  new Set(layers.map((layer) => layer.id)).size === layers.length;
+type ScriptRow = Record<string, number>;
+// Figure keys are positional ("p0", "p1", ...), never script-chosen names.
+const plotKey = (index: number): string => `p${index}`;
+export type ScriptFigure = Readonly<{
+  key: string;
+  title: string;
+  type: "line" | "bar" | "circle";
+  baseValue?: number;
+  styles: () => Readonly<Record<string, string | number | number[]>>;
+}>;
+// hline: dashed constant line; histogram: bars from zero; circles: one dot per bar.
+export const scriptFigures = (
+  plots: readonly ScriptPlot[],
+  fallbackColor: string
+): ScriptFigure[] =>
+  plots.map((plot, index) => {
+    const color = HEX_COLOR.test(plot.color) ? plot.color : fallbackColor;
+    const key = plotKey(index);
+    const title = `${plot.title.slice(0, 40) || `Plot ${index + 1}`}: `;
+    if (plot.kind === "histogram")
+      return {
+        baseValue: 0,
+        key,
+        styles: () => ({ borderColor: color, color, style: "fill" }),
+        title,
+        type: "bar",
+      };
+    if (plot.kind === "circles")
+      return {
+        key,
+        styles: () => ({ borderColor: color, color, style: "fill" }),
+        title,
+        type: "circle",
+      };
+    if (plot.kind === "hline")
+      return {
+        key,
+        styles: () => ({ color, dashedValue: [4, 4], style: "dashed" }),
+        title,
+        type: "line",
+      };
+    return {
+      key,
+      styles: () => ({ color, style: "solid" }),
+      title,
+      type: "line",
+    };
+  });
+// Rows by bar time. Values align by index with `timestamps`; na values are left out.
+export const scriptRows = (
+  plots: readonly ScriptPlot[],
+  timestamps: readonly number[]
+): ReadonlyMap<number, ScriptRow> => {
+  const rows = new Map<number, ScriptRow>();
+  timestamps.forEach((timestamp, index) => {
+    const row: ScriptRow = {};
+    plots.forEach((plot, plotIndex) => {
+      const value = plot.values[index];
+      if (typeof value === "number" && Number.isFinite(value))
+        row[plotKey(plotIndex)] = value;
+    });
+    rows.set(timestamp, row);
+  });
+  return rows;
+};
+// The calc never throws into the renderer: a bar without a row is a gap.
+export const scriptCalc =
+  (rows: ReadonlyMap<number, ScriptRow>) =>
+  (dataList: readonly Readonly<{ timestamp?: number }>[]): ScriptRow[] => {
+    try {
+      return dataList.map((bar) => ({
+        ...(bar.timestamp === undefined ? undefined : rows.get(bar.timestamp)),
+      }));
+    } catch {
+      return [];
+    }
+  };
+type SignalMark = Readonly<{
+  text: string;
+  location: "abovebar" | "belowbar";
+  color: string;
+  foreground: string;
+  background: string;
+}>;
+const isSignalMark = (value: unknown): value is SignalMark => {
+  if (typeof value !== "object" || value === null) return false;
+  const { text, location, color, foreground, background } = value as Record<
+    string,
+    unknown
+  >;
+  return (
+    typeof text === "string" &&
+    (location === "abovebar" || location === "belowbar") &&
+    typeof color === "string" &&
+    typeof foreground === "string" &&
+    typeof background === "string"
+  );
+};
+const SIGNAL_LABELS: Readonly<Record<ScriptSignal["kind"], string>> = {
+  exit: "Exit",
+  long: "Long",
+  shape: "Signal",
+  short: "Short",
+};
+// Text plus an arrow: the shape and the label carry the meaning, not colour alone.
+export const signalMark = (
+  signal: ScriptSignal,
+  palette: ChartPalette
+): SignalMark => {
+  const above = signal.location === "abovebar";
+  const text = signal.text.slice(0, 24) || SIGNAL_LABELS[signal.kind];
+  return {
+    background: palette.background,
+    color:
+      signal.kind === "long"
+        ? palette.rising
+        : signal.kind === "short"
+          ? palette.falling
+          : palette.accent,
+    foreground: palette.foreground,
+    location: signal.location,
+    text: `${above ? "\u25BC" : "\u25B2"} ${text}`,
+  };
+};
+// Overlay figures for one signal: an arrow pointing at the price and a label beyond it.
+export const scriptSignalFigures = (
+  coordinates: readonly Coordinate[],
+  data: unknown
+): readonly Readonly<{
+  type: "polygon" | "text";
+  attrs: Record<string, unknown>;
+  styles: Record<string, unknown>;
+  ignoreEvent: true;
+}>[] => {
+  const point = coordinates[0];
+  if (point === undefined || !isSignalMark(data)) return [];
+  const direction = data.location === "abovebar" ? -1 : 1;
+  const tip = point.y + direction * 4;
+  const base = tip + direction * 6;
+  return [
+    {
+      attrs: {
+        coordinates: [
+          { x: point.x, y: tip },
+          { x: point.x - 4, y: base },
+          { x: point.x + 4, y: base },
+        ],
+      },
+      ignoreEvent: true,
+      styles: { color: data.color, style: "fill" },
+      type: "polygon",
+    },
+    {
+      attrs: {
+        align: "center",
+        baseline: direction < 0 ? "bottom" : "top",
+        text: data.text,
+        x: point.x,
+        y: base + direction * 2,
+      },
+      ignoreEvent: true,
+      styles: {
+        backgroundColor: data.background,
+        borderColor: data.color,
+        borderRadius: 2,
+        borderSize: 1,
+        color: data.foreground,
+        paddingBottom: 2,
+        paddingLeft: 3,
+        paddingRight: 3,
+        paddingTop: 2,
+        size: 11,
+        style: "stroke_fill",
+      },
+      type: "text",
+    },
+  ];
+};
+
 export const createKLineRenderer: CandleRendererFactory = async (
   element,
   options
@@ -262,33 +519,33 @@ export const createKLineRenderer: CandleRendererFactory = async (
     );
   const palette = options.palette;
   const chart = library.init(element, {
-    timezone: "UTC",
     locale: "en-US",
     // Volume axis and tooltip as 1.2K / 3.4M / 5.6B.
     customApi: { formatBigNumber },
     styles: {
+      candle: {
+        bar: {
+          downBorderColor: palette.falling,
+          downColor: palette.falling,
+          downWickColor: palette.falling,
+          noChangeBorderColor: palette.foreground,
+          noChangeColor: palette.foreground,
+          noChangeWickColor: palette.foreground,
+          upBorderColor: palette.rising,
+          upColor: palette.rising,
+          upWickColor: palette.rising,
+        },
+        priceMark: { show: false },
+        type: library.CandleType.CandleUpStroke,
+      },
       grid: {
         horizontal: { color: palette.grid },
         vertical: { color: palette.grid },
       },
-      candle: {
-        type: library.CandleType.CandleUpStroke,
-        bar: {
-          upColor: palette.rising,
-          downColor: palette.falling,
-          noChangeColor: palette.foreground,
-          upBorderColor: palette.rising,
-          downBorderColor: palette.falling,
-          noChangeBorderColor: palette.foreground,
-          upWickColor: palette.rising,
-          downWickColor: palette.falling,
-          noChangeWickColor: palette.foreground,
-        },
-        priceMark: { show: false },
-      },
       xAxis: { tickText: { color: palette.foreground } },
       yAxis: { tickText: { color: palette.foreground } },
     },
+    timezone: "UTC",
   });
   if (!chart) throw new Error("KLineCharts did not create a chart");
   let disposed = false;
@@ -372,21 +629,21 @@ export const createKLineRenderer: CandleRendererFactory = async (
         : last.timestamp > previousLast.timestamp);
     if (samePrefix && tailCompatible) {
       chart.updateData({
-        timestamp: last.timestamp,
-        open: last.open,
+        close: last.close,
         high: last.high,
         low: last.low,
-        close: last.close,
+        open: last.open,
+        timestamp: last.timestamp,
         volume: last.volume,
       });
     } else {
       chart.applyNewData(
         values.map((bar) => ({
-          timestamp: bar.timestamp,
-          open: bar.open,
+          close: bar.close,
           high: bar.high,
           low: bar.low,
-          close: bar.close,
+          open: bar.open,
+          timestamp: bar.timestamp,
           volume: bar.volume,
         })),
         false
@@ -406,7 +663,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
     if (next === current) return current;
     if (current !== "") chart.removeIndicator(CANDLE_PANE_ID, name);
     if (periods.length > 0)
-      chart.createIndicator({ name, calcParams: [...periods] }, true, {
+      chart.createIndicator({ calcParams: [...periods], name }, true, {
         id: CANDLE_PANE_ID,
       });
     return next;
@@ -421,7 +678,7 @@ export const createKLineRenderer: CandleRendererFactory = async (
         chart.createIndicator(
           { name: study.name, shortName: study.shortName },
           onCandles,
-          onCandles ? { id: paneId } : { id: paneId, height: 96 }
+          onCandles ? { id: paneId } : { height: 96, id: paneId }
         );
         shownExtra.add(id);
       } else if (!wanted.includes(id) && shownExtra.has(id)) {
@@ -460,9 +717,9 @@ export const createKLineRenderer: CandleRendererFactory = async (
     if (studies.volume !== volumeShown) {
       if (studies.volume) {
         chart.createIndicator(
-          { name: "VOL", shortName: "Volume", calcParams: [] },
+          { calcParams: [], name: "VOL", shortName: "Volume" },
           false,
-          { id: VOLUME_PANE_ID, height: 96 }
+          { height: 96, id: VOLUME_PANE_ID }
         );
       } else chart.removeIndicator(VOLUME_PANE_ID, "VOL");
       volumeShown = studies.volume;
@@ -486,15 +743,106 @@ export const createKLineRenderer: CandleRendererFactory = async (
     if (markers.length > 0) {
       chart.createOverlay(
         markers.map((marker) => ({
-          name: "simpleAnnotation",
+          extendData: marker.text,
           groupId: MARKER_GROUP_ID,
           lock: true,
+          name: "simpleAnnotation",
           points: [{ timestamp: marker.timestamp, value: marker.value }],
-          extendData: marker.text,
         }))
       );
     }
     markerKey = next;
+    return;
+  };
+  // Pane shown per slot ("candle_pane" or the slot's own pane); an index past the end is empty.
+  let scriptSlots: readonly string[] = [];
+  let scriptTemplates = false;
+  let signalKey = "[]";
+  const registerScriptTemplates = () => {
+    for (let slot = 0; slot < SCRIPT_LAYERS_MAX; slot += 1)
+      library.registerIndicator({
+        calc: (dataList) => dataList.map(() => ({})),
+        calcParams: [],
+        figures: [],
+        name: scriptIndicatorName(slot),
+        precision: options.pricePrecision,
+        shortName: "Script",
+        shouldOhlc: false,
+      });
+    library.registerOverlay({
+      createPointFigures: ({ coordinates, overlay }) => [
+        ...scriptSignalFigures(coordinates, overlay.extendData),
+      ],
+      name: SCRIPT_SIGNAL_OVERLAY,
+      needDefaultPointFigure: false,
+      needDefaultXAxisFigure: false,
+      needDefaultYAxisFigure: false,
+      totalStep: 2,
+    });
+    scriptTemplates = true;
+  };
+  const setScriptSignals = (layers: readonly ScriptLayer[]) => {
+    const signals = layers.flatMap((layer) => layer.signals);
+    const next = JSON.stringify(
+      signals.map((signal) => [
+        signal.timestamp,
+        signal.value,
+        signal.text,
+        signal.kind,
+        signal.location,
+      ])
+    );
+    if (next === signalKey) return;
+    chart.removeOverlay({ groupId: SCRIPT_SIGNAL_GROUP_ID });
+    if (signals.length > 0)
+      chart.createOverlay(
+        signals.map((signal) => ({
+          extendData: signalMark(signal, palette),
+          groupId: SCRIPT_SIGNAL_GROUP_ID,
+          lock: true,
+          name: SCRIPT_SIGNAL_OVERLAY,
+          points: [{ timestamp: signal.timestamp, value: signal.value }],
+        }))
+      );
+    signalKey = next;
+  };
+  const setScriptPlots = (layers: readonly ScriptLayer[]) => {
+    if (!validScriptLayers(layers))
+      throw new TypeError("Invalid script layers");
+    if (disposed) return;
+    // Nothing shown and nothing asked for: no templates are registered.
+    if (layers.length === 0 && scriptSlots.length === 0) return;
+    if (!scriptTemplates) registerScriptTemplates();
+    const times = previous.map((bar) => bar.timestamp);
+    const panes = layers.map((layer, slot) =>
+      layer.overlay ? CANDLE_PANE_ID : scriptPaneId(slot)
+    );
+    // A slot that moves pane, or is no longer used, is removed (its own pane goes with it).
+    scriptSlots.forEach((paneId, slot) => {
+      if (panes[slot] !== paneId)
+        chart.removeIndicator(paneId, scriptIndicatorName(slot));
+    });
+    layers.forEach((layer, slot) => {
+      const paneId = layer.overlay ? CANDLE_PANE_ID : scriptPaneId(slot);
+      const indicator = {
+        calc: scriptCalc(scriptRows(layer.plots, times)),
+        figures: scriptFigures(layer.plots, palette.accent),
+        name: scriptIndicatorName(slot),
+        precision: options.pricePrecision,
+        shortName: layer.title,
+      };
+      // Same slot, same pane: recalculated in place so the pane keeps its height.
+      if (scriptSlots[slot] === paneId)
+        chart.overrideIndicator(indicator, paneId);
+      else
+        chart.createIndicator(
+          indicator,
+          layer.overlay,
+          layer.overlay ? { id: paneId } : { height: 96, id: paneId }
+        );
+    });
+    scriptSlots = panes;
+    setScriptSignals(layers);
     return;
   };
   const overlayEvents = (onChange: (drawing: Drawing) => void) => {
@@ -569,18 +917,19 @@ export const createKLineRenderer: CandleRendererFactory = async (
   const snapshot = (): string =>
     disposed ? "" : chart.getConvertPictureUrl(true, "png", palette.background);
   return {
-    setChartType,
-    setDrawings,
-    startDrawing,
+    dispose,
     onCrosshair,
-    snapshot,
     replace,
     resize: () => {
       if (!disposed) return chart.resize();
       return;
     },
-    dispose,
-    setStudies,
+    setChartType,
+    setDrawings,
     setMarkers,
+    setScriptPlots,
+    setStudies,
+    snapshot,
+    startDrawing,
   };
 };

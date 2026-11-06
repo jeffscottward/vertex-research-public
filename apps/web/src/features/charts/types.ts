@@ -1,10 +1,11 @@
 import type {
   Candle,
   Quote,
+  SourceIdentity,
   TradeFlow,
   VolumeProfile,
-  SourceIdentity,
 } from "@darkfactory/api/vertex";
+import type { ScriptPlot, ScriptSignal } from "@darkfactory/scripting";
 import type { DeepReadonly } from "@darkfactory/shared/vertex";
 import type { BuiltinPaneId } from "./chart-indicators.ts";
 import type { VertexStudyId } from "./vertex-studies.ts";
@@ -12,8 +13,8 @@ import type { ChartType, Drawing, DrawingTool } from "./workstation.ts";
 
 // Presentation-only ports. These are not wire contracts, broker authority, or a BFF.
 export interface ChartRecords {
-  quotes: Quote;
   candles: Candle;
+  quotes: Quote;
   "trade-flow": TradeFlow;
   "volume-profile": VolumeProfile;
 }
@@ -109,12 +110,24 @@ export type ChartMarker = Readonly<{
   value: number;
   text: string;
 }>;
+// One applied user script. Plot values align by index with the candles last passed to
+// replace(); signals carry their own bar time. Display only, never a trading input.
+export type ScriptLayer = Readonly<{
+  id: string;
+  title: string;
+  // true: drawn over the candles; false: its own pane below.
+  overlay: boolean;
+  plots: readonly ScriptPlot[];
+  signals: readonly ScriptSignal[];
+}>;
 export type CandleRenderer = Readonly<{
   replace: (candles: readonly DisplayCandle[]) => void;
   resize: () => void;
   dispose: () => void;
   setStudies?: (studies: ChartStudies) => void;
   setMarkers?: (markers: readonly ChartMarker[]) => void;
+  // Replace all applied script layers (an empty list removes them and their panes).
+  setScriptPlots?: (layers: readonly ScriptLayer[]) => void;
   // Workstation features (optional; renderers without them hide the controls).
   setChartType?: (type: ChartType) => void;
   // Replace all user drawings. onChange receives a drawing after a drag edit.

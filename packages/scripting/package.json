@@ -1,0 +1,27 @@
+{
+  "name": "@darkfactory/scripting",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pine v5 subset parser and bar-by-bar interpreter for chart scripts.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jeffscottward/darkfactory.git"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test:unit": "pnpm exec vitest run --config ../../vitest.config.ts --project unit .",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  },
+  "brick": "product"
+}

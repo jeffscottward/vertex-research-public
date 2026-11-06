@@ -42610,6 +42610,188 @@
                                 "args": {
                                   "type": "string"
                                 },
+                                "artifact": {
+                                  "anyOf": [
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "drawings": {
+                                          "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "id": {
+                                                "maxLength": 160,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "points": {
+                                                "items": {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "timestamp": {},
+                                                    "value": {}
+                                                  },
+                                                  "type": "object"
+                                                },
+                                                "maxItems": 2,
+                                                "minItems": 1,
+                                                "type": "array"
+                                              },
+                                              "text": {
+                                                "maxLength": 80,
+                                                "type": "string"
+                                              },
+                                              "tool": {
+                                                "enum": [
+                                                  "trend",
+                                                  "level",
+                                                  "rectangle",
+                                                  "fib",
+                                                  "text"
+                                                ],
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id",
+                                              "tool",
+                                              "points",
+                                              "text"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "maxItems": 24,
+                                          "minItems": 1,
+                                          "type": "array"
+                                        },
+                                        "kind": {
+                                          "const": "chart_drawings"
+                                        },
+                                        "replace": {
+                                          "type": "boolean"
+                                        },
+                                        "symbol": {
+                                          "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "symbol",
+                                        "replace",
+                                        "drawings"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "const": "chart_clear"
+                                        },
+                                        "symbol": {
+                                          "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "symbol"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "const": "chart_script"
+                                        },
+                                        "overlay": {
+                                          "type": "boolean"
+                                        },
+                                        "source": {
+                                          "maxLength": 16000,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "title": {
+                                          "maxLength": 80,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "title",
+                                        "source",
+                                        "overlay"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "kind": {
+                                          "const": "teach"
+                                        },
+                                        "steps": {
+                                          "items": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                              "body": {
+                                                "maxLength": 800,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              },
+                                              "drawings": {
+                                                "items": {
+                                                  "additionalProperties": false,
+                                                  "properties": {
+                                                    "id": {},
+                                                    "points": {},
+                                                    "text": {},
+                                                    "tool": {}
+                                                  },
+                                                  "type": "object"
+                                                },
+                                                "maxItems": 4,
+                                                "type": "array"
+                                              },
+                                              "title": {
+                                                "maxLength": 80,
+                                                "minLength": 1,
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "title",
+                                              "body"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "maxItems": 12,
+                                          "minItems": 1,
+                                          "type": "array"
+                                        },
+                                        "symbol": {
+                                          "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                          "type": "string"
+                                        },
+                                        "topic": {
+                                          "maxLength": 120,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "kind",
+                                        "topic",
+                                        "steps"
+                                      ],
+                                      "type": "object"
+                                    }
+                                  ]
+                                },
                                 "durationMs": {
                                   "maximum": 9007199254740991,
                                   "minimum": 0,
@@ -43310,6 +43492,64 @@
                   "page": {
                     "additionalProperties": false,
                     "properties": {
+                      "chart": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "bars": {
+                            "maximum": 1000000,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "firstTimestamp": {
+                            "anyOf": [
+                              {
+                                "maximum": 8640000000000000,
+                                "minimum": -8640000000000000,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastClose": {
+                            "anyOf": [
+                              {
+                                "maximum": 1000000000000,
+                                "minimum": -1000000000000,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "lastTimestamp": {
+                            "anyOf": [
+                              {
+                                "maximum": 8640000000000000,
+                                "minimum": -8640000000000000,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "symbol": {
+                            "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "symbol",
+                          "bars",
+                          "firstTimestamp",
+                          "lastTimestamp",
+                          "lastClose"
+                        ],
+                        "type": "object"
+                      },
                       "path": {
                         "maxLength": 200,
                         "pattern": "^\\/[A-Za-z0-9/_.-]*$",
@@ -43326,6 +43566,9 @@
                       "title"
                     ],
                     "type": "object"
+                  },
+                  "teach": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -43442,6 +43685,188 @@
                                           "args": {
                                             "type": "string"
                                           },
+                                          "artifact": {
+                                            "anyOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "drawings": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "id": {
+                                                          "maxLength": 160,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        },
+                                                        "points": {
+                                                          "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "timestamp": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          "maxItems": 2,
+                                                          "minItems": 1,
+                                                          "type": "array"
+                                                        },
+                                                        "text": {
+                                                          "maxLength": 80,
+                                                          "type": "string"
+                                                        },
+                                                        "tool": {
+                                                          "enum": [
+                                                            "trend",
+                                                            "level",
+                                                            "rectangle",
+                                                            "fib",
+                                                            "text"
+                                                          ],
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "tool",
+                                                        "points",
+                                                        "text"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 24,
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "kind": {
+                                                    "const": "chart_drawings"
+                                                  },
+                                                  "replace": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "symbol",
+                                                  "replace",
+                                                  "drawings"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "chart_clear"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "symbol"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "chart_script"
+                                                  },
+                                                  "overlay": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "source": {
+                                                    "maxLength": 16000,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "maxLength": 80,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "title",
+                                                  "source",
+                                                  "overlay"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "teach"
+                                                  },
+                                                  "steps": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "body": {
+                                                          "maxLength": 800,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        },
+                                                        "drawings": {
+                                                          "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "id": {},
+                                                              "points": {},
+                                                              "text": {},
+                                                              "tool": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          "maxItems": 4,
+                                                          "type": "array"
+                                                        },
+                                                        "title": {
+                                                          "maxLength": 80,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "title",
+                                                        "body"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 12,
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  },
+                                                  "topic": {
+                                                    "maxLength": 120,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "topic",
+                                                  "steps"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
+                                          },
                                           "durationMs": {
                                             "maximum": 9007199254740991,
                                             "minimum": 0,
@@ -43555,6 +43980,234 @@
                                   "properties": {
                                     "args": {
                                       "type": "string"
+                                    },
+                                    "artifact": {
+                                      "anyOf": [
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "drawings": {
+                                              "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "id": {
+                                                    "maxLength": 160,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "points": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "timestamp": {
+                                                          "maximum": 8640000000000000,
+                                                          "minimum": -8640000000000000,
+                                                          "type": "integer"
+                                                        },
+                                                        "value": {
+                                                          "maximum": 1000000000000,
+                                                          "minimum": -1000000000000,
+                                                          "type": "number"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "timestamp",
+                                                        "value"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 2,
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "text": {
+                                                    "maxLength": 80,
+                                                    "type": "string"
+                                                  },
+                                                  "tool": {
+                                                    "enum": [
+                                                      "trend",
+                                                      "level",
+                                                      "rectangle",
+                                                      "fib",
+                                                      "text"
+                                                    ],
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "id",
+                                                  "tool",
+                                                  "points",
+                                                  "text"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "maxItems": 24,
+                                              "minItems": 1,
+                                              "type": "array"
+                                            },
+                                            "kind": {
+                                              "const": "chart_drawings"
+                                            },
+                                            "replace": {
+                                              "type": "boolean"
+                                            },
+                                            "symbol": {
+                                              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "symbol",
+                                            "replace",
+                                            "drawings"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "const": "chart_clear"
+                                            },
+                                            "symbol": {
+                                              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "symbol"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "const": "chart_script"
+                                            },
+                                            "overlay": {
+                                              "type": "boolean"
+                                            },
+                                            "source": {
+                                              "maxLength": 16000,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "title": {
+                                              "maxLength": 80,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "title",
+                                            "source",
+                                            "overlay"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "kind": {
+                                              "const": "teach"
+                                            },
+                                            "steps": {
+                                              "items": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "body": {
+                                                    "maxLength": 800,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "drawings": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "id": {
+                                                          "maxLength": 160,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        },
+                                                        "points": {
+                                                          "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "timestamp": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          "maxItems": 2,
+                                                          "minItems": 1,
+                                                          "type": "array"
+                                                        },
+                                                        "text": {
+                                                          "maxLength": 80,
+                                                          "type": "string"
+                                                        },
+                                                        "tool": {
+                                                          "enum": [
+                                                            "trend",
+                                                            "level",
+                                                            "rectangle",
+                                                            "fib",
+                                                            "text"
+                                                          ],
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "tool",
+                                                        "points",
+                                                        "text"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 4,
+                                                    "type": "array"
+                                                  },
+                                                  "title": {
+                                                    "maxLength": 80,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "title",
+                                                  "body"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "maxItems": 12,
+                                              "minItems": 1,
+                                              "type": "array"
+                                            },
+                                            "symbol": {
+                                              "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                              "type": "string"
+                                            },
+                                            "topic": {
+                                              "maxLength": 120,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "kind",
+                                            "topic",
+                                            "steps"
+                                          ],
+                                          "type": "object"
+                                        }
+                                      ]
                                     },
                                     "durationMs": {
                                       "maximum": 9007199254740991,
@@ -43777,6 +44430,186 @@
                                               "args": {
                                                 "type": "string"
                                               },
+                                              "artifact": {
+                                                "anyOf": [
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "drawings": {
+                                                        "items": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "id": {
+                                                              "maxLength": 160,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            },
+                                                            "points": {
+                                                              "items": {
+                                                                "anyOf": [
+                                                                  {},
+                                                                  {
+                                                                    "type": "null"
+                                                                  }
+                                                                ]
+                                                              },
+                                                              "maxItems": 2,
+                                                              "minItems": 1,
+                                                              "type": "array"
+                                                            },
+                                                            "text": {
+                                                              "maxLength": 80,
+                                                              "type": "string"
+                                                            },
+                                                            "tool": {
+                                                              "enum": [
+                                                                "trend",
+                                                                "level",
+                                                                "rectangle",
+                                                                "fib",
+                                                                "text"
+                                                              ],
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "id",
+                                                            "tool",
+                                                            "points",
+                                                            "text"
+                                                          ],
+                                                          "type": "object"
+                                                        },
+                                                        "maxItems": 24,
+                                                        "minItems": 1,
+                                                        "type": "array"
+                                                      },
+                                                      "kind": {
+                                                        "const": "chart_drawings"
+                                                      },
+                                                      "replace": {
+                                                        "type": "boolean"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "symbol",
+                                                      "replace",
+                                                      "drawings"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "chart_clear"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "symbol"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "chart_script"
+                                                      },
+                                                      "overlay": {
+                                                        "type": "boolean"
+                                                      },
+                                                      "source": {
+                                                        "maxLength": 16000,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      },
+                                                      "title": {
+                                                        "maxLength": 80,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "title",
+                                                      "source",
+                                                      "overlay"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "teach"
+                                                      },
+                                                      "steps": {
+                                                        "items": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "body": {
+                                                              "maxLength": 800,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            },
+                                                            "drawings": {
+                                                              "items": {
+                                                                "anyOf": [
+                                                                  {},
+                                                                  {
+                                                                    "type": "null"
+                                                                  }
+                                                                ]
+                                                              },
+                                                              "maxItems": 4,
+                                                              "type": "array"
+                                                            },
+                                                            "title": {
+                                                              "maxLength": 80,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "title",
+                                                            "body"
+                                                          ],
+                                                          "type": "object"
+                                                        },
+                                                        "maxItems": 12,
+                                                        "minItems": 1,
+                                                        "type": "array"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      },
+                                                      "topic": {
+                                                        "maxLength": 120,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "topic",
+                                                      "steps"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                ]
+                                              },
                                               "durationMs": {
                                                 "maximum": 9007199254740991,
                                                 "minimum": 0,
@@ -43874,6 +44707,188 @@
                                         "properties": {
                                           "args": {
                                             "type": "string"
+                                          },
+                                          "artifact": {
+                                            "anyOf": [
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "drawings": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "id": {
+                                                          "maxLength": 160,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        },
+                                                        "points": {
+                                                          "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "timestamp": {},
+                                                              "value": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          "maxItems": 2,
+                                                          "minItems": 1,
+                                                          "type": "array"
+                                                        },
+                                                        "text": {
+                                                          "maxLength": 80,
+                                                          "type": "string"
+                                                        },
+                                                        "tool": {
+                                                          "enum": [
+                                                            "trend",
+                                                            "level",
+                                                            "rectangle",
+                                                            "fib",
+                                                            "text"
+                                                          ],
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "id",
+                                                        "tool",
+                                                        "points",
+                                                        "text"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 24,
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "kind": {
+                                                    "const": "chart_drawings"
+                                                  },
+                                                  "replace": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "symbol",
+                                                  "replace",
+                                                  "drawings"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "chart_clear"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "symbol"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "chart_script"
+                                                  },
+                                                  "overlay": {
+                                                    "type": "boolean"
+                                                  },
+                                                  "source": {
+                                                    "maxLength": 16000,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  },
+                                                  "title": {
+                                                    "maxLength": 80,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "title",
+                                                  "source",
+                                                  "overlay"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                  "kind": {
+                                                    "const": "teach"
+                                                  },
+                                                  "steps": {
+                                                    "items": {
+                                                      "additionalProperties": false,
+                                                      "properties": {
+                                                        "body": {
+                                                          "maxLength": 800,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        },
+                                                        "drawings": {
+                                                          "items": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                              "id": {},
+                                                              "points": {},
+                                                              "text": {},
+                                                              "tool": {}
+                                                            },
+                                                            "type": "object"
+                                                          },
+                                                          "maxItems": 4,
+                                                          "type": "array"
+                                                        },
+                                                        "title": {
+                                                          "maxLength": 80,
+                                                          "minLength": 1,
+                                                          "type": "string"
+                                                        }
+                                                      },
+                                                      "required": [
+                                                        "title",
+                                                        "body"
+                                                      ],
+                                                      "type": "object"
+                                                    },
+                                                    "maxItems": 12,
+                                                    "minItems": 1,
+                                                    "type": "array"
+                                                  },
+                                                  "symbol": {
+                                                    "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                    "type": "string"
+                                                  },
+                                                  "topic": {
+                                                    "maxLength": 120,
+                                                    "minLength": 1,
+                                                    "type": "string"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "kind",
+                                                  "topic",
+                                                  "steps"
+                                                ],
+                                                "type": "object"
+                                              }
+                                            ]
                                           },
                                           "durationMs": {
                                             "maximum": 9007199254740991,
@@ -44011,6 +45026,186 @@
                                             "properties": {
                                               "args": {
                                                 "type": "string"
+                                              },
+                                              "artifact": {
+                                                "anyOf": [
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "drawings": {
+                                                        "items": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "id": {
+                                                              "maxLength": 160,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            },
+                                                            "points": {
+                                                              "items": {
+                                                                "anyOf": [
+                                                                  {},
+                                                                  {
+                                                                    "type": "null"
+                                                                  }
+                                                                ]
+                                                              },
+                                                              "maxItems": 2,
+                                                              "minItems": 1,
+                                                              "type": "array"
+                                                            },
+                                                            "text": {
+                                                              "maxLength": 80,
+                                                              "type": "string"
+                                                            },
+                                                            "tool": {
+                                                              "enum": [
+                                                                "trend",
+                                                                "level",
+                                                                "rectangle",
+                                                                "fib",
+                                                                "text"
+                                                              ],
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "id",
+                                                            "tool",
+                                                            "points",
+                                                            "text"
+                                                          ],
+                                                          "type": "object"
+                                                        },
+                                                        "maxItems": 24,
+                                                        "minItems": 1,
+                                                        "type": "array"
+                                                      },
+                                                      "kind": {
+                                                        "const": "chart_drawings"
+                                                      },
+                                                      "replace": {
+                                                        "type": "boolean"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "symbol",
+                                                      "replace",
+                                                      "drawings"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "chart_clear"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "symbol"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "chart_script"
+                                                      },
+                                                      "overlay": {
+                                                        "type": "boolean"
+                                                      },
+                                                      "source": {
+                                                        "maxLength": 16000,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      },
+                                                      "title": {
+                                                        "maxLength": 80,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "title",
+                                                      "source",
+                                                      "overlay"
+                                                    ],
+                                                    "type": "object"
+                                                  },
+                                                  {
+                                                    "additionalProperties": false,
+                                                    "properties": {
+                                                      "kind": {
+                                                        "const": "teach"
+                                                      },
+                                                      "steps": {
+                                                        "items": {
+                                                          "additionalProperties": false,
+                                                          "properties": {
+                                                            "body": {
+                                                              "maxLength": 800,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            },
+                                                            "drawings": {
+                                                              "items": {
+                                                                "anyOf": [
+                                                                  {},
+                                                                  {
+                                                                    "type": "null"
+                                                                  }
+                                                                ]
+                                                              },
+                                                              "maxItems": 4,
+                                                              "type": "array"
+                                                            },
+                                                            "title": {
+                                                              "maxLength": 80,
+                                                              "minLength": 1,
+                                                              "type": "string"
+                                                            }
+                                                          },
+                                                          "required": [
+                                                            "title",
+                                                            "body"
+                                                          ],
+                                                          "type": "object"
+                                                        },
+                                                        "maxItems": 12,
+                                                        "minItems": 1,
+                                                        "type": "array"
+                                                      },
+                                                      "symbol": {
+                                                        "pattern": "^[A-Za-z][A-Za-z0-9.]{0,11}$",
+                                                        "type": "string"
+                                                      },
+                                                      "topic": {
+                                                        "maxLength": 120,
+                                                        "minLength": 1,
+                                                        "type": "string"
+                                                      }
+                                                    },
+                                                    "required": [
+                                                      "kind",
+                                                      "topic",
+                                                      "steps"
+                                                    ],
+                                                    "type": "object"
+                                                  }
+                                                ]
                                               },
                                               "durationMs": {
                                                 "maximum": 9007199254740991,
