@@ -60,16 +60,58 @@ describe("runSectorRotationTick", () => {
     ]);
   });
 
-  it("sends dryRun with --dry-run and prints null for an empty body", async () => {
-    const harness = harnessFor(env, new Response("{}"), ["--dry-run"]);
+  it("sends dryRun with --dry-run and prints a result with no alerts", async () => {
+    const harness = harnessFor(env, Response.json({ json: { alerts: [] } }), [
+      "--dry-run",
+    ]);
     await expect(runSectorRotationTick(harness.io)).resolves.toBe(0);
     expect(harness.post.mock.calls[0]?.[1].body).toBe(
       JSON.stringify({ json: { dryRun: true } })
     );
-    expect(harness.out).toEqual(["null\n"]);
-    const noAlerts = harnessFor(env, Response.json({ json: { alerts: 3 } }));
-    await runSectorRotationTick(noAlerts.io);
-    expect(noAlerts.out).toEqual(['{"alerts":3}\n']);
+    expect(harness.out).toEqual(['{"alerts":[]}\n']);
+  });
+
+  it.each([
+    ["an empty envelope", "{}", "json: Invalid input"],
+    ["a non-object envelope", "null", "(root): Invalid input"],
+    [
+      "a changed alerts field",
+      '{"json":{"alerts":3}}',
+      "json.alerts: Invalid input",
+    ],
+    [
+      "an alert without a line",
+      '{"json":{"alerts":[{"date":"2026-11-02","delivery":"sent","symbol":"XLK","to":"leading"}]}}',
+      "json.alerts.0.line: Invalid input",
+    ],
+  ])(
+    "fails and posts nothing when collect returns %s",
+    async (_kind, body, issue) => {
+      const harness = harnessFor(
+        {
+          ...env,
+          VERTEX_ALERT_CHANNEL: "trading-alerts",
+          VERTEX_ALERT_POST_URL: "http://127.0.0.1:47821/post",
+        },
+        new Response(body)
+      );
+      await expect(runSectorRotationTick(harness.io)).resolves.toBe(1);
+      expect(harness.post).toHaveBeenCalledTimes(1);
+      expect(harness.out).toEqual([]);
+      const message = harness.err.join("");
+      expect(message).toContain(
+        "sector rotation tick failed: sectorRotation.collect returned an unexpected shape; no alert was read or posted"
+      );
+      expect(message).toContain(issue);
+    }
+  );
+
+  it("fails with a clear message when collect returns a body that is not JSON", async () => {
+    const harness = harnessFor(env, new Response("<html>proxy error</html>"));
+    await expect(runSectorRotationTick(harness.io)).resolves.toBe(1);
+    expect(harness.err).toEqual([
+      "sector rotation tick failed: sectorRotation.collect returned a body that is not JSON: <html>proxy error</html>\n",
+    ]);
   });
 
   it("fails on bad arguments, missing configuration or an error and never prints the key", async () => {
@@ -200,6 +242,8 @@ describe("runSectorRotationTick", () => {
     expect(code).toBe(1);
     expect(chatCalls).toBe(2);
     expect(err).toEqual([
+      "could not post XLE lagging 2026-11-02 to chat: connection refused\n",
+      "could not post XLE lagging 2026-11-02 to chat: HTTP 502\n",
       "sector rotation tick failed: 2 alert line(s) could not be posted to chat\n",
     ]);
   });
@@ -304,6 +348,8 @@ describe("runSectorRotationTick", () => {
     ]);
     expect(writes[0]?.[1].headers).toMatchObject({ "x-api-key": "test-key" });
     expect(err).toEqual([
+      'could not post XLU lagging 2026-11-02 to chat: reply was not {"ok":true}\n',
+      'could not post XLB lagging 2026-11-02 to chat: reply was not {"ok":true}\n',
       "sector rotation tick failed: 2 alert line(s) could not be posted to chat\n",
     ]);
   });
@@ -354,7 +400,7 @@ describe("runSectorRotationTick", () => {
       post.mock.calls.filter(([url]) => url.endsWith("/post"))
     ).toHaveLength(2);
     expect(err).toEqual([
-      "could not record sent for XLE lagging 2026-11-02\n",
+      "could not record sent for XLE lagging 2026-11-02: offline\n",
       "could not record sent for XLK leading 2026-11-02 (HTTP 503)\n",
       "sector rotation tick failed: 2 chat delivery result(s) could not be recorded (lines were posted once; not reposted)\n",
     ]);

@@ -37,14 +37,23 @@ export const AcademyThemeScope = ({
   readonly children: ReactNode;
 }) => {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  // Storage can be blocked (privacy settings, sandboxed frames) or full; the in-memory theme still applies.
   useEffect(() => {
-    if (window.localStorage.getItem(ACADEMY_THEME_STORAGE_KEY) === "light")
-      setTheme("light");
+    try {
+      if (window.localStorage.getItem(ACADEMY_THEME_STORAGE_KEY) === "light")
+        setTheme("light");
+    } catch {
+      return;
+    }
   }, []);
   const toggle = useCallback(() => {
     setTheme((current) => {
       const next = current === "dark" ? "light" : "dark";
-      window.localStorage.setItem(ACADEMY_THEME_STORAGE_KEY, next);
+      try {
+        window.localStorage.setItem(ACADEMY_THEME_STORAGE_KEY, next);
+      } catch {
+        // Keep the new theme for this page view only.
+      }
       return next;
     });
   }, []);
