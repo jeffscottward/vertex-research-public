@@ -48,7 +48,7 @@ const MAX_MEMBER_LENGTH = 200;
 // The feed may carry up to 5000 filings (CONGRESS_TRADES_MAX_ROWS); the page lists them in pages.
 export const CONGRESS_TRADES_PAGE_SIZE = 50;
 const selectClass =
-  "h-11 w-full rounded-md border border-input bg-background px-3 text-sm sm:w-48";
+  "h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm sm:w-48 sm:flex-none";
 
 export type CongressTradesSettings = Readonly<{
   days: CongressTradeWindow;
@@ -423,6 +423,8 @@ export const CongressTradesWorkspace = ({
 
       <Panel
         actions={controls}
+        // Panel actions do not shrink; let the filter row wrap to the panel width on phones.
+        className="[&>header>div:last-child]:min-w-0 [&>header>div:last-child]:shrink"
         flush
         headingId="congress-feed-heading"
         title="Filings"
