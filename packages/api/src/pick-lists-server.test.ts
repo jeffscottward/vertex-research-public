@@ -1,4 +1,5 @@
 import {
+  type AgentApiKeyService,
   AUTHORIZATION_ERROR_CODES,
   AuthAuthorizationError,
   type SafeAuthSession,
@@ -94,6 +95,12 @@ const pickListRepository = (seed: PickListWithLatest[] = []) => {
     }),
     listByUser: vi.fn(async (userId: string) =>
       rows.filter((entry) => entry.list.userId === userId)
+    ),
+    // Test emails are `<userId>@domain.test`.
+    listByUserEmails: vi.fn(async (emails: readonly string[] | undefined) =>
+      rows.filter((entry) =>
+        (emails ?? []).includes(`${entry.list.userId}@domain.test`)
+      )
     ),
     get: vi.fn(
       async (id: string, userId: string) =>
@@ -215,7 +222,8 @@ const session = (userId: string): SafeAuthSession => ({
 const clientFor = (
   requestSession: SafeAuthSession | null,
   pickLists?: PickListRepository,
-  baskets?: BasketRepository
+  baskets?: BasketRepository,
+  options: Readonly<{ apiKey?: boolean }> = {}
 ) => {
   const repositories = {
     profiles: {},
@@ -230,7 +238,22 @@ const clientFor = (
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
+    if (options.apiKey === true) request.headers.set("x-api-key", "read-key");
+    // A read key owned by the operator.
+    const agentApiKeys = {
+      authenticate: async () => ({
+        userId: "operator",
+        email: "operator@domain.test",
+        emailVerified: true,
+        role: "member" as const,
+        status: "active" as const,
+        apiKeyId: "key-1",
+        access: "read" as const,
+      }),
+    } as unknown as AgentApiKeyService;
     const context = createApiContext(request, {
+      agentApiKeys,
+      agentViewerEmails: ["viewer@domain.test"],
       repositories,
       requestId: "request-1",
       capabilities: {
@@ -397,12 +420,18 @@ describe("pickLists access", () => {
       "FORBIDDEN",
       403
     );
+    await expectCode(
+      clientFor(session("outsider"), repository).pickLists.proposal({}),
+      "FORBIDDEN",
+      403
+    );
     expect(repository.listByUser).not.toHaveBeenCalled();
   });
 
   it("reports missing storage", async () => {
     await expectCode(operator().list({}), "STORAGE_ERROR", 503);
     await expectCode(operator().screen({ id: "x" }), "STORAGE_ERROR", 503);
+    await expectCode(operator().proposal({}), "STORAGE_ERROR", 503);
     await expectCode(
       operator(pickListRepository()).syncBucket({ id: "x", bucketSymbol: "B" }),
       "STORAGE_ERROR",
@@ -981,5 +1010,220 @@ describe("pickLists.screen", () => {
       "STORAGE_ERROR",
       503
     );
+  });
+});
+
+describe("pickLists.proposal", () => {
+  const now = new Date("2026-11-05T21:00:00.000Z");
+  const useYahoo = (specs: Readonly<Record<string, ChartSpec>>) => {
+    const fetch = yahooWith(specs);
+    setPickListOptionsForTesting({ fetch, now: () => now });
+    return fetch;
+  };
+  const fetchedSymbols = (fetch: ReturnType<typeof yahooWith>) =>
+    fetch.mock.calls.map(([url]) => symbolOf(url));
+
+  it("proposes a defined-risk spread per member of every bucketed list", async () => {
+    const fetch = useYahoo({
+      SPY: { closes: rising(120, 400, 1) },
+      AAA: { closes: rising(120) },
+      XLK: { closes: rising(120, 200, 0.3) },
+      BBB: { closes: rising(120, 300, -0.5) },
+    });
+    const repository = pickListRepository([
+      pickList(
+        "wish",
+        [row("BBB", { rank: 2 }), row("AAA", { rank: 1 })],
+        "WISH"
+      ),
+      // Re-imported after Make bucket: the bucket still holds AAA and CCC, not NEW.
+      pickList(
+        "moby",
+        [row("AAA", { sector: "Technology" }), row("NEW")],
+        "TMOBY"
+      ),
+      // The bucket basket was deleted: no bucket, no rows.
+      pickList("gone", [row("OLD")], "GONE", "operator", null),
+      // The recorded basket no longer exists for this owner.
+      pickList("lost", [row("LOST")], "LOST"),
+      pickList("loose", [row("ZZZ")]),
+    ]);
+    const weight = { weight: "0.5" };
+    const baskets = basketRepository([
+      basket("WISH", [
+        { symbol: "AAA", ...weight },
+        { symbol: "BBB", ...weight },
+      ]),
+      basket("TMOBY", [
+        { symbol: "AAA", ...weight },
+        { symbol: "CCC", ...weight },
+      ]),
+    ]);
+    const result = await operator(repository, baskets).proposal({});
+    expect(fetchedSymbols(fetch)).toEqual(["SPY", "AAA", "CCC", "BBB", "XLK"]);
+    expect(result.proposalOnly).toBe(true);
+    expect(result.computedAt).toBe(now.toISOString());
+    expect(result.rules.maxLossGatePct).toBe(2);
+    expect(result.buckets).toEqual([
+      {
+        symbol: "TMOBY",
+        listId: "moby",
+        listName: "moby picks",
+        memberCount: 2,
+      },
+      {
+        symbol: "WISH",
+        listId: "wish",
+        listName: "wish picks",
+        memberCount: 2,
+      },
+    ]);
+    expect(result.rows.map((entry) => entry.symbol)).toEqual([
+      "AAA",
+      "CCC",
+      "BBB",
+    ]);
+    const [aaa, ccc, bbb] = result.rows;
+    expect(aaa).toMatchObject({
+      buckets: ["TMOBY", "WISH"],
+      status: "pass",
+      sectorEtf: "XLK",
+    });
+    expect(["full", "half"]).toContain(aaa?.tier);
+    expect(aaa?.structure).toMatchObject({
+      kind: "call-debit-spread",
+      expiry: "2027-03-19",
+      dte: 134,
+    });
+    expect(aaa?.maxLossPctNlv).toBeGreaterThan(0);
+    expect(aaa?.maxLossPctNlv).toBeLessThanOrEqual(2);
+    expect(ccc).toMatchObject({
+      tier: "none",
+      structure: null,
+      notes: "No entry: data missing (Yahoo chart returned HTTP 404).",
+    });
+    expect(bbb).toMatchObject({ tier: "none", buckets: ["WISH"] });
+    expect(result.totalMaxLossPct).toBe(aaa?.maxLossPctNlv);
+    expect(result.notProposed).toEqual([]);
+  });
+
+  it("proposes the first 60 members and reports the rest", async () => {
+    const ranked = Array.from({ length: 61 }, (_, index) =>
+      row(`M${String(index).padStart(3, "0")}`, { rank: index + 1 })
+    );
+    const members = (rows: readonly PickListMemberRow[]) =>
+      rows.map((entry) => ({ symbol: entry.symbol, weight: "0.1" }));
+    const fetch = useYahoo({});
+    const result = await operator(
+      pickListRepository([
+        pickList("a", ranked.slice(0, 40), "AAA"),
+        pickList("b", ranked.slice(40), "BBB"),
+      ]),
+      basketRepository([
+        basket("AAA", members(ranked.slice(0, 40))),
+        basket("BBB", members(ranked.slice(40))),
+      ])
+    ).proposal({});
+    expect(fetchedSymbols(fetch)).toHaveLength(61);
+    expect(result.rows).toHaveLength(60);
+    expect(result.notProposed).toEqual(["M060"]);
+    expect(result.totalMaxLossPct).toBe(0);
+  });
+
+  it("returns an empty proposal without buckets", async () => {
+    useYahoo({});
+    const result = await operator(
+      pickListRepository([pickList("loose", [row("ZZZ")])]),
+      basketRepository()
+    ).proposal({});
+    expect(result.buckets).toEqual([]);
+    expect(result.rows).toEqual([]);
+  });
+
+  it("reports storage failures", async () => {
+    useYahoo({});
+    const repository = pickListRepository();
+    repository.listByUser = vi.fn(async () => {
+      throw new DatabasePersistenceError("list");
+    });
+    await expectCode(
+      operator(repository, basketRepository()).proposal({}),
+      "STORAGE_ERROR",
+      503
+    );
+    // Lists load, but basket storage is missing.
+    await expectCode(
+      operator(pickListRepository()).proposal({}),
+      "STORAGE_ERROR",
+      503
+    );
+  });
+
+  it("lets the read-only agent viewer read the operator buckets", async () => {
+    useYahoo({});
+    const repository = pickListRepository([
+      pickList("moby", [row("AAA")], "TMOBY"),
+      pickList("own", [row("VVV")], "VIEW", "viewer"),
+      pickList("other", [row("OOO")], "OTHER", "outsider"),
+    ]);
+    const baskets = basketRepository([
+      basket("TMOBY", [{ symbol: "AAA", weight: "1" }]),
+      basket("VIEW", [{ symbol: "VVV", weight: "1" }]),
+      basket("OTHER", [{ symbol: "OOO", weight: "1" }]),
+    ]);
+    const result = await clientFor(
+      session("viewer"),
+      repository,
+      baskets
+    ).pickLists.proposal({});
+    expect(repository.listByUserEmails).toHaveBeenCalledWith([
+      "operator@domain.test",
+    ]);
+    expect(repository.listByUser).not.toHaveBeenCalled();
+    expect(baskets.listByUser).toHaveBeenCalledWith("operator");
+    expect(result.buckets.map((bucket) => bucket.symbol)).toEqual(["TMOBY"]);
+    expect(result.rows.map((entry) => entry.symbol)).toEqual(["AAA"]);
+    // The viewer still cannot change a bucket.
+    await expectCode(
+      clientFor(session("viewer"), repository, baskets).pickLists.syncBucket({
+        id: "moby",
+        bucketSymbol: "TMOBY",
+      }),
+      "FORBIDDEN",
+      403
+    );
+  });
+
+  it("reads the key owner's own buckets with an API key", async () => {
+    useYahoo({});
+    const repository = pickListRepository([
+      pickList("moby", [row("AAA")], "TMOBY"),
+    ]);
+    const result = await clientFor(null, repository, basketRepository(), {
+      apiKey: true,
+    }).pickLists.proposal({});
+    expect(repository.listByUser).toHaveBeenCalledWith("operator");
+    expect(repository.listByUserEmails).not.toHaveBeenCalled();
+    expect(result.buckets).toEqual([]);
+  });
+
+  it("counts DTE from the New York date", async () => {
+    // 2026-11-06T02:00Z is still 2026-11-05 in New York.
+    const late = new Date("2026-11-06T02:00:00.000Z");
+    setPickListOptionsForTesting({
+      fetch: yahooWith({
+        SPY: { closes: rising(120, 400, 1) },
+        AAA: { closes: rising(120) },
+      }),
+      now: () => late,
+    });
+    const result = await operator(
+      pickListRepository([pickList("one", [row("AAA")], "ONE")]),
+      basketRepository([basket("ONE", [{ symbol: "AAA", weight: "1" }])])
+    ).proposal({});
+    expect(result.rows[0]?.structure).toMatchObject({
+      expiry: "2027-03-19",
+      dte: 134,
+    });
   });
 });

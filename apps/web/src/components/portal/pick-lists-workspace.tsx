@@ -48,6 +48,7 @@ import {
   STATUS_LABELS,
 } from "./pick-lists-client.ts";
 import { PickListImportPanel } from "./pick-list-import-panel.tsx";
+import { PickListProposalPanel } from "./pick-list-proposal-panel.tsx";
 import { QUADRANT_CHIP, QUADRANT_LABELS } from "./sector-rotation-chart.tsx";
 
 export interface PickListsWorkspaceProps {
@@ -457,6 +458,9 @@ export const PickListsWorkspace = ({
         >
           Loading pick lists…
         </p>
+      ) : null}
+      {loaded ? (
+        <PickListProposalPanel gateway={gateway} lists={items} />
       ) : null}
       <PickListImportPanel gateway={gateway} onImported={() => void load()} />
       {loaded && items.length === 0 ? (

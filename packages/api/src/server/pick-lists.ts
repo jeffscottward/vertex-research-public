@@ -18,7 +18,15 @@ import {
   PICK_LIST_SCREEN_MAX_MEMBERS,
   type PickListImportInput,
   type PickListOutput,
+  type PickListProposalOutput,
 } from "../contracts/pick-lists.ts";
+import {
+  orderProposalRows,
+  PROPOSAL_RULES,
+  proposalCandidates,
+  proposeMember,
+  totalMaxLossPct,
+} from "../pick-list-proposal.ts";
 import { SECTOR_ROTATION_BENCHMARK } from "../contracts/sector-rotation.ts";
 import {
   closesOf,
@@ -27,6 +35,7 @@ import {
   screenMember,
   sectorEtfFor,
 } from "../pick-list-screen.ts";
+import { isAgentViewerEmail } from "./agent-viewer.ts";
 import type { ApiContext } from "./context.ts";
 import type { DeployStatusFetch } from "./deploy-status.ts";
 import { requireOperator } from "./operator-access.ts";
@@ -53,6 +62,13 @@ const BARS_CACHE_TTL_MS = 10 * 60_000;
 const BARS_CACHE_MAX_ENTRIES = 400;
 const WEIGHT_DIGITS = 8;
 const PRICE_DIGITS = 4;
+/** YYYY-MM-DD in New York ("en-CA" formats dates as ISO). */
+const NEW_YORK_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 export type PickListOptions = Readonly<{
   /** Yahoo chart fetch. */
@@ -501,9 +517,120 @@ const screen = api.pickLists.screen
     };
   });
 
+const proposal = api.pickLists.proposal
+  .use(requireOperator)
+  .handler(async ({ context, errors }): Promise<PickListProposalOutput> => {
+    const failures = factories(errors);
+    let lists: PickListWithLatest[];
+    let owned: BasketWithMembers[];
+    try {
+      const pickLists = pickListsFor(context, failures);
+      const baskets = basketsFor(context, failures);
+      // The read-only agent viewer has no lists of its own. It reads the operator accounts'
+      // buckets (owner decision 2026-11-05, card vertex-bucket-buy-proposal); the response has
+      // no account data, and the viewer still cannot call any write procedure. Everyone else
+      // reads their own buckets.
+      const viewer =
+        context.agentApiKeyPresented !== true &&
+        isAgentViewerEmail(
+          (await context.requireSession()).user.email,
+          context.agentViewerEmails
+        );
+      lists = viewer
+        ? await pickLists.listByUserEmails(context.operatorEmails)
+        : await pickLists.listByUser(context.principal.userId);
+      const owners = viewer
+        ? [...new Set(lists.map((entry) => entry.list.userId))]
+        : [context.principal.userId];
+      owned = (
+        await Promise.all(owners.map((owner) => baskets.listByUser(owner)))
+      ).flat();
+    } catch (error) {
+      return mapError(error, failures);
+    }
+    // A bucket's members are its basket's members (what /baskets shows), not the latest
+    // snapshot: a re-import changes the bucket only after Make or Refresh bucket. A list whose
+    // bucket basket was deleted (bucketBasketId null) has no bucket.
+    const basketById = new Map(owned.map((entry) => [entry.basket.id, entry]));
+    const buckets = lists
+      .flatMap((entry) => {
+        const symbol = entry.list.bucketSymbol;
+        const basket =
+          entry.list.bucketBasketId === null
+            ? undefined
+            : basketById.get(entry.list.bucketBasketId);
+        if (symbol === null || basket === undefined) return [];
+        const sectors = new Map(
+          entry.latest.members.map((member) => [member.symbol, member.sector])
+        );
+        return [
+          {
+            bucketSymbol: symbol,
+            listId: entry.list.id,
+            listName: entry.list.name,
+            members: basket.members.map((member) => ({
+              symbol: member.symbol,
+              sector: sectors.get(member.symbol) ?? null,
+            })),
+          },
+        ];
+      })
+      .sort((a, b) => a.bucketSymbol.localeCompare(b.bucketSymbol));
+    const candidates = proposalCandidates(buckets);
+    const proposed = candidates.slice(0, PICK_LIST_SCREEN_MAX_MEMBERS);
+    const loaded = await loadAllBars([
+      ...new Set([
+        SECTOR_ROTATION_BENCHMARK,
+        ...proposed.map((candidate) => candidate.symbol),
+        ...proposed.flatMap(
+          (candidate) => sectorEtfFor(candidate.sector) ?? []
+        ),
+      ]),
+    ]);
+    const benchmark = closesFrom(loaded.get(SECTOR_ROTATION_BENCHMARK));
+    const now = clock();
+    // DTE counts from the New York calendar date (US option expiries).
+    const asOf = NEW_YORK_DATE.format(now);
+    const rows = proposed.map((candidate) => {
+      // Every proposed symbol was requested, so its result exists.
+      const result = loaded.get(candidate.symbol) as BarsResult;
+      const etf = sectorEtfFor(candidate.sector);
+      return proposeMember({
+        screened: screenMember({
+          symbol: candidate.symbol,
+          sector: candidate.sector,
+          bars: result.ok ? result.bars : null,
+          reason: result.ok ? null : result.reason,
+          benchmark,
+          sectorCloses: etf === null ? null : closesFrom(loaded.get(etf)),
+        }),
+        closes: result.ok ? result.bars.map((bar) => bar.c) : null,
+        buckets: candidate.buckets,
+        asOf,
+      });
+    });
+    return {
+      proposalOnly: true,
+      computedAt: now.toISOString(),
+      rules: PROPOSAL_RULES,
+      buckets: buckets.map((bucket) => ({
+        symbol: bucket.bucketSymbol,
+        listId: bucket.listId,
+        listName: bucket.listName,
+        memberCount: bucket.members.length,
+      })),
+      rows: orderProposalRows(rows),
+      notProposed: candidates
+        .slice(PICK_LIST_SCREEN_MAX_MEMBERS)
+        .map((candidate) => candidate.symbol),
+      totalMaxLossPct: totalMaxLossPct(rows),
+    };
+  });
+
 export const pickListsRouter = {
   import: importSnapshot,
   list: listPickLists,
+  proposal,
   screen,
   syncBucket,
 };

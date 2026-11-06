@@ -391,6 +391,46 @@ describe("pick list repository", () => {
     expect(noSnapshots.operations).toHaveLength(2);
   });
 
+  it("lists the lists of users found by email", async () => {
+    const double = createDouble([
+      [{ id: "user-a" }, { id: "user-b" }],
+      [listRow(), listRow({ id: "list-2", slug: "other", userId: "user-b" })],
+      [snapshotRow(), snapshotRow({ id: "snap-2", pickListId: "list-2" })],
+      [memberRow("MSFT"), memberRow("TSLA", { snapshotId: "snap-2" })],
+    ]);
+    const result = await repositoryFor(double).listByUserEmails([
+      " Owner@Domain.TEST ",
+      "owner@domain.test",
+      "test@domain.test",
+      "  ",
+    ]);
+    expect(result.map((item) => item.list.id)).toEqual(["list-1", "list-2"]);
+    const emailQuery = double.operations[0]?.where;
+    expect(sqlOf(emailQuery)).toContain('lower("user"."email") in ($1, $2)');
+    expect(sqlOf(emailQuery)).toContain('"user"."email_verified" = $3');
+    expect(sqlOf(emailQuery)).toContain('"user"."status" = $4');
+    expect(sqlOf(double.operations[1]?.where)).toContain(
+      '"user_id" in ($1, $2)'
+    );
+  });
+
+  it("reads nothing without emails and stops when no user matches", async () => {
+    const none = createDouble([]);
+    expect(await repositoryFor(none).listByUserEmails([" "])).toEqual([]);
+    expect(await repositoryFor(none).listByUserEmails(undefined)).toEqual([]);
+    expect(none.operations).toHaveLength(0);
+    const unknown = createDouble([[]]);
+    expect(
+      await repositoryFor(unknown).listByUserEmails(["nobody@domain.test"])
+    ).toEqual([]);
+    expect(unknown.operations).toHaveLength(1);
+    await expect(
+      repositoryFor(createDouble([pgError("57P01")])).listByUserEmails([
+        "owner@domain.test",
+      ])
+    ).rejects.toBeInstanceOf(DatabasePersistenceError);
+  });
+
   it("validates and maps errors for reads", async () => {
     const repository = repositoryFor(createDouble([]));
     await expect(repository.listByUser(" ")).rejects.toThrow("userId");

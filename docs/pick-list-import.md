@@ -20,7 +20,8 @@ A line that starts with `#` and has no comma, tab or semicolon is a comment. A l
 4. Paste the list, or select a `.csv` file.
 5. Select **Preview** and read the rejected rows.
 6. Select **Save list**. A second save with the same name and date replaces that snapshot.
-7. On the list card, select **Make bucket**. The bucket is an equal-weight basket on `/baskets`. Use the basket page for a buy proposal. A proposal is not an order.
+7. On the list card, select **Make bucket**. The bucket is an equal-weight basket on `/baskets`.
+8. Read the **Buy proposal** table at the top of `/pick-lists`. It shows one defined-risk option structure (call debit spread) and its max loss for each bucket member. It is a proposal only: the page has no order button, and nothing is placed.
 
 ## Copy a Moby list
 

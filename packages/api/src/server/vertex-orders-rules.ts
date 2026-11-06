@@ -22,7 +22,7 @@ export type PremiumCaps = Readonly<{
 }>;
 const CONTRACT_MULTIPLIER = 100;
 // Owner hard gate 2026-11-02: max possible loss of a new position <= 2% of account value.
-const MAX_LOSS_PCT = 2;
+export const MAX_LOSS_PCT = 2;
 const DAY_MS = 86_400_000;
 
 export type OrderPosition = Readonly<{
