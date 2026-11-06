@@ -19,9 +19,15 @@ Pipeline:
 3. Sizing variants (all inside the owner 2% NLV max-loss gate per position, integer contracts).
 4. A daily mark-to-market portfolio per strategy across the 7 instruments on one account.
 
-Option prices need an implied volatility. The public data has none, so the proxy is
-1.1 x EWMA(span 20) realized volatility (implied vol usually trades above realized), floored at
-8%. A robustness run prices with the 252-day realized volatility of the proposal model instead.
+Option prices need an implied volatility. The main run uses a proxy, 1.1 x EWMA(span 20)
+realized volatility (implied vol usually trades above realized), floored at 8%. Two robustness
+runs re-price everything: with the 252-day realized volatility of the proposal model, and with
+the public Cboe implied-vol index of each ETF where Yahoo has one (fetch_ivx.py: VIX, VXN, VXD,
+GVZ, OVX; IWM and SLV have none and keep the proxy).
+
+Timing: a signal entry or exit fills at the Nautilus fill price (bar open or stop/target level)
+and is priced and sized with the previous session's vol and account value, so no same-day close
+leaks into a fill.
 """
 from __future__ import annotations
 
@@ -371,13 +377,14 @@ class Position:
 class SimStats:
     entries: int = 0
     skipped: int = 0
-    gate_bound: int = 0
+    gate_bound: int = 0  # signal entries where the 2% gate cut the size
+    rolls: int = 0
+    roll_gate_bound: int = 0
     contracts: list = field(default_factory=list)
     risk_pct: list = field(default_factory=list)
     resizes: int = 0
     costs: float = 0.0
-    # per entry: (symbol, vol target that would give the same contracts) - the vol target the
-    # fixed-risk rule implies for that trade
+    # per signal entry: (symbol, vol target that would give the current rule's contracts)
     implied_tau: list = field(default_factory=list)
 
 
@@ -386,8 +393,9 @@ class Market:
     """Everything a simulation reads, aligned to the master calendar."""
     calendar: tuple[date, ...]
     close: dict  # symbol -> list aligned to calendar (forward filled)
-    iv: dict
+    iv: dict  # option-pricing vol: 1.1 x EWMA(20) realized proxy
     rv: dict  # proposal-model 252-day realized vol (robustness pricing)
+    ivx: dict  # public implied-vol index where available, else the proxy (robustness pricing)
     vol: dict  # Carver instrument-risk estimate
     fast: dict
     slow: dict
@@ -395,99 +403,119 @@ class Market:
     idm: float
 
 
+def check_gate(contracts: int, loss_pc: float, nlv: float) -> None:
+    if contracts * loss_pc > MAX_LOSS_GATE * nlv + 1e-6:
+        raise AssertionError(f"2% max-loss gate breached: {contracts} x {loss_pc:.2f} > 2% of {nlv:.0f}")
+
+
 def simulate(m: Market, variant: str, tau: float = CARVER_VOL_TARGET, iv_key: str = "iv"):
-    """Daily mark-to-market of one strategy's spreads across the universe on one account."""
-    ivs = m.iv if iv_key == "iv" else m.rv
+    """Daily mark-to-market of one strategy's spreads across the universe on one account.
+
+    A signal entry or exit fills at the Nautilus fill price (the bar open, or the stop/target
+    level), so it is priced and sized with the previous session's vol and account value; rolls,
+    buffered resizes and marks happen at the close with that session's values."""
+    ivs = {"iv": m.iv, "rv": m.rv, "ivx": m.ivx}[iv_key]
     weight = 1 / len(UNIVERSE)
     cash = CAPITAL
     book: dict[str, Position] = {}
     stats = SimStats()
     curve = []
 
-    def target(sym, i, nlv, s, sp):
-        return vol_target_contracts(nlv, tau=tau, weight=weight, idm=m.idm, forecast=FORECAST_IN,
-                                    sigma=m.vol[sym][i], s=s, delta=sp.delta)
-
-    def size(sym, i, nlv, s, sp, legs):
+    def size(sym, j, nlv, s, sp, legs, kind):
+        """Contracts for a new spread with inputs of session j; kind is entry or roll."""
         loss_pc = max_loss_per_contract(sp, legs)
-        per_tau = target(sym, i, nlv, s, sp) / tau
-        if per_tau > 0:
-            stats.implied_tau.append((sym, CURRENT_RISK * nlv / loss_pc / per_tau))
+        cap = gate_cap(nlv, loss_pc)
+        per_tau = vol_target_contracts(nlv, tau=1.0, weight=weight, idm=m.idm,
+                                       forecast=FORECAST_IN, sigma=m.vol[sym][j], s=s,
+                                       delta=sp.delta)
         if variant == "current":
-            c = size_fixed_risk(nlv, loss_pc)
-            raw = CURRENT_RISK * nlv / loss_pc
+            c, wanted = size_fixed_risk(nlv, loss_pc), math.floor(CURRENT_RISK * nlv / loss_pc)
         elif variant == "brake":
-            c = size_vol_brake(nlv, loss_pc, m.fast[sym][i], m.slow[sym][i])
-            raw = c
+            c = size_vol_brake(nlv, loss_pc, m.fast[sym][j], m.slow[sym][j])
+            wanted = c
         else:
-            raw = target(sym, i, nlv, s, sp)
-            c = min(max(0, round(raw)), gate_cap(nlv, loss_pc))
-        if c < round(raw) and c == gate_cap(nlv, loss_pc):
-            stats.gate_bound += 1
+            wanted = max(0, round(per_tau * tau))
+            c = min(wanted, cap)
+        bound = c < wanted and c == cap
+        if kind == "entry":
+            if per_tau > 0:
+                stats.implied_tau.append((sym, CURRENT_RISK * nlv / loss_pc / per_tau))
+            stats.gate_bound += bound
+        else:
+            stats.rolls += 1
+            stats.roll_gate_bound += bound
+        check_gate(c, loss_pc, nlv)
         return c, loss_pc
 
     for i, day in enumerate(m.calendar):
+        prev_nlv = curve[-1] if curve else CAPITAL
+        p_i = max(0, i - 1)
         marks = {sym: spread_value(p.spread, m.close[sym][i], day, ivs[sym][i])
                  for sym, p in book.items()}
         nlv = cash + sum(marks[s] * book[s].contracts * MULT for s in book)
-        # exits (signal end) and rolls
+        # signal exits (at the fill price) and rolls (at the close)
         for sym in list(book):
             p = book[sym]
-            s = p.exit_price if day >= p.trade_end else m.close[sym][i]
-            legs = leg_prices(p.spread, s, day, ivs[sym][i])
-            value = (legs[0] - legs[1]) * MULT * p.contracts
-            cost = trade_cost(p.contracts, legs)
             if day >= p.trade_end:
-                cash += value - cost
+                legs = leg_prices(p.spread, p.exit_price, day, ivs[sym][p_i])
+                cost = trade_cost(p.contracts, legs)
+                cash += (legs[0] - legs[1]) * MULT * p.contracts - cost
                 stats.costs += cost
                 del book[sym]
             elif (p.spread.expiry - day).days <= ROLL_DTE:
-                cash += value - cost
+                s = m.close[sym][i]
+                legs = leg_prices(p.spread, s, day, ivs[sym][i])
+                cost = trade_cost(p.contracts, legs)
+                cash += (legs[0] - legs[1]) * MULT * p.contracts - cost
                 stats.costs += cost
+                del book[sym]
                 sp = open_spread(s, day, ivs[sym][i])
                 legs2 = leg_prices(sp, s, day, ivs[sym][i])
-                c, _ = size(sym, i, nlv, s, sp, legs2)
+                c, _ = size(sym, i, nlv, s, sp, legs2, "roll")
                 if c > 0:
                     cost2 = trade_cost(c, legs2)
                     cash -= sp.debit * MULT * c + cost2
                     stats.costs += cost2
                     book[sym] = Position(sym, sp, c, p.trade_end, p.exit_price)
-                else:
-                    del book[sym]
-        # buffered resizing (vol target only)
+        # buffered resizing (vol target only), sized per spread at its entry delta
         if variant == "vt-buffer" and i % REVIEW_EVERY == 0:
-            for sym, p in book.items():
+            for sym in list(book):
+                p = book[sym]
                 s = m.close[sym][i]
                 legs = leg_prices(p.spread, s, day, ivs[sym][i])
                 value_pc = (legs[0] - legs[1]) * MULT
-                t_rem = max(0.0, (p.spread.expiry - day).days / 365)
-                delta = (call_delta(s, p.spread.k1, t_rem, ivs[sym][i])
-                         - call_delta(s, p.spread.k2, t_rem, ivs[sym][i]))
                 tgt = vol_target_contracts(nlv, tau=tau, weight=weight, idm=m.idm,
                                            forecast=FORECAST_IN, sigma=m.vol[sym][i], s=s,
-                                           delta=delta)
+                                           delta=p.spread.delta)
                 new = buffered(p.contracts, tgt)
+                loss_now = value_pc + 2 * trade_cost(1, legs)
                 if new > p.contracts:  # adds may not push the position past the gate
-                    new = min(new, max(p.contracts, gate_cap(nlv, value_pc + 2 * trade_cost(1, legs))))
-                if new != p.contracts:
-                    change = new - p.contracts
-                    cost = trade_cost(abs(change), legs)
-                    cash -= value_pc * change + cost
-                    stats.costs += cost
-                    stats.resizes += 1
+                    new = min(new, max(p.contracts, gate_cap(nlv, loss_now)))
+                if new == p.contracts:
+                    continue
+                change = new - p.contracts
+                cost = trade_cost(abs(change), legs)
+                cash -= value_pc * change + cost
+                stats.costs += cost
+                stats.resizes += 1
+                if change > 0:
+                    check_gate(new, loss_now, nlv)
+                if new == 0:
+                    del book[sym]
+                else:
                     p.contracts = new
-        # new signal entries
+        # new signal entries (fill at the Nautilus entry price; previous-session inputs)
         for sym in UNIVERSE:
             entry = m.entries[sym].get(day)
             if entry is None or sym in book:
                 continue
             s, exit_day, exit_price = entry
-            sigma = ivs[sym][i]
-            if math.isnan(sigma) or math.isnan(m.vol[sym][i]):
+            sigma = ivs[sym][p_i]
+            if i == 0 or math.isnan(sigma) or math.isnan(m.vol[sym][p_i]):
                 continue
             sp = open_spread(s, day, sigma)
             legs = leg_prices(sp, s, day, sigma)
-            c, loss_pc = size(sym, i, nlv, s, sp, legs)
+            c, loss_pc = size(sym, p_i, prev_nlv, s, sp, legs, "entry")
             stats.entries += 1
             if c <= 0:
                 stats.skipped += 1
@@ -496,8 +524,7 @@ def simulate(m: Market, variant: str, tau: float = CARVER_VOL_TARGET, iv_key: st
             cash -= sp.debit * MULT * c + cost
             stats.costs += cost
             stats.contracts.append(c)
-            stats.risk_pct.append(c * loss_pc / nlv)
-            assert c * loss_pc <= MAX_LOSS_GATE * nlv + 1e-6, "2% max-loss gate breached"
+            stats.risk_pct.append(c * loss_pc / prev_nlv)
             book[sym] = Position(sym, sp, c, exit_day, exit_price)
         marks = {sym: spread_value(p.spread, m.close[sym][i], day, ivs[sym][i])
                  for sym, p in book.items()}
@@ -507,9 +534,19 @@ def simulate(m: Market, variant: str, tau: float = CARVER_VOL_TARGET, iv_key: st
 
 # --- statistics -----------------------------------------------------------------------------
 
+def daily_returns(curve) -> list[float]:
+    return [curve[i] / curve[i - 1] - 1 for i in range(1, len(curve))]
+
+
+def sharpe_of(rets) -> float | None:
+    mean = sum(rets) / len(rets)
+    sd = math.sqrt(sum((r - mean) ** 2 for r in rets) / (len(rets) - 1))
+    return mean / sd * math.sqrt(TRADING_DAYS) if sd > 0 else None
+
+
 def metrics(calendar, curve, stats: SimStats) -> dict:
     years = (calendar[-1] - calendar[0]).days / 365.25
-    rets = [curve[i] / curve[i - 1] - 1 for i in range(1, len(curve))]
+    rets = daily_returns(curve)
     mean = sum(rets) / len(rets)
     sd = math.sqrt(sum((r - mean) ** 2 for r in rets) / (len(rets) - 1))
     peak, mdd = curve[0], 0.0
@@ -519,21 +556,23 @@ def metrics(calendar, curve, stats: SimStats) -> dict:
     month_end = {}
     for d, v in zip(calendar, curve):
         month_end[(d.year, d.month)] = v
-    months = [CAPITAL] + [month_end[k] for k in sorted(month_end)]
+    keys = sorted(month_end)
+    months = [CAPITAL] + [month_end[k] for k in keys]
     monthly = [months[i] / months[i - 1] - 1 for i in range(1, len(months))]
     worst = min(range(len(monthly)), key=lambda k: monthly[k])
-    worst_key = sorted(month_end)[worst]
     n = len(stats.contracts)
     return {
-        "cagr": (curve[-1] / curve[0]) ** (1 / years) - 1,
-        "sharpe": mean / sd * math.sqrt(TRADING_DAYS) if sd > 0 else None,
+        "cagr": (curve[-1] / CAPITAL) ** (1 / years) - 1,
+        "sharpe": sharpe_of(rets),
         "vol": sd * math.sqrt(TRADING_DAYS),
         "maxDrawdown": mdd,
         "worstMonth": monthly[worst],
-        "worstMonthAt": f"{worst_key[0]}-{worst_key[1]:02d}",
+        "worstMonthAt": f"{keys[worst][0]}-{keys[worst][1]:02d}",
         "entries": stats.entries,
         "skipped": stats.skipped,
         "gateBound": stats.gate_bound,
+        "rolls": stats.rolls,
+        "rollGateBound": stats.roll_gate_bound,
         "contractsMean": sum(stats.contracts) / n if n else 0,
         "contractsMedian": sorted(stats.contracts)[n // 2] if n else 0,
         "contractsMax": max(stats.contracts) if n else 0,
@@ -547,8 +586,8 @@ def metrics(calendar, curve, stats: SimStats) -> dict:
 
 
 def implied_tau_summary(pairs) -> dict:
-    """How far the fixed-risk rule is from vol parity: the vol target each entry's fixed-risk
-    size implies (per instrument mean, and the coefficient of variation over all entries)."""
+    """How far the fixed-risk rule is from vol parity: the vol target each signal entry's
+    fixed-risk size implies (per instrument mean, and the coefficient of variation)."""
     if not pairs:
         return {}
     values = [v for _, v in pairs]
@@ -559,6 +598,29 @@ def implied_tau_summary(pairs) -> dict:
         by.setdefault(sym, []).append(v)
     return {"impliedTauMean": mean, "impliedTauCv": sd / mean,
             "impliedTauBySymbol": {k: sum(v) / len(v) for k, v in by.items()}}
+
+
+def sharpe_diff_ci(base, other, block: int = 21, draws: int = 1000, seed: int = 7) -> dict:
+    """Paired moving-block bootstrap of Sharpe(other) - Sharpe(base) on daily returns:
+    5th and 95th percentiles. Blocks keep about a month of autocorrelation."""
+    import numpy as np
+
+    a = np.asarray(daily_returns(base))
+    b = np.asarray(daily_returns(other))
+    n = len(a)
+    rng = np.random.default_rng(seed)
+    starts_count = n - block + 1
+    k = math.ceil(n / block)
+    diffs = []
+    for _ in range(draws):
+        starts = rng.integers(0, starts_count, size=k)
+        idx = (starts[:, None] + np.arange(block)[None, :]).ravel()[:n]
+        ra, rb = a[idx], b[idx]
+        sa, sb = ra.std(ddof=1), rb.std(ddof=1)
+        if sa > 0 and sb > 0:
+            diffs.append((rb.mean() / sb - ra.mean() / sa) * math.sqrt(TRADING_DAYS))
+    lo, hi = np.percentile(diffs, [5, 95])
+    return {"p05": float(lo), "p95": float(hi)}
 
 
 def monthly_curve(calendar, curve) -> list[list]:
@@ -574,7 +636,7 @@ def matched_tau(m: Market, target_vol: float, variant: str = "vt") -> float:
     for _ in range(22):
         mid = (lo + hi) / 2
         curve, _ = simulate(m, variant, tau=mid)
-        rets = [curve[i] / curve[i - 1] - 1 for i in range(1, len(curve))]
+        rets = daily_returns(curve)
         mu = sum(rets) / len(rets)
         vol = math.sqrt(sum((r - mu) ** 2 for r in rets) / (len(rets) - 1) * TRADING_DAYS)
         if vol < target_vol:
@@ -586,9 +648,22 @@ def matched_tau(m: Market, target_vol: float, variant: str = "vt") -> float:
 
 # --- main -----------------------------------------------------------------------------------
 
-def build_market(series: dict[str, Series], definition: dict, idm: float) -> tuple[Market, dict]:
-    calendar = tuple(d for d in series["SPY"].days if d >= START)
-    close, iv, rv, vol, fast, slow, entries, signal = {}, {}, {}, {}, {}, {}, {}, {}
+def load_ivx(data: Path, symbol: str) -> dict[date, float]:
+    """Implied-vol index closes (fetch_ivx.py) as decimals; empty when the file is missing."""
+    path = data / "ivx" / f"{symbol}.csv"
+    if not path.exists():
+        return {}
+    with path.open() as handle:
+        return {date.fromisoformat(r["date"]): float(r["close"]) / 100
+                for r in csv.DictReader(handle) if float(r["close"]) > 0}
+
+
+def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: dict, idm: float,
+                 end: date) -> tuple[Market, dict, dict]:
+    calendar = tuple(d for d in series["SPY"].days if START <= d <= end)
+    cols_out = {k: {} for k in ("close", "iv", "rv", "ivx", "vol", "fast", "slow")}
+    entries, signal, coverage = {}, {}, {}
+    cal = set(calendar)
     for sym, ser in series.items():
         rets = returns(ser.c)
         cols = {"close": list(ser.c), "iv": iv_proxy(rets), "rv": realized_252(ser.c),
@@ -600,17 +675,23 @@ def build_market(series: dict[str, Series], definition: dict, idm: float) -> tup
             last = index.get(d, last)
             for name, col in cols.items():
                 aligned[name].append(math.nan if last is None else col[last])
-        close[sym], iv[sym], rv[sym] = aligned["close"], aligned["iv"], aligned["rv"]
-        vol[sym], fast[sym], slow[sym] = aligned["vol"], aligned["fast"], aligned["slow"]
+        own = ivx.get(sym, {})
+        aligned["ivx"] = [max(IV_FLOOR, own[d]) if d in own else proxy
+                          for d, proxy in zip(calendar, aligned["iv"])]
+        coverage[sym] = sum(d in own for d in calendar) / len(calendar)
+        for name in cols_out:
+            cols_out[name][sym] = aligned[name]
         trades = nautilus_trades(ser, definition)
         signal[sym] = len(trades)
-        cal = set(calendar)
         entries[sym] = {}
         for t in trades:
             e, x = ser.days[t["entryIndex"]], ser.days[t["exitIndex"]]
-            if e >= START and e in cal:
+            if e in cal:
                 entries[sym][e] = (t["entryPrice"], x, t["exitPrice"])
-    return Market(calendar, close, iv, rv, vol, fast, slow, entries, idm), signal
+    c = cols_out
+    market = Market(calendar, c["close"], c["iv"], c["rv"], c["ivx"], c["vol"], c["fast"],
+                    c["slow"], entries, idm)
+    return market, signal, coverage
 
 
 VARIANTS = (
@@ -618,8 +699,9 @@ VARIANTS = (
     ("vt-matched", "Vol target, risk-matched to current", "vt"),
     ("vt-buffer", "Vol target, risk-matched, weekly buffered resize", "vt-buffer"),
     ("brake", "Current + shrink-only vol brake", "brake"),
-    ("vt-16", "Vol target 16% (Carver default), 2% gate", "vt"),
+    ("vt-16", "Vol target 16% (Carver default, in-sample IDM), 2% gate", "vt"),
 )
+ROBUST_KEYS = ("cagr", "sharpe", "maxDrawdown", "contractsMean", "impliedTauMean", "impliedTauCv")
 
 
 def main(argv=None) -> int:
@@ -627,7 +709,9 @@ def main(argv=None) -> int:
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
-    series = {s: load_series(args.data / "daily" / f"{s}.csv", s) for s in UNIVERSE}
+    data = args.data.expanduser()
+    series = {s: load_series(data / "daily" / f"{s}.csv", s) for s in UNIVERSE}
+    ivx = {s: load_ivx(data, s) for s in UNIVERSE}
     end = min(ser.days[-1] for ser in series.values())
     corr = weekly_corr(series, START, end)
     idm = idm_from_corr(corr, [1 / len(UNIVERSE)] * len(UNIVERSE))
@@ -640,20 +724,28 @@ def main(argv=None) -> int:
            "corr": [[round(x, 3) for x in row] for row in corr], "strategies": []}
     for sid in STRATEGY_IDS:
         lib = library[sid]
-        market, signal = build_market(series, lib["dsl"], idm)
+        market, signal, coverage = build_market(series, ivx, lib["dsl"], idm, end)
+        out["ivxCoverage"] = coverage
         cur_curve, cur_stats = simulate(market, "current")
         cur = metrics(market.calendar, cur_curve, cur_stats)
         tau_m = matched_tau(market, cur["vol"])
         tau_b = matched_tau(market, cur["vol"], "vt-buffer")
         rows, curves = [], {}
+        robust_base = {}
         for key, label, variant in VARIANTS:
             tau = {"vt-matched": tau_m, "vt-buffer": tau_b}.get(key, CARVER_VOL_TARGET)
             curve, st = (cur_curve, cur_stats) if key == "current" else simulate(market, variant, tau)
             row = {"id": key, "label": label, "tau": tau if variant.startswith("vt") else None,
                    **metrics(market.calendar, curve, st)}
-            rv_curve, rv_st = simulate(market, variant, tau, iv_key="rv")
-            row["robustRv252"] = {k: metrics(market.calendar, rv_curve, rv_st)[k]
-                                  for k in ("cagr", "sharpe", "maxDrawdown", "contractsMean")}
+            row["sharpeDiffCi"] = None if key == "current" else sharpe_diff_ci(cur_curve, curve)
+            for mode, name in (("rv", "robustRv252"), ("ivx", "robustIvIndex")):
+                r_curve, r_st = simulate(market, variant, tau, iv_key=mode)
+                full = metrics(market.calendar, r_curve, r_st)
+                row[name] = {k: full.get(k) for k in ROBUST_KEYS}
+                if key == "current":
+                    robust_base[mode] = r_curve
+                else:
+                    row[name]["sharpeDiffCi"] = sharpe_diff_ci(robust_base[mode], r_curve)
             rows.append(row)
             curves[key] = monthly_curve(market.calendar, curve)
         out["strategies"].append({"id": sid, "name": lib["name"], "definition": lib["dsl"],
