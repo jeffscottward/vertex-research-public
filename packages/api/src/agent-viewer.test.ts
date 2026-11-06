@@ -266,6 +266,7 @@ const REVIEWED_READS: readonly string[] = [
   "optionsAnalytics.snapshot",
   "papers.list",
   "pickLists.list",
+  "pickLists.proposal",
   "portfolioMonitor.snapshot",
   "preferences.get",
   "preferences.theme.get",
