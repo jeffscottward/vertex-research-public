@@ -91,7 +91,16 @@ export const AcademyThemeToggle = () => {
         <Sun className="size-4" data-state={theme === "dark" ? "on" : "off"} />
         <Moon className="size-4" data-state={theme === "dark" ? "off" : "on"} />
       </span>
-      {theme === "dark" ? "Light mode" : "Dark mode"}
+      {/* Both labels share one grid cell; the hidden one reserves the wider
+          width, so the button keeps its size when the label changes. */}
+      <span className="grid">
+        <span className="col-start-1 row-start-1" data-academy-theme-label="">
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </span>
+        <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+          {theme === "dark" ? "Dark mode" : "Light mode"}
+        </span>
+      </span>
     </button>
   );
 };

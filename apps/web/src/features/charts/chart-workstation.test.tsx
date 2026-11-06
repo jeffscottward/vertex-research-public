@@ -146,6 +146,12 @@ describe("chart workstation", () => {
       [level],
       expect.any(Function)
     );
+    // A pressed state changes colour only; a font-weight change would shift layout.
+    const toggles = [...host.querySelectorAll("button[data-drawing-tool]")];
+    expect(toggles.length).toBeGreaterThan(0);
+    for (const toggle of toggles) {
+      expect(toggle.className).not.toMatch(/font-(semibold|bold|medium)/);
+    }
     const window = host.querySelector("[data-data-window]");
     expect(window?.textContent).toContain("12.00");
     expect(window?.textContent).toContain("+1.00 (+9.09%)");

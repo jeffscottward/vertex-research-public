@@ -48,7 +48,7 @@ const browserStorage = (): Pick<Storage, "getItem" | "setItem"> | null => {
 };
 
 const BUTTON =
-  "min-h-11 rounded-md border border-border px-3 text-sm hover:bg-muted focus-visible:outline-2 aria-pressed:bg-muted aria-pressed:font-semibold";
+  "min-h-11 rounded-md border border-border px-3 text-sm hover:bg-muted focus-visible:outline-2 aria-pressed:border-primary aria-pressed:bg-muted";
 
 export const ChartWorkstation = ({
   candles,
