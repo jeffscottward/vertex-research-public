@@ -78,11 +78,10 @@ export const AcademyThemeToggle = () => {
       onClick={toggle}
       type="button"
     >
-      {theme === "dark" ? (
-        <Sun aria-hidden className="size-4" />
-      ) : (
-        <Moon aria-hidden className="size-4" />
-      )}
+      <span aria-hidden="true" className="icon-swap">
+        <Sun className="size-4" data-state={theme === "dark" ? "on" : "off"} />
+        <Moon className="size-4" data-state={theme === "dark" ? "off" : "on"} />
+      </span>
       {theme === "dark" ? "Light mode" : "Dark mode"}
     </button>
   );
