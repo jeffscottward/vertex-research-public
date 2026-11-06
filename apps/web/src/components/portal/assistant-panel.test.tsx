@@ -19,8 +19,10 @@ import {
   AssistantPanel,
   AssistantPanelProvider,
   AssistantPanelToggle,
+  assistantPageChart,
   assistantPageContext,
 } from "./assistant-panel.tsx";
+import { publishChartContext } from "../../features/charts/chart-bus.ts";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -560,5 +562,56 @@ describe("AssistantPanel pages and routes", () => {
     await render(fakeGateway(), ["/dashboard"]);
     expect(panel()).toBeNull();
     return expect(byLabel("Toggle assistant panel")).toBeNull();
+  });
+  it("on /charts sends what the chart shows at send time; an unusable chart sends none", async () => {
+    const gateway = fakeGateway();
+    navigation.pathname = "/charts";
+    await render(gateway, [...OPERATOR_ROUTES, "/charts"], true);
+    // Published after the panel mounted: the panel reads it when the message is sent.
+    publishChartContext({
+      bars: 120,
+      firstTimestamp: 1_767_312_000_000,
+      label: "E-mini S&P 500",
+      lastClose: 5012.25,
+      lastTimestamp: 1_767_398_400_000,
+      symbol: "es",
+    });
+    const explain = () =>
+      [...document.querySelectorAll<HTMLElement>("button")].find(
+        (node) => node.textContent === "Explain this page"
+      ) ?? null;
+    try {
+      await press(explain());
+      expect(gateway.send).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: {
+            chart: {
+              bars: 120,
+              firstTimestamp: 1_767_312_000_000,
+              lastClose: 5012.25,
+              lastTimestamp: 1_767_398_400_000,
+              symbol: "ES",
+            },
+            path: "/charts",
+            title: portalPageTitle("/charts"),
+          },
+        }),
+        expect.any(AbortSignal),
+        expect.any(Function)
+      );
+      expect(assistantPageChart(null)).toBeUndefined();
+      return expect(
+        assistantPageChart({
+          bars: 1,
+          firstTimestamp: null,
+          label: "x",
+          lastClose: null,
+          lastTimestamp: null,
+          symbol: "BF-B",
+        })
+      ).toBeUndefined();
+    } finally {
+      publishChartContext(null);
+    }
   });
 });

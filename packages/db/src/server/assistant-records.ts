@@ -80,11 +80,32 @@ export const normalizeAssistantContent = (
   return content;
 };
 
+// Lone surrogates (broken UTF-16, for example an emoji cut in half): jsonb refuses them.
+const LONE_SURROGATE = /\p{Cs}/gu;
+// Controls except line feed and tab, and lone surrogates: what an artifact string may not keep.
+const ARTIFACT_UNSAFE = /[\u0000-\u0008\u000b-\u001f\u007f]|\p{Cs}/gu;
+
 const traceText = (value: unknown, field: string): string => {
   if (typeof value !== "string") fail(`toolCalls.${field} must be a string`);
+  // Cut first, then clean: the cut may split a surrogate pair.
   return (value as string)
+    .slice(0, ASSISTANT_TRACE_TEXT_MAX)
     .replace(CONTROL_PATTERN, " ")
-    .slice(0, ASSISTANT_TRACE_TEXT_MAX);
+    .replace(LONE_SURROGATE, "");
+};
+
+// Every string in a chart artifact (keys too), cleaned the same way the api builds them.
+const cleanArtifactValue = (value: unknown): unknown => {
+  if (typeof value === "string") return value.replace(ARTIFACT_UNSAFE, "");
+  if (Array.isArray(value)) return value.map(cleanArtifactValue);
+  if (typeof value === "object" && value !== null)
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key.replace(ARTIFACT_UNSAFE, ""),
+        cleanArtifactValue(item),
+      ])
+    );
+  return value;
 };
 
 export const normalizeAssistantToolTrace = (
@@ -110,6 +131,14 @@ export const normalizeAssistantToolTrace = (
     const tool = traceText(row["tool"], "tool");
     if (!/^[a-z][a-z0-9_]{0,63}$/u.test(tool))
       fail("toolCalls.tool must be a tool name");
+    const artifact = row["artifact"];
+    if (
+      artifact !== undefined &&
+      (typeof artifact !== "object" ||
+        artifact === null ||
+        Array.isArray(artifact))
+    )
+      fail("toolCalls.artifact must be an object");
     return {
       tool,
       args: traceText(row["args"] ?? "", "args"),
@@ -119,6 +148,12 @@ export const normalizeAssistantToolTrace = (
           ? null
           : traceText(row["error"], "error"),
       durationMs: Math.round(duration as number),
+      // A chart tool's display artifact; the api validates its shape and caps its size.
+      ...(artifact === undefined
+        ? {}
+        : {
+            artifact: cleanArtifactValue(artifact) as Record<string, unknown>,
+          }),
     };
   });
 };

@@ -2,6 +2,7 @@ import { eventIterator, oc } from "@orpc/contract";
 import { z } from "zod";
 
 import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
+import { MarketSymbolSchema } from "./market-data.ts";
 
 // Operator research assistant. A server-side tool loop calls an OpenRouter model with the MCP tool
 // catalogue; every tool call is an internal oRPC request bound to the caller's session, so operator
@@ -9,8 +10,10 @@ import { AGENT_OPS_API_ERRORS } from "./agent-ops.ts";
 // adds record-keeping write tools (tasks, papers, strategies, presets) and three research tools that
 // never run inside a turn: saving a strategy definition revision, running a backtest and running a
 // parameter sweep each become a confirm card (an assistant action) that runs only after the operator
-// approves it with actions.decide. No tool requests deployments or orders. Session only: agent API
-// keys are refused.
+// approves it with actions.decide. No tool requests deployments or orders. Both modes also get four
+// chart tools that run inside the turn and change nothing on the server: their calls carry a
+// display-only artifact (chart drawings, a clear, a script, a Teach walkthrough) for the portal.
+// Session only: agent API keys are refused.
 
 export const ASSISTANT_MODE_VALUES = ["plan", "act"] as const;
 export const ASSISTANT_MESSAGE_MAX = 4000;
@@ -43,6 +46,105 @@ export const AssistantStopReasonSchema = z.enum(ASSISTANT_STOP_REASONS);
 
 const IdSchema = z.string().trim().min(1).max(128);
 
+// Chart artifacts: what a chart tool call (chart_draw, chart_clear_drawings, chart_script,
+// teach_steps) hands the browser. Display only: the portal applies them to the chart workstation
+// (drawings, a script in the editor, a teach walkthrough); nothing here reaches orders or risk.
+export const ASSISTANT_DRAWING_TOOLS = [
+  "trend",
+  "level",
+  "rectangle",
+  "fib",
+  "text",
+] as const;
+/** Points each drawing tool needs (the chart workstation's click steps). */
+export const ASSISTANT_DRAWING_POINTS: Readonly<
+  Record<(typeof ASSISTANT_DRAWING_TOOLS)[number], number>
+> = Object.freeze({ trend: 2, level: 1, rectangle: 2, fib: 2, text: 1 });
+export const ASSISTANT_ARTIFACT_DRAWINGS_MAX = 24;
+export const ASSISTANT_DRAWING_TEXT_MAX = 80;
+export const ASSISTANT_SCRIPT_TITLE_MAX = 80;
+export const ASSISTANT_SCRIPT_SOURCE_MAX = 16_000;
+export const ASSISTANT_TEACH_TOPIC_MAX = 120;
+export const ASSISTANT_TEACH_STEPS_MAX = 12;
+export const ASSISTANT_TEACH_STEP_TITLE_MAX = 80;
+export const ASSISTANT_TEACH_STEP_BODY_MAX = 800;
+export const ASSISTANT_TEACH_STEP_DRAWINGS_MAX = 4;
+// Same bounds as the chart workstation's saved drawings (Date range in ms, price magnitude).
+const TIMESTAMP_MAX = 8_640_000_000_000_000;
+const PRICE_MAX = 1_000_000_000_000;
+
+export const AssistantDrawingPointSchema = z
+  .object({
+    timestamp: z.number().int().min(-TIMESTAMP_MAX).max(TIMESTAMP_MAX),
+    value: z.number().min(-PRICE_MAX).max(PRICE_MAX),
+  })
+  .strict();
+
+export const AssistantDrawingSchema = z
+  .object({
+    id: z.string().min(1).max(160),
+    tool: z.enum(ASSISTANT_DRAWING_TOOLS),
+    points: z.array(AssistantDrawingPointSchema).min(1).max(2),
+    text: z.string().max(ASSISTANT_DRAWING_TEXT_MAX),
+  })
+  .strict()
+  .refine(
+    (drawing) =>
+      drawing.points.length === ASSISTANT_DRAWING_POINTS[drawing.tool],
+    { message: "Point count does not match the drawing tool", path: ["points"] }
+  );
+
+export const AssistantArtifactSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("chart_drawings"),
+      symbol: MarketSymbolSchema,
+      replace: z.boolean(),
+      drawings: z
+        .array(AssistantDrawingSchema)
+        .min(1)
+        .max(ASSISTANT_ARTIFACT_DRAWINGS_MAX),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("chart_clear"),
+      symbol: MarketSymbolSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("chart_script"),
+      title: z.string().min(1).max(ASSISTANT_SCRIPT_TITLE_MAX),
+      source: z.string().min(1).max(ASSISTANT_SCRIPT_SOURCE_MAX),
+      overlay: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("teach"),
+      /** The chart the step drawings belong to; the portal shows them only on that chart. */
+      symbol: MarketSymbolSchema.optional(),
+      topic: z.string().min(1).max(ASSISTANT_TEACH_TOPIC_MAX),
+      steps: z
+        .array(
+          z
+            .object({
+              title: z.string().min(1).max(ASSISTANT_TEACH_STEP_TITLE_MAX),
+              body: z.string().min(1).max(ASSISTANT_TEACH_STEP_BODY_MAX),
+              drawings: z
+                .array(AssistantDrawingSchema)
+                .max(ASSISTANT_TEACH_STEP_DRAWINGS_MAX)
+                .optional(),
+            })
+            .strict()
+        )
+        .min(1)
+        .max(ASSISTANT_TEACH_STEPS_MAX),
+    })
+    .strict(),
+]);
+
 export const AssistantToolTraceSchema = z
   .object({
     tool: z.string(),
@@ -50,6 +152,8 @@ export const AssistantToolTraceSchema = z
     ok: z.boolean(),
     error: z.string().nullable(),
     durationMs: z.number().int().nonnegative(),
+    /** What a chart tool call handed the browser (display only); absent for every other tool. */
+    artifact: AssistantArtifactSchema.optional(),
   })
   .strict();
 
@@ -146,6 +250,28 @@ export const AssistantThreadGetOutputSchema = z
   })
   .strict();
 
+// What the chart workstation shows when the message comes from /charts: the symbol, how many bars
+// it loaded, the first and last bar times (ms UTC) and the last close. Context only.
+export const AssistantPageChartSchema = z
+  .object({
+    symbol: MarketSymbolSchema,
+    bars: z.number().int().min(0).max(1_000_000),
+    firstTimestamp: z
+      .number()
+      .int()
+      .min(-TIMESTAMP_MAX)
+      .max(TIMESTAMP_MAX)
+      .nullable(),
+    lastTimestamp: z
+      .number()
+      .int()
+      .min(-TIMESTAMP_MAX)
+      .max(TIMESTAMP_MAX)
+      .nullable(),
+    lastClose: z.number().min(-PRICE_MAX).max(PRICE_MAX).nullable(),
+  })
+  .strict();
+
 // The portal page the operator sent a message from (the assistant side panel). The server adds
 // it to the system prompt as context, never as an instruction.
 export const AssistantPageContextSchema = z
@@ -155,6 +281,7 @@ export const AssistantPageContextSchema = z
       .max(200)
       .regex(/^\/[A-Za-z0-9/_.-]*$/u),
     title: z.string().trim().min(1).max(120),
+    chart: AssistantPageChartSchema.optional(),
   })
   .strict();
 
@@ -164,6 +291,8 @@ export const AssistantSendInputSchema = z
     message: z.string().trim().min(1).max(ASSISTANT_MESSAGE_MAX),
     mode: AssistantModeSchema.default("plan"),
     page: AssistantPageContextSchema.optional(),
+    /** Teach mode: step-by-step explanations (a teach_steps walkthrough when it helps). */
+    teach: z.boolean().optional(),
   })
   .strict();
 export const AssistantSendOutputSchema = z
@@ -316,3 +445,7 @@ export type AssistantSendInput = z.input<typeof AssistantSendInputSchema>;
 export type AssistantPageContext = z.infer<typeof AssistantPageContextSchema>;
 export type AssistantSendOutput = z.infer<typeof AssistantSendOutputSchema>;
 export type AssistantSendEvent = z.infer<typeof AssistantSendEventSchema>;
+export type AssistantPageChart = z.infer<typeof AssistantPageChartSchema>;
+export type AssistantArtifact = z.infer<typeof AssistantArtifactSchema>;
+export type AssistantDrawing = z.infer<typeof AssistantDrawingSchema>;
+export type AssistantDrawingTool = (typeof ASSISTANT_DRAWING_TOOLS)[number];
