@@ -737,7 +737,9 @@ export const monteCarlo = (
   capital: number,
   mode: "reshuffle" | "bootstrap",
   random: () => number,
-  paths = MONTE_CARLO_PATHS
+  paths = MONTE_CARLO_PATHS,
+  // Optional sink: receives every path's final P&L and max drawdown (for histograms).
+  samples?: { finals: number[]; drawdowns: number[] }
 ): MonteCarloRun => {
   const fanSteps = Math.min(MONTE_CARLO_FAN_STEPS, pnls.length);
   const stepIndexes = Array.from(
@@ -769,6 +771,8 @@ export const monteCarlo = (
     }
     finals.push(equity - capital);
     drawdowns.push(worst);
+    samples?.finals.push(equity - capital);
+    samples?.drawdowns.push(worst);
     if (equity > capital) profitable += 1;
     if (ruin) ruined += 1;
   }
