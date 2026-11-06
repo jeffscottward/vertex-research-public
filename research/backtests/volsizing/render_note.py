@@ -144,7 +144,14 @@ def main(src: str, dest: str) -> int:
                 if by[sid][key]["sharpeDiffCi"]["p05"] > 0 or by[sid][key]["sharpeDiffCi"]["p95"] < 0]
     zero_text = ("Every one of these 9 intervals includes zero." if not off_zero else
                  f"{9 - len(off_zero)} of these 9 intervals include zero; the exception{'s' if len(off_zero) > 1 else ''}: "
-                 f"{', '.join(off_zero)}.")
+                 f"{', '.join(off_zero)} (with 9 comparisons at 90%, about one is expected to exclude "
+                 f"zero by chance).")
+    worse = [k for k in off_zero if by[k.split()[0]][k.split()[1]]["sharpeDiffCi"]["p95"] < 0]
+    better = [k for k in off_zero if k not in worse]
+    sig_text = (f"{len(worse)} significantly worse" if worse else "") + \
+        (" and " if worse and better else "") + (f"{len(better)} significantly better" if better else "")
+    sig_text = f" ({sig_text})" if sig_text else ""
+    o01_o12_same = by["O01"]["current"]["entries"] == by["O12"]["current"]["entries"]
     covered = ", ".join(f"{k} {v:.0%}" for k, v in cov.items())
     universe = r["universe"]
     twins = ", ".join(f"{u} ({r['futureOf'][u]})" for u in universe)
@@ -251,7 +258,8 @@ stop/target level) and are priced and sized with the previous session's vol and 
 rolls, buffered resizes and marks use the session close.</li>
 <li><b>Vol target inputs:</b> equal weights 1/7, IDM {num(r["idm"], 2)} from weekly correlations of
 the 7 twins (in-sample; τ × IDM is what matters, and the risk-matched rows solve τ, so only the 16%
-row is inflated by it), forecast 10 when long. "Risk-matched" τ is solved so the strategy's
+row is inflated by it), forecast 10 when long. The robustness runs reuse the τ solved under the
+main pricing, so their Sharpe compares like for like but their CAGR and drawdown do not. "Risk-matched" τ is solved so the strategy's
 realized portfolio vol equals the current rule's, so CAGR and drawdown compare like for like.
 The buffered resize sizes each held spread at its entry delta (one spread = the exposure it was
 bought as), checked every 5 sessions.</li>
@@ -275,6 +283,7 @@ be vol-parity by construction, and then vol targeting would matter.</li>
 <li>Binary library signals carry no forecast strength, so Carver's forecast scaling (the part of
 the method that sizes by conviction) had nothing to work with here.</li>
 <li>IDM and correlations are in-sample; one IDM for the whole window. Equal weights only.</li>
+{'<li>O01 and O12 enter on the same SMA 20/50 up-cross (O12 adds a 6%/3% bracket), so the three strategies are two independent entry sets, not three.</li>' if o01_o12_same else ''}
 <li>Low absolute returns (0.5% NLV per position on 7 instruments) mean costs and integer contracts
 weigh heavily; results for small accounts would differ (fewer contracts, more skipped trades).</li>
 <li>Survivorship: Core 7 is a fixed modern list; USO's contango history is included as is.</li>
@@ -286,7 +295,7 @@ neither.</li>
 <ul>
 <li><b>Vol-target sizing as a hot-swap tool: not worth it now.</b> It reproduces what the current
 rule already does for fixed-delta debit spreads; the measured Sharpe differences are within noise
-(one is significantly worse), and buffered resizing adds hundreds of extra combo orders for no
+{sig_text}, and buffered resizing adds hundreds of extra combo orders for no
 clear gain. Estimated effort if built anyway: 4–6 days (TS sizing policy in
 proposals and the backtest overlay, vol estimators, IDM estimation, buffered resize state, UI
 switch, docs, Nautilus parity tests).</li>

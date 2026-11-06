@@ -357,7 +357,7 @@ def nautilus_trades(ser: Series, definition: dict) -> list[dict]:
 
     bars = Bars.from_columns({"t": [epoch_ms(d) for d in ser.days], "o": list(ser.o),
                               "h": list(ser.h), "l": list(ser.l), "c": list(ser.c)})
-    result = run_spec(bars, {"rule": {"kind": "dsl", "definition": definition}, "costBps": 10,
+    result = run_spec(bars, {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0,
                              "costs": None})
     return list(result.trades)
 
@@ -658,6 +658,17 @@ def load_ivx(data: Path, symbol: str) -> dict[date, float]:
                 for r in csv.DictReader(handle) if float(r["close"]) > 0}
 
 
+def ivx_series(calendar, index: dict[date, float], proxy: list[float]) -> list[float]:
+    """Index vol on each session; the realized-vol proxy only before the index's first value, and
+    the last index value carried forward over later gaps, so marks never jump between sources."""
+    out, last = [], None
+    for d, fallback in zip(calendar, proxy):
+        if d in index:
+            last = max(IV_FLOOR, index[d])
+        out.append(fallback if last is None else last)
+    return out
+
+
 def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: dict, idm: float,
                  end: date) -> tuple[Market, dict, dict]:
     calendar = tuple(d for d in series["SPY"].days if START <= d <= end)
@@ -676,8 +687,7 @@ def build_market(series: dict[str, Series], ivx: dict[str, dict], definition: di
             for name, col in cols.items():
                 aligned[name].append(math.nan if last is None else col[last])
         own = ivx.get(sym, {})
-        aligned["ivx"] = [max(IV_FLOOR, own[d]) if d in own else proxy
-                          for d, proxy in zip(calendar, aligned["iv"])]
+        aligned["ivx"] = ivx_series(calendar, own, aligned["iv"])
         coverage[sym] = sum(d in own for d in calendar) / len(calendar)
         for name in cols_out:
             cols_out[name][sym] = aligned[name]
@@ -701,7 +711,8 @@ VARIANTS = (
     ("brake", "Current + shrink-only vol brake", "brake"),
     ("vt-16", "Vol target 16% (Carver default, in-sample IDM), 2% gate", "vt"),
 )
-ROBUST_KEYS = ("cagr", "sharpe", "maxDrawdown", "contractsMean", "impliedTauMean", "impliedTauCv")
+ROBUST_KEYS = ("cagr", "sharpe", "vol", "maxDrawdown", "contractsMean", "impliedTauMean",
+               "impliedTauCv")
 
 
 def main(argv=None) -> int:

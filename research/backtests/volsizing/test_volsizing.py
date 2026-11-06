@@ -106,7 +106,10 @@ def _market(days: int = 260, vol_after=None, entries=None) -> vs.Market:
     for day_index, exit_index in (entries or [(5, 200)]):
         ent["SPY"][calendar[day_index]] = (close["SPY"][day_index], calendar[exit_index],
                                            close["SPY"][exit_index])
-    return vs.Market(tuple(calendar), close, flat, flat, flat, vol, flat, flat, ent, 1.4)
+    def copy():
+        return {s: list(v) for s, v in flat.items()}
+
+    return vs.Market(tuple(calendar), close, copy(), copy(), copy(), vol, copy(), copy(), ent, 1.4)
 
 
 def test_simulate_entry_roll_exit_and_cash():
@@ -135,3 +138,24 @@ def test_zero_size_resize_frees_the_symbol():
     _, st = vs.simulate(m, "vt-buffer", tau=0.16)
     assert st.resizes >= 1  # the vol spike cut the target to zero and closed the spread
     assert st.entries == 2  # the second signal was not blocked by an empty position
+
+
+def test_entry_sizing_ignores_a_vol_spike_on_the_entry_day():
+    calm = _market()
+    spike = _market()
+    entry = 5
+    for name in ("iv", "vol"):
+        getattr(spike, name)["SPY"][entry] = 2.0  # same-day spike: unknown at the open fill
+    for variant in ("current", "vt"):
+        _, a = vs.simulate(calm, variant, tau=0.04)
+        _, b = vs.simulate(spike, variant, tau=0.04)
+        assert a.contracts[0] == b.contracts[0]
+
+
+def test_ivx_series_uses_proxy_only_before_the_index_starts():
+    from datetime import timedelta
+
+    cal = [date(2020, 1, 1) + timedelta(days=k) for k in range(5)]
+    index = {cal[1]: 0.30, cal[3]: 0.25}
+    out = vs.ivx_series(cal, index, [0.9] * 5)
+    assert out == [0.9, 0.30, 0.30, 0.25, 0.25]

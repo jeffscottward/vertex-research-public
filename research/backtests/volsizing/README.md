@@ -30,11 +30,15 @@ python3 research/backtests/volsizing/render_note.py research/backtests/volsizing
 Finding: with fixed-delta strikes the current fixed-risk rule already sizes close to vol parity
 (every signal entry implies a vol target of about 4%, coefficient of variation 0.11 with the vol
 proxy and 0.16 with the Cboe implied-vol indices), so vol targeting changes Sharpe only within
-noise (paired block-bootstrap CIs) and buffered resizing adds orders for no clear gain.
+noise: 8 of 9 paired block-bootstrap 90% CIs include zero, the exception being risk-matched
+vol targeting on O02, which is worse (about one in 9 is expected by chance). Buffered resizing
+adds orders for no clear gain. The buffered resize sizes each held spread at its entry delta (one
+spread = the exposure it was bought as); later delta drift is ignored by design.
 Recommendation: not worth building as a hot-swap tool. The finding depends on fixed-delta strikes
 and on option prices that track implied vol; with a stale 252-day vol in the prices, or
 fixed-width strikes, the current rule would drift further from vol parity.
 
-`fetch_ivx.py` fetches the Cboe implied-vol indices (VIX, VXN, VXD, GVZ, OVX) for the robustness
-run into `<data>/ivx/` (not in the repository); IWM and SLV have no Yahoo history and keep the
-proxy.
+`fetch_ivx.py` fetches the Cboe implied-vol indices for the robustness run into `<data>/ivx/` (not
+in the repository): VIX, VXN, VXD, GVZ and OVX have history; RVX (IWM) and VXSLV (SLV) are
+requested but Yahoo returns none, so IWM and SLV keep the proxy. Before an index's first value
+the proxy is used; later gaps carry the last index value forward.
