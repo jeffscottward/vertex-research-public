@@ -38,6 +38,7 @@ import {
   browserNotifier,
   conditionOfForm,
   SignalAlertsSection,
+  withPreset,
 } from "./signal-alerts-section.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -296,6 +297,27 @@ describe("signal alert helpers", () => {
     ).toMatchObject({ left: { period: 20 }, right: { period: 50 } });
   });
 
+  it("resets the period per preset and drops either-way for the opening range", () => {
+    const form = {
+      direction: "crosses" as const,
+      period: "20",
+      preset: "sma-cross" as const,
+      slowPeriod: "50",
+      value: "",
+    };
+    expect(withPreset(form, "opening-range")).toMatchObject({
+      direction: "crosses-above",
+      period: "30",
+    });
+    expect(
+      withPreset({ ...form, direction: "crosses-below" }, "opening-range")
+    ).toMatchObject({ direction: "crosses-below" });
+    expect(withPreset({ ...form, period: "30" }, "breakout")).toMatchObject({
+      direction: "crosses",
+      period: "20",
+    });
+  });
+
   it("routes the gateway through priceAlerts.signals", async () => {
     const signals = {
       backfill: vi.fn(async () => "backfill"),
@@ -552,7 +574,9 @@ describe("SignalAlertsSection", () => {
         vi.advanceTimersByTime(1000);
         await flush();
       });
-    expect(events).toHaveBeenLastCalledWith(FIRED);
+    expect(events).toHaveBeenLastCalledWith(
+      new Date(FIRED.getTime() - 5 * 60_000)
+    );
     expect(shown).toEqual([]);
     expect(container.textContent).toContain("SPY alert at 21050.25");
     const enable = [...container.querySelectorAll("button")].find((node) =>
@@ -699,7 +723,9 @@ describe("SignalAlertsSection", () => {
       vi.advanceTimersByTime(1000);
       await flush();
     });
-    expect(events).toHaveBeenLastCalledWith(FIRED);
+    expect(events).toHaveBeenLastCalledWith(
+      new Date(FIRED.getTime() - 5 * 60_000)
+    );
     expect(shown).toEqual([]);
     expect(
       [...container.querySelectorAll("li")].filter((node) =>

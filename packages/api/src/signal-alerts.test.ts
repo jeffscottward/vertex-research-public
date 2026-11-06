@@ -11,6 +11,7 @@ import {
   planSignalAlertRun,
   type SignalBar,
   signalAlertChartUrl,
+  barCloseTime,
   closedBars,
   isRegularSession,
   newYorkClock,
@@ -392,6 +393,51 @@ describe("signal alert evaluation", () => {
     ]);
   });
 
+  it("never fires a bar that closed before the rule was active, even after the close", () => {
+    const hourly = [bar(0, 9, 60), bar(6, 11, 60)]; // 09:30 and 15:30 New York
+    const created = new Date(START + 6 * 60 * MINUTE + 40 * MINUTE); // 16:10
+    const result = evaluateSignalAlert(
+      {
+        ...rule("per-bar-close"),
+        condition: crossValue("above", "10"),
+        timeframe: "1h",
+      },
+      { ...cursor, activeSince: created },
+      hourly,
+      new Date(created.getTime() + 5 * MINUTE)
+    );
+    expect(result.fires).toEqual([]);
+    expect(result.lastBarAt).toEqual(hourly[1]?.start);
+    // The 15:30 bar closes at 16:00, so a rule active at 15:55 fires it at 16:05.
+    const early = evaluateSignalAlert(
+      {
+        ...rule("per-bar-close"),
+        condition: crossValue("above", "10"),
+        timeframe: "1h",
+      },
+      {
+        ...cursor,
+        activeSince: new Date(START + 6 * 60 * MINUTE + 25 * MINUTE),
+      },
+      hourly,
+      new Date(START + 6 * 60 * MINUTE + 35 * MINUTE)
+    );
+    expect(early.fires).toEqual([{ barAt: hourly[1]?.start, price: 11 }]);
+    expect(barCloseTime(hourly, 1, "1h", true)).toBe(
+      START + 6 * 60 * MINUTE + 30 * MINUTE
+    );
+    expect(barCloseTime(hourly, 1, "1h", false)).toBe(START + 7 * 60 * MINUTE);
+    expect(barCloseTime(hourly, 0, "1h", true)).toBe(START + 60 * MINUTE);
+    expect(barCloseTime(hourly, 9, "1h", true)).toBe(Number.POSITIVE_INFINITY);
+    const evening = {
+      ...bar(0, 9, 60),
+      start: new Date(START + 9 * 60 * MINUTE),
+    };
+    expect(barCloseTime([evening], 0, "1h", true)).toBe(
+      START + 10 * 60 * MINUTE
+    );
+  });
+
   it("closes bars by a later bar, the interval, or the 16:00 New York close", () => {
     const daily = [bar(0, 10, 24 * 60), bar(1, 11, 24 * 60)];
     // Day 2 09:30 bar at 15:59 New York: open; at 16:00: closed for stocks, open for futures.
@@ -588,6 +634,23 @@ describe("watch request parser", () => {
         "Watch SPY when it closes above the 0 minute opening range"
       )
     ).toMatchObject({ proposal: { condition: { right: { minutes: 15 } } } });
+  });
+
+  it("never takes keywords as symbols and refuses futures hourly opening ranges", () => {
+    expect(
+      parseWatchRequest("Watch the opening range on SPY, wake me above it")
+    ).toMatchObject({ ok: true, proposal: { symbol: "SPY" } });
+    expect(parseWatchRequest("watch price on QQQ above 400")).toMatchObject({
+      proposal: { symbol: "QQQ" },
+    });
+    expect(parseWatchRequest("watch price above 400")).toMatchObject({
+      ok: false,
+    });
+    expect(
+      parseWatchRequest(
+        "Watch NQ hourly when a bar closes above the opening range"
+      )
+    ).toMatchObject({ ok: false });
   });
 
   it("keeps ambiguous roots as stock symbols unless the contract is written", () => {

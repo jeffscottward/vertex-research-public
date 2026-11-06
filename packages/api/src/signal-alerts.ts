@@ -187,26 +187,42 @@ export const isRegularSession = (symbol: string): boolean =>
   !symbol.endsWith("=F");
 
 /**
- * Which bars are closed: every bar with a later bar, the newest once its interval has passed, and,
- * for regular-session symbols, the newest once the 16:00 New York close has passed on its day (so a
- * daily bar closes at the close, not 24 hours after the open).
+ * When a bar closes: the earliest of its full interval, the next bar's start and, for
+ * regular-session symbols, 16:00 New York on its day (a daily stock bar closes at the close, not 24
+ * hours after the open; the 15:30 hourly bar closes at 16:00).
  */
+export const barCloseTime = (
+  bars: readonly SignalBar[],
+  index: number,
+  timeframe: SignalAlertTimeframe,
+  regularSession: boolean
+): number => {
+  const bar = bars[index];
+  if (bar === undefined) return Number.POSITIVE_INFINITY;
+  const start = bar.start.getTime();
+  const minute = newYorkClock(bar.start).minute;
+  const sessionClose =
+    regularSession && minute < SESSION_CLOSE_MINUTE
+      ? start + (SESSION_CLOSE_MINUTE - minute) * 60_000
+      : Number.POSITIVE_INFINITY;
+  return Math.min(
+    start + SIGNAL_ALERT_TIMEFRAME_MS[timeframe],
+    bars[index + 1]?.start.getTime() ?? Number.POSITIVE_INFINITY,
+    sessionClose
+  );
+};
+
+/** Which bars are closed at `now` (see barCloseTime). */
 export const closedBars = (
   bars: readonly SignalBar[],
   timeframe: SignalAlertTimeframe,
   now: Date,
   regularSession: boolean
-): boolean[] => {
-  const width = SIGNAL_ALERT_TIMEFRAME_MS[timeframe];
-  const clock = newYorkClock(now);
-  return bars.map((bar, index) => {
-    if (index < bars.length - 1) return true;
-    if (bar.start.getTime() + width <= now.getTime()) return true;
-    if (!regularSession) return false;
-    const day = newYorkClock(bar.start).day;
-    return clock.day > day || clock.minute >= SESSION_CLOSE_MINUTE;
-  });
-};
+): boolean[] =>
+  bars.map(
+    (_, index) =>
+      barCloseTime(bars, index, timeframe, regularSession) <= now.getTime()
+  );
 
 /** One value per bar for a source line; null where the line is not defined yet. */
 export const sourceLine = (
@@ -386,9 +402,9 @@ export const SIGNAL_ALERT_STALE_BARS = 2;
 
 /**
  * Evaluates one rule on fresh bars. Closed bars after the cursor are evaluated; the forming bar is
- * evaluated too unless the rule fires per bar close. A bar that began before the rule was active
- * (more than one bar width earlier) never fires, and neither does a closed bar that ended more than
- * two bar widths ago (after a gap or outage the cursor just moves past it).
+ * evaluated too unless the rule fires per bar close. A bar that closed before the rule was active
+ * never fires (nor a forming bar that began more than one bar width before), and neither does a
+ * closed bar that closed more than two bar widths ago (after a gap the cursor just moves past it).
  */
 export const evaluateSignalAlert = (
   rule: Readonly<{
@@ -403,13 +419,7 @@ export const evaluateSignalAlert = (
 ): SignalAlertEvaluation => {
   const width = SIGNAL_ALERT_TIMEFRAME_MS[rule.timeframe];
   const series = conditionSeries(rule.condition, bars, rule.timeframe);
-  const closedFlags = closedBars(
-    bars,
-    rule.timeframe,
-    now,
-    rule.regularSession
-  );
-  const floor = cursor.activeSince.getTime() - width;
+  const activeSince = cursor.activeSince.getTime();
   const after = cursor.lastBarAt?.getTime() ?? Number.NEGATIVE_INFINITY;
   const firedAt = cursor.lastFiredBarAt?.getTime() ?? null;
   const staleBefore = now.getTime() - SIGNAL_ALERT_STALE_BARS * width;
@@ -417,14 +427,21 @@ export const evaluateSignalAlert = (
   const fires: SignalAlertFire[] = [];
   bars.forEach((bar, index) => {
     const time = bar.start.getTime();
-    const closed = closedFlags[index] === true;
+    const close = barCloseTime(
+      bars,
+      index,
+      rule.timeframe,
+      rule.regularSession
+    );
+    const closed = close <= now.getTime();
     if (closed && (lastBarAt === null || time > lastBarAt.getTime()))
       lastBarAt = bar.start;
-    if (time < floor || !series[index] || time === firedAt) return;
+    if (!series[index] || time === firedAt) return;
     if (closed) {
-      const end = bars[index + 1]?.start.getTime() ?? time + width;
-      if (time <= after || end < staleBefore) return;
-    } else if (rule.frequency === "per-bar-close") return;
+      // Closed before the rule was active, already evaluated, or stale after a gap.
+      if (close <= activeSince || time <= after || close < staleBefore) return;
+    } else if (rule.frequency === "per-bar-close" || time < activeSince - width)
+      return;
     fires.push({ barAt: bar.start, price: bar.close });
   });
   const limited =
@@ -524,9 +541,14 @@ const SYMBOL_AFTER_WATCH = new RegExp(
 );
 const STOP_WORDS: ReadonlySet<string> = new Set([
   "A",
+  "ALERTS",
   "AND",
   "IF",
   "IT",
+  "ME",
+  "MY",
+  "OPENING",
+  "PRICE",
   "WHEN",
 ]);
 
@@ -543,15 +565,20 @@ const LEVEL =
 export const parseWatchRequest = (text: string): SignalWatchParse => {
   const raw = text.trim().slice(0, 500);
   const lower = raw.toLowerCase();
-  const written = (
-    SYMBOL_AFTER_WATCH.exec(raw)?.[1] ??
-    /\$([A-Za-z][A-Za-z0-9.-]{0,9})\b/u.exec(raw)?.[1]
-  )?.toUpperCase();
-  if (
-    written === undefined ||
-    STOP_WORDS.has(written) ||
-    !/^[A-Z][A-Z0-9.-]{0,9}(?:[=]F)?$/u.test(written)
-  )
+  // The word after "watch", else a $TICKER, else "on TICKER"; keywords are never symbols.
+  const written = [
+    SYMBOL_AFTER_WATCH.exec(raw)?.[1],
+    /\$([A-Za-z][A-Za-z0-9.-]{0,9})\b/u.exec(raw)?.[1],
+    /\bon\s+\$?([A-Z][A-Z0-9.=-]{0,9})\b/u.exec(raw)?.[1],
+  ]
+    .map((candidate) => candidate?.toUpperCase())
+    .find(
+      (candidate) =>
+        candidate !== undefined &&
+        !STOP_WORDS.has(candidate) &&
+        /^[A-Z][A-Z0-9.-]{0,9}(?:[=]F)?$/u.test(candidate)
+    );
+  if (written === undefined)
     return {
       ok: false,
       reason: 'Name the symbol after "watch", e.g. "Watch NQ when ..."',
@@ -588,6 +615,12 @@ export const parseWatchRequest = (text: string): SignalWatchParse => {
   if (/\bopening range\b|\bor high\b|\bor low\b/u.test(lower)) {
     if (timeframe === "1d")
       return { ok: false, reason: "An opening range needs intraday bars" };
+    if (timeframe === "1h" && symbol.endsWith("=F"))
+      return {
+        ok: false,
+        reason:
+          "Futures hourly bars start on the hour; use 5m or 15m bars for an opening range",
+      };
     // Whole bars only: a 30-minute range on hourly bars becomes the first hour.
     const barMinutes = SIGNAL_ALERT_TIMEFRAME_MS[timeframe] / 60_000;
     const minutes = Number(orMinutes?.[1] ?? 30);

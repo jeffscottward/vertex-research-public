@@ -55,6 +55,14 @@ run. Conditions that can never fire are refused (an opening range on daily bars 
 bars, a zero value line). A stored
 condition that no longer parses is listed as unreadable and skipped.
 
+## Limits
+
+- US symbols only: the session clock is New York (09:30-16:00), and Yahoo suffixes for other
+  exchanges are not supported.
+- The scheduler runs 13-21 UTC on weekdays and stale bars never fire, so overnight futures moves
+  are not alerted; Check now evaluates on demand.
+- An opening range on futures needs 5m or 15m bars (Yahoo's futures hourly bars start on the hour).
+
 ## Scheduler
 
 `bun run vertex:signal-alerts:tick` (`scripts/vertex-signal-alerts-tick.ts`, the same client as the
