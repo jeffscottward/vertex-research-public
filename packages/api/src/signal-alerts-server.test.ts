@@ -396,6 +396,18 @@ describe("priceAlerts.signals", () => {
         400
       );
     await expectCode(
+      client.priceAlerts.signals.backfill({
+        condition: {
+          ...condition,
+          right: { minutes: 60, side: "high", type: "opening-range" },
+        },
+        symbol: "NQ=F",
+        timeframe: "1h",
+      }),
+      "BAD_REQUEST",
+      400
+    );
+    await expectCode(
       client.priceAlerts.signals.create({
         condition,
         frequency: "once",

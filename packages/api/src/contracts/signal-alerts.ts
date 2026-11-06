@@ -178,12 +178,13 @@ const BAR_MINUTES: Readonly<Record<SignalAlertTimeframe, number>> = {
 };
 
 /**
- * A condition that can never fire is refused: an opening range on daily bars or not made of whole
- * bars, and a zero value line.
+ * A condition that can never fire is refused: an opening range on daily bars, not made of whole
+ * bars or on futures hourly bars, and a zero value line.
  */
 const refineConditionForTimeframe = (
   input: Readonly<{
     condition: SignalAlertCondition;
+    symbol: string;
     timeframe: SignalAlertTimeframe;
   }>,
   context: z.RefinementCtx
@@ -198,7 +199,9 @@ const refineConditionForTimeframe = (
     if (
       source.type === "opening-range" &&
       (input.timeframe === "1d" ||
-        source.minutes % BAR_MINUTES[input.timeframe] !== 0)
+        source.minutes % BAR_MINUTES[input.timeframe] !== 0 ||
+        // Futures hourly bars start on the hour, so no bar lines up with 09:30.
+        (input.timeframe === "1h" && input.symbol.endsWith("=F")))
     )
       context.addIssue({
         code: "custom",

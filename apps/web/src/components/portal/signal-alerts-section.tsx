@@ -95,6 +95,8 @@ const DIRECTION_LABELS: Readonly<Record<Direction, string>> = {
   "crosses-below": "Crossing down",
 };
 
+const POLL_OVERLAP_MS = 5 * 60_000;
+
 const selectClass =
   "min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm";
 
@@ -172,6 +174,20 @@ const mergeEvents = (
     .sort((left, right) => right.firedAt.getTime() - left.firedAt.getTime())
     .slice(0, 50);
 };
+
+/** A preset change resets the period to that preset's default and drops "either way" for the ORB. */
+export const withPreset = (
+  form: SignalAlertForm,
+  preset: Preset
+): SignalAlertForm => ({
+  ...form,
+  direction:
+    preset === "opening-range" && form.direction === "crosses"
+      ? "crosses-above"
+      : form.direction,
+  period: preset === "opening-range" ? "30" : "20",
+  preset,
+});
 
 const utc = (date: Date): string =>
   `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -253,7 +269,12 @@ export function SignalAlertsSection({
     const timer = setInterval(() => {
       void (async () => {
         try {
-          const fresh = await gateway.events(seenRef.current);
+          // Five minutes of overlap: a concurrent run can commit an earlier-stamped fire late.
+          const since =
+            seenRef.current === null
+              ? null
+              : new Date(seenRef.current.getTime() - POLL_OVERLAP_MS);
+          const fresh = await gateway.events(since);
           const unseen = fresh.filter(
             (event) => !knownRef.current.has(event.id)
           );
@@ -506,7 +527,7 @@ export function SignalAlertsSection({
               className={selectClass}
               id={`${ids}-preset`}
               onChange={(event) =>
-                setForm({ ...form, preset: event.target.value as Preset })
+                setForm(withPreset(form, event.target.value as Preset))
               }
               value={form.preset}
             >
@@ -533,7 +554,10 @@ export function SignalAlertsSection({
                 }
                 value={form.direction}
               >
-                {DIRECTIONS.map((entry) => (
+                {DIRECTIONS.filter(
+                  (entry) =>
+                    form.preset !== "opening-range" || entry !== "crosses"
+                ).map((entry) => (
                   <option key={entry} value={entry}>
                     {DIRECTION_LABELS[entry]}
                   </option>
