@@ -91,6 +91,9 @@ if (
   bindings.DEV_EMAIL_PREVIEW_ENDPOINT ||
   bindings.DEV_EMAIL_PREVIEW_KEY ||
   bindings.E2E_FIXTURES ||
+  // The UI lab (/lab, dummy data) is development-only. This host runs APP_ENV=development,
+  // so the env schema cannot refuse it here: any value other than "off" stops the start.
+  (bindings.VERTEX_UI_LAB ?? "off") !== "off" ||
   !(emailDisabled || emailResend)
 ) {
   throw new Error("QuantVPS production bindings are incomplete or unsafe.");

@@ -3,6 +3,7 @@ import type {
   AgentOpsSummaryOutput,
   AgentTaskOutput,
   ResearchPaperOutput,
+  SectorRotationSnapshot,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -258,6 +259,27 @@ describe("mission control", () => {
     expect(container.textContent).toContain("Nothing needs you.");
     expect(container.textContent).toContain("No task is running.");
     return expect(container.textContent).toContain("No finished tasks yet.");
+  });
+
+  it("loads the sector rotation card from the supplied loader", async () => {
+    const snapshot: SectorRotationSnapshot = {
+      asOf: "2026-10-30",
+      benchmark: "SPY",
+      changes: [],
+      previousDate: "2026-10-29",
+      recentTransitions: [],
+      schemaVersion: 1,
+      sectors: [],
+      timeframe: "daily",
+    };
+    const load = vi.fn(async () => snapshot);
+    const container = await mount(
+      <MissionControl gateway={agentGateway([])} sectorRotation={load} />
+    );
+    expect(load).toHaveBeenCalledTimes(1);
+    return expect(container.textContent).toContain(
+      "No quadrant changes since 2026-10-29."
+    );
   });
 
   return it("reports storage failures with a retry", async () => {

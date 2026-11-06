@@ -181,6 +181,31 @@ export const parseAcademyMediaBaseUrl = (
 
 const kbChatUrlSchema = tailnetServiceUrl("VERTEX_KB_CHAT_URL");
 
+// UI lab (/lab component browser with dummy data). "off" unless set to "on"; never in production.
+const uiLabSchema = z.preprocess(
+  emptyStringToUndefined,
+  z
+    .enum(["on", "off"], { error: "VERTEX_UI_LAB must be on or off" })
+    .default("off")
+);
+
+/**
+ * True only when VERTEX_UI_LAB=on and APP_ENV is explicitly development or test.
+ * Production, an unset APP_ENV and any other value keep /lab closed (404).
+ * The QuantVPS production serve runs with APP_ENV=development, so
+ * infra/quantvps/run-preview.mjs refuses any VERTEX_UI_LAB binding itself.
+ */
+export const isUiLabEnabled = (
+  source: Readonly<Record<string, string | undefined>>
+): boolean => {
+  // Exact values only, the same ones the env schema accepts.
+  const appEnv = source["APP_ENV"];
+  return (
+    source["VERTEX_UI_LAB"] === "on" &&
+    (appEnv === "development" || appEnv === "test")
+  );
+};
+
 /**
  * The kb-chat front end URL for the Knowledge page iframe (audit phase 4, kb-chat embed option a).
  * kb-chat stays on the rig and its tailnet gateway; Vertex only frames it. Null when unset or
@@ -585,6 +610,7 @@ const baseServerEnvSchema = z.object({
   VERTEX_IBKR_RECOVERY_URL: tailnetServiceUrl("VERTEX_IBKR_RECOVERY_URL"),
   // Tailnet-only kb-chat front end, framed by the Knowledge page (no KB data reaches Vertex).
   VERTEX_KB_CHAT_URL: kbChatUrlSchema,
+  VERTEX_UI_LAB: uiLabSchema,
   // Where this server runs, shown next to TypeScript engine times (for example "QuantVPS web
   // (in-request)"). Blank: "web server".
   VERTEX_HOST_LABEL: z.preprocess(
@@ -794,6 +820,14 @@ export const serverEnvSchema = baseServerEnvSchema
         code: "custom",
         message: "RESEND_API_KEY is required when EMAIL_TRANSPORT is resend",
         path: ["RESEND_API_KEY"],
+      });
+    }
+
+    if (env.APP_ENV === "production" && env.VERTEX_UI_LAB === "on") {
+      context.addIssue({
+        code: "custom",
+        path: ["VERTEX_UI_LAB"],
+        message: "VERTEX_UI_LAB cannot be on in production",
       });
     }
 
