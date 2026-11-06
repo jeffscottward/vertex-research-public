@@ -15,6 +15,7 @@ import {
   type RiskAllocatorGateway,
 } from "./risk-allocator-client.ts";
 import {
+  createBrowserRiskAllocatorWatchlist,
   invalidAmountFields,
   parseAmount,
   parseRiskAllocatorParams,
@@ -23,7 +24,6 @@ import {
   type RiskAllocatorSettings,
   type RiskAllocatorWatchlist,
   RiskAllocatorWorkspace,
-  riskAllocatorSearch,
   toAllocatorInput,
 } from "./risk-allocator-workspace.tsx";
 
@@ -535,12 +535,71 @@ describe("risk allocator URL settings", () => {
     expect(parseRiskAllocatorParams({ symbol: ["MSFT"] })).toEqual({
       symbol: null,
     });
-    expect(riskAllocatorSearch({ symbol: null })).toBe("");
-    expect(riskAllocatorSearch({ symbol: "BRK.B" })).toBe("?symbol=BRK.B");
   });
 });
 
 describe("RiskAllocatorWorkspace defaults", () => {
+  it("keeps foreign query parameters when the symbol is written", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/risk-allocator?theme=light&symbol=NVDA#x"
+    );
+    const container = await render(localGateway(), {
+      initial: { symbol: "NVDA" },
+      watchlist: watchlistOf(),
+    });
+    await setValue(container, "risk-symbol", "amd");
+    await submit(container);
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("theme")).toBe("light");
+    expect(params.get("symbol")).toBe("AMD");
+    expect(window.location.hash).toBe("#x");
+    await setValue(container, "risk-symbol", "");
+    await submit(container);
+    expect(window.location.search).toBe("?theme=light");
+  });
+
+  it("describes the computed suggestion, not the live form symbol", async () => {
+    const container = await render(localGateway(), {
+      initial: { symbol: "NVDA" },
+      watchlist: watchlistOf(),
+    });
+    await setValue(container, "risk-symbol", "AMD");
+    const text = container.querySelector(SUGGESTION_PANEL)?.textContent;
+    expect(text).toContain("Sizing NVDA from the link.");
+    expect(text).not.toContain("AMD from");
+  });
+
+  it("mounts the live region before the first result", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const container = await render(
+      {
+        caps: async () => OWNER_RISK_CAPS,
+        suggest: async (input) => {
+          await gate;
+          return localGateway().suggest(input);
+        },
+      },
+      { initial: { symbol: "NVDA" }, watchlist: watchlistOf() }
+    );
+    const live = container.querySelector('[aria-live="polite"]');
+    expect(live).not.toBeNull();
+    expect(live?.textContent).toBe("");
+    await act(async () => release());
+    expect(container.querySelector('[aria-live="polite"]')).toBe(live);
+    expect(live?.textContent).not.toBe("");
+  });
+
+  it("narrows the browser watchlist to list only", () => {
+    const watchlist = createBrowserRiskAllocatorWatchlist();
+    expect(Object.keys(watchlist)).toEqual(["list"]);
+    expect(typeof watchlist.list).toBe("function");
+  });
+
   it("uses the browser gateway and today's date when no props are given", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

@@ -16,9 +16,9 @@ type SearchParams = Promise<
 export default async function RiskAllocatorPage({
   searchParams,
 }: Readonly<{ searchParams: SearchParams }>) {
+  const initial = parseRiskAllocatorParams(await searchParams);
+  // Keyed by symbol so a same-page link with another (or no) symbol resets the form.
   return (
-    <RiskAllocatorWorkspace
-      initial={parseRiskAllocatorParams(await searchParams)}
-    />
+    <RiskAllocatorWorkspace initial={initial} key={initial.symbol ?? ""} />
   );
 }
