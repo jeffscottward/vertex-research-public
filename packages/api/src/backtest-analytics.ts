@@ -5,30 +5,30 @@
 // annualization uses the observed frequency (periods / elapsed years), not an assumed calendar.
 
 import {
-  at as requireAt,
   mean,
   quantile,
+  at as requireAt,
   sorted as sortedCopy,
   stdev,
   timeMs,
 } from "./quant-arrays.ts";
 import { normalCdfPrecise } from "./quant-distributions.ts";
 import {
-  multipleTesting,
   type CurrentTrial,
   type MultipleTesting,
+  multipleTesting,
   type TrialLedger,
 } from "./quant-multiple-testing.ts";
 import {
-  meanTTest,
-  stationaryBootstrap,
   type MeanTTest,
+  meanTTest,
   type StationaryBootstrapResult,
+  stationaryBootstrap,
 } from "./quant-significance.ts";
 
 import {
-  volatilityClustering,
   type VolatilityClustering,
+  volatilityClustering,
 } from "./quant-volatility.ts";
 
 const BACKTEST_ANALYTICS_VERSION = "vertex-backtest-analytics-v2";
@@ -320,7 +320,7 @@ const sharpeOf = (returns: readonly number[]): number | null => {
 const moments = (
   returns: readonly number[]
 ): Readonly<{ skew: number | null; excessKurtosis: number | null }> => {
-  if (returns.length < 3) return { skew: null, excessKurtosis: null };
+  if (returns.length < 3) return { excessKurtosis: null, skew: null };
   const average = mean(returns);
   let m2 = 0;
   let m3 = 0;
@@ -334,8 +334,8 @@ const moments = (
   m2 /= returns.length;
   m3 /= returns.length;
   m4 /= returns.length;
-  if (m2 === 0) return { skew: null, excessKurtosis: null };
-  return { skew: m3 / m2 ** 1.5, excessKurtosis: m4 / m2 ** 2 - 3 };
+  if (m2 === 0) return { excessKurtosis: null, skew: null };
+  return { excessKurtosis: m4 / m2 ** 2 - 3, skew: m3 / m2 ** 1.5 };
 };
 
 // Probabilistic Sharpe ratio against SR* = 0 (Bailey and Lopez de Prado), per-period Sharpe.
@@ -375,23 +375,13 @@ export const returnStats = (
   const maxDrawdown = maxDrawdownOf(equity.map((point) => point.equity));
   const { skew, excessKurtosis } = moments(returns);
   return {
+    annualVolatility: deviation * Math.sqrt(periodsPerYear),
+    cagr,
+    calmar: maxDrawdown === 0 ? null : cagr / Math.abs(maxDrawdown),
+    excessKurtosis,
+    maxDrawdown,
     periods: returns.length,
     periodsPerYear,
-    totalReturn,
-    cagr,
-    annualVolatility: deviation * Math.sqrt(periodsPerYear),
-    sharpe:
-      perPeriodSharpe === null
-        ? null
-        : perPeriodSharpe * Math.sqrt(periodsPerYear),
-    sortino:
-      downside === 0
-        ? null
-        : (mean(returns) / downside) * Math.sqrt(periodsPerYear),
-    calmar: maxDrawdown === 0 ? null : cagr / Math.abs(maxDrawdown),
-    maxDrawdown,
-    skew,
-    excessKurtosis,
     psr:
       perPeriodSharpe === null || skew === null || excessKurtosis === null
         ? null
@@ -401,6 +391,16 @@ export const returnStats = (
             skew,
             excessKurtosis
           ),
+    sharpe:
+      perPeriodSharpe === null
+        ? null
+        : perPeriodSharpe * Math.sqrt(periodsPerYear),
+    skew,
+    sortino:
+      downside === 0
+        ? null
+        : (mean(returns) / downside) * Math.sqrt(periodsPerYear),
+    totalReturn,
   };
 };
 
@@ -421,16 +421,16 @@ export const drawdownSummary = (
         ? timeMs(requireAt(equity, equity.length - 1).t)
         : timeMs(requireAt(equity, recoveryIndex).t);
     return periods.push({
-      peakT: requireAt(equity, peakIndex).t,
-      troughT: requireAt(equity, troughIndex).t,
-      recoveryT:
-        recoveryIndex === null ? null : requireAt(equity, recoveryIndex).t,
+      declineMs: troughMs - peakMs,
       depth:
         requireAt(equity, troughIndex).equity /
           requireAt(equity, peakIndex).equity -
         1,
-      declineMs: troughMs - peakMs,
+      peakT: requireAt(equity, peakIndex).t,
       recoveryMs: recoveryIndex === null ? null : endMs - troughMs,
+      recoveryT:
+        recoveryIndex === null ? null : requireAt(equity, recoveryIndex).t,
+      troughT: requireAt(equity, troughIndex).t,
       underwaterMs: endMs - peakMs,
     });
   };
@@ -451,11 +451,6 @@ export const drawdownSummary = (
   if (inDrawdown) close(null);
   const recovered = periods.filter((period) => period.recoveryMs !== null);
   return {
-    count: periods.length,
-    longestUnderwaterMs: periods.reduce(
-      (longest, period) => Math.max(longest, period.underwaterMs),
-      0
-    ),
     avgRecoveryMs:
       recovered.length === 0
         ? null
@@ -464,6 +459,11 @@ export const drawdownSummary = (
               period.recoveryMs === null ? [] : [period.recoveryMs]
             )
           ),
+    count: periods.length,
+    longestUnderwaterMs: periods.reduce(
+      (longest, period) => Math.max(longest, period.underwaterMs),
+      0
+    ),
     ongoing: inDrawdown,
     periods: [...periods]
       .sort((left, right) => left.depth - right.depth)
@@ -490,9 +490,9 @@ export const calendarReturns = (
   for (const [key, end] of ends) {
     const [year, month] = key.split("-").map(Number);
     rows.push({
-      year: year ?? Number.NaN,
       month: unit === "year" ? null : (month ?? Number.NaN),
       return: end / base - 1,
+      year: year ?? Number.NaN,
     });
     base = end;
   }
@@ -559,30 +559,30 @@ export const tradeStats = (
   const payoffRatio =
     avgWin === null || avgLoss === null ? null : avgWin / Math.abs(avgLoss);
   return {
-    count: trades.length,
-    wins,
-    losses,
-    breakeven: trades.length - wins - losses,
-    winRate,
-    grossProfit,
-    grossLoss,
-    netPnl,
-    profitFactor: grossLoss === 0 ? null : grossProfit / Math.abs(grossLoss),
-    expectancy: netPnl / trades.length,
-    avgWin,
-    avgLoss,
-    payoffRatio,
-    largestWin,
-    largestLoss,
-    maxConsecutiveWins: maxWins,
-    maxConsecutiveLosses: maxLosses,
-    kelly: payoffRatio === null ? null : winRate - (1 - winRate) / payoffRatio,
-    longCount,
-    shortCount: trades.length - longCount,
-    longNetPnl: longNet,
-    shortNetPnl: netPnl - longNet,
     avgHoldMinutes: holdMs / trades.length / 60_000,
+    avgLoss,
+    avgWin,
+    breakeven: trades.length - wins - losses,
+    count: trades.length,
+    expectancy: netPnl / trades.length,
+    grossLoss,
+    grossProfit,
+    kelly: payoffRatio === null ? null : winRate - (1 - winRate) / payoffRatio,
+    largestLoss,
+    largestWin,
+    longCount,
+    longNetPnl: longNet,
+    losses,
+    maxConsecutiveLosses: maxLosses,
+    maxConsecutiveWins: maxWins,
+    netPnl,
+    payoffRatio,
+    profitFactor: grossLoss === 0 ? null : grossProfit / Math.abs(grossLoss),
+    shortCount: trades.length - longCount,
+    shortNetPnl: netPnl - longNet,
     totalCommission: commissionSeen ? commission : null,
+    winRate,
+    wins,
   };
 };
 
@@ -609,7 +609,7 @@ export const pnlBuckets = (
                 date.getUTCFullYear() * 12 + date.getUTCMonth(),
               ]
             : [String(date.getUTCFullYear()), date.getUTCFullYear()];
-    const bucket = buckets.get(key) ?? { trades: 0, netPnl: 0, wins: 0, order };
+    const bucket = buckets.get(key) ?? { netPnl: 0, order, trades: 0, wins: 0 };
     bucket.trades += 1;
     bucket.netPnl += trade.pnl;
     if (trade.pnl > 0) bucket.wins += 1;
@@ -619,8 +619,8 @@ export const pnlBuckets = (
     .sort((left, right) => left[1].order - right[1].order)
     .map(([key, bucket]) => ({
       key,
-      trades: bucket.trades,
       netPnl: bucket.netPnl,
+      trades: bucket.trades,
       winRate: bucket.wins / bucket.trades,
     }));
 };
@@ -636,9 +636,9 @@ export const pnlDistribution = (
   const width = high === low ? 1 : (high - low) / DISTRIBUTION_BINS;
   const binCount = high === low ? 1 : DISTRIBUTION_BINS;
   const bins = Array.from({ length: binCount }, (_, index) => ({
+    count: 0,
     from: low + index * width,
     to: low + (index + 1) * width,
-    count: 0,
   }));
   for (const value of values) {
     const index = Math.min(binCount - 1, Math.floor((value - low) / width));
@@ -666,12 +666,12 @@ export const regimeRows = (trades: readonly AnalyticsTrade[]): RegimeRow[] => {
       const profit = sum(values.filter((value) => value > 0));
       const loss = sum(values.filter((value) => value < 0));
       return {
+        avgPnl: (profit + loss) / values.length,
+        netPnl: profit + loss,
+        profitFactor: loss === 0 ? null : profit / Math.abs(loss),
         regime,
         trades: values.length,
         winRate: values.filter((value) => value > 0).length / values.length,
-        netPnl: profit + loss,
-        avgPnl: (profit + loss) / values.length,
-        profitFactor: loss === 0 ? null : profit / Math.abs(loss),
       };
     });
 };
@@ -737,7 +737,9 @@ export const monteCarlo = (
   capital: number,
   mode: "reshuffle" | "bootstrap",
   random: () => number,
-  paths = MONTE_CARLO_PATHS
+  paths = MONTE_CARLO_PATHS,
+  // Optional sink: receives every path's final P&L and max drawdown (for histograms).
+  samples?: { finals: number[]; drawdowns: number[] }
 ): MonteCarloRun => {
   const fanSteps = Math.min(MONTE_CARLO_FAN_STEPS, pnls.length);
   const stepIndexes = Array.from(
@@ -769,18 +771,20 @@ export const monteCarlo = (
     }
     finals.push(equity - capital);
     drawdowns.push(worst);
+    samples?.finals.push(equity - capital);
+    samples?.drawdowns.push(worst);
     if (equity > capital) profitable += 1;
     if (ruin) ruined += 1;
   }
   return {
-    finalPnl: percentiles(finals),
-    maxDrawdown: percentiles(drawdowns),
-    probabilityOfProfit: profitable / paths,
-    riskOfRuin: ruined / paths,
     fan: stepIndexes.map((tradeIndex, index) => ({
       step: tradeIndex + 1,
       ...percentiles(requireAt(fanSamples, index)),
     })),
+    finalPnl: percentiles(finals),
+    maxDrawdown: percentiles(drawdowns),
+    probabilityOfProfit: profitable / paths,
+    riskOfRuin: ruined / paths,
   };
 };
 
@@ -799,7 +803,7 @@ export const benchmarkStats = (
     const other = byTime.get(timeMs(point.t));
     return other === undefined
       ? []
-      : [{ strategy: point.equity, benchmark: other }];
+      : [{ benchmark: other, strategy: point.equity }];
   });
   if (aligned.length < 3) return null;
   const strategyReturns: number[] = [];
@@ -833,15 +837,15 @@ export const benchmarkStats = (
   const correlation =
     covariance / Math.sqrt(benchmarkVariance * strategyVariance);
   return {
-    n: strategyReturns.length,
-    beta,
     alphaAnnual: (strategyMean - beta * benchmarkMean) * (periodsPerYear ?? 1),
-    correlation,
-    rSquared: correlation ** 2,
     benchmarkReturn:
       requireAt(aligned, aligned.length - 1).benchmark /
         requireAt(aligned, 0).benchmark -
       1,
+    beta,
+    correlation,
+    n: strategyReturns.length,
+    rSquared: correlation ** 2,
   };
 };
 
@@ -871,17 +875,17 @@ const currentTrial = (
   )
     return null;
   return {
-    returns: {
-      id,
-      returns: series.length,
-      meanReturn: mean(series),
-      stdReturn: stdev(series),
-      firstT: requireAt(equity, 0).t,
-      lastT: requireAt(equity, equity.length - 1).t,
-    },
-    periodsPerYear: returns.periodsPerYear,
-    skew: returns.skew,
     excessKurtosis: returns.excessKurtosis,
+    periodsPerYear: returns.periodsPerYear,
+    returns: {
+      firstT: requireAt(equity, 0).t,
+      id,
+      lastT: requireAt(equity, equity.length - 1).t,
+      meanReturn: mean(series),
+      returns: series.length,
+      stdReturn: stdev(series),
+    },
+    skew: returns.skew,
   };
 };
 
@@ -944,52 +948,48 @@ export const computeBacktestAnalytics = (
 
   const canSimulate = pnls.length >= 2 && capital !== null && capital > 0;
   return {
-    method: {
-      version: BACKTEST_ANALYTICS_VERSION,
-      seed,
-      resamples: ANALYTICS_RESAMPLES,
-      monteCarloPaths: MONTE_CARLO_PATHS,
-      ruinFraction: RUIN_FRACTION,
-      initialCapital: capital,
-      blockLength,
-    },
-    returns,
-    trades,
-    drawdowns: drawdownSummary(input.equity),
-    monthlyReturns: calendarReturns(input.equity, "month"),
-    yearlyReturns: calendarReturns(input.equity, "year"),
-    pnlBy: {
-      weekday: pnlBuckets(input.trades, "weekday"),
-      hour: pnlBuckets(input.trades, "hour"),
-      month: pnlBuckets(input.trades, "month"),
-      year: pnlBuckets(input.trades, "year"),
-    },
-    distribution: pnlDistribution(input.trades),
-    regimes: regimeRows(input.trades),
-    bootstrap: {
-      sharpe: interval(sharpeSamples),
-      totalReturn: interval(totalReturnSamples),
-      maxDrawdown: interval(drawdownSamples),
-      winRate: interval(winRateSamples),
-      profitFactor: interval(profitFactorSamples),
-      expectancy: interval(expectancySamples),
-    },
-    monteCarlo: canSimulate
-      ? {
-          reshuffle: monteCarlo(pnls, capital, "reshuffle", random),
-          bootstrap: monteCarlo(pnls, capital, "bootstrap", random),
-        }
-      : null,
     benchmark:
       input.benchmark === undefined ||
       input.benchmark === null ||
       returns === null
         ? null
         : benchmarkStats(input.equity, input.benchmark, returns.periodsPerYear),
+    bootstrap: {
+      expectancy: interval(expectancySamples),
+      maxDrawdown: interval(drawdownSamples),
+      profitFactor: interval(profitFactorSamples),
+      sharpe: interval(sharpeSamples),
+      totalReturn: interval(totalReturnSamples),
+      winRate: interval(winRateSamples),
+    },
+    distribution: pnlDistribution(input.trades),
+    drawdowns: drawdownSummary(input.equity),
+    method: {
+      blockLength,
+      initialCapital: capital,
+      monteCarloPaths: MONTE_CARLO_PATHS,
+      resamples: ANALYTICS_RESAMPLES,
+      ruinFraction: RUIN_FRACTION,
+      seed,
+      version: BACKTEST_ANALYTICS_VERSION,
+    },
+    monteCarlo: canSimulate
+      ? {
+          bootstrap: monteCarlo(pnls, capital, "bootstrap", random),
+          reshuffle: monteCarlo(pnls, capital, "reshuffle", random),
+        }
+      : null,
+    monthlyReturns: calendarReturns(input.equity, "month"),
     multipleTesting: ledgerTesting(input, series, returns),
-    volatility: volatilityClustering(series, returns?.periodsPerYear ?? null),
+    pnlBy: {
+      hour: pnlBuckets(input.trades, "hour"),
+      month: pnlBuckets(input.trades, "month"),
+      weekday: pnlBuckets(input.trades, "weekday"),
+      year: pnlBuckets(input.trades, "year"),
+    },
+    regimes: regimeRows(input.trades),
+    returns,
     significance: {
-      tTest: meanTTest(series),
       stationaryBootstrap:
         returns === null || blockLength === null
           ? null
@@ -1000,6 +1000,10 @@ export const computeBacktestAnalytics = (
               Math.sqrt(returns.periodsPerYear),
               createRandom(seedFrom(`${input.id}:significance`))
             ),
+      tTest: meanTTest(series),
     },
+    trades,
+    volatility: volatilityClustering(series, returns?.periodsPerYear ?? null),
+    yearlyReturns: calendarReturns(input.equity, "year"),
   };
 };
