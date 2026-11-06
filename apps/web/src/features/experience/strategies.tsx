@@ -100,7 +100,7 @@ const ScopedStrategies = ({ scope }: { readonly scope: ExperienceScope }) => {
     return void resource.load(scope);
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <ScopeLabel scope={scope} />
       <div className="vx-ex-toolbar">
         <Button variant="outline" type="button" onClick={reload}>
@@ -112,7 +112,7 @@ const ScopedStrategies = ({ scope }: { readonly scope: ExperienceScope }) => {
         title="Strategy catalog"
         retry={reload}
         children={(catalog) => (
-          <div className="vx-ex-stack">
+          <div className="grid gap-8">
             <StrategyCatalog
               catalog={catalog}
               selected={selected}
@@ -179,7 +179,7 @@ export const StrategyCatalog = ({
       </EmptyCollection>
     );
   return (
-    <section className="vx-ex-stack" aria-label="Search strategy catalog">
+    <section className="grid gap-8" aria-label="Search strategy catalog">
       <ResearchTableHeading id={headingId} title="Immutable strategy catalog">
         <p>
           Each row is one stored StrategySpec artifact. The version label is
@@ -320,7 +320,7 @@ const DossierRead = ({
     return void resource.load({ ...scope, artifactId: selected.artifactId });
   }, [resource, scope, selected.artifactId]);
   return (
-    <section className="vx-ex-stack" aria-label="Selected strategy dossier">
+    <section className="grid gap-8" aria-label="Selected strategy dossier">
       <div className="vx-ex-toolbar">
         <h2>Strategy dossier</h2>
         <Button variant="outline" type="button" onClick={reload}>
@@ -441,7 +441,7 @@ export const StrategyDossierView = ({
       draft.value.proposalOnly === true &&
       draft.value.executionAuthorized === false);
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <header className="vx-ex-section">
         <p className="vx-eyebrow">
           {strategy.sleeve} / immutable specification
@@ -449,7 +449,9 @@ export const StrategyDossierView = ({
         <h2>
           {strategy.strategyId} · {strategy.version}
         </h2>
-        <p className="vx-ex-lead">{strategy.hypothesis}</p>
+        <p className="max-w-reading text-lg leading-[1.8] [overflow-wrap:anywhere]">
+          {strategy.hypothesis}
+        </p>
         <ArtifactFacts
           entries={[
             [
@@ -618,7 +620,7 @@ const DraftFacts = ({
 }: {
   readonly draft: ImmutableArtifact<TradeIntent>;
 }) => (
-  <div className="vx-ex-stack">
+  <div className="grid gap-8">
     <p className="vx-status">Proposal only · executionAuthorized false</p>
     <ArtifactFacts
       entries={[
@@ -963,7 +965,7 @@ const ReviewFlow = ({
     now,
   });
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <p className="vx-status" role="status">
         Latest review: {model.status}
       </p>
@@ -1109,7 +1111,7 @@ const ReviewForm = ({
     }
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <form
         className="vx-ex-form"
         onSubmit={submit}
@@ -1327,7 +1329,7 @@ const SimulationQueueForm = ({
     }
   };
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <ArtifactFacts
         entries={[
           [

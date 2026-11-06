@@ -31,7 +31,11 @@ export const MarketBarsChart = ({
   markers,
 }: MarketBarsChartProps) => {
   if (typeof window === "undefined")
-    return <p className="vx-chart-note">The chart requires a browser.</p>;
+    return (
+      <p className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]">
+        The chart requires a browser.
+      </p>
+    );
   return (
     <ChartWorkstation
       candles={candles}

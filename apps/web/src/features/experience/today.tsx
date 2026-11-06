@@ -386,7 +386,7 @@ const ScopedToday = ({ scope }: { readonly scope: ExperienceScope }) => {
     return () => resource.clear();
   }, [resource, scope]);
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <div className="vx-ex-toolbar">
         <ScopeLabel scope={scope} />
         <Button

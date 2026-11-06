@@ -84,31 +84,6 @@
     line-height: 1.5;
   }
 
-  .vx-ex-scope-label,
-  .vx-ex-status {
-    font-size: var(--text-sm);
-    line-height: 1.7;
-    overflow-wrap: anywhere;
-  }
-
-  .vx-ex-scope-label {
-    font-weight: 600;
-    padding-block: var(--space-2);
-  }
-
-  .vx-ex-status {
-    display: inline-block;
-    border: 1px solid var(--border-strong);
-    padding: var(--space-2) var(--space-3);
-    background: var(--surface);
-    color: var(--foreground);
-  }
-
-  .vx-ex-stack {
-    display: grid;
-    gap: var(--space-8);
-  }
-
   /* Sections are bordered cards (reference layout): one card per content block, clear separation. */
   .vx-ex-section,
   .vx-ex-utility-section {
@@ -119,9 +94,9 @@
     padding: var(--space-4) var(--space-5) var(--space-5);
   }
 
-  /* A stack already spaces its children with gap. */
-  :not(.vx-ex-stack) > .vx-ex-section + .vx-ex-section,
-  :not(.vx-ex-stack) > .vx-ex-utility-section + .vx-ex-utility-section {
+  /* A grid or flex parent (such as a stack) already spaces its children with gap. */
+  :not(.grid, .flex) > .vx-ex-section + .vx-ex-section,
+  :not(.grid, .flex) > .vx-ex-utility-section + .vx-ex-utility-section {
     margin-top: var(--space-6);
   }
 
@@ -206,13 +181,6 @@
     padding-block: var(--space-3);
     cursor: pointer;
     font-weight: 600;
-  }
-
-  .vx-ex-lead {
-    max-width: var(--content-reading);
-    font-size: var(--text-lg);
-    line-height: 1.8;
-    overflow-wrap: anywhere;
   }
 
   .vx-ex-split,

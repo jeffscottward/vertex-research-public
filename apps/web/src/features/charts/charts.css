@@ -57,14 +57,6 @@
   background: var(--background);
 }
 
-.vx-chart-note {
-  margin-block: var(--space-3);
-  color: var(--muted-foreground);
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .vx-chart-panel * {
     scroll-behavior: auto;

@@ -56,7 +56,10 @@ export const PortfolioContinuity = ({
     aria-label="Projection continuity"
   >
     <h2>Projection continuity</h2>
-    <p className="vx-ex-status" role="status">
+    <p
+      className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]"
+      role="status"
+    >
       {continuity.state}
       {" · freshness: "}
       {continuity.freshness.status}
@@ -324,10 +327,10 @@ export const PortfolioObservation = ({
 }: {
   readonly snapshot: PortfolioSnapshot;
 }) => (
-  <div className="vx-ex-stack">
+  <div className="grid gap-8">
     <section className="vx-ex-section" aria-label="Portfolio source">
       <h2>Source observation</h2>
-      <p className="vx-ex-status">
+      <p className="inline-block border border-border-strong bg-surface px-3 py-2 text-foreground text-sm leading-[1.7] [overflow-wrap:anywhere]">
         {snapshot.environment}
         {" · "}
         {snapshot.sourceKind}
@@ -488,7 +491,7 @@ const ScopedPortfolio = ({ scope }: { readonly scope: ExperienceScope }) => {
     return () => resource.clear();
   }, [resource, scope]);
   return (
-    <div className="vx-ex-stack">
+    <div className="grid gap-8">
       <div className="vx-ex-toolbar">
         <ScopeLabel scope={scope} />
         <Button

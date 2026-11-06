@@ -206,7 +206,10 @@ export const CandleCanvas = ({
           } as CSSProperties
         }
       />
-      <figcaption className="vx-chart-note" id={description}>
+      <figcaption
+        id={description}
+        className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+      >
         {captions === undefined
           ? phase === "error"
             ? "Chart renderer unavailable. Exact data remains in the table."
@@ -230,7 +233,10 @@ export class ChartRendererBoundary extends Component<
   override render() {
     if (this.state.failed)
       return (
-        <p className="vx-chart-note" role="status">
+        <p
+          role="status"
+          className="my-3 text-muted-foreground text-sm leading-[1.6] [overflow-wrap:anywhere]"
+        >
           The renderer could not display the selected data. The exact table
           remains available.
         </p>

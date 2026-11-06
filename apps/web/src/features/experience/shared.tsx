@@ -232,7 +232,7 @@ export const ScopeChooser = ({
     );
   if (state.value.length === 1)
     return (
-      <p className="vx-ex-scope-label">
+      <p className="py-2 font-semibold text-sm leading-[1.7] [overflow-wrap:anywhere]">
         <span className="sr-only">{label}: </span>
         {state.value[0]?.accountAlias}
         {" / "}
@@ -268,7 +268,7 @@ export const ScopeChooser = ({
 };
 
 export const ScopeLabel = ({ scope }: { readonly scope: ExperienceScope }) => (
-  <p className="vx-ex-scope-label">
+  <p className="py-2 font-semibold text-sm leading-[1.7] [overflow-wrap:anywhere]">
     {scope.accountAlias}
     {" / "}
     {scope.environment}

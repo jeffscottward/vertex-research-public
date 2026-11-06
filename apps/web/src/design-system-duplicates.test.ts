@@ -55,6 +55,11 @@ const RETIRED_CLASSES = [
   "vx-chart-table-block",
   "vx-chart-table-scroll",
   "vx-chart-workbench",
+  "vx-ex-stack",
+  "vx-ex-lead",
+  "vx-ex-scope-label",
+  "vx-ex-status",
+  "vx-chart-note",
 ] as const;
 const SOURCE_ROOT = join(import.meta.dirname);
 
