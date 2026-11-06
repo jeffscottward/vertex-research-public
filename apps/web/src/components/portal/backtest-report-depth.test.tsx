@@ -77,6 +77,54 @@ describe("report depth panels", () => {
       render(<SimulationPanel capital={10_000} report={report([1])} />)
         .textContent
     ).toContain("needs at least two trades");
+    const truncated = { ...report(pnls), tradesTruncated: true };
+    expect(
+      render(<SimulationPanel capital={10_000} report={truncated} />)
+        .textContent
+    ).toContain("first 30 trades");
+  });
+
+  it("covers all-win, truncated and flat reports", () => {
+    const wins = render(
+      <TradesAnalysisPanel
+        report={{ ...report([100, 200]), tradesTruncated: true }}
+      />
+    );
+    expect(wins.textContent).toContain("Based on the first 2 trades.");
+    expect(wins.textContent).toContain("Average loss—");
+    const flat = render(
+      <SimulationPanel capital={10_000} report={report([0, 0])} />
+    );
+    expect(
+      flat.querySelector("[aria-label^='Monte Carlo cone']")
+    ).not.toBeNull();
+    const losing = render(
+      <SimulationPanel capital={10_000} report={report([-900, -900])} />
+    );
+    expect(losing.textContent).toContain("Fail");
+    const empty = render(
+      <SimulationPanel capital={10_000} report={report([])} />
+    );
+    expect(
+      empty.querySelector("[data-prop-status] td:nth-child(5)")?.textContent
+    ).toBe("—");
+  });
+
+  it("switches the Monte Carlo method", () => {
+    Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const pnls = [300, -100, 200, -50, 120];
+    act(() =>
+      root.render(<SimulationPanel capital={10_000} report={report(pnls)} />)
+    );
+    const before = container.textContent;
+    const radio = [...container.querySelectorAll("input[type=radio]")].at(1);
+    if (!(radio instanceof HTMLInputElement)) throw new Error("no radio");
+    act(() => radio.click());
+    expect(radio.checked).toBe(true);
+    expect(container.textContent).not.toBe(before);
+    act(() => root.unmount());
   });
 
   it("renders an empty histogram as text", () => {
@@ -88,6 +136,25 @@ describe("report depth panels", () => {
 
 describe("bar replay", () => {
   afterEach(() => vi.useRealTimers());
+
+  it("shows nothing to replay without bars", () => {
+    const seen: string[] = [];
+    const Harness = () => {
+      const view = useBarReplayView(null, []);
+      seen.push(view.label);
+      return (
+        <BarReplayControls
+          dispatch={view.dispatch}
+          label={view.label}
+          state={view.state}
+          total={0}
+        />
+      );
+    };
+    const html = render(<Harness />);
+    expect(seen).toEqual([""]);
+    expect(html.querySelector("button")?.hasAttribute("disabled")).toBe(true);
+  });
 
   it("starts, plays, steps and exits on the charts page controls", () => {
     vi.useFakeTimers();
@@ -139,6 +206,34 @@ describe("bar replay", () => {
     expect(container.textContent).toContain("Bar 10 of 10");
     click("Step back");
     expect(seen.at(-1)?.candles).toBe(9);
+    const setValue = (
+      element: HTMLInputElement | HTMLSelectElement,
+      value: string
+    ) => {
+      const proto = Object.getPrototypeOf(element);
+      Reflect.getOwnPropertyDescriptor(proto, "value")?.set?.call(
+        element,
+        value
+      );
+      act(() => {
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+        element.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    };
+    const slider = container.querySelector("input[type=range]");
+    const speed = container.querySelector("select");
+    if (
+      !(
+        slider instanceof HTMLInputElement && speed instanceof HTMLSelectElement
+      )
+    )
+      throw new Error("no controls");
+    setValue(slider, "3");
+    expect(seen.at(-1)?.candles).toBe(4);
+    setValue(speed, "10");
+    click("Play");
+    click("Pause");
+    expect(container.textContent).toContain("Play");
     click("Exit replay");
     expect(container.textContent).toContain("Start bar replay");
     act(() => root.unmount());

@@ -26,8 +26,7 @@ const money = (value: number | null) =>
         maximumFractionDigits: 2,
         minimumFractionDigits: 2,
       });
-const share = (value: number | null) =>
-  value === null ? "—" : `${(value * 100).toFixed(1)}%`;
+const share = (value: number) => `${(value * 100).toFixed(1)}%`;
 const holdDays = (ms: number | null) =>
   ms === null ? "—" : `${(ms / DAY_MS).toFixed(1)} d`;
 
@@ -57,13 +56,13 @@ export const Histogram = ({
     return <p className="text-muted-foreground text-sm">{label}: no data.</p>;
   const most = Math.max(...bins.map((bin) => bin.count), 1);
   const width = WIDTH / bins.length;
-  const first = bins[0];
-  const last = bins.at(-1);
+  const from = Math.min(...bins.map((bin) => bin.from));
+  const to = Math.max(...bins.map((bin) => bin.to));
   return (
     <figure className="grid gap-1">
       <figcaption className="font-medium text-sm">{label}</figcaption>
       <svg
-        aria-label={`${label}: ${bins.length} bins from ${format(first?.from ?? 0)} to ${format(last?.to ?? 0)}`}
+        aria-label={`${label}: ${bins.length} bins from ${format(from)} to ${format(to)}`}
         className="h-auto w-full rounded-md border bg-background"
         role="img"
         viewBox={`0 0 ${WIDTH} ${HIST_HEIGHT}`}
@@ -86,8 +85,8 @@ export const Histogram = ({
         })}
       </svg>
       <div className="flex justify-between text-muted-foreground text-xs tabular-nums">
-        <span>{format(first?.from ?? 0)}</span>
-        <span>{format(last?.to ?? 0)}</span>
+        <span>{format(from)}</span>
+        <span>{format(to)}</span>
       </div>
     </figure>
   );
@@ -134,7 +133,7 @@ export const TradesAnalysisPanel = ({
         rows={[
           ["Trades", String(analysis.trades)],
           ["Wins / losses", `${analysis.wins} / ${analysis.losses}`],
-          ["Win rate", share(analysis.winRate)],
+          ["Win rate", share(analysis.wins / analysis.trades)],
           ["Average win", money(analysis.avgWin)],
           ["Average loss", money(analysis.avgLoss)],
           [
@@ -181,7 +180,7 @@ export const TradesAnalysisPanel = ({
 
 const MonteCarloCone = ({ result }: Readonly<{ result: RunMonteCarlo }>) => {
   const { fan } = result.run;
-  const lastStep = fan.at(-1)?.step ?? 1;
+  const lastStep = Math.max(1, ...fan.map((point) => point.step));
   let low = 0;
   let high = 0;
   for (const point of fan) {
@@ -333,6 +332,13 @@ export const SimulationPanel = ({
           </label>
         ))}
       </fieldset>
+      {report.tradesTruncated ? (
+        <p className="rounded-md border p-2 text-sm" role="status">
+          The report keeps only the first {report.trades.length} trades, so the
+          Monte Carlo covers those trades only. The prop-firm rules use the full
+          equity curve.
+        </p>
+      ) : null}
       {result === null ? (
         <p className="text-muted-foreground text-sm">
           Monte Carlo needs at least two trades.
