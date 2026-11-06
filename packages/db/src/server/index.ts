@@ -44,6 +44,7 @@ export {
   normalizeAssistantToolTrace,
 } from "./assistant-records.ts";
 export type {
+  BacktestRunComparisonRecord,
   BacktestRunCreateInput,
   BacktestRunRecord,
   BacktestRunSummaryRecord,

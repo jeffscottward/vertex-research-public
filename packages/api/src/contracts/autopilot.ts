@@ -257,6 +257,14 @@ export const AutopilotCampaignDetailSchema = z.object({
 
 export const AutopilotTickResultSchema = z.object({
   campaignId: z.string(),
+  /** Engine comparison on: gate runs queued on Nautilus this tick and those the cap left out. */
+  comparison: z
+    .object({
+      dropped: z.number().int().nonnegative(),
+      error: z.string().optional(),
+      queued: z.number().int().nonnegative(),
+    })
+    .optional(),
   cpuMs: z.number(),
   evaluated: z.number().int(),
   gated: z.number().int(),

@@ -1,29 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { BACKTEST_RUN_NAUTILUS_ENGINE } from "../../packages/api/src/contracts/backtest-runs.ts";
+import { NAUTILUS_GPU_NOTE } from "../../packages/api/src/contracts/engine-comparison.ts";
 import {
   AGENT_KEY_LIMIT,
   AGENT_KEY_WINDOW_MS,
   API_STALE_MS,
+  batchRequest,
   COMPLETE_ATTEMPTS,
   COMPLETE_RETRY_MS,
   type CommandOutcome,
   DEFAULT_IDLE_MAX_MS,
   DEFAULT_IDLE_MS,
+  DEFAULT_PROCESSES,
+  deliveryChunks,
   DELIVERY_MARGIN_MS,
+  DELIVERY_MAX_BYTES,
   DELIVERY_MIN_WAIT_MS,
-  engineRequest,
+  MAX_PROCESSES,
   NAUTILUS_RUN_TIMEOUT_MS,
   type NautilusWorkerIo,
   QUIET_PAUSE_MS,
   REJECTED_ERROR,
   REQUEST_BUDGET,
-  readEngineOutput,
+  readBatchOutput,
   retryAfterMs,
   runCommand,
   runNautilusWorker,
   sleep,
+  splitRuns,
   stopSignal,
+  TOO_LARGE_ERROR,
   UNDELIVERED_ERROR,
 } from "./nautilus-worker.ts";
 
@@ -33,52 +40,80 @@ const env = {
   VERTEX_NAUTILUS_PYTHON: "/venv/bin/python",
   VERTEX_ORIGIN: "https://vertex.example.test/portal",
 };
+const SHA = "b".repeat(64);
 
-const claimedRun = {
-  bars: {
-    c: [10, 11, 12],
-    h: [11, 12, 13],
-    l: [9, 10, 11],
-    o: [10, 10, 11],
-    t: [0, 86_400_000, 172_800_000],
-    v: [null, 5, 6],
-  },
-  costs: null,
-  id: "run-1",
-  sectorQuadrants: null,
-  seriesSha256: "b".repeat(64),
-  spec: {
-    costBps: 5,
-    from: "1970-01-01",
-    initialCapital: 10_000,
-    rule: { fast: 1, kind: "smaCross" as const, slow: 2 },
-    stopLossPct: 0,
-    symbol: "SPY",
-    takeProfitPct: 0,
-    timeframe: "1d" as const,
-    to: "1970-01-03",
-  },
+const spec = {
+  costBps: 5,
+  from: "1970-01-01",
+  initialCapital: 10_000,
+  rule: { fast: 1, kind: "smaCross" as const, slow: 2 },
+  stopLossPct: 0,
+  symbol: "SPY",
+  takeProfitPct: 0,
+  timeframe: "1d" as const,
+  to: "1970-01-04",
 };
 
-const engineResult = {
-  capital: 1_000_000,
-  engine,
-  equity: [1, 1, 1.1],
-  modelVersion: 1,
-  stats: { bars: 3, trades: 0 },
+const batchRun = (id: string, first = 0, end = 4) => ({
+  costs: null,
+  end,
+  first,
+  id,
+  sectorQuadrants: null,
+  spec,
+});
+
+/** A claimed batch of `count` runs (run-1, run-2, ...). */
+const claimedBatch = (count = 1) => ({
+  bars: {
+    c: [10, 11, 12, 13],
+    h: [11, 12, 13, 14],
+    l: [9, 10, 11, 12],
+    o: [10, 10, 11, 12],
+    t: [0, 86_400_000, 172_800_000, 259_200_000],
+    v: [null, 5, 6, 7],
+  },
+  runs: Array.from({ length: count }, (_, index) =>
+    batchRun(`run-${index + 1}`)
+  ),
+  seriesSha256: SHA,
+});
+
+const caseResult = {
+  equity: [1, 1, 1.05, 1.1],
+  stats: { bars: 4, trades: 0 },
   trades: [],
+};
+
+/** The batch output for the cases of a batch request: every case succeeds. */
+const batchOutput = (
+  input: string,
+  overrides: Partial<{ engine: string; usage: unknown }> = {}
+): string => {
+  const request = JSON.parse(input) as { cases: { id: string }[] };
+  return JSON.stringify({
+    engine,
+    results: request.cases.map((entry) => ({
+      id: entry.id,
+      result: caseResult,
+      wallMs: 12,
+    })),
+    usage: { cpuMs: 80, wallMs: 150 },
+    ...overrides,
+  });
 };
 
 const outcome = (overrides: Partial<CommandOutcome> = {}): CommandOutcome => ({
   code: 0,
   stderr: "",
-  stdout: JSON.stringify(engineResult),
+  stdout: "",
   stopped: false,
   timedOut: false,
   ...overrides,
 });
 
 type Call = Readonly<{ path: string; input: unknown; init: RequestInit }>;
+type Items = { id: string; error?: string }[];
 
 const ALERT_URL = "http://127.0.0.1:8790/post";
 const alertEnv = {
@@ -88,13 +123,24 @@ const alertEnv = {
 };
 const unavailable = () => new Response("unavailable", { status: 503 });
 
-/** Fake Vertex API: queued claim responses, then no run; complete and fail answer per test. */
+/** Every item stored: a result succeeds, an error fails. */
+const stored = (input: unknown) =>
+  Response.json({
+    json: {
+      outcomes: (input as { items: Items }).items.map((item) => ({
+        id: item.id,
+        status: item.error === undefined ? "succeeded" : "failed",
+      })),
+    },
+  });
+
+/** Fake Vertex API: queued claim batches, then none; completeMany answers per test. */
 const harness = (
   options: Readonly<{
     claims?: unknown[];
-    complete?: () => Response;
-    fail?: () => Response;
-    commands?: CommandOutcome[];
+    complete?: (input: unknown) => Response;
+    /** Engine process outcomes in call order; default: every case succeeds. */
+    commands?: ((input: string) => CommandOutcome)[];
     env?: Record<string, string | undefined>;
     controller?: AbortController;
     /** Answers by claim number (1-based) that replace the normal claim answer. */
@@ -122,24 +168,29 @@ const harness = (
       claimCount += 1;
       const answer = options.claimAnswers?.[claimCount];
       if (answer !== undefined) return answer();
-      return Response.json({ json: { run: claims.shift() ?? null } });
+      return Response.json({
+        json: { batch: claims.shift() ?? null, run: null },
+      });
     }
-    if (path === "backtestRuns/engine/complete")
-      return (
-        options.complete?.() ??
-        Response.json({ json: { id: "run-1", status: "succeeded" } })
-      );
-    return (
-      options.fail?.() ??
-      Response.json({ json: { id: "run-1", status: "failed" } })
-    );
+    return options.complete?.(input) ?? stored(input);
   });
-  const runCommandFake = vi.fn(async () => commands.shift() ?? outcome());
+  const runCommandFake = vi.fn(
+    async (
+      _command: string,
+      _args: readonly string[],
+      options_: { input: string }
+    ) =>
+      (
+        commands.shift() ??
+        ((input: string) => outcome({ stdout: batchOutput(input) }))
+      )(options_.input)
+  );
   const sleepFake = vi.fn(
     async (_ms: number, _signal: AbortSignal): Promise<void> => undefined
   );
   const io: NautilusWorkerIo = {
     env: options.env ?? env,
+    hostname: "rig-1",
     post,
     researchDir: "/repo/services/research",
     runCommand: runCommandFake,
@@ -148,10 +199,13 @@ const harness = (
     stderr: { write: (text: string) => err.push(text) },
     stdout: { write: (text: string) => out.push(text) },
   };
+  const completes = () =>
+    calls.filter((call) => call.path === "backtestRuns/engine/completeMany");
   return {
     alerts,
     calls,
     claimCount: () => claimCount,
+    completes,
     controller,
     err,
     io,
@@ -164,13 +218,18 @@ const harness = (
 };
 
 describe("nautilus worker configuration", () => {
-  it("refuses missing settings, a bad idle time and unknown arguments, and never prints the key", async () => {
+  it("refuses missing settings, bad numbers and unknown arguments, and never prints the key", async () => {
     for (const [overrides, message] of [
       [{ VERTEX_AGENT_API_KEY: " " }, "VERTEX_AGENT_API_KEY is required"],
       [{ VERTEX_ORIGIN: undefined }, "VERTEX_ORIGIN is required"],
       [{ VERTEX_NAUTILUS_PYTHON: "" }, "VERTEX_NAUTILUS_PYTHON is required"],
       [{ VERTEX_WORKER_IDLE_MS: "0" }, "VERTEX_WORKER_IDLE_MS must be"],
       [{ VERTEX_WORKER_IDLE_MS: "1.5" }, "VERTEX_WORKER_IDLE_MS must be"],
+      [{ VERTEX_WORKER_PROCESSES: "0" }, "VERTEX_WORKER_PROCESSES must be"],
+      [
+        { VERTEX_WORKER_PROCESSES: String(MAX_PROCESSES + 1) },
+        `VERTEX_WORKER_PROCESSES must be at most ${MAX_PROCESSES}`,
+      ],
     ] as const) {
       const run = harness({ env: { ...env, ...overrides } });
       expect(await runNautilusWorker(["--once"], run.io)).toBe(1);
@@ -185,13 +244,13 @@ describe("nautilus worker configuration", () => {
 });
 
 describe("nautilus worker cycle", () => {
-  it("claims with the write key and does nothing when no run is queued", async () => {
+  it("claims a batch with the write key and does nothing when no run is queued", async () => {
     const run = harness();
     expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
     expect(run.post).toHaveBeenCalledWith(
       "https://vertex.example.test/api/orpc/backtestRuns/engine/claim",
       expect.objectContaining({
-        body: JSON.stringify({ json: { engine } }),
+        body: JSON.stringify({ json: { engine, max: 50 } }),
         headers: {
           "content-type": "application/json",
           origin: "https://vertex.example.test",
@@ -203,131 +262,282 @@ describe("nautilus worker cycle", () => {
     expect(run.runCommand).not.toHaveBeenCalled();
     expect(run.sleep).not.toHaveBeenCalled();
     expect(run.out).toEqual([]);
+    // An answer without the batch field is no work too.
+    const old = harness({
+      claimAnswers: { 1: () => Response.json({ json: { run: null } }) },
+    });
+    expect(await runNautilusWorker(["--once"], old.io)).toBe(0);
+    expect(old.runCommand).not.toHaveBeenCalled();
   });
 
-  it("runs the engine on a claimed run and posts the result", async () => {
-    const run = harness({ claims: [claimedRun] });
+  it("splits a batch over engine processes and stores every result in one request", async () => {
+    const run = harness({
+      claims: [claimedBatch(5)],
+      env: { ...env, VERTEX_WORKER_PROCESSES: "2" },
+    });
     expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
-    expect(run.runCommand).toHaveBeenCalledWith(
-      "/venv/bin/python",
-      ["-m", "nautilus_backtest", "run", "-"],
-      {
-        cwd: "/repo/services/research",
-        input: engineRequest(claimedRun),
-        signal: run.io.signal,
-        timeoutMs: NAUTILUS_RUN_TIMEOUT_MS,
-      }
-    );
+    expect(run.runCommand).toHaveBeenCalledTimes(2);
+    const [first, second] = run.runCommand.mock.calls;
+    expect(first?.[0]).toBe("/venv/bin/python");
+    expect(first?.[1]).toEqual(["-m", "nautilus_backtest", "batch", "-", "-"]);
+    expect(first?.[2]).toMatchObject({
+      cwd: "/repo/services/research",
+      signal: run.io.signal,
+      timeoutMs: NAUTILUS_RUN_TIMEOUT_MS,
+    });
+    const caseIds = (call: typeof first) =>
+      (
+        JSON.parse(String(call?.[2].input)) as { cases: { id: string }[] }
+      ).cases.map((entry) => entry.id);
+    expect([...caseIds(first), ...caseIds(second)]).toEqual([
+      "run-1",
+      "run-2",
+      "run-3",
+      "run-4",
+      "run-5",
+    ]);
     expect(run.paths()).toEqual([
       "backtestRuns/engine/claim",
-      "backtestRuns/engine/complete",
+      "backtestRuns/engine/completeMany",
     ]);
-    expect(run.calls[1]?.input).toEqual({
-      engine,
-      id: "run-1",
-      result: {
-        equity: engineResult.equity,
-        stats: engineResult.stats,
-        trades: [],
+    const [complete] = run.completes();
+    const { items } = (complete?.input ?? { items: [] }) as {
+      items: unknown[];
+    };
+    expect(items).toHaveLength(5);
+    expect(items[0]).toEqual({
+      engineRun: {
+        cpuMs: 80,
+        gpu: NAUTILUS_GPU_NOTE,
+        host: "rig-1",
+        processCases: caseIds(first).length,
+        processes: 2,
+        processWallMs: 150,
+        wallMs: 12,
       },
-      seriesSha256: "b".repeat(64),
+      id: "run-1",
+      result: caseResult,
+      seriesSha256: SHA,
     });
-    expect(run.out).toEqual(["run run-1: succeeded\n"]);
+    expect(run.out).toEqual([
+      "run run-1: succeeded\n",
+      "run run-2: succeeded\n",
+      "run run-3: succeeded\n",
+      "run run-4: succeeded\n",
+      "run run-5: succeeded\n",
+      "batch: 5 runs in 2 engine processes\n",
+    ]);
+    expect(DEFAULT_PROCESSES).toBe(8);
   });
 
-  it("builds the engine request with the costs and only present sector points", () => {
-    expect(JSON.parse(engineRequest(claimedRun))).toEqual({
-      bars: claimedRun.bars,
-      spec: { ...claimedRun.spec, costs: null },
+  it("splits completeMany under the request size limit; an item over it alone fails as too large", async () => {
+    // run-1: about 1.1 MB on its own; run-2 and run-3: about 0.6 MB each, so one request each.
+    const equityOf = (id: string) =>
+      Array.from(
+        { length: id === "run-1" ? 100_000 : 55_000 },
+        () => 1.234_567_89
+      );
+    const big = (input: string) => {
+      const request = JSON.parse(input) as { cases: { id: string }[] };
+      return outcome({
+        stdout: JSON.stringify({
+          engine,
+          results: request.cases.map((entry) => ({
+            id: entry.id,
+            result: { ...caseResult, equity: equityOf(entry.id) },
+            wallMs: 12,
+          })),
+          usage: { cpuMs: 80, wallMs: 150 },
+        }),
+      });
+    };
+    const run = harness({
+      claims: [claimedBatch(3)],
+      commands: [big],
+      // The web app refuses a body over 1 MiB with 413.
+      complete: (input) =>
+        JSON.stringify({ json: input }).length > 1024 * 1024
+          ? new Response("too large", { status: 413 })
+          : stored(input),
+      env: { ...env, VERTEX_WORKER_PROCESSES: "1" },
     });
+    expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
+    const bodies = run.completes().map((call) => String(call.init.body));
+    // The oversized run alone (413), its fail, then one request per other run.
+    expect(bodies).toHaveLength(4);
+    expect(
+      run.completes().map((call) => (call.input as { items: Items }).items)
+    ).toEqual([
+      [expect.objectContaining({ id: "run-1" })],
+      [{ error: TOO_LARGE_ERROR, id: "run-1" }],
+      [expect.objectContaining({ id: "run-2" })],
+      [expect.objectContaining({ id: "run-3" })],
+    ]);
+    for (const body of bodies.slice(1))
+      expect(body.length).toBeLessThanOrEqual(DELIVERY_MAX_BYTES);
+    expect(run.out.slice(0, 3)).toEqual([
+      "run run-1: failed\n",
+      "run run-2: succeeded\n",
+      "run run-3: succeeded\n",
+    ]);
+  });
+
+  it("packs items into chunks under the byte limit, in order", () => {
+    const item = (id: string, size: number) => ({ id, pad: "x".repeat(size) });
+    const items = [item("a", 40), item("b", 40), item("c", 200), item("d", 10)];
+    expect(
+      deliveryChunks(items, 150).map((chunk) => chunk.map((entry) => entry.id))
+    ).toEqual([["a"], ["b"], ["c"], ["d"]]);
+    expect(
+      deliveryChunks(items, 200).map((chunk) => chunk.map((entry) => entry.id))
+    ).toEqual([["a", "b"], ["c"], ["d"]]);
+    expect(deliveryChunks([])).toEqual([]);
+    expect(deliveryChunks(items).map((chunk) => chunk.length)).toEqual([4]);
+  });
+
+  it("builds a process request with each run's slice, costs and only present sector points", () => {
+    const batch = claimedBatch(1);
     const points = {
       "XLK:weekly": [{ date: "1970-01-02", quadrant: "leading" }],
     };
     const costs = { capital: 10_000, profile: { id: "p" } };
-    expect(
-      JSON.parse(
-        engineRequest({
-          ...claimedRun,
+    const request = JSON.parse(
+      batchRequest(batch.bars, [
+        batchRun("a", 1, 3),
+        {
+          ...batchRun("b"),
           costs: costs as never,
           sectorQuadrants: points as never,
-        })
-      ).spec
-    ).toMatchObject({ costs, sectorQuadrants: points });
+        },
+      ])
+    );
+    expect(request.bars).toEqual(batch.bars);
+    expect(request.cases[0]).toEqual({
+      id: "a",
+      slice: [1, 3],
+      spec: { ...spec, costs: null },
+    });
+    expect(request.cases[1].spec).toMatchObject({
+      costs,
+      sectorQuadrants: points,
+    });
   });
 
-  it("fails the run with the engine error and logs the engine stderr", async () => {
+  it("splits runs into nearly equal contiguous parts", () => {
+    expect(splitRuns([1, 2, 3, 4, 5], 2)).toEqual([
+      [1, 2],
+      [3, 4, 5],
+    ]);
+    expect(splitRuns([1, 2], 8)).toEqual([[1], [2]]);
+    expect(
+      splitRuns([1, 2, 3, 4, 5, 6, 7], 3).map((part) => part.length)
+    ).toEqual([2, 2, 3]);
+  });
+
+  it("stores input errors as run errors and process failures for every run of the process", async () => {
+    const withInputError = (input: string) => {
+      const body = JSON.parse(batchOutput(input)) as { results: unknown[] };
+      body.results[0] = {
+        error: "At least 2 bars needed",
+        id: "run-1",
+        wallMs: 1,
+      };
+      return outcome({ stdout: JSON.stringify(body) });
+    };
     const run = harness({
-      claims: [claimedRun, claimedRun],
+      claims: [claimedBatch(2), claimedBatch(2)],
       commands: [
-        outcome({ code: 2, stdout: '{"error":"At least 2 bars needed"}' }),
-        outcome({
-          code: 3,
-          stderr: "No module named nautilus_trader",
-          stdout: "",
-        }),
+        withInputError,
+        () =>
+          outcome({
+            code: 3,
+            stderr: "No module named nautilus_trader",
+            stdout: "",
+          }),
       ],
+      env: { ...env, VERTEX_WORKER_PROCESSES: "1" },
     });
     expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
     expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
-    const fails = run.calls.filter((call) => call.path.endsWith("/fail"));
-    expect(fails.map((call) => call.input)).toEqual([
-      { engine, error: "At least 2 bars needed", id: "run-1" },
+    const [first, second] = run
+      .completes()
+      .map((call) => (call.input as { items: Items }).items);
+    expect(first?.[0]).toEqual({
+      error: "At least 2 bars needed",
+      id: "run-1",
+    });
+    expect(first?.[1]).toHaveProperty("result");
+    expect(second).toEqual([
       {
-        engine,
         error: "Nautilus is not installed on the research worker",
         id: "run-1",
       },
+      {
+        error: "Nautilus is not installed on the research worker",
+        id: "run-2",
+      },
     ]);
     expect(run.err).toEqual([
-      "run run-1: engine stderr: No module named nautilus_trader\n",
+      "engine stderr: No module named nautilus_trader\n",
     ]);
-    expect(run.out).toEqual([
-      "run run-1: failed: At least 2 bars needed\n",
-      "run run-1: failed: Nautilus is not installed on the research worker\n",
-    ]);
+    expect(run.out).toContain("run run-1: failed: At least 2 bars needed\n");
   });
 
-  it("fails the run when the API rejects the result, and ignores a refused fail", async () => {
+  it("fails every run as rejected when the API refuses the request, and logs a refused fail", async () => {
+    let answers = 0;
     const rejected = harness({
-      claims: [claimedRun],
-      complete: () =>
-        Response.json({ json: { code: "BAD_REQUEST" } }, { status: 400 }),
+      claims: [claimedBatch(2)],
+      complete: (input) => {
+        answers += 1;
+        return answers === 1
+          ? Response.json({ json: { code: "BAD_REQUEST" } }, { status: 400 })
+          : stored(input);
+      },
     });
     expect(await runNautilusWorker(["--once"], rejected.io)).toBe(0);
-    expect(rejected.calls[2]?.input).toEqual({
+    expect(rejected.completes()[1]?.input).toEqual({
       engine,
-      error: REJECTED_ERROR,
-      id: "run-1",
+      items: [
+        { error: REJECTED_ERROR, id: "run-1" },
+        { error: REJECTED_ERROR, id: "run-2" },
+      ],
     });
     expect(rejected.err.join("")).toContain(
-      "run run-1: backtestRuns/engine/complete returned HTTP 400"
+      "backtestRuns/engine/completeMany returned HTTP 400"
     );
     expect(rejected.sleep).not.toHaveBeenCalled();
     const refused = harness({
-      claims: [claimedRun],
-      complete: () => new Response("bad", { status: 400 }),
-      fail: () => new Response("conflict", { status: 409 }),
-    });
-    expect(await runNautilusWorker(["--once"], refused.io)).toBe(0);
-    expect(refused.err.join("")).toContain(
-      "backtestRuns/engine/fail returned HTTP 409: conflict"
-    );
-  });
-
-  it("does not fail a run that is no longer running (409)", async () => {
-    const run = harness({
-      claims: [claimedRun],
+      claims: [claimedBatch(1)],
       complete: () => new Response("conflict", { status: 409 }),
     });
-    expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
-    expect(run.paths()).toEqual([
-      "backtestRuns/engine/claim",
-      "backtestRuns/engine/complete",
-    ]);
-    expect(run.out).toEqual([]);
+    expect(await runNautilusWorker(["--once"], refused.io)).toBe(0);
+    expect(refused.completes()).toHaveLength(2);
+    expect(refused.out).toContain("run run-1: not stored\n");
   });
 
-  it("tries complete again after network errors, 429 and 5xx answers", async () => {
+  it("reports per-run refusals and unknown outcomes", async () => {
+    const run = harness({
+      claims: [claimedBatch(3)],
+      complete: () =>
+        Response.json({
+          json: {
+            outcomes: [
+              { error: "CONFLICT", id: "run-1", status: null },
+              { id: "run-2", status: null },
+            ],
+          },
+        }),
+    });
+    expect(await runNautilusWorker(["--once"], run.io)).toBe(0);
+    expect(run.out).toEqual([
+      "run run-1: refused (CONFLICT)\n",
+      "run run-2: refused (unknown)\n",
+      "run run-3: not stored\n",
+      "batch: 3 runs in 3 engine processes\n",
+    ]);
+  });
+
+  it("tries completeMany again after network errors, 429 and 5xx answers", async () => {
     const answers = [
       () => new Response("unavailable", { status: 503 }),
       () => new Response("slow down", { status: 429 }),
@@ -336,69 +546,62 @@ describe("nautilus worker cycle", () => {
       },
     ];
     const flaky = harness({
-      claims: [claimedRun],
-      complete: () =>
-        (answers.shift() ?? (() => Response.json({ json: {} })))(),
+      claims: [claimedBatch(1)],
+      complete: (input) => (answers.shift() ?? (() => stored(input)))(),
     });
     expect(await runNautilusWorker(["--once"], flaky.io)).toBe(0);
-    expect(
-      flaky.paths().filter((path) => path.endsWith("/complete"))
-    ).toHaveLength(4);
+    expect(flaky.completes()).toHaveLength(4);
     expect(flaky.sleep.mock.calls.map(([ms]) => ms)).toEqual([
       COMPLETE_RETRY_MS,
       // The 429 waits for the agent key limiter instead of the short retry wait.
       QUIET_PAUSE_MS,
       4 * COMPLETE_RETRY_MS,
     ]);
-    expect(flaky.out).toEqual(["run run-1: succeeded\n"]);
+    expect(flaky.out[0]).toBe("run run-1: succeeded\n");
 
     const down = harness({
-      claims: [claimedRun],
+      claims: [claimedBatch(1)],
       complete: () => new Response("bad gateway", { status: 502 }),
     });
     expect(await runNautilusWorker(["--once"], down.io)).toBe(0);
-    expect(
-      down.paths().filter((path) => path.endsWith("/complete"))
-    ).toHaveLength(COMPLETE_ATTEMPTS);
-    expect(down.calls.at(-1)?.input).toEqual({
+    expect(down.completes()).toHaveLength(COMPLETE_ATTEMPTS + 1);
+    expect(down.completes().at(-1)?.input).toEqual({
       engine,
-      error: UNDELIVERED_ERROR,
-      id: "run-1",
+      items: [{ error: UNDELIVERED_ERROR, id: "run-1" }],
     });
+    expect(down.err.join("")).toContain("returned HTTP 502: bad gateway");
   });
 
   it("waits for the limiter at most once per delivery and never past the stale limit", async () => {
     const limited = () => new Response("slow down", { status: 429 });
-    const twice = harness({ claims: [claimedRun], complete: limited });
+    const twice = harness({ claims: [claimedBatch(1)], complete: limited });
     expect(await runNautilusWorker(["--once"], twice.io)).toBe(0);
-    expect(
-      twice.paths().filter((path) => path.endsWith("/complete"))
-    ).toHaveLength(2);
+    // Two tries, then one more request that fails the run as undelivered (refused here too).
+    expect(twice.completes()).toHaveLength(3);
     expect(twice.sleep.mock.calls.map(([ms]) => ms)).toEqual([QUIET_PAUSE_MS]);
-    expect(twice.calls.at(-1)?.input).toEqual({
+    expect(twice.completes().at(-1)?.input).toEqual({
       engine,
-      error: UNDELIVERED_ERROR,
-      id: "run-1",
+      items: [{ error: UNDELIVERED_ERROR, id: "run-1" }],
     });
-    // A run claimed long ago waits only for the time left (and not at all once it is past).
+    // A batch claimed long ago waits only for the time left (and not at all once it is past).
     const now = vi.spyOn(Date, "now");
     const claimedAt = 1_000_000;
     const late = (elapsed: number) => {
       now.mockReturnValueOnce(claimedAt).mockReturnValue(claimedAt + elapsed);
       let answers = 0;
       return harness({
-        claims: [claimedRun],
-        complete: () => {
+        claims: [claimedBatch(1)],
+        complete: (input) => {
           answers += 1;
-          return answers === 1 ? limited() : Response.json({ json: {} });
+          return answers === 1 ? limited() : stored(input);
         },
       });
     };
     const cut = late(API_STALE_MS - DELIVERY_MARGIN_MS - 20_000);
     expect(await runNautilusWorker(["--once"], cut.io)).toBe(0);
     expect(cut.sleep.mock.calls.map(([ms]) => ms)).toEqual([20_000]);
-    expect(cut.out).toEqual(["run run-1: succeeded\n"]);
-    // Less than DELIVERY_MIN_WAIT_MS left: no second try, the run fails as undelivered.
+    expect(cut.out[0]).toBe("run run-1: succeeded\n");
+    // Less than DELIVERY_MIN_WAIT_MS left: no second try, the runs fail as undelivered.
     for (const elapsed of [
       API_STALE_MS - DELIVERY_MARGIN_MS - DELIVERY_MIN_WAIT_MS + 1,
       API_STALE_MS,
@@ -406,32 +609,20 @@ describe("nautilus worker cycle", () => {
       const over = late(elapsed);
       expect(await runNautilusWorker(["--once"], over.io)).toBe(0);
       expect(over.sleep).not.toHaveBeenCalled();
-      expect(
-        over.paths().filter((path) => path.endsWith("/complete"))
-      ).toHaveLength(1);
-      expect(over.calls.at(-1)?.input).toEqual({
+      expect(over.completes()).toHaveLength(2);
+      expect(over.completes().at(-1)?.input).toEqual({
         engine,
-        error: UNDELIVERED_ERROR,
-        id: "run-1",
+        items: [{ error: UNDELIVERED_ERROR, id: "run-1" }],
       });
     }
     now.mockRestore();
   });
 
-  it("reports API failures with exit 1 in --once mode, never with the key", async () => {
+  it("reports claim failures with exit 1 in --once mode, never with the key", async () => {
     const down = harness();
     down.post.mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
     expect(await runNautilusWorker(["--once"], down.io)).toBe(1);
     expect(down.err.join("")).toContain("connect ECONNREFUSED");
-    const failRefused = harness({
-      claims: [claimedRun],
-      commands: [outcome({ code: 1, stdout: "" })],
-      fail: () => new Response("denied", { status: 403 }),
-    });
-    expect(await runNautilusWorker(["--once"], failRefused.io)).toBe(1);
-    expect(failRefused.err.join("")).toContain(
-      "backtestRuns/engine/fail returned HTTP 403: denied"
-    );
     const noBody = harness();
     noBody.post.mockResolvedValueOnce(Response.json({}));
     expect(await runNautilusWorker(["--once"], noBody.io)).toBe(1);
@@ -439,7 +630,7 @@ describe("nautilus worker cycle", () => {
     thrown.post.mockRejectedValueOnce("offline");
     expect(await runNautilusWorker(["--once"], thrown.io)).toBe(1);
     expect(thrown.err.join("")).toContain("offline");
-    for (const run of [down, failRefused, noBody, thrown])
+    for (const run of [down, noBody, thrown])
       expect(run.err.join("")).not.toContain("secret-key");
   });
 });
@@ -447,7 +638,7 @@ describe("nautilus worker cycle", () => {
 describe("nautilus worker loop", () => {
   it("claims again at once after a run, sleeps when idle and stops on abort", async () => {
     const run = harness({
-      claims: [claimedRun],
+      claims: [claimedBatch(1)],
       env: { ...env, VERTEX_WORKER_IDLE_MS: "250" },
     });
     let sleeps = 0;
@@ -461,7 +652,7 @@ describe("nautilus worker loop", () => {
     expect(await runNautilusWorker([], run.io)).toBe(0);
     expect(run.paths()).toEqual([
       "backtestRuns/engine/claim",
-      "backtestRuns/engine/complete",
+      "backtestRuns/engine/completeMany",
       "backtestRuns/engine/claim",
     ]);
     expect(run.sleep).toHaveBeenCalledTimes(2);
@@ -471,7 +662,9 @@ describe("nautilus worker loop", () => {
 
   it("doubles the idle wait after each empty claim up to the cap and resets it after work", async () => {
     const run = harness({
-      claimAnswers: { 7: () => Response.json({ json: { run: claimedRun } }) },
+      claimAnswers: {
+        7: () => Response.json({ json: { batch: claimedBatch(1), run: null } }),
+      },
       env: {
         ...env,
         VERTEX_WORKER_IDLE_MAX_MS: "20000",
@@ -598,52 +791,74 @@ describe("nautilus worker loop", () => {
   });
 });
 
-describe("readEngineOutput", () => {
-  it("maps each CLI outcome to a result or a run error", () => {
-    expect(readEngineOutput(outcome())).toEqual({
-      result: { equity: [1, 1, 1.1], stats: engineResult.stats, trades: [] },
+describe("readBatchOutput", () => {
+  const runs = [batchRun("run-1"), batchRun("run-2")];
+  const context = { host: "rig-1", processes: 3, seriesSha256: SHA };
+  const request = batchRequest(claimedBatch().bars, runs);
+  const everyRun = (error: string) => [
+    { error, id: "run-1" },
+    { error, id: "run-2" },
+  ];
+
+  it("maps each process outcome to one item per run", () => {
+    expect(
+      readBatchOutput(outcome({ stdout: batchOutput(request) }), runs, context)
+        .items[1]
+    ).toMatchObject({
+      engineRun: { processCases: 2, processes: 3 },
+      id: "run-2",
     });
-    expect(readEngineOutput(outcome({ stopped: true }))).toEqual({
-      error: "The Nautilus worker stopped before the run finished",
+    expect(readBatchOutput(outcome({ stopped: true }), runs, context)).toEqual({
+      failure: null,
+      items: everyRun("The Nautilus worker stopped before the run finished"),
     });
-    expect(readEngineOutput(outcome({ code: null, timedOut: true }))).toEqual({
-      error: "The Nautilus backtest took longer than 9 minutes",
+    expect(
+      readBatchOutput(outcome({ code: null, timedOut: true }), runs, context)
+    ).toEqual({
       failure: "engine timeout",
-    });
-    expect(readEngineOutput(outcome({ code: 3, stdout: "" }))).toEqual({
-      detail: "",
-      error: "Nautilus is not installed on the research worker",
-      failure: "Nautilus missing (exit 3)",
+      items: everyRun("The Nautilus backtest took longer than 9 minutes"),
     });
     expect(
-      readEngineOutput(
-        outcome({ code: 2, stdout: JSON.stringify({ error: "x".repeat(600) }) })
-      )
-    ).toEqual({ error: "x".repeat(500) });
-    expect(
-      readEngineOutput(outcome({ code: 2, stderr: "trace", stdout: "{}" }))
+      readBatchOutput(outcome({ code: 1, stderr: "trace" }), runs, context)
     ).toEqual({
       detail: "trace",
-      error: "Nautilus engine failed (exit 2)",
-      failure: "engine exit 2",
-    });
-    expect(readEngineOutput(outcome({ stdout: "not json" }))).toEqual({
-      detail: "",
-      error: "Nautilus engine failed (exit 0)",
-      failure: "engine exit 0",
+      failure: "engine exit 1",
+      items: everyRun("Nautilus engine failed (exit 1)"),
     });
     expect(
-      readEngineOutput(
+      readBatchOutput(outcome({ stdout: "not json" }), runs, context).failure
+    ).toBe("engine exit 0");
+    expect(
+      readBatchOutput(
         outcome({
-          stdout: JSON.stringify({
-            ...engineResult,
-            engine: "nautilus-trader-2",
-          }),
-        })
+          stdout: batchOutput(request, { engine: "nautilus-trader-2" }),
+        }),
+        runs,
+        context
       )
     ).toEqual({
-      error: `The worker engine nautilus-trader-2 does not match the run engine ${engine}`,
       failure: "engine version mismatch",
+      items: everyRun(
+        `The worker engine nautilus-trader-2 does not match the run engine ${engine}`
+      ),
+    });
+  });
+
+  it("bounds case errors and fails runs the output left out", () => {
+    const stdout = JSON.stringify({
+      engine,
+      results: [{ error: "x".repeat(600), id: "run-1", wallMs: 1 }],
+      usage: { cpuMs: 1, wallMs: 1 },
+    });
+    expect(readBatchOutput(outcome({ stdout }), runs, context)).toEqual({
+      failure: "engine output incomplete",
+      items: [
+        { error: "x".repeat(500), id: "run-1" },
+        {
+          error: "The Nautilus engine returned no result for the run",
+          id: "run-2",
+        },
+      ],
     });
   });
 });
@@ -660,8 +875,8 @@ describe("nautilus worker alerts", () => {
   it("alerts once at the third failed cycle and once on recovery", async () => {
     const run = harness({
       claimAnswers: { 1: unavailable, 2: unavailable, 4: unavailable },
-      claims: [claimedRun],
-      commands: [outcome({ code: 1, stderr: "Traceback", stdout: "" })],
+      claims: [claimedBatch(1)],
+      commands: [() => outcome({ code: 1, stderr: "Traceback" })],
       env: alertEnv,
     });
     stopAfter(run, 6);
@@ -674,6 +889,32 @@ describe("nautilus worker alerts", () => {
     expect(run.alerts[0]).toMatchObject({ channel: "vertex-ops" });
     expect(JSON.stringify(run.alerts)).not.toContain("secret-key");
     expect(run.out).toContain("alert posted to vertex-ops\n");
+  });
+
+  it("counts results the API rejected as failed cycles", async () => {
+    const run = harness({
+      claims: [claimedBatch(1), claimedBatch(1), claimedBatch(1)],
+      complete: () =>
+        Response.json({
+          json: {
+            outcomes: [
+              {
+                error: "BAD_REQUEST",
+                id: "run-1",
+                message: "stats",
+                status: null,
+              },
+            ],
+          },
+        }),
+      env: alertEnv,
+    });
+    stopAfter(run, 4);
+    expect(await runNautilusWorker([], run.io)).toBe(0);
+    expect(texts(run)).toEqual([
+      "Vertex Nautilus backtest worker: 3 cycles failed in a row (last: result rejected). Research only; see journalctl --user -u vertex-nautilus-worker.",
+      "Vertex Nautilus backtest worker recovered after 3 failed cycles.",
+    ]);
   });
 
   it("names the last error class: HTTP status, error name or unknown", async () => {
@@ -705,11 +946,19 @@ describe("nautilus worker alerts", () => {
   });
 
   it("does not count input errors or empty claims, and posts nothing without the settings", async () => {
+    const inputError = () =>
+      outcome({
+        stdout: JSON.stringify({
+          engine,
+          results: [
+            { error: "At least 2 bars needed", id: "run-1", wallMs: 1 },
+          ],
+          usage: { cpuMs: 1, wallMs: 1 },
+        }),
+      });
     const inputErrors = harness({
-      claims: [claimedRun, claimedRun, claimedRun],
-      commands: [1, 2, 3].map(() =>
-        outcome({ code: 2, stdout: '{"error":"At least 2 bars needed"}' })
-      ),
+      claims: [claimedBatch(1), claimedBatch(1), claimedBatch(1)],
+      commands: [inputError, inputError, inputError],
       env: alertEnv,
     });
     stopAfter(inputErrors, 4);

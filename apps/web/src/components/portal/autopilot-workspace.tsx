@@ -11,6 +11,7 @@ import {
   type BacktestRunSubmitInput,
   createApiClient,
   type DeploymentLimitsOutput,
+  type EngineComparisonRun,
   type InstantBacktestSeries,
   SECTOR_ROTATION_QUADRANTS,
   SECTOR_ROTATION_SECTORS,
@@ -60,6 +61,13 @@ import {
   UniverseSelect,
   visibleSeries,
 } from "./backtest-universe.tsx";
+import {
+  createBrowserEngineComparisonGateway,
+  type EngineComparisonGateway,
+  GateNautilusStatus,
+  runsByKey,
+  useComparisonRuns,
+} from "./engine-comparison.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
 
@@ -453,10 +461,13 @@ const CandidateTable = ({
   caption,
   rows,
   onSelect,
+  nautilus,
 }: Readonly<{
   caption: string;
   rows: readonly AutopilotCandidateSummaryOutput[];
   onSelect: (id: string) => void;
+  /** Engine comparison: the Nautilus gate runs by candidate id; absent without any. */
+  nautilus?: ReadonlyMap<string, readonly EngineComparisonRun[]>;
 }>) => (
   <div className="overflow-x-auto">
     <Table className="w-full text-sm">
@@ -487,6 +498,11 @@ const CandidateTable = ({
           <TableHead className="py-2 pr-4 text-muted-foreground">
             Gate
           </TableHead>
+          {nautilus === undefined ? null : (
+            <TableHead className="py-2 pr-4 text-muted-foreground">
+              Nautilus check
+            </TableHead>
+          )}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -524,6 +540,11 @@ const CandidateTable = ({
                 {CANDIDATE_STATUS_LABELS[row.status]}
               </StatusBadge>
             </TableCell>
+            {nautilus === undefined ? null : (
+              <TableCell className="whitespace-normal py-1 pr-4">
+                <GateNautilusStatus runs={nautilus.get(row.id)} />
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
@@ -894,17 +915,31 @@ const Tearsheet = ({
 const CampaignDetail = ({
   detail,
   gateway,
+  comparisonGateway,
   onChanged,
   onSelectCandidate,
 }: Readonly<{
   detail: AutopilotCampaignDetailOutput;
   gateway: AutopilotGateway;
+  comparisonGateway: EngineComparisonGateway;
   onChanged: () => Promise<void>;
   onSelectCandidate: (id: string) => void;
 }>) => {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const { campaign } = detail;
+  // Engine comparison: the Nautilus repeats of this campaign's gate runs (group per campaign).
+  const comparison = useComparisonRuns(
+    comparisonGateway,
+    `autopilot:${campaign.id}`,
+    undefined,
+    undefined,
+    campaign.tickedAt?.getTime() ?? null
+  );
+  const nautilus =
+    comparison.runs === null || comparison.runs.length === 0
+      ? undefined
+      : runsByKey(comparison.runs);
   const act = async (work: () => Promise<unknown>) => {
     setBusy(true);
     setMessage(null);
@@ -989,10 +1024,18 @@ const CampaignDetail = ({
         onSelect={onSelectCandidate}
         rows={detail.leaderboard}
       />
+      {nautilus === undefined ? null : (
+        <p className="text-muted-foreground text-xs">
+          Nautilus repeats the gate's in-sample and full runs of at most 10
+          gated candidates per tick on the research worker; the TypeScript
+          verdict stays the one that counts.
+        </p>
+      )}
       <CandidateTable
         caption="Gated candidates (verified first, then the latest rejections)"
         onSelect={onSelectCandidate}
         rows={detail.gated}
+        {...(nautilus === undefined ? {} : { nautilus })}
       />
     </section>
   );
@@ -1000,8 +1043,16 @@ const CampaignDetail = ({
 
 export const AutopilotWorkspace = ({
   gateway,
-}: Readonly<{ gateway?: AutopilotGateway }>) => {
+  comparisonGateway,
+}: Readonly<{
+  gateway?: AutopilotGateway;
+  /** Engine comparison: where the Nautilus gate runs of a campaign are read. */
+  comparisonGateway?: EngineComparisonGateway;
+}>) => {
   const [api] = useState(() => gateway ?? createBrowserAutopilotGateway());
+  const [comparisons] = useState(
+    () => comparisonGateway ?? createBrowserEngineComparisonGateway()
+  );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<AutopilotCampaignDetailOutput | null>(
@@ -1114,6 +1165,7 @@ export const AutopilotWorkspace = ({
       )}
       {detail === null ? null : (
         <CampaignDetail
+          comparisonGateway={comparisons}
           detail={detail}
           gateway={api}
           onChanged={async () => {

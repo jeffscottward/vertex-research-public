@@ -48,6 +48,8 @@ Limit: a streamed response that already sent some bytes and then stalls for long
 
 Clients that poll `vertex-web` must leave gaps longer than the quiet window plus one poll (35 s), or the app never reads as idle. The Nautilus backtest worker on the rig waits up to 45 s between empty claims for this reason (`VERTEX_WORKER_IDLE_MAX_MS`, [infra/research-worker/README.md](../research-worker/README.md#request-budget)). The Autopilot tick (once a minute) also logs a line, which can split a quiet gap; the 45 s cap leaves room for it. Changing the quiet window or that cap needs the other one checked.
 
+Nautilus backtests never run on QuantVPS (owner decision 2026-11-05): `vertex-web` only queues them. With `VERTEX_ENGINE_COMPARISON=on` in the web app environment, instant backtests, sweep cells and Autopilot gate runs are also queued for the Nautilus worker on the rig, and `VERTEX_HOST_LABEL` (for example `QuantVPS web (in-request)`) labels the TypeScript times ([docs/vertex-rebuild/nautilus-backtest-engine.md](../../docs/vertex-rebuild/nautilus-backtest-engine.md#dual-run-engine-comparison)).
+
 ## Deploy a new web build
 
 1. On the rig, build the merged SHA in a worktree: `pnpm install --frozen-lockfile && bun run build`, then record it: `git rev-parse HEAD > apps/web/dist/DEPLOYED_SHA`.

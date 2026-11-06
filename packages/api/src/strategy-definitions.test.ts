@@ -18,7 +18,7 @@ import {
   StrategyDefinitionSaveInputSchema,
   StrategyDefinitionValidateOutputSchema,
 } from "./contracts/strategy-definitions.ts";
-import { canonicalJson, sha256Hex } from "./server/backtest-runs.ts";
+import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";

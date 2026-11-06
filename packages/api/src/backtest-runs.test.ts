@@ -1,5 +1,6 @@
 import {
   AUTHORIZATION_ERROR_CODES,
+  type AgentApiKeyService,
   AuthAuthorizationError,
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
@@ -19,8 +20,11 @@ import { ORPCError } from "@orpc/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COST_PROFILE_PRESETS, ZERO_COST_PROFILE } from "./backtest-costs.ts";
+import { sliceColumnsByDate } from "./bar-slice.ts";
+import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import { createApiClient } from "./client.ts";
 import {
+  BACKTEST_RUN_DEFAULT_CAPITAL,
   BACKTEST_RUN_ENGINE_BARS_MAX,
   BACKTEST_RUN_ENGINE_VERSION,
   BACKTEST_RUN_NAUTILUS_ENGINE,
@@ -28,6 +32,13 @@ import {
   type BacktestRunSubmitInput,
   BacktestRunSubmitInputSchema,
 } from "./contracts/backtest-runs.ts";
+import {
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
+  ENGINE_COMPARISON_SWEEP_CELLS_MAX,
+  EngineComparisonSpecSchema,
+  NAUTILUS_GPU_NOTE,
+  TIMER_FROZEN_NOTE,
+} from "./contracts/engine-comparison.ts";
 import {
   barsInPositionOf,
   runInstantBacktest,
@@ -41,15 +52,15 @@ import {
 import { runParamsForSpec } from "./server/backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
-  canonicalJson,
   executeBacktestRun,
   NAUTILUS_UNCLAIMED_ERROR,
-  sha256Hex,
-  sliceColumnsByDate,
 } from "./server/backtest-runs.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
-import { clearInstantBacktestCacheForTesting } from "./server/instant-backtest.ts";
+import {
+  COMPARISON_QUEUE_ERROR,
+  clearInstantBacktestCacheForTesting,
+} from "./server/instant-backtest.ts";
 import { AGENT_API_KEY_READ_PROCEDURES } from "./server/operator-access.ts";
 import type { SectorQuadrantSource } from "./server/sector-quadrant-series.ts";
 import {
@@ -139,9 +150,35 @@ const memoryRuns = (): BacktestRunsRepository & {
     rows.set(id, updated);
     return updated;
   };
-  return {
+  const groupOf = (row: BacktestRunRecord): unknown =>
+    (row.spec.comparison as { groupId?: unknown } | undefined)?.groupId;
+  const repository: BacktestRunsRepository & {
+    rows: Map<string, BacktestRunRecord>;
+  } = {
     claim: async (id) =>
       update(id, ["queued"], { startedAt: new Date(), status: "running" }),
+    claimBatch: async (engineVersion, max) => {
+      const first = await repository.claimNext(engineVersion);
+      if (first === null) return [];
+      const group = groupOf(first);
+      if (group === undefined) return [first];
+      const rest = [...rows.values()]
+        .filter(
+          (row) =>
+            row.status === "queued" &&
+            row.engineVersion === engineVersion &&
+            groupOf(row) === group
+        )
+        .slice(0, max - 1)
+        .map(
+          (row) =>
+            update(row.id, ["queued"], {
+              startedAt: new Date(),
+              status: "running",
+            }) as BacktestRunRecord
+        );
+      return [first, ...rest];
+    },
     claimNext: async (engineVersion) => {
       const [oldest] = [...rows.values()]
         .filter(
@@ -174,6 +211,43 @@ const memoryRuns = (): BacktestRunsRepository & {
       };
       rows.set(row.id, row);
       return row;
+    },
+    enqueueGroup: async (input) => {
+      const featureOf = (row: BacktestRunRecord): unknown =>
+        (row.spec.comparison as { feature?: unknown } | undefined)?.feature;
+      const { reuseSince } = input;
+      const live =
+        reuseSince !== undefined &&
+        [...rows.values()].some(
+          (row) =>
+            groupOf(row) === input.groupId &&
+            row.createdAt >= reuseSince &&
+            row.status !== "failed"
+        );
+      if (!live) for (const run of input.runs) await repository.create(run);
+      let superseded = 0;
+      const { supersede } = input;
+      if (supersede !== undefined)
+        for (const row of [...rows.values()])
+          if (
+            row.status === "queued" &&
+            row.engineVersion === supersede.engineVersion &&
+            row.requestedBy === supersede.requestedBy &&
+            featureOf(row) === supersede.feature &&
+            groupOf(row) !== input.groupId
+          ) {
+            update(row.id, ["queued"], {
+              error: input.supersededError,
+              finishedAt: at,
+              status: "failed",
+            });
+            superseded += 1;
+          }
+      return {
+        created: live ? 0 : input.runs.length,
+        reused: live,
+        superseded,
+      };
     },
     fail: async (id, error) =>
       update(id, ["queued", "running"], {
@@ -211,12 +285,38 @@ const memoryRuns = (): BacktestRunsRepository & {
       [...rows.values()]
         .filter(
           (row) =>
-            filter.strategyId === undefined ||
-            row.strategyId === filter.strategyId
+            row.spec.comparison === undefined &&
+            (filter.strategyId === undefined ||
+              row.strategyId === filter.strategyId)
         )
         .slice(0, filter.limit),
+    listComparisons: async (filter) =>
+      [...rows.values()]
+        .filter((row) => {
+          const comparison = row.spec.comparison as
+            | { feature?: unknown; groupId?: unknown }
+            | undefined;
+          return (
+            comparison !== undefined &&
+            (filter.feature === undefined ||
+              comparison.feature === filter.feature) &&
+            (filter.groupId === undefined ||
+              comparison.groupId === filter.groupId)
+          );
+        })
+        .slice(0, filter.limit)
+        .map(({ report, ...row }) => ({
+          ...row,
+          differences:
+            (report?.["differences"] as Record<string, unknown> | undefined) ??
+            null,
+          engineRun:
+            (report?.["engineRun"] as Record<string, unknown> | undefined) ??
+            null,
+        })),
     rows,
   };
+  return repository;
 };
 
 /** In-memory drift repository with the version lock and acknowledge-once rules. */
@@ -363,6 +463,9 @@ type Harness = Readonly<{
   drift?: ForwardDriftRepository | undefined;
   sectorRotation?: SectorQuadrantSource;
   engine?: "typescript" | "nautilus";
+  comparison?: "off" | "on";
+  /** Calls with an x-api-key of this access instead of the session. */
+  apiKeyAccess?: "read" | "write";
 }>;
 
 const clientFor = (harness: Harness) => {
@@ -384,7 +487,24 @@ const clientFor = (harness: Harness) => {
   const fetch = async (request: Request): Promise<Response> => {
     const denied = () =>
       new AuthAuthorizationError(AUTHORIZATION_ERROR_CODES.AUTH_REQUIRED, 401);
+    const { apiKeyAccess } = harness;
+    if (apiKeyAccess !== undefined) request.headers.set("x-api-key", "key");
     const context = createApiContext(request, {
+      ...(apiKeyAccess === undefined
+        ? {}
+        : {
+            agentApiKeys: {
+              authenticate: async () => ({
+                access: apiKeyAccess,
+                apiKeyId: "key-1",
+                email: "operator@domain.test",
+                emailVerified: true,
+                role: "member" as const,
+                status: "active" as const,
+                userId: "user-key",
+              }),
+            } as unknown as AgentApiKeyService,
+          }),
       capabilities: {
         ai: false,
         analytics: false,
@@ -397,6 +517,12 @@ const clientFor = (harness: Harness) => {
       ...(harness.engine === undefined
         ? {}
         : { backtestRunsEngine: harness.engine }),
+      ...(harness.comparison === undefined
+        ? {}
+        : {
+            engineComparison: harness.comparison,
+            hostLabel: "QuantVPS web (in-request)",
+          }),
       requireRole: async () => {
         throw denied();
       },
@@ -2683,5 +2809,663 @@ describe("backtest runs on the Nautilus engine", () => {
       expect(
         AGENT_API_KEY_READ_PROCEDURES.has(`backtestRuns.engine.${name}`)
       ).toBe(false);
+  });
+});
+
+describe("engine comparison (dual run)", () => {
+  const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
+  const host = "QuantVPS web (in-request)";
+  const instantInput = {
+    costBps: 5,
+    rule: { fast: 5, kind: "smaCross" as const, slow: 30 },
+    stopLossPct: 0,
+    symbol: "SPY",
+    takeProfitPct: 0,
+    timeframe: "1d" as const,
+  };
+  const sweepInput = {
+    dimensions: [
+      { from: 2, param: "fast" as const, step: 1, to: 12 },
+      { from: 20, param: "slow" as const, step: 1, to: 30 },
+    ],
+    from: "1970-01-01",
+    rule: { fast: 5, kind: "smaCross" as const, slow: 30 },
+    symbol: "SPY",
+    timeframe: "1d" as const,
+    to: "1971-12-31",
+  };
+  const comparisonRuns = (runs: ReturnType<typeof memoryRuns>) =>
+    [...runs.rows.values()].filter((row) => row.spec.comparison !== undefined);
+  const comparisonOf = (row: BacktestRunRecord) =>
+    EngineComparisonSpecSchema.parse(row.spec.comparison);
+
+  type Batch = NonNullable<
+    Awaited<
+      ReturnType<
+        ReturnType<typeof clientFor>["backtestRuns"]["engine"]["claim"]
+      >
+    >["batch"]
+  >;
+
+  /** The TypeScript result of one batch run, in the JSON shape the worker posts. */
+  const batchResult = (batch: Batch, index: number) => {
+    const run = batch.runs[index] as Batch["runs"][number];
+    const column = (values: readonly (number | null)[]) =>
+      Float64Array.from(
+        values.slice(run.first, run.end),
+        (value) => value ?? Number.NaN
+      );
+    const result = runInstantBacktest(
+      {
+        c: column(batch.bars.c),
+        h: column(batch.bars.h),
+        l: column(batch.bars.l),
+        o: column(batch.bars.o),
+        t: column(batch.bars.t),
+      },
+      runParamsForSpec(run.spec as BacktestRunRecord["spec"])
+    );
+    return {
+      equity: Array.from(result.equity),
+      stats: result.stats,
+      trades: [...result.trades],
+    };
+  };
+
+  const engineRun = {
+    cpuMs: 120,
+    gpu: NAUTILUS_GPU_NOTE,
+    host: "rig",
+    processCases: 3,
+    processes: 2,
+    processWallMs: 900,
+    wallMs: 310,
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("queues an instant backtest on Nautilus with its TypeScript result when on", async () => {
+    const runs = memoryRuns();
+    const off = await clientFor({ bars: fakeBars(), runs }).instantBacktest.run(
+      instantInput
+    );
+    expect(off).not.toHaveProperty("comparison");
+    expect(runs.rows.size).toBe(0);
+
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const answer = await client.instantBacktest.run(instantInput);
+    expect(answer.comparison).toMatchObject({
+      groupId: expect.any(String),
+      host,
+    });
+    const [row] = comparisonRuns(runs);
+    expect(row).toMatchObject({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec: {
+        costBps: 5,
+        from: "1970-01-01",
+        initialCapital: BACKTEST_RUN_DEFAULT_CAPITAL,
+        rule: instantInput.rule,
+        symbol: "SPY",
+        timeframe: "1d",
+        to: "1972-09-26",
+      },
+      status: "queued",
+    });
+    const comparison = comparisonOf(row as BacktestRunRecord);
+    expect(comparison).toMatchObject({
+      feature: "instant",
+      groupId: answer.comparison?.groupId,
+      label: "SPY 1d smaCross",
+    });
+    expect(comparison.typescript.stats).toEqual(answer.stats);
+    expect(comparison.typescript.host).toBe(host);
+    expect(comparison.typescript.tradeCount).toBe(answer.stats.trades);
+    // Comparison runs stay out of the backtest run list.
+    expect((await client.backtestRuns.list({})).runs).toEqual([]);
+  });
+
+  it("queues sweep comparison runs only for a write caller, never for a read key", async () => {
+    // backtestRuns.sweep is a read procedure; queueing Nautilus runs is a write.
+    const sweep = {
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast" as const, step: 5, to: 10 }],
+    };
+    const runs = memoryRuns();
+    const read = clientFor({
+      apiKeyAccess: "read",
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    });
+    const answer = await read.backtestRuns.sweep(sweep);
+    expect(answer.comparison).toBeUndefined();
+    expect(answer.cells.length).toBeGreaterThan(0);
+    expect(comparisonRuns(runs)).toHaveLength(0);
+    const write = clientFor({
+      apiKeyAccess: "write",
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    });
+    const queued = await write.backtestRuns.sweep(sweep);
+    expect(queued.comparison).toMatchObject({ queued: 2 });
+    expect(comparisonRuns(runs).map((row) => row.requestedBy)).toEqual([
+      "user-key",
+      "user-key",
+    ]);
+  });
+
+  it("reuses an identical request's group and supersedes older queued runs of the same feature", async () => {
+    // The memory repository dates every run at `at`; the queue reuses groups from the last 24 h.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(at.getTime() + 60 * 60 * 1000));
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const first = await client.instantBacktest.run(instantInput);
+    expect(first.comparison).toMatchObject({ reused: false, superseded: 0 });
+    const again = await client.instantBacktest.run(instantInput);
+    expect(again.comparison).toMatchObject({
+      groupId: first.comparison?.groupId,
+      reused: true,
+      superseded: 0,
+    });
+    expect(comparisonRuns(runs)).toHaveLength(1);
+    // Another cost setting is another group: the older queued instant run is superseded.
+    const changed = await client.instantBacktest.run({
+      ...instantInput,
+      costBps: 9,
+    });
+    expect(changed.comparison?.groupId).not.toBe(first.comparison?.groupId);
+    expect(changed.comparison).toMatchObject({ reused: false, superseded: 1 });
+    const older = comparisonRuns(runs).find(
+      (row) => comparisonOf(row).groupId === first.comparison?.groupId
+    );
+    expect(older).toMatchObject({
+      error: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+      status: "failed",
+    });
+    // Asking for the first request again queues it again (its run was superseded).
+    const back = await client.instantBacktest.run(instantInput);
+    expect(back.comparison).toMatchObject({
+      groupId: first.comparison?.groupId,
+      reused: false,
+      superseded: 1,
+    });
+    // Sweeps: an identical sweep reuses its group, a changed one supersedes it; instant runs stay.
+    const sweep = {
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast" as const, step: 5, to: 10 }],
+    };
+    const s1 = await client.backtestRuns.sweep(sweep);
+    const s2 = await client.backtestRuns.sweep(sweep);
+    expect(s2.comparison).toMatchObject({
+      groupId: s1.comparison?.groupId,
+      reused: true,
+    });
+    const s3 = await client.backtestRuns.sweep({ ...sweep, to: "1971-06-30" });
+    expect(s3.comparison).toMatchObject({ reused: false, superseded: 2 });
+    expect(
+      comparisonRuns(runs).filter(
+        (row) =>
+          row.status === "queued" && comparisonOf(row).feature === "instant"
+      )
+    ).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it("records a frozen Worker clock as no time, and a failed queue as an error only", async () => {
+    vi.spyOn(performance, "now").mockReturnValue(1000);
+    const runs = memoryRuns();
+    const frozen = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs,
+    }).instantBacktest.run(instantInput);
+    expect(frozen.comparison).toMatchObject({
+      wallMs: null,
+      wallNote: TIMER_FROZEN_NOTE,
+    });
+    expect(
+      comparisonOf(comparisonRuns(runs)[0] as BacktestRunRecord)
+    ).toMatchObject({
+      typescript: { wallMs: null, wallNote: TIMER_FROZEN_NOTE },
+    });
+    vi.restoreAllMocks();
+    const broken = clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs: {
+        ...memoryRuns(),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
+      },
+    });
+    const answer = await broken.instantBacktest.run(instantInput);
+    expect(answer.comparison).toMatchObject({
+      error: COMPARISON_QUEUE_ERROR,
+      groupId: null,
+    });
+    expect(answer.stats.trades).toBeGreaterThan(0);
+    // Without run storage nothing is queued and the answer has no comparison.
+    const noStorage = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+    }).instantBacktest.run(instantInput);
+    expect(noStorage).not.toHaveProperty("comparison");
+  });
+
+  it("queues at most the cap of sweep cells, one run per cell with its parameters", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    // Each clock read moves 1 ms: every cell takes 1 ms, so the total counts all 121 cells,
+    // while only the first 100 cells keep their full results.
+    let now = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => {
+      now += 1;
+      return now;
+    });
+    const sweep = await client.backtestRuns.sweep(sweepInput);
+    vi.restoreAllMocks();
+    expect(sweep.comparison?.wallMs).toBe(121);
+    expect(sweep.cells).toHaveLength(121);
+    expect(sweep.comparison).toMatchObject({
+      dropped: 21,
+      groupId: expect.any(String),
+      host,
+      queued: ENGINE_COMPARISON_SWEEP_CELLS_MAX,
+    });
+    const queued = comparisonRuns(runs).map(comparisonOf);
+    expect(queued).toHaveLength(ENGINE_COMPARISON_SWEEP_CELLS_MAX);
+    expect(queued[0]).toMatchObject({
+      dropped: 21,
+      feature: "sweep",
+      key: "0",
+      label: "fast=2, slow=20",
+    });
+    expect(queued[0]?.typescript.stats.totalReturn).toBe(
+      sweep.cells[0]?.metrics.totalReturn
+    );
+    const first = comparisonRuns(runs)[0] as BacktestRunRecord;
+    expect(first.spec).toMatchObject({
+      from: "1970-01-01",
+      rule: { fast: 2, kind: "smaCross", slow: 20 },
+      to: "1971-12-31",
+    });
+  });
+
+  it("leaves engine error cells out and reports frozen clocks and queue failures", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    // fast >= slow makes the engine refuse the cell.
+    const mixed = await client.backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 25, param: "fast", step: 5, to: 40 }],
+    });
+    expect(mixed.cells.filter((cell) => cell.error !== null)).toHaveLength(3);
+    expect(mixed.comparison).toMatchObject({ dropped: 0, queued: 1 });
+    const none = await client.backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 30, param: "fast", step: 5, to: 40 }],
+    });
+    expect(none.comparison).toEqual({
+      dropped: 0,
+      groupId: null,
+      host,
+      queued: 0,
+      wallMs: 0,
+    });
+    vi.spyOn(performance, "now").mockReturnValue(5);
+    const frozen = await client.backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast", step: 5, to: 10 }],
+    });
+    expect(frozen.comparison).toMatchObject({
+      queued: 2,
+      wallMs: null,
+      wallNote: TIMER_FROZEN_NOTE,
+    });
+    vi.restoreAllMocks();
+    const broken = await clientFor({
+      bars: fakeBars(),
+      comparison: "on",
+      runs: {
+        ...memoryRuns(),
+        enqueueGroup: async () => Promise.reject(new Error("db")),
+      },
+    }).backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast", step: 5, to: 10 }],
+    });
+    expect(broken.comparison).toMatchObject({
+      error: COMPARISON_QUEUE_ERROR,
+      groupId: null,
+      queued: 0,
+    });
+    const off = await clientFor({ bars: fakeBars(), runs }).backtestRuns.sweep(
+      sweepInput
+    );
+    expect(off).not.toHaveProperty("comparison");
+  });
+
+  it("claims a comparison group as one batch on shared bars with each run's range", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    await expect(
+      client.backtestRuns.engine.claim({ engine, max: 50 })
+    ).resolves.toEqual({ batch: null, run: null });
+    const typescript = {
+      host,
+      stats: {
+        bars: 2,
+        buyHoldMaxDrawdown: 0,
+        buyHoldReturn: 0,
+        cagr: null,
+        exposure: 0,
+        maxDrawdown: 0,
+        profitFactor: null,
+        sharpe: null,
+        sortino: null,
+        totalReturn: 0,
+        trades: 0,
+        winRate: null,
+      },
+      tradeCount: 0,
+      trades: [],
+      wallMs: 1,
+    };
+    const base = BacktestRunSubmitInputSchema.parse(
+      submitInput
+    ) as BacktestRunRecord["spec"];
+    const make = (spec: Partial<BacktestRunRecord["spec"]>, groupId = "g-1") =>
+      runs.create({
+        engineVersion: engine,
+        requestedBy: "operator",
+        spec: {
+          ...base,
+          ...spec,
+          comparison: { feature: "sweep", groupId, label: "x", typescript },
+        },
+        strategyId: null,
+        strategyRevision: null,
+        strategySnapshot: null,
+      });
+    const wide = await make({ from: "1970-01-01", to: "1970-12-31" });
+    const late = await make({ from: "1970-03-01", to: "1971-01-31" });
+    const otherSymbol = await make({ symbol: "QQQ" });
+    const empty = await make({ from: "1990-01-01", to: "1990-12-31" });
+    const otherGroup = await make({}, "g-2");
+    const { batch, run } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 50,
+    });
+    expect(run).toBeNull();
+    expect(batch?.runs.map((entry) => entry.id)).toEqual([wide.id, late.id]);
+    expect(batch?.seriesSha256).toBe("b".repeat(64));
+    // Shared bars from the earliest from (1970-01-01) to the latest to (1971-01-31).
+    expect(batch?.bars.t).toHaveLength(396);
+    expect(batch?.runs[0]).toMatchObject({ end: 365, first: 0 });
+    expect(batch?.runs[1]).toMatchObject({ end: 396, first: 59 });
+    expect(runs.rows.get(otherSymbol.id)?.error).toBe(
+      "The comparison batch mixes bar series; submit the run again"
+    );
+    expect(runs.rows.get(empty.id)?.error).toBe(
+      "Fewer than 2 bars for SPY between 1990-01-01 and 1990-12-31"
+    );
+    expect(runs.rows.get(otherGroup.id)?.status).toBe("queued");
+    // A run without a group comes alone; without max the old single answer stays.
+    const lone = await runs.create({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec: base,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    runs.rows.delete(otherGroup.id);
+    const single = await client.backtestRuns.engine.claim({ engine, max: 50 });
+    expect(single.batch?.runs.map((entry) => entry.id)).toEqual([lone.id]);
+  });
+
+  it("stops after the claim attempts when every claimed batch fails its inputs", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({
+      bars: fakeBars({ getSeries: vi.fn(async () => null) }),
+      runs,
+    });
+    const base = BacktestRunSubmitInputSchema.parse(
+      submitInput
+    ) as BacktestRunRecord["spec"];
+    for (let index = 0; index < ENGINE_CLAIM_ATTEMPTS + 1; index += 1)
+      await runs.create({
+        engineVersion: engine,
+        requestedBy: "operator",
+        spec: base,
+        strategyId: null,
+        strategyRevision: null,
+        strategySnapshot: null,
+      });
+    await expect(
+      client.backtestRuns.engine.claim({ engine, max: 10 })
+    ).resolves.toEqual({ batch: null, run: null });
+    expect(
+      [...runs.rows.values()].filter((row) => row.status === "failed")
+    ).toHaveLength(ENGINE_CLAIM_ATTEMPTS);
+  });
+
+  it("stores a batch in one request with differences, engine runs and one outcome per item", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    await client.backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast", step: 5, to: 15 }],
+    });
+    const { batch } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 50,
+    });
+    const claimed = batch as Batch;
+    expect(claimed.runs).toHaveLength(3);
+    const [first, second, third] = claimed.runs;
+    const shifted = batchResult(claimed, 1);
+    const queuedRun = await runs.create({
+      engineVersion: engine,
+      requestedBy: "operator",
+      spec: claimed.runs[0]?.spec as BacktestRunRecord["spec"],
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    const { outcomes } = await client.backtestRuns.engine.completeMany({
+      engine,
+      items: [
+        {
+          engineRun,
+          id: first?.id as string,
+          result: batchResult(claimed, 0),
+          seriesSha256: claimed.seriesSha256,
+        },
+        {
+          id: second?.id as string,
+          result: {
+            ...shifted,
+            equity: shifted.equity.slice(1),
+            stats: {
+              ...shifted.stats,
+              bars: shifted.equity.length - 1,
+              trades: 0,
+            },
+            trades: [],
+          },
+          seriesSha256: claimed.seriesSha256,
+        },
+        { error: "At least 2 bars needed", id: third?.id as string },
+        { error: "boom", id: "missing" },
+        { error: "boom", id: queuedRun.id },
+        { error: "boom", id: third?.id as string },
+      ],
+    });
+    expect(outcomes).toEqual([
+      { id: first?.id, status: "succeeded" },
+      {
+        error: "BAD_REQUEST",
+        id: second?.id,
+        message: `The engine result has ${shifted.equity.length - 1} bars; the date range has ${shifted.equity.length}`,
+        status: null,
+      },
+      { id: third?.id, status: "failed" },
+      {
+        error: "NOT_FOUND",
+        id: "missing",
+        message: "Backtest run not found",
+        status: null,
+      },
+      { error: "CONFLICT", id: queuedRun.id, status: null },
+      { error: "CONFLICT", id: third?.id, status: null },
+    ]);
+    const report = runs.rows.get(first?.id as string)?.report;
+    expect(report?.["engineRun"]).toEqual(engineRun);
+    expect(report?.["differences"]).toEqual({ items: [], ok: true });
+    expect(runs.rows.get(third?.id as string)?.error).toBe(
+      "At least 2 bars needed"
+    );
+  });
+
+  it("flags differences, an unreadable stored comparison, and stores engineRun on complete", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    await client.instantBacktest.run(instantInput);
+    const [stored] = comparisonRuns(runs);
+    const typescript = comparisonOf(stored as BacktestRunRecord).typescript;
+    runs.rows.set((stored as BacktestRunRecord).id, {
+      ...(stored as BacktestRunRecord),
+      spec: {
+        ...(stored as BacktestRunRecord).spec,
+        comparison: {
+          ...(stored?.spec.comparison as Record<string, unknown>),
+          typescript: { ...typescript, tradeCount: typescript.tradeCount + 1 },
+        },
+      },
+    });
+    const claimed = (await client.backtestRuns.engine.claim({ engine, max: 1 }))
+      .batch as Batch;
+    const outcome = await client.backtestRuns.engine.complete({
+      engine,
+      engineRun,
+      id: claimed.runs[0]?.id as string,
+      result: batchResult(claimed, 0),
+      seriesSha256: claimed.seriesSha256,
+    });
+    expect(outcome.status).toBe("succeeded");
+    const report = runs.rows.get(outcome.id)?.report;
+    expect(report?.["engineRun"]).toEqual(engineRun);
+    expect(report?.["differences"]).toMatchObject({
+      items: [{ field: "tradeCount" }],
+      ok: false,
+    });
+
+    await client.instantBacktest.run(instantInput);
+    const broken = comparisonRuns(runs).find((row) => row.status === "queued");
+    runs.rows.set((broken as BacktestRunRecord).id, {
+      ...(broken as BacktestRunRecord),
+      spec: {
+        ...(broken as BacktestRunRecord).spec,
+        comparison: { feature: "instant" },
+      },
+    });
+    const again = (await client.backtestRuns.engine.claim({ engine, max: 1 }))
+      .batch as Batch;
+    await client.backtestRuns.engine.completeMany({
+      engine,
+      items: [
+        {
+          id: again.runs[0]?.id as string,
+          result: batchResult(again, 0),
+          seriesSha256: again.seriesSha256,
+        },
+      ],
+    });
+    const unreadable = runs.rows.get(again.runs[0]?.id as string)?.report;
+    expect(unreadable?.["differences"]).toMatchObject({
+      items: [{ field: "comparison" }],
+      ok: false,
+    });
+    expect(unreadable).not.toHaveProperty("engineRun");
+  });
+
+  it("lists comparison runs with timing and differences, by feature and group", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), comparison: "on", runs });
+    const instant = await client.instantBacktest.run(instantInput);
+    await client.backtestRuns.sweep({
+      ...sweepInput,
+      dimensions: [{ from: 5, param: "fast", step: 5, to: 10 }],
+    });
+    const listed = await client.backtestRuns.comparisons.list({});
+    expect(listed.runs).toHaveLength(3);
+    const group = await client.backtestRuns.comparisons.list({
+      groupId: instant.comparison?.groupId as string,
+    });
+    expect(group.runs).toEqual([
+      expect.objectContaining({
+        differences: null,
+        engineRun: null,
+        engineVersion: engine,
+        from: "1970-01-01",
+        queueWaitMs: null,
+        status: "queued",
+        symbol: "SPY",
+        timeframe: "1d",
+        to: "1972-09-26",
+      }),
+    ]);
+    const sweeps = await client.backtestRuns.comparisons.list({
+      feature: "sweep",
+      limit: 1,
+    });
+    expect(sweeps.runs).toHaveLength(1);
+    // Claimed and completed: the queue wait, the engine run and the differences appear.
+    const claimed = (await client.backtestRuns.engine.claim({ engine, max: 1 }))
+      .batch as Batch;
+    const id = claimed.runs[0]?.id as string;
+    const row = runs.rows.get(id) as BacktestRunRecord;
+    runs.rows.set(id, { ...row, startedAt: new Date(at.getTime() + 4000) });
+    await client.backtestRuns.engine.complete({
+      engine,
+      engineRun,
+      id,
+      result: batchResult(claimed, 0),
+      seriesSha256: claimed.seriesSha256,
+    });
+    const done = (await client.backtestRuns.comparisons.list({})).runs.find(
+      (entry) => entry.id === id
+    );
+    expect(done).toMatchObject({
+      differences: { ok: true },
+      engineRun,
+      queueWaitMs: 4000,
+      status: "succeeded",
+    });
+    // A run whose comparison part is unreadable is left out.
+    runs.rows.set(id, {
+      ...(runs.rows.get(id) as BacktestRunRecord),
+      spec: { ...row.spec, comparison: { feature: "instant" } },
+    });
+    expect((await client.backtestRuns.comparisons.list({})).runs).toHaveLength(
+      2
+    );
+    await expectCode(
+      clientFor({ bars: fakeBars() }).backtestRuns.comparisons.list({}),
+      "STORAGE_ERROR",
+      503
+    );
+    expect(
+      AGENT_API_KEY_READ_PROCEDURES.has("backtestRuns.comparisons.list")
+    ).toBe(true);
+    expect(
+      AGENT_API_KEY_READ_PROCEDURES.has("backtestRuns.engine.completeMany")
+    ).toBe(false);
   });
 });

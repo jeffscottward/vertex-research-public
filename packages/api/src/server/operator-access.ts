@@ -41,6 +41,7 @@ export const AGENT_API_KEY_READ_PROCEDURES: ReadonlySet<string> = new Set([
   "backtestRuns.list",
   "backtestRuns.get",
   "backtestRuns.sweep",
+  "backtestRuns.comparisons.list",
   "backtestRuns.drift.list",
   "backtestRuns.drift.get",
   "backtestRuns.definitions.validate",
@@ -78,7 +79,15 @@ export const agentKeyOwnerPrincipal = async (
   context: ApiContext,
   path: readonly string[],
   errors: unknown
-): Promise<SafePrincipal> => {
+): Promise<SafePrincipal> =>
+  (await agentKeyOwner(context, path, errors)).principal;
+
+// agentKeyOwnerPrincipal with the key's access.
+const agentKeyOwner = async (
+  context: ApiContext,
+  path: readonly string[],
+  errors: unknown
+): Promise<Readonly<{ canWrite: boolean; principal: SafePrincipal }>> => {
   const failures = factories(errors);
   const keys = context.agentApiKeys;
   if (keys === undefined) throw failures.UNAUTHORIZED();
@@ -92,7 +101,14 @@ export const agentKeyOwnerPrincipal = async (
   ) {
     throw failures.FORBIDDEN({ message: READ_ONLY_KEY_MESSAGE });
   }
-  return { role: owner.role, status: owner.status, userId: owner.userId };
+  return {
+    canWrite: owner.access === "write",
+    principal: {
+      role: owner.role,
+      status: owner.status,
+      userId: owner.userId,
+    },
+  };
 };
 
 export const requireOperator = api.middleware(
@@ -101,15 +117,24 @@ export const requireOperator = api.middleware(
     const denied = () =>
       failures.FORBIDDEN({ message: OPERATOR_ACCESS_REQUIRED_MESSAGE });
     let principal: SafePrincipal;
+    let callerCanWrite: boolean;
     try {
       if (context.agentApiKeyPresented === true) {
-        principal = await agentKeyOwnerPrincipal(context, path, errors);
+        ({ canWrite: callerCanWrite, principal } = await agentKeyOwner(
+          context,
+          path,
+          errors
+        ));
       } else {
         const session = await context.requireSession();
         // A read-only agent viewer passes here; agentViewerReadOnlyInterceptor already refused
         // every non-read procedure for it.
+        callerCanWrite = isOperatorIdentity(
+          session.user,
+          context.operatorEmails
+        );
         const allowed =
-          isOperatorIdentity(session.user, context.operatorEmails) ||
+          callerCanWrite ||
           isOperatorIdentity(session.user, context.agentViewerEmails);
         if (!allowed) throw denied();
         principal = session.principal;
@@ -125,6 +150,6 @@ export const requireOperator = api.middleware(
       if (error.status === 401) throw failures.UNAUTHORIZED();
       throw denied();
     }
-    return next({ context: { principal } });
+    return next({ context: { callerCanWrite, principal } });
   }
 );

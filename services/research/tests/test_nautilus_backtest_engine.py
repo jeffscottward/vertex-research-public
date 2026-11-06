@@ -104,6 +104,40 @@ def test_cli_run_and_input_error(tmp_path):
     assert json.loads(done.stdout) == {"error": "costBps must be from 0 to 500"}
 
 
+@needs_nautilus
+def test_cli_batch_runs_cases_on_their_slices_with_times(tmp_path):
+    case = GOLDEN["engine"][0]
+    bars = GOLDEN["bars"][case["symbol"]]
+    size = len(bars["c"])
+    request = tmp_path / "in.json"
+    output = tmp_path / "out.json"
+    request.write_text(json.dumps({"bars": bars, "cases": [
+        {"id": "whole", "spec": case["spec"]},
+        {"id": "tail", "spec": case["spec"], "slice": [size // 2, size]},
+        {"id": "bad", "spec": {**case["spec"], "costBps": 900}},
+        {"id": "outside", "spec": case["spec"], "slice": [0, size + 1]},
+    ]}))
+    done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", str(request), str(output)],
+                          cwd=RESEARCH, capture_output=True, text=True, check=False)
+    assert done.returncode == 0, done.stderr
+    payload = json.loads(output.read_text())
+    assert payload["engine"] == "nautilus-trader-1.227.0"
+    results = {entry["id"]: entry for entry in payload["results"]}
+    assert results["whole"]["result"]["stats"]["trades"] == case["stats"]["trades"]
+    assert len(results["tail"]["result"]["equity"]) == size - size // 2
+    assert results["bad"]["error"] == "costBps must be from 0 to 500"
+    assert results["outside"]["error"] == f"slice 0..{size + 1} is outside the {size} bars"
+    assert all(entry["wallMs"] >= 0 for entry in payload["results"])
+    assert payload["usage"]["cpuMs"] > 0
+    assert payload["usage"]["wallMs"] >= results["whole"]["wallMs"]
+    # "-" reads the request from stdin and prints the output.
+    piped = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=RESEARCH,
+                           input=json.dumps({"bars": bars, "cases": [{"id": "whole", "spec": case["spec"]}]}),
+                           capture_output=True, text=True, check=False)
+    assert piped.returncode == 0, piped.stderr
+    assert json.loads(piped.stdout)["results"][0]["id"] == "whole"
+
+
 def test_pre_1970_bars_are_an_input_error():
     bars = Bars.from_columns({"t": [-86_400_000.0, 0.0], "o": [1.0, 1.0], "h": [1.0, 1.0], "l": [1.0, 1.0],
                               "c": [1.0, 1.0]})

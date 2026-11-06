@@ -57,6 +57,19 @@ class Bars:
     def __len__(self) -> int:
         return len(self.c)
 
+    def window(self, first: int, end: int) -> Bars:
+        """The bars first..end-1 (a run's own date range inside a shared batch series)."""
+        if not (0 <= first < end <= len(self.c)):
+            raise InputError(f"slice {first}..{end} is outside the {len(self.c)} bars")
+        return Bars(
+            t=self.t[first:end],
+            o=self.o[first:end],
+            h=self.h[first:end],
+            l=self.l[first:end],
+            c=self.c[first:end],
+            v=None if self.v is None else self.v[first:end],
+        )
+
 
 def is_finite_number(value: Any) -> bool:
     """JS Number.isFinite: a real number that is not NaN or infinite (bool is not a number)."""

@@ -1,5 +1,6 @@
 // Nautilus backtest worker for the research host (never the live trading node). See
 // scripts/backtest-worker/nautilus-worker.ts and infra/research-worker/README.md.
+import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -11,6 +12,7 @@ import {
 
 process.exitCode = await runNautilusWorker(process.argv.slice(2), {
   env: process.env,
+  hostname: hostname(),
   post: (url, init) => globalThis.fetch(url, init),
   researchDir: fileURLToPath(new URL("../services/research/", import.meta.url)),
   runCommand,

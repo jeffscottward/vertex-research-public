@@ -9,6 +9,12 @@ import {
 } from "./backtest-cost-profiles.ts";
 import { backtestSweepProcedure } from "./backtest-sweep.ts";
 import { CalendarDateSchema } from "./calendar-date.ts";
+import {
+  EngineComparisonSpecSchema,
+  EngineDifferencesSchema,
+  EngineRunSchema,
+  engineComparisonsContract,
+} from "./engine-comparison.ts";
 import { forwardDriftContract } from "./forward-drift.ts";
 import { strategyDefinitionsContract } from "./strategy-definitions.ts";
 import {
@@ -127,6 +133,10 @@ export const BacktestRunReportSchema = z.object({
   bars: z.number().int(),
   /** Present when the run had a cost profile: charges in money and the profit before them. */
   costs: BacktestRunCostsSchema.optional(),
+  /** Comparison runs: the differences to the TypeScript result they repeat. */
+  differences: EngineDifferencesSchema.optional(),
+  /** Nautilus runs: where and how long the engine ran. */
+  engineRun: EngineRunSchema.optional(),
   equity: z.array(
     z.object({ drawdownPct: z.number(), equity: z.number(), t: z.number() })
   ),
@@ -163,6 +173,8 @@ export const BacktestRunReportSchema = z.object({
 });
 
 export const BacktestRunSpecSchema = z.object({
+  /** Engine comparison runs only (./engine-comparison.ts). */
+  comparison: EngineComparisonSpecSchema.optional(),
   costBps: z.number(),
   costProfile: CostProfileSchema.optional(),
   from: z.string(),
@@ -359,8 +371,11 @@ const combine = backtestRuns
 // uses), the resolved cost settings and the sector rotation points that the definition's filters
 // need. complete sends the engine result: unit equity per bar, the trades and the stats (the shape
 // of the TypeScript engine result); the API checks it against the stored bars, recomputes the
-// stats from the equity and trades (they must match the sent stats) and builds the report. fail stores an error. complete and fail change only a running run of the same engine;
-// any other run returns CONFLICT. Write keys only; research only, no order path.
+// stats from the equity and trades (they must match the sent stats) and builds the report. fail
+// stores an error. complete and fail change only a running run of the same engine; any other run
+// returns CONFLICT. With `max`, claim returns a batch on one bar series (a comparison group) and
+// completeMany stores the whole batch in one request, with one outcome per run. Write keys only;
+// research only, no order path.
 
 const engineName = z.literal(BACKTEST_RUN_NAUTILUS_ENGINE);
 const engineRunId = z.string().trim().min(1).max(128);
@@ -377,31 +392,68 @@ export const BacktestRunEngineBarsSchema = z.object({
   v: values.optional(),
 });
 
+/** Most runs one batch claim returns. */
+export const BACKTEST_RUN_ENGINE_BATCH_MAX = 50;
+
 export const BacktestRunEngineClaimInputSchema = z
-  .object({ engine: engineName })
+  .object({
+    engine: engineName,
+    /**
+     * With `max`, claim returns a batch: the oldest queued run and, when it belongs to a
+     * comparison group, up to `max - 1` more runs of that group, all on one bar series.
+     */
+    max: z.number().int().min(1).max(BACKTEST_RUN_ENGINE_BATCH_MAX).optional(),
+  })
   .strict();
 
+const costsSchema = z
+  .object({ capital: z.number(), profile: CostProfileSchema })
+  .nullable();
+/** Sector rotation points by `${sector}:${timeframe}`; null without sector filters. */
+const sectorQuadrantsSchema = z
+  .record(
+    z.string(),
+    z.array(
+      z.object({
+        date: z.string(),
+        quadrant: z.enum(SECTOR_ROTATION_QUADRANTS),
+      })
+    )
+  )
+  .nullable();
+
 export const BacktestRunEngineClaimOutputSchema = z.object({
+  /** With `max`: the claimed runs on one shared bar series; null when none is queued. */
+  batch: z
+    .object({
+      /** Bars from the earliest `from` to the latest `to` of the runs. */
+      bars: BacktestRunEngineBarsSchema,
+      runs: z
+        .array(
+          z.object({
+            costs: costsSchema,
+            /** The run's bars are bars[first..end) (its own date range). */
+            end: z.number().int().positive(),
+            first: z.number().int().nonnegative(),
+            id: z.string(),
+            sectorQuadrants: sectorQuadrantsSchema,
+            spec: BacktestRunSpecSchema,
+          })
+        )
+        .min(1)
+        .max(BACKTEST_RUN_ENGINE_BATCH_MAX),
+      seriesSha256: sha256,
+    })
+    .nullable()
+    .optional(),
+  /** The claimed run without `max`; null with `max` (see batch) or when none is queued. */
   run: z
     .object({
       bars: BacktestRunEngineBarsSchema,
       /** Cost profile and capital for the engine; null without a profile. */
-      costs: z
-        .object({ capital: z.number(), profile: CostProfileSchema })
-        .nullable(),
+      costs: costsSchema,
       id: z.string(),
-      /** Sector rotation points by `${sector}:${timeframe}`; null without sector filters. */
-      sectorQuadrants: z
-        .record(
-          z.string(),
-          z.array(
-            z.object({
-              date: z.string(),
-              quadrant: z.enum(SECTOR_ROTATION_QUADRANTS),
-            })
-          )
-        )
-        .nullable(),
+      sectorQuadrants: sectorQuadrantsSchema,
       seriesSha256: sha256,
       spec: BacktestRunSpecSchema,
     })
@@ -495,12 +547,53 @@ export const BacktestRunEngineResultSchema = z
 export const BacktestRunEngineCompleteInputSchema = z
   .object({
     engine: engineName,
+    engineRun: EngineRunSchema.optional(),
     id: engineRunId,
     result: BacktestRunEngineResultSchema,
     /** The seriesSha256 returned by claim; the API refuses a result for changed bars. */
     seriesSha256: sha256,
   })
   .strict();
+
+/** One item of completeMany: a result (as complete) or an engine error (as fail). */
+export const BacktestRunEngineCompleteItemSchema = z.union([
+  z
+    .object({
+      engineRun: EngineRunSchema.optional(),
+      id: engineRunId,
+      result: BacktestRunEngineResultSchema,
+      seriesSha256: sha256,
+    })
+    .strict(),
+  z
+    .object({
+      error: z.string().trim().min(1).max(BACKTEST_RUN_ENGINE_ERROR_MAX),
+      id: engineRunId,
+    })
+    .strict(),
+]);
+
+export const BacktestRunEngineCompleteManyInputSchema = z
+  .object({
+    engine: engineName,
+    items: z
+      .array(BacktestRunEngineCompleteItemSchema)
+      .min(1)
+      .max(BACKTEST_RUN_ENGINE_BATCH_MAX),
+  })
+  .strict();
+
+export const BacktestRunEngineCompleteManyOutputSchema = z.object({
+  /** One outcome per item, in item order: the stored status, or why nothing changed. */
+  outcomes: z.array(
+    z.object({
+      error: z.enum(["BAD_REQUEST", "CONFLICT", "NOT_FOUND"]).optional(),
+      id: z.string(),
+      message: z.string().optional(),
+      status: z.enum(BACKTEST_RUN_STATUS_VALUES).nullable(),
+    })
+  ),
+});
 
 export const BacktestRunEngineFailInputSchema = z
   .object({
@@ -549,6 +642,18 @@ const engineComplete = engine
   .input(BacktestRunEngineCompleteInputSchema)
   .output(BacktestRunEngineOutcomeSchema);
 
+const engineCompleteMany = engine
+  .route({
+    method: "POST",
+    operationId: "backtestRuns.engine.completeMany",
+    path: "/backtest-runs/engine/complete-many",
+    summary:
+      "Research worker: store the results or errors of a claimed batch in one request",
+    tags: ["Backtest runs"],
+  })
+  .input(BacktestRunEngineCompleteManyInputSchema)
+  .output(BacktestRunEngineCompleteManyOutputSchema);
+
 const engineFail = engine
   .route({
     method: "POST",
@@ -562,11 +667,13 @@ const engineFail = engine
 
 export const backtestRunsContract = {
   combine,
+  comparisons: engineComparisonsContract,
   definitions: strategyDefinitionsContract,
   drift: forwardDriftContract,
   engine: {
     claim: engineClaim,
     complete: engineComplete,
+    completeMany: engineCompleteMany,
     fail: engineFail,
   },
   get,
@@ -585,6 +692,9 @@ export type BacktestRunSummary = z.infer<typeof BacktestRunSummarySchema>;
 export type BacktestRunReportOutput = z.infer<typeof BacktestRunReportSchema>;
 export type BacktestRunEngineClaimOutput = z.infer<
   typeof BacktestRunEngineClaimOutputSchema
+>;
+export type BacktestRunEngineCompleteItem = z.infer<
+  typeof BacktestRunEngineCompleteItemSchema
 >;
 export type BacktestRunEngineResult = z.infer<
   typeof BacktestRunEngineResultSchema

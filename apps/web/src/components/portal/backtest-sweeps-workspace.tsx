@@ -68,6 +68,14 @@ import {
   UniverseSelect,
   visibleSeries,
 } from "./backtest-universe.tsx";
+import {
+  createBrowserEngineComparisonGateway,
+  type EngineComparisonGateway,
+  NautilusRunStatus,
+  runsByKey,
+  SweepComparisonSummary,
+  useComparisonRuns,
+} from "./engine-comparison.tsx";
 import { DEFAULT_INSTANT_PARAMS } from "./instant-backtest-workspace.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import { NumberField } from "./number-field.tsx";
@@ -119,6 +127,8 @@ type LoadState =
 type SweepResult = Readonly<{
   request: BacktestSweepRequest;
   output: BacktestSweepOutput;
+  /** Browser round trip of the sweep; null when it came from this visit's cache. */
+  roundTripMs: number | null;
 }>;
 
 const Select = ({
@@ -271,13 +281,20 @@ const SweepResults = ({
   metric,
   onMetric,
   gateway,
+  comparisonGateway,
 }: Readonly<{
   result: SweepResult;
   metric: BacktestSweepMetric;
   onMetric: (metric: BacktestSweepMetric) => void;
   gateway: BacktestSweepsGateway;
+  comparisonGateway: EngineComparisonGateway;
 }>) => {
   const { output } = result;
+  const comparison = useComparisonRuns(
+    comparisonGateway,
+    output.comparison?.groupId ?? null
+  );
+  const nautilusByCell = runsByKey(comparison.runs);
   const [mode, setMode] = useState<"value" | "worst">("value");
   const robustness = useMemo(
     () => robustnessFor(output, metric),
@@ -317,6 +334,13 @@ const SweepResults = ({
         {spikes === 1 ? "spike" : "spikes"} for{" "}
         {SWEEP_METRIC_LABELS[metric].toLowerCase()}.
       </p>
+      {output.comparison === undefined ? null : (
+        <SweepComparisonSummary
+          clientMs={result.roundTripMs}
+          state={comparison}
+          timing={output.comparison}
+        />
+      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Select
           label="Metric"
@@ -466,6 +490,9 @@ const SweepResults = ({
                 <th className="p-2">Worst in neighbourhood</th>
                 <th className="p-2">Neighbour average</th>
                 <th className="p-2">Spike</th>
+                {output.comparison === undefined ? null : (
+                  <th className="p-2">Nautilus</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -499,6 +526,13 @@ const SweepResults = ({
                   <td className="p-2">
                     {robustness.spike[index] === true ? "Yes" : "No"}
                   </td>
+                  {output.comparison === undefined ? null : (
+                    <td className="p-2">
+                      <NautilusRunStatus
+                        run={nautilusByCell.get(String(index))?.[0]}
+                      />
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -569,14 +603,21 @@ const DimensionRow = ({
 
 export type BacktestSweepsWorkspaceProps = Readonly<{
   gateway?: BacktestSweepsGateway;
+  /** Engine comparison: where the Nautilus status of the repeated cells is read. */
+  comparisonGateway?: EngineComparisonGateway;
 }>;
 
 export const BacktestSweepsWorkspace = ({
   gateway: injected,
+  comparisonGateway: injectedComparisons,
 }: BacktestSweepsWorkspaceProps) => {
   const gateway = useMemo(
     () => injected ?? createBrowserBacktestSweepsGateway(),
     [injected]
+  );
+  const comparisonGateway = useMemo(
+    () => injectedComparisons ?? createBrowserEngineComparisonGateway(),
+    [injectedComparisons]
   );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
   const [selectedSeries, setSelectedSeries] = useState("");
@@ -665,29 +706,34 @@ export const BacktestSweepsWorkspace = ({
       latest.current += 1;
       const ticket = latest.current;
       let outcome:
-        | Readonly<{ output: BacktestSweepOutput }>
+        | Readonly<{ output: BacktestSweepOutput; roundTripMs: number | null }>
         | Readonly<{ message: string }>;
       const cached = cache.get(key);
       if (cached === undefined) {
         setRunning(true);
         setMessage(null);
         try {
+          const started = performance.now();
           const output = await gateway.sweep(input);
           cache.set(key, output);
-          outcome = { output };
+          outcome = { output, roundTripMs: performance.now() - started };
         } catch (error) {
           outcome = { message: describeMarketDataFailure(error).message };
         }
         // A newer sweep started meanwhile; its answer wins.
         if (ticket !== latest.current) return;
-      } else outcome = { output: cached };
+      } else outcome = { output: cached, roundTripMs: null };
       setRunning(false);
       if ("message" in outcome) {
         setMessage(outcome.message);
         return;
       }
       setMessage(null);
-      setResult({ output: outcome.output, request: input });
+      setResult({
+        output: outcome.output,
+        request: input,
+        roundTripMs: outcome.roundTripMs,
+      });
       setSweeps((count) => count + 1);
     },
     [cache, gateway]
@@ -955,6 +1001,7 @@ export const BacktestSweepsWorkspace = ({
       </form>
       {result === null ? null : (
         <SweepResults
+          comparisonGateway={comparisonGateway}
           gateway={gateway}
           key={sweeps}
           metric={form.metric}

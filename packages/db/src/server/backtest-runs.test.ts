@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { type BacktestRunSpec, backtestRuns } from "../schema/index.ts";
 import {
+  BACKTEST_RUN_BATCH_MAX,
   BACKTEST_RUN_CLAIM_ATTEMPTS,
   BACKTEST_RUN_ERROR_MAX_LENGTH,
   boundBacktestRunError,
@@ -62,6 +63,9 @@ const createDouble = (outcomes: Array<readonly unknown[]>) => {
     select: (columns?: unknown) => builder({ kind: "select", columns }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     update: (table: unknown) => builder({ kind: "update", table }),
+    execute: (query: SQL) => builder({ kind: "execute", where: query }),
+    transaction: async (operation: (transaction: unknown) => unknown) =>
+      operation(database),
   } as unknown as Database;
   return { database, operations };
 };
@@ -135,7 +139,7 @@ describe("createBacktestRunsRepository", () => {
     await repository.list({ limit: 500 });
     await repository.list({ strategyId: "s-1", limit: 0 });
     expect(operations[0]?.limit).toBe(100);
-    expect(operations[0]?.where).toBeUndefined();
+    expect(sqlText(operations[0]?.where)).not.toContain("strategy_id");
     expect(operations[1]?.limit).toBe(1);
     expect(sqlText(operations[1]?.where)).toContain(
       '"backtest_runs"."strategy_id"'
@@ -277,6 +281,201 @@ describe("createBacktestRunsRepository", () => {
       'not exists (select 1 from "backtest_runs" "active" where ("active"."engine_version" = $'
     );
     expect(where).toContain('"active"."started_at" >= $');
+  });
+
+  it("stores a comparison group under a lock, reuses a live group and supersedes older queued runs", async () => {
+    let id = 0;
+    const ids = { now: () => FIXED_NOW, generateId: () => `run-${++id}` };
+    const input = {
+      engineVersion: "nautilus-x",
+      requestedBy: "user-1",
+      spec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    };
+    const since = new Date(FIXED_NOW.getTime() - 86_400_000);
+    const fresh = createDouble([
+      [],
+      [],
+      [],
+      [{ id: "run-1" }, { id: "run-2" }],
+      [{ id: "old" }],
+    ]);
+    await expect(
+      createBacktestRunsRepository(fresh.database, ids).enqueueGroup({
+        groupId: "g-1",
+        reuseSince: since,
+        runs: [input, input],
+        supersede: {
+          engineVersion: "nautilus-x",
+          feature: "sweep",
+          requestedBy: "user-1",
+        },
+        supersededError: "Superseded by a newer request",
+      })
+    ).resolves.toEqual({ created: 2, reused: false, superseded: 1 });
+    const [userLock, lock, live, insert, supersede] = fresh.operations;
+    // The feature and user lock first, then the group lock.
+    expect(sqlText(userLock?.where)).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))"
+    );
+    expect(userLock?.where).toMatchObject({
+      queryChunks: expect.arrayContaining(["sweep:user-1"]),
+    });
+    expect(sqlText(lock?.where)).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))"
+    );
+    const liveWhere = sqlText(live?.where);
+    expect(liveWhere).toContain(
+      `"backtest_runs"."spec"->'comparison'->>'groupId' = $`
+    );
+    expect(liveWhere).toContain(`"backtest_runs"."created_at" >= $`);
+    expect(liveWhere).toContain(`"backtest_runs"."status" in ($`);
+    expect(insert?.values).toEqual(
+      [1, 2].map((n) => ({
+        ...input,
+        createdAt: FIXED_NOW,
+        id: `run-${n}`,
+        status: "queued",
+      }))
+    );
+    expect(supersede?.set).toEqual({
+      error: "Superseded by a newer request",
+      finishedAt: FIXED_NOW,
+      status: "failed",
+    });
+    const supersedeWhere = sqlText(supersede?.where);
+    expect(supersedeWhere).toContain(`"backtest_runs"."status" = $`);
+    expect(supersedeWhere).toContain(`"backtest_runs"."requested_by" = $`);
+    expect(supersedeWhere).toContain(`->'comparison'->>'feature' = $`);
+    expect(supersedeWhere).toContain(`->'comparison'->>'groupId' <> $`);
+
+    // A live group is reused: no insert; without supersede no update either.
+    const reused = createDouble([[], [{ id: "x" }]]);
+    await expect(
+      createBacktestRunsRepository(reused.database, ids).enqueueGroup({
+        groupId: "g-1",
+        reuseSince: since,
+        runs: [input],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 0, reused: true, superseded: 0 });
+    expect(reused.operations.map((operation) => operation.kind)).toEqual([
+      "execute",
+      "select",
+    ]);
+    const empty = createDouble([[], []]);
+    await expect(
+      createBacktestRunsRepository(empty.database, ids).enqueueGroup({
+        groupId: "g-2",
+        reuseSince: since,
+        runs: [],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 0, reused: false, superseded: 0 });
+    expect(empty.operations).toHaveLength(2);
+    // Without reuseSince (the campaign group) there is no live check: the runs are inserted.
+    const always = createDouble([[], [{ id: "run-3" }]]);
+    await expect(
+      createBacktestRunsRepository(always.database, ids).enqueueGroup({
+        groupId: "autopilot:c1",
+        runs: [input],
+        supersededError: "s",
+      })
+    ).resolves.toEqual({ created: 1, reused: false, superseded: 0 });
+    expect(always.operations.map((operation) => operation.kind)).toEqual([
+      "execute",
+      "insert",
+    ]);
+  });
+
+  it("leaves comparison runs out of the list and lists them on their own", async () => {
+    const { database, operations } = createDouble([[], [], [], []]);
+    const repository = createBacktestRunsRepository(database, dependencies);
+    await repository.list({ limit: 10 });
+    expect(sqlText(operations[0]?.where)).toContain(
+      `"backtest_runs"."spec"->'comparison' is null`
+    );
+    await repository.listComparisons({ limit: 9999 });
+    expect(sqlText(operations[1]?.where)).toContain(
+      `"backtest_runs"."spec"->'comparison' is not null`
+    );
+    expect(operations[1]?.limit).toBe(500);
+    expect(Object.keys(operations[1]?.columns as object)).toEqual(
+      expect.arrayContaining(["engineRun", "differences", "spec"])
+    );
+    expect(Object.keys(operations[1]?.columns as object)).not.toContain(
+      "report"
+    );
+    await repository.listComparisons({
+      feature: "sweep",
+      groupId: "g-1",
+      limit: 0,
+    });
+    const filtered = sqlText(operations[2]?.where);
+    expect(filtered).toContain(`->'comparison'->>'feature' = $`);
+    expect(filtered).toContain(`->'comparison'->>'groupId' = $`);
+    expect(operations[2]?.limit).toBe(1);
+  });
+
+  it("claims a comparison group in one batch and a lone run alone", async () => {
+    const group = { ...spec, comparison: { groupId: "g-1" } };
+    const at = (minute: number) =>
+      new Date(FIXED_NOW.getTime() + minute * 60_000);
+    const first = { createdAt: at(0), id: "a", spec: group };
+    const batch = createDouble([
+      [{ id: "a" }],
+      [first],
+      [
+        { createdAt: at(2), id: "c", spec: group },
+        { createdAt: at(1), id: "d", spec: group },
+        { createdAt: at(1), id: "b", spec: group },
+      ],
+    ]);
+    const claimed = await createBacktestRunsRepository(
+      batch.database,
+      dependencies
+    ).claimBatch("nautilus-x", 4);
+    expect(claimed.map((run) => run.id)).toEqual(["a", "b", "d", "c"]);
+    const where = sqlText(batch.operations[2]?.where);
+    expect(where).toContain(
+      `"backtest_runs"."id" in (select "id" from "backtest_runs" "grouped" where ("grouped"."status" = $`
+    );
+    expect(where).toContain(`"grouped"."spec"->'comparison'->>'groupId' = $`);
+    expect(where).toContain("limit $");
+    expect(batch.operations[2]?.set).toEqual({
+      status: "running",
+      startedAt: FIXED_NOW,
+    });
+
+    const lone = createDouble([[{ id: "x" }], [{ id: "x", spec }]]);
+    const repository = createBacktestRunsRepository(
+      lone.database,
+      dependencies
+    );
+    await expect(repository.claimBatch("nautilus-x", 50)).resolves.toEqual([
+      { id: "x", spec },
+    ]);
+    expect(lone.operations).toHaveLength(2);
+
+    const single = createDouble([[{ id: "a" }], [first]]);
+    await expect(
+      createBacktestRunsRepository(single.database, dependencies).claimBatch(
+        "nautilus-x",
+        1
+      )
+    ).resolves.toEqual([first]);
+    expect(single.operations).toHaveLength(2);
+
+    const empty = createDouble([[]]);
+    await expect(
+      createBacktestRunsRepository(empty.database, dependencies).claimBatch(
+        "nautilus-x",
+        50
+      )
+    ).resolves.toEqual([]);
+    expect(BACKTEST_RUN_BATCH_MAX).toBe(50);
   });
 
   it("is part of createRepositories", () => {

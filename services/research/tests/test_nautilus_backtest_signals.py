@@ -272,3 +272,17 @@ def test_risk_pct_option_is_checked() -> None:
         assert_signal_options(
             2, [0, 0], cost_bps=0, stop_loss_pct=0, take_profit_pct=0, costs=None, risk_pct=0
         )
+
+
+def test_bars_window_is_a_batch_case_slice() -> None:
+    bars = Bars.from_columns({"t": [1, 2, 3, 4], "o": [1, 2, 3, 4], "h": [2, 3, 4, 5], "l": [1, 1, 2, 3],
+                              "c": [2, 3, 4, 5], "v": [10, None, 30, 40]})
+    window = bars.window(1, 3)
+    assert window.t == (2.0, 3.0)
+    assert window.c == (3.0, 4.0)
+    assert window.v is not None and math.isnan(window.v[0]) and window.v[1] == 30.0
+    no_volume = Bars.from_columns({k: [1, 2] for k in "tohlc"})
+    assert no_volume.window(0, 2).v is None
+    for first, end in ((2, 2), (-1, 2), (0, 5)):
+        with pytest.raises(InputError, match="is outside the"):
+            bars.window(first, end)

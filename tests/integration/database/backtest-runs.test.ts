@@ -33,13 +33,20 @@ const repository = (): BacktestRunsRepository =>
     now: () => new Date(clock),
   });
 
-/** Creates a queued run of `engine` at `at` (epoch ms). */
-const queue = async (engine: string, at: number) => {
+/** Creates a queued run of `engine` at `at` (epoch ms), optionally in a comparison group. */
+const queue = async (
+  engine: string,
+  at: number,
+  comparison?: Readonly<{ feature: string; groupId: string }>
+) => {
   clock = at;
   return await repository().create({
     engineVersion: engine,
     requestedBy: "operator",
     spec: {
+      ...(comparison === undefined
+        ? {}
+        : { comparison: { ...comparison, label: "cell" } }),
       costBps: 0,
       from: "2020-01-01",
       initialCapital: 10_000,
@@ -171,5 +178,259 @@ describe("backtest run queue on real Postgres", { concurrent: false }, () => {
       repository().failIfUnclaimed(backlog.id, engine, before, "idle")
     ).resolves.toBe(false);
     expect((await repository().get(backlog.id))?.status).toBe("queued");
+  });
+
+  it("lists comparison runs apart from ordinary runs, by feature and group", async () => {
+    const engine = "nautilus-lists";
+    const plain = await queue(engine, T0);
+    const sweepA = await queue(engine, T0 + MINUTE_MS, {
+      feature: "sweep",
+      groupId: "list-a",
+    });
+    const sweepB = await queue(engine, T0 + 2 * MINUTE_MS, {
+      feature: "sweep",
+      groupId: "list-b",
+    });
+    const instant = await queue(engine, T0 + 3 * MINUTE_MS, {
+      feature: "instant",
+      groupId: "list-c",
+    });
+    await repository().complete(
+      (await repository().claim(instant.id))?.id ?? "",
+      {
+        differences: { items: [], ok: true },
+        engineRun: { host: "rig" },
+        metrics: {},
+      }
+    );
+    const listed = (await repository().list({ limit: 100 })).map(
+      (run) => run.id
+    );
+    expect(listed).toContain(plain.id);
+    for (const run of [sweepA, sweepB, instant])
+      expect(listed).not.toContain(run.id);
+
+    const all = await repository().listComparisons({ limit: 100 });
+    expect(all.map((run) => run.id)).toEqual(
+      expect.arrayContaining([sweepA.id, sweepB.id, instant.id])
+    );
+    expect(all.map((run) => run.id)).not.toContain(plain.id);
+    const sweeps = await repository().listComparisons({
+      feature: "sweep",
+      limit: 100,
+    });
+    expect(sweeps.map((run) => run.id).sort()).toEqual(
+      [sweepA.id, sweepB.id].sort()
+    );
+    const group = await repository().listComparisons({
+      groupId: "list-c",
+      limit: 100,
+    });
+    expect(group).toHaveLength(1);
+    expect(group[0]).toMatchObject({
+      differences: { items: [], ok: true },
+      engineRun: { host: "rig" },
+      id: instant.id,
+      status: "succeeded",
+    });
+    expect(group[0]).not.toHaveProperty("report");
+    expect(
+      (await repository().listComparisons({ groupId: "list-a", limit: 100 }))[0]
+    ).toMatchObject({ differences: null, engineRun: null, id: sweepA.id });
+  });
+
+  it("claims one comparison group per batch and never gives a run to two callers", async () => {
+    const engine = "nautilus-batch";
+    const lone = await queue(engine, T0);
+    const group = await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        queue(engine, T0 + (index + 1) * MINUTE_MS, {
+          feature: "sweep",
+          groupId: "batch-g",
+        })
+      )
+    );
+    const other = await queue(engine, T0 + 20 * MINUTE_MS, {
+      feature: "sweep",
+      groupId: "batch-h",
+    });
+    clock = T0 + 30 * MINUTE_MS;
+    // The oldest run has no group: it comes alone.
+    expect(
+      (await repository().claimBatch(engine, 50)).map((run) => run.id)
+    ).toEqual([lone.id]);
+    // Then the group, oldest first, at most `max` runs, never the other group.
+    const first = await repository().claimBatch(engine, 5);
+    expect(first.map((run) => run.id)).toEqual(
+      group.slice(0, 5).map((run) => run.id)
+    );
+    // Four concurrent callers share the rest of the group without overlap.
+    const batches = await Promise.all(
+      Array.from({ length: 4 }, () => repository().claimBatch(engine, 50))
+    );
+    const ids = batches.flat().map((run) => run.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const rest = [...group.slice(5), other].map((run) => run.id);
+    const drained: string[] = [];
+    for (;;) {
+      const batch = await repository().claimBatch(engine, 50);
+      if (batch.length === 0) break;
+      drained.push(...batch.map((run) => run.id));
+    }
+    expect([...ids, ...drained].sort()).toEqual(rest.sort());
+    for (const batch of [...batches, first])
+      for (const run of batch) expect(run.status).toBe("running");
+  });
+
+  const ENQUEUE_ENGINE = "nautilus-enqueue";
+  const SUPERSEDED = "Superseded by a newer request";
+  const DAY_MS = 24 * 60 * MINUTE_MS;
+  const runInput = (requestedBy = "operator", feature = "sweep") => ({
+    engineVersion: ENQUEUE_ENGINE,
+    requestedBy,
+    spec: {
+      comparison: { feature, label: "cell" },
+      costBps: 0,
+      from: "2020-01-01",
+      initialCapital: 10_000,
+      rule: { fast: 5, kind: "smaCross" as const, slow: 20 },
+      stopLossPct: 0,
+      symbol: "SPY",
+      takeProfitPct: 0,
+      timeframe: "1d" as const,
+      to: "2021-01-01",
+    },
+    strategyId: null,
+    strategyRevision: null,
+    strategySnapshot: null,
+  });
+  const enqueue = (
+    groupId: string,
+    at: number,
+    count = 2,
+    requestedBy = "operator",
+    feature = "sweep"
+  ) => {
+    clock = at;
+    return repository().enqueueGroup({
+      groupId,
+      reuseSince: new Date(at - DAY_MS),
+      runs: Array.from({ length: count }, () => {
+        const input = runInput(requestedBy, feature);
+        return {
+          ...input,
+          spec: {
+            ...input.spec,
+            comparison: { ...input.spec.comparison, groupId },
+          },
+        };
+      }),
+      supersede: { engineVersion: ENQUEUE_ENGINE, feature, requestedBy },
+      supersededError: SUPERSEDED,
+    });
+  };
+  const group = async (groupId: string) =>
+    repository().listComparisons({ groupId, limit: 100 });
+
+  it("reuses a live comparison group and supersedes only older queued runs", async () => {
+    // (1) Two identical requests at once store the group once; a third reuses it.
+    const first = await Promise.all([enqueue("same", T0), enqueue("same", T0)]);
+    expect(first.map((result) => result.created).sort()).toEqual([0, 2]);
+    expect(first.filter((result) => result.reused)).toHaveLength(1);
+    expect(await group("same")).toHaveLength(2);
+    await expect(enqueue("same", T0 + MINUTE_MS)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 0,
+    });
+
+    // (2) A new group of the same feature and requester supersedes the older queued runs, never
+    // a running one, and never another requester's or another feature's runs.
+    const runningId = (await group("same"))[0]?.id ?? "";
+    clock = T0 + 2 * MINUTE_MS;
+    await repository().claim(runningId);
+    await enqueue("other-user", T0 + 3 * MINUTE_MS, 1, "someone-else");
+    await enqueue("instant", T0 + 3 * MINUTE_MS, 1, "operator", "instant");
+    await expect(enqueue("newer", T0 + 4 * MINUTE_MS)).resolves.toEqual({
+      created: 2,
+      reused: false,
+      superseded: 1,
+    });
+    const same = await group("same");
+    expect(same.map((run) => run.status).sort()).toEqual(["failed", "running"]);
+    expect(same.find((run) => run.status === "failed")?.error).toBe(SUPERSEDED);
+    expect((await group("other-user"))[0]?.status).toBe("queued");
+    expect((await group("instant"))[0]?.status).toBe("queued");
+
+    // A superseded group is queued again when it is asked for again (it supersedes "newer").
+    await expect(enqueue("same", T0 + 5 * MINUTE_MS)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 2,
+    });
+    // "same" still has its running run, so it was reused; a group whose runs were all
+    // superseded gets new runs.
+    await expect(enqueue("newer", T0 + 6 * MINUTE_MS)).resolves.toMatchObject({
+      created: 2,
+      reused: false,
+    });
+    // After 24 hours the same request queues new runs.
+    await expect(
+      enqueue("instant", T0 + 2 * DAY_MS, 1, "operator", "instant")
+    ).resolves.toMatchObject({
+      created: 1,
+      reused: false,
+    });
+  });
+  it("reuses only a group with a queued, running or succeeded run", async () => {
+    const [first] = await group("err-g").then(async (runs) => {
+      expect(runs).toHaveLength(0);
+      await enqueue("err-g", T0, 1);
+      return group("err-g");
+    });
+    // A run failed for another reason does not make the group reusable.
+    await repository().fail(first?.id ?? "", "Nautilus engine failed (exit 1)");
+    await expect(enqueue("err-g", T0 + MINUTE_MS, 1)).resolves.toMatchObject({
+      created: 1,
+      reused: false,
+    });
+    // A succeeded run does.
+    const [queued] = (await group("err-g")).filter(
+      (run) => run.status === "queued"
+    );
+    clock = T0 + 2 * MINUTE_MS;
+    await repository().claim(queued?.id ?? "");
+    await repository().complete(queued?.id ?? "", {
+      differences: { items: [], ok: true },
+      engineRun: { host: "rig" },
+      metrics: {},
+    });
+    await expect(enqueue("err-g", T0 + 3 * MINUTE_MS, 1)).resolves.toEqual({
+      created: 0,
+      reused: true,
+      superseded: 0,
+    });
+  });
+
+  it("lets the later of two concurrent latest requests of different groups supersede the other", async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const user = `racer-${round}`;
+      const at = T0 + round * MINUTE_MS;
+      const results = await Promise.all([
+        enqueue(`race-${round}-a`, at, 2, user),
+        enqueue(`race-${round}-b`, at, 2, user),
+      ]);
+      // One request ran first and the other superseded all of its runs.
+      expect(results.map((result) => result.superseded).sort()).toEqual([0, 2]);
+      const statuses = await Promise.all(
+        ["a", "b"].map(async (side) =>
+          (await group(`race-${round}-${side}`)).map((run) => run.status)
+        )
+      );
+      expect(statuses.map((list) => [...new Set(list)].join()).sort()).toEqual([
+        "failed",
+        "queued",
+      ]);
+    }
   });
 });

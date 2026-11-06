@@ -5,6 +5,7 @@ import type {
   AutopilotCandidateDetailOutput,
   AutopilotCandidateSummaryOutput,
   AutopilotGateOutput,
+  EngineComparisonRun,
   InstantBacktestSeries,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
@@ -40,6 +41,7 @@ import {
   createAutopilotGateway,
   createBrowserAutopilotGateway,
 } from "./autopilot-workspace.tsx";
+import type { EngineComparisonGateway } from "./engine-comparison.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -257,6 +259,66 @@ const detailOf = (
   leaderboard: [verified, child],
   seriesTrials: 300,
   ...overrides,
+});
+
+/** One Nautilus comparison run as backtestRuns.comparisons.list returns it. */
+const nautilusRun = (
+  overrides: Partial<EngineComparisonRun> = {}
+): EngineComparisonRun => ({
+  comparison: {
+    feature: "instant",
+    groupId: "g-1",
+    label: "SPY 1d smaCross",
+    typescript: {
+      host: "QuantVPS web",
+      stats: {
+        bars: 2,
+        buyHoldMaxDrawdown: 0,
+        buyHoldReturn: 0,
+        cagr: null,
+        exposure: 0,
+        maxDrawdown: 0,
+        profitFactor: null,
+        sharpe: null,
+        sortino: null,
+        totalReturn: 0,
+        trades: 0,
+        winRate: null,
+      },
+      tradeCount: 0,
+      trades: [],
+      wallMs: 1,
+    },
+  },
+  createdAt: new Date(0),
+  differences: { items: [], ok: true },
+  engineRun: {
+    cpuMs: 10,
+    gpu: "not used (Nautilus engine is CPU-only)",
+    host: "rig-1",
+    processCases: 1,
+    processes: 1,
+    processWallMs: 500,
+    wallMs: 400,
+  },
+  engineVersion: "nautilus-trader-1.227.0",
+  error: null,
+  finishedAt: new Date(1000),
+  from: "1970-01-01",
+  id: "n-1",
+  queueWaitMs: 2000,
+  startedAt: new Date(2000),
+  status: "succeeded",
+  symbol: "SPY",
+  timeframe: "1d",
+  to: "1970-04-10",
+  ...overrides,
+});
+
+const comparisonsOf = (
+  runs: EngineComparisonRun[]
+): EngineComparisonGateway => ({
+  comparisons: vi.fn(async () => ({ runs })),
 });
 
 const definition = {
@@ -921,5 +983,53 @@ describe("AutopilotWorkspace", () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain(
       "Down"
     );
+  });
+});
+
+describe("autopilot gate engine comparison", () => {
+  it("shows each gated candidate's Nautilus checks once the campaign has some", async () => {
+    const run = (label: string, id: string) =>
+      nautilusRun({
+        comparison: {
+          ...nautilusRun().comparison,
+          feature: "autopilotGate",
+          groupId: "autopilot:c1",
+          key: verified.id,
+          label: `AP test: ${label}`,
+        },
+        id,
+      });
+    const comparisons = comparisonsOf([
+      run("in-sample", "n-1"),
+      run("full run (out-of-sample from 2019-01-02)", "n-2"),
+    ]);
+    await mount(
+      <AutopilotWorkspace
+        comparisonGateway={comparisons}
+        gateway={gatewayOf()}
+      />
+    );
+    expect(comparisons.comparisons).toHaveBeenCalledWith("autopilot:c1");
+    expect(text()).toContain("Nautilus check");
+    expect(text()).toContain("in-sample: 400 ms (queue 2.0 s)Status:match");
+    expect(text()).toContain(
+      "full run (out-of-sample from 2019-01-02): 400 ms"
+    );
+    expect(text()).toContain("not repeated");
+  });
+
+  it("shows no Nautilus column for a campaign without comparison runs", async () => {
+    const gateway = gatewayOf({
+      get: vi.fn(async () =>
+        detailOf({ campaign: campaign({ tickedAt: null }) })
+      ),
+    });
+    await mount(
+      <AutopilotWorkspace
+        comparisonGateway={comparisonsOf([])}
+        gateway={gateway}
+      />
+    );
+    expect(text()).not.toContain("Nautilus check");
   });
 });
