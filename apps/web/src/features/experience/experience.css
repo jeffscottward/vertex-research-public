@@ -188,59 +188,7 @@
     cursor: pointer;
   }
 
-  .vx-ex-rows,
-  .vx-ex-inbox {
-    list-style: none;
-    padding: 0;
-    margin-block: var(--space-6);
-    border-top: 2px solid var(--foreground);
-  }
-
-  .vx-ex-rows > li,
-  .vx-ex-inbox-item {
-    display: grid;
-    gap: var(--space-4);
-    padding-block: var(--space-5);
-    border-bottom: 1px solid var(--border);
-    overflow-wrap: anywhere;
-  }
-
-  .vx-ex-rows > li > button {
-    justify-self: start;
-  }
-
-  .vx-ex-rows button[aria-pressed="true"] {
-    background: var(--vx-gold);
-    color: var(--vx-charcoal);
-    border-color: var(--vx-charcoal);
-  }
-
-  .vx-ex-check {
-    display: flex;
-    gap: var(--space-3);
-    align-items: center;
-    min-height: 44px;
-    margin-block: var(--space-5);
-    cursor: pointer;
-  }
-
-  .vx-ex-check input {
-    flex: 0 0 1.25rem;
-    width: 1.25rem;
-    height: 1.25rem;
-    accent-color: var(--foreground);
-  }
-
-  .vx-ex-prose {
-    max-width: var(--content-reading);
-    line-height: 1.8;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-
-  .vx-ex-catalog,
-  .vx-ex-record-list,
-  .vx-ex-rule-list {
+  .vx-ex-record-list {
     display: grid;
     gap: var(--space-4);
     margin-block: var(--space-4);
@@ -248,9 +196,7 @@
     list-style: none;
   }
 
-  .vx-ex-catalog > li,
-  .vx-ex-record-list > li,
-  .vx-ex-rule-list > li {
+  .vx-ex-record-list > li {
     border-bottom: 1px solid var(--border);
     padding-block: var(--space-4);
     overflow-wrap: anywhere;
@@ -317,11 +263,6 @@
     .vx-ex-facts > div {
       grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr);
       gap: var(--space-6);
-    }
-
-    .vx-ex-rows > li {
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
     }
 
     .vx-ex-pagination > p {
