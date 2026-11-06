@@ -24,7 +24,9 @@
 // Pause file: while VERTEX_WORKER_PAUSE_FILE exists and is younger than PAUSE_FILE_MAX_AGE_MS, the
 // worker claims nothing (it checks every PAUSE_POLL_MS). infra/quantvps/restart-when-idle.sh
 // creates it for its idle wait, so a fast-polling worker does not keep the web app busy. A run in
-// progress finishes normally.
+// progress finishes normally. The worker also pauses while another process holds the restart
+// lock (VERTEX_WORKER_RESTART_LOCK, default the script's lock file): older copies of the script
+// never write the pause file, but every copy holds that lock for its whole run (restartLockState).
 // SIGTERM stops the loop; a running engine process is killed and its run fails. After
 // ALERT_AFTER_FAILURES failed cycles in a row (API errors, a result that could not be delivered,
 // an engine crash or timeout; not an input error or an empty claim) it posts one alert line to
@@ -34,7 +36,7 @@
 // is never printed.
 
 import { spawn } from "node:child_process";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { z } from "zod";
 
 import {
@@ -153,6 +155,8 @@ export type NautilusWorkerIo = Readonly<{
   sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   /** Milliseconds since the file was last written, or null when it does not exist. */
   fileAgeMs: (path: string) => number | null;
+  /** Whether another process holds the restart lock (restartLockState). */
+  restartLock: (path: string, signal: AbortSignal) => Promise<LockState>;
   stdout: Readonly<{ write: (text: string) => unknown }>;
   stderr: Readonly<{ write: (text: string) => unknown }>;
 }>;
@@ -168,6 +172,7 @@ type Config = Readonly<{
   requestBudget: number;
   quietPauseMs: number;
   pauseFile: string;
+  restartLock: string;
   /** API requests sent since the last quiet pause. */
   budget: { requests: number };
 }>;
@@ -245,6 +250,65 @@ export const fileAgeMs = (path: string): number | null => {
   }
 };
 
+/** The restart lock: held by another process, free, or not known (with the reason). */
+export type LockState = "held" | "free" | Readonly<{ problem: string }>;
+
+type LockDependencies = Readonly<{
+  inode: (path: string) => bigint | null;
+  readLocks: () => string;
+  run: RunCommand;
+}>;
+
+const defaultLockDependencies: LockDependencies = {
+  inode: (path) => {
+    try {
+      return statSync(path, { bigint: true }).ino;
+    } catch {
+      return null;
+    }
+  },
+  readLocks: () => readFileSync("/proc/locks", "utf8"),
+  run: runCommand,
+};
+
+/**
+ * Whether another process holds the restart lock, without taking it in the normal case:
+ * restart-when-idle.sh takes it with `flock -n` and exits 8 when it is held, so a worker that took
+ * it even briefly could stop a restart. No lock file: free. Else /proc/locks: no lock on the file's
+ * inode means free. /proc/locks prints the superblock device, which differs from stat's device on
+ * btrfs, so only the inode is matched; a match (or an unreadable /proc/locks) is checked with
+ * `flock -n <lock> true` (exit 1: held), which holds the lock only for that instant. A missing
+ * flock or any other failure is a problem (not paused).
+ */
+export const restartLockState = async (
+  path: string,
+  signal: AbortSignal,
+  dependencies: LockDependencies = defaultLockDependencies
+): Promise<LockState> => {
+  const inode = dependencies.inode(path);
+  if (inode === null) return "free";
+  let locks: string | null;
+  try {
+    locks = dependencies.readLocks();
+  } catch {
+    locks = null;
+  }
+  const onInode = new RegExp(`:${inode}\\s`, "u");
+  if (locks !== null && !locks.split("\n").some((line) => onInode.test(line)))
+    return "free";
+  const outcome = await dependencies.run("flock", ["-n", path, "true"], {
+    cwd: "/",
+    input: "",
+    signal,
+    timeoutMs: 5000,
+  });
+  if (outcome.code === 0) return "free";
+  if (outcome.code === 1) return "held";
+  return {
+    problem: `flock -n ${path} failed (exit ${outcome.code}): ${outcome.stderr.trim().slice(0, 200)}`,
+  };
+};
+
 /** Waits `ms`, or less when the signal aborts. */
 export const sleep = (ms: number, signal: AbortSignal): Promise<void> => {
   const { promise, resolve } = Promise.withResolvers<void>();
@@ -287,18 +351,19 @@ const positiveInteger = (
   return value;
 };
 
-/** VERTEX_WORKER_PAUSE_FILE, else vertex-nautilus-worker.pause in the XDG state directory. */
-const pauseFileOf = (env: NautilusWorkerIo["env"]): string => {
-  const explicit = env["VERTEX_WORKER_PAUSE_FILE"]?.trim() ?? "";
+/** The `name` setting, else `file` in the XDG state directory (as restart-when-idle.sh finds it). */
+const stateFileOf = (
+  env: NautilusWorkerIo["env"],
+  name: "VERTEX_WORKER_PAUSE_FILE" | "VERTEX_WORKER_RESTART_LOCK",
+  file: string
+): string => {
+  const explicit = env[name]?.trim() ?? "";
   if (explicit !== "") return explicit;
   const state = env["XDG_STATE_HOME"]?.trim() ?? "";
-  if (state !== "") return `${state}/vertex-nautilus-worker.pause`;
+  if (state !== "") return `${state}/${file}`;
   const home = env["HOME"]?.trim() ?? "";
-  if (home === "")
-    throw new Error(
-      "VERTEX_WORKER_PAUSE_FILE is required when HOME is not set"
-    );
-  return `${home}/.local/state/vertex-nautilus-worker.pause`;
+  if (home === "") throw new Error(`${name} is required when HOME is not set`);
+  return `${home}/.local/state/${file}`;
 };
 
 const readConfig = (env: NautilusWorkerIo["env"]): Config => {
@@ -340,7 +405,16 @@ const readConfig = (env: NautilusWorkerIo["env"]): Config => {
   return {
     apiKey: required(env, "VERTEX_AGENT_API_KEY"),
     budget: { requests: 0 },
-    pauseFile: pauseFileOf(env),
+    pauseFile: stateFileOf(
+      env,
+      "VERTEX_WORKER_PAUSE_FILE",
+      "vertex-nautilus-worker.pause"
+    ),
+    restartLock: stateFileOf(
+      env,
+      "VERTEX_WORKER_RESTART_LOCK",
+      "vertex-web-restart.lock"
+    ),
     processes,
     quietPauseMs,
     requestBudget,
@@ -902,18 +976,19 @@ const waitAfter = async (
   return next;
 };
 
-/** Whether the worker is paused, and whether a stale pause file was already logged. */
+/** Whether the worker is paused, and which notes were already logged. */
 interface PauseState {
   paused: boolean;
   staleLogged: boolean;
+  lockProblemLogged: boolean;
 }
 
-/** Whether the pause file holds the worker now; logs entering, leaving and a stale file once. */
-const pausedNow = (
+/** The pause reason of the pause file, or null; logs a stale file once. */
+const pauseFileReason = (
   config: Config,
   io: NautilusWorkerIo,
   state: PauseState
-): boolean => {
+): string | null => {
   const age = io.fileAgeMs(config.pauseFile);
   const fresh = age !== null && age < PAUSE_FILE_MAX_AGE_MS;
   if (age !== null && !fresh && !state.staleLogged)
@@ -921,14 +996,43 @@ const pausedNow = (
       `nautilus worker: ignoring pause file ${config.pauseFile}, older than ${PAUSE_FILE_MAX_AGE_MS / 60_000} min\n`
     );
   state.staleLogged = age !== null && !fresh;
-  if (fresh !== state.paused)
-    io.stdout.write(
-      fresh
-        ? `nautilus worker: paused while ${config.pauseFile} exists (a web restart waits for idle)\n`
-        : "nautilus worker: pause ended; claiming again\n"
+  return fresh ? `${config.pauseFile} exists` : null;
+};
+
+/** The pause reason of the restart lock, or null; logs a failed lock check once. */
+const restartLockReason = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  state: PauseState
+): Promise<string | null> => {
+  const lock = await io.restartLock(config.restartLock, io.signal);
+  const problem = typeof lock === "object";
+  if (problem && !state.lockProblemLogged)
+    io.stderr.write(
+      `nautilus worker: cannot check the restart lock (${lock.problem}); not pausing for it\n`
     );
-  state.paused = fresh;
-  return fresh;
+  state.lockProblemLogged = problem;
+  return lock === "held" ? `another process holds ${config.restartLock}` : null;
+};
+
+/** Whether a web restart holds the worker now; logs entering and leaving once. */
+const pausedNow = async (
+  config: Config,
+  io: NautilusWorkerIo,
+  state: PauseState
+): Promise<boolean> => {
+  const reason =
+    pauseFileReason(config, io, state) ??
+    (await restartLockReason(config, io, state));
+  const paused = reason !== null;
+  if (paused !== state.paused)
+    io.stdout.write(
+      reason === null
+        ? "nautilus worker: pause ended; claiming again\n"
+        : `nautilus worker: paused while ${reason} (a web restart waits for idle)\n`
+    );
+  state.paused = paused;
+  return paused;
 };
 
 /**
@@ -941,7 +1045,7 @@ const waitWhilePaused = async (
   state: PauseState
 ): Promise<void> => {
   let pausedMs = 0;
-  while (!io.signal.aborted && pausedNow(config, io, state)) {
+  while (!io.signal.aborted && (await pausedNow(config, io, state))) {
     await io.sleep(PAUSE_POLL_MS, io.signal);
     pausedMs += PAUSE_POLL_MS;
     if (pausedMs >= config.quietPauseMs) config.budget.requests = 0;
@@ -964,10 +1068,14 @@ export const runNautilusWorker = async (
   }
   const once = argv.includes("--once");
   const alerts: AlertState = { alerted: false, failures: 0 };
-  const pause: PauseState = { paused: false, staleLogged: false };
+  const pause: PauseState = {
+    lockProblemLogged: false,
+    paused: false,
+    staleLogged: false,
+  };
   let idleMs = config.idleMs;
   // --once never waits: while paused it claims nothing and stops.
-  if (once && pausedNow(config, io, pause)) return 0;
+  if (once && (await pausedNow(config, io, pause))) return 0;
   while (!io.signal.aborted) {
     await waitWhilePaused(config, io, pause);
     if (io.signal.aborted) break;

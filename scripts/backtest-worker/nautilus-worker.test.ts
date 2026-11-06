@@ -1,3 +1,4 @@
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,6 +26,7 @@ import {
   MAX_REQUEST_BUDGET,
   MIN_QUIET_PAUSE_MS,
   NAUTILUS_RUN_TIMEOUT_MS,
+  type LockState,
   type NautilusWorkerIo,
   PAUSE_FILE_MAX_AGE_MS,
   PAUSE_POLL_MS,
@@ -32,6 +34,7 @@ import {
   REJECTED_ERROR,
   REQUEST_BUDGET,
   readBatchOutput,
+  restartLockState,
   retryAfterMs,
   runCommand,
   runNautilusWorker,
@@ -44,11 +47,13 @@ import {
 
 const engine = BACKTEST_RUN_NAUTILUS_ENGINE;
 const PAUSE_FILE = "/state/vertex-nautilus-worker.pause";
+const RESTART_LOCK = "/state/vertex-web-restart.lock";
 const env = {
   VERTEX_AGENT_API_KEY: "secret-key",
   VERTEX_NAUTILUS_PYTHON: "/venv/bin/python",
   VERTEX_ORIGIN: "https://vertex.example.test/portal",
   VERTEX_WORKER_PAUSE_FILE: PAUSE_FILE,
+  VERTEX_WORKER_RESTART_LOCK: RESTART_LOCK,
 };
 const SHA = "b".repeat(64);
 
@@ -158,8 +163,15 @@ const harness = (
     alert?: () => Response;
     /** Pause file ages (ms, null: absent) in call order; then absent. */
     pauseAges?: (number | null)[];
+    /** Restart lock answers in call order; then free. */
+    locks?: LockState[];
   }> = {}
 ) => {
+  const locks = [...(options.locks ?? [])];
+  const restartLock = vi.fn(
+    async (_path: string, _signal: AbortSignal): Promise<LockState> =>
+      locks.shift() ?? "free"
+  );
   const pauseAges = [...(options.pauseAges ?? [])];
   const fileAge = vi.fn((_path: string) => pauseAges.shift() ?? null);
   const claims = [...(options.claims ?? [])];
@@ -206,6 +218,7 @@ const harness = (
     env: options.env ?? env,
     fileAgeMs: fileAge,
     hostname: "rig-1",
+    restartLock,
     post,
     researchDir: "/repo/services/research",
     runCommand: runCommandFake,
@@ -219,6 +232,7 @@ const harness = (
   return {
     alerts,
     fileAge,
+    restartLock,
     calls,
     claimCount: () => claimCount,
     completes,
@@ -269,6 +283,10 @@ describe("nautilus worker configuration", () => {
       [
         { VERTEX_WORKER_PAUSE_FILE: "" },
         "VERTEX_WORKER_PAUSE_FILE is required when HOME is not set",
+      ],
+      [
+        { VERTEX_WORKER_RESTART_LOCK: " " },
+        "VERTEX_WORKER_RESTART_LOCK is required when HOME is not set",
       ],
     ] as const) {
       const run = harness({ env: { ...env, ...overrides } });
@@ -895,7 +913,11 @@ describe("nautilus worker loop", () => {
   });
 
   it("defaults the pause file to the XDG state directory, else ~/.local/state", async () => {
-    const { VERTEX_WORKER_PAUSE_FILE: _unused, ...base } = env;
+    const {
+      VERTEX_WORKER_PAUSE_FILE: _pause,
+      VERTEX_WORKER_RESTART_LOCK: _lock,
+      ...base
+    } = env;
     const xdg = harness({ env: { ...base, XDG_STATE_HOME: "/xdg" } });
     await runNautilusWorker(["--once"], xdg.io);
     expect(xdg.fileAge).toHaveBeenCalledWith(
@@ -906,7 +928,150 @@ describe("nautilus worker loop", () => {
     expect(home.fileAge).toHaveBeenCalledWith(
       "/home/u/.local/state/vertex-nautilus-worker.pause"
     );
+    expect(xdg.restartLock.mock.calls[0]?.[0]).toBe(
+      "/xdg/vertex-web-restart.lock"
+    );
+    expect(home.restartLock.mock.calls[0]?.[0]).toBe(
+      "/home/u/.local/state/vertex-web-restart.lock"
+    );
   });
+
+  it("pauses while another process holds the restart lock (an older restart script)", async () => {
+    const run = harness({ locks: ["held", "held", "free"] });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 1) run.controller.abort();
+    });
+    await runNautilusWorker([], run.io);
+    expect(run.restartLock).toHaveBeenCalledWith(RESTART_LOCK, run.io.signal);
+    expect(run.sleep.mock.calls.map(([ms]) => ms)).toEqual([
+      PAUSE_POLL_MS,
+      PAUSE_POLL_MS,
+      DEFAULT_IDLE_MS,
+    ]);
+    expect(run.out.filter((line) => line.includes("pause"))).toEqual([
+      `nautilus worker: paused while another process holds ${RESTART_LOCK} (a web restart waits for idle)\n`,
+      "nautilus worker: pause ended; claiming again\n",
+    ]);
+    // A fresh pause file is enough: the lock is not checked then.
+    const file = harness({ pauseAges: [5] });
+    await runNautilusWorker(["--once"], file.io);
+    expect(file.restartLock).not.toHaveBeenCalled();
+  });
+
+  it("does not pause when the lock cannot be checked, and logs that once per episode", async () => {
+    const problem = {
+      problem: "flock -n /x failed (exit null): spawn flock ENOENT",
+    };
+    const run = harness({ locks: [problem, problem, "free", problem] });
+    run.sleep.mockImplementation(async () => {
+      if (run.claimCount() >= 4) run.controller.abort();
+    });
+    await runNautilusWorker([], run.io);
+    expect(run.claimCount()).toBe(4);
+    expect(
+      run.err.filter((line) => line.includes("cannot check the restart lock"))
+    ).toEqual([
+      `nautilus worker: cannot check the restart lock (${problem.problem}); not pausing for it\n`,
+      `nautilus worker: cannot check the restart lock (${problem.problem}); not pausing for it\n`,
+    ]);
+    expect(run.out.some((line) => line.includes("paused while"))).toBe(false);
+  });
+
+  it("checks the restart lock through /proc/locks first and flock -n only on a match", async () => {
+    const signal = new AbortController().signal;
+    const flockAnswer = (code: number | null, stderr = "") =>
+      vi.fn(async () => outcome({ code, stderr }));
+    const locks = "1: FLOCK  ADVISORY  WRITE 42 00:1d:777 0 EOF\n";
+    const deps = (run: ReturnType<typeof flockAnswer>, text = locks) => ({
+      inode: () => 777n,
+      readLocks: () => text,
+      run,
+    });
+    // No lock file: free, nothing run.
+    const none = flockAnswer(0);
+    await expect(
+      restartLockState("/l", signal, { ...deps(none), inode: () => null })
+    ).resolves.toBe("free");
+    expect(none).not.toHaveBeenCalled();
+    // No lock on the inode (7770 and 77 are other inodes): free without taking the lock.
+    const other = flockAnswer(0);
+    await expect(
+      restartLockState(
+        "/l",
+        signal,
+        deps(
+          other,
+          "1: FLOCK  ADVISORY  WRITE 42 00:1d:7770 0 EOF\n2: POSIX  ADVISORY  READ 9 00:37:77 0 EOF\n"
+        )
+      )
+    ).resolves.toBe("free");
+    expect(other).not.toHaveBeenCalled();
+    // A lock on the inode: flock -n decides.
+    const held = flockAnswer(1);
+    await expect(restartLockState("/l", signal, deps(held))).resolves.toBe(
+      "held"
+    );
+    expect(held).toHaveBeenCalledWith("flock", ["-n", "/l", "true"], {
+      cwd: "/",
+      input: "",
+      signal,
+      timeoutMs: 5000,
+    });
+    await expect(
+      restartLockState("/l", signal, deps(flockAnswer(0)))
+    ).resolves.toBe("free");
+    await expect(
+      restartLockState(
+        "/l",
+        signal,
+        deps(flockAnswer(null, " spawn flock ENOENT "))
+      )
+    ).resolves.toEqual({
+      problem: "flock -n /l failed (exit null): spawn flock ENOENT",
+    });
+    // /proc/locks unreadable: flock -n decides.
+    const unreadable = flockAnswer(1);
+    await expect(
+      restartLockState("/l", signal, {
+        ...deps(unreadable),
+        readLocks: () => {
+          throw new Error("EACCES");
+        },
+      })
+    ).resolves.toBe("held");
+    expect(unreadable).toHaveBeenCalledTimes(1);
+  });
+
+  it.skipIf(spawnSync("flock", ["--version"]).status !== 0)(
+    "sees a real flock holder and never keeps the lock",
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "vertex-lock-"));
+      const lock = join(dir, "vertex-web-restart.lock");
+      const signal = new AbortController().signal;
+      await expect(restartLockState(lock, signal)).resolves.toBe("free");
+      writeFileSync(lock, "");
+      await expect(restartLockState(lock, signal)).resolves.toBe("free");
+      // --no-fork: flock runs sleep itself, so killing it releases the lock.
+      const holder = spawn("flock", ["--no-fork", lock, "sleep", "30"], {
+        stdio: "ignore",
+      });
+      try {
+        let state = await restartLockState(lock, signal);
+        for (let tries = 0; state !== "held" && tries < 50; tries += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          state = await restartLockState(lock, signal);
+        }
+        expect(state).toBe("held");
+      } finally {
+        holder.kill("SIGKILL");
+        await new Promise((resolve) => holder.once("close", resolve));
+      }
+      await expect(restartLockState(lock, signal)).resolves.toBe("free");
+      // The check left the lock free: a restart script's flock -n gets it at once.
+      expect(spawnSync("flock", ["-n", lock, "true"]).status).toBe(0);
+      rmSync(dir, { force: true, recursive: true });
+    }
+  );
 
   it("reads a file's age, and null for a missing file", () => {
     const dir = mkdtempSync(join(tmpdir(), "vertex-pause-"));
