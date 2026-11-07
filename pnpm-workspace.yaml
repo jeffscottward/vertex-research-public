@@ -6,6 +6,9 @@ allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
+  # The desktop shell fetches its Electron binary on demand (`pnpm --filter
+  # @darkfactory/desktop electron:install`), so CI installs never download it.
+  electron: false
   '@scarf/scarf': false
 
 overrides:
