@@ -84,3 +84,20 @@ export const describeOrderFlowFailure = (
   };
   return { code, detail: message, message: text[code] ?? message };
 };
+
+/** Longest pacing wait the panel sits through on its own; IBKR's 10 min back-off is not retried. */
+export const PACED_RETRY_MAX_SECONDS = 90;
+/** The history service's minimum spacing (10 s) plus slack, when it names no wait. */
+export const PACED_RETRY_DEFAULT_SECONDS = 12;
+
+/**
+ * How long to wait before one automatic retry of a paced request, in ms, or null when the
+ * failure is not pacing or the reported wait is too long to sit through.
+ */
+export const pacedRetryDelayMs = (failure: OrderFlowFailure): number | null => {
+  if (failure.code !== "PACED") return null;
+  const match = /retry in (\d+) s/.exec(failure.detail);
+  const seconds =
+    match === null ? PACED_RETRY_DEFAULT_SECONDS : Number(match[1]);
+  return seconds > PACED_RETRY_MAX_SECONDS ? null : Math.max(seconds, 1) * 1000;
+};
