@@ -6469,7 +6469,7 @@
         },
         "research_studies_summary_check": {
           "name": "research_studies_summary_check",
-          "value": "jsonb_typeof(\"research_studies\".\"summary\") = 'object' and octet_length(\"research_studies\".\"summary\"::text) <= 262144 and \"research_studies\".\"summary\" ->> 'id' = \"research_studies\".\"id\" and \"research_studies\".\"summary\" ->> 'spec' = \"research_studies\".\"spec_ref\""
+          "value": "jsonb_typeof(\"research_studies\".\"summary\") = 'object' and octet_length(\"research_studies\".\"summary\"::text) <= 327680 and coalesce(\"research_studies\".\"summary\" ->> 'id', '') = \"research_studies\".\"id\" and coalesce(\"research_studies\".\"summary\" ->> 'spec', '') = \"research_studies\".\"spec_ref\" and coalesce(\"research_studies\".\"summary\" ->> 'ran', '') = to_char(\"research_studies\".\"ran_on\", 'YYYY-MM-DD')"
         }
       },
       "isRLSEnabled": false

@@ -15,6 +15,7 @@ import {
 import {
   createNodeDatabase,
   createResearchStudyRepository,
+  InvalidRepositoryInputError,
   type ResearchStudyRepository,
 } from "@darkfactory/db/server";
 import { z } from "zod";
@@ -143,7 +144,7 @@ const run = async (
   }
 };
 
-/** Runs the importer and returns the process exit code: 0 ok, 2 usage error, 1 other failure. */
+/** Runs the importer and returns the process exit code: 0 ok, 2 usage or input error, 1 other failure. */
 export const runResearchStudiesImport = async (
   argv: readonly string[],
   io: CliIo,
@@ -157,7 +158,11 @@ export const runResearchStudiesImport = async (
     io.stdout.write(`${await run(argv, io, open)}\n`);
     return 0;
   } catch (error) {
-    if (error instanceof UsageError) {
+    // The database checks rejected the document: an input problem, like a schema failure.
+    if (
+      error instanceof UsageError ||
+      error instanceof InvalidRepositoryInputError
+    ) {
       io.stderr.write(`${error.message}\n`);
       return 2;
     }

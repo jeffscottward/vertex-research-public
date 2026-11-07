@@ -1,9 +1,11 @@
 -- Guarded reversal of 0050_research_studies only.
 -- Refuses while any imported study exists (a row other than the seeded adx-rvol-filters study, or the
--- seeded row after an import replaced it), so imported studies are never silently discarded. The
--- seeded row comes back when the migration is applied again.
+-- seeded row after an import replaced it), so imported studies are never silently discarded.
 -- No cascading drops, truncation or conditional drops. Drizzle ledger reconciliation is deliberately
--- not automated; coordinate it separately before re-application. Outside discoverable migrations.
+-- not automated: after this rollback the 0050 row stays in drizzle.__drizzle_migrations, so
+-- `db:migrate` skips 0050 and the table stays missing (researchStudies.get answers STORAGE_ERROR).
+-- To re-apply, delete that ledger row (match its hash) first, then run `db:migrate`; the seed runs
+-- again with the table. Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
 SET LOCAL row_security = off;

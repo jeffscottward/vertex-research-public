@@ -27,6 +27,7 @@ import {
   FILTER_STUDY_ID,
   FilterStudiesSection,
   RESEARCH_STUDIES_IMPORT_COMMAND,
+  RESEARCH_STUDY_TIMEOUT_MS,
   type ResearchStudyGateway,
 } from "./filter-studies-section.tsx";
 
@@ -148,6 +149,53 @@ describe("FilterStudiesSection", () => {
     );
     await act(async () => broken.querySelector("button")?.click());
     expect(stateOf(broken)).toBe("ready");
+  });
+
+  it("asks to sign in again when the session ended, without a retry", async () => {
+    const ended = await mount(
+      <FilterStudiesSection
+        gateway={failing({
+          code: "UNAUTHORIZED",
+          message: "Authentication required",
+          status: 401,
+        })}
+      />
+    );
+    expect(stateOf(ended)).toBe("unauthorized");
+    expect(ended.textContent).toContain("Session expired. Sign in again.");
+    expect(ended.querySelector("a")?.getAttribute("href")).toBe("/sign-in");
+    expect(ended.querySelector("button")).toBeNull();
+  });
+
+  it("shows a timeout error with Retry when the request never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const container = await mount(
+        <FilterStudiesSection
+          gateway={{
+            get: () => {
+              calls += 1;
+              return calls === 1
+                ? new Promise<never>(() => undefined)
+                : Promise.resolve(STUDY);
+            },
+          }}
+        />
+      );
+      expect(stateOf(container)).toBe("loading");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(RESEARCH_STUDY_TIMEOUT_MS);
+      });
+      expect(stateOf(container)).toBe("error");
+      expect(container.querySelector("[role='alert']")?.textContent).toBe(
+        "Filter studies unavailable. TIMEOUT: No answer in 15 s"
+      );
+      await act(async () => container.querySelector("button")?.click());
+      expect(stateOf(container)).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("treats a study that fails the schema as an error", async () => {

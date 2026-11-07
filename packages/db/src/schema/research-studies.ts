@@ -1,6 +1,8 @@
 // What: frozen research studies, for example the ADX/RVOL filter study on the /backtests page. One row
 // per study: the whole study document in `summary` (jsonb), with its spec reference and run date
-// copied out for listing. The API and the import CLI validate `summary` with FilterStudySchema
+// copied out for listing; the checks keep the copies equal to the document.
+// The size cap (320 KiB of jsonb text) leaves headroom over the CLI's 256 KiB compact-JSON cap,
+// because jsonb text adds a space after every ',' and ':'. The API and the import CLI validate `summary` with FilterStudySchema
 // (packages/api/src/contracts/research-studies.ts) on write and on read.
 // Research only: nothing here places, changes or cancels an order.
 // Used by: packages/db/src/server/research-studies.ts. See: docs/vertex-rebuild/research-studies.md.
@@ -36,7 +38,7 @@ export const researchStudies = pgTable(
     ),
     check(
       "research_studies_summary_check",
-      sql`jsonb_typeof(${table.summary}) = 'object' and octet_length(${table.summary}::text) <= 262144 and ${table.summary} ->> 'id' = ${table.id} and ${table.summary} ->> 'spec' = ${table.specRef}`
+      sql`jsonb_typeof(${table.summary}) = 'object' and octet_length(${table.summary}::text) <= 327680 and coalesce(${table.summary} ->> 'id', '') = ${table.id} and coalesce(${table.summary} ->> 'spec', '') = ${table.specRef} and coalesce(${table.summary} ->> 'ran', '') = to_char(${table.ranOn}, 'YYYY-MM-DD')`
     ),
   ]
 );

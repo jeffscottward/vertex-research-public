@@ -103,6 +103,13 @@ describe("research study contract", () => {
     expect(
       FilterStudySchema.safeParse({ ...STUDY, ran: "31/10/2026" }).success
     ).toBe(false);
+    for (const ran of ["2026-02-30", "2026-13-01", "2026-04-31"])
+      expect(FilterStudySchema.safeParse({ ...STUDY, ran }).success).toBe(
+        false
+      );
+    expect(
+      FilterStudySchema.safeParse({ ...STUDY, ran: "2024-02-29" }).success
+    ).toBe(true);
     expect(RESEARCH_STUDY_ID_PATTERN.test("adx-rvol-filters")).toBe(true);
     expect(RESEARCH_STUDY_ID_PATTERN.test("adx--rvol")).toBe(false);
     expect(

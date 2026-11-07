@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 
+import { InvalidRepositoryInputError } from "@darkfactory/db/server";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -155,6 +156,22 @@ describe("runResearchStudiesImport", () => {
       expect(run.out).toEqual([]);
     }
     expect(store.urls).toEqual([]);
+  });
+
+  it("exits 2 when the database checks reject the document", async () => {
+    const rejecting = storeDouble(async () => {
+      throw new InvalidRepositoryInputError(
+        "research study fails research_studies_summary_check"
+      );
+    });
+    const run = cli(chunks(SEEDED));
+    await expect(
+      runResearchStudiesImport([], run.io, rejecting.open)
+    ).resolves.toBe(2);
+    expect(run.err.join("")).toBe(
+      "Invalid repository input: research study fails research_studies_summary_check\n"
+    );
+    expect(rejecting.close).toHaveBeenCalledTimes(1);
   });
 
   it("exits 1 when the store fails, and still closes it", async () => {

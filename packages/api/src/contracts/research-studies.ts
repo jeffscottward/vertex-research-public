@@ -12,7 +12,10 @@ export const RESEARCH_STUDY_ID_MAX = 64;
 /** Lowercase words joined by single hyphens, for example `adx-rvol-filters`. */
 export const RESEARCH_STUDY_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 export const RESEARCH_STUDY_SPEC_MAX = 300;
-/** Largest stored study document, in bytes of compact JSON (the database checks the same cap). */
+/**
+ * Largest study document, in bytes of compact JSON. The database cap is 320 KiB of jsonb text, which
+ * is longer (a space after every ',' and ':'), so a document under this cap always fits.
+ */
 export const RESEARCH_STUDY_SUMMARY_MAX_BYTES = 262_144;
 
 export const RESEARCH_STUDY_API_ERRORS = {
@@ -38,7 +41,14 @@ const VariantMetrics = {
   trades: z.number().int().nonnegative(),
   tradesPerYear: z.number().nonnegative(),
 };
-const DateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
+// A real calendar date: 2026-02-30 matches the pattern but not a day, and Postgres rejects it.
+const DateText = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/u)
+  .refine((text) => {
+    const day = new Date(`${text}T00:00:00.000Z`);
+    return !Number.isNaN(day.getTime()) && day.toISOString().startsWith(text);
+  }, "Expected a calendar date");
 
 /** One filter study document, as printed by services/research/strategies/filter_study_summary.py. */
 export const FilterStudySchema = z

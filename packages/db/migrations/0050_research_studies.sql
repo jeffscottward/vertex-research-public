@@ -6,7 +6,7 @@ CREATE TABLE "research_studies" (
 	"summary" jsonb NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "research_studies_fields_check" CHECK ("research_studies"."id" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("research_studies"."id") <= 64 and length("research_studies"."spec_ref") between 1 and 300),
-	CONSTRAINT "research_studies_summary_check" CHECK (jsonb_typeof("research_studies"."summary") = 'object' and octet_length("research_studies"."summary"::text) <= 262144 and "research_studies"."summary" ->> 'id' = "research_studies"."id" and "research_studies"."summary" ->> 'spec' = "research_studies"."spec_ref")
+	CONSTRAINT "research_studies_summary_check" CHECK (jsonb_typeof("research_studies"."summary") = 'object' and octet_length("research_studies"."summary"::text) <= 327680 and coalesce("research_studies"."summary" ->> 'id', '') = "research_studies"."id" and coalesce("research_studies"."summary" ->> 'spec', '') = "research_studies"."spec_ref" and coalesce("research_studies"."summary" ->> 'ran', '') = to_char("research_studies"."ran_on", 'YYYY-MM-DD'))
 );
 --> statement-breakpoint
 -- App-role privileges, as in 0039_app_role_grants: when an operator applies migrations as another
@@ -23,7 +23,8 @@ $$;
 --> statement-breakpoint
 -- Seed: the ADX/RVOL filter study (docs/specs/research/adx-filter.md), run 2026-10-31 on public
 -- daily and intraday prices. It was shipped as a JSON file in the web app until this migration.
--- ON CONFLICT DO NOTHING keeps a newer run that the import CLI already stored.
+-- The seed runs once, in the same migration that creates the table; ON CONFLICT DO NOTHING only
+-- guards against a manual re-run of this file.
 INSERT INTO "research_studies" ("id", "spec_ref", "ran_on", "summary")
 VALUES (
   'adx-rvol-filters',

@@ -156,6 +156,14 @@ describe("research study repository", () => {
         createDouble(postgresError("57P01")).database
       ).upsert(INPUT)
     ).rejects.toThrow(DatabasePersistenceError);
+    for (const code of ["22007", "22008"])
+      await expect(
+        createResearchStudyRepository(
+          createDouble(postgresError(code)).database
+        ).upsert(INPUT)
+      ).rejects.toThrow(
+        new InvalidRepositoryInputError("research study has an invalid date")
+      );
     await expect(
       createResearchStudyRepository(createDouble([]).database).upsert(INPUT)
     ).rejects.toThrow("Database operation failed: research study write");

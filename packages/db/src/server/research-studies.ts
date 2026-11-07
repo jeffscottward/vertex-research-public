@@ -46,6 +46,12 @@ export type ResearchStudyRepository = Readonly<{
   ) => Promise<ResearchStudyUpsertResult>;
 }>;
 
+// check_violation, invalid_datetime_format, datetime_field_overflow: the input is wrong, not the
+// database, so the import CLI reports them as input problems.
+const INPUT_ERRORS: Readonly<Record<string, string>> = {
+  "22007": "has an invalid date",
+  "22008": "has an invalid date",
+};
 const CHECK_VIOLATION = "23514";
 
 const mapError = (operation: string, error: unknown): never => {
@@ -54,6 +60,11 @@ const mapError = (operation: string, error: unknown): never => {
     throw new InvalidRepositoryInputError(
       `research study fails ${typeof details.constraint === "string" ? details.constraint : "a check"}`
     );
+  }
+  const input =
+    typeof details.code === "string" ? INPUT_ERRORS[details.code] : undefined;
+  if (input !== undefined) {
+    throw new InvalidRepositoryInputError(`research study ${input}`);
   }
   if (typeof details.code === "string") {
     throw new DatabasePersistenceError(operation);

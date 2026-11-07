@@ -24,6 +24,9 @@ export const FILTER_STUDY_ID = "adx-rvol-filters";
 export const RESEARCH_STUDIES_IMPORT_COMMAND =
   "bun run vertex:research-studies:import";
 
+/** A request with no answer after this long shows the error state with Retry. */
+export const RESEARCH_STUDY_TIMEOUT_MS = 15_000;
+
 export interface ResearchStudyGateway {
   readonly get: (id: string) => Promise<ResearchStudy>;
 }
@@ -38,9 +41,31 @@ export const createBrowserResearchStudyGateway = (): ResearchStudyGateway => {
   });
 };
 
+const getWithTimeout = (
+  gateway: ResearchStudyGateway,
+  id: string
+): Promise<ResearchStudy> => {
+  let timeout: number | undefined;
+  // Executor form: the app's TypeScript lib predates Promise.withResolvers.
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = window.setTimeout(
+      () =>
+        reject({
+          code: "TIMEOUT",
+          message: `No answer in ${RESEARCH_STUDY_TIMEOUT_MS / 1000} s`,
+        }),
+      RESEARCH_STUDY_TIMEOUT_MS
+    );
+  });
+  return Promise.race([gateway.get(id), expired]).finally(() =>
+    window.clearTimeout(timeout)
+  );
+};
+
 type State =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "forbidden" }>
+  | Readonly<{ type: "unauthorized" }>
   | Readonly<{ type: "not-found" }>
   | Readonly<{ type: "error"; message: string }>
   | Readonly<{ type: "ready"; model: FilterStudyViewModel }>;
@@ -66,6 +91,17 @@ const Body = ({
     return (
       <p className="min-h-40 text-muted-foreground text-sm" role="status">
         Filter studies are limited to operators.
+      </p>
+    );
+  // Retrying cannot help an ended session; signing in again does.
+  if (state.type === "unauthorized")
+    return (
+      <p className="min-h-40 text-sm" role="status">
+        Session expired.{" "}
+        <a className="underline" href="/sign-in">
+          Sign in again
+        </a>
+        .
       </p>
     );
   if (state.type === "not-found")
@@ -104,11 +140,13 @@ export const FilterStudiesSection = ({
   const load = useCallback(async () => {
     setState({ type: "loading" });
     try {
-      const { study } = await gateway.get(FILTER_STUDY_ID);
+      const { study } = await getWithTimeout(gateway, FILTER_STUDY_ID);
       return setState({ model: toFilterStudyViewModel(study), type: "ready" });
     } catch (error) {
       const failure = describePortfolioMonitorFailure(error);
       if (failure.kind === "forbidden") return setState({ type: "forbidden" });
+      if (failure.kind === "unauthorized")
+        return setState({ type: "unauthorized" });
       if (failure.code === "NOT_FOUND") return setState({ type: "not-found" });
       return setState({
         message: `${failure.code}: ${failure.message}`,

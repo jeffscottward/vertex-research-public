@@ -1,6 +1,6 @@
 // What: UI lab fixtures for the strategy pages: library, backtests, Quant Lab, filter studies,
 // optimizations, Academy gate and Vertex strategy specs. Fictional and deterministic (seeded from
-// LAB_NOW), except the filter study: the public ADX/RVOL study that 0050_research_studies seeds.
+// LAB_NOW).
 // Used by: apps/web/src/lab/entries/strategies.tsx.
 import {
   type AcademyDeployInput,
@@ -11,7 +11,7 @@ import {
   type BacktestGetOutput,
   type BacktestResultSummaryOutput,
   computeOptimizationAnalytics,
-  FilterStudySchema,
+  type FilterStudy,
   type OptimizationGetOutput,
   type OptimizationRunOutput,
   type OptimizationSummaryOutput,
@@ -27,7 +27,6 @@ import type {
   ExperienceScope,
   ImmutableArtifact,
 } from "../../features/experience/ports.ts";
-import adxFilterStudyJson from "../../features/research-studies/fixtures/adx-filter-study.json";
 import backtestAnalyticsJson from "./backtest-analytics.json";
 import {
   createSeededRandom,
@@ -522,10 +521,89 @@ export const LAB_QUANT_LAB: QuantLabListOutput = {
 // ---------------------------------------------------------------------------
 // Filter studies
 
-/** researchStudies.get output for the seeded ADX/RVOL filter study. */
+const labFilterMetrics = (
+  sharpe: number,
+  halves: readonly [number, number],
+  tradesPerYear: number
+) => ({
+  cagr: roundTo(sharpe * 0.09, 4),
+  maxDrawdown: roundTo(0.12 + (1 - sharpe) * 0.1, 4),
+  sharpe,
+  sharpeHalves: [halves[0], halves[1]] as [number, number],
+  trades: Math.round(tradesPerYear * 20),
+  tradesPerYear,
+});
+
+/** A fictional filter study (demo numbers, not a research result), shaped like researchStudies.get. */
+const LAB_FILTER_STUDY_DOCUMENT: FilterStudy = {
+  daily: {
+    costBpsPerSide: 5,
+    trials: 4,
+    universe: ["DEMO", "TEST", "LAB"],
+    variants: [
+      {
+        ...labFilterMetrics(0.62, [0.58, 0.66], 48),
+        deflatedProbability: 0.71,
+        filter: "none",
+        strategy: "breakout_20",
+        verdict: null,
+      },
+      {
+        ...labFilterMetrics(0.74, [0.7, 0.79], 36),
+        deflatedProbability: 0.83,
+        filter: "adx_above",
+        strategy: "breakout_20",
+        verdict: "KEEP",
+      },
+      {
+        ...labFilterMetrics(0.41, [0.52, 0.3], 22),
+        deflatedProbability: 0.4,
+        filter: "adx_below",
+        strategy: "breakout_20",
+        verdict: "DROP (trade floor)",
+      },
+      {
+        ...labFilterMetrics(0.55, [0.6, 0.49], 31),
+        deflatedProbability: 0.55,
+        filter: "adx_falling",
+        strategy: "rsi2_dip",
+        verdict: "KEEP (not significant)",
+      },
+    ],
+    window: {
+      days: 5000,
+      end: "2026-10-30",
+      secondHalfStart: "2016-11-01",
+      start: "2006-11-01",
+    },
+  },
+  id: "lab-demo-filters",
+  intraday: {
+    barMinutes: 5,
+    costBpsPerSide: 1,
+    sensitivity: { costBpsPerSide: 5, verdict: "DROP (cost)" },
+    spearman: { firstHalf: 0.08, secondHalf: 0.05 },
+    symbol: "DEMO",
+    variants: [
+      { ...labFilterMetrics(0.2, [0.25, 0.15], 200), filter: "none" },
+      { ...labFilterMetrics(0.31, [0.34, 0.28], 120), filter: "rvol_above_1" },
+    ],
+    verdict: "KEEP",
+    window: {
+      end: "2026-10-30",
+      secondHalfStart: "2018-05-01",
+      sessions: 3000,
+      start: "2014-11-03",
+    },
+  },
+  ran: "2026-10-31",
+  spec: "docs/specs/research/adx-filter.md",
+};
+
+/** researchStudies.get output for the lab: the fictional study above. */
 export const LAB_FILTER_STUDY: ResearchStudy = {
-  id: "adx-rvol-filters",
-  study: FilterStudySchema.parse(adxFilterStudyJson),
+  id: LAB_FILTER_STUDY_DOCUMENT.id,
+  study: LAB_FILTER_STUDY_DOCUMENT,
   updatedAt: labDate(7),
 };
 
