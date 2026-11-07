@@ -7,30 +7,34 @@ import {
 } from "@darkfactory/config";
 import { isOperatorIdentity } from "@darkfactory/config/server";
 
-import { isCapacityResponse } from "./capacity-retry.ts";
+import {
+  CAPACITY_RETRY_DELAY_MS,
+  CAPACITY_RETRY_MAX_ATTEMPTS,
+  isCapacityResponse,
+} from "./capacity-retry.ts";
 
 export type PortalRole = "member" | "admin";
 
 export interface PortalSession {
-  readonly userId: string;
-  readonly name: string;
-  readonly role: PortalRole;
-  readonly status: "active";
   readonly expiresAt: Date;
   /** Same rule as `requireOperator` in packages/api: active, verified, on VERTEX_OPERATOR_EMAILS. */
   readonly isOperator: boolean;
+  readonly name: string;
+  readonly role: PortalRole;
+  readonly status: "active";
+  readonly userId: string;
 }
 
 export type PortalSessionFetch = (request: Request) => Promise<Response>;
 
 export interface GetPortalSessionOptions {
-  readonly cookieHeader: string | null;
   readonly cfConnectingIp?: string | null;
+  readonly cookieHeader: string | null;
   readonly fetch?: PortalSessionFetch;
   readonly now?: Date;
-  readonly timeoutMs?: number;
   /** Parsed VERTEX_OPERATOR_EMAILS; absent or empty means nobody is an operator. */
   readonly operatorEmails?: readonly string[];
+  readonly timeoutMs?: number;
 }
 
 const MAX_SESSION_RESPONSE_BYTES = 16_384;
@@ -171,10 +175,6 @@ export const parsePortalSession = (
 
   const email = user["email"];
   return {
-    userId,
-    name: name.trim(),
-    role,
-    status,
     expiresAt,
     isOperator: isOperatorIdentity(
       {
@@ -184,6 +184,10 @@ export const parsePortalSession = (
       },
       operatorEmails
     ),
+    name: name.trim(),
+    role,
+    status,
+    userId,
   };
 };
 
@@ -229,10 +233,49 @@ const readBoundedResponseBody = async (
 /** A failed check, as the reason text of the one failure log line. A valid "no session" answer is not a failure. */
 type SessionCheckOutcome =
   | { readonly session: PortalSession | null }
-  | { readonly failure: string };
+  | { readonly failure: string; readonly capacity?: true };
+
+/**
+ * The session API answered the request-DB capacity 503 on every attempt.
+ * Transient, not "signed out": callers must not redirect to sign-in.
+ */
+export class PortalSessionUnavailableError extends Error {
+  override readonly name = "PortalSessionUnavailableError";
+
+  constructor() {
+    super("Portal session check is temporarily unavailable");
+  }
+}
+
+/** Resolves true after the capacity retry delay, false as soon as `signal` aborts. */
+const waitForSessionCapacity = (signal: AbortSignal): Promise<boolean> =>
+  new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve(false);
+      return;
+    }
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve(!signal.aborted);
+    };
+    const timer = setTimeout(finish, CAPACITY_RETRY_DELAY_MS);
+    signal.addEventListener("abort", finish, { once: true });
+  });
 
 /** Error class names only: error messages can hold connection details. */
 const ERROR_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9]{0,39}$/u;
+
+const safeErrorName = (error: unknown): string => {
+  try {
+    if (error instanceof Error && ERROR_NAME_PATTERN.test(error.name)) {
+      return error.name;
+    }
+  } catch {
+    // A hostile `name` getter or proxy trap keeps "unknown"; the check still denies.
+  }
+  return "unknown";
+};
 
 const parseSessionResponse = async (
   response: Response,
@@ -241,8 +284,11 @@ const parseSessionResponse = async (
   operatorEmails: readonly string[]
 ): Promise<SessionCheckOutcome> => {
   if (!response.ok) {
+    const capacity = isCapacityResponse(response);
+    await response.body?.cancel();
     return {
-      failure: `reason=http status=${response.status} capacity=${isCapacityResponse(response)}`,
+      failure: `reason=http status=${response.status} capacity=${capacity}`,
+      ...(capacity ? { capacity: true as const } : {}),
     };
   }
 
@@ -272,6 +318,9 @@ const parseSessionResponse = async (
  * (request setup, deadline, transport error, non-2xx answer, unusable body) denies access
  * and writes one `portal session check failed` line to stderr with the
  * reason and duration; it never includes cookies, headers or identities.
+ * The request-DB capacity 503 is the one exception: it is retried (at most
+ * CAPACITY_RETRY_MAX_ATTEMPTS, inside the deadline) and, if it persists,
+ * throws PortalSessionUnavailableError so a busy isolate never signs users out.
  */
 export const getPortalSession = async ({
   cookieHeader,
@@ -300,6 +349,8 @@ export const getPortalSession = async ({
 
   // "setup" until the request is built (bad APP_URL or cookie header), then "network".
   let stage = "setup";
+  // Once any attempt saw capacity, a later abort or transport error is still "busy", never "signed out".
+  let sawCapacity = false;
   try {
     const sessionHeaders = new Headers({
       accept: "application/json",
@@ -319,23 +370,29 @@ export const getPortalSession = async ({
       }
     );
     stage = "network";
-    const outcome = await parseSessionResponse(
-      await fetchSession(request),
-      now,
-      controller.signal,
-      operatorEmails
-    );
-    return "failure" in outcome ? fail(outcome.failure) : outcome.session;
-  } catch (error) {
-    let errorName = "unknown";
-    try {
-      if (error instanceof Error && ERROR_NAME_PATTERN.test(error.name)) {
-        errorName = error.name;
+    for (let attempt = 1; ; attempt += 1) {
+      const outcome = await parseSessionResponse(
+        await fetchSession(request.clone()),
+        now,
+        controller.signal,
+        operatorEmails
+      );
+      if (!("failure" in outcome)) return outcome.session;
+      if (outcome.capacity !== true) return fail(outcome.failure);
+      sawCapacity = true;
+      if (
+        attempt === CAPACITY_RETRY_MAX_ATTEMPTS ||
+        !(await waitForSessionCapacity(controller.signal))
+      ) {
+        fail(outcome.failure);
+        throw new PortalSessionUnavailableError();
       }
-    } catch {
-      // A hostile `name` getter or proxy trap keeps "unknown"; the check still denies.
     }
-    return fail(`reason=${stage} error=${errorName}`);
+  } catch (error) {
+    if (error instanceof PortalSessionUnavailableError) throw error;
+    fail(`reason=${stage} error=${safeErrorName(error)}`);
+    if (sawCapacity) throw new PortalSessionUnavailableError();
+    return null;
   } finally {
     clearTimeout(timeout);
   }
