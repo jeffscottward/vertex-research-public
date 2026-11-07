@@ -33,6 +33,7 @@ import { buildFootprint } from "../../features/order-flow/footprint.ts";
 import {
   createBrowserOrderFlowGateway,
   describeOrderFlowFailure,
+  pacedRetryDelayMs,
   type OrderFlowFailure,
   type OrderFlowGateway,
   type OrderFlowView,
@@ -128,14 +129,45 @@ const LOADING_TEXT: Readonly<Record<OrderFlowView, string>> = Object.freeze({
 
 const TICK_COUNTS = [250, 500, 1000] as const;
 const DEPTH_ROWS = [5, 10, 20] as const;
+/** TPO bars retry one pacing refusal; module-level so the loader callback stays stable. */
+const barsLoaderOptions = Object.freeze({ retryPaced: true });
 const selectClass =
   "h-11 rounded-md border border-border bg-background px-2 text-sm";
 
-/** Runs one view's request, keeps the newest answer only, and drops answers after unmount. */
+/** Waits `ms` milliseconds; injectable so tests need no real timers. */
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+type Settled<Output> =
+  | { type: "ready"; data: Output }
+  | { type: "error"; failure: OrderFlowFailure };
+
+/** One request, settled into the view state it leads to. */
+const attempt = async <Input, Output>(
+  run: (input: Input) => Promise<Output>,
+  describe: (error: unknown) => OrderFlowFailure,
+  input: Input
+): Promise<Settled<Output>> => {
+  try {
+    return { data: await run(input), type: "ready" };
+  } catch (error) {
+    return { failure: describe(error), type: "error" };
+  }
+};
+
+/**
+ * Runs one view's request, keeps the newest answer only, and drops answers after unmount.
+ * With `retryPaced`, an IBKR pacing refusal (429 busy/paced) is retried once after the wait the
+ * history service reported, staying in the loading state meanwhile.
+ */
 const useViewLoader = <Input, Output>(
   run: (input: Input) => Promise<Output>,
-  describe: (error: unknown) => OrderFlowFailure
+  describe: (error: unknown) => OrderFlowFailure,
+  options: { retryPaced?: boolean; wait?: (ms: number) => Promise<void> } = {}
 ) => {
+  const { retryPaced = false, wait = sleep } = options;
   const [state, setState] = useState<Load<Output>>(IDLE);
   const generation = useRef(0);
   useEffect(
@@ -151,15 +183,19 @@ const useViewLoader = <Input, Output>(
         previous: current.type === "ready" ? current.data : null,
         type: "loading",
       }));
-      try {
-        const data = await run(input);
-        if (mine === generation.current) setState({ data, type: "ready" });
-      } catch (error) {
-        if (mine === generation.current)
-          setState({ failure: describe(error), type: "error" });
+      let settled = await attempt(run, describe, input);
+      const delay =
+        retryPaced && settled.type === "error"
+          ? pacedRetryDelayMs(settled.failure)
+          : null;
+      if (delay !== null && mine === generation.current) {
+        await wait(delay);
+        if (mine !== generation.current) return;
+        settled = await attempt(run, describe, input);
       }
+      if (mine === generation.current) setState(settled);
     },
-    [run, describe]
+    [run, describe, retryPaced, wait]
   );
   return [state, load] as const;
 };
@@ -314,25 +350,34 @@ export const OrderFlowPanel = ({
   );
   const [bars, loadBars] = useViewLoader<MarketBarsInput, MarketBarsOutput>(
     fetchBars,
-    describeBars
+    describeBars,
+    barsLoaderOptions
   );
 
-  const refreshTicks = () =>
-    void loadTicks({ ...base, count: tickCount, quotes: true, useRTH: false });
+  const ticksInput = () => ({
+    ...base,
+    count: tickCount,
+    quotes: true,
+    useRTH: false,
+  });
+  const barsInput = (): MarketBarsInput => ({
+    ...base,
+    barSize: "30 mins",
+    duration: "5 D",
+    useRTH: true,
+    whatToShow: "TRADES",
+  });
+  const refreshTicks = () => void loadTicks(ticksInput());
   const refreshDepth = () => void loadDepth({ ...base, rows: depthRows });
-  const refreshBars = () =>
-    void loadBars({
-      ...base,
-      barSize: "30 mins",
-      duration: "5 D",
-      useRTH: true,
-      whatToShow: "TRADES",
-    });
-  const start = () => {
+  const refreshBars = () => void loadBars(barsInput());
+  // The history service runs one historical request at a time (bars wait at most 20 s for it) and
+  // the two paced tick requests hold it about 20 s, so the TPO bars go after the ticks settle.
+  // Depth has its own slot and starts at once.
+  const start = async () => {
     setStarted(true);
-    refreshTicks();
     refreshDepth();
-    refreshBars();
+    await loadTicks(ticksInput());
+    await loadBars(barsInput());
   };
 
   const tickData = shownData(ticks);
@@ -629,7 +674,7 @@ export const OrderFlowPanel = ({
             about 20 s. Footprint and delta cover only the fetched prints, not
             the whole session.
           </p>
-          <Button onClick={start} type="button">
+          <Button onClick={() => void start()} type="button">
             Load order flow
           </Button>
         </div>
