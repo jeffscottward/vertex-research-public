@@ -21,7 +21,7 @@ import {
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const execFileAsync = promisify(execFile);
 
-type Tracked = Readonly<{ path: string; link: boolean }>;
+type Tracked = Readonly<{ path: string; link: boolean; executable: boolean }>;
 
 async function trackedFiles(): Promise<Tracked[]> {
   // `-s` shows the mode: skip submodules (160000). Symlinks (120000) count by name only.
@@ -33,6 +33,7 @@ async function trackedFiles(): Promise<Tracked[]> {
     .split("\0")
     .filter((entry) => entry !== "" && !entry.startsWith("160000 "))
     .map((entry) => ({
+      executable: entry.startsWith("100755 "),
       link: entry.startsWith("120000 "),
       path: entry.slice(entry.indexOf("\t") + 1),
     }));
@@ -49,6 +50,8 @@ describe("JSON data file classes", () => {
       "apps/web/wrangler.jsonc",
       "apps/web/components.json",
       "apps/x/deno.jsonc",
+      "infra/tsconfig.json",
+      "scripts/tsconfig.json",
       "docs/vertex-rebuild/deliverables.schema.json",
       ".vscode/settings.json",
       "apps/web/.vscode/launch.json",
@@ -66,6 +69,15 @@ describe("JSON data file classes", () => {
     expect(classifyJsonFile("apps/web/src/data/components.json")).toBeNull();
     expect(classifyJsonFile("packages/api/src/turbo.json")).toBeNull();
     expect(classifyJsonFile(".github/data/prices.json")).toBeNull();
+    expect(
+      classifyJsonFile("packages/api/src/data/universe.schema.json")
+    ).toBeNull();
+    expect(
+      classifyJsonFile("packages/api/src/data/tsconfig.universe.json")
+    ).toBeNull();
+    expect(
+      classifyJsonFile("apps/web/src/data/wrangler.prices.json")
+    ).toBeNull();
   });
 
   it("allows fixtures, known generated artifacts and vendored code", () => {
@@ -117,6 +129,9 @@ describe("runtime sources", () => {
       "infra/quant-vps/status/Caddyfile.tailnet",
       "infra/quant-vps/research-lenses/vertex-research-lenses-push.path",
       "infra/quant-vps/exec-node/runtime/docker-compose.yml",
+      "infra/quant-vps/status/vertex-status-collect.service.tailnet",
+      "infra/quant-vps/systemd/vertex-host.service.in",
+      "scripts/vertex-quant-lab-record.ts",
       "packages/jobs/verifier/Dockerfile",
       "services/contracts/rust/src/lib.rs",
       "scripts/vertex-signal-alerts-tick.ts",
@@ -134,8 +149,19 @@ describe("runtime sources", () => {
       "packages/api/scripts/openapi.ts",
       "scripts/ci/json-data.ts",
       "packages/api/README.md",
+      "infra/quantvps/engine-status/vertex-engine-status-write",
     ])
       expect([path, isRuntimeSource(path)]).toEqual([path, false]);
+  });
+
+  it("covers executable files whatever their name", () => {
+    expect(
+      isRuntimeSource(
+        "infra/quantvps/engine-status/vertex-engine-status-write",
+        true
+      )
+    ).toBe(true);
+    expect(isRuntimeSource("scripts/ci/ci-changes.sh", true)).toBe(false);
   });
 
   it("finds JSON data names, quoted or not, and fixture imports", () => {
@@ -146,10 +172,12 @@ describe("runtime sources", () => {
       "scp deep-value.json host:/srv/lenses/rotation-matrix.json",
       'const own = "https://h.example/vertex-research-lenses/v1/deep-value.json";',
       'import { demo } from "../fixtures/demo.ts";',
+      'import { core } from "../fixtures";',
       'const again = "./specs/a.json";',
     ].join("\n");
-    expect(jsonDataReferences(source)).toEqual([
+    expect(jsonDataReferences(source, "packages/a/src/a.ts")).toEqual([
       "${dir}/status.jsonl",
+      "../fixtures",
       "../fixtures/demo.ts",
       "./specs/a.json",
       "/opt/x/health.json",
@@ -159,22 +187,63 @@ describe("runtime sources", () => {
     ]);
   });
 
-  it("ignores config names, third-party URLs, method calls, property access and comments", () => {
+  it("finds file names in shell, unit files and Python format strings", () => {
+    expect(
+      jsonDataReferences(
+        "cp latest.json /srv/lenses/\njq -r .x state.json",
+        "infra/x/push.sh"
+      )
+    ).toEqual(["latest.json", "state.json"]);
+    expect(
+      jsonDataReferences(
+        "ExecStart=/usr/bin/cat state.json",
+        "infra/x/a.service"
+      )
+    ).toEqual(["state.json"]);
+    expect(
+      jsonDataReferences(
+        'path = os.path.join(STATE, "pg-%s.json" % name)\n# writes /opt/x/health.json',
+        "infra/x/collect.py"
+      )
+    ).toEqual(["pg-%s.json"]);
+    expect(
+      jsonDataReferences("x = pydantic.Json\ny = sa.JSON", "services/a/m.py")
+    ).toEqual([]);
+  });
+
+  it("ignores config names, third-party URLs, calls, property access, bare extensions and comments", () => {
     const source = [
       'fetch("https://www.sec.gov/files/company_tickers.json")',
       'fetch("https://data.sec.gov/api/xbrl/companyfacts/CIK1.json")',
       'readFile("package.json"); readFile("./tsconfig.build.json")',
       'headers: { accept: "application/json" }',
       "const body = await response.json();",
+      "const typed = await c.req.json<Body>();",
+      "const k = await ky.get(u).json<T>();",
+      "const r = res?.json;",
+      "let v = resp.await?.json::<Value>()?;",
+      "window.JSON.stringify(x); globalThis.JSON.parse(y);",
       "const value = reply.json;",
+      'if (file.endsWith(".json")) types[".json"] = "application/json";',
       "// reads status.json from the file server",
-      "# writes /opt/x/health.json",
+      "/* writes /opt/x/health.json */",
       " * see deep-value.json",
+      'const marked = "health.json"; // json-data-ignore: label text, not a file read',
     ].join("\n");
-    expect(jsonDataReferences(source)).toEqual([]);
-    expect(jsonDataReferences('const f = "status.json";')).toEqual([
-      "status.json",
-    ]);
+    expect(jsonDataReferences(source, "packages/a/src/a.ts")).toEqual([]);
+    expect(
+      jsonDataReferences('const f = "status.json";', "packages/a/src/a.ts")
+    ).toEqual(["status.json"]);
+    expect(
+      jsonDataReferences("# json-data-ignore:\ncat state.json", "infra/a.sh")
+    ).toEqual(["state.json"]);
+  });
+
+  it("stays linear on a long minified line", () => {
+    const line = `const uri = "data:application/octet-stream;base64,${"QUJD".repeat(250_000)}";`;
+    const started = performance.now();
+    expect(jsonDataReferences(line, "packages/a/src/a.ts")).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 });
 
@@ -217,18 +286,26 @@ describe("allowlist checks", () => {
     ]);
     expect(
       report(
-        checkRuntimeReaders(found, {
-          "packages/a/src/a.ts": ["x.json", "z.json"],
-          "packages/a/src/d.ts": ["d.json"],
-          "packages/a/scripts/moved.ts": ["m.json"],
-        })
+        checkRuntimeReaders(
+          found,
+          {
+            "packages/a/src/a.ts": ["x.json", "z.json"],
+            "packages/a/src/d.ts": ["d.json"],
+            "packages/a/scripts/moved.ts": ["m.json"],
+          },
+          new Set([
+            "packages/a/src/a.ts",
+            "packages/a/src/b.ts",
+            "packages/a/src/d.ts",
+          ])
+        )
       )
     ).toEqual([
       "packages/a/src/a.ts: new JSON data reference y.json: read the data from Postgres through a repository (AGENTS.md rule 13)",
       "packages/a/src/b.ts: new JSON data reference x.json: read the data from Postgres through a repository (AGENTS.md rule 13)",
       "packages/a/src/a.ts: JSON data reference z.json is gone: remove it from scripts/ci/json-data-allowlist.ts",
       "packages/a/src/d.ts: JSON data reference d.json is gone: remove it from scripts/ci/json-data-allowlist.ts",
-      "packages/a/scripts/moved.ts: baseline entry is not a runtime file: moving a reader out of runtime scope does not remove it",
+      "packages/a/scripts/moved.ts: baseline entry is not a tracked runtime file: remove it if the file is gone; moving a reader out of runtime scope does not remove it",
     ]);
   });
 });
@@ -249,16 +326,19 @@ describe("repository", () => {
     "has no new runtime JSON data access",
     async () => {
       const found = new Map<string, string[]>();
-      for (const { path, link } of await trackedFiles()) {
-        if (link || !isRuntimeSource(path)) continue;
+      const runtime = new Set<string>();
+      for (const { path, link, executable } of await trackedFiles()) {
+        if (link || !isRuntimeSource(path, executable)) continue;
+        runtime.add(path);
         const names = jsonDataReferences(
-          await readFile(`${root}${path}`, "utf8")
+          await readFile(`${root}${path}`, "utf8"),
+          path
         );
         if (names.length > 0) found.set(path, names);
       }
-      expect(report(checkRuntimeReaders(found, RUNTIME_JSON_READERS))).toEqual(
-        []
-      );
+      expect(
+        report(checkRuntimeReaders(found, RUNTIME_JSON_READERS, runtime))
+      ).toEqual([]);
     },
     scaledTimeout(30_000)
   );

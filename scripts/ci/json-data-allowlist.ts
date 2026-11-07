@@ -356,7 +356,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "infra/quant-vps/exec-node/runtime/nautilus/arm_gate.py": [
       "./data/nautilus/arm-audit.jsonl",
-      ".json",
       "/app/data/nautilus/order-policy-reservations.json",
       "ibkr-account-classes.json",
     ],
@@ -371,7 +370,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "staged-protection-state.json",
     ],
     "infra/quant-vps/exec-node/runtime/portfolio-ui/server.mjs": [
-      ".json",
       "ibkr-fills.json",
       "ibkr-open-orders.json",
       "market-snapshot.json",
@@ -398,7 +396,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "${root}/release-manifest.json",
       "release-manifest.json",
     ],
-    "infra/quant-vps/history/vertex_history.py": [".json"],
     "infra/quant-vps/local.ts": ["release-manifest.json"],
     "infra/quant-vps/recovery/vertex_ibkr_recovery.py": ["state.json"],
     "infra/quant-vps/release.ts": ["release-manifest.json"],
@@ -409,8 +406,8 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "rotation-matrix.json",
     ],
     "infra/quant-vps/research-lenses/vertex-research-lenses-push.path": [
-      "h/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json",
-      "h/Github/trading/vertex-research/data/rotation-matrix/latest.json",
+      "%h/Github/trading/vertex-research-wt-deep-value/data/deep-value/latest.json",
+      "%h/Github/trading/vertex-research/data/rotation-matrix/latest.json",
     ],
     "infra/quant-vps/status/Caddyfile.status": ["/status.json"],
     "infra/quant-vps/status/Caddyfile.status.v2": [
@@ -419,14 +416,16 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "infra/quant-vps/status/Caddyfile.tailnet": ["/status-v2.json"],
     "infra/quant-vps/status/collect.py": [
-      ".json",
       "/health.json",
       "/ibkr-fills.json",
       "/ibkr-open-orders.json",
       "data/nautilus/health.json",
       "data/nautilus/reports/ibkr-fills.json",
       "data/nautilus/reports/ibkr-open-orders.json",
+      "health.json",
+      "inspect/%s.json",
       "manifest.json",
+      "pg-%s.json",
       "status-v2.json",
       "status.json",
     ],
@@ -440,6 +439,10 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "$P/status-v2.json",
       "/opt/vertex-status/public/status-v2.json",
       "/priv/status-v2.json",
+      "status.json",
+    ],
+    "infra/quantvps/engine-status/vertex-engine-status-write": [
+      "markets.json",
       "status.json",
     ],
     "infra/quantvps/restart-when-idle.sh": [".wrangler/deploy/config.json"],
@@ -632,7 +635,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     "packages/jobs/src/server/omp.ts": [
       "${workspaceCwd}.owner.json",
       "${worktree.cwd}.baseline-${scopeKey}.json",
-      ".json",
       ".markdownlint-cli2.jsonc",
       "/opt/darkfactory-verifier/checks.json",
       "/output/result.json",
@@ -666,12 +668,10 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "services/research/agents/hedgefund_committee_cli.py": [
       "../../private/research/hedgefund/AAPL-2026-11-05.json",
-      ".record.json",
       "aapl-company-facts.json",
       "aapl-financial-metrics.json",
       "}.json",
     ],
-    "services/research/agents/inthemoneyadam_desk.py": [".json"],
     "services/research/agents/omp_claude.py": [
       ".omp/agent/mcp.json",
       ".omp/mcp.json",
@@ -679,7 +679,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "~/.omp/agent/mcp.json",
     ],
     "services/research/agents/quantmind_mining.py": [
-      ".json",
       "report.json",
       "{capture_id}.json",
       "}.json",
