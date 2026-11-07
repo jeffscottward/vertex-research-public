@@ -114,8 +114,7 @@ export const labBarsOutput = (input: MarketBarsInput): MarketBarsOutput => {
       secType,
       symbol,
       useRTH: input.useRTH ?? true,
-      whatToShow:
-        secType === "CASH" ? "MIDPOINT" : (input.whatToShow ?? "TRADES"),
+      whatToShow: input.whatToShow ?? "TRADES",
     },
     source: "ibkr-gateway",
   };

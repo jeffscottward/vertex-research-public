@@ -237,13 +237,12 @@ const LinkError = ({ message }: { readonly message: string | null }) =>
     </p>
   );
 
-// SMART routing applies to stocks, IDEALPRO to forex; futures need a venue (CME by default).
-const DEFAULT_EXCHANGES = ["SMART", "CME", "IDEALPRO"];
+// SMART routing applies to stocks; futures need a venue (CME by default).
+const DEFAULT_EXCHANGES = ["SMART", "CME"];
 const exchangeFor = (secType: MarketSecType, current: string): string => {
   const value = current.trim().toUpperCase();
   const preset = value === "" || DEFAULT_EXCHANGES.includes(value);
   if (secType === "STK") return preset ? "SMART" : current;
-  if (secType === "CASH") return preset ? "IDEALPRO" : current;
   return preset ? "CME" : current;
 };
 
@@ -256,18 +255,13 @@ const future = (symbol: string) =>
   ({ symbol, secType: "CONTFUT", exchange: "CME", currency: "USD" }) as const;
 const stock = (symbol: string) =>
   ({ symbol, secType: "STK", exchange: "SMART", currency: "USD" }) as const;
-const forex = (symbol: string, currency: string) =>
-  ({ symbol, secType: "CASH", exchange: "IDEALPRO", currency }) as const;
 
-// Common markets for the charts picker; forex pairs are base symbol + quote currency.
+// Common markets for the charts picker.
 const QUICK_PICKS: readonly QuickPick[] = [
   { label: "ES (E-mini S&P)", market: future("ES") },
   { label: "NQ (E-mini Nasdaq)", market: future("NQ") },
   { label: "SPY", market: stock("SPY") },
   { label: "QQQ", market: stock("QQQ") },
-  { label: "EUR.USD", market: forex("EUR", "USD") },
-  { label: "USD.JPY", market: forex("USD", "JPY") },
-  { label: "GBP.USD", market: forex("GBP", "USD") },
 ];
 
 type BarsState =
@@ -294,7 +288,6 @@ const SEC_TYPE_LABELS: Readonly<Record<MarketSecType, string>> = {
   STK: "Stock (STK)",
   FUT: "Future (FUT)",
   CONTFUT: "Continuous future (CONTFUT)",
-  CASH: "Forex (CASH)",
 };
 const selectClass =
   "h-11 w-full rounded-sm border border-border-strong bg-surface px-2 text-sm";
@@ -354,7 +347,6 @@ const BarsForm = ({
       secType,
       exchange: exchangeFor(secType, form.exchange),
       contractMonth: secType === "FUT" ? form.contractMonth : "",
-      whatToShow: secType === "CASH" ? "MIDPOINT" : form.whatToShow,
     });
   };
   const changeQuickPick = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -365,8 +357,6 @@ const BarsForm = ({
           ...form,
           ...pick.market,
           contractMonth: "",
-          whatToShow:
-            pick.market.secType === "CASH" ? "MIDPOINT" : form.whatToShow,
         });
   };
   const changeBarSize = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -522,11 +512,7 @@ const BarsForm = ({
               }
               value={form.whatToShow}
             >
-              {/* IBKR has no TRADES data for forex; CASH charts are MIDPOINT only. */}
-              {(form.secType === "CASH"
-                ? (["MIDPOINT"] as const)
-                : MARKET_WHAT_TO_SHOW
-              ).map((value) => (
+              {MARKET_WHAT_TO_SHOW.map((value) => (
                 <option key={value} value={value}>
                   {value}
                 </option>
@@ -1008,8 +994,8 @@ export const ChartsWorkspace = ({
           <Analysis data={data} />
         </Panel>
       )}
-      {/* Lazy: fetches nothing until the operator presses Load order flow. Forex has no ticks/depth. */}
-      {data === null || data.request.secType === "CASH" ? null : (
+      {/* Lazy: fetches nothing until the operator presses Load order flow. */}
+      {data === null ? null : (
         <OrderFlowPanel
           gateway={orderFlow}
           instrument={{

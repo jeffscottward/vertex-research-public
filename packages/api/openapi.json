@@ -97167,8 +97167,7 @@
               "enum": [
                 "STK",
                 "FUT",
-                "CONTFUT",
-                "CASH"
+                "CONTFUT"
               ],
               "type": "string"
             }
@@ -97495,8 +97494,7 @@
                           "enum": [
                             "STK",
                             "FUT",
-                            "CONTFUT",
-                            "CASH"
+                            "CONTFUT"
                           ],
                           "type": "string"
                         },
@@ -98052,8 +98050,7 @@
               "enum": [
                 "STK",
                 "FUT",
-                "CONTFUT",
-                "CASH"
+                "CONTFUT"
               ],
               "type": "string"
             }
@@ -98342,8 +98339,7 @@
                           "enum": [
                             "STK",
                             "FUT",
-                            "CONTFUT",
-                            "CASH"
+                            "CONTFUT"
                           ],
                           "type": "string"
                         },
@@ -98944,8 +98940,7 @@
               "enum": [
                 "STK",
                 "FUT",
-                "CONTFUT",
-                "CASH"
+                "CONTFUT"
               ],
               "type": "string"
             }
@@ -99239,8 +99234,7 @@
                           "enum": [
                             "STK",
                             "FUT",
-                            "CONTFUT",
-                            "CASH"
+                            "CONTFUT"
                           ],
                           "type": "string"
                         },

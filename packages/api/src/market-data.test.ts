@@ -187,20 +187,14 @@ describe("marketData config and URL", () => {
     );
   });
 
-  it("forces MIDPOINT for forex on IDEALPRO", () => {
+  it("rejects forex (CASH) bars; the web/API side does not expose it", () =>
     expect(
-      MarketBarsInputSchema.safeParse({ symbol: "EUR", secType: "CASH" })
-        .success
-    ).toBe(false);
-    return expect(
-      buildMarketBarsUrl(
-        BASE,
-        input({ symbol: "eur", secType: "CASH", exchange: "idealpro" })
-      )
-    ).toBe(
-      `${BASE}/bars?symbol=EUR&secType=CASH&exchange=IDEALPRO&currency=USD&barSize=1+day&duration=1+Y&whatToShow=MIDPOINT&useRTH=1`
-    );
-  });
+      MarketBarsInputSchema.safeParse({
+        symbol: "EUR",
+        secType: "CASH",
+        exchange: "IDEALPRO",
+      }).success
+    ).toBe(false));
 });
 
 describe("marketData fetch", () => {
@@ -635,7 +629,7 @@ describe("marketData ticks and depth input", () => {
     ).toBe(false);
   });
 
-  it("rejects forex for ticks and depth", () => {
+  it("rejects forex (CASH) for ticks and depth", () => {
     for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema])
       expect(
         schema.safeParse({
