@@ -5,6 +5,9 @@
   // System binaries, not npm packages: mkcert (installed by `mise`/Homebrew) and flock
   // (util-linux; the Nautilus worker checks the web restart lock with it).
   "ignoreBinaries": ["mkcert", "flock"],
+  // Frozen exec-node portfolio-ui server (owned copy, byte-pinned); it runs inside the QuantVPS portfolio-ui
+  // container beside files that exist only there.
+  "ignore": ["infra/quant-vps/exec-node/runtime/portfolio-ui/server.mjs"],
   "workspaces": {
     ".": {
       // Loading playwright.config.ts provisions the E2E environment, so list its entries instead.
