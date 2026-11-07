@@ -47,6 +47,10 @@ test.beforeAll(async () => {
   }
 });
 
+// The second test opens the run the first one made, and resetDatabase removes every run, so a
+// retry must run both again.
+test.describe.configure({ mode: "serial" });
+
 test("an operator runs a backtest and replays its trades", async ({ page }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
   await page.goto("/backtest-runs");
