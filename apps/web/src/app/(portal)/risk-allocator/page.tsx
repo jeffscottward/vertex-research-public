@@ -1,7 +1,5 @@
-import {
-  parseRiskAllocatorParams,
-  RiskAllocatorWorkspace,
-} from "../../../components/portal/risk-allocator-workspace.tsx";
+import { parseRiskAllocatorParams } from "../../../components/portal/risk-allocator-params.ts";
+import { RiskAllocatorWorkspace } from "../../../components/portal/risk-allocator-workspace.tsx";
 
 export const metadata = { title: "Risk allocator" };
 

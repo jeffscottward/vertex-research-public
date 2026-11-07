@@ -1,7 +1,5 @@
-import {
-  parseRotationMatrixParams,
-  RotationMatrixWorkspace,
-} from "../../../components/portal/rotation-matrix-workspace.tsx";
+import { parseRotationMatrixParams } from "../../../components/portal/rotation-matrix-params.ts";
+import { RotationMatrixWorkspace } from "../../../components/portal/rotation-matrix-workspace.tsx";
 
 export const metadata = { title: "Rotation matrix" };
 

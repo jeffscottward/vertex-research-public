@@ -18,11 +18,13 @@ import {
 
 import type { CongressTradesGateway } from "./congress-trades-client.ts";
 import {
-  CONGRESS_TRADES_PAGE_SIZE,
   type CongressTradesSettings,
-  CongressTradesWorkspace,
   congressTradesSearch,
   parseCongressTradesParams,
+} from "./congress-trades-params.ts";
+import {
+  CONGRESS_TRADES_PAGE_SIZE,
+  CongressTradesWorkspace,
 } from "./congress-trades-workspace.tsx";
 
 const browserFeed = vi.hoisted(() => vi.fn());

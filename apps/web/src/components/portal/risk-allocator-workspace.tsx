@@ -1,12 +1,11 @@
 "use client";
 
-import {
-  type OwnerRiskCaps,
-  RISK_ALLOCATOR_SYMBOL_PATTERN,
-  type RiskAllocatorInput,
-  type RiskAllocatorRow,
-  type RiskAllocatorSuggestion,
-  type WatchlistItemOutput,
+import type {
+  OwnerRiskCaps,
+  RiskAllocatorInput,
+  RiskAllocatorRow,
+  RiskAllocatorSuggestion,
+  WatchlistItemOutput,
 } from "@darkfactory/api";
 import {
   Badge,
@@ -44,6 +43,10 @@ import {
   createBrowserRiskAllocatorGateway,
   type RiskAllocatorGateway,
 } from "./risk-allocator-client.ts";
+import {
+  parseRiskAllocatorParams,
+  type RiskAllocatorSettings,
+} from "./risk-allocator-params.ts";
 import {
   createBrowserWatchlistGateway,
   describeWatchlistFailure,
@@ -87,21 +90,6 @@ export const createBrowserRiskAllocatorWatchlist =
     const { list } = createBrowserWatchlistGateway();
     return Object.freeze({ list });
   };
-
-export type RiskAllocatorSettings = Readonly<{ symbol: string | null }>;
-
-type ParamValue = string | readonly string[] | undefined;
-
-/** Reads `?symbol=` (upper-cased); a missing or invalid symbol means "first watchlist symbol". */
-export const parseRiskAllocatorParams = (
-  params: Readonly<Record<string, ParamValue>>
-): RiskAllocatorSettings => {
-  const { symbol } = params;
-  const text = typeof symbol === "string" ? symbol.trim().toUpperCase() : "";
-  return {
-    symbol: RISK_ALLOCATOR_SYMBOL_PATTERN.test(text) ? text : null,
-  };
-};
 
 // A plain non-negative decimal; commas only as thousands separators ("1,500.25"). Empty means 0.
 const AMOUNT_PATTERN = /^(?:\d+|\d{1,3}(?:,\d{3})+)?(?:\.\d+)?$/u;

@@ -1,7 +1,5 @@
-import {
-  CongressTradesWorkspace,
-  parseCongressTradesParams,
-} from "../../../components/portal/congress-trades-workspace.tsx";
+import { parseCongressTradesParams } from "../../../components/portal/congress-trades-params.ts";
+import { CongressTradesWorkspace } from "../../../components/portal/congress-trades-workspace.tsx";
 
 export const metadata = { title: "Congress trades" };
 
