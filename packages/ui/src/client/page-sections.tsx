@@ -193,7 +193,7 @@ export const StickyTabs = ({
       <div aria-hidden="true" data-slot="sticky-tabs-marker" ref={markerRef} />
       <div
         aria-label={label}
-        className="sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto border-b bg-background/95 px-1 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="sticky top-(--header-height) z-10 -mx-1 flex gap-1 overflow-x-auto border-b bg-background/95 px-1 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:top-0"
         data-slot="sticky-tabs-list"
         onKeyDown={onKeyDown}
         ref={barRef}
