@@ -10,6 +10,7 @@ import {
   withTransaction,
 } from "../server/client.ts";
 import { convergeDevelopmentContent } from "./content.ts";
+import { convergeDevelopmentPlays } from "./plays.ts";
 import { convergeDevelopmentPreferences } from "./preferences.ts";
 import { convergeDevelopmentProfiles } from "./profiles.ts";
 import {
@@ -144,6 +145,7 @@ const convergeApplicationRows = async (
   await convergeDevelopmentProfiles(database);
   await convergeDevelopmentPreferences(database);
   await convergeDevelopmentContent(database);
+  await convergeDevelopmentPlays(database);
 };
 
 const lockDevelopmentIdentities = async (

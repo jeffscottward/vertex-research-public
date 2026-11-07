@@ -70,6 +70,7 @@ import { strategyDefinitionsRouter } from "./strategy-definitions.ts";
 import { autopilotRouter } from "./autopilot.ts";
 import { academyRouter } from "./academy.ts";
 import { instantBacktestRouter } from "./instant-backtest.ts";
+import { playsRouter } from "./plays.ts";
 import { setupReplayRouter } from "./setup-replay.ts";
 import { researchLensesRouter } from "./research-lenses.ts";
 import { congressTradesRouter } from "./congress-trades.ts";
@@ -1733,6 +1734,7 @@ export const appRouter = api.router({
   optionsChain: optionsChainRouter,
   instantBacktest: instantBacktestRouter,
   setupReplay: setupReplayRouter,
+  plays: playsRouter,
   academy: academyRouter,
   backtestRuns: {
     ...backtestRunsRouter,

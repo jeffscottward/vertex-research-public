@@ -36,6 +36,7 @@ import { backtestRunsContract } from "./contracts/backtest-runs.ts";
 import { autopilotContract } from "./contracts/autopilot.ts";
 import { academyContract } from "./contracts/academy.ts";
 import { instantBacktestContract } from "./contracts/instant-backtest.ts";
+import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
@@ -311,6 +312,7 @@ export const appContract = {
   optionsChain: optionsChainContract,
   instantBacktest: instantBacktestContract,
   setupReplay: setupReplayContract,
+  plays: playsContract,
   academy: academyContract,
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
