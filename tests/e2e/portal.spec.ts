@@ -11,6 +11,7 @@ import {
   signInAs,
   test,
 } from "./fixtures.ts";
+import { clientReferenceChunkUrlPattern } from "./helpers/build-chunks.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
 // Each file starts from the seeded identities, whatever ran before it.
@@ -21,8 +22,6 @@ const BOB_SEED_ITEM = "Bob example item";
 const ADMIN_SEED_ITEM = "Admin example item";
 const BOB_SEED_ITEM_ID = "30000000-0000-4000-8000-000000000003";
 const MOBILE_VIEWPORT = { height: 812, width: 375 } as const;
-const PORTAL_CLIENT_MODULE_PATH_PATTERN =
-  /(?:\/src\/components\/portal-shell\.tsx|\/_next\/static\/chunks\/portal-shell-[^/?]+\.js)(?:\?.*)?$/u;
 const FEATURE_ITEM_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const MISSION_CONTROL_CURRENT_PAGE_NAME_PATTERN =
@@ -276,7 +275,9 @@ test.describe
         signal: AbortSignal.timeout(15_000),
       });
       await page.route(
-        PORTAL_CLIENT_MODULE_PATH_PATTERN,
+        // vinext names client chunks by hash only; the build's reference map
+        // names the chunk that holds the portal shell.
+        clientReferenceChunkUrlPattern("src/components/portal-shell.tsx"),
         async (route) => {
           portalModuleGate.emit("route-ready");
           await once(portalModuleGate, "release");
