@@ -33,6 +33,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 import {
   createBrowserDashboardWidgetsGateway,
   createDashboardWidgetsGateway,
+  DASHBOARD_WIDGET_READ_TIMEOUT_MS,
   DashboardWidgets,
   type DashboardWidgetsGateway,
 } from "./dashboard-widgets.tsx";
@@ -263,6 +264,33 @@ describe("DashboardWidgets", () => {
     expect(gateway.journal).not.toHaveBeenCalled();
     await act(async () => finishContext(context()));
     expect(gateway.journal).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves on to the next widget when a read never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      const gateway = gatewayWith({
+        watchlist: vi.fn(() => new Promise<never>(() => undefined)),
+      });
+      const container = await render(
+        <DashboardWidgets
+          gateway={gateway}
+          journalSource="ibkr-monitor"
+          now={NOW}
+          operator
+        />
+      );
+      expect(gateway.marketContext).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DASHBOARD_WIDGET_READ_TIMEOUT_MS);
+      });
+      expect(widget(container, "watchlist")?.textContent).not.toContain(
+        "Loading…"
+      );
+      expect(gateway.marketContext).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("covers empty, sparse and failing data", async () => {

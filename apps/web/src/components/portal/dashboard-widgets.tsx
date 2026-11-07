@@ -292,9 +292,50 @@ export interface DashboardWidgetsProps {
   readonly operator: boolean;
 }
 
-/** A read that waits for the one before it shows as loading, not as idle (not configured). */
-const waitFor = <T,>(started: boolean, state: LoadState<T>): LoadState<T> =>
-  started ? state : { type: "loading" };
+/**
+ * A read that waits for the one before it shows as loading, not as idle (not configured). On
+ * the render that hands over its load, useLoadOnce still reports idle until its effect runs.
+ */
+const waitFor = <T,>(
+  started: boolean,
+  load: (() => Promise<T>) | null,
+  state: LoadState<T>
+): LoadState<T> =>
+  !started || (load !== null && state.type === "idle")
+    ? { type: "loading" }
+    : state;
+
+/** One widget read may take this long; then it fails, so the next widget still loads. */
+export const DASHBOARD_WIDGET_READ_TIMEOUT_MS = 15_000;
+
+const timed =
+  <T,>(load: () => Promise<T>): (() => Promise<T>) =>
+  () =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("The read timed out.")),
+        DASHBOARD_WIDGET_READ_TIMEOUT_MS
+      );
+      load().then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        }
+      );
+    });
+
+const withReadTimeouts = (
+  gateway: DashboardWidgetsGateway
+): DashboardWidgetsGateway =>
+  Object.freeze({
+    journal: gateway.journal === null ? null : timed(gateway.journal),
+    marketContext: timed(gateway.marketContext),
+    watchlist: timed(gateway.watchlist),
+  });
 
 /** Answered (data or failure); a read whose load was just handed over is still "idle". */
 const settled = (state: LoadState<unknown>): boolean =>
@@ -306,8 +347,10 @@ export const DashboardWidgets = ({
   gateway: supplied,
   now = () => new Date(),
 }: DashboardWidgetsProps) => {
-  const [gateway] = useState(
-    () => supplied ?? createBrowserDashboardWidgetsGateway(journalSource)
+  const [gateway] = useState(() =>
+    withReadTimeouts(
+      supplied ?? createBrowserDashboardWidgetsGateway(journalSource)
+    )
   );
   const [layout, setLayout] = useStoredState(
     WIDGETS_STORAGE_KEY,
@@ -327,17 +370,21 @@ export const DashboardWidgets = ({
   const watchlist = useLoadOnce(shown("watchlist") ? gateway.watchlist : null);
   const afterWatchlist = !shown("watchlist") || settled(watchlist);
   const needsMarketContext = shown("events") || shown("market");
+  const marketContextLoad =
+    afterWatchlist && needsMarketContext ? gateway.marketContext : null;
   const marketContext = waitFor(
     afterWatchlist,
-    useLoadOnce(
-      afterWatchlist && needsMarketContext ? gateway.marketContext : null
-    )
+    marketContextLoad,
+    useLoadOnce(marketContextLoad)
   );
   const afterMarketContext =
     afterWatchlist && (!needsMarketContext || settled(marketContext));
+  const journalLoad =
+    afterMarketContext && shown("journal") ? gateway.journal : null;
   const journal = waitFor(
     afterMarketContext,
-    useLoadOnce(afterMarketContext && shown("journal") ? gateway.journal : null)
+    journalLoad,
+    useLoadOnce(journalLoad)
   );
 
   const content: Readonly<Record<DashboardWidgetId, ReactNode>> = {
