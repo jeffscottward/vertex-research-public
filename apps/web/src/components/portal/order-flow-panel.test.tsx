@@ -392,7 +392,8 @@ describe("OrderFlowPanel", () => {
     let fail = true;
     const gates = gateways({
       ticks: async () => {
-        if (fail) throw failure("PACED");
+        // IBKR's long back-off: shown at once, not retried.
+        if (fail) throw failure("PACED", "IBKR history pacing: retry in 600 s");
         return ticksOutput();
       },
     });
@@ -747,6 +748,35 @@ describe("OrderFlowPanel edge states", () => {
     expect(gates.marketData.bars).toHaveBeenCalledTimes(2);
     expect(gates.orderFlow.ticks).toHaveBeenCalledTimes(1);
     expect(container.querySelector("[data-tpo-profile]")).not.toBeNull();
+  });
+
+  it("retries one paced trade-prints request after the wait the service names", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      let calls = 0;
+      const gates = gateways({
+        ticks: async () => {
+          calls += 1;
+          if (calls === 1)
+            throw failure("PACED", "IBKR history pacing: retry in 70 s");
+          return ticksOutput();
+        },
+      });
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      expect(gates.orderFlow.ticks).toHaveBeenCalledTimes(1);
+      expect(gates.marketData.bars).not.toHaveBeenCalled();
+      expect(container.querySelector("[role=alert]")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(70_000);
+        await flush();
+      });
+      expect(gates.orderFlow.ticks).toHaveBeenCalledTimes(2);
+      expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+      expect(container.querySelector("[data-time-sales]")).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   describe("TPO pacing retry", () => {
