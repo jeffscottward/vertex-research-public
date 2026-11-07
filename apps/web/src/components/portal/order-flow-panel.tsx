@@ -129,8 +129,11 @@ const LOADING_TEXT: Readonly<Record<OrderFlowView, string>> = Object.freeze({
 
 const TICK_COUNTS = [250, 500, 1000] as const;
 const DEPTH_ROWS = [5, 10, 20] as const;
-/** TPO bars retry one pacing refusal; module-level so the loader callback stays stable. */
-const barsLoaderOptions = Object.freeze({ retryPaced: true });
+/**
+ * Trade prints and TPO bars retry one pacing refusal (for example after a quick instrument switch
+ * used up the history service's burst budget); module-level so the loader callback stays stable.
+ */
+const pacedRetryOptions = Object.freeze({ retryPaced: true });
 const selectClass =
   "h-11 rounded-md border border-border bg-background px-2 text-sm";
 
@@ -342,7 +345,8 @@ export const OrderFlowPanel = ({
   );
   const [ticks, loadTicks] = useViewLoader<MarketTicksInput, MarketTicksOutput>(
     fetchTicks,
-    describeTicks
+    describeTicks,
+    pacedRetryOptions
   );
   const [depth, loadDepth] = useViewLoader<MarketDepthInput, MarketDepthOutput>(
     fetchDepth,
@@ -351,7 +355,7 @@ export const OrderFlowPanel = ({
   const [bars, loadBars] = useViewLoader<MarketBarsInput, MarketBarsOutput>(
     fetchBars,
     describeBars,
-    barsLoaderOptions
+    pacedRetryOptions
   );
 
   const ticksInput = () => ({
