@@ -98,6 +98,10 @@ describe("StickyTabs", () => {
     const list = host.querySelector('[role="tablist"]')!;
     expect(list.getAttribute("aria-label")).toBe("Portfolio views");
     expect(list.className).toContain("sticky");
+    // Below lg it sticks under the sticky portal top bar; from lg the top bar is static.
+    expect(list.className.split(" ")).toEqual(
+      expect.arrayContaining(["top-(--header-height)", "lg:top-0"])
+    );
     const [first, second] = [
       ...host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
     ];
