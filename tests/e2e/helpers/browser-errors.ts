@@ -195,7 +195,9 @@ const classifyMessage = (
   if (
     /hydration failed|hydration error|server rendered html.*did not match|text content does not match/iu.test(
       message
-    )
+    ) ||
+    // Production React only names the error code: #418 hydration mismatch, #423 recovered by client render, #425 text mismatch.
+    /^Minified React error #(?:418|423|425);/u.test(message)
   ) {
     return "react-hydration";
   }

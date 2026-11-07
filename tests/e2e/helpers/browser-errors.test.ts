@@ -151,6 +151,11 @@ describe("secret-safe browser error diagnostics", () => {
         "Error",
         "client-error-boundary",
       ],
+      [
+        "Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+        "Error",
+        "react-hydration",
+      ],
     ] as const;
     for (const [message, name] of cases) {
       const error = new Error(message);
@@ -171,6 +176,10 @@ describe("secret-safe browser error diagnostics", () => {
       ['Abort fetching component for route: "profile"', "Error"],
       [
         "An error occurred in the Server Components render. The specific message is omitted.",
+        "Error",
+      ],
+      [
+        "Minified React error #4180; visit https://react.dev/errors/4180",
         "Error",
       ],
     ] as const;
