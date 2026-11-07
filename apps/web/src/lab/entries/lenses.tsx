@@ -10,33 +10,25 @@ import {
 } from "@darkfactory/api";
 
 import type { CongressTradesGateway } from "../../components/portal/congress-trades-client.ts";
-import {
-  CongressTradesWorkspace,
-  parseCongressTradesParams,
-} from "../../components/portal/congress-trades-workspace.tsx";
-import {
-  DeepValueWorkspace,
-  parseDeepValueParams,
-} from "../../components/portal/deep-value-workspace.tsx";
+import { parseCongressTradesParams } from "../../components/portal/congress-trades-params.ts";
+import { CongressTradesWorkspace } from "../../components/portal/congress-trades-workspace.tsx";
+import { parseDeepValueParams } from "../../components/portal/deep-value-params.ts";
+import { DeepValueWorkspace } from "../../components/portal/deep-value-workspace.tsx";
 import { MarketContextPage } from "../../components/portal/market-context-page.tsx";
 import type { MarketContextGateway } from "../../components/portal/market-context-workspace.tsx";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
 import type { ResearchLensesGateway } from "../../components/portal/research-lenses-client.ts";
 import type { RiskAllocatorGateway } from "../../components/portal/risk-allocator-client.ts";
+import { parseRiskAllocatorParams } from "../../components/portal/risk-allocator-params.ts";
 import {
-  parseRiskAllocatorParams,
   type RiskAllocatorWatchlist,
   RiskAllocatorWorkspace,
 } from "../../components/portal/risk-allocator-workspace.tsx";
-import {
-  parseRotationMatrixParams,
-  RotationMatrixWorkspace,
-} from "../../components/portal/rotation-matrix-workspace.tsx";
+import { parseRotationMatrixParams } from "../../components/portal/rotation-matrix-params.ts";
+import { RotationMatrixWorkspace } from "../../components/portal/rotation-matrix-workspace.tsx";
 import type { SectorRotationGateway } from "../../components/portal/sector-rotation-client.ts";
-import {
-  parseSectorRotationParams,
-  SectorRotationWorkspace,
-} from "../../components/portal/sector-rotation-workspace.tsx";
+import { parseSectorRotationParams } from "../../components/portal/sector-rotation-params.ts";
+import { SectorRotationWorkspace } from "../../components/portal/sector-rotation-workspace.tsx";
 import { labDaysAgo } from "../fixtures/core.ts";
 import {
   LAB_MARKET_CONTEXT,

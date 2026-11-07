@@ -11,15 +11,16 @@ import {
   it,
   vi,
 } from "vitest";
-
 import {
   type DeepValueFilter,
   type DeepValueSettings,
-  DeepValueWorkspace,
   deepValueSearch,
+  parseDeepValueParams,
+} from "./deep-value-params.ts";
+import {
+  DeepValueWorkspace,
   filterDeepValueRows,
   formatMoney,
-  parseDeepValueParams,
 } from "./deep-value-workspace.tsx";
 import type { ResearchLensesGateway } from "./research-lenses-client.ts";
 import {

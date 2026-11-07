@@ -15,12 +15,14 @@ import {
 import type { ResearchLensesGateway } from "./research-lenses-client.ts";
 import { rotationFixture } from "./research-lenses-test-fixtures.ts";
 import {
-  formatReturn,
-  heatColor,
   parseRotationMatrixParams,
   type RotationMatrixSettings,
-  RotationMatrixWorkspace,
   rotationMatrixSearch,
+} from "./rotation-matrix-params.ts";
+import {
+  formatReturn,
+  heatColor,
+  RotationMatrixWorkspace,
 } from "./rotation-matrix-workspace.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {

@@ -37,12 +37,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
 
-import { withQuery, writeQuery } from "./backtest-lab-query.ts";
+import { writeQuery } from "./backtest-lab-query.ts";
 import {
   createBrowserResearchLensesGateway,
   describeResearchLensFailure,
   type ResearchLensesGateway,
 } from "./research-lenses-client.ts";
+import {
+  DEFAULT_PERIOD,
+  type RotationMatrixSettings,
+  URL_DEFAULTS,
+} from "./rotation-matrix-params.ts";
 
 // Rotation matrix (port of the vertex-research ?view=rotation lens): sector -> industry -> cap bucket
 // median returns for 1D/1M/3M/6M, standouts and our names in leading/lagging industries. Read only.
@@ -54,27 +59,6 @@ const HEAT_SCALE: Readonly<Record<RotationPeriod, number>> = {
   "3M": 20,
   "6M": 30,
 };
-
-const DEFAULT_PERIOD: RotationPeriod = "1M";
-// Defaults removed from the URL so the default view keeps a clean address.
-const URL_DEFAULTS = { period: DEFAULT_PERIOD } as const;
-
-export type RotationMatrixSettings = Readonly<{ period: RotationPeriod }>;
-
-type ParamValue = string | readonly string[] | undefined;
-
-/** Reads `?period=`; anything unknown falls back to the default (1M). */
-export const parseRotationMatrixParams = (
-  params: Readonly<Record<string, ParamValue>>
-): RotationMatrixSettings => ({
-  period:
-    ROTATION_PERIODS.find((key) => key === params["period"]) ?? DEFAULT_PERIOD,
-});
-
-/** The query string for the settings, without the default ("" for 1M). */
-export const rotationMatrixSearch = (
-  settings: RotationMatrixSettings
-): string => withQuery("", { period: settings.period }, URL_DEFAULTS);
 
 /** Green for gains, red for losses; opacity grows with the size of the move. */
 export const heatColor = (

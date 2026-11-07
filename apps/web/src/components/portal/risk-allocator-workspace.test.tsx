@@ -15,13 +15,15 @@ import {
   type RiskAllocatorGateway,
 } from "./risk-allocator-client.ts";
 import {
+  parseRiskAllocatorParams,
+  type RiskAllocatorSettings,
+} from "./risk-allocator-params.ts";
+import {
   createBrowserRiskAllocatorWatchlist,
   invalidAmountFields,
   parseAmount,
-  parseRiskAllocatorParams,
   RISK_ALLOCATOR_DEFAULTS,
   type RiskAllocatorForm,
-  type RiskAllocatorSettings,
   type RiskAllocatorWatchlist,
   RiskAllocatorWorkspace,
   toAllocatorInput,

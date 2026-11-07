@@ -9,8 +9,8 @@ import {
   type SectorRotationMapOutput,
   WATCHLIST_SYMBOL_PATTERN,
 } from "@darkfactory/api";
-
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
+import { SECTORS_PRESET_ID } from "./sector-rotation-params.ts";
 
 // Sector rotation map (sectorRotation.map) and the symbol lists a map can use. Read only:
 // nothing here creates, routes or simulates an order.
@@ -34,7 +34,7 @@ export interface SectorRotationGateway {
 }
 
 export const SECTORS_PRESET: SectorRotationUniversePreset = Object.freeze({
-  id: "sectors",
+  id: SECTORS_PRESET_ID,
   label: `Sector ETFs (${SECTOR_ROTATION_SECTORS.length})`,
   universe: Object.freeze({ kind: "sectors" }),
 });
