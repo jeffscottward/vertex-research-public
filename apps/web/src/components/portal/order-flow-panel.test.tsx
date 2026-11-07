@@ -162,8 +162,8 @@ const barsOutput = (): MarketBarsOutput => {
   };
 };
 
-const failure = (code: string) =>
-  Object.assign(new Error(`${code} from service`), { code });
+const failure = (code: string, message = `${code} from service`) =>
+  Object.assign(new Error(message), { code });
 
 const gateways = (
   overrides: Partial<{
@@ -690,13 +690,36 @@ describe("OrderFlowPanel edge states", () => {
   });
 
   it("ignores results that arrive after the panel is gone", async () => {
-    let resolveTicks: (value: MarketTicksOutput) => void = () => undefined;
+    let resolveDepth: (value: MarketDepthOutput) => void = () => undefined;
     let rejectBars: (reason: unknown) => void = () => undefined;
     const gates = gateways({
       bars: () =>
         new Promise<MarketBarsOutput>((_resolve, reject) => {
           rejectBars = reject;
         }),
+      depth: () =>
+        new Promise<MarketDepthOutput>((resolve) => {
+          resolveDepth = resolve;
+        }),
+    });
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+    await click(tab(container, "book"));
+    expect(viewText(container)).toContain("Loading");
+    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    await act(async () => {
+      resolveDepth(depthOutput());
+      rejectBars(failure("PACED", "IBKR history pacing: retry in 3 s"));
+      await flush();
+    });
+    expect(container.textContent).toBe("");
+    expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the TPO bars only after the trade prints settle", async () => {
+    let resolveTicks: (value: MarketTicksOutput) => void = () => undefined;
+    const gates = gateways({
       ticks: () =>
         new Promise<MarketTicksOutput>((resolve) => {
           resolveTicks = resolve;
@@ -704,14 +727,75 @@ describe("OrderFlowPanel edge states", () => {
     });
     const container = await render(gates);
     await click(button(container, "Load order flow"));
-    expect(viewText(container)).toContain("Loading");
-    for (const root of roots.splice(0)) await act(async () => root.unmount());
+    expect(gates.orderFlow.depth).toHaveBeenCalledTimes(1);
+    expect(gates.marketData.bars).not.toHaveBeenCalled();
     await act(async () => {
       resolveTicks(ticksOutput());
-      rejectBars(failure("PACED"));
       await flush();
     });
-    expect(container.textContent).toBe("");
+    expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+    await click(tab(container, "tpo"));
+    expect(container.querySelector("[data-tpo-profile]")).not.toBeNull();
+  });
+
+  describe("TPO pacing retry", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const pacedOnce = (message: string) => {
+      let calls = 0;
+      return gateways({
+        bars: async () => {
+          calls += 1;
+          if (calls === 1) throw failure("PACED", message);
+          return barsOutput();
+        },
+      });
+    };
+
+    it("retries one paced bars request after the wait the service names", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const gates = pacedOnce("IBKR history pacing: retry in 3 s");
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      await click(tab(container, "tpo"));
+      expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+      expect(viewText(container)).toContain("Loading");
+      expect(container.querySelector("[role=alert]")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+        await flush();
+      });
+      expect(gates.marketData.bars).toHaveBeenCalledTimes(2);
+      expect(container.querySelector("[data-tpo-profile]")).not.toBeNull();
+    });
+
+    it("shows the pacing error at once when the wait is IBKR's long back-off", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const gates = pacedOnce("IBKR history pacing: retry in 600 s");
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      await click(tab(container, "tpo"));
+      expect(
+        view(container)?.querySelector("[data-error-code=PACED]")
+      ).not.toBeNull();
+      expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops the retry when the panel goes away during the wait", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const gates = pacedOnce("IBKR history pacing: retry in 3 s");
+      const container = await render(gates);
+      await click(button(container, "Load order flow"));
+      for (const root of roots.splice(0)) await act(async () => root.unmount());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+        await flush();
+      });
+      expect(gates.marketData.bars).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toBe("");
+    });
   });
 
   it("draws a flat delta for one unsigned print and profiles one-period and no-single-print sessions", async () => {
