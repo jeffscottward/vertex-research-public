@@ -772,6 +772,8 @@ describe("database client factories", () => {
     const firstClose = resources[0]!.close();
     const concurrentClose = resources[0]!.close();
     expect(concurrentClose).toBe(firstClose);
+    // The dying socket's own error is not a second, CLIENT_ERROR diagnostic.
+    driver.clients[0]!.emitError(new TypeError("This socket has been closed."));
     const closeResults = await Promise.allSettled([
       firstClose,
       concurrentClose,

@@ -295,8 +295,8 @@ export const createRequestDatabase = async (
   let closing = false;
   client.on("error", () => {
     // The listener stays attached (an unhandled "error" event throws). Once this
-    // request ends its own client, socket errors are teardown noise: on Workers,
-    // pg-cloudflare's read loop rejects with "This socket has been closed." after
+    // request ends its own client, socket errors are teardown noise: on Workers
+    // (pg-cloudflare 1.4.1), the read loop rejects "This socket has been closed." after
     // every end(). A real close failure is reported as CLIENT_CLOSE_ERROR instead.
     if (closing) return;
     return emitRequestDatabaseDiagnostic(
