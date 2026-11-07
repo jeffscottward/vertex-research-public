@@ -35,52 +35,21 @@ import {
   type CongressTradesGateway,
   createBrowserCongressTradesGateway,
 } from "./congress-trades-client.ts";
+import {
+  ALL_MEMBERS,
+  type CongressTradesSettings,
+  DEFAULT_DAYS,
+  WINDOWS,
+} from "./congress-trades-params.ts";
 import { describeResearchLensFailure } from "./research-lenses-client.ts";
 
 // Congress trades: the House Clerk STOCK Act periodic transaction report (PTR) filing feed.
 // The transaction rows live in each filing's PDF; the page links them. Research only; no orders.
 
-const WINDOWS: readonly CongressTradeWindow[] = [7, 30, 90];
-const DEFAULT_DAYS: CongressTradeWindow = 30;
-const ALL_MEMBERS = "";
-// The contract allows member names up to 200 characters.
-const MAX_MEMBER_LENGTH = 200;
 // The feed may carry up to 5000 filings (CONGRESS_TRADES_MAX_ROWS); the page lists them in pages.
 export const CONGRESS_TRADES_PAGE_SIZE = 50;
 const selectClass =
   "h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm sm:w-48 sm:flex-none";
-
-export type CongressTradesSettings = Readonly<{
-  days: CongressTradeWindow;
-  member: string;
-}>;
-
-type ParamValue = string | readonly string[] | undefined;
-
-/** Reads `?days=&member=`; anything unknown falls back to the default (30 days, all members). */
-export const parseCongressTradesParams = (
-  params: Readonly<Record<string, ParamValue>>
-): CongressTradesSettings => {
-  const { days, member } = params;
-  return {
-    days: WINDOWS.find((span) => String(span) === days) ?? DEFAULT_DAYS,
-    member:
-      typeof member === "string" && member.length <= MAX_MEMBER_LENGTH
-        ? member
-        : ALL_MEMBERS,
-  };
-};
-
-/** The query string for the settings, without the defaults ("" when both are default). */
-export const congressTradesSearch = (
-  settings: CongressTradesSettings
-): string => {
-  const params = new URLSearchParams();
-  if (settings.days !== DEFAULT_DAYS) params.set("days", String(settings.days));
-  if (settings.member !== ALL_MEMBERS) params.set("member", settings.member);
-  const search = params.toString();
-  return search === "" ? "" : `?${search}`;
-};
 
 type FeedState =
   | Readonly<{ type: "loading" }>

@@ -70,9 +70,16 @@ for (const viewport of [
     await symbol.focus();
     const barBox = await bar.boundingBox();
     const symbolBox = await symbol.boundingBox();
-    expect(symbolBox?.y ?? -1).toBeGreaterThanOrEqual(
-      (barBox?.y ?? 0) + (barBox?.height ?? 0)
-    );
+    // On failure, say where the bar is stuck and how far the page can scroll.
+    const barState = await bar.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const root = document.documentElement;
+      return `top=${style.top} position=${style.position} scrollY=${Math.round(window.scrollY)} maxScroll=${root.scrollHeight - root.clientHeight}`;
+    });
+    expect(
+      symbolBox?.y ?? -1,
+      `field under the tab bar (${barState})`
+    ).toBeGreaterThanOrEqual((barBox?.y ?? 0) + (barBox?.height ?? 0));
 
     // A jump to the heading (from the bottom, with the bar stuck) stops below the tab bar, and
     // nothing covers the heading.
@@ -82,14 +89,25 @@ for (const viewport of [
         top: document.documentElement.scrollHeight,
       })
     );
+    // Instant: the page has scroll-behavior smooth, and a smooth jump would be measured mid-way.
     await heading.evaluate((element) =>
-      element.scrollIntoView({ block: "start" })
+      element.scrollIntoView({ behavior: "instant", block: "start" })
     );
-    const headingBox = await heading.boundingBox();
-    const stuckBar = await bar.boundingBox();
-    expect(headingBox?.y ?? -1).toBeGreaterThanOrEqual(
-      (stuckBar?.y ?? 0) + (stuckBar?.height ?? 0)
-    );
+    // The page can still be settling (layout animation, the bar sticking) right after the
+    // jump, so poll the gap until it holds; a real overlap keeps failing until the timeout.
+    await expect
+      .poll(
+        async () => {
+          const headingBox = await heading.boundingBox();
+          const stuckBar = await bar.boundingBox();
+          return (
+            (headingBox?.y ?? -1) -
+            ((stuckBar?.y ?? 0) + (stuckBar?.height ?? 0))
+          );
+        },
+        { message: "heading stays below the stuck tab bar" }
+      )
+      .toBeGreaterThanOrEqual(0);
     expect(
       await heading.evaluate((element) => {
         const box = element.getBoundingClientRect();

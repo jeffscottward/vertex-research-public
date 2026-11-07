@@ -133,17 +133,49 @@ const congressOutcome = (page: Page) =>
     .getByRole("region", { name: "PTR filings" })
     .or(page.getByRole("alert").filter({ hasText: "Filings unavailable" }));
 
+/** The replay runs by itself on load and on every choice; there is no Run button to press. */
 const runReplay = async (page: Page): Promise<Locator> => {
   await page
     .getByLabel("Daily series", { exact: true })
     .selectOption({ label: "TEST daily (1,200 bars)" });
-  await page.getByRole("button", { exact: true, name: "Run replay" }).click();
   const results = page.locator('[data-setup-replay="results"]');
   await expect(results).toBeVisible();
   await expect(results).toContainText(
     "on TEST daily, 2018-01-02 to 2021-04-15 (1,200 bars)"
   );
+  await expect(
+    page.getByRole("button", { exact: true, name: "Run again" })
+  ).toBeEnabled();
   return results;
+};
+
+/**
+ * The price-level form. The signal alerts section below it has its own Symbol,
+ * Condition, Create alert and Check now controls, so every lookup is scoped.
+ */
+const priceAlertForm = (page: Page) =>
+  page.getByRole("region", { exact: true, name: "New alert" });
+
+/** The price-level Check now renders before the signal section's own Check now. */
+const priceAlertCheckNow = (page: Page) =>
+  page.getByRole("button", { exact: true, name: "Check now" }).first();
+
+const openPriceAlerts = async (page: Page) => {
+  await openPage(page, "/price-alerts", "Price alerts");
+  await expect(page.getByText("Loading price alerts…")).toHaveCount(0);
+};
+
+const createPriceAlert = async (
+  page: Page,
+  choice: { kind: "above" | "below"; level: string; role?: string }
+) => {
+  const form = priceAlertForm(page);
+  await form.getByLabel("Symbol", { exact: true }).selectOption("KO");
+  await form.getByLabel("Condition", { exact: true }).selectOption(choice.kind);
+  await form.getByLabel("Level", { exact: true }).fill(choice.level);
+  if (choice.role !== undefined)
+    await form.getByLabel("Role", { exact: true }).selectOption(choice.role);
+  return form;
 };
 
 const replayCards = [
@@ -179,13 +211,11 @@ for (const viewport of VIEWPORTS) {
     ).toHaveAttribute("href", "/watchlist");
     await expectNoPageOverflow(page, viewport.width);
 
-    await openPage(page, "/price-alerts", "Price alerts");
+    await openPriceAlerts(page);
     await expect(
-      page.getByRole("link", { exact: true, name: "watchlist" })
+      priceAlertForm(page).getByRole("link", { exact: true, name: "watchlist" })
     ).toHaveAttribute("href", "/watchlist");
-    await expect(
-      page.getByRole("button", { name: "Check now" })
-    ).toBeDisabled();
+    await expect(priceAlertCheckNow(page)).toBeDisabled();
     await expectNoPageOverflow(page, viewport.width);
 
     await openPage(page, "/setup-replay", "Setup replay");
@@ -234,13 +264,14 @@ test("an operator creates a price alert for a watchlist symbol", async ({
   await signInAs(page, E2E_IDENTITIES.admin);
   await addToWatchlist(page, ["KO"]);
 
-  await openPage(page, "/price-alerts", "Price alerts");
-  await page.getByLabel("Symbol", { exact: true }).selectOption("KO");
-  await page.getByLabel("Condition", { exact: true }).selectOption("above");
-  await page.getByLabel("Level", { exact: true }).fill("1000");
-  await page.getByLabel("Role", { exact: true }).selectOption("target");
-  await page.getByLabel("Note (optional)").fill("E2E research notice");
-  await page.getByRole("button", { exact: true, name: "Create alert" }).click();
+  await openPriceAlerts(page);
+  const form = await createPriceAlert(page, {
+    kind: "above",
+    level: "1000",
+    role: "target",
+  });
+  await form.getByLabel("Note (optional)").fill("E2E research notice");
+  await form.getByRole("button", { exact: true, name: "Create alert" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Alert created for KO." })
   ).toBeVisible();
@@ -253,7 +284,7 @@ test("an operator creates a price alert for a watchlist symbol", async ({
   await expect(rule).toContainText("at or above 1000");
   await expect(rule).toContainText("Target");
   await expect(rule).toContainText("Last checked never");
-  await expect(page.getByRole("button", { name: "Check now" })).toBeEnabled();
+  await expect(priceAlertCheckNow(page)).toBeEnabled();
 
   // The rule is stored: it is still listed after a reload, and at phone width.
   await page.setViewportSize(VIEWPORTS[1]);
@@ -281,22 +312,20 @@ test("live screenshots of the four day-trader pages", async ({
   await addToWatchlist(page, ["TSLA", "AAPL", "KO"]);
 
   // One rule that a live quote triggers (KO trades far below 1000) and one that stays active.
-  await openPage(page, "/price-alerts", "Price alerts");
+  await openPriceAlerts(page);
   for (const [kind, level] of [
     ["below", "1000"],
     ["above", "100000"],
   ] as const) {
-    await page.getByLabel("Symbol", { exact: true }).selectOption("KO");
-    await page.getByLabel("Condition", { exact: true }).selectOption(kind);
-    await page.getByLabel("Level", { exact: true }).fill(level);
-    await page
+    const form = await createPriceAlert(page, { kind, level });
+    await form
       .getByRole("button", { exact: true, name: "Create alert" })
       .click();
     await expect(
       page.getByRole("status").filter({ hasText: "Alert created for KO." })
     ).toBeVisible();
   }
-  await page.getByRole("button", { exact: true, name: "Check now" }).click();
+  await priceAlertCheckNow(page).click();
   await expect(
     page.getByRole("status").filter({ hasText: /^Checked \d+ rule/u })
   ).toBeVisible({ timeout: LIVE_TIMEOUT_MS });

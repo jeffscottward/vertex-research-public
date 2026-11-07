@@ -982,7 +982,6 @@ describe("SignInForm", () => {
     expect(signInEmail).toHaveBeenCalledWith({
       email: "member@domain.test",
       password: "CorrectHorseBatteryStaple!42",
-      callbackURL: "/feature-items?status=active",
     });
     expect(mounted.setResult).toHaveBeenLastCalledWith({
       status: "success",

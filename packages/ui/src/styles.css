@@ -205,19 +205,19 @@
  */
 @utility touch-target {
   position: relative;
-  isolation: isolate;
-  min-height: var(--target-min);
   min-width: var(--target-min);
+  min-height: var(--target-min);
   background-clip: content-box;
+  isolation: isolate;
   &::before {
-    content: "";
     position: absolute;
-    z-index: -1;
     inset-inline: 0;
     top: 50%;
+    z-index: -1;
     height: var(--chrome-h, 100%);
-    transform: translateY(-50%);
     pointer-events: none;
+    content: "";
+    transform: translateY(-50%);
   }
 }
 
@@ -311,14 +311,14 @@
   place-items: center;
   & > * {
     grid-area: 1 / 1;
-    transition-property: opacity, scale, filter;
-    transition-duration: var(--duration-base);
     transition-timing-function: var(--ease-out);
+    transition-duration: var(--duration-base);
+    transition-property: opacity, scale, filter;
   }
   & > [data-state="off"] {
     opacity: 0;
-    scale: 0.25;
     filter: blur(4px);
+    scale: 0.25;
   }
 }
 
@@ -363,9 +363,10 @@
 
   body {
     /* text-base: 16px at Font size Default (shadcn); Small and Large scale it. */
-    @apply bg-background text-foreground font-sans text-base antialiased;
     min-height: 100dvh;
     margin: 0;
+    /* text-base: 16px at Font size Default (shadcn); Small and Large scale it. */
+    @apply bg-background text-foreground font-sans text-base antialiased;
   }
 
   h1,
@@ -397,8 +398,8 @@
   .df-container-portal,
   .df-reading {
     width: 100%;
-    margin-inline: auto;
     padding-inline: var(--gutter-mobile);
+    margin-inline: auto;
   }
 
   .df-container {
@@ -423,20 +424,33 @@
     z-index: 100;
     min-height: 2.75rem;
     padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
-    clip-path: inset(50%);
-    opacity: 0;
-    pointer-events: none;
-    border-radius: var(--radius-md);
-    background: var(--primary);
-    color: var(--primary-foreground);
-    font-weight: 500;
     font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--primary-foreground);
+    pointer-events: none;
+    background: var(--primary);
+    border-radius: var(--radius-md);
+    opacity: 0;
+    clip-path: inset(50%);
   }
 
   .skip-link:focus-visible {
-    clip-path: none;
-    opacity: 1;
     pointer-events: auto;
+    opacity: 1;
+    clip-path: none;
+  }
+
+  /* The sticky tab bar sits under the sticky portal top bar below lg and at the top of
+     the page from lg, where the top bar is static. One variable drives both the bar's top
+     and the scroll margin, so they cannot disagree (no responsive class override). */
+  [data-slot="sticky-tabs"] {
+    --sticky-tabs-top: var(--header-height);
+  }
+
+  @media (min-width: 64rem) {
+    [data-slot="sticky-tabs"] {
+      --sticky-tabs-top: 0px;
+    }
   }
 
   /* Content under a sticky tab bar: focus moves and anchor jumps stop below the bar
@@ -444,7 +458,7 @@
      field. A margin on the panel content, not padding on the root, so focusing the
      stuck bar itself never scrolls the page (Chromium issue 40749247). */
   [data-slot="sticky-tabs"] > [role="tabpanel"] * {
-    scroll-margin-top: 3.5rem;
+    scroll-margin-top: calc(var(--sticky-tabs-top) + 3.5rem);
   }
 
   @media (min-width: 48rem) {

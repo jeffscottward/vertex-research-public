@@ -151,6 +151,13 @@ describe("CommandPalette search trigger", () => {
     const box = container.querySelector('[data-slot="portal-search"]');
     expect(box?.textContent).toContain("Search ticker or page");
     expect(box?.querySelector("kbd")?.textContent).toContain("K");
+    // WCAG 2.5.3 label in name: the visible label is the name; the shortcut hint is
+    // left out of it (aria-keyshortcuts announces the shortcut).
+    expect(box?.hasAttribute("aria-label")).toBe(false);
+    expect(box?.querySelector('[aria-hidden="true"] > kbd')?.textContent).toBe(
+      "Ctrl/⌘ K"
+    );
+    expect(box?.getAttribute("aria-keyshortcuts")).toBe("Control+K Meta+K /");
     expect(box?.className.split(" ")).toEqual(
       expect.arrayContaining(["hidden", "sm:flex"])
     );
