@@ -142,6 +142,15 @@ export const gexWalls = (
 
 export type FlowContext = GexContext["flow"];
 
+// Signed premium share needed on one side; below it the flow is balanced.
+const flowBias = (bullish: number, bearish: number): FlowContext["bias"] => {
+  const signed = bullish + bearish;
+  if (signed === 0) return "unknown";
+  const net = (bullish - bearish) / signed;
+  if (net >= FLOW_BIAS_SHARE) return "bullish";
+  return net <= -FLOW_BIAS_SHARE ? "bearish" : "balanced";
+};
+
 // Who is spending premium: bullish (calls bought, puts sold) vs bearish, plus the
 // share of premium in contracts that expire today or within a week.
 export const flowContext = (
@@ -165,18 +174,9 @@ export const flowContext = (
     if (dte <= 0) zeroDte += premium;
     if (dte <= 7) week += premium;
   }
-  const signed = bullishPremium + bearishPremium;
-  const net = signed === 0 ? 0 : (bullishPremium - bearishPremium) / signed;
   return {
     bearishPremium,
-    bias:
-      signed === 0
-        ? "unknown"
-        : net >= FLOW_BIAS_SHARE
-          ? "bullish"
-          : net <= -FLOW_BIAS_SHARE
-            ? "bearish"
-            : "balanced",
+    bias: flowBias(bullishPremium, bearishPremium),
     bullishPremium,
     newestTradeAt: newest,
     weekShare: total === 0 ? null : week / total,
