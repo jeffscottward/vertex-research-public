@@ -71,3 +71,21 @@ Paper (Table 3, p. 15; 2007-05 to 2024-04, paper costs): final model CAGR 19.6%,
 Slippage sensitivity (primary rules, commission fixed): Sharpe 1.16 / 0.95 / 0.75 / 0.55 / 0.35 at 0 / 0.25 / 0.5 / 0.75 / 1.0 bp per side. The second-half Sharpe falls below 0.5 between 0.5 and 0.75 bp.
 
 Verdict: FAIL under the pre-set rule (2,955 trades; second-half Sharpe 0.12 < 0.5). The result depends on execution cost: at 1 bp per side the strategy earns 4.1% a year with a 46.6% drawdown, below buy-and-hold. At the paper's measured slippage (USD 0.001 per share, about 0.03–0.08 bp at 2008–2021 prices) it would pass. This test does not cover 2021-05 to 2026-10. This result does not authorize trades. Live use needs its own options spec within the 2% NLV cap.
+
+## Re-test 2026-11 (card `vertex-noise-band-retest`)
+
+Owner picks (2026-11-06): (1) SPY with data after 2021-05-06, (2) the same signal expressed with SPY 0DTE options, (3) other ETFs. The rules above stay frozen (rules 1–13, primary = band+VWAP stop, vol-targeted size, Vertex costs USD 0.0035/share + 1 bp per side).
+
+### Pre-registered pass/fail (written 2026-11-07 before any re-test backtest run)
+
+The rule is the one used above: PASS only with at least 300 round trips and a net Sharpe above 0.5 in both halves (sessions split into two equal-count halves by date; Sharpe = mean daily return / standard deviation × √252, no risk-free rate). FAIL with 300+ trades otherwise; INCONCLUSIVE with fewer than 300 trades or without the data the variant needs.
+
+|Variant|Window the verdict uses|Also reported (no verdict)|
+|---|---|---|
+|1. SPY fresh data|2021-05-07 to the latest session fetched. This window is out of sample: the rules were fixed on 2008–2021 data.|Full 2008-01 to latest, with the same rule applied; paper-cost and no-cost rows.|
+|2. SPY 0DTE options|Every session in the window with real historical SPY 0DTE option bid/ask quotes. Signal = the primary run's round trips (same entry and exit minutes and side). Instrument A (verdict): buy the nearest-to-the-money 0DTE call (long signal) or put (short signal) at the ask at the entry minute, sell at the bid at the exit minute (close exit: bid at 15:59; a zero bid counts as 0). Size: contracts = floor(2% of equity / (ask × 100)), so the premium at risk is at most 2% of equity per trade (owner 2% NLV per-name cap); skip the trade if one contract costs more. Commission USD 0.65 per contract per side. Defined risk: the premium paid.|Instrument B: debit vertical (buy the ATM strike at the ask, sell the strike USD 5 further OTM at the bid), same size cap.|
+|3. Other ETFs|For each ETF separately: its full available window. QQQ, IWM, DIA; sector SPDRs XLB XLC XLE XLF XLI XLK XLP XLRE XLU XLV XLY where the bars exist.|2021-05-07 to latest per ETF.|
+
+Multiple tests: variant 3 runs up to 14 tests. With that many, one pass can be luck. Any variant-3 PASS is reported as "PASS (single test among N; needs a forward check)", and a paper-trade ask, if any, says so.
+
+Data substitution (fixed before the runs): if the new data are 5-minute bars instead of 1-minute bars, the rules run unchanged on 5-minute bars. The checks at HH:00/HH:30, the open, the last close and the next-bar-open fill are identical on 5-minute bars; only VWAP (rule 8) uses 5-minute typical prices. Before any re-test run the 2008–2021 SPY result is recomputed from 1-minute bars aggregated to 5 minutes; the difference is reported next to the results.
