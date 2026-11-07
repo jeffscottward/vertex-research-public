@@ -22,7 +22,14 @@ import {
   TableScroll,
 } from "@darkfactory/ui";
 import { ChevronDown, RefreshCw, RotateCcw } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
 
@@ -279,6 +286,7 @@ export const DeepValueWorkspace = ({
   // Bumped on every submit, so scoring the same ticker again asks the server again.
   const [scoreRequest, setScoreRequest] = useState(0);
   const [adhoc, setAdhoc] = useState<AdhocState>({ type: "idle" });
+  const showId = useId();
 
   const load = useCallback(async () => {
     setRanking({ type: "loading" });
@@ -437,10 +445,12 @@ export const DeepValueWorkspace = ({
 
   const screenControls = (
     <>
-      <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
-        <span>Show</span>
+      {/* A sibling label: a label wrapping the select would also hold every option's text. */}
+      <div className="flex w-full items-center gap-2 text-sm sm:w-auto">
+        <label htmlFor={showId}>Show</label>
         <select
           className={selectClass}
+          id={showId}
           onChange={(event) => setRole(event.target.value)}
           value={role}
         >
@@ -450,7 +460,7 @@ export const DeepValueWorkspace = ({
             </option>
           ))}
         </select>
-      </label>
+      </div>
       <label className="flex w-full items-center gap-2 text-sm sm:w-auto">
         <span>Min score</span>
         <Input

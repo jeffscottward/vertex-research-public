@@ -260,7 +260,13 @@ describe("DeepValueWorkspace", () => {
     const header = container.querySelector(
       `${RANKING} [data-slot="panel-header"]`
     );
-    expect(header?.querySelector("select")).not.toBeNull();
+    const show = header?.querySelector("select");
+    expect(show).not.toBeNull();
+    // The label holds only "Show": a wrapping label would also hold every option's
+    // text, and label lookups (Playwright getByLabel) would not match "Show".
+    expect([...(show?.labels ?? [])].map((label) => label.textContent)).toEqual(
+      ["Show"]
+    );
     expect(header?.querySelector('input[type="number"]')).not.toBeNull();
     expect(header?.querySelector('input[type="checkbox"]')).not.toBeNull();
     expect(header?.querySelector('input[type="search"]')).not.toBeNull();
