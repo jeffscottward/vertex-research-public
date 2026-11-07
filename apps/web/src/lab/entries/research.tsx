@@ -203,6 +203,7 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
         <WatchlistWorkspace
           gateway={labWatchlistGateway}
           marketData={labWatchlistMarketData}
+          operator
           portfolio={labWatchlistPortfolio}
         />
       </div>

@@ -20,6 +20,7 @@ import {
 import { labBarsOutput } from "../../lab/fixtures/market.ts";
 import type { MarketDataGateway } from "./market-data-client.ts";
 import type { PortfolioMonitorGateway } from "./portfolio-monitor-client.ts";
+import type { JournalSource } from "./trade-journal-client.ts";
 import {
   fixturePosition,
   fixtureSnapshot,
@@ -112,7 +113,8 @@ const listGateway = (
 type Props = Readonly<{
   gateway: WatchlistGateway;
   marketData: MarketDataGateway;
-  portfolio: PortfolioMonitorGateway;
+  portfolio?: PortfolioMonitorGateway;
+  portfolioSource?: JournalSource;
   strict?: boolean;
   operator?: boolean;
 }>;
@@ -307,6 +309,29 @@ describe("watchlist tabs", () => {
       "Watchlist storage unavailable (503). Retry from the Overview tab."
     );
     expect(portfolio.snapshot).not.toHaveBeenCalled();
+  });
+
+  it("reads Exposure positions from the configured journal source by default", async () => {
+    const fetchMock = vi.fn(async (_request: Request) => {
+      throw new TypeError("offline");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await mount({
+        gateway: listGateway(async () => [item("AAA")]),
+        marketData: {
+          bars: vi.fn(async (input) => barsOutput(input, wave(0.01))),
+        },
+        portfolioSource: "ibkr-monitor",
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+      await open("Exposure");
+      expect(fetchMock.mock.calls.at(0)?.[0].url).toContain(
+        "/ibkrMonitor/snapshot"
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

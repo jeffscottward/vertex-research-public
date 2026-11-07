@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import type {
-  ApiClient,
-  PortfolioMonitorExecution,
-  PortfolioMonitorOutput,
+import {
+  type ApiClient,
+  PORTFOLIO_MONITOR_MAX_ROWS,
+  type PortfolioMonitorExecution,
+  type PortfolioMonitorOutput,
+  type PortfolioMonitorStatus,
 } from "@darkfactory/api";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -167,6 +169,77 @@ describe("JournalReport", () => {
         .querySelector('a[data-slot="ticker-link"]')
         ?.getAttribute("href")
     ).toContain("AAPL");
+  });
+});
+
+describe("JournalReport status and contracts", () => {
+  const status = (
+    overrides: Partial<PortfolioMonitorStatus> = {}
+  ): PortfolioMonitorStatus => ({
+    clientId: 78,
+    connected: true,
+    dataAsOf: "2026-10-09T14:00:00.000Z",
+    gateway: "live",
+    generatedAt: "2026-10-09T14:00:00.000Z",
+    lastError: null,
+    ordersAsOf: null,
+    receivedAt: "2026-10-09T14:00:00.000Z",
+    ...overrides,
+  });
+
+  it("explains an empty window by gateway state", async () => {
+    const offline = await render(
+      <JournalReport
+        executions={[]}
+        status={status({ connected: false, dataAsOf: null })}
+      />
+    );
+    expect(text(offline)).toContain("fills may be missing");
+    const note = offline.querySelector("[data-journal-connected]");
+    expect(note?.getAttribute("data-journal-connected")).toBe("false");
+    expect(note?.textContent).toContain("Gateway disconnected");
+    expect(note?.textContent).toContain("unknown");
+    const online = await render(
+      <JournalReport executions={[]} status={status()} />
+    );
+    expect(text(online)).toContain("IBKR reported no fills");
+    const connected = online.querySelector("[data-journal-connected]");
+    expect(connected?.getAttribute("data-journal-connected")).toBe("true");
+    expect(connected?.textContent).toContain("Gateway connected");
+    expect(connected?.textContent).toContain("2026-10-09T14:00:00.000Z");
+  });
+
+  it("warns when the fill list hit the row cap", async () => {
+    const capped = Array.from({ length: PORTFOLIO_MONITOR_MAX_ROWS }, (_, i) =>
+      fill({ execId: `c${i}` })
+    );
+    const container = await render(
+      <JournalReport executions={capped} status={status()} />
+    );
+    expect(
+      container.querySelector('[data-journal-notice="cap"]')?.textContent
+    ).toContain(`first ${PORTFOLIO_MONITOR_MAX_ROWS} fills`);
+    expect(container.querySelector("[data-journal-connected]")).not.toBeNull();
+  });
+
+  it("links stock rows and labels other contracts with their type", async () => {
+    const container = await render(
+      <JournalReport
+        executions={[
+          fill({ execId: "blank", secType: "", symbol: "SPY" }),
+          fill({
+            execId: "opt",
+            localSymbol: "AAPL  261120C00200000",
+            secType: "OPT",
+          }),
+        ]}
+      />
+    );
+    const blank = container.querySelector('[data-sectype=""]');
+    expect(blank?.querySelector('a[data-slot="ticker-link"]')).not.toBeNull();
+    const option = container.querySelector('[data-sectype="OPT"]');
+    expect(option?.querySelector('a[data-slot="ticker-link"]')).toBeNull();
+    expect(option?.textContent).toContain("AAPL  261120C00200000 OPT");
   });
 });
 
