@@ -385,6 +385,11 @@ const expectDashboardFor = async (
   await page.goto("/dashboard");
   await expect(expectedHeading).toBeVisible();
   if (identity.operator) await expectMissionControlLoaded(page);
+  // Every role gets dashboard widgets (members only Watchlist); wait for their reads too, so a
+  // later sign-out cannot turn a pending widget read into a 401.
+  await expect(
+    page.locator("[data-widget]").getByText("Loading…", { exact: true })
+  ).toHaveCount(0);
 };
 
 test.use({ screenshot: "off", trace: "off", video: "off" });
