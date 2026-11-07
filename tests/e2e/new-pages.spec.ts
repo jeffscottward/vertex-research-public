@@ -41,11 +41,33 @@ const PHONE = { height: 812, width: 375 } as const;
 
 /** The document never scrolls sideways; wide content scrolls inside its own box. */
 const expectNoPageOverflow = async (page: Page): Promise<void> => {
-  const width = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  expect(width.scrollWidth).toBeLessThanOrEqual(width.clientWidth + 1);
+  const width = await page.evaluate(() => {
+    const clientWidth = document.documentElement.clientWidth;
+    // The outermost elements whose right edge passes the viewport, so a failure names them.
+    const wide = [...document.body.querySelectorAll<HTMLElement>("*")]
+      .filter(
+        (element) => element.getBoundingClientRect().right > clientWidth + 1
+      )
+      .filter(
+        (element) =>
+          element.parentElement === null ||
+          element.parentElement.getBoundingClientRect().right <= clientWidth + 1
+      )
+      .slice(0, 5)
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}${element.id === "" ? "" : `#${element.id}`}.${[...element.classList].slice(0, 4).join(".")} right=${Math.round(element.getBoundingClientRect().right)}`
+      );
+    return {
+      clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      wide,
+    };
+  });
+  expect(
+    width.scrollWidth,
+    `page scrolls sideways; widest: ${width.wide.join(", ")}`
+  ).toBeLessThanOrEqual(width.clientWidth + 1);
 };
 
 const sha256 = (text: string): string =>
