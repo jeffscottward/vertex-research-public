@@ -179,10 +179,12 @@ export const startPreviewCaptureServer = async (
     environment: "test",
   });
 
-  const server = createServer(async (request, response) => {
+  const capture = async (
+    request: IncomingMessage,
+    response: ServerResponse
+  ): Promise<void> => {
     try {
       const remoteAddress = request.socket.remoteAddress;
-      if (serveMarketContext(request, response)) return;
       if (
         request.method !== "POST" ||
         request.url !== CAPTURE_PATH ||
@@ -217,9 +219,15 @@ export const startPreviewCaptureServer = async (
       }
       return respond(response, 201, "accepted");
     } catch {
-      if (response.headersSent) return response.destroy();
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
       return respond(response, 400, "rejected");
     }
+  };
+  const server = createServer((request, response) => {
+    if (!serveMarketContext(request, response)) void capture(request, response);
   });
   server.headersTimeout = REQUEST_TIMEOUT_MS;
   server.requestTimeout = REQUEST_TIMEOUT_MS;
