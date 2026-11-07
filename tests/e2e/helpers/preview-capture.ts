@@ -129,21 +129,60 @@ const respond = (
   response.end(JSON.stringify({ status: body }));
 };
 
+// The rig status file server (ENGINE_STATUS_URL) for the E2E app. Mission control, /markets and
+// /calendar read its market context file on load; without it every operator page answered
+// NOT_CONFIGURED (HTTP 503). It holds no section yet, as before the rig's first push of the
+// day, so the pages show their typed "not collected" states. status.json stays absent (404).
+const MARKET_CONTEXT_PATH = "/markets.json";
+const marketContextDocument = (now: Date): string =>
+  JSON.stringify({
+    generatedAt: Math.floor(now.getTime() / 1000),
+    gex: null,
+    host: "e2e",
+    macro: null,
+    missing: ["gex", "macro", "news"],
+    news: null,
+    schema: "vertex-market-context-v1",
+  });
+
+/** Answers GET /markets.json from loopback; false for every other request. */
+const serveMarketContext = (
+  request: IncomingMessage,
+  response: ServerResponse
+): boolean => {
+  const remoteAddress = request.socket.remoteAddress;
+  if (
+    request.method !== "GET" ||
+    request.url !== MARKET_CONTEXT_PATH ||
+    (remoteAddress !== "127.0.0.1" && remoteAddress !== "::ffff:127.0.0.1")
+  )
+    return false;
+  response.writeHead(200, {
+    "cache-control": "no-store",
+    "content-type": "application/json; charset=utf-8",
+  });
+  response.end(marketContextDocument(new Date()));
+  return true;
+};
+
 export const startPreviewCaptureServer = async (
   options: PreviewCaptureServerOptions
 ): Promise<PreviewCaptureServer> => {
   const authEmail = createPreviewEmailPort({
-    environment: "test",
-    directory: options.authDirectory,
-    trustedAppOrigin: options.appOrigin,
     binding: options.binding,
+    directory: options.authDirectory,
+    environment: "test",
+    trustedAppOrigin: options.appOrigin,
   });
   const contactEmail = createPreviewContactEmailPort({
-    environment: "test",
     directory: options.contactDirectory,
+    environment: "test",
   });
 
-  const server = createServer(async (request, response) => {
+  const capture = async (
+    request: IncomingMessage,
+    response: ServerResponse
+  ): Promise<void> => {
     try {
       const remoteAddress = request.socket.remoteAddress;
       if (
@@ -180,9 +219,15 @@ export const startPreviewCaptureServer = async (
       }
       return respond(response, 201, "accepted");
     } catch {
-      if (response.headersSent) return response.destroy();
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
       return respond(response, 400, "rejected");
     }
+  };
+  const server = createServer((request, response) => {
+    if (!serveMarketContext(request, response)) void capture(request, response);
   });
   server.headersTimeout = REQUEST_TIMEOUT_MS;
   server.requestTimeout = REQUEST_TIMEOUT_MS;
@@ -195,7 +240,7 @@ export const startPreviewCaptureServer = async (
     };
     server.once("error", onError);
     return server.listen(
-      { host: "127.0.0.1", port: options.port ?? 0, exclusive: true },
+      { exclusive: true, host: "127.0.0.1", port: options.port ?? 0 },
       () => {
         server.off("error", onError);
         return resolve();
@@ -209,7 +254,6 @@ export const startPreviewCaptureServer = async (
   }
 
   return Object.freeze({
-    endpoint: `http://127.0.0.1:${address.port}${CAPTURE_PATH}`,
     close: async (): Promise<void> => {
       server.closeIdleConnections();
       if (!server.listening) return;
@@ -217,5 +261,6 @@ export const startPreviewCaptureServer = async (
         return server.close((error) => (error ? reject(error) : resolve()));
       });
     },
+    endpoint: `http://127.0.0.1:${address.port}${CAPTURE_PATH}`,
   });
 };

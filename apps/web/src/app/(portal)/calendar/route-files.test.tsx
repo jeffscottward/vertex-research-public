@@ -34,7 +34,7 @@ const render = async (element: ReactElement) => {
 describe("calendar route files", () => {
   it("renders the client workspace", async () => {
     const container = await render(<CalendarPage />);
-    expect(metadata).toEqual({ title: "Economic & earnings calendar" });
+    expect(metadata).toEqual({ title: "Calendar" });
     expect(
       container.querySelector('[data-workspace="calendar"]')
     ).not.toBeNull();

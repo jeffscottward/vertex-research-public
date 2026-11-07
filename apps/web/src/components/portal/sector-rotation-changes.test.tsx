@@ -104,8 +104,16 @@ describe("SectorRotationChanges", () => {
     const text = host.textContent ?? "";
     expect(text).toContain("Sector rotation");
     expect(text).toContain("Quadrant changes since 2026-10-29");
-    expect(text).toContain("XLK Technology:Improving→toLeading");
-    expect(text).toContain("ABC:Weakening→toLagging");
+    expect(text).toContain("XLK Technology:ImprovingtoLeading");
+    expect(text).toContain("ABC:WeakeningtoLagging");
+    // The arrow is a hidden icon: a symbol-only text node leaves axe
+    // color-contrast incomplete (nonBmp) and fails the a11y gate.
+    const rows = [...host.querySelectorAll("li")];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1);
+    }
+    expect(text).not.toContain("→");
     expect(text).toContain("Leading 1 · Weakening 0 · Lagging 1 · Improving 0");
     expect(host.querySelector('a[href="/sector-rotation"]')?.textContent).toBe(
       "Open sector rotation"

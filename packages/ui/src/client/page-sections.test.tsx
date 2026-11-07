@@ -98,6 +98,8 @@ describe("StickyTabs", () => {
     const list = host.querySelector('[role="tablist"]')!;
     expect(list.getAttribute("aria-label")).toBe("Portfolio views");
     expect(list.className).toContain("sticky");
+    // Its top comes from --sticky-tabs-top (styles.css): the top bar height below lg, 0 from lg.
+    expect(list.className.split(" ")).toContain("top-(--sticky-tabs-top)");
     const [first, second] = [
       ...host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
     ];

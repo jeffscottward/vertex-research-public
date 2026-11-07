@@ -180,9 +180,7 @@ describe("research lab entries", () => {
 
   it("shows the fake calendar", async () => {
     const host = await render("calendar");
-    expect(host.querySelector("h1")?.textContent).toBe(
-      "Economic & earnings calendar"
-    );
+    expect(host.querySelector("h1")?.textContent).toBe("Calendar");
     await vi.waitFor(() => {
       expect(
         host.querySelector('[data-calendar-source="economic"]')

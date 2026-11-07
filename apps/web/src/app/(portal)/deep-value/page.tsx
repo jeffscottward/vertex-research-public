@@ -1,7 +1,5 @@
-import {
-  DeepValueWorkspace,
-  parseDeepValueParams,
-} from "../../../components/portal/deep-value-workspace.tsx";
+import { parseDeepValueParams } from "../../../components/portal/deep-value-params.ts";
+import { DeepValueWorkspace } from "../../../components/portal/deep-value-workspace.tsx";
 
 export const metadata = { title: "Deep value screen" };
 

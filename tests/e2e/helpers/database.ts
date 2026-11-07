@@ -1,8 +1,14 @@
 import { ensureDevelopmentSeedIdentity } from "@darkfactory/auth/server";
-import { contactRateLimits } from "@darkfactory/db/schema";
+import {
+  backtestRuns,
+  contactRateLimits,
+  forwardDriftMonitors,
+  marketBarSeries,
+} from "@darkfactory/db/schema";
 import {
   createAgentModelRunsRepository,
   createNodeDatabase,
+  createSectorRotationRepository,
   type Database,
   resetDevelopment,
   seedDevelopment,
@@ -10,6 +16,28 @@ import {
 import { type E2EEnvironment, e2eEnvironment } from "../env.ts";
 
 const EXPECTED_SEED_IDENTITIES = 3;
+const RESET_ATTEMPTS = 3;
+
+// SQLSTATE deadlock_detected. The app server and its research worker keep querying while a spec
+// resets; Postgres then aborts one side and rolls its transaction back, so the reset runs again.
+const DEADLOCK_DETECTED = "40P01";
+
+const pgCode = (error: unknown): unknown => {
+  if (typeof error !== "object" || error === null) return undefined;
+  const { cause, code } = error as { cause?: unknown; code?: unknown };
+  return code ?? pgCode(cause);
+};
+
+const retryOnDeadlock = async <T>(work: () => Promise<T>): Promise<T> => {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await work();
+    } catch (error) {
+      if (attempt >= RESET_ATTEMPTS || pgCode(error) !== DEADLOCK_DETECTED)
+        throw error;
+    }
+  }
+};
 
 const withRunDatabase = async <T>(
   env: E2EEnvironment,
@@ -26,12 +54,23 @@ const withRunDatabase = async <T>(
   }
 };
 
-/** Truncates every app table and re-seeds exactly the three E2E identities. */
+/**
+ * Truncates every app table, removes every stored bar series and backtest run, and re-seeds
+ * exactly the three E2E identities. Bars and runs are not user data, so the product reset keeps
+ * them; a spec still must not see another spec's symbols (the Core 7 default universe opens on
+ * its first stored member) or builder runs (the strategy builder reopens the newest one).
+ */
 export const resetDatabase = (
   env: E2EEnvironment = e2eEnvironment()
 ): Promise<void> =>
   withRunDatabase(env, async (database) => {
-    await resetDevelopment(database, { environment: "test" });
+    await retryOnDeadlock(() =>
+      resetDevelopment(database, { environment: "test" })
+    );
+    // Monitors restrict run deletes (their alerts cascade); bars cascade from their series.
+    await database.delete(forwardDriftMonitors);
+    await database.delete(backtestRuns);
+    await database.delete(marketBarSeries);
     const seeded = await seedDevelopment(database, {
       environment: "test",
       prepareIdentity: (identities) =>
@@ -51,7 +90,66 @@ export const resetDatabase = (
     ) {
       throw new Error("E2E seed did not create exactly three identities");
     }
+    await seedSectorRotation(database);
   });
+
+// The 11 sector ETFs of SECTOR_ROTATION_SECTORS (packages/api). Technology moves from
+// Improving to Leading between the two days, so the change list has one entry.
+const E2E_SECTOR_QUADRANTS = [
+  ["XLB", "lagging"],
+  ["XLC", "leading"],
+  ["XLE", "weakening"],
+  ["XLF", "improving"],
+  ["XLI", "leading"],
+  ["XLK", "leading"],
+  ["XLP", "lagging"],
+  ["XLRE", "lagging"],
+  ["XLU", "weakening"],
+  ["XLV", "improving"],
+  ["XLY", "leading"],
+] as const;
+const QUADRANT_POINT = {
+  improving: { momentum: 101.2, ratio: 98.6 },
+  lagging: { momentum: 98.9, ratio: 98.1 },
+  leading: { momentum: 101.4, ratio: 102.3 },
+  weakening: { momentum: 98.7, ratio: 101.8 },
+} as const;
+
+/** YYYY-MM-DD (UTC) of today and yesterday, the two stored daily sessions. */
+export const e2eSectorRotationDates = (
+  now: Date = new Date()
+): Readonly<{ today: string; yesterday: string }> => ({
+  today: now.toISOString().slice(0, 10),
+  yesterday: new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10),
+});
+
+/**
+ * Stores two daily sessions for every sector ETF, as the nightly collector does. Mission
+ * control and Today read the daily snapshot on every load; without stored rows it answers
+ * NOT_FOUND (HTTP 404), which every signed-in operator spec would see. Weekly stays
+ * uncollected, so the sector rotation page still shows its not-yet-collected state there.
+ */
+const seedSectorRotation = async (database: Database): Promise<void> => {
+  const { today, yesterday } = e2eSectorRotationDates();
+  const computedAt = new Date();
+  await createSectorRotationRepository(database).upsertPoints(
+    E2E_SECTOR_QUADRANTS.flatMap(([symbol, quadrant]) =>
+      [yesterday, today].map((date) => {
+        const stored =
+          symbol === "XLK" && date === yesterday ? "improving" : quadrant;
+        return {
+          benchmark: "SPY",
+          computedAt,
+          date,
+          quadrant: stored,
+          symbol,
+          timeframe: "daily" as const,
+          ...QUADRANT_POINT[stored],
+        };
+      })
+    )
+  );
+};
 
 /**
  * Empties the database-backed contact throttle. Every local submission shares

@@ -151,9 +151,11 @@ export const CommandPalette = ({
     <>
       {trigger === "search" ? (
         <>
+          {/* The visible label names the button; an aria-label would leave the
+              visible shortcut out of the name (WCAG 2.5.3 label in name), and
+              aria-keyshortcuts announces the shortcut instead. */}
           <button
             aria-keyshortcuts="Control+K Meta+K /"
-            aria-label="Search ticker or page"
             className="hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:flex"
             data-slot="portal-search"
             onClick={open}
@@ -163,9 +165,11 @@ export const CommandPalette = ({
             <span className="min-w-0 flex-1 truncate text-left">
               Search ticker or page
             </span>
-            <kbd className="pointer-events-none rounded border border-border bg-muted px-1.5 font-mono text-[0.7rem]">
-              Ctrl/⌘ K
-            </kbd>
+            <span aria-hidden="true" className="shrink-0">
+              <kbd className="pointer-events-none rounded border border-border bg-muted px-1.5 font-mono text-[0.7rem]">
+                Ctrl/⌘ K
+              </kbd>
+            </span>
           </button>
           <IconButton
             aria-keyshortcuts="Control+K Meta+K /"

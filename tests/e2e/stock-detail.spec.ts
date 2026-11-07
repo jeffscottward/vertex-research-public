@@ -4,7 +4,13 @@ import {
   createFakeMarketDataGateway,
   createFakeOptionsChainGateway,
 } from "../../apps/web/src/features/stock-detail/fake-gateways.ts";
-import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
+import {
+  E2E_IDENTITIES,
+  expect,
+  expectHydrated,
+  signInAs,
+  test,
+} from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
 
 // /stock/<SYMBOL> and the /charts default state. Yahoo, IBKR and QuantData are not
@@ -68,7 +74,7 @@ test("stock detail opens with chart and options chain, all Greeks, no input", as
 }, testInfo) => {
   await signInAs(page, E2E_IDENTITIES.alice);
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.setViewportSize({ height: 1100, width: 1440 });
   await mockMarketData(page);
   await page.goto("/stock/NVDA");
 
@@ -91,7 +97,7 @@ test("stock detail opens with chart and options chain, all Greeks, no input", as
   const expiry = page.getByRole("combobox", { name: "Expiry" });
   await expiry.selectOption("2026-12-18");
   await expect(page).toHaveURL(/\?expiry=2026-12-18$/u);
-  await expect(page.locator("[data-options-chain=2026-12-18]")).toBeVisible();
+  await expect(page.locator('[data-options-chain="2026-12-18"]')).toBeVisible();
 
   await page.getByRole("button", { name: "1W" }).click();
   await expect(page).toHaveURL(/interval=1W/u);
@@ -106,7 +112,7 @@ test("stock detail opens with chart and options chain, all Greeks, no input", as
 
 test("stock detail stacks calls and puts on a phone", async ({ page }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ height: 844, width: 390 });
   await mockMarketData(page);
   await page.goto("/stock/NVDA?tab=options");
   await expect(page.locator("[data-chain-layout=split]")).toBeHidden();
@@ -124,7 +130,7 @@ test("charts open on the SPY chart and change interval through the URL", async (
   page,
 }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
-  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page.setViewportSize({ height: 1100, width: 1440 });
   await mockMarketData(page);
   await page.goto("/charts");
   await expect(
@@ -134,10 +140,13 @@ test("charts open on the SPY chart and change interval through the URL", async (
   await expect(
     page.getByRole("combobox", { name: "Security type" })
   ).toBeHidden();
-  await page.getByRole("button", { name: "1h" }).click();
+  // The heading is server-rendered; a click before hydration is lost.
+  const hourly = page.getByRole("button", { name: "1h" });
+  await expectHydrated(hourly);
+  await hourly.click();
   await expect(page).toHaveURL(/\/charts\?symbol=SPY&interval=1h$/u);
   await page.getByRole("textbox", { name: "Symbol" }).fill("nvda");
-  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("button", { exact: true, name: "Open" }).click();
   await expect(page).toHaveURL(/symbol=NVDA/u);
   await expect(
     page.getByRole("link", { name: "Options chain" })

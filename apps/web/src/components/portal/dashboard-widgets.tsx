@@ -17,6 +17,7 @@ import Link from "next/link";
 import { type ReactNode, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
+import { easternDate } from "./calendar-model.ts";
 import {
   DASHBOARD_WIDGETS,
   type DashboardWidgetId,
@@ -37,7 +38,6 @@ import {
   type LoadState,
   useLoadOnce,
 } from "./trade-journal-client.ts";
-import { easternDate } from "./calendar-model.ts";
 import {
   formatPercent,
   formatSignedMoney,
@@ -89,7 +89,7 @@ const OpenLink = ({
   children,
 }: Readonly<{ href: string; children: ReactNode }>) => (
   <Link
-    className="text-sm underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    className="inline-flex min-h-11 items-center text-sm underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     href={href}
     prefetch={false}
   >
@@ -292,6 +292,14 @@ export interface DashboardWidgetsProps {
   readonly operator: boolean;
 }
 
+/** A read that waits for the one before it shows as loading, not as idle (not configured). */
+const waitFor = <T,>(started: boolean, state: LoadState<T>): LoadState<T> =>
+  started ? state : { type: "loading" };
+
+/** Answered (data or failure); a read whose load was just handed over is still "idle". */
+const settled = (state: LoadState<unknown>): boolean =>
+  state.type === "ready" || state.type === "error";
+
 export const DashboardWidgets = ({
   journalSource,
   operator,
@@ -312,11 +320,25 @@ export const DashboardWidgets = ({
   const visible = available.filter((id) => !layout.hidden.includes(id));
   const shown = (id: DashboardWidgetId) => visible.includes(id);
 
+  // One widget read at a time, after each other: Mission control's own cards already read in
+  // parallel, and the request database admits a bounded number of connections per isolate
+  // (packages/db REQUEST_DATABASE_POOL_MAX_CONNECTIONS), so three more parallel reads pushed a
+  // page load over the cap (HTTP 503) under load.
   const watchlist = useLoadOnce(shown("watchlist") ? gateway.watchlist : null);
-  const marketContext = useLoadOnce(
-    shown("events") || shown("market") ? gateway.marketContext : null
+  const afterWatchlist = !shown("watchlist") || settled(watchlist);
+  const needsMarketContext = shown("events") || shown("market");
+  const marketContext = waitFor(
+    afterWatchlist,
+    useLoadOnce(
+      afterWatchlist && needsMarketContext ? gateway.marketContext : null
+    )
   );
-  const journal = useLoadOnce(shown("journal") ? gateway.journal : null);
+  const afterMarketContext =
+    afterWatchlist && (!needsMarketContext || settled(marketContext));
+  const journal = waitFor(
+    afterMarketContext,
+    useLoadOnce(afterMarketContext && shown("journal") ? gateway.journal : null)
+  );
 
   const content: Readonly<Record<DashboardWidgetId, ReactNode>> = {
     events: <EventsWidget state={marketContext} today={easternDate(now())} />,

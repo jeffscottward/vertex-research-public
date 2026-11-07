@@ -61,7 +61,6 @@ describe("browserAuthClient", () =>
     const signInInput = {
       email: "member@domain.test",
       password: "CorrectHorseBatteryStaple!42",
-      callbackURL: "/dashboard",
     };
     const signUpInput = {
       name: "Member Example",
@@ -242,10 +241,10 @@ describe("typed auth operations", () => {
       callbackURL: "//attacker.test/steal",
     });
 
+    // No callbackURL: Better Auth's redirect plugin would start a second navigation.
     expect(signInEmail).toHaveBeenCalledWith({
       email: "member@domain.test",
       password: "CorrectHorseBatteryStaple!42",
-      callbackURL: "/dashboard",
     });
     return expect(result).toEqual({
       status: "success",

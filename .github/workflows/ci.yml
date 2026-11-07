@@ -9,6 +9,15 @@ on:
   push:
     branches: [vertex/rebuild-darkfactory-20260921]
   workflow_dispatch:
+    inputs:
+      browser_tests:
+        # Runs the browser lane on this manual run even while the repository variable
+        # BROWSER_TESTS is off (card vertex-browser-lane-hosted: prove the lane green on
+        # a branch before turning it on for everyone).
+        description: Run the browser lane on this run ("on") even if BROWSER_TESTS is off
+        type: choice
+        options: [default, "on"]
+        default: default
 
 concurrency:
   # PR runs share a group per PR; push runs share a group per branch. PR runs and push
@@ -55,7 +64,7 @@ jobs:
           DRAFT: ${{ github.event.pull_request.draft || false }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
-          BROWSER_TESTS: ${{ vars.BROWSER_TESTS }}
+          BROWSER_TESTS: ${{ inputs.browser_tests == 'on' && 'on' || vars.BROWSER_TESTS }}
         run: bash scripts/ci/ci-changes.sh plan
 
   # A 2-vCPU runner cannot finish the 100% coverage run within the job limit,
@@ -292,7 +301,7 @@ jobs:
       # While that lane is off (BROWSER_TESTS is not "on"), the core lane runs the build
       # so a build break still fails CI (card browser-tests-pause).
       - name: Production build (browser lane off)
-        if: matrix.lane == 'core' && vars.BROWSER_TESTS != 'on'
+        if: matrix.lane == 'core' && vars.BROWSER_TESTS != 'on' && inputs.browser_tests != 'on'
         run: bun run build
 
       # Pull requests run the smoke spec plus the changed specs when every other changed

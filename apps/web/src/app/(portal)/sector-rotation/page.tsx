@@ -1,7 +1,5 @@
-import {
-  parseSectorRotationParams,
-  SectorRotationWorkspace,
-} from "../../../components/portal/sector-rotation-workspace.tsx";
+import { parseSectorRotationParams } from "../../../components/portal/sector-rotation-params.ts";
+import { SectorRotationWorkspace } from "../../../components/portal/sector-rotation-workspace.tsx";
 
 export const metadata = { title: "Sector rotation" };
 

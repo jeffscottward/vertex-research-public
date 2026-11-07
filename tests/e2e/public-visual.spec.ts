@@ -9,6 +9,7 @@ import {
   test,
   waitForContactPreview,
 } from "./fixtures.ts";
+import { clientReferenceChunkPath } from "./helpers/build-chunks.ts";
 import { clearContactThrottle } from "./helpers/database.ts";
 
 const PUBLIC_ROUTES = [
@@ -329,7 +330,12 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
       })
     ).toBeVisible({ timeout: 10_000 });
 
-    await page.addInitScript(() => {
+    // vinext names client chunks by hash only and minifies component names, so
+    // the component stack names the fixture's chunk, resolved from the build.
+    const recoverableFixtureChunkPath = clientReferenceChunkPath(
+      "src/app/(public)/error-smoke/recoverable-error-fixture.tsx"
+    );
+    await page.addInitScript((fixtureChunkPath) => {
       const state = window as typeof window & {
         __DARKFACTORY_E2E_FALSE_ERROR_SUCCESS__?: boolean;
         __DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__?: number;
@@ -361,7 +367,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
           typeof first === "string" &&
           first.startsWith("The above error occurred in a React component:") &&
           (first.includes("at RecoverableErrorFixture") ||
-            first.includes("/recoverable-error-fixture-"));
+            first.includes(fixtureChunkPath));
         if (isFixtureComponentError) {
           fixtureFollowupPending = false;
           console.error = reportConsoleError;
@@ -397,7 +403,7 @@ for (const viewport of RESPONSIVE_VIEWPORTS) {
         },
         { once: true }
       );
-    });
+    }, recoverableFixtureChunkPath);
     browserErrors.allowConsoleError({
       message: "Error: E2E recoverable public error fixture",
       pathname: "/error-smoke",

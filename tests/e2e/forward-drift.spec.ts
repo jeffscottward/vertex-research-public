@@ -70,7 +70,7 @@ test("an operator records paper results that drift from the backtest and acknowl
   await expect(
     page.getByRole("heading", { level: 1, name: "Forward drift" })
   ).toBeVisible();
-  // Runs and monitors persist across retries in one run database, so counts are relative.
+  // Counts are relative to what the page shows before this test acts.
   const inbox = page.getByRole("region", { name: "Open drift alerts" });
   const inboxHeading = inbox.getByRole("heading", {
     name: /^Open drift alerts \(\d+\)$/u,

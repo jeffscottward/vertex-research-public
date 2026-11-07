@@ -227,6 +227,44 @@ describe("DashboardWidgets", () => {
     expect(widget(container, "journal")?.textContent).toContain("Loading…");
   });
 
+  it("reads one widget at a time: watchlist, then market context, then the journal", async () => {
+    let finishWatchlist: (items: WatchlistItemOutput[]) => void = () =>
+      undefined;
+    let finishContext: (value: MarketContextOutput) => void = () => undefined;
+    const gateway = gatewayWith({
+      marketContext: vi.fn(
+        () =>
+          new Promise<MarketContextOutput>((resolve) => {
+            finishContext = resolve;
+          })
+      ),
+      watchlist: vi.fn(
+        () =>
+          new Promise<WatchlistItemOutput[]>((resolve) => {
+            finishWatchlist = resolve;
+          })
+      ),
+    });
+    const container = await render(
+      <DashboardWidgets
+        gateway={gateway}
+        journalSource="ibkr-monitor"
+        now={NOW}
+        operator
+      />
+    );
+    expect(gateway.watchlist).toHaveBeenCalledTimes(1);
+    expect(gateway.marketContext).not.toHaveBeenCalled();
+    expect(gateway.journal).not.toHaveBeenCalled();
+    // A waiting journal read shows as loading, not as "not configured".
+    expect(widget(container, "journal")?.textContent).toContain("Loading…");
+    await act(async () => finishWatchlist([item("AAA")]));
+    expect(gateway.marketContext).toHaveBeenCalledTimes(1);
+    expect(gateway.journal).not.toHaveBeenCalled();
+    await act(async () => finishContext(context()));
+    expect(gateway.journal).toHaveBeenCalledTimes(1);
+  });
+
   it("covers empty, sparse and failing data", async () => {
     const container = await render(
       <DashboardWidgets

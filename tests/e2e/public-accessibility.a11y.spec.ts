@@ -13,6 +13,7 @@ import {
   signInAs,
   test,
 } from "./fixtures.ts";
+import { clientReferenceChunkPath } from "./helpers/build-chunks.ts";
 import { clearContactThrottle, resetDatabase } from "./helpers/database.ts";
 
 const CREDENTIAL_ARTIFACT_POLICY = {
@@ -82,51 +83,62 @@ const EXPECTED_ERROR_FIXTURE_MESSAGE = "E2E recoverable public error fixture";
 const installExpectedErrorConsoleNormalization = async (
   page: Page
 ): Promise<void> => {
-  await page.addInitScript((fixtureMessage) => {
-    const state = window as typeof window & {
-      __DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__?: number;
-    };
-    state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ = 0;
-    const reportConsoleError = console.error.bind(console);
-    let fixtureFollowupPending = false;
-    console.error = (...values: unknown[]): void => {
-      const first = values[0];
-      const isFixtureError =
-        !fixtureFollowupPending &&
-        values.length === 1 &&
-        ((first instanceof Error && first.message === fixtureMessage) ||
-          (typeof first === "string" &&
-            first.startsWith(`Error: ${fixtureMessage}\n`) &&
-            first.includes("at RecoverableErrorFixture")));
-      if (isFixtureError) {
-        fixtureFollowupPending = true;
-        state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ =
-          (state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ ?? 0) + 1;
-        reportConsoleError(`Error: ${fixtureMessage}`);
-        return;
-      }
-      const isFixtureComponentError =
-        fixtureFollowupPending &&
-        values.length === 1 &&
-        typeof first === "string" &&
-        first.startsWith("The above error occurred in a React component:") &&
-        (first.includes("at RecoverableErrorFixture") ||
-          first.includes("/recoverable-error-fixture-"));
-      if (isFixtureComponentError) {
-        fixtureFollowupPending = false;
-        console.error = reportConsoleError;
-        state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ =
-          (state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ ?? 0) + 1;
-        reportConsoleError(`React component error: ${fixtureMessage}`);
-        return;
-      }
-      if (fixtureFollowupPending) {
-        fixtureFollowupPending = false;
-        console.error = reportConsoleError;
-      }
-      reportConsoleError(...values);
-    };
-  }, EXPECTED_ERROR_FIXTURE_MESSAGE);
+  // vinext names client chunks by hash only and minifies component names, so the
+  // component stack names the fixture's chunk, resolved from the build.
+  const recoverableFixtureChunkPath = clientReferenceChunkPath(
+    "src/app/(public)/error-smoke/recoverable-error-fixture.tsx"
+  );
+  await page.addInitScript(
+    ({ fixtureChunkPath, fixtureMessage }) => {
+      const state = window as typeof window & {
+        __DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__?: number;
+      };
+      state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ = 0;
+      const reportConsoleError = console.error.bind(console);
+      let fixtureFollowupPending = false;
+      console.error = (...values: unknown[]): void => {
+        const first = values[0];
+        const isFixtureError =
+          !fixtureFollowupPending &&
+          values.length === 1 &&
+          ((first instanceof Error && first.message === fixtureMessage) ||
+            (typeof first === "string" &&
+              first.startsWith(`Error: ${fixtureMessage}\n`) &&
+              first.includes("at RecoverableErrorFixture")));
+        if (isFixtureError) {
+          fixtureFollowupPending = true;
+          state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ =
+            (state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ ?? 0) + 1;
+          reportConsoleError(`Error: ${fixtureMessage}`);
+          return;
+        }
+        const isFixtureComponentError =
+          fixtureFollowupPending &&
+          values.length === 1 &&
+          typeof first === "string" &&
+          first.startsWith("The above error occurred in a React component:") &&
+          (first.includes("at RecoverableErrorFixture") ||
+            first.includes(fixtureChunkPath));
+        if (isFixtureComponentError) {
+          fixtureFollowupPending = false;
+          console.error = reportConsoleError;
+          state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ =
+            (state.__DARKFACTORY_E2E_EXPECTED_ERROR_CONSOLES__ ?? 0) + 1;
+          reportConsoleError(`React component error: ${fixtureMessage}`);
+          return;
+        }
+        if (fixtureFollowupPending) {
+          fixtureFollowupPending = false;
+          console.error = reportConsoleError;
+        }
+        reportConsoleError(...values);
+      };
+    },
+    {
+      fixtureChunkPath: recoverableFixtureChunkPath,
+      fixtureMessage: EXPECTED_ERROR_FIXTURE_MESSAGE,
+    }
+  );
 };
 
 const waitForStableDocument = async (page: Page): Promise<void> => {
@@ -794,6 +806,10 @@ for (const surface of AUTHENTICATED_SURFACES) {
         "expectedPath" in surface ? surface.expectedPath : surface.path;
       if (new URL(page.url()).pathname !== expectedPath) {
         await page.goto(surface.path);
+        // A redirecting surface lands on its target either from an HTTP redirect
+        // or, when a loading.tsx boundary streams the page, from the redirect the
+        // 200 document carries; wait for the target document before auditing it.
+        await page.waitForURL((url) => url.pathname === expectedPath);
       }
       await waitForStableDocument(page);
       expect(new URL(page.url()).pathname).toBe(expectedPath);
