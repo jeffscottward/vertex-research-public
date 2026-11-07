@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { describeOrderFlowFailure } from "./order-flow-client.ts";
+import {
+  describeOrderFlowFailure,
+  PACED_RETRY_DEFAULT_SECONDS,
+  PACED_RETRY_MAX_SECONDS,
+  pacedRetryDelayMs,
+} from "./order-flow-client.ts";
 
 const error = (code: string, message = `${code} from server`) => ({
   code,
@@ -65,5 +70,38 @@ describe("describeOrderFlowFailure", () => {
       detail: "network",
       message: "network",
     });
+  });
+});
+
+describe("pacedRetryDelayMs", () => {
+  const paced = (detail: string, code = "PACED") => ({
+    code,
+    detail,
+    message: "m",
+  });
+
+  it("waits the seconds the history service names", () => {
+    expect(pacedRetryDelayMs(paced("IBKR history pacing: retry in 11 s"))).toBe(
+      11_000
+    );
+    expect(pacedRetryDelayMs(paced("IBKR history pacing: retry in 0 s"))).toBe(
+      1000
+    );
+  });
+
+  it("waits the default spacing when the service names no wait", () => {
+    expect(pacedRetryDelayMs(paced("IBKR history pacing: retry later"))).toBe(
+      PACED_RETRY_DEFAULT_SECONDS * 1000
+    );
+  });
+
+  it("does not retry past the cap or for other failures", () => {
+    expect(
+      pacedRetryDelayMs(paced(`retry in ${PACED_RETRY_MAX_SECONDS + 1} s`))
+    ).toBeNull();
+    expect(
+      pacedRetryDelayMs(paced(`retry in ${PACED_RETRY_MAX_SECONDS} s`))
+    ).toBe(PACED_RETRY_MAX_SECONDS * 1000);
+    expect(pacedRetryDelayMs(paced("retry in 3 s", "UNAVAILABLE"))).toBeNull();
   });
 });
