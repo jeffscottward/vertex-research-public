@@ -53,6 +53,16 @@ const expectNoPageOverflow = async (page: Page): Promise<void> => {
           element.parentElement === null ||
           element.parentElement.getBoundingClientRect().right <= clientWidth + 1
       )
+      // Content inside its own scroll box does not move the page.
+      .filter((element) => {
+        for (
+          let up = element.parentElement;
+          up !== null && up !== document.body;
+          up = up.parentElement
+        )
+          if (getComputedStyle(up).overflowX !== "visible") return false;
+        return true;
+      })
       .slice(0, 5)
       .map(
         (element) =>
