@@ -8,7 +8,7 @@ Every workspace `package.json` declares a `brick` role. The live per-package gra
 
 | Role | Packages | Boundary |
 | --- | --- | --- |
-| `app` | `apps/web` | Composition root: pages, route handlers, request scope. No business rules. |
+| `app` | `apps/web`, `apps/desktop` | Composition roots: pages, route handlers, request scope; the Electron shell around the live site ([docs/desktop.md](docs/desktop.md)). No business rules. |
 | `product` | `api`, `auth`, `db`, `config`, `observability`, `ui`, `state` | Contracts and services, Better Auth, Drizzle, env and capability manifest, telemetry and events, presentational UI, state machines. |
 | `capability` | `email`, `analytics`, `ai` | One port, its adapters and an adapter-id registry (`./adapters`). Depends on no other brick. |
 | `agent-sdlc` | `apps/operator`, `packages/operator`, `packages/jobs` | The opt-in operator plane ([docs/operator.md](docs/operator.md)). Nothing in the product depends on it. |

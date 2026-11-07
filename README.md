@@ -76,6 +76,7 @@ Other apps:
 
 - `apps/operator`: the opt-in console for the agent SDLC ([docs/operator.md](docs/operator.md)).
 - `apps/academy-video`: renders Academy lesson videos, captions and thumbnails with Remotion.
+- `apps/desktop`: Electron shell for the live site with one window per workspace, a tray watchlist and native alert notifications ([docs/desktop.md](docs/desktop.md)).
 
 ### Packages (`packages/*`)
 
