@@ -84,7 +84,7 @@ describe("CSS theme contract", () => {
     // From lg the top bar is static and the tab bar sticks at 0.
     return expect(css).toMatch(
       new RegExp(
-        `@media \\(min-width: 64rem\\) \\{\\s*${content} \\{\\s*scroll-margin-top: 3\\.5rem;\\s*\\}\\s*\\}`
+        `@media \\(min-width: 64rem\\) \\{\\s*${content} \\{\\s*scroll-margin-top: 5rem;\\s*\\}\\s*\\}`
       )
     );
   });
