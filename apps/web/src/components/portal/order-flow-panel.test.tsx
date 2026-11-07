@@ -738,6 +738,17 @@ describe("OrderFlowPanel edge states", () => {
     expect(container.querySelector("[data-tpo-profile]")).not.toBeNull();
   });
 
+  it("refreshes the TPO bars on their own from the TPO tab", async () => {
+    const gates = gateways();
+    const container = await render(gates);
+    await click(button(container, "Load order flow"));
+    await click(tab(container, "tpo"));
+    await click(container.querySelector('[aria-label="Refresh TPO bars"]'));
+    expect(gates.marketData.bars).toHaveBeenCalledTimes(2);
+    expect(gates.orderFlow.ticks).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-tpo-profile]")).not.toBeNull();
+  });
+
   describe("TPO pacing retry", () => {
     afterEach(() => {
       vi.useRealTimers();
