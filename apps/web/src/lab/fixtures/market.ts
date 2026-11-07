@@ -125,6 +125,91 @@ const EXPIRY_DAYS = [7, 14, 30, 60, 90, 180] as const;
 const SKEW_DELTAS = [-40, -25, -10, 10, 25, 40] as const;
 const MONEYNESS = [0.9, 0.95, 1, 1.05, 1.1] as const;
 
+/** A fictional GEX context strip: every factor with fixed caveat text. */
+const labGexContext = (
+  spot: number,
+  atm: number,
+  strikeStep: number,
+  iv: number
+): OptionsAnalyticsOutput["context"] => {
+  const dailyMove = (spot * iv) / Math.sqrt(252);
+  const moves = (level: number) => roundTo((level - spot) / dailyMove, 2);
+  const factor = (
+    key: OptionsAnalyticsOutput["context"]["factors"][number]["key"],
+    label: string,
+    value: string,
+    tone: "neutral" | "caution" | "alert" = "neutral"
+  ) => ({
+    detail: `UI lab: fake ${label.toLowerCase()} context.`,
+    key,
+    label,
+    tone,
+    value,
+  });
+  return {
+    dealerSignAssumption: "dealers long calls, short puts",
+    expiry: {
+      monthlyOpexDays: 9,
+      nextExpiry: labDaysAgo(-EXPIRY_DAYS[0]),
+      nextExpiryDte: EXPIRY_DAYS[0],
+      nextMonthlyOpex: labDaysAgo(-9),
+    },
+    factors: [
+      factor(
+        "dealerSign",
+        "Dealer sign",
+        "Assumed: long calls, short puts",
+        "caution"
+      ),
+      factor(
+        "regime",
+        "Regime (estimate)",
+        "Positive GEX, not a range promise"
+      ),
+      factor(
+        "freshness",
+        "Freshness",
+        "OI prior session · newest trade 5 min ago",
+        "caution"
+      ),
+      factor("expiryMix", "Expiry mix", `Next expiry in ${EXPIRY_DAYS[0]}d`),
+      factor(
+        "levels",
+        "Spot vs levels",
+        "flip -1.2 day-moves · call wall +0.8 day-moves",
+        "caution"
+      ),
+      factor("flow", "Flow (who is paying)", "Bulls +$420K net"),
+      factor("dex", "Dealer delta (DEX)", "+$12.4M"),
+      factor("charm", "Charm · Midday", "-$310K/day, hedge buying"),
+      factor("vanna", "Vanna", "+$95K per IV pt, hedge selling"),
+      factor("ivRegime", "IV regime", "Unknown", "alert"),
+      factor("events", "Events", "Monthly OpEx in 9d"),
+    ],
+    flow: {
+      bearishPremium: 300_000,
+      bias: "bullish",
+      bullishPremium: 720_000,
+      newestTradeAt: labMinutesAgo(5),
+      weekShare: 0.6,
+      zeroDteShare: 0,
+    },
+    greeks: { netCharm: -310_000, netDex: 12_400_000, netVanna: 95_000 },
+    iv: { backIv: null, frontIv: roundTo(iv, 4), regime: "unknown" },
+    levels: {
+      callWall: atm + strikeStep,
+      callWallMoves: moves(atm + strikeStep),
+      dailyMove: roundTo(dailyMove, 2),
+      flip: atm - strikeStep,
+      flipMoves: moves(atm - strikeStep),
+      putWall: atm - 2 * strikeStep,
+      putWallMoves: moves(atm - 2 * strikeStep),
+    },
+    regime: "positive",
+    session: "midday",
+  };
+};
+
 /** An optionsAnalytics.snapshot response with every section "ok". */
 export const labOptionsAnalytics = (
   symbol: string,
@@ -179,6 +264,7 @@ export const labOptionsAnalytics = (
     .filter((event) => event.right === "put")
     .reduce((sum, event) => sum + event.premium, 0);
   return {
+    context: labGexContext(spot, atm, strikeStep, baseIv),
     exposure: {
       gexExpiry: labDaysAgo(-EXPIRY_DAYS[0]),
       maxPain: atm,
