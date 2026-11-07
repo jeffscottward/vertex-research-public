@@ -517,12 +517,6 @@
       "functions": 100.0,
       "statements": 50.0
     },
-    "apps/web/src/proxy.ts": {
-      "lines": 0.0,
-      "branches": 100.0,
-      "functions": 0.0,
-      "statements": 0.0
-    },
     "packages/api/src/backtest-analytics.ts": {
       "lines": 99.45,
       "branches": 88.76,
