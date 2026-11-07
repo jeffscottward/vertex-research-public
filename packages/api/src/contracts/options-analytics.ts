@@ -191,7 +191,7 @@ export const GexContextFactorSchema = z
 export const GexContextSchema = z
   .object({
     regime: z.enum(GEX_REGIMES),
-    // Sign convention behind every dealer number below.
+    // Sign convention behind GEX, the levels, vanna and charm.
     dealerSignAssumption: z.literal("dealers long calls, short puts"),
     levels: z
       .object({
@@ -210,7 +210,8 @@ export const GexContextSchema = z
       .strict(),
     greeks: z
       .object({
-        // Estimated dealer delta in dollars.
+        // Net delta of open interest in dollars, holders' side (calls +, puts -); the
+        // only field here that does not use the dealer-sign assumption.
         netDex: finite.nullable(),
         // Estimated change of dealer delta (dollars) per +1 IV point.
         netVanna: finite.nullable(),

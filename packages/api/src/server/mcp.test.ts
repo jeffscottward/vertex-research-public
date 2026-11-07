@@ -181,7 +181,7 @@ describe("callMcpTool", () => {
         maxPain: 100,
         message: null,
         status: "ok",
-        strikesOmitted: 2,
+        strikeCount: 2,
         totalGex: 1_000_000,
       },
       flowStatus: "empty",
@@ -200,7 +200,9 @@ describe("callMcpTool", () => {
     );
     expect(rejected["isError"]).toBe(true);
     expect(presentGexContext(null)).toBeNull();
-    return expect(presentGexContext({ symbol: "X" })).toEqual({ symbol: "X" });
+    expect(presentGexContext({ symbol: "X" })).toEqual({ symbol: "X" });
+    const noFlow = { exposure: value.exposure, flow: null };
+    return expect(presentGexContext(noFlow)).toBe(noFlow);
   });
 
   it("strips the MCP-only includeSeries flag before calling backtests.get", async () => {

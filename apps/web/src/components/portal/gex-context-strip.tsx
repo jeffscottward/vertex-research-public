@@ -37,6 +37,7 @@ export const GexContextStrip = ({
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {context.factors.map((factor) => (
           <li
+            aria-describedby={`${id}-${factor.key}`}
             className={cn(
               "min-w-0 rounded-md border px-2.5 py-1.5 text-xs",
               TONE_CLASS[factor.tone]
@@ -61,7 +62,9 @@ export const GexContextStrip = ({
           {context.factors.map((factor) => (
             <div key={factor.key}>
               <dt className="font-medium">{factor.label}</dt>
-              <dd className="text-muted-foreground">{factor.detail}</dd>
+              <dd className="text-muted-foreground" id={`${id}-${factor.key}`}>
+                {factor.detail}
+              </dd>
             </div>
           ))}
         </dl>
