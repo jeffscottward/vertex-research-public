@@ -89,8 +89,9 @@ for (const viewport of [
         top: document.documentElement.scrollHeight,
       })
     );
+    // Instant: the page has scroll-behavior smooth, and a smooth jump would be measured mid-way.
     await heading.evaluate((element) =>
-      element.scrollIntoView({ block: "start" })
+      element.scrollIntoView({ behavior: "instant", block: "start" })
     );
     const headingBox = await heading.boundingBox();
     const stuckBar = await bar.boundingBox();
