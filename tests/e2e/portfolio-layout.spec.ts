@@ -95,9 +95,25 @@ for (const viewport of [
     );
     const headingBox = await heading.boundingBox();
     const stuckBar = await bar.boundingBox();
-    expect(headingBox?.y ?? -1).toBeGreaterThanOrEqual(
-      (stuckBar?.y ?? 0) + (stuckBar?.height ?? 0)
-    );
+    const stuckState = await bar.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const box = element.getBoundingClientRect();
+      const above = document.elementsFromPoint(
+        box.left + 4,
+        Math.max(0, box.top - 2)
+      );
+      return `top=${style.top} y=${Math.round(box.top)} h=${Math.round(box.height)} scrollY=${Math.round(window.scrollY)} above=${above
+        .slice(0, 3)
+        .map(
+          (node) =>
+            `${node.tagName.toLowerCase()}[${node.getAttribute("data-slot") ?? ""}]`
+        )
+        .join(">")}`;
+    });
+    expect(
+      headingBox?.y ?? -1,
+      `heading under the stuck tab bar (${stuckState})`
+    ).toBeGreaterThanOrEqual((stuckBar?.y ?? 0) + (stuckBar?.height ?? 0));
     expect(
       await heading.evaluate((element) => {
         const box = element.getBoundingClientRect();
