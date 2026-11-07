@@ -440,20 +440,25 @@
     clip-path: none;
   }
 
-  /* Content under a sticky tab bar: focus moves and anchor jumps stop below the bar
-     (min-h-11 bar plus its border, with room), so the bar never covers a heading or
-     field. Below lg the bar sticks under the sticky portal top bar (top:
-     --header-height), so the margin clears both; from lg the top bar is static and
-     the tab bar sticks at 0. A margin on the panel content, not padding on the root,
-     so focusing the stuck bar itself never scrolls the page (Chromium issue 40749247). */
-  [data-slot="sticky-tabs"] > [role="tabpanel"] * {
-    scroll-margin-top: calc(var(--header-height) + 3.5rem);
+  /* The sticky tab bar sits under the sticky portal top bar below lg and at the top of
+     the page from lg, where the top bar is static. One variable drives both the bar's top
+     and the scroll margin, so they cannot disagree (no responsive class override). */
+  [data-slot="sticky-tabs"] {
+    --sticky-tabs-top: var(--header-height);
   }
 
   @media (min-width: 64rem) {
-    [data-slot="sticky-tabs"] > [role="tabpanel"] * {
-      scroll-margin-top: 5rem;
+    [data-slot="sticky-tabs"] {
+      --sticky-tabs-top: 0px;
     }
+  }
+
+  /* Content under a sticky tab bar: focus moves and anchor jumps stop below the bar
+     (min-h-11 bar plus its border, with room), so the bar never covers a heading or
+     field. A margin on the panel content, not padding on the root, so focusing the
+     stuck bar itself never scrolls the page (Chromium issue 40749247). */
+  [data-slot="sticky-tabs"] > [role="tabpanel"] * {
+    scroll-margin-top: calc(var(--sticky-tabs-top) + 3.5rem);
   }
 
   @media (min-width: 48rem) {
