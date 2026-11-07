@@ -93,16 +93,16 @@ const driver = vi.hoisted(() => {
   };
 
   return {
-    Pool,
     Client,
     clients,
     databases,
     drizzle,
     failNextConnection,
     failNextEnd,
+    Pool,
     pools,
-    runMigrations,
     resetFailures,
+    runMigrations,
   };
 });
 
@@ -116,6 +116,7 @@ import { migrate } from "@darkfactory/db/server/migration";
 import {
   createNodeDatabase,
   createRequestDatabase,
+  REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS,
   REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS,
   REQUEST_DATABASE_POOL_MAX_CONNECTIONS,
   RequestDatabaseCapacityError,
@@ -133,6 +134,23 @@ const WORKER_DIRECT_NEGOTIATION_ERROR =
   "Cloudflare database connections do not support sslnegotiation=direct with the pinned pg driver";
 const PRIVATE_CONNECTION_STRING =
   "postgresql://worker:credential-that-must-not-leak@aws.connect.psdb.cloud/darkfactory";
+
+/** A full pool rejects only after the bounded capacity wait; fake timers skip the 2 s. */
+const expectCapacityRejectionAfterWait = async (): Promise<void> => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    const rejected = expect(
+      createRequestDatabase({ connectionString: CONNECTION_STRING })
+    ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+    await vi.advanceTimersByTimeAsync(
+      REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS - 1
+    );
+    await vi.advanceTimersByTimeAsync(1);
+    await rejected;
+  } finally {
+    vi.useRealTimers();
+  }
+};
 
 describe("database client factories", () => {
   beforeEach(() => {
@@ -152,8 +170,8 @@ describe("database client factories", () => {
   });
 
   describe.each([
-    { name: "Node pool", create: createNodeDatabase },
-    { name: "request client", create: createRequestDatabase },
+    { create: createNodeDatabase, name: "Node pool" },
+    { create: createRequestDatabase, name: "request client" },
   ])("$name runtime negotiation", ({ create }) => {
     it.each([
       "?sslnegotiation=direct",
@@ -364,17 +382,17 @@ describe("database client factories", () => {
   it("creates one private Node pool and closes it through a neutral resource", async () => {
     const resource = createNodeDatabase({
       connectionString: CONNECTION_STRING,
-      maxConnections: 7,
-      idleTimeoutMillis: 12_000,
       connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 12_000,
+      maxConnections: 7,
     });
 
     expect(driver.pools).toHaveLength(1);
     expect(driver.pools[0]?.options).toEqual({
       connectionString: CONNECTION_STRING,
-      max: 7,
-      idleTimeoutMillis: 12_000,
       connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 12_000,
+      max: 7,
     });
     expect(resource.db).toBe(driver.databases[0]);
     expect(resource).not.toHaveProperty("pool");
@@ -652,18 +670,14 @@ describe("database client factories", () => {
     });
     driver.clients[0]!.end.mockReturnValueOnce(closePromise);
 
-    await expect(
-      createRequestDatabase({ connectionString: CONNECTION_STRING })
-    ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+    await expectCapacityRejectionAfterWait();
     expect(driver.clients).toHaveLength(REQUEST_DATABASE_POOL_MAX_CONNECTIONS);
 
     const firstClose = resources[0]!.close();
     const concurrentClose = resources[0]!.close();
     expect(concurrentClose).toBe(firstClose);
     expect(driver.clients[0]!.end).toHaveBeenCalledOnce();
-    await expect(
-      createRequestDatabase({ connectionString: CONNECTION_STRING })
-    ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+    await expectCapacityRejectionAfterWait();
 
     resolveClose();
     await firstClose;
@@ -736,8 +750,8 @@ describe("database client factories", () => {
       concurrentClose,
     ]);
     expect(closeResults).toEqual([
-      { status: "rejected", reason: closeFailure },
-      { status: "rejected", reason: closeFailure },
+      { reason: closeFailure, status: "rejected" },
+      { reason: closeFailure, status: "rejected" },
     ]);
     const repeatedClose = resources[0]!.close();
     expect(repeatedClose).toBe(firstClose);
@@ -751,9 +765,7 @@ describe("database client factories", () => {
     const replacement = await createRequestDatabase({
       connectionString: CONNECTION_STRING,
     });
-    await expect(
-      createRequestDatabase({ connectionString: CONNECTION_STRING })
-    ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+    await expectCapacityRejectionAfterWait();
 
     await Promise.all(
       [...resources.slice(1), replacement].map(({ close }) => close())
@@ -818,10 +830,81 @@ describe("database client factories", () => {
         createRequestDatabase({ connectionString: CONNECTION_STRING })
       )
     );
-    await expect(
-      createRequestDatabase({ connectionString: CONNECTION_STRING })
-    ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+    await expectCapacityRejectionAfterWait();
     return await Promise.all(fullCapacity.map(({ close }) => close()));
+  });
+
+  it("hands a released slot to waiting requests in FIFO order", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const resources = await Promise.all(
+        Array.from({ length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS }, () =>
+          createRequestDatabase({ connectionString: CONNECTION_STRING })
+        )
+      );
+      const order: string[] = [];
+      const first = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      }).then((resource) => {
+        order.push("first");
+        return resource;
+      });
+      const second = createRequestDatabase({
+        connectionString: CONNECTION_STRING,
+      }).then((resource) => {
+        order.push("second");
+        return resource;
+      });
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS - 1
+      );
+      expect(driver.clients).toHaveLength(
+        REQUEST_DATABASE_POOL_MAX_CONNECTIONS
+      );
+
+      await resources[0]!.close();
+      const firstResource = await first;
+      expect(order).toEqual(["first"]);
+      await resources[1]!.close();
+      const secondResource = await second;
+      expect(order).toEqual(["first", "second"]);
+      expect(driver.clients).toHaveLength(
+        REQUEST_DATABASE_POOL_MAX_CONNECTIONS + 2
+      );
+
+      // Both waiters own handed-over slots: the pool is still full.
+      const timedOut = expect(
+        createRequestDatabase({ connectionString: CONNECTION_STRING })
+      ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS
+      );
+      await timedOut;
+      await Promise.all(
+        [...resources.slice(2), firstResource, secondResource].map(
+          ({ close }) => close()
+        )
+      );
+      return expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops a timed-out waiter so the next release frees the slot", async () => {
+    const resources = await Promise.all(
+      Array.from({ length: REQUEST_DATABASE_POOL_MAX_CONNECTIONS }, () =>
+        createRequestDatabase({ connectionString: CONNECTION_STRING })
+      )
+    );
+    await expectCapacityRejectionAfterWait();
+    await resources[0]!.close();
+    const replacement = await createRequestDatabase({
+      connectionString: CONNECTION_STRING,
+    });
+    return await Promise.all(
+      [...resources.slice(1), replacement].map(({ close }) => close())
+    );
   });
 
   it("destroys a hung client socket and releases admission after the close timeout", async () => {
@@ -843,13 +926,19 @@ describe("database client factories", () => {
         () => "resolved",
         (error: unknown) => error
       );
-      await vi.advanceTimersByTimeAsync(
-        REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS - 1
-      );
-      expect(hungClient.connection.stream.destroy).not.toHaveBeenCalled();
-      await expect(
+      const waiting = expect(
         createRequestDatabase({ connectionString: CONNECTION_STRING })
       ).rejects.toBeInstanceOf(RequestDatabaseCapacityError);
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS
+      );
+      await waiting;
+      await vi.advanceTimersByTimeAsync(
+        REQUEST_DATABASE_CLOSE_TIMEOUT_MILLISECONDS -
+          REQUEST_DATABASE_CAPACITY_WAIT_MILLISECONDS -
+          1
+      );
+      expect(hungClient.connection.stream.destroy).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(1);
       expect(await outcome).toEqual(
