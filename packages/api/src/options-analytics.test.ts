@@ -8,7 +8,10 @@ import { ORPCError } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "./client.ts";
-import { OptionsAnalyticsInputSchema } from "./contracts/options-analytics.ts";
+import {
+  OptionsAnalyticsInputSchema,
+  OptionsAnalyticsOutputSchema,
+} from "./contracts/options-analytics.ts";
 import { createApiContext } from "./server/context.ts";
 import { handleApiRequest } from "./server/handler.ts";
 import {
@@ -848,6 +851,13 @@ describe("buildOptionsAnalytics", () => {
     expect(
       output.notes.some((note) => note.includes("Excluded 1 expired"))
     ).toBe(true);
+    // The GEX context is part of the strict output and comes from the same payloads.
+    expect(OptionsAnalyticsOutputSchema.parse(output)).toEqual(output);
+    expect(output.context).toMatchObject({
+      dealerSignAssumption: "dealers long calls, short puts",
+      session: "morning",
+    });
+    expect(output.context.factors).toHaveLength(11);
     expect(client.calls[2]).toEqual([
       "orderFlow",
       {
@@ -871,6 +881,7 @@ describe("buildOptionsAnalytics", () => {
       now: () => NOW,
     });
     expect(empty.spot).toBeNull();
+    expect(empty.context.regime).toBe("unknown");
     expect([
       empty.volatility.status,
       empty.exposure.status,

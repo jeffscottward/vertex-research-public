@@ -14,6 +14,7 @@ import {
   OPTIONS_FLOW_HOURS,
   type ExposureSection,
   type FlowSection,
+  type GexContext,
   type OptionsAnalyticsOutput,
   type VolatilitySection,
 } from "@darkfactory/api";
@@ -26,14 +27,16 @@ import {
   useState,
 } from "react";
 
+import { GexContextStrip } from "./gex-context-strip.tsx";
 import { describeMarketDataFailure } from "./market-data-client.ts";
 import {
   createBrowserOptionsAnalyticsGateway,
   type OptionsAnalyticsGateway,
 } from "./options-analytics-client.ts";
 
-// Per-symbol options research panel on /charts: IV term structure, skew and surface,
-// estimated GEX with OI walls, and recent option flow (QuantData). Read-only.
+// Per-symbol options research panel on /charts and the stock page: IV term structure, skew
+// and surface, estimated GEX with OI walls and its context strip, and recent option flow
+// (QuantData). Read-only.
 
 const DASH = "—";
 const headCell = "py-1 pr-3 font-normal";
@@ -282,9 +285,11 @@ const Volatility = ({ section }: { readonly section: VolatilitySection }) => {
 const Exposure = ({
   section,
   spot,
+  context,
 }: {
   readonly section: ExposureSection;
   readonly spot: number | null;
+  readonly context: GexContext;
 }) => {
   const id = useId();
   const scroller = useRef<HTMLDivElement>(null);
@@ -316,6 +321,7 @@ const Exposure = ({
       status={section.status}
       title="Gamma exposure and open interest"
     >
+      <GexContextStrip context={context} />
       <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
         <div>
           <dt className="text-muted-foreground">
@@ -333,6 +339,20 @@ const Exposure = ({
           <dt className="text-muted-foreground">Gamma IV expiry</dt>
           <dd className="font-mono">{section.gexExpiry ?? DASH}</dd>
         </div>
+        {(
+          [
+            ["Gamma flip (est.)", context.levels.flip],
+            ["Call wall (largest +GEX)", context.levels.callWall],
+            ["Put wall (largest -GEX)", context.levels.putWall],
+          ] as const
+        ).map(([label, level]) => (
+          <div key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-mono" data-gex-level={label}>
+              {level === null ? DASH : level.toFixed(2)}
+            </dd>
+          </div>
+        ))}
       </dl>
       <div className="max-h-96 overflow-auto" ref={scroller}>
         <Table
@@ -596,7 +616,11 @@ export const OptionsAnalyticsPanel = ({
             </p>
           ) : null}
           <Volatility section={state.data.volatility} />
-          <Exposure section={state.data.exposure} spot={state.data.spot} />
+          <Exposure
+            context={state.data.context}
+            section={state.data.exposure}
+            spot={state.data.spot}
+          />
           <Flow section={state.data.flow} />
           <details className="text-muted-foreground text-xs">
             <summary className="min-h-11 cursor-pointer py-3">
