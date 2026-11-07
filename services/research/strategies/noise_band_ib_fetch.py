@@ -1,7 +1,7 @@
 """One-off, read-only IBKR historical bar fetch for the noise-band re-test (research only).
 
 Runs on QuantVPS with the ibapi package of /opt/vertex-history/venv against the IB gateway API port.
-It sends reqContractDetails and reqHistoricalData only (no orders, no account or market data
+It sends reqHistoricalData only (no orders, no account or market data
 subscriptions) under its own client id (default 177, distinct from vertex-history's 77).
 
 Bars: 5-minute TRADES, regular trading hours, one request per --months calendar months (default 1) with

@@ -67,21 +67,34 @@ def load_ib_sessions(directory: str, dividends: dict[date, float] | None = None)
 
 
 def _complete_sessions(by_day: dict[date, dict[int, Bar]], dividends: dict[date, float], rows: int) -> tuple[list[Session], dict]:
+    """Keep a day when it has the 09:30 bar and a regular last bar (15:55, or 12:55 on a 13:00 half-day).
+    Missing interior bars (halts, no prints) are forward-filled with the previous close and zero volume, so
+    a day is never dropped for what happened inside it (that would tie the sample to outcomes)."""
     sessions: list[Session] = []
     dropped: list[str] = []
+    filled: dict[str, int] = {}
     for d in sorted(by_day):
         bars = by_day[d]
         last = max(bars)
-        complete = 0 in bars and len(bars) == last // 5 + 1 and (last == FIVE_FULL_LAST or last in FIVE_HALF_LASTS)
-        if not complete:
+        if 0 not in bars or not (last == FIVE_FULL_LAST or last in FIVE_HALF_LASTS):
             dropped.append(f"{d.isoformat()} ({len(bars)} bars, last minute {last})")
             continue
-        sessions.append(Session(d, tuple(bars[m] for m in range(0, last + 1, 5)), dividends.get(d, 0.0)))
+        seq: list[Bar] = []
+        for m in range(0, last + 1, 5):
+            b = bars.get(m)
+            if b is None:
+                c = seq[-1].close
+                b = Bar(m, c, c, c, c, 0.0)
+                filled[d.isoformat()] = filled.get(d.isoformat(), 0) + 1
+            seq.append(b)
+        sessions.append(Session(d, tuple(seq), dividends.get(d, 0.0)))
     return sessions, {
         "rows_read": rows,
         "sessions_used": len(sessions),
-        "half_day_sessions": sum(1 for s in sessions if len(s.bars) != FIVE_FULL_LAST // 5 + 1),
+        "half_day_sessions": [s.day.isoformat() for s in sessions if len(s.bars) != FIVE_FULL_LAST // 5 + 1],
         "sessions_dropped_incomplete": dropped,
+        "forward_filled_bars": sum(filled.values()),
+        "sessions_with_filled_bars": sorted(filled),
         "first_session": sessions[0].day.isoformat() if sessions else None,
         "last_session": sessions[-1].day.isoformat() if sessions else None,
         "dividends_applied": sum(1 for s in sessions if s.dividend),
@@ -250,6 +263,12 @@ def main(argv: list[str] | None = None) -> dict:
         else:
             entry["results"] = run_symbol(sessions)
         report["symbols"][sym] = entry
+    tests = [s for s in report["symbols"] if s != "SPY"]
+    for sym in tests:  # variant 3: label a pass as one test among several (pre-registered wording)
+        for w in ("full", "fresh"):
+            e = report["symbols"][sym]["results"]["primary"][w]
+            if e["verdict"] == "pass":
+                e["label"] = f"PASS (single test among {len(tests)}; needs a forward check)"
     with open(a.out, "w") as f:
         json.dump(report, f, indent=1)
     return report

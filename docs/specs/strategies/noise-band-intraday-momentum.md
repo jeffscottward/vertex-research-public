@@ -90,4 +90,11 @@ Multiple tests: variant 3 runs up to 14 tests. With that many, one pass can be l
 
 Amendment 2026-11-07 (before any option data was loaded or run): owner exit rule 2026-11-03 (`docs/vertex-rebuild/pick-list-portfolio-construction.md`) closes open options at 15:45 ET on expiry day and never exercises. Every 0DTE position is on expiry day, so a stock exit after 15:45 (the 16:00 close exit) becomes an option exit at the 15:45 bid (instruments A and B). The first draft said 15:59.
 
+Amendment 2026-11-07, after a fresh-context review and before any option data or other-ETF bars were run (the SPY run was done; it has no interior gaps, so (e) does not change it):
+(a) on a 13:00 half-day the option exit cap is 12:45, 15 minutes before the close, as on full days;
+(b) once an option trade is entered it is never skipped: a missing exit bid counts as 0, and a missing short-leg exit ask (instrument B) counts as intrinsic value + USD 0.05;
+(c) an exact strike tie goes out of the money (higher strike for calls, lower for puts);
+(d) commission is outside the 2% premium cap;
+(e) a session is kept when it has the 09:30 bar and a regular last bar; missing interior bars (halts, no prints) are forward-filled with the previous close and zero volume and counted. Dropping such days would tie the sample to outcomes.
+
 Data substitution (fixed before the runs): if the new data are 5-minute bars instead of 1-minute bars, the rules run unchanged on 5-minute bars. The checks at HH:00/HH:30, the open, the last close and the next-bar-open fill are identical on 5-minute bars; only VWAP (rule 8) uses 5-minute typical prices. Before any re-test run the 2008–2021 SPY result is recomputed from 1-minute bars aggregated to 5 minutes; the difference is reported next to the results.

@@ -79,14 +79,18 @@ def test_load_ib_sessions_dst_dedupe_and_incomplete(tmp_path):
     write_month(tmp_path / "2021-03.csv", date(2021, 3, 12), full)  # EST
     write_month(tmp_path / "2021-04.csv", date(2021, 3, 15), full)  # EDT, first day after the switch
     write_month(tmp_path / "2021-05.csv", date(2021, 3, 15), full)  # overlapping month repeats the day
-    write_month(tmp_path / "2021-06.csv", date(2021, 3, 16), full[:-3])  # incomplete
+    write_month(tmp_path / "2021-06.csv", date(2021, 3, 16), full[:-3])  # no 15:55 bar: dropped
+    write_month(tmp_path / "2021-08.csv", date(2021, 3, 17), [m for m in full if m not in (100, 105)])  # halt: filled
     write_month(tmp_path / "2021-07.csv", date(2021, 11, 26), list(range(0, 210, 5)))  # half-day, 13:00 close
     ss, info = load_ib_sessions(str(tmp_path), {date(2021, 3, 15): 0.5})
-    assert [s.day for s in ss] == [date(2021, 3, 12), date(2021, 3, 15), date(2021, 11, 26)]
-    assert all(len(s.bars) == 78 for s in ss[:2]) and len(ss[2].bars) == 42
+    assert [s.day for s in ss] == [date(2021, 3, 12), date(2021, 3, 15), date(2021, 3, 17), date(2021, 11, 26)]
+    assert all(len(s.bars) == 78 for s in ss[:3]) and len(ss[3].bars) == 42
+    gap = ss[2].bars[20]
+    assert gap.minute == 100 and gap.volume == 0.0 and gap.open == gap.close == ss[2].bars[19].close
+    assert info["forward_filled_bars"] == 2 and info["sessions_with_filled_bars"] == ["2021-03-17"]
     assert ss[1].bars[0].minute == 0 and ss[1].bars[-1].minute == 385
     assert ss[1].dividend == 0.5 and info["dividends_applied"] == 1
-    assert info["half_day_sessions"] == 1
+    assert info["half_day_sessions"] == ["2021-11-26"]
     assert len(info["sessions_dropped_incomplete"]) == 1
 
 
