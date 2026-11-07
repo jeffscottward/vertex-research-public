@@ -163,7 +163,6 @@ export const PENDING_JSON_DATA: readonly string[] = [
   "packages/academy/src/lessons/specs/would-you-buy-it-today.json",
   "research/baskets/owner-baskets.json",
   "research/macro/crown-desk-checklist-2026-10-16.json",
-  "services/research/adapters/ProviderAdaptersBuild-v1.private.json",
 ];
 
 /** JSON files that are not app data, with the reason. Keep each reason specific. */
@@ -276,6 +275,8 @@ export const KEPT_JSON_DATA: Readonly<Record<string, string>> = {
     "docs: Provenance/handoff record; not read at runtime",
   "services/kernel-bridge/provenance.json":
     "docs: Provenance/handoff record; not read at runtime",
+  "services/research/adapters/ProviderAdaptersBuild-v1.private.json":
+    "docs: Provenance/handoff record; not read at runtime (AGENTS.md: retain originals and corpus provenance)",
   "services/research/provenance/dependency-lock.json":
     "config: Research dependency lock config",
   "services/research/provenance/fixtures.json":
