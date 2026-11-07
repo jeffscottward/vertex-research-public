@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test";
 
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
+import { EMPTY_GEX_CONTEXT } from "./helpers/options-snapshot.ts";
 
 // /charts indicator overlays. The IBKR history service is not reachable in a
 // browser run, so the bars RPC is answered with clearly fictional bars.
@@ -89,6 +90,7 @@ const fulfillOptionsSnapshot = async (route: Route) =>
           skew: [],
           surface: { moneyness: [], rows: [] },
         },
+        context: EMPTY_GEX_CONTEXT,
         exposure: {
           ...emptySection,
           strikes: [],
