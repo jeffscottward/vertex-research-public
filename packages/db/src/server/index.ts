@@ -295,6 +295,18 @@ export {
   createPickListRepository,
   validatePickListMembers,
 } from "./pick-list-repository.ts";
+export type {
+  PlayLeg,
+  PlayRecord,
+  PlaysRepository,
+  PlayStatus,
+  UpsertPlayInput,
+} from "./plays-repository.ts";
+export {
+  createPlaysRepository,
+  PLAY_MAX_LEGS,
+  validatePlayLegs,
+} from "./plays-repository.ts";
 export {
   equalBasketWeights,
   findUserIdByEmail,

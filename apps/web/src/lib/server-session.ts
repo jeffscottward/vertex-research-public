@@ -74,6 +74,7 @@ const PORTAL_PATH_ROOTS = [
   "/journal",
   "/baskets",
   "/pick-lists",
+  "/plays",
   "/todos",
   "/today",
   "/portfolio",

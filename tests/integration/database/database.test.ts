@@ -93,6 +93,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   pick_list_members: "snapshot_id,symbol",
   pick_list_snapshots: "id",
   pick_lists: "id",
+  plays: "id",
   price_alert_rules: "id",
   research_company_research: "revision",
   research_papers: "id",
