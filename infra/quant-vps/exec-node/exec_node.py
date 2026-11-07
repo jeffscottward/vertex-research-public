@@ -95,15 +95,19 @@ UNPINNED_PARTS = ("node_modules", "__pycache__", ".pnpm-store")
 RELEASE_FILE = ".vertex-exec-node-release.json"
 # Frozen-manifest files that never enter the new root (owner 2026-11-04, card remove-charan-signals): the retired
 # signal intake, its draft approval tool, tests, ADR, dashboard charts and logo. `stage` skips them; verify_staged,
-# `gate` and `verify` require them absent. Three signal-named frozen files stay because live non-signal features run
-# them: portfolio-ui's manual position close (/api/position-close) runs scripts/transmit_charan_approved_drafts.py,
-# which imports scripts/charan_draft_review.py, which imports nautilus/charan.py; portfolio-ui's market refresh runs
-# src/update-market-data.ts, which imports src/signal-event-parser.ts.
+# `gate` and `verify` require them absent. Card move-close-off-charan-scripts: portfolio-ui's manual position close
+# (/api/position-close, owned server.mjs) runs the owned refusal scripts/position_close.py, so the frozen close script,
+# its draft review import and nautilus/charan.py are removed too. Two signal-named frozen files stay because a live
+# feature runs them: portfolio-ui's market refresh runs src/update-market-data.ts, which imports
+# src/signal-event-parser.ts.
 REMOVED = (
     "dist/charan-server-logo.png",
     "docs/adr/0001-charan-discord-ingestion.md",
+    "nautilus/charan.py",
     "public/charan-server-logo.png",
     "scripts/approve_charan_drafts.py",
+    "scripts/charan_draft_review.py",
+    "scripts/transmit_charan_approved_drafts.py",
     "src/SignalPriceChart.tsx",
     "src/alert-signal-quality.test.ts",
     "src/alert-signal-quality.ts",

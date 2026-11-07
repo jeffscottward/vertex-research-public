@@ -258,8 +258,9 @@ class OwnedRuntimeTests(unittest.TestCase):
     # Test: test_arm_killswitch.py. arm_gate.py also carries the options-only, defined-risk order
     # policy in place_order (owner rule 2026-11-04: options only, risk always defined, max loss per
     # order <= 2% NLV, one working close per contract). Test: test_order_policy.py.
-    # scripts/transmit_charan_approved_drafts.py called client.placeOrder directly (gate bypass);
-    # the owned copy refuses every run. Test: test_transmit_disabled.py.
+    # The frozen close transmit script called client.placeOrder directly (gate bypass); the owned
+    # refusal, now scripts/position_close.py (card move-close-off-charan-scripts), refuses every run.
+    # Test: test_transmit_disabled.py.
     # scripts/ibkr_account_snapshot.py also writes ibkr-account-classes.json (conId/tradingClass per
     # position) beside each snapshot, which keeps the v1 shape that staged protection checks key by
     # key. arm_gate.py needs it to tell option classes apart. Test: test_order_policy.py.
@@ -267,7 +268,7 @@ class OwnedRuntimeTests(unittest.TestCase):
         "watchdog/watchdog.py": "215229586079adeb034d912f955d39770d6817dcff8acbb347b4fdb1fe96afe9",
         "nautilus/arm_gate.py": "501763f951408bdf0afe1ec26861890d61d2c579cde4cf86774657678a6fcb22",
         "scripts/ibkr_account_snapshot.py": "42265a912c610a676c604692437d68612642884f6d1e20f7de3d82a87d35d2f4",
-        "scripts/transmit_charan_approved_drafts.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
+        "scripts/position_close.py": "c4052f9678f89bf0304807897c4c656674a117fc2e86fbc768bd97af50ecad7c",
     }
 
     # Owner 2026-11-04 (card remove-charan-signals): the node has no trade-intent source. run_live.py
@@ -280,6 +281,9 @@ class OwnedRuntimeTests(unittest.TestCase):
     signal_removal = {
         "nautilus/run_live.py": "75fba631b5bc5e495fc3dba20911def6822551ece986a7f8d74117914b2a5bed",
         "docker-compose.yml": "32f2d6d7c677cc89081ffd41db671445dd44812e317d89cd067ee672031543e6",
+        # Card move-close-off-charan-scripts: /api/position-close runs scripts/position_close.py; the
+        # rescan request write for the retired intake (nothing reads it) is gone.
+        "portfolio-ui/server.mjs": "2639b8126c88c2fd5fe896a01968832ad51ed97e83e07484ebece20cb3f73110",
     }
 
     def test_compose_has_no_retired_environment(self):
@@ -300,10 +304,8 @@ class OwnedRuntimeTests(unittest.TestCase):
             self.assertNotIn(rel, en.owned_files(RUNTIME), rel)
 
     def test_live_dependencies_are_not_removed(self):
-        # portfolio-ui /api/position-close and its market refresh run these (see en.REMOVED).
-        for rel in ("scripts/transmit_charan_approved_drafts.py", "scripts/charan_draft_review.py",
-                    "nautilus/charan.py", "src/signal-event-parser.ts", "src/update-market-data.ts",
-                    "portfolio-ui/server.mjs"):
+        # portfolio-ui's market refresh runs these (see en.REMOVED).
+        for rel in ("src/signal-event-parser.ts", "src/update-market-data.ts", "portfolio-ui/server.mjs"):
             self.assertIn(rel, self.manifest, rel)
             self.assertNotIn(rel, en.REMOVED, rel)
 
@@ -315,7 +317,8 @@ class OwnedRuntimeTests(unittest.TestCase):
     def test_safety_fix_files_are_pinned(self):
         for rel, digest in self.safety_fix.items():
             self.assertEqual(en.sha256_file(RUNTIME / rel), digest, rel)
-            self.assertNotEqual(digest, self.manifest[rel], rel)
+            # scripts/position_close.py is a new owned path, not a frozen file.
+            self.assertNotEqual(digest, self.manifest.get(rel), rel)
 
     def test_reader_fix_matches_the_snapshot_script(self):
         for rel, digest in self.reader_fix.items():
