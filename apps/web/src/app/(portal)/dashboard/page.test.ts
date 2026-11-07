@@ -41,6 +41,7 @@ vi.mock("../../../lib/server-internal-dispatch.ts", () => ({
   dispatchInternalOrpcRequest: mocks.dispatchInternalOrpcRequest,
 }));
 
+import { DashboardWidgets } from "../../../components/portal/dashboard-widgets.tsx";
 import { DashboardViews } from "../../../components/portal/portfolio-monitor-dashboard.tsx";
 import type { DashboardSummary } from "../../../features/dashboard/view-model.ts";
 import DashboardPage, {
@@ -950,6 +951,12 @@ describe("dashboard summary loader", () => {
       summaryState: { type: "ready", summary: dashboardSummary },
     });
     expect(content?.props).not.toHaveProperty("session");
+    const widgets = Children.toArray(result.props.children).find(
+      (child): child is ReactElement =>
+        isValidElement(child) && child.type === DashboardWidgets
+    );
+    // No snapshot service in this environment: the journal widget sends nothing.
+    expect(widgets?.props).toEqual({ journalSource: null, operator: true });
     expect(mocks.dispatchInternalOrpcRequest).toHaveBeenCalledOnce();
     return expect(publicFetch).not.toHaveBeenCalled();
   });
@@ -965,6 +972,11 @@ describe("dashboard summary loader", () => {
           isValidElement(child) && child.type === DashboardViews
       );
       expect(content?.props).toMatchObject({ operator: false });
+      const widgets = Children.toArray(result.props.children).find(
+        (child): child is ReactElement =>
+          isValidElement(child) && child.type === DashboardWidgets
+      );
+      expect(widgets?.props).toMatchObject({ operator: false });
     }
     return expect(mocks.redirect).not.toHaveBeenCalled();
   });

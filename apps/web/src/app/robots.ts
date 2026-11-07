@@ -23,6 +23,8 @@ export default function robots() {
         "/watchlist",
         "/price-alerts",
         "/news",
+        "/calendar",
+        "/journal",
         "/baskets",
         "/pick-lists",
         "/todos",

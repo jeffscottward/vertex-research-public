@@ -10,6 +10,7 @@ import {
   BookOpenText,
   Bot,
   BotMessageSquare,
+  CalendarDays,
   Boxes,
   ChartCandlestick,
   ChartLine,
@@ -39,6 +40,7 @@ import {
   Mail,
   MapPin,
   MessageSquare,
+  NotebookPen,
   Newspaper,
   Orbit,
   Palette,
@@ -111,7 +113,10 @@ export const PORTAL_OVERVIEW_NAVIGATION: readonly NavigationItem[] =
 
 /** Portfolio: one destination for account positions, orders and P&L. */
 export const PORTAL_PORTFOLIO_NAVIGATION: readonly NavigationItem[] =
-  Object.freeze([{ href: "/portfolio", icon: Wallet, label: "Portfolio" }]);
+  Object.freeze([
+    { href: "/portfolio", icon: Wallet, label: "Portfolio" },
+    { href: "/journal", icon: NotebookPen, label: "Trade journal" },
+  ]);
 
 /** Markets & Research: chat, charts, watchlist, papers and research screens. */
 export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
@@ -121,6 +126,7 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
     { href: "/watchlist", icon: ListChecks, label: "Watchlist" },
     { href: "/price-alerts", icon: BellRing, label: "Price alerts" },
     { href: "/news", icon: Newspaper, label: "News monitor" },
+    { href: "/calendar", icon: CalendarDays, label: "Calendar" },
     { href: "/baskets", icon: ShoppingBasket, label: "Baskets" },
     { href: "/pick-lists", icon: ListOrdered, label: "Pick lists" },
     { href: "/papers", icon: ScrollText, label: "Papers" },

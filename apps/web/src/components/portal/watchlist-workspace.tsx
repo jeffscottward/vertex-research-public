@@ -15,25 +15,63 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
 
+import {
+  createBrowserMarketDataGateway,
+  type MarketDataGateway,
+} from "./market-data-client.ts";
+import {
+  createBrowserPortfolioMonitorGateway,
+  type PortfolioMonitorGateway,
+} from "./portfolio-monitor-client.ts";
+import { capSymbols, normalizeSymbol } from "./watchlist-analytics.ts";
+import { useWatchlistBars } from "./watchlist-bars.tsx";
 import {
   createBrowserWatchlistGateway,
   describeWatchlistFailure,
   upsertWatchlistRow,
   type WatchlistGateway,
 } from "./watchlist-client.ts";
+import { WatchlistExposure } from "./watchlist-exposure.tsx";
+import { type ListState, mapReadyItems } from "./watchlist-list-state.ts";
+import { WatchlistRelationships } from "./watchlist-relationships.tsx";
+import { WatchlistResearch } from "./watchlist-research.tsx";
+import { WatchlistTabs } from "./watchlist-tabs.tsx";
 
 export interface WatchlistWorkspaceProps {
   readonly gateway?: WatchlistGateway;
+  /** Daily bars for the Relationships and Exposure tabs (read on first open). */
+  readonly marketData?: MarketDataGateway;
+  /** Portfolio positions for the Exposure tab (read on first open). */
+  readonly portfolio?: PortfolioMonitorGateway;
 }
 
-type ListState =
-  | Readonly<{ type: "loading" }>
-  | Readonly<{ type: "ready"; items: WatchlistItemOutput[] }>
-  | Readonly<{ type: "error"; message: string }>;
+const WATCHLIST_VIEWS = [
+  "overview",
+  "relationships",
+  "research",
+  "exposure",
+] as const;
+type WatchlistView = (typeof WATCHLIST_VIEWS)[number];
+const VIEW_LABELS: Readonly<Record<WatchlistView, string>> = {
+  exposure: "Exposure",
+  overview: "Overview",
+  relationships: "Relationships",
+  research: "Research",
+};
+type ViewState = Readonly<{
+  active: WatchlistView;
+  opened: ReadonlySet<WatchlistView>;
+}>;
 
 type Draft = Readonly<{ id: string; low: string; high: string; note: string }>;
 
@@ -61,10 +99,22 @@ const buyZoneDraftProblem = (low: string, high: string): string | null => {
 
 export const WatchlistWorkspace = ({
   gateway: suppliedGateway,
+  marketData: suppliedMarketData,
+  portfolio: suppliedPortfolio,
 }: WatchlistWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserWatchlistGateway()
   );
+  const [marketData] = useState(
+    () => suppliedMarketData ?? createBrowserMarketDataGateway()
+  );
+  const [portfolio] = useState(
+    () => suppliedPortfolio ?? createBrowserPortfolioMonitorGateway()
+  );
+  const [view, setView] = useState<ViewState>({
+    active: "overview",
+    opened: new Set(["overview"]),
+  });
   const [state, setState] = useState<ListState>({ type: "loading" });
   const [paste, setPaste] = useState("");
   const [adding, setAdding] = useState(false);
@@ -124,24 +174,21 @@ export const WatchlistWorkspace = ({
     }
   };
 
-  const save = async (): Promise<void> => {
-    if (draft === null) return;
-    const problem = buyZoneDraftProblem(draft.low, draft.high);
+  const save = async (edit: Draft): Promise<void> => {
+    const problem = buyZoneDraftProblem(edit.low, edit.high);
     if (problem !== null) {
       setRowError(problem);
       return;
     }
     setRowError(null);
-    setBusyId(draft.id);
+    setBusyId(edit.id);
     try {
-      const item = await gateway.update(draft.id, {
-        buyZone: { high: blankToNull(draft.high), low: blankToNull(draft.low) },
-        note: blankToNull(draft.note),
+      const item = await gateway.update(edit.id, {
+        buyZone: { high: blankToNull(edit.high), low: blankToNull(edit.low) },
+        note: blankToNull(edit.note),
       });
       setState((current) =>
-        current.type === "ready"
-          ? { items: upsertWatchlistRow(current.items, item), type: "ready" }
-          : current
+        mapReadyItems(current, (rows) => upsertWatchlistRow(rows, item))
       );
       setDraft(null);
       setFeedback(`Saved ${item.symbol}`);
@@ -158,14 +205,12 @@ export const WatchlistWorkspace = ({
     try {
       await gateway.remove(item.id);
       setState((current) =>
-        current.type === "ready"
-          ? {
-              items: current.items.filter((row) => row.id !== item.id),
-              type: "ready",
-            }
-          : current
+        mapReadyItems(current, (rows) =>
+          rows.filter((row) => row.id !== item.id)
+        )
       );
-      if (draft?.id === item.id) setDraft(null);
+      // Functional update: the row may have gone into edit mode while the removal ran.
+      setDraft((current) => (current?.id === item.id ? null : current));
       setFeedback(`Removed ${item.symbol}`);
     } catch (error) {
       setFeedback(describeWatchlistFailure(error));
@@ -174,7 +219,43 @@ export const WatchlistWorkspace = ({
     }
   };
 
-  return (
+  const items = state.type === "ready" ? state.items : null;
+  // Bars are read for the first symbols only (one IBKR request each), once a chart tab opens.
+  const analysed = useMemo(
+    () => capSymbols((items ?? []).map((item) => normalizeSymbol(item.symbol))),
+    [items]
+  );
+  const listed = useMemo(
+    () => new Set((items ?? []).map((item) => normalizeSymbol(item.symbol))),
+    [items]
+  );
+  const bars = useWatchlistBars(
+    marketData,
+    analysed,
+    view.opened.has("relationships") || view.opened.has("exposure")
+  );
+
+  // The analysis tabs need the list; until it is ready they say why.
+  const needsList = (
+    render: (rows: readonly WatchlistItemOutput[]) => ReactNode
+  ): ReactNode =>
+    state.type === "loading" ? (
+      <p aria-busy="true" className="text-muted-foreground text-sm">
+        Loading watchlist…
+      </p>
+    ) : state.type === "error" ? (
+      <p className="text-sm" role="alert">
+        {state.message} Retry from the Overview tab.
+      </p>
+    ) : state.items.length === 0 ? (
+      <p className="text-muted-foreground text-sm">
+        No symbols. Add tickers on the Overview tab.
+      </p>
+    ) : (
+      render(state.items)
+    );
+
+  const overview = (
     <div className="space-y-6">
       {state.type === "ready" ? (
         <KpiRow label="Watchlist summary">
@@ -373,7 +454,7 @@ export const WatchlistWorkspace = ({
                     <span className="inline-flex gap-1">
                       <Button
                         disabled={busyId === item.id}
-                        onClick={() => void save()}
+                        onClick={() => void save(editingDraft)}
                         type="button"
                       >
                         Save
@@ -456,5 +537,45 @@ export const WatchlistWorkspace = ({
         )}
       </Panel>
     </div>
+  );
+
+  const content: Readonly<Record<WatchlistView, ReactNode>> = {
+    exposure: needsList((rows) => (
+      <WatchlistExposure
+        bars={bars}
+        portfolio={portfolio}
+        symbols={analysed}
+        totalSymbols={rows.length}
+        watchlistSymbols={listed}
+      />
+    )),
+    overview,
+    relationships: needsList((rows) => (
+      <WatchlistRelationships
+        bars={bars}
+        symbols={analysed}
+        totalSymbols={rows.length}
+      />
+    )),
+    research: needsList((rows) => <WatchlistResearch items={rows} />),
+  };
+
+  return (
+    <WatchlistTabs
+      active={view.active}
+      label="Watchlist views"
+      onSelect={(active) =>
+        setView((current) => ({
+          active,
+          opened: new Set([...current.opened, active]),
+        }))
+      }
+      opened={view.opened}
+      tabs={WATCHLIST_VIEWS.map((value) => ({
+        content: content[value],
+        label: VIEW_LABELS[value],
+        value,
+      }))}
+    />
   );
 };

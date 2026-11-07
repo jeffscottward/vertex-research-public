@@ -20,6 +20,7 @@ import {
 } from "../../components/portal/portfolio-tabs.tsx";
 import type { TodosGateway } from "../../components/portal/todos-client.ts";
 import { TodosWorkspace } from "../../components/portal/todos-workspace.tsx";
+import { TradeJournal } from "../../components/portal/trade-journal.tsx";
 import type { VertexOrdersGateway } from "../../components/portal/vertex-orders-client.ts";
 import {
   createResearchReadScope,
@@ -222,5 +223,17 @@ export const OVERVIEW_LAB_ENTRIES: readonly LabEntry[] = [
     },
     route: "/portfolio",
     title: "Portfolio",
+  },
+  {
+    group: "Portfolio",
+    id: "journal",
+    render: () => (
+      <div className="space-y-6">
+        <PageHeader title="Trade journal" />
+        <TradeJournal load={labIbkrMonitor.snapshot} source="ibkr-monitor" />
+      </div>
+    ),
+    route: "/journal",
+    title: "Trade journal",
   },
 ];

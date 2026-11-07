@@ -358,6 +358,92 @@ describe("ChartsWorkspace", () => {
     });
   });
 
+  it("charts forex on IDEALPRO with MIDPOINT data and offers quick picks", async () => {
+    const base = output();
+    const market = marketGateway(async (input) => ({
+      ...base,
+      request: {
+        ...base.request,
+        symbol: input.symbol,
+        secType: input.secType ?? "STK",
+        exchange: input.exchange ?? "SMART",
+        currency: input.currency ?? "USD",
+      },
+    }));
+    const container = await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
+      />
+    );
+    const exchange = () =>
+      document.querySelector<HTMLInputElement>('input[aria-label="Exchange"]')!;
+    expect(
+      [...select("Security type").options].map((option) => option.text)
+    ).toContain("Forex (CASH)");
+    await change(select("Security type"), "CASH");
+    expect(exchange().value).toBe("IDEALPRO");
+    expect(select("Data").value).toBe("MIDPOINT");
+    expect([...select("Data").options].map((option) => option.value)).toEqual([
+      "MIDPOINT",
+    ]);
+    // A custom venue survives a sec type switch; presets follow it.
+    await change(exchange(), "ARCA");
+    await change(select("Security type"), "STK");
+    expect(exchange().value).toBe("ARCA");
+    await change(select("Security type"), "CASH");
+    expect(exchange().value).toBe("ARCA");
+    await change(select("Security type"), "FUT");
+    expect(exchange().value).toBe("ARCA");
+    await change(exchange(), "IDEALPRO");
+    await change(select("Security type"), "STK");
+    expect(exchange().value).toBe("SMART");
+    expect(select("Data").value).toBe("MIDPOINT");
+
+    expect(
+      [...select("Quick pick").options].slice(1).map((option) => option.value)
+    ).toEqual([
+      "ES (E-mini S&P)",
+      "NQ (E-mini Nasdaq)",
+      "SPY",
+      "QQQ",
+      "EUR.USD",
+      "USD.JPY",
+      "GBP.USD",
+    ]);
+    await change(select("Quick pick"), "USD.JPY");
+    expect(select("Quick pick").value).toBe("");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith({
+      symbol: "USD",
+      secType: "CASH",
+      exchange: "IDEALPRO",
+      currency: "JPY",
+      barSize: "1 day",
+      duration: "1 Y",
+      whatToShow: "MIDPOINT",
+      useRTH: true,
+    });
+    // Forex has no ticks or depth, so the order flow panel stays away.
+    expect(container.querySelector("[data-order-flow]")).toBeNull();
+
+    await change(select("Quick pick"), "ES (E-mini S&P)");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        symbol: "ES",
+        secType: "CONTFUT",
+        exchange: "CME",
+        whatToShow: "MIDPOINT",
+      })
+    );
+    // An unknown pick changes nothing.
+    await change(select("Quick pick"), "BTC");
+    expect(symbolInput().value).toBe("ES");
+  });
+
   it("mounts the options and JEV panels only for USD stock charts", async () => {
     const usd = optionsGateway();
     const usdJev = jevGateway();

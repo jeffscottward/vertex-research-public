@@ -123,7 +123,7 @@ Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.0.0, `test_vertex_his
 | Runtime | `/opt/vertex-history/venv` (`python3 -m venv --without-pip`, Python 3.10.12) with `ibapi 9.81.1.post1` from the PyPI sdist (sha256 `49f6678b…`); the installed tree hashes identically to the watchdog's ibapi (`e5fb55e3…`) |
 | Listener | `127.0.0.1:8791` only; Caddy route `/vertex-history/v1/*` in `Caddyfile.tailnet` |
 | IB session | client id 77 to the ib-gateway bridge IP, port 4003 (resolved at start by `resolve-gateway.sh` via `docker inspect`). Calls: connect, disconnect, reqContractDetails, reqHistoricalData, cancelHistoricalData |
-| Requests | `GET /vertex-history/v1/bars?symbol=&secType=STK\|FUT\|CONTFUT&exchange=&currency=&barSize=&duration=&whatToShow=TRADES\|MIDPOINT&useRTH=1&contractMonth=`; `GET /vertex-history/v1/health` |
+| Requests | `GET /vertex-history/v1/bars?symbol=&secType=STK\|FUT\|CONTFUT\|CASH&exchange=&currency=&barSize=&duration=&whatToShow=TRADES\|MIDPOINT&useRTH=1&contractMonth=`; `GET /vertex-history/v1/health` |
 | Bounds | bar sizes 1 min, 5/15/30 mins, 1 hour, 1 day; duration ≤ 1 Y daily, ≤ 1 M intraday, ≤ 2 D for 1 min |
 | Pacing | historical requests ≥ 10 s apart, ≤ 6 per 120 s, identical ≤ 1 per 15 s, 10 min back-off after an IBKR pacing violation; a request waits at most 20 s, otherwise 429 with `retry_after_seconds` |
 | Cache | `/var/cache/private/vertex-history`, TTL 3600 s daily, 300 s intraday, 120 s for 1 min; stale copies up to 24 h served (`cache.stale=true`) while paced or the gateway is down |
