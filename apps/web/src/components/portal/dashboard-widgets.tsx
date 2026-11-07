@@ -21,7 +21,6 @@ import {
   DASHBOARD_WIDGETS,
   type DashboardWidgetId,
   DEFAULT_WIDGET_LAYOUT,
-  localIsoDate,
   marketHeadline,
   moveWidget,
   normalizeWidgetLayout,
@@ -38,10 +37,12 @@ import {
   type LoadState,
   useLoadOnce,
 } from "./trade-journal-client.ts";
+import { easternDate } from "./calendar-model.ts";
 import {
   formatPercent,
   formatSignedMoney,
   journalKpis,
+  latestExecutions,
   pnlTextClass,
 } from "./trade-journal-model.ts";
 import { describeWatchlistFailure } from "./watchlist-client.ts";
@@ -202,7 +203,7 @@ const JournalWidget = ({
     <LoadBody
       describe={describeSnapshotFailure}
       ready={(snapshot) => {
-        const kpis = journalKpis(snapshot.executions);
+        const kpis = journalKpis(latestExecutions(snapshot.executions));
         return (
           <dl className="grid grid-cols-3 gap-2 text-sm">
             <div>
@@ -318,7 +319,7 @@ export const DashboardWidgets = ({
   const journal = useLoadOnce(shown("journal") ? gateway.journal : null);
 
   const content: Readonly<Record<DashboardWidgetId, ReactNode>> = {
-    events: <EventsWidget state={marketContext} today={localIsoDate(now())} />,
+    events: <EventsWidget state={marketContext} today={easternDate(now())} />,
     journal: <JournalWidget state={journal} />,
     market: <MarketWidget state={marketContext} />,
     watchlist: <WatchlistWidget state={watchlist} />,

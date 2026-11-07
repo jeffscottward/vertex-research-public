@@ -24,6 +24,7 @@ import {
 } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
+import { OperatorAccessRequired } from "./agent-ops-client.tsx";
 
 import {
   createBrowserMarketDataGateway,
@@ -33,6 +34,10 @@ import {
   createBrowserPortfolioMonitorGateway,
   type PortfolioMonitorGateway,
 } from "./portfolio-monitor-client.ts";
+import {
+  createBrowserJournalLoader,
+  type JournalSource,
+} from "./trade-journal-client.ts";
 import { capSymbols, normalizeSymbol } from "./watchlist-analytics.ts";
 import { useWatchlistBars } from "./watchlist-bars.tsx";
 import {
@@ -53,6 +58,16 @@ export interface WatchlistWorkspaceProps {
   readonly marketData?: MarketDataGateway;
   /** Portfolio positions for the Exposure tab (read on first open). */
   readonly portfolio?: PortfolioMonitorGateway;
+  /**
+   * Where the Exposure tab reads positions when `portfolio` is not supplied; resolved on the
+   * server like the journal (ibkr-monitor preferred). null falls back to portfolioMonitor.
+   */
+  readonly portfolioSource?: JournalSource | null;
+  /**
+   * From the page session. Relationships and Exposure read operator-only data (bars, IBKR
+   * positions); non-operators see one operator-access message there and send no requests.
+   */
+  readonly operator?: boolean;
 }
 
 const WATCHLIST_VIEWS = [
@@ -101,6 +116,8 @@ export const WatchlistWorkspace = ({
   gateway: suppliedGateway,
   marketData: suppliedMarketData,
   portfolio: suppliedPortfolio,
+  portfolioSource = null,
+  operator = false,
 }: WatchlistWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserWatchlistGateway()
@@ -109,7 +126,11 @@ export const WatchlistWorkspace = ({
     () => suppliedMarketData ?? createBrowserMarketDataGateway()
   );
   const [portfolio] = useState(
-    () => suppliedPortfolio ?? createBrowserPortfolioMonitorGateway()
+    (): PortfolioMonitorGateway =>
+      suppliedPortfolio ??
+      (portfolioSource === null
+        ? createBrowserPortfolioMonitorGateway()
+        : { snapshot: createBrowserJournalLoader(portfolioSource) })
   );
   const [view, setView] = useState<ViewState>({
     active: "overview",
@@ -232,7 +253,8 @@ export const WatchlistWorkspace = ({
   const bars = useWatchlistBars(
     marketData,
     analysed,
-    view.opened.has("relationships") || view.opened.has("exposure")
+    operator &&
+      (view.opened.has("relationships") || view.opened.has("exposure"))
   );
 
   // The analysis tabs need the list; until it is ready they say why.
@@ -539,24 +561,35 @@ export const WatchlistWorkspace = ({
     </div>
   );
 
+  const operatorOnly = (render: () => ReactNode): ReactNode =>
+    operator ? (
+      render()
+    ) : (
+      <OperatorAccessRequired feature="watchlist-analysis" />
+    );
+
   const content: Readonly<Record<WatchlistView, ReactNode>> = {
-    exposure: needsList((rows) => (
-      <WatchlistExposure
-        bars={bars}
-        portfolio={portfolio}
-        symbols={analysed}
-        totalSymbols={rows.length}
-        watchlistSymbols={listed}
-      />
-    )),
+    exposure: operatorOnly(() =>
+      needsList((rows) => (
+        <WatchlistExposure
+          bars={bars}
+          portfolio={portfolio}
+          symbols={analysed}
+          totalSymbols={rows.length}
+          watchlistSymbols={listed}
+        />
+      ))
+    ),
     overview,
-    relationships: needsList((rows) => (
-      <WatchlistRelationships
-        bars={bars}
-        symbols={analysed}
-        totalSymbols={rows.length}
-      />
-    )),
+    relationships: operatorOnly(() =>
+      needsList((rows) => (
+        <WatchlistRelationships
+          bars={bars}
+          symbols={analysed}
+          totalSymbols={rows.length}
+        />
+      ))
+    ),
     research: needsList((rows) => <WatchlistResearch items={rows} />),
   };
 

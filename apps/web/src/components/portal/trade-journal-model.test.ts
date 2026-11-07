@@ -11,6 +11,7 @@ import {
   journalKpis,
   journalSymbolRows,
   journalTime,
+  latestExecutions,
   lineGeometry,
   pnlTextClass,
   sideLabel,
@@ -23,6 +24,8 @@ const fill = (
   commission: 1,
   exchange: "SMART",
   execId: "e1",
+  localSymbol: "",
+  permId: null,
   orderRef: "",
   price: 100,
   realized: 0,
@@ -109,6 +112,7 @@ describe("journalSymbolRows", () => {
         commissions: 4,
         fills: 3,
         realized: 12,
+        secType: "STK",
         sold: 4,
         symbol: "AAPL",
         winRate: 1,
@@ -118,12 +122,66 @@ describe("journalSymbolRows", () => {
         commissions: 1,
         fills: 1,
         realized: 0,
+        secType: "STK",
         sold: 0,
         symbol: "MSFT",
         winRate: null,
       },
     ]);
   });
+});
+
+describe("journal trades and contracts", () => {
+  it("counts partial fills of one order (permId) as one trade", () => {
+    const kpis = journalKpis([
+      fill({ execId: "a", permId: 7, realized: 25 }),
+      fill({ execId: "b", permId: 7, realized: 25 }),
+      fill({ execId: "c", permId: 7, realized: 50 }),
+      fill({ execId: "d", permId: 8, realized: -40 }),
+      fill({ execId: "e", permId: null, realized: -10 }),
+    ]);
+    expect(kpis.closing).toBe(3);
+    expect(kpis.wins).toBe(1);
+    expect(kpis.losses).toBe(2);
+    expect(kpis.avgWin).toBe(100);
+    expect(kpis.avgLoss).toBe(-25);
+    return expect(kpis.realized).toBe(50);
+  });
+
+  it("keeps only the latest correction of an execution", () =>
+    expect(
+      latestExecutions([
+        fill({ execId: "x.01.01", realized: 5 }),
+        fill({ execId: "y.01.01" }),
+        fill({ execId: "x.01.02", realized: 6 }),
+        fill({ execId: "plain" }),
+      ]).map((execution) => execution.execId)
+    ).toEqual(["y.01.01", "x.01.02", "plain"]));
+
+  it("separates option contracts from their stock", () =>
+    expect(
+      journalSymbolRows([
+        fill({ localSymbol: "AAPL", secType: "STK", symbol: "AAPL" }),
+        fill({
+          localSymbol: "AAPL  261120C00200000",
+          secType: "OPT",
+          shares: 1,
+          symbol: "AAPL",
+        }),
+      ]).map((row) => [row.secType, row.symbol, row.bought])
+    ).toEqual([
+      ["STK", "AAPL", 10],
+      ["OPT", "AAPL  261120C00200000", 1],
+    ]));
+
+  it("puts fills without a readable time after timed fills", () =>
+    expect(
+      chronologicalFills([
+        fill({ execId: "u1", time: "?" }),
+        fill({ execId: "t2", time: "20261009 10:00:00" }),
+        fill({ execId: "t1", time: "20261009 09:00:00" }),
+      ]).map((execution) => execution.execId)
+    ).toEqual(["t1", "t2", "u1"]));
 });
 
 describe("cumulativeRealized", () => {

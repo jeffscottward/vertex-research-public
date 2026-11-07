@@ -320,6 +320,8 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/todos",
   "/today",
   "/portfolio",
+  "/journal",
+  "/calendar",
   "/strategies",
   "/audit",
   "/modules",
@@ -383,6 +385,8 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/baskets",
   "/pick-lists",
   "/engines",
+  "/journal",
+  "/calendar",
 ] as const);
 
 /** Portal routes this session can open, by role (admin) and operator status. */

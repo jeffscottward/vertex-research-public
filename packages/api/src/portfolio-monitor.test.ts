@@ -301,6 +301,10 @@ describe("portfolioMonitor derivation", () => {
       status: "Cancelled",
       completedStatus: "Cancelled by user",
     });
+    expect(output.executions[0]).toMatchObject({
+      localSymbol: "AAA",
+      permId: 9003,
+    });
     return expect(output.executions.map((entry) => entry.execId)).toEqual([
       "a",
       "b",

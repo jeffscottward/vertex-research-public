@@ -46,6 +46,7 @@ import {
   LEGACY_ROUTE_REDIRECTS,
   MEMBER_PORTAL_ROUTE_PATHS,
   OPERATOR_PORTAL_ROUTE_PATHS,
+  PORTAL_NAVIGATION,
   portalRoutePathsFor,
 } from "../../lib/navigation.ts";
 import LegacyAddressPage from "./account/address/page.ts";
@@ -234,6 +235,15 @@ describe("operator route filter", () =>
     return expect(admin).toContain("/settings/administration");
   }));
 
+describe("navigation exposure", () =>
+  it("exposes every portal navigation link to an admin operator", () => {
+    const routes = portalRoutePathsFor({ isAdmin: true, isOperator: true });
+    for (const item of PORTAL_NAVIGATION) expect(routes).toContain(item.href);
+    return expect(routes).toEqual(
+      expect.arrayContaining(["/journal", "/calendar"])
+    );
+  }));
+
 describe("portal route manifests", () =>
   it("gives members every portal page and administrators the Administration tab too", () => {
     expect(MEMBER_PORTAL_ROUTE_PATHS).toEqual([
@@ -273,6 +283,8 @@ describe("portal route manifests", () =>
       "/todos",
       "/today",
       "/portfolio",
+      "/journal",
+      "/calendar",
       "/strategies",
       "/audit",
       "/modules",

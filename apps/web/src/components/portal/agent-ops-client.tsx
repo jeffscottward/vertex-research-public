@@ -383,6 +383,8 @@ export const OPERATOR_FEATURE_COPY = Object.freeze({
   optimizations: "Optimization runs are limited to operators.",
   papers: "The research paper pipeline is limited to operators.",
   "strategy-library": "The strategy library is limited to operators.",
+  "watchlist-analysis":
+    "Watchlist relationships and exposure (IBKR bars and positions) are limited to operators.",
 } as const);
 
 export type OperatorFeature = keyof typeof OPERATOR_FEATURE_COPY;

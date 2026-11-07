@@ -137,6 +137,10 @@ export const PortfolioMonitorExecutionSchema = z
     time: shortText(40),
     symbol: shortText(24),
     secType: shortText(12),
+    /** IBKR local symbol (option/future contract name); "" when the feed omits it. */
+    localSymbol: shortText(40),
+    /** IBKR permanent order id shared by every fill of one order; null when the feed omits it. */
+    permId: z.number().int().nullable(),
     side: shortText(8),
     shares: money,
     price: money,
