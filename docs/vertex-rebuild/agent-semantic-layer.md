@@ -41,7 +41,7 @@ Source: <https://github.com/NVIDIA/auto-ontology>, read at commit `2a24f5d` (202
 - Backtest metrics live in two places with different meanings and units. Engine runs: `backtest_runs.report.metrics.sharpe` and `maxDrawdownPct`, which holds a positive fraction despite its name (0.2 = 20%; `packages/api/src/backtest-run-report.ts:108-121`). Agent records: `backtest_results.metrics` (free-form keys such as `sharpe_ratio` or `Sharpe`) and `max_drawdown` (negative fraction).
 - Gate outcomes: `autopilot_candidates.status` is `evaluated` (not yet judged), `rejected` (failed `autopilot-gate-v1`) or `verified` (passed). `fitness` is in-sample Sharpe; `oos_sharpe` is out-of-sample.
 - Crown copy-book legs have no data in Vertex. `crownCopy` is only an input flag of the risk allocator (`packages/api/src/contracts/risk-allocator.ts:36-48`).
-- "Open risk" has no table or field. The prototype uses a proposed definition that the owner must certify.
+- "Open risk" has no table or field. Owner decision (2026-11-05): the certified term `open_risk` is the sum of the defined maximum loss of each open option structure (debit paid for long options and debit spreads; width minus credit for defined-width credit spreads). This is a research definition only. It changes no trade or risk setting.
 
 ## Prototype
 
