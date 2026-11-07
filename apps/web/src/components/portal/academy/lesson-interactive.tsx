@@ -147,7 +147,7 @@ export const LessonInteractive = ({ lesson }: { readonly lesson: Lesson }) => {
     return lesson.steps.map((entry) => {
       const color = first[entry.element] ?? entry.color;
       first[entry.element] = color;
-      return { entry, color };
+      return { color, entry };
     });
   }, [lesson]);
   // Blank inputs keep the default until a number is typed.
@@ -218,9 +218,9 @@ export const LessonInteractive = ({ lesson }: { readonly lesson: Lesson }) => {
   return (
     <div className="flex flex-col gap-4" data-lesson-interactive>
       <div
+        aria-label="Lesson steps"
         className="flex flex-wrap items-center gap-2"
         role="group"
-        aria-label="Lesson steps"
       >
         <button
           className={`min-h-11 rounded-md border px-3 text-sm ${step === null ? "border-primary" : "border-border"}`}
@@ -391,7 +391,7 @@ export const LessonInteractive = ({ lesson }: { readonly lesson: Lesson }) => {
         <dl className="grid gap-3 md:grid-cols-2">
           {lesson.formulas.map((id) => (
             <div
-              className="rounded-md bg-muted/40 p-3"
+              className="min-w-0 rounded-md bg-muted/40 p-3"
               data-formula={id}
               key={id}
             >
