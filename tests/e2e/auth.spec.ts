@@ -198,8 +198,9 @@ const expectRevokedSessionCookie = async ({
 // seeded identities are; tests/e2e/env.ts). A non-operator gets a sidebar with
 // only the pages it can open and a Mission control view that sends no
 // operator-only request, so no 403 is expected anywhere in these journeys.
+// The assistant and the knowledge chat open from Research, not from the sidebar
+// (PORTAL_LINKED_NAVIGATION in apps/web/src/lib/navigation.ts), so they are not listed here.
 const OPERATOR_ONLY_SIDEBAR_HREFS = [
-  "/assistant",
   "/agents",
   "/agents/benchmark",
   "/papers",
@@ -220,13 +221,14 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/price-alerts",
   "/news",
   "/markets",
-  "/knowledge",
   "/optimizations",
   "/autopilot",
   "/charts",
   "/deployments",
   "/engines",
 ] as const;
+// Reached from the Research page only, for every role.
+const PAGE_LINKED_HREFS = ["/assistant", "/knowledge"] as const;
 
 // Agent work starts its operator reads on load. Its Reload button appears only after both
 // answered, so a later sign-out cannot turn a pending read into a 401.
@@ -315,6 +317,9 @@ const expectDashboardFor = async (
   expect(sidebarHrefs).toContain("/dashboard");
   for (const href of OPERATOR_ONLY_SIDEBAR_HREFS) {
     expect(sidebarHrefs.includes(href)).toBe(identity.operator);
+  }
+  for (const href of PAGE_LINKED_HREFS) {
+    expect(sidebarHrefs).not.toContain(href);
   }
   if (identity.operator) {
     // The account card sits above agent work; there are no view tabs. The E2E
