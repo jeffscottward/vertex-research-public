@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Client output of the production build the browser lane serves (`start`). */
-export const WEB_CLIENT_BUILD_DIRECTORY = fileURLToPath(
+const WEB_CLIENT_BUILD_DIRECTORY = fileURLToPath(
   new URL("../../../apps/web/dist/client/", import.meta.url)
 );
 
