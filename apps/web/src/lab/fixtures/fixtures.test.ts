@@ -81,6 +81,12 @@ describe("lab market fixtures", () => {
     }
   });
 
+  it("quotes CASH pairs on MIDPOINT", () => {
+    const output = labBarsOutput({ secType: "CASH", symbol: "EUR" });
+    expect(output.request.whatToShow).toBe("MIDPOINT");
+    expect(MarketBarsOutputSchema.parse(output)).toEqual(output);
+  });
+
   it("follows the requested bar size and contract", () => {
     const output = labBarsOutput({
       barSize: "1 hour",

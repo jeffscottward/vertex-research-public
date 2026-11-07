@@ -107,6 +107,16 @@ describe("overview lab entries", () => {
     );
   });
 
+  it("renders the Trade journal from the fake ibkr-monitor executions", async () => {
+    const host = await render("journal");
+    expect(host.querySelector("h1")?.textContent).toBe("Trade journal");
+    expect(host.querySelector('[data-journal="report"]')).not.toBeNull();
+    expect(host.textContent).toContain("+$412.60");
+    expect(
+      host.querySelector('[data-exec-id="demo-exec-0002"]')
+    ).not.toBeNull();
+  });
+
   it("opens Portfolio on Positions by default with the live fake monitor", async () => {
     const host = await render("portfolio");
     expect(host.querySelector("h1")?.textContent).toBe("Portfolio");

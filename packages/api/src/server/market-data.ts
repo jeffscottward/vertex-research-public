@@ -87,7 +87,8 @@ export const buildMarketBarsUrl = (
     currency: input.currency.toUpperCase(),
     barSize: input.barSize,
     duration: input.duration,
-    whatToShow: input.whatToShow,
+    // IBKR has no TRADES data for forex; CASH is always MIDPOINT.
+    whatToShow: input.secType === "CASH" ? "MIDPOINT" : input.whatToShow,
     useRTH: input.useRTH ? "1" : "0",
   });
   if (input.contractMonth !== undefined)

@@ -39,7 +39,8 @@ LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8791
 PREFIX = "/vertex-history/v1"
 
-SEC_TYPES = ("STK", "FUT", "CONTFUT")
+SEC_TYPES = ("STK", "FUT", "CONTFUT", "CASH")
+DEFAULT_EXCHANGE = {"STK": "SMART", "CASH": "IDEALPRO"}
 WHAT_TO_SHOW = ("TRADES", "MIDPOINT")
 BAR_SIZES = {"1 min": 60, "5 mins": 300, "15 mins": 900, "30 mins": 1800, "1 hour": 3600, "1 day": 86400}
 UNIT_DAYS = {"D": 1, "W": 7, "M": 30, "Y": 365}
@@ -145,7 +146,7 @@ def _instrument(values):
     symbol = values.get("symbol", "").upper()
     if not SYMBOL_RE.match(symbol):
         raise BadRequest("invalid symbol")
-    exchange = values.get("exchange", "SMART" if sec_type == "STK" else "").upper()
+    exchange = values.get("exchange", DEFAULT_EXCHANGE.get(sec_type, "")).upper()
     if not EXCHANGE_RE.match(exchange):
         raise BadRequest("invalid exchange (required for futures)")
     currency = values.get("currency", "USD").upper()
@@ -194,6 +195,8 @@ def validate(raw):
     what = values.get("whatToShow", "TRADES").upper()
     if what not in WHAT_TO_SHOW:
         raise BadRequest("whatToShow must be TRADES or MIDPOINT")
+    if inst["secType"] == "CASH":
+        what = "MIDPOINT"  # IBKR has no TRADES data for forex
     rth = _flag(values, "useRTH", "1")
     month = _month(values, inst["secType"])
     return {"symbol": inst["symbol"], "secType": inst["secType"], "exchange": inst["exchange"],
@@ -205,6 +208,7 @@ def validate_ticks(raw):
     """Historical ticks: the most recent `count` trade prints (and bid/ask quotes over the same window)."""
     values = _single_values(raw, TICKS_PARAMS)
     inst = _instrument(values)
+    _reject_cash(inst, "ticks")
     count = _bounded_int(values, "count", TICKS_DEFAULT, TICKS_MIN, TICKS_MAX)
     rth = _flag(values, "useRTH", "0")
     quotes = _flag(values, "quotes", "1")
@@ -216,12 +220,18 @@ def validate_depth(raw):
     """Depth snapshot. Stocks always use IBKR SMART depth; futures use the given exchange's own book."""
     values = _single_values(raw, DEPTH_PARAMS)
     inst = _instrument(values)
+    _reject_cash(inst, "depth")
     rows = _bounded_int(values, "rows", DEPTH_ROWS_DEFAULT, 1, DEPTH_ROWS_MAX)
     month = _month(values, inst["secType"])
     smart = inst["secType"] == "STK"
     if smart:
         inst["exchange"] = "SMART"
     return dict(inst, contractMonth=month, rows=rows, smartDepth=smart)
+
+
+def _reject_cash(inst, kind):
+    if inst["secType"] == "CASH":
+        raise BadRequest(kind + " are not supported for CASH (forex)")
 
 
 def cache_key(req):
