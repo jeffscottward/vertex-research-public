@@ -238,12 +238,31 @@ const LinkError = ({ message }: { readonly message: string | null }) =>
   );
 
 // SMART routing applies to stocks; futures need a venue (CME by default).
+const DEFAULT_EXCHANGES = ["SMART", "CME"];
 const exchangeFor = (secType: MarketSecType, current: string): string => {
   const value = current.trim().toUpperCase();
-  if (secType === "STK")
-    return value === "" || value === "CME" ? "SMART" : current;
-  return value === "" || value === "SMART" ? "CME" : current;
+  const preset = value === "" || DEFAULT_EXCHANGES.includes(value);
+  if (secType === "STK") return preset ? "SMART" : current;
+  return preset ? "CME" : current;
 };
+
+type QuickPick = Readonly<{
+  label: string;
+  market: Pick<ChartsForm, "symbol" | "secType" | "exchange" | "currency">;
+}>;
+
+const future = (symbol: string) =>
+  ({ symbol, secType: "CONTFUT", exchange: "CME", currency: "USD" }) as const;
+const stock = (symbol: string) =>
+  ({ symbol, secType: "STK", exchange: "SMART", currency: "USD" }) as const;
+
+// Common markets for the charts picker.
+const QUICK_PICKS: readonly QuickPick[] = [
+  { label: "ES (E-mini S&P)", market: future("ES") },
+  { label: "NQ (E-mini Nasdaq)", market: future("NQ") },
+  { label: "SPY", market: stock("SPY") },
+  { label: "QQQ", market: stock("QQQ") },
+];
 
 type BarsState =
   | Readonly<{ type: "idle" }>
@@ -330,6 +349,16 @@ const BarsForm = ({
       contractMonth: secType === "FUT" ? form.contractMonth : "",
     });
   };
+  const changeQuickPick = (event: ChangeEvent<HTMLSelectElement>) => {
+    const pick = QUICK_PICKS.find(({ label }) => label === event.target.value);
+    return pick === undefined
+      ? undefined
+      : onChange({
+          ...form,
+          ...pick.market,
+          contractMonth: "",
+        });
+  };
   const changeBarSize = (event: ChangeEvent<HTMLSelectElement>) => {
     const barSize = event.target.value as MarketBarSize;
     return onChange({
@@ -358,6 +387,21 @@ const BarsForm = ({
         spellCheck={false}
         value={form.symbol}
       />
+      <select
+        aria-label="Quick pick"
+        className="h-11 rounded-sm border border-border-strong bg-surface px-2 text-sm"
+        onChange={changeQuickPick}
+        value=""
+      >
+        <option disabled value="">
+          Markets…
+        </option>
+        {QUICK_PICKS.map((pick) => (
+          <option key={pick.label} value={pick.label}>
+            {pick.label}
+          </option>
+        ))}
+      </select>
       <Button disabled={busy} type="submit">
         Open
       </Button>

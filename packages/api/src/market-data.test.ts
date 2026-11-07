@@ -186,6 +186,15 @@ describe("marketData config and URL", () => {
       `${BASE}/bars?symbol=ES&secType=FUT&exchange=CME&currency=USD&barSize=5+mins&duration=1+M&whatToShow=TRADES&useRTH=0&contractMonth=202612`
     );
   });
+
+  it("rejects forex (CASH) bars; the web/API side does not expose it", () =>
+    expect(
+      MarketBarsInputSchema.safeParse({
+        symbol: "EUR",
+        secType: "CASH",
+        exchange: "IDEALPRO",
+      }).success
+    ).toBe(false));
 });
 
 describe("marketData fetch", () => {
@@ -618,6 +627,17 @@ describe("marketData ticks and depth input", () => {
     return expect(
       MarketTicksInputSchema.safeParse({ rows: 5, symbol: "SPY" }).success
     ).toBe(false);
+  });
+
+  it("rejects forex (CASH) for ticks and depth", () => {
+    for (const schema of [MarketTicksInputSchema, MarketDepthInputSchema])
+      expect(
+        schema.safeParse({
+          secType: "CASH",
+          exchange: "IDEALPRO",
+          symbol: "EUR",
+        }).success
+      ).toBe(false);
   });
 
   it("needs an exchange for futures and allows a contract month for FUT only", () => {

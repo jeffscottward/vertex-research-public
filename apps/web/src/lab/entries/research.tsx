@@ -9,11 +9,15 @@ import type { PapersGateway } from "../../components/portal/agent-ops-client.tsx
 import { BasketWatchlistSection } from "../../components/portal/basket-watchlist-section.tsx";
 import type { BasketGateway } from "../../components/portal/baskets-client.ts";
 import { BasketsWorkspace } from "../../components/portal/baskets-workspace.tsx";
+import { CalendarWorkspace } from "../../components/portal/calendar-workspace.tsx";
+import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
+import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
 import type { MarketNewsGateway } from "../../components/portal/market-news-client.ts";
 import { MarketNewsWorkspace } from "../../components/portal/market-news-workspace.tsx";
 import { PapersWorkspace } from "../../components/portal/papers-workspace.tsx";
 import type { PickListGateway } from "../../components/portal/pick-lists-client.ts";
 import { PickListsWorkspace } from "../../components/portal/pick-lists-workspace.tsx";
+import type { PortfolioMonitorGateway } from "../../components/portal/portfolio-monitor-client.ts";
 import type { PriceAlertsGateway } from "../../components/portal/price-alerts-client.ts";
 import { PriceAlertsWorkspace } from "../../components/portal/price-alerts-workspace.tsx";
 import {
@@ -34,6 +38,12 @@ import {
   ExperienceProvider,
 } from "../../features/experience/shared.tsx";
 import { labReadOnly } from "../fixtures/core.ts";
+import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
+import { labBarsOutput } from "../fixtures/market.ts";
+import {
+  labPortfolioMonitorSnapshot,
+  labWallClock,
+} from "../fixtures/overview.ts";
 import {
   LAB_BASKETS,
   LAB_PAPERS,
@@ -120,6 +130,18 @@ const labMarketNewsGateway: MarketNewsGateway = {
   watchlist: (hours) => Promise.resolve(labMarketNews(hours)),
 };
 
+const labMarketFeedsGateway: MarketFeedsGateway = {
+  context: () => Promise.resolve(LAB_MARKET_CONTEXT),
+};
+
+const labWatchlistMarketData: MarketDataGateway = {
+  bars: (input) => Promise.resolve(labBarsOutput(input)),
+};
+
+const labWatchlistPortfolio: PortfolioMonitorGateway = {
+  snapshot: () => Promise.resolve(labPortfolioMonitorSnapshot(labWallClock())),
+};
+
 const labPickListGateway: PickListGateway = {
   import: labReadOnly,
   list: () => Promise.resolve(LAB_PICK_LISTS),
@@ -178,7 +200,12 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
       <div className="space-y-8">
         <PageHeader title="Watchlist" />
         <BasketWatchlistSection gateway={labBasketGateway} />
-        <WatchlistWorkspace gateway={labWatchlistGateway} />
+        <WatchlistWorkspace
+          gateway={labWatchlistGateway}
+          marketData={labWatchlistMarketData}
+          operator
+          portfolio={labWatchlistPortfolio}
+        />
       </div>
     ),
     route: "/watchlist",
@@ -207,6 +234,18 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/news",
     title: "News monitor",
+  },
+  {
+    group: GROUP,
+    id: "calendar",
+    render: () => (
+      <CalendarWorkspace
+        contextGateway={labMarketFeedsGateway}
+        newsGateway={labMarketNewsGateway}
+      />
+    ),
+    route: "/calendar",
+    title: "Economic & earnings calendar",
   },
   {
     group: GROUP,

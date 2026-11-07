@@ -24,6 +24,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { TickerLink } from "../ticker-link.tsx";
+import { latestEarningsFilings } from "./calendar-model.ts";
 import {
   createBrowserMarketNewsGateway,
   describeMarketNewsFailure,
@@ -323,6 +324,60 @@ const NewsKpis = ({
   );
 };
 
+/** Per symbol, the newest 8-K item 2.02 (earnings results) filing among the loaded filings. */
+const EarningsDates = ({
+  tickers,
+  windowLabel,
+}: {
+  readonly tickers: readonly MarketNewsTicker[];
+  readonly windowLabel: string;
+}) => (
+  <Panel
+    actions={
+      <Link
+        className="min-h-11 content-center font-medium text-sm underline-offset-4 hover:underline"
+        href="/calendar"
+        prefetch={false}
+      >
+        Open calendar
+      </Link>
+    }
+    description={`Latest SEC 8-K item 2.02 (earnings results) filing per symbol in the ${windowLabel}.`}
+    flush
+    headingId="news-earnings-dates"
+    title="Earnings dates"
+  >
+    <ul className="divide-y">
+      {latestEarningsFilings(tickers).map((row) => (
+        <li
+          className="flex flex-wrap items-baseline gap-x-3 px-4 py-1 text-sm"
+          data-earnings-symbol={row.symbol}
+          key={row.symbol}
+        >
+          <TickerLink symbol={row.symbol} />
+          {row.filing === null ? (
+            <span className="text-muted-foreground">
+              {row.error === null
+                ? `No earnings filing in the ${windowLabel}`
+                : "SEC filings unavailable"}
+            </span>
+          ) : (
+            <a
+              className={EXTERNAL_LINK}
+              href={row.filing.url}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Filed {formatNewsTime(row.filing.filedAt)}
+              <span className="sr-only"> (opens SEC filing)</span>
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  </Panel>
+);
+
 export const MarketNewsWorkspace = ({
   gateway: suppliedGateway,
   initialDays,
@@ -382,7 +437,13 @@ export const MarketNewsWorkspace = ({
         title="News monitor"
       />
       {state.type === "ready" && state.news.tickers.length > 0 ? (
-        <NewsKpis news={state.news} windowLabel={windowLabel} />
+        <>
+          <NewsKpis news={state.news} windowLabel={windowLabel} />
+          <EarningsDates
+            tickers={state.news.tickers}
+            windowLabel={windowLabel}
+          />
+        </>
       ) : null}
       <Panel
         actions={

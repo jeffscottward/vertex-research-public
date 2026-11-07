@@ -74,6 +74,8 @@ export const fixtureExecution = (
   realized: null,
   exchange: "TESTX",
   orderRef: "test-ref",
+  localSymbol: "ALPHA",
+  permId: 1001,
   ...overrides,
 });
 

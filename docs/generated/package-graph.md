@@ -7,6 +7,7 @@ Every workspace `package.json` declares a `brick` role and a one-line `descripti
 ```mermaid
 flowchart LR
   subgraph appBricks["Apps"]
+    darkfactory_desktop["<b>desktop</b><br/>Electron shell for the Vertex site: workspace windows, tray watchlist, alerts"]
     darkfactory_web["<b>web</b><br/>Vertex Research web and control plane."]
   end
   subgraph productBricks["Product bricks"]
@@ -56,6 +57,7 @@ flowchart LR
   darkfactory_db --> darkfactory_notifications
   darkfactory_db --> darkfactory_shared
   darkfactory_db --> darkfactory_storage
+  darkfactory_desktop --> darkfactory_api
   darkfactory_jobs --> darkfactory_db
   darkfactory_jobs --> darkfactory_observability
   darkfactory_notifications --> darkfactory_email
@@ -85,7 +87,7 @@ flowchart LR
   darkfactory_web --> darkfactory_storage
   darkfactory_web --> darkfactory_ui
   classDef app fill:#1f6feb,stroke:#0b3d91,color:#ffffff
-  class darkfactory_web app
+  class darkfactory_desktop,darkfactory_web app
   classDef product fill:#2ea44f,stroke:#1a7f37,color:#ffffff
   class darkfactory_academy,darkfactory_api,darkfactory_auth,darkfactory_config,darkfactory_db,darkfactory_notifications,darkfactory_observability,darkfactory_scripting,darkfactory_shared,darkfactory_state,darkfactory_storage,darkfactory_ui product
   classDef capability fill:#bf8700,stroke:#7d4e00,color:#ffffff
@@ -112,6 +114,7 @@ flowchart LR
 | Package | Brick | Purpose | Workspace dependencies | Exports |
 | --- | --- | --- | --- | --- |
 | [`@darkfactory/root`](../../package.json) | workspace | Vertex Research, a research-first trading platform built on DarkFactory. | `@darkfactory/api`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/jobs`, `@darkfactory/observability`, `@darkfactory/operator`, `@darkfactory/state`, `@darkfactory/testkit`, `@darkfactory/ui` | — |
+| [`@darkfactory/desktop`](../../apps/desktop/package.json) | app | Electron shell for the Vertex site: workspace windows, tray watchlist, alerts | `@darkfactory/api` | — |
 | [`@darkfactory/web`](../../apps/web/package.json) | app | Vertex Research web and control plane. | `@darkfactory/academy`, `@darkfactory/analytics`, `@darkfactory/api`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/email`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/state`, `@darkfactory/storage`, `@darkfactory/ui` | — |
 | [`@darkfactory/academy`](../../packages/academy/package.json) | product | Academy lessons: specs, options math, scenes, modeled backtest, deploy gates | — | `.`, `./chart`, `./lessons` |
 | [`@darkfactory/api`](../../packages/api/package.json) | product | oRPC contracts, services and router; the source of the typed client and OpenAPI. | `@darkfactory/academy`, `@darkfactory/auth`, `@darkfactory/config`, `@darkfactory/db`, `@darkfactory/notifications`, `@darkfactory/observability`, `@darkfactory/scripting`, `@darkfactory/shared`, `@darkfactory/storage` | `.`, `./client`, `./server`, `./vertex`, `./vertex-chart-read`, `./vertex-model-use`, `./vertex-policy`, `./vertex-worker` |

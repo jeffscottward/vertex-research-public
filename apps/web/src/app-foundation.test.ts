@@ -263,7 +263,7 @@ describe("application navigation manifest", () => {
       ])
     ).toEqual([
       ["Overview", ["/dashboard", "/today", "/todos"]],
-      ["Portfolio", ["/portfolio"]],
+      ["Portfolio", ["/portfolio", "/journal"]],
       [
         "Markets & Research",
         [
@@ -272,6 +272,7 @@ describe("application navigation manifest", () => {
           "/watchlist",
           "/price-alerts",
           "/news",
+          "/calendar",
           "/baskets",
           "/pick-lists",
           "/papers",
@@ -800,6 +801,8 @@ describe("root metadata and theme contract", () => {
       "/watchlist",
       "/price-alerts",
       "/news",
+      "/calendar",
+      "/journal",
       "/baskets",
       "/pick-lists",
       "/todos",
