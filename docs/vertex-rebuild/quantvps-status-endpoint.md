@@ -129,6 +129,8 @@ Sources: `infra/quant-vps/history/` (`vertex_history.py` 1.0.0, `test_vertex_his
 | Cache | `/var/cache/private/vertex-history`, TTL 3600 s daily, 300 s intraday, 120 s for 1 min; stale copies up to 24 h served (`cache.stale=true`) while paced or the gateway is down |
 | Volume | as reported by IBKR to this API version (US stocks in lots of 100 shares) |
 
+Note: `secType=CASH` (forex on IDEALPRO, MIDPOINT only) is staged in `infra/quant-vps/history` only; it is not yet deployed to the live service, and the web/API side (`MARKET_SEC_TYPES`, the charts picker, MCP `market_bars`) does not expose it.
+
 The tailnet Caddy config had `admin off`, so adding the route required one restart of `vertex-status-tailnet` (2026-10-04T02:16:41Z). The admin API now listens only on `unix//tmp/caddy-admin.sock` inside the container; reload with `docker exec vertex-status-tailnet caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile --address unix//tmp/caddy-admin.sock`.
 
 Verification from the rig, 2026-10-04T02:17Z: no token 401, wrong token 401, health 200, other path 404, `/vertex-status/v2` still 200; SPY STK SMART 1 day 1 Y 200 (251 bars, conId 756733); ES CONTFUT CME 1 day 1 Y 200 (250 bars, front contract ESZ6). Pacing: requests logged 10 s apart; the 7th distinct request within 120 s got 429 `paced` (retry 61 s). From the VPS itself (non-allowed source) 403 over IPv4 and IPv6. The public IP has no listener on 8791 or 8443. Protected containers kept their start times; compose file and main Caddyfile hashes unchanged. Backup: `/opt/vertex-history/rollback-20261004T021635Z/`.

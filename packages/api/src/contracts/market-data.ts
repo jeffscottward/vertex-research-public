@@ -4,8 +4,7 @@ import { z } from "zod";
 // Read-only IBKR historical bars from the QuantVPS tailnet history service (vertex-history-bars-v1).
 // Bars only; the service holds the only IB session (client id 77) and enforces IBKR pacing.
 
-// CASH = IBKR forex on IDEALPRO (symbol EUR + currency USD); bars only, always MIDPOINT.
-export const MARKET_SEC_TYPES = ["STK", "FUT", "CONTFUT", "CASH"] as const;
+export const MARKET_SEC_TYPES = ["STK", "FUT", "CONTFUT"] as const;
 export const MARKET_BAR_SIZES = [
   "1 min",
   "5 mins",
@@ -84,8 +83,7 @@ export const MarketBarsInputSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["exchange"],
-        message:
-          "Futures and forex need an exchange, for example CME or IDEALPRO",
+        message: "Futures need an exchange, for example CME",
       });
     }
     if (!marketDurationAllowed(input.barSize, input.duration)) {
@@ -224,13 +222,6 @@ const instrumentRefinements = (
   },
   ctx: z.RefinementCtx
 ) => {
-  if (input.secType === "CASH") {
-    ctx.addIssue({
-      code: "custom",
-      path: ["secType"],
-      message: "Ticks and depth are not available for forex (CASH)",
-    });
-  }
   if (input.secType !== "STK" && input.exchange === undefined) {
     ctx.addIssue({
       code: "custom",
