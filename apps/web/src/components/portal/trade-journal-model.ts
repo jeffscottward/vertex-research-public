@@ -13,7 +13,7 @@ export type JournalKpis = Readonly<{
   /** Sum of the realized P&L IBKR reported; fills without a commission report count as 0. */
   realized: number;
   commissions: number;
-  /** Fills with realized P&L other than 0 (closing fills). */
+  /** Closing trades: closing fills grouped by IBKR order (permId), realized summed per order. */
   closing: number;
   wins: number;
   losses: number;
@@ -24,7 +24,9 @@ export type JournalKpis = Readonly<{
 }>;
 
 export type JournalSymbolRow = Readonly<{
+  /** Contract label: IBKR local symbol when known (options differ from their stock), else symbol. */
   symbol: string;
+  secType: string;
   fills: number;
   bought: number;
   sold: number;
@@ -40,6 +42,46 @@ const amount = (value: Num): number => value ?? 0;
 const isClosing = (execution: PortfolioMonitorExecution): boolean =>
   execution.realized !== null && execution.realized !== 0;
 
+/**
+ * IBKR re-sends a corrected execution with a higher execId suffix ("….01.01" -> "….01.02");
+ * keep only the latest version of each, in the order the originals arrived.
+ */
+export const latestExecutions = (
+  executions: readonly PortfolioMonitorExecution[]
+): PortfolioMonitorExecution[] => {
+  const split = (execId: string): [string, number] | null => {
+    const dot = execId.lastIndexOf(".");
+    if (dot <= 0) return null;
+    const version = Number(execId.slice(dot + 1));
+    return Number.isInteger(version) ? [execId.slice(0, dot), version] : null;
+  };
+  const latest = new Map<string, number>();
+  for (const execution of executions) {
+    const parts = split(execution.execId);
+    if (parts === null) continue;
+    const [base, version] = parts;
+    if ((latest.get(base) ?? -1) < version) latest.set(base, version);
+  }
+  return executions.filter((execution) => {
+    const parts = split(execution.execId);
+    return parts === null || latest.get(parts[0]) === parts[1];
+  });
+};
+
+/** Realized P&L per closing order: fills of one IBKR order (permId) are one trade. */
+const closingTrades = (
+  executions: readonly PortfolioMonitorExecution[]
+): number[] => {
+  const trades = new Map<string, number>();
+  for (const [index, execution] of executions.filter(isClosing).entries()) {
+    // Without a permId each closing fill is its own trade.
+    const key =
+      execution.permId === null ? `fill:${index}` : `perm:${execution.permId}`;
+    trades.set(key, (trades.get(key) ?? 0) + amount(execution.realized));
+  }
+  return [...trades.values()].filter((value) => value !== 0);
+};
+
 const mean = (values: readonly number[]): Num =>
   values.length === 0
     ? null
@@ -53,7 +95,7 @@ export const sideLabel = (side: string): "Buy" | "Sell" | string => {
   return side;
 };
 
-/** Oldest first by IBKR time. Rows without a readable time keep their arrival order. */
+/** Oldest first by IBKR time; rows without a readable time follow, in arrival order. */
 export const chronologicalFills = (
   executions: readonly PortfolioMonitorExecution[]
 ): PortfolioMonitorExecution[] =>
@@ -66,6 +108,8 @@ export const chronologicalFills = (
     .sort((left, right) => {
       if (left.key !== null && right.key !== null && left.key !== right.key)
         return left.key.localeCompare(right.key);
+      if ((left.key === null) !== (right.key === null))
+        return left.key === null ? 1 : -1;
       return left.index - right.index;
     })
     .map((entry) => entry.execution);
@@ -73,9 +117,7 @@ export const chronologicalFills = (
 export const journalKpis = (
   executions: readonly PortfolioMonitorExecution[]
 ): JournalKpis => {
-  const closing = executions
-    .filter(isClosing)
-    .map((execution) => amount(execution.realized));
+  const closing = closingTrades(executions);
   const wins = closing.filter((value) => value > 0);
   const losses = closing.filter((value) => value < 0);
   return {
@@ -97,19 +139,36 @@ export const journalKpis = (
   };
 };
 
-/** One row per symbol, alphabetical. */
+/** One row per contract (security type + local symbol), alphabetical. */
 export const journalSymbolRows = (
   executions: readonly PortfolioMonitorExecution[]
 ): JournalSymbolRow[] => {
-  const groups = new Map<string, PortfolioMonitorExecution[]>();
+  const groups = new Map<
+    string,
+    { label: string; secType: string; group: PortfolioMonitorExecution[] }
+  >();
   for (const execution of executions) {
-    const group = groups.get(execution.symbol);
-    if (group === undefined) groups.set(execution.symbol, [execution]);
-    else group.push(execution);
+    const label =
+      execution.localSymbol.trim() === ""
+        ? execution.symbol
+        : execution.localSymbol.trim();
+    const key = `${execution.secType}\u0000${label}`;
+    const entry = groups.get(key);
+    if (entry === undefined)
+      groups.set(key, {
+        group: [execution],
+        label,
+        secType: execution.secType,
+      });
+    else entry.group.push(execution);
   }
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([symbol, group]) => {
+  return [...groups.values()]
+    .sort(
+      (left, right) =>
+        left.label.localeCompare(right.label) ||
+        left.secType.localeCompare(right.secType)
+    )
+    .map(({ label: symbol, secType, group }) => {
       const kpis = journalKpis(group);
       const shares = (side: "Buy" | "Sell") =>
         group
@@ -120,6 +179,7 @@ export const journalSymbolRows = (
         commissions: kpis.commissions,
         fills: kpis.fills,
         realized: kpis.realized,
+        secType,
         sold: shares("Sell"),
         symbol,
         winRate: kpis.winRate,

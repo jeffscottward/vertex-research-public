@@ -103,9 +103,9 @@ const context = (
 
 const snapshot = {
   executions: [
-    { commission: 1, realized: 30 },
-    { commission: 1, realized: -10 },
-    { commission: 1, realized: 0 },
+    { commission: 1, execId: "x30", permId: null, realized: 30 },
+    { commission: 1, execId: "x-10", permId: null, realized: -10 },
+    { commission: 1, execId: "x0", permId: null, realized: 0 },
   ],
 } as unknown as PortfolioMonitorOutput;
 

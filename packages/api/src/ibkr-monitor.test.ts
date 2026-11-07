@@ -201,7 +201,8 @@ const upstream = (overrides: Record<string, unknown> = {}) => ({
       exchange: "NYSE",
       orderRef: "",
       commission: 1,
-      realized: null,
+      // IBKR Double.MAX: the unset marker on an opening fill.
+      realized: Number.MAX_VALUE,
     },
   ],
   errors: [
@@ -280,6 +281,11 @@ describe("ibkrMonitor mapping", () => {
       completedStatus: "Filled",
     });
     expect(output.executions.map((row) => row.execId)).toEqual(["e1", "e2"]);
+    expect(output.executions[0]).toMatchObject({
+      localSymbol: "AAA",
+      permId: 9099,
+      realized: null,
+    });
   });
 
   it("falls back to the symbol and ranks positions without a market value last", () => {

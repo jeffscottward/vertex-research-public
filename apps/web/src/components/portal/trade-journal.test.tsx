@@ -52,6 +52,8 @@ const fill = (
   commission: 1,
   exchange: "SMART",
   execId: "e1",
+  localSymbol: "",
+  permId: null,
   orderRef: "",
   price: 100,
   realized: 0,

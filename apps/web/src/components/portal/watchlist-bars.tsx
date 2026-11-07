@@ -20,8 +20,9 @@ import {
   runWithConcurrency,
 } from "./watchlist-analytics.ts";
 
-/** Bars requests in flight at once; the history service paces IBKR itself. */
-const BARS_CONCURRENCY = 3;
+/** Bars requests in flight at once. The history service serialises IBKR requests behind one
+ * lock with pacing limits, so parallel requests would only queue there and hit its wait cap. */
+const BARS_CONCURRENCY = 1;
 
 export type SymbolBarsState =
   | Readonly<{ type: "loading" }>
@@ -72,6 +73,8 @@ export const useWatchlistBars = (
         return next;
       });
       return runWithConcurrency(list, BARS_CONCURRENCY, async (symbol) => {
+        // Queued symbols must not go out once the page has unmounted.
+        if (!mounted.current) return;
         let result: SymbolBarsState;
         try {
           const data = await gateway.bars(watchlistBarsInput(symbol));

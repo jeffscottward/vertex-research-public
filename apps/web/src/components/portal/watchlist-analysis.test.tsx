@@ -114,14 +114,15 @@ type Props = Readonly<{
   marketData: MarketDataGateway;
   portfolio: PortfolioMonitorGateway;
   strict?: boolean;
+  operator?: boolean;
 }>;
 
-const mount = async ({ strict = false, ...props }: Props) => {
+const mount = async ({ strict = false, operator = true, ...props }: Props) => {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   roots.push(root);
-  const tree = <WatchlistWorkspace {...props} />;
+  const tree = <WatchlistWorkspace operator={operator} {...props} />;
   await act(async () => {
     root.render(strict ? <StrictMode>{tree}</StrictMode> : tree);
     await flush();
@@ -309,6 +310,30 @@ describe("watchlist tabs", () => {
   });
 });
 
+describe("non-operator watchlist", () =>
+  it("shows one operator-access message on the analysis tabs and sends no bars or snapshot requests", async () => {
+    const gateway = listGateway(async () => [item("AAA"), item("BBB")]);
+    const marketData: MarketDataGateway = {
+      bars: vi.fn(async (input) => barsOutput(input, wave(0.01))),
+    };
+    const portfolio: PortfolioMonitorGateway = {
+      snapshot: vi.fn(async () => fixtureSnapshot({ positions: [] })),
+    };
+    await mount({ gateway, marketData, operator: false, portfolio });
+    await open("Relationships");
+    expect(
+      panel("Relationships").querySelectorAll(
+        '[data-operator-access="required"]'
+      )
+    ).toHaveLength(1);
+    await open("Exposure");
+    expect(
+      panel("Exposure").querySelectorAll('[data-operator-access="required"]')
+    ).toHaveLength(1);
+    expect(marketData.bars).not.toHaveBeenCalled();
+    return expect(portfolio.snapshot).not.toHaveBeenCalled();
+  }));
+
 describe("relationships tab", () => {
   it("fills the matrix as bars arrive, shows failures and retries a symbol", async () => {
     const calls = new Map<string, Deferred<MarketBarsOutput>[]>();
@@ -339,8 +364,8 @@ describe("relationships tab", () => {
       strict: true,
     });
     await open("Relationships");
-    // Three requests at a time.
-    expect(marketData.bars).toHaveBeenCalledTimes(3);
+    // One request at a time: the history service serialises and paces IBKR itself.
+    expect(marketData.bars).toHaveBeenCalledTimes(1);
     const label = "Daily bars by symbol";
     expect(status("AAA", label)?.textContent).toBe("AAALoading bars…");
     expect(panel("Relationships").textContent).toContain(
@@ -361,7 +386,7 @@ describe("relationships tab", () => {
     expect(status("CCC", label)?.textContent).toContain(
       "Failed (PACED): Pacing"
     );
-    expect(marketData.bars).toHaveBeenCalledTimes(5);
+    expect(marketData.bars).toHaveBeenCalledTimes(4);
     await settle("DDD", wave(-0.01));
     await settle("EEE", wave(0.01, 10));
     expect(cell("AAA", "DDD")?.textContent).toBe("-1.00");
@@ -377,6 +402,28 @@ describe("relationships tab", () => {
     expect(panel("Relationships").querySelector("caption")?.textContent).toBe(
       "Correlation of daily returns between watchlist symbols"
     );
+  });
+
+  it("sends no queued bars requests after the page unmounts", async () => {
+    const pending = deferred<MarketBarsOutput>();
+    const marketData: MarketDataGateway = {
+      bars: vi.fn(() => pending.promise),
+    };
+    const root = await mount({
+      gateway: listGateway(async () =>
+        ["AAA", "BBB", "CCC"].map((s) => item(s))
+      ),
+      marketData,
+      portfolio: { snapshot: vi.fn() },
+    });
+    await open("Relationships");
+    expect(marketData.bars).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+    await act(async () => {
+      pending.reject(new Error("gone"));
+      await flush();
+    });
+    return expect(marketData.bars).toHaveBeenCalledTimes(1);
   });
 
   it("caps the analysis to twelve symbols and needs two with bars", async () => {

@@ -204,7 +204,10 @@ const iso = (seconds: number): string =>
 const isoOrNull = (seconds: number | null): string | null =>
   seconds === null ? null : iso(seconds);
 const nn = (value: number | null | undefined): number | null =>
-  value === undefined || value === null || !Number.isFinite(value)
+  value === undefined ||
+  value === null ||
+  !Number.isFinite(value) ||
+  Math.abs(value) >= 1e300 // IBKR's Double.MAX "unset" marker
     ? null
     : value;
 
@@ -369,6 +372,9 @@ const mapExecution = (
   time: scrubPortfolioText(execution.time, 40),
   symbol: scrubPortfolioText(execution.symbol, 24),
   secType: scrubPortfolioText(execution.secType, 12),
+  localSymbol: scrubPortfolioText(execution.localSymbol, 40),
+  permId:
+    execution.permId !== null && execution.permId > 0 ? execution.permId : null,
   side: scrubPortfolioText(execution.side, 8),
   shares: nn(execution.shares),
   price: nn(execution.price),

@@ -4,7 +4,11 @@
 // and the chronological fill list, from the executions of one IBKR snapshot.
 // Nothing here can place, change or cancel an order.
 // See: trade-journal-model.ts (math), trade-journal-client.ts (loader), portfolio-monitor-client.ts.
-import type { PortfolioMonitorExecution } from "@darkfactory/api";
+import {
+  PORTFOLIO_MONITOR_MAX_ROWS,
+  type PortfolioMonitorExecution,
+  type PortfolioMonitorStatus,
+} from "@darkfactory/api";
 import {
   Button,
   cn,
@@ -46,6 +50,7 @@ import {
   formatPercent,
   formatSignedMoney,
   journalKpis,
+  latestExecutions,
   journalSymbolRows,
   journalTime,
   pnlTextClass,
@@ -100,6 +105,7 @@ const JournalKpiRow = ({
         value={kpis.fills}
       />
       <KpiCard
+        hint="IBKR realized, already net of commissions"
         label="Realized P&L"
         value={
           <span className={pnlTextClass(kpis.realized)}>
@@ -107,7 +113,11 @@ const JournalKpiRow = ({
           </span>
         }
       />
-      <KpiCard label="Commissions" value={formatMoney(kpis.commissions)} />
+      <KpiCard
+        hint="Already included in realized P&L"
+        label="Commissions"
+        value={formatMoney(kpis.commissions)}
+      />
       <KpiCard
         hint={`${kpis.wins} won · ${kpis.losses} lost`}
         label="Win rate"
@@ -152,9 +162,22 @@ const SymbolTable = ({
       </TableHeader>
       <TableBody>
         {journalSymbolRows(executions).map((row) => (
-          <TableRow data-symbol={row.symbol} key={row.symbol}>
+          <TableRow
+            data-sectype={row.secType}
+            data-symbol={row.symbol}
+            key={`${row.secType}:${row.symbol}`}
+          >
             <TableCell>
-              <TickerLink symbol={row.symbol} />
+              {row.secType === "STK" || row.secType === "" ? (
+                <TickerLink symbol={row.symbol} />
+              ) : (
+                <span>
+                  {row.symbol}{" "}
+                  <span className="text-muted-foreground text-xs">
+                    {row.secType}
+                  </span>
+                </span>
+              )}
             </TableCell>
             <TableCell numeric>{row.fills}</TableCell>
             <TableCell numeric>{formatNumber(row.bought)}</TableCell>
@@ -216,19 +239,57 @@ const FillTable = ({
   </TableScroll>
 );
 
+const JournalStatusLine = ({
+  status,
+}: Readonly<{ status: PortfolioMonitorStatus }>) => (
+  <p
+    className="text-muted-foreground text-xs"
+    data-journal-connected={status.connected ? "true" : "false"}
+    role="note"
+  >
+    {status.connected ? "Gateway connected" : "Gateway disconnected"} · data as
+    of {status.dataAsOf ?? "unknown"}
+  </p>
+);
+
 export const JournalReport = ({
-  executions,
-}: Readonly<{ executions: readonly PortfolioMonitorExecution[] }>) => {
-  if (executions.length === 0)
+  executions: received,
+  status,
+}: Readonly<{
+  executions: readonly PortfolioMonitorExecution[];
+  status?: PortfolioMonitorStatus;
+}>) => {
+  const statusLine =
+    status === undefined ? null : <JournalStatusLine status={status} />;
+  if (received.length === 0)
     return (
-      <EmptyState
-        description="IBKR reported no fills in the current execution window."
-        icon={<NotebookPen />}
-        title="No fills yet"
-      />
+      <div className="space-y-3">
+        {statusLine}
+        <EmptyState
+          description={
+            status !== undefined && !status.connected
+              ? "The IBKR gateway is disconnected, so fills may be missing."
+              : "IBKR reported no fills in the current execution window."
+          }
+          icon={<NotebookPen />}
+          title="No fills yet"
+        />
+      </div>
     );
+  const executions = latestExecutions(received);
   return (
     <div className="space-y-6" data-journal="report">
+      {statusLine}
+      {received.length >= PORTFOLIO_MONITOR_MAX_ROWS ? (
+        <p
+          className="text-sm text-warning-foreground"
+          data-journal-notice="cap"
+          role="note"
+        >
+          Showing the first {PORTFOLIO_MONITOR_MAX_ROWS} fills; older fills in
+          the window were cut off.
+        </p>
+      ) : null}
       <JournalKpiRow executions={executions} />
       <Panel title="Cumulative realized P&L">
         <CumulativeRealizedChart points={cumulativeRealized(executions)} />
@@ -284,7 +345,12 @@ export const TradeJournal = ({ source, load: supplied }: TradeJournalProps) => {
         />
       );
     }
-    return <JournalReport executions={state.value.executions} />;
+    return (
+      <JournalReport
+        executions={state.value.executions}
+        status={state.value.status}
+      />
+    );
   })();
 
   return (
