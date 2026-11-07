@@ -217,6 +217,7 @@ The always-on copy at `http://vertex.localhost` is a separate setup: rig user un
 | `bun run vertex:paper:tick` | Ticks the paper-forward monitors ([docs/vertex-rebuild/paper-forward.md](docs/vertex-rebuild/paper-forward.md)) |
 | `bun run vertex:alerts:tick` | Evaluates active price alerts and sends ntfy notifications ([docs/vertex-rebuild/price-alerts.md](docs/vertex-rebuild/price-alerts.md)) |
 | `bun run vertex:signal-alerts:tick` | Evaluates active signal alerts and watches and sends ntfy notifications ([docs/vertex-rebuild/signal-alerts.md](docs/vertex-rebuild/signal-alerts.md)) |
+| `bun run vertex:research-studies:import` | Stores one research study document from stdin (the ADX/RVOL filter study on `/backtests`) in Postgres ([docs/vertex-rebuild/research-studies.md](docs/vertex-rebuild/research-studies.md)) |
 | `bun run vertex:baskets:seed` | Seeds the owner's custom baskets, without changing existing ones ([docs/vertex-rebuild/baskets.md](docs/vertex-rebuild/baskets.md)) |
 | `bun run vertex:pick-lists -- import` | Imports dated pick-list snapshots from a JSON file or the owner's wish list ([docs/vertex-rebuild/pick-lists.md](docs/vertex-rebuild/pick-lists.md)) |
 | `bun run deploy:web:check` | Validates the Worker deploy inputs ([docs/deploy.md](docs/deploy.md)) |

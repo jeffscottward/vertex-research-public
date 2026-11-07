@@ -124,6 +124,7 @@ export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";
 export * from "./contracts/optimizations.ts";
 export * from "./contracts/quant-lab.ts";
 export * from "./contracts/research-reports.ts";
+export * from "./contracts/research-studies.ts";
 export * from "./contracts/click-log.ts";
 export { redactClickRoute, redactClickText } from "./click-log-redaction.ts";
 export * from "./contracts/strategy-library.ts";

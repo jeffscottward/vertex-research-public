@@ -1,7 +1,8 @@
+import { FilterStudySchema } from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
-import committed from "./adx-filter-study.json";
-import { FilterStudySchema, toFilterStudyViewModel } from "./view-model.ts";
+import seeded from "./fixtures/adx-filter-study.json";
+import { toFilterStudyViewModel } from "./view-model.ts";
 
 const metrics = {
   cagr: 0.0811,
@@ -132,8 +133,8 @@ describe("toFilterStudyViewModel", () => {
     ).toThrow();
   });
 
-  it("accepts the committed study summary", () => {
-    const parsed = FilterStudySchema.parse(committed);
+  it("accepts the seeded study (the 0050_research_studies migration row)", () => {
+    const parsed = FilterStudySchema.parse(seeded);
     expect(parsed.daily.variants).toHaveLength(13);
     return expect(
       parsed.intraday.variants.map((variant) => variant.filter)

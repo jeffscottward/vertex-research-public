@@ -1,78 +1,9 @@
-import { z } from "zod";
+import { type FilterStudy, FilterStudySchema } from "@darkfactory/api";
 
-// Filter studies: frozen research tests whose summary is committed with the code
-// (docs/specs/research/adx-filter.md). The summary JSON is written by
-// services/research/strategies/filter_study_summary.py; this module validates it and maps it to
-// display rows. Research only: a study result grants no trading authority.
-
-const Ratio = z.number().nullable();
-const Halves = z.tuple([Ratio, Ratio]);
-const VariantMetrics = {
-  cagr: z.number(),
-  maxDrawdown: z.number(),
-  sharpe: Ratio,
-  sharpeHalves: Halves,
-  trades: z.number().int().nonnegative(),
-  tradesPerYear: z.number().nonnegative(),
-};
-const DateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
-
-export const FilterStudySchema = z
-  .object({
-    daily: z.object({
-      costBpsPerSide: z.number(),
-      trials: z.number().int().positive(),
-      universe: z.array(z.string()).min(1),
-      variants: z
-        .array(
-          z.object({
-            ...VariantMetrics,
-            deflatedProbability: Ratio,
-            filter: z.enum(["none", "adx_above", "adx_below", "adx_falling"]),
-            strategy: z.string(),
-            verdict: z.string().nullable(),
-          })
-        )
-        .min(1),
-      window: z.object({
-        days: z.number().int().positive(),
-        end: DateText,
-        secondHalfStart: DateText,
-        start: DateText,
-      }),
-    }),
-    id: z.string(),
-    intraday: z.object({
-      barMinutes: z.number().int().positive(),
-      costBpsPerSide: z.number(),
-      sensitivity: z.object({
-        costBpsPerSide: z.number(),
-        verdict: z.string(),
-      }),
-      spearman: z.object({ firstHalf: Ratio, secondHalf: Ratio }),
-      symbol: z.string(),
-      variants: z
-        .array(
-          z.object({
-            ...VariantMetrics,
-            filter: z.enum(["none", "rvol_above_1"]),
-          })
-        )
-        .min(1),
-      verdict: z.string(),
-      window: z.object({
-        end: DateText,
-        secondHalfStart: DateText,
-        sessions: z.number().int().positive(),
-        start: DateText,
-      }),
-    }),
-    ran: DateText,
-    spec: z.string(),
-  })
-  .strict();
-
-export type FilterStudy = z.infer<typeof FilterStudySchema>;
+// Filter studies: frozen research tests (docs/specs/research/adx-filter.md). The study document is
+// stored in Postgres (research_studies) and read through researchStudies.get; FilterStudySchema is
+// shared with the API and the import CLI (@darkfactory/api). This module validates a document and
+// maps it to display rows. Research only: a study result grants no trading authority.
 
 const STRATEGY_LABELS: Readonly<Record<string, string>> = {
   breakout_20: "20-day breakout",

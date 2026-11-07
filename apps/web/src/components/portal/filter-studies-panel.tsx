@@ -7,16 +7,15 @@ import {
   TableHeader,
   TableRow,
 } from "@darkfactory/ui";
-import adxFilterStudy from "../../features/research-studies/adx-filter-study.json";
-import {
-  type FilterStudyViewModel,
-  type StudyRow,
-  toFilterStudyViewModel,
-  type VerdictTone,
+import type {
+  FilterStudyViewModel,
+  StudyRow,
+  VerdictTone,
 } from "../../features/research-studies/view-model.ts";
 
-// Read-only summary of frozen filter studies (docs/specs/research/adx-filter.md). The numbers come
-// from the committed study summary; nothing here runs a backtest or places orders.
+// Read-only summary of frozen filter studies (docs/specs/research/adx-filter.md). Presentational:
+// the view model comes from filter-studies-section.tsx (researchStudies.get) or a test/lab fixture.
+// Nothing here runs a backtest or places orders.
 
 const headCell = "text-muted-foreground px-2 py-2 text-left font-normal";
 const numHead = "text-muted-foreground px-2 py-2 text-right font-normal";
@@ -167,6 +166,3 @@ export const FilterStudiesPanel = ({
     </div>
   </section>
 );
-
-/** The committed study summary, validated at module load. */
-export const FILTER_STUDY_MODEL = toFilterStudyViewModel(adxFilterStudy);

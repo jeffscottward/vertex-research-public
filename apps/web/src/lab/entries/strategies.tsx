@@ -27,9 +27,9 @@ import type {
 } from "../../components/portal/agent-ops-client.tsx";
 import { BacktestsWorkspace } from "../../components/portal/backtests-workspace.tsx";
 import {
-  FILTER_STUDY_MODEL,
-  FilterStudiesPanel,
-} from "../../components/portal/filter-studies-panel.tsx";
+  FilterStudiesSection,
+  type ResearchStudyGateway,
+} from "../../components/portal/filter-studies-section.tsx";
 import { OptimizationsWorkspace } from "../../components/portal/optimizations-workspace.tsx";
 import {
   type QuantLabGateway,
@@ -51,6 +51,7 @@ import {
   LAB_ACADEMY_TICKERS,
   LAB_BACKTEST_ROWS,
   LAB_EXPERIENCE_SCOPES,
+  LAB_FILTER_STUDY,
   LAB_OPTIMIZATION_ROWS,
   LAB_QUANT_LAB,
   LAB_STRATEGY_ROWS,
@@ -80,6 +81,10 @@ const labBacktestsGateway: BacktestsGateway = {
 
 const labQuantLabGateway: QuantLabGateway = {
   list: () => Promise.resolve(LAB_QUANT_LAB),
+};
+
+const labResearchStudyGateway: ResearchStudyGateway = {
+  get: () => Promise.resolve(LAB_FILTER_STUDY),
 };
 
 const labOptimizationsGateway: OptimizationsGateway = {
@@ -212,7 +217,7 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
         <PageHeader title="Backtests" />
         <BacktestsWorkspace gateway={labBacktestsGateway} />
         <QuantLabPanel gateway={labQuantLabGateway} />
-        <FilterStudiesPanel model={FILTER_STUDY_MODEL} />
+        <FilterStudiesSection gateway={labResearchStudyGateway} />
       </div>
     ),
     route: "/backtests",

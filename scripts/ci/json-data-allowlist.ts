@@ -5,7 +5,6 @@
 
 /** JSON data files still to move into Postgres (or delete). Remove each entry with its migration. */
 export const PENDING_JSON_DATA: readonly string[] = [
-  "apps/web/src/features/research-studies/adx-filter-study.json",
   "packages/academy/src/lessons/classification.json",
   "packages/academy/src/lessons/media-manifest.json",
   "packages/academy/src/lessons/narration-timing.json",
@@ -300,9 +299,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "apps/desktop/src/electron-ports.ts": ["settings.json"],
     "apps/web/src/components/portal/deployments-snapshot.tsx": ["health.json"],
-    "apps/web/src/components/portal/filter-studies-panel.tsx": [
-      "../../features/research-studies/adx-filter-study.json",
-    ],
     "apps/web/src/lab/entries/automation.tsx": [
       "../fixtures/automation.ts",
       "../fixtures/core.ts",
@@ -705,7 +701,4 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "services/research/quantlab/data.py": [".manifest.json"],
     "services/research/strategies/adx_filter_run.py": ["manifest.json"],
-    "services/research/strategies/filter_study_summary.py": [
-      "../../apps/web/src/features/research-studies/adx-filter-study.json",
-    ],
   };

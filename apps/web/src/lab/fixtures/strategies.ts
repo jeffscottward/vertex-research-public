@@ -1,5 +1,6 @@
-// What: UI lab fixtures for the strategy pages: library, backtests, Quant Lab, optimizations, Academy
-// gate and Vertex strategy specs. Fictional and deterministic (seeded from LAB_NOW).
+// What: UI lab fixtures for the strategy pages: library, backtests, Quant Lab, filter studies,
+// optimizations, Academy gate and Vertex strategy specs. Fictional and deterministic (seeded from
+// LAB_NOW), except the filter study: the public ADX/RVOL study that 0050_research_studies seeds.
 // Used by: apps/web/src/lab/entries/strategies.tsx.
 import {
   type AcademyDeployInput,
@@ -10,10 +11,12 @@ import {
   type BacktestGetOutput,
   type BacktestResultSummaryOutput,
   computeOptimizationAnalytics,
+  FilterStudySchema,
   type OptimizationGetOutput,
   type OptimizationRunOutput,
   type OptimizationSummaryOutput,
   type QuantLabListOutput,
+  type ResearchStudy,
   type StrategyGetOutput,
   type StrategyPresetOutput,
   type StrategySummaryOutput,
@@ -24,6 +27,7 @@ import type {
   ExperienceScope,
   ImmutableArtifact,
 } from "../../features/experience/ports.ts";
+import adxFilterStudyJson from "../../features/research-studies/fixtures/adx-filter-study.json";
 import backtestAnalyticsJson from "./backtest-analytics.json";
 import {
   createSeededRandom,
@@ -513,6 +517,16 @@ export const LAB_QUANT_LAB: QuantLabListOutput = {
       strategy: null,
     },
   ],
+};
+
+// ---------------------------------------------------------------------------
+// Filter studies
+
+/** researchStudies.get output for the seeded ADX/RVOL filter study. */
+export const LAB_FILTER_STUDY: ResearchStudy = {
+  id: "adx-rvol-filters",
+  study: FilterStudySchema.parse(adxFilterStudyJson),
+  updatedAt: labDate(7),
 };
 
 // ---------------------------------------------------------------------------

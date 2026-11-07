@@ -128496,6 +128496,664 @@
         ]
       }
     },
+    "/research-studies/{id}": {
+      "get": {
+        "operationId": "researchStudies.get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "type": "string"
+                    },
+                    "study": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "daily": {
+                          "properties": {
+                            "costBpsPerSide": {
+                              "type": "number"
+                            },
+                            "trials": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "universe": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "variants": {
+                              "items": {
+                                "properties": {
+                                  "cagr": {
+                                    "type": "number"
+                                  },
+                                  "deflatedProbability": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "filter": {
+                                    "enum": [
+                                      "none",
+                                      "adx_above",
+                                      "adx_below",
+                                      "adx_falling"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "maxDrawdown": {
+                                    "type": "number"
+                                  },
+                                  "sharpe": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "sharpeHalves": {
+                                    "prefixItems": [
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    ],
+                                    "type": "array"
+                                  },
+                                  "strategy": {
+                                    "type": "string"
+                                  },
+                                  "trades": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "tradesPerYear": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  "verdict": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "cagr",
+                                  "maxDrawdown",
+                                  "sharpe",
+                                  "sharpeHalves",
+                                  "trades",
+                                  "tradesPerYear",
+                                  "deflatedProbability",
+                                  "filter",
+                                  "strategy",
+                                  "verdict"
+                                ],
+                                "type": "object"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "window": {
+                              "properties": {
+                                "days": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "end": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "secondHalfStart": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "days",
+                                "end",
+                                "secondHalfStart",
+                                "start"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "costBpsPerSide",
+                            "trials",
+                            "universe",
+                            "variants",
+                            "window"
+                          ],
+                          "type": "object"
+                        },
+                        "id": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                          "type": "string"
+                        },
+                        "intraday": {
+                          "properties": {
+                            "barMinutes": {
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "costBpsPerSide": {
+                              "type": "number"
+                            },
+                            "sensitivity": {
+                              "properties": {
+                                "costBpsPerSide": {
+                                  "type": "number"
+                                },
+                                "verdict": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "costBpsPerSide",
+                                "verdict"
+                              ],
+                              "type": "object"
+                            },
+                            "spearman": {
+                              "properties": {
+                                "firstHalf": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "secondHalf": {
+                                  "anyOf": [
+                                    {
+                                      "type": "number"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "firstHalf",
+                                "secondHalf"
+                              ],
+                              "type": "object"
+                            },
+                            "symbol": {
+                              "type": "string"
+                            },
+                            "variants": {
+                              "items": {
+                                "properties": {
+                                  "cagr": {
+                                    "type": "number"
+                                  },
+                                  "filter": {
+                                    "enum": [
+                                      "none",
+                                      "rvol_above_1"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "maxDrawdown": {
+                                    "type": "number"
+                                  },
+                                  "sharpe": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "sharpeHalves": {
+                                    "prefixItems": [
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    ],
+                                    "type": "array"
+                                  },
+                                  "trades": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "tradesPerYear": {
+                                    "minimum": 0,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "cagr",
+                                  "maxDrawdown",
+                                  "sharpe",
+                                  "sharpeHalves",
+                                  "trades",
+                                  "tradesPerYear",
+                                  "filter"
+                                ],
+                                "type": "object"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "verdict": {
+                              "type": "string"
+                            },
+                            "window": {
+                              "properties": {
+                                "end": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "secondHalfStart": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "sessions": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "start": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "end",
+                                "secondHalfStart",
+                                "sessions",
+                                "start"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "barMinutes",
+                            "costBpsPerSide",
+                            "sensitivity",
+                            "spearman",
+                            "symbol",
+                            "variants",
+                            "verdict",
+                            "window"
+                          ],
+                          "type": "object"
+                        },
+                        "ran": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "spec": {
+                          "maxLength": 300,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "daily",
+                        "id",
+                        "intraday",
+                        "ran",
+                        "spec"
+                      ],
+                      "type": "object"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "type": "string",
+                      "x-native-type": "date"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "study",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research study not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Research study storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Get one frozen research study (for example the ADX/RVOL filter study)",
+        "tags": [
+          "Research Studies"
+        ]
+      }
+    },
     "/risk-allocator/caps": {
       "get": {
         "operationId": "riskAllocator.caps",

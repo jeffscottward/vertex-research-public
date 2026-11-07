@@ -285,6 +285,7 @@ const REVIEWED_READS: readonly string[] = [
   "researchReports.companyResearch",
   "researchReports.dataset",
   "researchReports.list",
+  "researchStudies.get",
   "riskAllocator.caps",
   "sectorRotation.snapshot",
   "setupReplay.presets",

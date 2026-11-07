@@ -233,6 +233,10 @@ import {
   type QuantLabReadRepository,
 } from "./quant-lab-read.ts";
 import {
+  createResearchStudyRepository,
+  type ResearchStudyRepository,
+} from "./research-studies.ts";
+import {
   createSectorRotationRepository,
   type SectorRotationRepository,
 } from "./sector-rotation.ts";
@@ -4264,6 +4268,7 @@ export type Repositories = Readonly<{
   backtestResults?: BacktestResultsRepository;
   optimizationRuns?: OptimizationRunsRepository;
   quantLab?: QuantLabReadRepository;
+  researchStudies?: ResearchStudyRepository;
   deploymentRequests?: DeploymentRequestsRepository;
   assistant?: AssistantRepository;
   strategyLibrary?: StrategyLibraryRepository;
@@ -4304,6 +4309,7 @@ export const createRepositories = (
   backtestResults: createBacktestResultsRepository(database, dependencies),
   optimizationRuns: createOptimizationRunsRepository(database, dependencies),
   quantLab: createQuantLabReadRepository(database),
+  researchStudies: createResearchStudyRepository(database),
   strategyLibrary: createStrategyLibraryRepository(database, dependencies),
   deploymentRequests: createDeploymentRequestsRepository(
     database,
