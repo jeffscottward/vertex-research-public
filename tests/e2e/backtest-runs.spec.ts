@@ -72,7 +72,12 @@ test("an operator runs a backtest and replays its trades", async ({ page }) => {
   await expect(report.getByText("Initial deposit")).toBeVisible();
   await expect(report.getByText("25,000.00")).toBeVisible();
   await expect(report.getByText("Maximal drawdown")).toBeVisible();
-  const rows = report.locator("tbody tr");
+  // The trade table and the replay sit on the "Trades Log" tab; Performance opens first.
+  await report.getByRole("tab", { name: "Trades Log" }).click();
+  const rows = report
+    .getByRole("region", { exact: true, name: "Trades" })
+    .locator("tbody tr");
+  await expect(rows.first()).toBeVisible();
   expect(await rows.count()).toBeGreaterThan(1);
   const total = await rows.count();
 
@@ -88,6 +93,7 @@ test("an operator runs a backtest and replays its trades", async ({ page }) => {
 });
 
 test("the page opens the latest succeeded run with no clicks", async ({
+  browserErrors,
   page,
 }) => {
   await signInAs(page, E2E_IDENTITIES.alice);
@@ -103,7 +109,13 @@ test("the page opens the latest succeeded run with no clicks", async ({
   });
   expect(new URL(page.url()).search).toBe("");
 
-  // An unknown ?run= falls back to the latest succeeded run.
+  // An unknown ?run= falls back to the latest succeeded run. Its read answers NOT_FOUND
+  // (HTTP 404) first; that answer starts the fallback.
+  browserErrors.allowHttpError({
+    method: "POST",
+    pathname: "/api/orpc/backtestRuns/get",
+    status: 404,
+  });
   await page.goto("/backtest-runs?run=missing-run");
   await expect(report.getByText("Total net profit")).toBeVisible({
     timeout: 30_000,

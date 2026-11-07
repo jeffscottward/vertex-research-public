@@ -1,7 +1,9 @@
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
+import { e2eSectorRotationDates } from "./helpers/database.ts";
 
-// Sector rotation map. The E2E database holds no collected sector rotation rows, so the stored
-// sector map answers NOT_FOUND and the page must say so without failing. Custom lists call Yahoo,
+// Sector rotation map. The E2E seed stores two daily sessions (helpers/database.ts) and no
+// weekly rows, so the weekly map answers NOT_FOUND and the page must say so without failing,
+// while the daily map draws the stored sectors. Custom lists call Yahoo,
 // so none is applied here. Research only; no order path.
 
 test("the sector rotation page reports a map that is not yet collected", async ({
@@ -34,15 +36,18 @@ test("the sector rotation page reports a map that is not yet collected", async (
   await expect(
     page.getByRole("region", { name: "Rotation map" }).getByLabel("Tail length")
   ).toBeVisible();
-  // The daily map is not collected either; the tab switch reloads and keeps the notice.
+  // The daily map is stored; the tab switch reloads and draws it.
   await page.getByRole("tab", { name: "Daily" }).click();
   await expect(page.getByRole("tab", { name: "Daily" })).toHaveAttribute(
     "aria-selected",
     "true"
   );
-  await expect(page.getByRole("alert")).toContainText(
-    "Sector rotation not yet collected"
-  );
+  const { today } = e2eSectorRotationDates();
+  await expect(page.getByText(`As of ${today}`, { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("cell", { exact: true, name: "Technology" })
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   // Settings are kept in the URL and restored on reload.
   await expect(page).toHaveURL(/[?&]timeframe=daily/u);
   await page.getByLabel("Tail length").selectOption("20");

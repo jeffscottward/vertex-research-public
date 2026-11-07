@@ -156,15 +156,8 @@ for (const viewport of [
   { height: 900, width: 1440 },
 ] as const) {
   test(`the assistant toggle covers no page control on Mission control (${viewport.width}x${viewport.height})`, async ({
-    browserErrors,
     page,
   }) => {
-    // The E2E database holds no collected sector rotation rows: the snapshot answers NOT_FOUND.
-    browserErrors.allowHttpError({
-      method: "POST",
-      pathname: "/api/orpc/sectorRotation/snapshot",
-      status: 404,
-    });
     await page.setViewportSize(viewport);
     await page.emulateMedia({ colorScheme: "dark" });
     await signInAs(page, E2E_IDENTITIES.alice);

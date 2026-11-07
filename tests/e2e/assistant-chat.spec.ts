@@ -29,7 +29,10 @@ test("the assistant opens from Research, replies and keeps the transcript after 
   await page.getByRole("link", { name: "Open the research assistant" }).click();
   await expect(page).toHaveURL(/\/assistant$/u);
 
-  await page.getByLabel("Message").fill(MESSAGE);
+  // By role: the label "Message" is also a substring of the transcript region "Messages".
+  const composer = page.getByRole("textbox", { name: "Message" });
+  await expect(composer).toBeEnabled();
+  await composer.fill(MESSAGE);
   await page.getByRole("button", { name: "Send" }).click();
 
   const transcript = page.getByRole("list", { name: "Transcript" });
