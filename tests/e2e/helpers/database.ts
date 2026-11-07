@@ -1,8 +1,5 @@
 import { ensureDevelopmentSeedIdentity } from "@darkfactory/auth/server";
-import {
-  contactRateLimits,
-  sectorRotationPoints,
-} from "@darkfactory/db/schema";
+import { contactRateLimits } from "@darkfactory/db/schema";
 import {
   createAgentModelRunsRepository,
   createNodeDatabase,
@@ -115,14 +112,6 @@ const seedSectorRotation = async (database: Database): Promise<void> => {
     )
   );
 };
-
-/** Removes every stored sector rotation point (the never-collected state). */
-export const clearSectorRotation = (
-  env: E2EEnvironment = e2eEnvironment()
-): Promise<void> =>
-  withRunDatabase(env, async (database) => {
-    await database.delete(sectorRotationPoints);
-  });
 
 /**
  * Empties the database-backed contact throttle. Every local submission shares
