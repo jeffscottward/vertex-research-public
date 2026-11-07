@@ -400,7 +400,8 @@ describe("ChartsWorkspace", () => {
   it("mounts the lazy order flow panel after Return analysis, futures included", async () => {
     const orderFlow = {
       depth: vi.fn(() => new Promise<never>(() => undefined)),
-      ticks: vi.fn(() => new Promise<never>(() => undefined)),
+      // Settles at once: the panel asks for the TPO bars only after the trade prints settle.
+      ticks: vi.fn(() => Promise.reject(new Error("ticks off in this test"))),
     } satisfies OrderFlowGateway;
     const base = output();
     const market = marketGateway(async (input) =>
