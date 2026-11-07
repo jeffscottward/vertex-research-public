@@ -189,13 +189,18 @@ const OptionsGexContextToolInputSchema = z
   })
   .strict();
 
-// The IV surface, skew, per-strike rows and flow events are dropped; the GEX headline, its
+// The IV surface, skew, per-strike rows (strikeCount says how many) and flow events are dropped; the GEX headline, its
 // context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime, session, events,
 // caveat factors) and the data notes stay.
 export const presentGexContext = (value: unknown): unknown => {
   if (typeof value !== "object" || value === null) return value;
   const output = value as OptionsAnalyticsOutput;
-  if (typeof output.exposure !== "object" || output.exposure === null)
+  if (
+    typeof output.exposure !== "object" ||
+    output.exposure === null ||
+    typeof output.flow !== "object" ||
+    output.flow === null
+  )
     return value;
   return {
     context: output.context,
@@ -204,7 +209,7 @@ export const presentGexContext = (value: unknown): unknown => {
       maxPain: output.exposure.maxPain,
       message: output.exposure.message,
       status: output.exposure.status,
-      strikesOmitted: output.exposure.strikes.length,
+      strikeCount: output.exposure.strikes.length,
       totalGex: output.exposure.totalGex,
     },
     flowStatus: output.flow.status,
@@ -438,7 +443,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "options_gex_context",
     title: "Options GEX context",
     description:
-      "Read-only estimated GEX for one US stock symbol (QuantData) and the context to read before trusting it: regime, gamma flip and call/put walls with distance in one-day implied moves, estimated dealer DEX, vanna and charm, flow bias (bullish vs bearish premium), OI freshness (previous session), expiry mix, IV term regime, New York session, next monthly OpEx and plain-text caveat factors. Signs assume dealers long calls, short puts. Research only; not a trade signal.",
+      "Read-only estimated GEX for one US stock symbol (QuantData) and the context to read before trusting it: regime, gamma flip and call/put walls with distance in one-day implied moves, open-interest delta (DEX, holders' side), estimated dealer vanna and charm, flow bias (bullish vs bearish premium), OI freshness (previous session), expiry mix, IV term regime, New York session, next monthly OpEx and plain-text caveat factors. GEX, level, vanna and charm signs assume dealers long calls, short puts. Research only; not a trade signal.",
     procedure: "optionsAnalytics/snapshot",
     input: OptionsGexContextToolInputSchema,
     readOnly: true,

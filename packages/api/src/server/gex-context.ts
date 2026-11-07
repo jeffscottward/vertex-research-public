@@ -87,8 +87,10 @@ export const dealerTotals = (
     const calls = row.callOpenInterest * 100;
     const puts = row.putOpenInterest * 100;
     gex += (calls * call.gamma - puts * put.gamma) * spot * spot * 0.01;
-    // Short puts carry +delta: -puts x (put delta = call delta - 1).
-    dex += (calls * call.delta - puts * (put.delta - 1)) * spot;
+    // DEX is the vendor-standard net delta of open interest from the holders' side
+    // (calls +, puts -: put delta = call delta - 1). It does not use the dealer sign:
+    // under that assumption dealer delta would always be positive and say nothing.
+    dex += (calls * call.delta + puts * (put.delta - 1)) * spot;
     vanna += (calls * call.vanna - puts * put.vanna) * spot * 0.01;
     charm += ((calls * call.charm - puts * put.charm) * spot) / DAYS_PER_YEAR;
   }
@@ -151,7 +153,10 @@ export const flowContext = (
   let total = 0;
   let zeroDte = 0;
   let week = 0;
+  let newest: string | null = null;
   for (const event of events) {
+    if (newest === null || Date.parse(event.time) > Date.parse(newest))
+      newest = event.time;
     const premium = Math.abs(event.premium);
     total += premium;
     if (event.sentiment === "bullish") bullishPremium += premium;
@@ -173,7 +178,7 @@ export const flowContext = (
             ? "bearish"
             : "balanced",
     bullishPremium,
-    newestTradeAt: events[0]?.time ?? null,
+    newestTradeAt: newest,
     weekShare: total === 0 ? null : week / total,
     zeroDteShare: total === 0 ? null : zeroDte / total,
   };
@@ -206,18 +211,31 @@ export const ivContext = (
 export type MarketSession = GexContext["session"];
 
 const NEW_YORK = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
   hour: "2-digit",
   hourCycle: "h23",
   minute: "2-digit",
+  month: "2-digit",
   timeZone: "America/New_York",
   weekday: "short",
+  year: "numeric",
 });
+
+const newYorkParts = (now: Date): Record<string, string> =>
+  Object.fromEntries(
+    NEW_YORK.formatToParts(now).map((part) => [part.type, part.value])
+  );
+
+// The New York calendar date (YYYY-MM-DD): expiries, 0DTE and OpEx follow the US market
+// day, which differs from the UTC date from 20:00 (19:00 in summer) to midnight New York.
+export const newYorkDate = (now: Date): string => {
+  const parts = newYorkParts(now);
+  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+};
 
 // US equity session by New York wall time; holidays are not modelled.
 export const marketSession = (now: Date): MarketSession => {
-  const parts = Object.fromEntries(
-    NEW_YORK.formatToParts(now).map((part) => [part.type, part.value])
-  );
+  const parts = newYorkParts(now);
   if (parts["weekday"] === "Sat" || parts["weekday"] === "Sun") return "closed";
   const minutes = Number(parts["hour"]) * 60 + Number(parts["minute"]);
   if (minutes < 4 * 60 || minutes >= 20 * 60) return "closed";
@@ -352,7 +370,7 @@ const levelFactor = (levels: Levels): GexContextFactor => {
   const near = known.some(({ value }) => Math.abs(value) <= 1);
   return {
     detail:
-      "Distance from spot in one-day implied moves (spot x front ATM IV / sqrt 252). A level more than a day-move away is unlikely to matter today. Levels are hedging zones, not reversal signals.",
+      "Distance from spot in one-day implied moves (spot x front ATM IV / sqrt 252); beyond one day-move a level rarely matters today. Estimate: fixed IV per strike, one front-expiry time for all OI. Hedging zones, not reversal signals.",
     key: "levels",
     label: "Spot vs levels",
     tone: near ? "caution" : "neutral",
@@ -390,7 +408,7 @@ const flowFactor = (
 
 const DEALER_SIGN_FACTOR: GexContextFactor = {
   detail:
-    "Every GEX, DEX, vanna and charm sign here assumes customers sell calls and buy puts (dealers long calls, short puts). If customers bought the calls, the sign flips.",
+    "The GEX, flip, wall, vanna and charm signs here assume customers sell calls and buy puts (dealers long calls, short puts). If customers bought the calls, the sign flips.",
   key: "dealerSign",
   label: "Dealer sign",
   tone: "caution",
@@ -463,14 +481,14 @@ const greekFactors = (
 ): GexContextFactor[] => [
   {
     detail:
-      "Estimated dealer delta in dollars (same OI and IV as GEX). Customer positioning sets dealer delta; GEX is only how fast it changes.",
+      "Net delta of all open options in dollars, holders' side (calls +, puts -; same OI and IV as GEX). Positioning sets the delta dealers must hedge; GEX is only how fast it changes.",
     key: "dex",
-    label: "Dealer delta (DEX)",
+    label: "Open-interest delta (DEX)",
     tone: "neutral",
     value: greeks.netDex === null ? "n/a" : compactMoney(greeks.netDex),
   },
   {
-    detail: `Estimated change of dealer delta per day as time passes; dealers hedge against it. Charm acts most in the PM session and into expiry. Now: ${SESSION_LABELS[session]}.`,
+    detail: `Estimated change of dealer delta per day as time passes; dealers hedge against it. Rule of thumb: charm acts most in the PM session and into expiry. Now: ${SESSION_LABELS[session]}.`,
     key: "charm",
     label: `Charm · ${SESSION_LABELS[session]}`,
     tone:
@@ -553,20 +571,26 @@ const buildFactors = (
   ].map((factor) => ({ ...factor, value: factor.value.slice(0, 80) }));
 
 export const buildGexContext = (input: GexContextInput): GexContext => {
-  const today = input.now.toISOString().slice(0, 10);
+  const today = newYorkDate(input.now);
   const { levels, greeks } = dealerContext(input, today);
   const total = input.exposure.totalGex;
+  // Exactly zero (no imbalance or no GEX at all) has no sign to report.
   const regime =
-    total === null ? "unknown" : total >= 0 ? "positive" : "negative";
-  const expiries = [...new Set(input.chain.map((row) => row.expiry))];
-  const nextExpiry = expiries[0] ?? null;
+    total === null || total === 0
+      ? "unknown"
+      : total > 0
+        ? "positive"
+        : "negative";
+  const nextExpiry =
+    [...new Set(input.chain.map((row) => row.expiry))]
+      .filter((expiry) => expiry >= today)
+      .sort()[0] ?? null;
   const opex = nextMonthlyOpex(today);
   const parts: FactorParts = {
     expiry: {
       monthlyOpexDays: daysUntil(opex, today),
       nextExpiry,
-      nextExpiryDte:
-        nextExpiry === null ? null : Math.max(0, daysUntil(nextExpiry, today)),
+      nextExpiryDte: nextExpiry === null ? null : daysUntil(nextExpiry, today),
       nextMonthlyOpex: opex,
     },
     flow: flowContext(input.flowOk ? input.events : [], today),

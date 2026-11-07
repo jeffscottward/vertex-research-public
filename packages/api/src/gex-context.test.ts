@@ -17,6 +17,7 @@ import {
   type GexContextInput,
   ivContext,
   marketSession,
+  newYorkDate,
   nextMonthlyOpex,
 } from "./server/gex-context.ts";
 import {
@@ -150,7 +151,19 @@ describe("dealer Greeks", () => {
     expect(greeks.gamma).toBeCloseTo(blackScholesGamma(100, 105, 0.3, 0.1), 10);
     // OTM call: delta falls as time passes (negative charm) and rises with IV (positive vanna).
     expect(greeks.charm).toBeLessThan(0);
-    return expect(greeks.vanna).toBeGreaterThan(0);
+    expect(greeks.vanna).toBeGreaterThan(0);
+    // Finite differences: vanna = d(delta)/d(IV), charm = -d(delta)/d(years).
+    const step = 1e-5;
+    const deltaAt = (iv: number, years: number) =>
+      callGreeks(100, 105, iv, years).delta;
+    expect(greeks.vanna).toBeCloseTo(
+      (deltaAt(0.3 + step, 0.1) - deltaAt(0.3 - step, 0.1)) / (2 * step),
+      4
+    );
+    return expect(greeks.charm).toBeCloseTo(
+      -(deltaAt(0.3, 0.1 + step) - deltaAt(0.3, 0.1 - step)) / (2 * step),
+      4
+    );
   });
 
   it("totals dealer exposure and skips strikes without IV", () => {
@@ -159,9 +172,17 @@ describe("dealer Greeks", () => {
     ];
     expect(dealerTotals(strikes, model(null), 100)).toBeNull();
     const totals = dealerTotals(strikes, model(0.3), 100);
-    // Ten long ATM calls: dealer delta near +0.5 x 10 x 100 x $100.
+    // Ten ATM calls: open-interest delta near +0.5 x 10 x 100 x $100.
     expect(totals?.dex).toBeGreaterThan(45_000);
-    return expect(totals?.gex).toBeGreaterThan(0);
+    expect(totals?.gex).toBeGreaterThan(0);
+    // Ten ATM puts: holders are short delta, and dealers (short the puts) hold -gamma.
+    const puts = dealerTotals(
+      [{ callOpenInterest: 0, gex: null, putOpenInterest: 10, strike: 100 }],
+      model(0.3),
+      100
+    );
+    expect(puts?.dex).toBeLessThan(-45_000);
+    return expect(puts?.gex).toBeLessThan(0);
   });
 
   it("finds the GEX flip nearest spot, or none", () => {
@@ -277,7 +298,25 @@ describe("flow, IV, session and calendar context", () => {
     expect(at("2026-11-06T18:00:00.000Z")).toBe("midday");
     expect(at("2026-11-06T20:00:00.000Z")).toBe("afternoon");
     expect(at("2026-11-06T22:00:00.000Z")).toBe("afterhours");
-    return expect(at("2026-11-07T02:00:00.000Z")).toBe("closed");
+    expect(at("2026-11-07T02:00:00.000Z")).toBe("closed");
+    // Boundaries in summer time (EDT, UTC-4): 09:30, 12:00, 14:00, 16:00 and 20:00 New York.
+    expect(at("2026-07-06T13:29:00.000Z")).toBe("premarket");
+    expect(at("2026-07-06T13:30:00.000Z")).toBe("morning");
+    expect(at("2026-07-06T16:00:00.000Z")).toBe("midday");
+    expect(at("2026-07-06T18:00:00.000Z")).toBe("afternoon");
+    expect(at("2026-07-06T20:00:00.000Z")).toBe("afterhours");
+    expect(at("2026-07-07T00:00:00.000Z")).toBe("closed");
+    return expect(at("2026-07-06T08:00:00.000Z")).toBe("premarket");
+  });
+
+  it("uses the New York date, not the UTC date", () => {
+    // 21:00 New York on Friday 2026-11-06 is already Saturday in UTC.
+    expect(newYorkDate(new Date("2026-11-07T02:00:00.000Z"))).toBe(
+      "2026-11-06"
+    );
+    return expect(newYorkDate(new Date("2026-07-06T03:59:00.000Z"))).toBe(
+      "2026-07-05"
+    );
   });
 
   it("finds the next monthly OpEx (third Friday)", () => {
@@ -509,5 +548,33 @@ describe("buildGexContext", () => {
       value: "call wall -0.8 day-moves · put wall -16.5 day-moves",
     });
     return expect(factor(large.factors, "vanna").tone).toBe("neutral");
+  });
+
+  it("reads the next expiry and newest trade from unsorted input on the New York day", () => {
+    // 21:00 New York on 2026-11-06 (02:00 UTC on 2026-11-07): today's expiry is still 0DTE.
+    const evening = new Date("2026-11-07T02:00:00.000Z");
+    const unsorted = [
+      ...chainFor([["2026-11-20", 0.25]]),
+      ...chainFor([["2026-11-05", 0.3]]),
+      ...chainFor([["2026-11-06", 0.3]]),
+    ];
+    const context = buildGexContext(
+      input({
+        chain: unsorted,
+        events: [
+          event({ time: "2026-11-06T15:00:00.000Z" }),
+          event({ time: "2026-11-06T20:59:00.000Z" }),
+          event({ time: "2026-11-06T18:00:00.000Z" }),
+        ],
+        now: evening,
+      })
+    );
+    expect(context.expiry).toMatchObject({
+      nextExpiry: "2026-11-06",
+      nextExpiryDte: 0,
+    });
+    expect(context.flow.newestTradeAt).toBe("2026-11-06T20:59:00.000Z");
+    expect(context.flow.zeroDteShare).toBe(1);
+    return expect(context.session).toBe("closed");
   });
 });

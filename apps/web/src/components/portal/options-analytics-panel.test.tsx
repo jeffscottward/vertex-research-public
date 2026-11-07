@@ -261,6 +261,11 @@ describe("OptionsAnalyticsPanel", () => {
     expect(
       view.querySelector("[data-gex-context-details]")?.textContent
     ).toContain("Why dex matters.");
+    // Each chip is described by its entry in "What each badge means".
+    const described = chips[6]?.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(described)?.textContent).toBe(
+      "Why dex matters."
+    );
     const level = (label: string) =>
       view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
     expect(level("Gamma flip (est.)")).toBe("98.68");
