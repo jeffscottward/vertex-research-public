@@ -223,29 +223,39 @@ export const e2eEnvironment = (
     {
       ...inherited(source),
       ...portless,
-      PORTLESS_APP_PORT: appPort.toString(),
-      NODE_EXTRA_CA_CERTS: caPath,
-      // The build's .dev.vars is removed, so wrangler takes bindings from this env.
-      CLOUDFLARE_INCLUDE_PROCESS_ENV: "true",
       APP_ENV: "test",
-      APP_URL: appUrl,
       APP_NAME: "DarkFactory",
-      DATABASE_PROVIDER: "postgres",
-      DATABASE_URL: databaseUrl,
+      APP_URL: appUrl,
       BETTER_AUTH_SECRET: authSecret,
       BETTER_AUTH_URL: appUrl,
-      CONTACT_THROTTLE_SECRET: authSecret,
+      // The build's .dev.vars is removed, so wrangler takes bindings from this env.
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "true",
       CONTACT_EMAIL_TO: "contact@darkfactory.test",
-      // The project wrangler.jsonc disables email; the preview transport needs a provider.
-      EMAIL_PROVIDER: "resend",
-      EMAIL_TRANSPORT: "preview",
-      E2E_FIXTURES: "1",
+      CONTACT_THROTTLE_SECRET: authSecret,
+      DATABASE_PROVIDER: "postgres",
+      DATABASE_URL: databaseUrl,
       E2E_EMAIL_PREVIEW_DIRECTORY: runPaths.authPreviews,
       E2E_EMAIL_PREVIEW_ENDPOINT: `http://127.0.0.1:${capturePort}/v1/capture`,
       E2E_EMAIL_PREVIEW_HMAC_KEY: previewHmacKey,
+      E2E_FIXTURES: "1",
       E2E_RUN_ID: runId,
+      // The project wrangler.jsonc disables email; the preview transport needs a provider.
+      EMAIL_PROVIDER: "resend",
+      EMAIL_TRANSPORT: "preview",
+      // The capture server also plays the rig status file server (helpers/preview-capture.ts).
+      ENGINE_STATUS_URL: `http://127.0.0.1:${capturePort}`,
+      NODE_EXTRA_CA_CERTS: caPath,
+      PORTLESS_APP_PORT: appPort.toString(),
       ...Object.fromEntries(E2E_BLANKED_REMOTE_KEYS.map((key) => [key, ""])),
+      E2E_ASSISTANT_MODEL_URL: `https://${FAKE_ASSISTANT_MODEL_HOST}.localhost:${httpsPort}${FAKE_ASSISTANT_MODEL_PATH}`,
+      // Fake assistant model (tests/e2e/helpers/fake-assistant-model.ts) behind the run's
+      // HTTPS proxy; the key is a fixed fake. No run reaches OpenRouter.
+      OPENROUTER_API_KEY: FAKE_ASSISTANT_MODEL_KEY,
       OTEL_ENABLED: "false",
+      VERTEX_IBKR_RECOVERY_TOKEN: FAKE_IBKR_RECOVERY_TOKEN,
+      // Fake QuantVPS recovery service (tests/e2e/helpers/fake-ibkr-recovery.ts), served
+      // through the run's HTTPS proxy. It starts nothing; no test reaches the real VPS.
+      VERTEX_IBKR_RECOVERY_URL: `${recoveryOrigin}/vertex-ibkr-recovery/v1`,
       // Mission control (the post-sign-in /dashboard) reads operator-only agent data,
       // which fails closed with 403 unless the caller is listed. The seeded identities
       // (tests/e2e/fixtures.ts#E2E_IDENTITIES) are this workspace's operators.
@@ -253,14 +263,6 @@ export const e2eEnvironment = (
         "admin@domain.test,alice@domain.test,bob@domain.test",
       // UI lab (/lab, dummy data only; tests/e2e/ui-lab.spec.ts). Allowed because APP_ENV is test.
       VERTEX_UI_LAB: "on",
-      // Fake QuantVPS recovery service (tests/e2e/helpers/fake-ibkr-recovery.ts), served
-      // through the run's HTTPS proxy. It starts nothing; no test reaches the real VPS.
-      VERTEX_IBKR_RECOVERY_URL: `${recoveryOrigin}/vertex-ibkr-recovery/v1`,
-      VERTEX_IBKR_RECOVERY_TOKEN: FAKE_IBKR_RECOVERY_TOKEN,
-      // Fake assistant model (tests/e2e/helpers/fake-assistant-model.ts) behind the run's
-      // HTTPS proxy; the key is a fixed fake. No run reaches OpenRouter.
-      OPENROUTER_API_KEY: FAKE_ASSISTANT_MODEL_KEY,
-      E2E_ASSISTANT_MODEL_URL: `https://${FAKE_ASSISTANT_MODEL_HOST}.localhost:${httpsPort}${FAKE_ASSISTANT_MODEL_PATH}`,
     },
     source
   );
