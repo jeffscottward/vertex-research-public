@@ -630,6 +630,33 @@ describe("database client factories", () => {
     return await resource.close();
   });
 
+  // Workers (pg-cloudflare): after client.end() the socket read loop rejects with
+  // "This socket has been closed." and pg re-emits it as a client error on every request.
+  it("does not report socket errors raised by the request's own close as client failures", async () => {
+    const diagnosticSink = vi.fn();
+    let finishEnd!: () => void;
+    const resource = await createRequestDatabase({
+      connectionString: CONNECTION_STRING,
+      diagnosticSink,
+    });
+    const client = driver.clients[0]!;
+    client.end.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (finishEnd = resolve))
+    );
+    const closing = resource.close();
+
+    expect(() =>
+      client.emitError(new TypeError("This socket has been closed."))
+    ).not.toThrow();
+    finishEnd();
+    await closing;
+    expect(() =>
+      client.emitError(new TypeError("This socket has been closed."))
+    ).not.toThrow();
+
+    return expect(diagnosticSink).not.toHaveBeenCalled();
+  });
+
   it("isolates diagnostics between concurrent request resources", async () => {
     const firstSink = vi.fn();
     const secondSink = vi.fn();
@@ -745,6 +772,8 @@ describe("database client factories", () => {
     const firstClose = resources[0]!.close();
     const concurrentClose = resources[0]!.close();
     expect(concurrentClose).toBe(firstClose);
+    // The dying socket's own error is not a second, CLIENT_ERROR diagnostic.
+    driver.clients[0]!.emitError(new TypeError("This socket has been closed."));
     const closeResults = await Promise.allSettled([
       firstClose,
       concurrentClose,
