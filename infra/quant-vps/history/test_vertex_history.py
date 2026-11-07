@@ -110,7 +110,7 @@ class ValidateTest(unittest.TestCase):
                 vh.validate(q(symbol="SPY", barSize=bar, duration=dur))
 
     def test_rejections(self):
-        for raw in [q(symbol="SPY", secType="OPT"), q(symbol="SPY", secType="CASH"), q(symbol="", secType="STK"),
+        for raw in [q(symbol="SPY", secType="OPT"), q(symbol="BTC", secType="CRYPTO"), q(symbol="", secType="STK"),
                     q(symbol="SPY;rm"), q(symbol="ES", secType="CONTFUT"), q(symbol="SPY", whatToShow="BID_ASK"),
                     q(symbol="SPY", barSize="1 secs"), q(symbol="SPY", account="x"), q(symbol="SPY", useRTH="yes"),
                     q(symbol="SPY", contractMonth="202612"), {"symbol": ["SPY", "QQQ"]}]:
@@ -122,6 +122,16 @@ class ValidateTest(unittest.TestCase):
         self.assertEqual((r["secType"], r["exchange"]), ("CONTFUT", "CME"))
         r = vh.validate(q(symbol="ES", secType="FUT", exchange="CME", contractMonth="202612"))
         self.assertEqual(r["contractMonth"], "202612")
+
+    def test_forex(self):
+        r = vh.validate(q(symbol="eur", secType="CASH", currency="usd"))
+        self.assertEqual((r["secType"], r["exchange"], r["currency"], r["whatToShow"]),
+                         ("CASH", "IDEALPRO", "USD", "MIDPOINT"))
+        r = vh.validate(q(symbol="USD", secType="CASH", currency="JPY", whatToShow="TRADES"))
+        self.assertEqual(r["whatToShow"], "MIDPOINT")
+        for fn in (vh.validate_ticks, vh.validate_depth):
+            with self.assertRaises(vh.BadRequest):
+                fn(q(symbol="EUR", secType="CASH"))
 
 
 class BarsTest(unittest.TestCase):

@@ -358,6 +358,66 @@ describe("ChartsWorkspace", () => {
     });
   });
 
+  it("offers stock and futures sec types, exchange presets and quick picks", async () => {
+    const base = output();
+    const market = marketGateway(async (input) => ({
+      ...base,
+      request: {
+        ...base.request,
+        symbol: input.symbol,
+        secType: input.secType ?? "STK",
+        exchange: input.exchange ?? "SMART",
+        currency: input.currency ?? "USD",
+      },
+    }));
+    await mount(
+      <ChartsWorkspace
+        backtests={backtestsGateway()}
+        marketData={market}
+        optionsAnalytics={optionsGateway()}
+        jevVerdict={jevGateway()}
+      />
+    );
+    const exchange = () =>
+      document.querySelector<HTMLInputElement>('input[aria-label="Exchange"]')!;
+    expect(
+      [...select("Security type").options].map((option) => option.value)
+    ).toEqual(["STK", "FUT", "CONTFUT"]);
+    expect([...select("Data").options].map((option) => option.value)).toEqual([
+      "TRADES",
+      "MIDPOINT",
+    ]);
+    await change(select("Data"), "MIDPOINT");
+    // A custom venue survives a sec type switch; presets follow it.
+    await change(exchange(), "ARCA");
+    await change(select("Security type"), "FUT");
+    expect(exchange().value).toBe("ARCA");
+    await change(select("Security type"), "STK");
+    expect(exchange().value).toBe("ARCA");
+    await change(exchange(), "CME");
+    await change(select("Security type"), "STK");
+    expect(exchange().value).toBe("SMART");
+    expect(select("Data").value).toBe("MIDPOINT");
+
+    expect(
+      [...select("Quick pick").options].slice(1).map((option) => option.value)
+    ).toEqual(["ES (E-mini S&P)", "NQ (E-mini Nasdaq)", "SPY", "QQQ"]);
+    await change(select("Quick pick"), "ES (E-mini S&P)");
+    expect(select("Quick pick").value).toBe("");
+    await submit();
+    expect(market.bars).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        symbol: "ES",
+        secType: "CONTFUT",
+        exchange: "CME",
+        whatToShow: "MIDPOINT",
+      })
+    );
+    // An unknown pick changes nothing.
+    await change(select("Quick pick"), "BTC");
+    expect(symbolInput().value).toBe("ES");
+  });
+
   it("mounts the options and JEV panels only for USD stock charts", async () => {
     const usd = optionsGateway();
     const usdJev = jevGateway();

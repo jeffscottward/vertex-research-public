@@ -143,6 +143,8 @@ const UpstreamExecutionSchema = z.object({
   time: str,
   symbol: str,
   secType: str,
+  localSymbol: str.optional().default(""),
+  permId: z.number().int().nullable().optional().default(null),
   side: str,
   shares: num,
   price: num,
@@ -179,8 +181,15 @@ const IbkrMonitorSnapshotSchema = z.object({
     .default([]),
 });
 
+/** IBKR sends Double.MAX (~1.8e308) for "unset" values such as realized P&L on opening fills. */
+const IBKR_UNSET = 1e300;
 const nn = (value: number | null | undefined): number | null =>
-  value === undefined || value === null ? null : value;
+  value === undefined ||
+  value === null ||
+  !Number.isFinite(value) ||
+  Math.abs(value) >= IBKR_UNSET
+    ? null
+    : value;
 const isoMs = (value: number): string =>
   new Date(Math.round(value)).toISOString();
 
@@ -270,6 +279,9 @@ const mapExecution = (
   time: scrubPortfolioText(execution.time, 40),
   symbol: scrubPortfolioText(execution.symbol, 24),
   secType: scrubPortfolioText(execution.secType, 12),
+  localSymbol: scrubPortfolioText(execution.localSymbol, 40),
+  permId:
+    execution.permId !== null && execution.permId > 0 ? execution.permId : null,
   side: scrubPortfolioText(execution.side, 8),
   shares: nn(execution.shares),
   price: nn(execution.price),

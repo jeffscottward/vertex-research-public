@@ -343,12 +343,6 @@
       "functions": 25.0,
       "statements": 36.84
     },
-    "apps/web/src/components/portal/watchlist-workspace.tsx": {
-      "lines": 90.81,
-      "branches": 82.19,
-      "functions": 96.29,
-      "statements": 87.5
-    },
     "apps/web/src/components/research/read-resource.ts": {
       "lines": 100.0,
       "branches": 96.0,

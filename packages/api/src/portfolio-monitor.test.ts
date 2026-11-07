@@ -301,10 +301,25 @@ describe("portfolioMonitor derivation", () => {
       status: "Cancelled",
       completedStatus: "Cancelled by user",
     });
+    expect(output.executions[0]).toMatchObject({
+      localSymbol: "AAA",
+      permId: 9003,
+    });
     return expect(output.executions.map((entry) => entry.execId)).toEqual([
       "a",
       "b",
     ]);
+  });
+
+  it("drops an unset order id (0) from fills", () => {
+    const output = toPortfolioMonitorOutput(
+      upstream({ executions: [execution({ execId: "zero", permId: 0 })] }),
+      at
+    );
+    return expect(output.executions[0]).toMatchObject({
+      execId: "zero",
+      permId: null,
+    });
   });
 
   it("removes account codes from every text field", () => {

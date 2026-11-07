@@ -12,7 +12,9 @@ import { PageHeader } from "@darkfactory/ui";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { DashboardWidgets } from "../../../components/portal/dashboard-widgets.tsx";
 import { DashboardViews } from "../../../components/portal/portfolio-monitor-dashboard.tsx";
+import { resolveJournalSource } from "../../../components/portal/trade-journal-source.ts";
 import type { DashboardSummaryState } from "../../../features/dashboard/view-model.ts";
 import { ownErrorData, retryOnCapacity } from "../../../lib/capacity-retry.ts";
 import {
@@ -228,6 +230,10 @@ export default async function DashboardPage() {
         }}
         operator={session?.isOperator === true}
         summaryState={summaryState}
+      />
+      <DashboardWidgets
+        journalSource={resolveJournalSource()}
+        operator={session?.isOperator === true}
       />
     </div>
   );

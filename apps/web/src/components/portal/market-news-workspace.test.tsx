@@ -208,7 +208,8 @@ describe("news monitor workspace", () => {
     expect(first.textContent).toContain(MARKET_NEWS_TAG_LABELS.legal);
     expect(first.textContent).toContain(MARKET_NEWS_TAG_LABELS.deal);
     const links = [...container.querySelectorAll("a[target]")];
-    expect(links).toHaveLength(4);
+    // Two filings, two headlines and the Earnings dates link to AAPL's 2.02 filing.
+    expect(links).toHaveLength(5);
     for (const link of links) {
       expect(link.getAttribute("target")).toBe("_blank");
       expect(link.getAttribute("rel")).toContain("noopener");
@@ -228,6 +229,52 @@ describe("news monitor workspace", () => {
     return expect(container.textContent).toContain(
       `Updated ${formatNewsTime(receivedAt)}.`
     );
+  });
+
+  it("lists the latest 8-K item 2.02 filing date per symbol under Earnings dates", async () => {
+    const msft: MarketNewsTicker = {
+      errors: [],
+      filings: [
+        {
+          filedAt: new Date("2026-10-10T12:00:00.000Z"),
+          form: "8-K",
+          important: true,
+          items: [{ code: "5.02", label: "officer change" }],
+          title: "Microsoft filed a 8-K: officer change",
+          url: "https://www.sec.gov/Archives/m-index.htm",
+        },
+      ],
+      headlines: [],
+      symbol: "MSFT",
+    };
+    const container = await render({
+      watchlist: async () => news([aapl, msft, spy]),
+    });
+    const panel = container.querySelector(
+      '[aria-labelledby="news-earnings-dates"]'
+    );
+    expect(panel?.querySelector("h2")?.textContent).toBe("Earnings dates");
+    expect(panel?.textContent).toContain(
+      "Latest SEC 8-K item 2.02 (earnings results) filing per symbol in the last 3 days."
+    );
+    expect(panel?.querySelector('a[href="/calendar"]')?.textContent).toBe(
+      "Open calendar"
+    );
+    const row = (symbol: string) =>
+      panel?.querySelector(`[data-earnings-symbol="${symbol}"]`);
+    const filed = row("AAPL")?.querySelector('a[target="_blank"]');
+    expect(filed?.getAttribute("href")).toBe(
+      "https://www.sec.gov/Archives/a-index.htm"
+    );
+    expect(filed?.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(filed?.textContent).toBe(
+      "Filed 2026-10-12 20:30 UTC (opens SEC filing)"
+    );
+    expect(row("MSFT")?.textContent).toBe(
+      "MSFTNo earnings filing in the last 3 days"
+    );
+    // A failed SEC source is not reported as "no earnings".
+    expect(row("SPY")?.textContent).toBe("SPYSEC filings unavailable");
   });
 
   it("links to the watchlist when it is empty, via the browser gateway by default", async () => {

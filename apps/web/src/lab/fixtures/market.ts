@@ -18,7 +18,7 @@ import type {
   MarketTradeTick,
   OptionsAnalyticsOutput,
 } from "@darkfactory/api";
-
+import { defined } from "../../features/order-flow/defined.ts";
 import {
   createSeededRandom,
   LAB_NOW,
@@ -28,7 +28,6 @@ import {
   labMinutesAgo,
   roundTo,
 } from "./core.ts";
-import { defined } from "../../features/order-flow/defined.ts";
 
 const BAR_SECONDS: Readonly<Record<MarketBarSize, number>> = Object.freeze({
   "1 day": 86_400,

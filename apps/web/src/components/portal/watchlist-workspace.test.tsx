@@ -1,5 +1,8 @@
 // @vitest-environment jsdom
-import type { WatchlistItemOutput } from "@darkfactory/api";
+import {
+  WATCHLIST_MAX_SYMBOLS_PER_ADD,
+  type WatchlistItemOutput,
+} from "@darkfactory/api";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
@@ -215,6 +218,113 @@ describe("watchlist workspace", () => {
     expect(gateway.remove).toHaveBeenCalledWith("id-BBB.X");
     expect(container.querySelector('tr[data-symbol="BBB.X"]')).toBeNull();
     return expect(container.textContent).toContain("Removed BBB.X");
+  });
+
+  it("reports add, save and remove problems and clears the draft of a removed row", async () => {
+    const failure = (code: string, message = "nope") =>
+      Object.assign(new Error(message), { code });
+    let finishRemoval: () => void = () => undefined;
+    const removal = new Promise<void>((resolve) => {
+      finishRemoval = resolve;
+    });
+    const gateway: WatchlistGateway = {
+      list: vi.fn(async () => [item("AAA"), item("BBB")]),
+      add: vi
+        .fn()
+        .mockRejectedValueOnce(failure("FORBIDDEN"))
+        .mockResolvedValueOnce({
+          items: [item("AAA"), item("BBB"), item("CCC")],
+          added: ["CCC"],
+          existing: ["AAA"],
+          rejected: [],
+        }),
+      update: vi.fn().mockRejectedValueOnce(failure("NOT_FOUND")),
+      remove: vi
+        .fn()
+        .mockRejectedValueOnce(failure("UNAUTHORIZED"))
+        .mockImplementationOnce(() => removal),
+    };
+    const container = await mount(gateway);
+    const status = () =>
+      container.querySelector('[role="status"]')?.textContent;
+
+    await clickButton("Add symbols");
+    expect(status()).toBe(
+      "Nothing to add. Paste symbols separated by commas, spaces or newlines."
+    );
+    const tooMany = Array.from(
+      { length: WATCHLIST_MAX_SYMBOLS_PER_ADD + 1 },
+      (_, i) => `S${i}`
+    );
+    await setValue(
+      byLabel<HTMLTextAreaElement>("Symbols to add"),
+      tooMany.join(" ")
+    );
+    await clickButton("Add symbols");
+    expect(status()).toBe(
+      `${tooMany.length} tokens; limit is ${WATCHLIST_MAX_SYMBOLS_PER_ADD} per add.`
+    );
+    await setValue(byLabel<HTMLTextAreaElement>("Symbols to add"), "AAA CCC");
+    await clickButton("Add symbols");
+    expect(status()).toBe("Not permitted for this session.");
+    await clickButton("Add symbols");
+    expect(status()).toBe("Added 1 · already listed 1 · rejected 0");
+    expect(byLabel<HTMLTextAreaElement>("Symbols to add").value).toBe("");
+
+    const rowAlert = () =>
+      container.querySelector('tr[data-symbol="AAA"] [role="alert"]')
+        ?.textContent;
+    await clickButton("Edit AAA");
+    await setValue(byLabel<HTMLInputElement>("AAA buy zone low"), "abc");
+    await clickButton("Save");
+    expect(rowAlert()).toBe("Low must be a positive number.");
+    await setValue(byLabel<HTMLInputElement>("AAA buy zone low"), "");
+    await setValue(byLabel<HTMLInputElement>("AAA buy zone high"), "x");
+    await clickButton("Save");
+    expect(rowAlert()).toBe("High must be a positive number.");
+    await setValue(byLabel<HTMLInputElement>("AAA buy zone high"), "");
+    await clickButton("Save");
+    expect(rowAlert()).toBe("Row no longer exists. Reload the list.");
+    await clickButton("Cancel");
+    expect(container.querySelector('[aria-label="AAA note"]')).toBeNull();
+
+    await clickButton("Remove BBB");
+    await clickButton("Confirm remove BBB");
+    expect(status()).toBe("Session expired. Sign in again.");
+    // Editing a row while its removal is in flight: the draft goes with the row.
+    await clickButton("Remove AAA");
+    await clickButton("Confirm remove AAA");
+    await clickButton("Edit AAA");
+    expect(byLabel<HTMLInputElement>("AAA note")).not.toBeNull();
+    await act(async () => {
+      finishRemoval();
+      await flush();
+    });
+    expect(container.querySelector('tr[data-symbol="AAA"]')).toBeNull();
+    expect(status()).toBe("Removed AAA");
+  });
+
+  it("reads the list through the browser API client by default", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError("offline");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const container = document.createElement("div");
+      document.body.append(container);
+      const root = createRoot(container);
+      roots.push(root);
+      await act(async () => {
+        root.render(<WatchlistWorkspace />);
+        await flush();
+      });
+      expect(fetchMock).toHaveBeenCalled();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        "Request failed. Retry."
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   return it("shows a retryable error state when the list fails", async () => {

@@ -148,6 +148,51 @@ describe("research lab entries", () => {
     );
   });
 
+  it("loads bars and positions when a watchlist analysis tab opens", async () => {
+    const host = await render("watchlist");
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain("Demo AI leaders")
+    );
+    const tab = [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (item) => item.textContent === "Exposure"
+    );
+    if (tab === undefined) throw new Error("Missing Exposure tab");
+    await act(async () => {
+      tab.click();
+    });
+    await vi.waitFor(() =>
+      expect(
+        host.querySelector('[role="tabpanel"]:not([hidden]) [aria-busy="true"]')
+      ).toBeNull()
+    );
+    expect(
+      host.querySelector(
+        '[role="tabpanel"]:not([hidden]) [data-operator-access="required"]'
+      )
+    ).toBeNull();
+    await vi.waitFor(() =>
+      expect(
+        host.querySelectorAll('[role="tabpanel"]:not([hidden]) tr[data-arc]')
+          .length
+      ).toBeGreaterThan(0)
+    );
+  });
+
+  it("shows the fake calendar", async () => {
+    const host = await render("calendar");
+    expect(host.querySelector("h1")?.textContent).toBe(
+      "Economic & earnings calendar"
+    );
+    await vi.waitFor(() => {
+      expect(
+        host.querySelector('[data-calendar-source="economic"]')
+      ).not.toBeNull();
+      expect(
+        host.querySelector('[data-calendar-source="earnings"]')
+      ).not.toBeNull();
+    });
+  });
+
   it("opens the basket from ?symbol=", async () => {
     const host = await render("baskets", "symbol=demomtl");
     expect(host.querySelector("h1")?.textContent).toBe("Baskets");
