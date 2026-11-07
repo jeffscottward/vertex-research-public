@@ -5,7 +5,8 @@ import type {
   SignalAlertRule,
 } from "@darkfactory/api";
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const browser = vi.hoisted(() => ({ created: 0 }));
@@ -742,5 +743,37 @@ describe("SignalAlertsSection", () => {
     });
     const container = await mount(gateway, notifierWith("denied").notifier);
     expect(status(container)).toBe("Signal alert storage unavailable");
+  });
+
+  it("hydrates the server render without a mismatch, then reads the permission", async () => {
+    // jsdom has no Notification API, like the server: the default notifier says "unsupported".
+    expect(browserNotifier.permission()).toBe("unsupported");
+    const html = renderToString(
+      <SignalAlertsSection gateway={gatewayWith()} pollMs={0} />
+    );
+    expect(html).toContain("checking");
+    expect(html).not.toContain("unsupported here");
+
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    document.body.append(container);
+    const recoverable = vi.fn();
+    await act(async () => {
+      roots.push(
+        hydrateRoot(
+          container,
+          <SignalAlertsSection
+            gateway={gatewayWith()}
+            notifier={notifierWith().notifier}
+            pollMs={0}
+          />,
+          { onRecoverableError: recoverable }
+        )
+      );
+      await flush();
+    });
+    expect(recoverable).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Browser notifications: off.");
+    expect(container.textContent).toContain("Enable browser notifications");
   });
 });
