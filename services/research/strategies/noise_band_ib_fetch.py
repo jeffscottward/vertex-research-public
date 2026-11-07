@@ -4,7 +4,9 @@ Runs on QuantVPS with the ibapi package of /opt/vertex-history/venv against the 
 It sends reqContractDetails and reqHistoricalData only (no orders, no account or market data
 subscriptions) under its own client id (default 177, distinct from vertex-history's 77).
 
-Bars: 5-minute TRADES, regular trading hours, one "31 D" request per calendar month (31 calendar days back from the month end, so day 1 is never cut; overlaps are deduplicated by the loader), walking back
+Bars: 5-minute TRADES, regular trading hours, one request per --months calendar months (default 1) with
+duration 31 D per month. IB counts "D" in sessions here, so a request always reaches past the first day of
+the first month; overlaps are deduplicated by the loader, walking back
 from --end to --start; one request in flight, at least --interval seconds apart (default 30 s, so the
 combined rate with vertex-history stays near its own 6 per 120 s). The run aborts on the first pacing
 violation or other IBKR error (162 other than "no data", 366, 321, ...). Each month is written to
@@ -62,8 +64,8 @@ class App(EWrapper, EClient):
             self.done[reqId].set()
 
 
-def month_ends(start: str, end: str) -> list[str]:
-    """Calendar months from end back to start, as IB endDateTime strings (last day 23:59:59 ET)."""
+def month_ends(start: str, end: str, step: int = 1) -> list[tuple[str, str]]:
+    """Every `step`-th calendar month from end back to start, as IB endDateTime strings (last day 23:59:59 ET)."""
     y, m = map(int, end.split("-"))
     sy, sm = map(int, start.split("-"))
     out = []
@@ -71,7 +73,8 @@ def month_ends(start: str, end: str) -> list[str]:
         ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
         last = date.fromordinal(date(ny, nm, 1).toordinal() - 1)
         out.append((f"{y:04d}-{m:02d}", last.strftime("%Y%m%d") + " 23:59:59 US/Eastern"))
-        y, m = (y - 1, 12) if m == 1 else (y, m - 1)
+        for _ in range(step):
+            y, m = (y - 1, 12) if m == 1 else (y, m - 1)
     return out
 
 
@@ -85,6 +88,7 @@ def main() -> int:
     ap.add_argument("--client-id", type=int, default=177)
     ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument("--stop-empty", type=int, default=3)
+    ap.add_argument("--months", type=int, default=1, help="calendar months per request (duration = 31 D per month)")
     a = ap.parse_args()
     host, port = a.gateway.split()
     app = App()
@@ -101,8 +105,9 @@ def main() -> int:
         c.symbol, c.secType, c.exchange, c.currency = sym, "STK", "SMART", "USD"
         c.primaryExchange = PRIMARY.get(sym, "ARCA")
         empty = 0
-        for label, end_dt in month_ends(a.start, a.end):
-            path = os.path.join(a.out, sym, label + ".csv")
+        prefix = "" if a.months == 1 else f"m{a.months}-"
+        for label, end_dt in month_ends(a.start, a.end, a.months):
+            path = os.path.join(a.out, sym, prefix + label + ".csv")
             if os.path.exists(path):
                 empty = empty + 1 if os.path.getsize(path) == 0 else 0
                 if empty >= a.stop_empty:
@@ -114,7 +119,7 @@ def main() -> int:
             rid += 1
             app.done[rid] = threading.Event()
             last_sent = time.time()
-            app.reqHistoricalData(rid, c, end_dt, "31 D", "5 mins", "TRADES", 1, 2, False, [])
+            app.reqHistoricalData(rid, c, end_dt, f"{31 * a.months} D", "5 mins", "TRADES", 1, 2, False, [])
             if not app.done[rid].wait(120):
                 app.cancelHistoricalData(rid)
                 print(f"{sym} {label} timeout; abort", flush=True)
