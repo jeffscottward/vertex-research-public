@@ -38,12 +38,15 @@ export type MenuItemModel =
     }>;
 
 export interface WorkspaceWindow {
+  /** Size and position when neither minimised nor maximised. */
   readonly bounds: () => WindowBounds;
   /** Show, restore when minimised, and focus. */
   readonly focus: () => void;
   readonly load: (url: string) => void;
-  /** Called once when the window is closing, before it is destroyed. */
+  /** Called each time the window starts closing; a page may still cancel the close. */
   readonly onClose: (listener: () => void) => void;
+  /** Called once, after the window is gone. */
+  readonly onClosed: (listener: () => void) => void;
 }
 
 export type WindowRequest = Readonly<{

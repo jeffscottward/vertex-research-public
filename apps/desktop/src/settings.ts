@@ -6,12 +6,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 
-import { WORKSPACES, type WorkspaceId } from "./workspaces.ts";
-
-const WORKSPACE_IDS = WORKSPACES.map((workspace) => workspace.id) as [
-  WorkspaceId,
-  ...WorkspaceId[],
-];
+import { isWorkspaceId, type WorkspaceId } from "./workspaces.ts";
 
 const BoundsSchema = z.object({
   height: z.number().int().min(200).max(20_000),
@@ -21,31 +16,49 @@ const BoundsSchema = z.object({
 });
 export type WindowBounds = z.infer<typeof BoundsSchema>;
 
-const SettingsSchema = z.object({
-  bounds: z.partialRecord(z.enum(WORKSPACE_IDS), BoundsSchema).default({}),
-  openWorkspaces: z.array(z.enum(WORKSPACE_IDS)).default([]),
-  siteUrl: z.string().max(2048).optional(),
-});
-export type DesktopSettings = z.infer<typeof SettingsSchema>;
+export type DesktopSettings = Readonly<{
+  bounds: Readonly<Partial<Record<WorkspaceId, WindowBounds>>>;
+  openWorkspaces: readonly WorkspaceId[];
+  siteUrl?: string;
+}>;
 
 export const DEFAULT_SETTINGS: DesktopSettings = Object.freeze({
   bounds: {},
   openWorkspaces: [],
 });
 
-/** Settings from stored JSON text; anything unreadable or invalid yields the defaults. */
+const SITE_URL_MAX = 2048;
+
+/**
+ * Settings from stored JSON text. Each field is read on its own, so one bad entry (say, bounds
+ * off every screen) drops only that entry and never the saved site or open windows.
+ */
 export const parseSettings = (raw: string | null): DesktopSettings => {
   if (raw === null) return DEFAULT_SETTINGS;
+  let parsed: unknown;
   try {
-    const parsed = SettingsSchema.safeParse(JSON.parse(raw));
-    if (!parsed.success) return DEFAULT_SETTINGS;
-    return {
-      ...parsed.data,
-      openWorkspaces: [...new Set(parsed.data.openWorkspaces)],
-    };
+    parsed = JSON.parse(raw);
   } catch {
     return DEFAULT_SETTINGS;
   }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    return DEFAULT_SETTINGS;
+  const { bounds, openWorkspaces, siteUrl } = parsed as Record<string, unknown>;
+  const validBounds: Partial<Record<WorkspaceId, WindowBounds>> = {};
+  if (typeof bounds === "object" && bounds !== null)
+    for (const [id, value] of Object.entries(bounds)) {
+      const entry = BoundsSchema.safeParse(value);
+      if (isWorkspaceId(id) && entry.success) validBounds[id] = entry.data;
+    }
+  return {
+    bounds: validBounds,
+    openWorkspaces: Array.isArray(openWorkspaces)
+      ? [...new Set(openWorkspaces.filter(isWorkspaceId))]
+      : [],
+    ...(typeof siteUrl === "string" && siteUrl.length <= SITE_URL_MAX
+      ? { siteUrl }
+      : {}),
+  };
 };
 
 export interface SettingsStore {

@@ -36,6 +36,7 @@ const setup = (
   let factoryOptions: WindowFactoryOptions | undefined;
   let appMenuItems: readonly MenuItemModel[] = [];
   const beforeQuit: (() => void)[] = [];
+  const willQuit: (() => void)[] = [];
   const secondInstance: (() => void)[] = [];
   const api: DesktopApi = {
     alertFires: async () => [],
@@ -55,6 +56,7 @@ const setup = (
     now: () => new Date("2026-11-06T15:00:00.000Z"),
     onBeforeQuit: (listener) => beforeQuit.push(listener),
     onSecondInstance: (listener) => secondInstance.push(listener),
+    onWillQuit: (listener) => willQuit.push(listener),
     quit: vi.fn(),
     setAppMenu: (items) => {
       appMenuItems = items;
@@ -80,6 +82,7 @@ const setup = (
     shown,
     timers,
     tray,
+    willQuit,
     windows: windows.windows,
   };
 };
@@ -178,11 +181,13 @@ describe("startDesktop", () => {
     menuItem(tray.menu(), "Quit Vertex")?.onClick?.();
   });
 
-  it("stops timers and keeps the open list when quitting", () => {
-    const { beforeQuit, settings, timers, windows } = setup();
+  it("keeps the open list and stops timers when quitting", () => {
+    const { beforeQuit, settings, timers, willQuit, windows } = setup();
     for (const listener of beforeQuit) listener();
-    expect(timers.scheduled()).toEqual([]);
+    expect(timers.scheduled()).toHaveLength(2);
     windows[0]?.close();
+    for (const listener of willQuit) listener();
+    expect(timers.scheduled()).toEqual([]);
     expect(settings.current().openWorkspaces).toEqual(["dashboard"]);
   });
 

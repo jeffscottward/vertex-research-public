@@ -205,7 +205,7 @@ describe("createTrayWatchlist", () => {
     expect(watchlist.state().type).toBe("ready");
   });
 
-  it("shares one refresh while it runs and refreshes on the timer", async () => {
+  it("refreshes on start, on its timer and from the menu", async () => {
     const watchlistCall = vi.fn(async () => [entry("SPY")]);
     const { spies, timers, tray, watchlist } = setup(
       api({ watchlist: watchlistCall }),
@@ -214,18 +214,90 @@ describe("createTrayWatchlist", () => {
     watchlist.start();
     watchlist.start();
     expect(timers.scheduled()).toEqual([1000]);
-    await watchlist.refresh();
-    expect(watchlistCall).toHaveBeenCalledOnce();
-    timers.tick();
-    await watchlist.refresh();
     expect(watchlistCall).toHaveBeenCalledTimes(2);
-    menuItem(tray.menu(), "Refresh watchlist")?.onClick?.();
-    await watchlist.refresh();
+    timers.tick();
     expect(watchlistCall).toHaveBeenCalledTimes(3);
+    menuItem(tray.menu(), "Refresh watchlist")?.onClick?.();
+    expect(watchlistCall).toHaveBeenCalledTimes(4);
     expect(spies.refresh).not.toHaveBeenCalled();
     watchlist.stop();
     watchlist.stop();
     expect(timers.scheduled()).toEqual([]);
+  });
+
+  it("lets the newest refresh win over a slower older one", async () => {
+    const pending: ((entries: WatchlistEntry[]) => void)[] = [];
+    const failures: ((error: Error) => void)[] = [];
+    let call = 0;
+    const { watchlist } = setup(
+      api({
+        watchlist: () => {
+          call += 1;
+          return new Promise((resolve, reject) => {
+            if (call === 1) failures.push(reject);
+            else pending.push(resolve);
+          });
+        },
+      })
+    );
+    const older = watchlist.refresh();
+    const newer = watchlist.refresh();
+    pending[0]?.([entry("SPY")]);
+    await newer;
+    failures[0]?.(new DesktopApiError("signed-out"));
+    await older;
+    expect(watchlist.state().type).toBe("ready");
+  });
+
+  it("stops pricing rows from a superseded refresh", async () => {
+    let release: (() => void) | undefined;
+    const priced: string[] = [];
+    let lists = 0;
+    const { watchlist } = setup(
+      api({
+        dailyQuote: async (symbol) => {
+          priced.push(symbol);
+          if (symbol === "OLD")
+            await new Promise<void>((resolve) => {
+              release = resolve;
+            });
+          return { last: 1, previousClose: 1 };
+        },
+        watchlist: async () => {
+          lists += 1;
+          return lists === 1 ? [entry("OLD"), entry("OLD2")] : [entry("NEW")];
+        },
+      })
+    );
+    const older = watchlist.refresh();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    await watchlist.refresh();
+    release?.();
+    await older;
+    expect(priced).toEqual(["OLD", "NEW"]);
+    expect(watchlist.state()).toMatchObject({ total: 1, type: "ready" });
+  });
+
+  it("ignores a superseded list that arrives late", async () => {
+    let resolveOld: ((entries: WatchlistEntry[]) => void) | undefined;
+    let lists = 0;
+    const { watchlist } = setup(
+      api({
+        watchlist: () => {
+          lists += 1;
+          if (lists === 1)
+            return new Promise((resolve) => {
+              resolveOld = resolve;
+            });
+          return Promise.resolve([entry("NEW")]);
+        },
+      })
+    );
+    const older = watchlist.refresh();
+    await watchlist.refresh();
+    resolveOld?.([entry("A"), entry("B")]);
+    await older;
+    expect(watchlist.state()).toMatchObject({ total: 1, type: "ready" });
   });
 
   it("shows signed-out and unavailable states", async () => {

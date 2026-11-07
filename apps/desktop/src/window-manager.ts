@@ -1,6 +1,7 @@
 // What: one native window per workspace. Opening a workspace that is already open focuses its
 // window (and loads the requested path, when one is given); closing a window remembers its bounds.
-// The set of open workspaces is saved so the next start restores them, except while the app quits.
+// The open-workspace list is saved as it changes. Quitting closes every window, so the list taken
+// when the quit starts is written back once the quit really happens (a page can cancel it).
 // Used by: app.ts.
 import type { WindowFactory, WorkspaceWindow } from "./ports.ts";
 import type { SettingsStore } from "./settings.ts";
@@ -13,8 +14,10 @@ import {
 } from "./workspaces.ts";
 
 export interface WindowManager {
-  /** Stop forgetting windows as they close: the app is quitting and they should come back. */
+  /** A quit started (it may still be cancelled): remember which workspaces are open now. */
   readonly beginQuit: () => void;
+  /** The quit is happening: save the list from beginQuit so the next start restores it. */
+  readonly finishQuit: () => void;
   /** Focus or create the workspace window; `path` (site path with query) overrides its home. */
   readonly open: (id: WorkspaceId, path?: string) => void;
   readonly openWorkspaces: () => readonly WorkspaceId[];
@@ -30,14 +33,10 @@ export const createWindowManager = (
   }>
 ): WindowManager => {
   const windows = new Map<WorkspaceId, WorkspaceWindow>();
-  let quitting = false;
+  let quitSnapshot: readonly WorkspaceId[] | null = null;
 
-  const persist = () => {
-    const current = options.settings.load();
-    options.settings.save({
-      ...current,
-      openWorkspaces: quitting ? current.openWorkspaces : [...windows.keys()],
-    });
+  const persist = (openWorkspaces: readonly WorkspaceId[]) => {
+    options.settings.save({ ...options.settings.load(), openWorkspaces });
   };
 
   const open = (id: WorkspaceId, path?: string) => {
@@ -61,17 +60,23 @@ export const createWindowManager = (
         ...current,
         bounds: { ...current.bounds, [id]: window.bounds() },
       });
+    });
+    // Forget the window only once it is gone: a page can still cancel a close.
+    window.onClosed(() => {
       windows.delete(id);
-      persist();
+      persist([...windows.keys()]);
     });
     window.load(url);
     window.focus();
-    persist();
+    persist([...windows.keys()]);
   };
 
   return {
     beginQuit: () => {
-      quitting = true;
+      quitSnapshot = [...windows.keys()];
+    },
+    finishQuit: () => {
+      if (quitSnapshot !== null) persist(quitSnapshot);
     },
     open,
     openWorkspaces: () => [...windows.keys()],

@@ -43,7 +43,10 @@ export type DesktopPorts = Readonly<{
   quit: () => void;
   fatal: (message: string) => void;
   keepRunningWithoutWindows: () => void;
+  /** A quit started; windows are about to close and a page may still cancel it. */
   onBeforeQuit: (listener: () => void) => void;
+  /** Every window closed and the quit is going ahead. */
+  onWillQuit: (listener: () => void) => void;
   onSecondInstance: (listener: () => void) => void;
 }>;
 
@@ -112,8 +115,9 @@ export const startDesktop = (ports: DesktopPorts): DesktopShell | null => {
     appMenu({ openWorkspace: (id) => windows.open(id), quit: ports.quit })
   );
   ports.keepRunningWithoutWindows();
-  ports.onBeforeQuit(() => {
-    windows.beginQuit();
+  ports.onBeforeQuit(() => windows.beginQuit());
+  ports.onWillQuit(() => {
+    windows.finishQuit();
     tray.stop();
     notifier.stop();
   });

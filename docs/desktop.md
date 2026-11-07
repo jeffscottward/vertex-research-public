@@ -4,7 +4,7 @@
 
 - **One window per workspace.** Dashboard, Charts, Watchlist, Alerts, Calendar, Journal, News, Markets and Quant each open in their own native window (Workspaces menu, Ctrl/Cmd+1..9). Opening a workspace that is already open focuses its window. The shell remembers each window's size and position and which windows were open at quit.
 - **Tray (menu-bar) watchlist.** The tray menu lists the signed-in user's watchlist (first 15 symbols) with the last daily close, the change from the close before it and an "in buy zone" mark. It refreshes every 10 minutes. Clicking a symbol opens its chart. Prices come from `marketData.bars` with the same request the Watchlist page makes, so both share the server's bars cache. Users who cannot read bars see the symbols without prices.
-- **Native alert notifications.** The shell polls `priceAlerts.signals.events` every minute and shows an OS notification when signal alerts fire after it started. No Alerts tab has to be open. The notification text is the same fixed text as on the web page, so symbol names and prices stay off the lock screen. Clicking it opens Alerts. The tray's "Send test notification" item checks that the OS shows notifications.
+- **Native alert notifications.** The shell polls `priceAlerts.signals.events` every minute and shows an OS notification when signal alerts fire after it started. No Alerts tab has to be open. Fires up to a minute before the start still count, to allow for clock skew. A fire the server commits more than 5 minutes behind the newest one already seen is not notified, but the Alerts page still lists it. The notification text is the same fixed text as on the web page, so symbol names and prices stay off the lock screen. Clicking it opens Alerts. The tray's "Send test notification" item checks that the OS shows notifications.
 
 The shell is for research display only. The tray and menus contain no order, arm, disarm or risk controls, and every API call the shell makes itself is a read (oRPC GET).
 
@@ -27,7 +27,7 @@ pnpm --filter @darkfactory/desktop build              # bundle src/main.ts into 
 VERTEX_DESKTOP_URL=https://your-vertex-host pnpm --filter @darkfactory/desktop start
 ```
 
-The site comes from `--url=<origin>`, then `VERTEX_DESKTOP_URL`, then the origin saved from the last start. The repo ships no host. The shell accepts only `https` origins, or `http` on localhost for development. Sign in inside any window. The session is stored in the persistent `persist:vertex` partition.
+The site comes from `--url=<origin>`, then `VERTEX_DESKTOP_URL`, then the origin saved from the last start. The origin in use is saved at every start, so a later launch without a flag opens the same site. The repo ships no host. The shell accepts only `https` origins, or `http` on loopback for development (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`). Sign in inside any window. The session is stored in the persistent `persist:vertex` partition.
 
 On a headless Linux host, keep the shell off the real desktop. Unset `WAYLAND_DISPLAY`, pass `--ozone-platform=x11` and run it under `xvfb-run`.
 
@@ -37,9 +37,10 @@ On a headless Linux host, keep the shell off the real desktop. Unset `WAYLAND_DI
 | --- | --- |
 | Windows run with `contextIsolation`, `sandbox`, no Node integration and web security on; there is no preload | `src/electron-ports.ts` |
 | Same-origin navigation stays in the app; other http(s) links open in the system browser; other schemes are blocked | `src/site-url.ts` `classifyNavigation` |
-| New-window requests are always denied; a workspace link opens that workspace's window instead | `src/electron-ports.ts`, `src/app.ts` |
+| No page can open a new window. A same-site workspace link opens or focuses that workspace's window; another same-site link loads in the current window; other http(s) links go to the system browser, at most one per second | `src/electron-ports.ts`, `src/app.ts` |
 | The page may only write the clipboard and go fullscreen; it gets no web notification permission, because the shell delivers notifications itself | `GRANTED_PERMISSIONS` |
-| Settings (site origin, open windows, bounds) are written with mode 0600 and replaced atomically | `src/settings.ts` |
+| Downloads use Electron's default Save dialog | Electron default |
+| Settings (site origin, open windows, bounds) are written with mode 0600 and replaced atomically; each field is read on its own, so one bad entry never drops the saved site | `src/settings.ts` |
 
 ## Layout
 

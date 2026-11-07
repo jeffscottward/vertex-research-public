@@ -2,7 +2,9 @@
 // watchlist, a daily quote per symbol (marketData.bars, the same request the watchlist page makes,
 // so the server's bars cache is shared) and recent signal alert fires. Every call is an oRPC GET
 // (all three procedures are GET routes), sent through the window session so it carries the
-// user's cookie. Research only; nothing here can place or change an order.
+// user's cookie. Research only; nothing here can place or change an order. This is the HTTP
+// adapter behind the DesktopApi port (the only @orpc/client import); electron-ports.ts supplies
+// the session fetch.
 // Used by: tray-watchlist.ts, alert-notifier.ts (through the DesktopApi port) and app.ts.
 import type { MarketBarsInput } from "@darkfactory/api";
 import type { ApiClient } from "@darkfactory/api/client";

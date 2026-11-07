@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ALERT_POLL_MS,
   ALERT_POLL_OVERLAP_MS,
+  ALERT_START_TOLERANCE_MS,
   createAlertNotifier,
   TEST_NOTIFICATION,
 } from "./alert-notifier.ts";
@@ -68,12 +69,33 @@ describe("createAlertNotifier", () => {
     expect(shown).toHaveLength(2);
   });
 
-  it("does not notify for fires from before the app started", async () => {
+  it("does not notify for fires from before the app started, past the skew tolerance", async () => {
+    const tolerance = ALERT_START_TOLERANCE_MS / 60_000;
     const { notifier, shown } = setup(async () => [
-      { firedAt: at(-1), id: "before" },
+      { firedAt: at(-tolerance - 0.1), id: "before" },
     ]);
     await notifier.poll();
     expect(shown).toHaveLength(0);
+    const skewed = setup(async () => [
+      { firedAt: at(-tolerance + 0.1), id: "skewed" },
+    ]);
+    await skewed.notifier.poll();
+    expect(skewed.shown).toHaveLength(1);
+  });
+
+  it("forgets ids that can no longer come back, without re-notifying", async () => {
+    let fires: AlertFire[] = [{ firedAt: at(1), id: "a" }];
+    const { notifier, shown } = setup(async () => fires);
+    await notifier.poll();
+    expect(shown).toHaveLength(1);
+    // Twenty minutes later: "a" is far behind the cursor and gets dropped from memory.
+    fires = [{ firedAt: at(21), id: "b" }];
+    await notifier.poll();
+    expect(shown).toHaveLength(2);
+    // The server never returns "a" again (it is older than cursor - overlap); "b" is still known.
+    fires = [{ firedAt: at(21), id: "b" }];
+    await notifier.poll();
+    expect(shown).toHaveLength(2);
   });
 
   it("ignores failed polls and retries from the same cursor", async () => {
