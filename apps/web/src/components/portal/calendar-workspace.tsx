@@ -256,7 +256,7 @@ export const CalendarWorkspace = ({
             {summary.label}
           </StatusBadge>
         }
-        title="Economic & earnings calendar"
+        title="Calendar"
       />
       <div className="space-y-3">
         <EconomicNotes

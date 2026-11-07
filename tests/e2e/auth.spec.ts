@@ -226,6 +226,8 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/charts",
   "/deployments",
   "/engines",
+  "/journal",
+  "/calendar",
 ] as const;
 // Reached from the Research page only, for every role.
 const PAGE_LINKED_HREFS = ["/assistant", "/knowledge"] as const;
