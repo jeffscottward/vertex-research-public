@@ -192,6 +192,16 @@ export const withPreset = (
 const utc = (date: Date): string =>
   `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
 
+type NotificationState = NotificationPermission | "unsupported" | "checking";
+
+const NOTIFICATION_LABELS: Readonly<Record<NotificationState, string>> = {
+  checking: "checking",
+  default: "off",
+  denied: "off",
+  granted: "on",
+  unsupported: "unsupported here",
+};
+
 const STATUS_LABELS: Readonly<Record<SignalAlertRule["status"], string>> = {
   active: "Watching",
   dismissed: "Stopped",
@@ -233,7 +243,10 @@ export function SignalAlertsSection({
   const [backfill, setBackfill] = useState<SignalAlertBackfillOutput | null>(
     null
   );
-  const [permission, setPermission] = useState(() => notifier.permission());
+  // The server has no Notification API, so the server render and the hydrating
+  // render both say "checking"; the real permission is read after mount.
+  // Reading it in the initial state made hydration fail (React #418).
+  const [permission, setPermission] = useState<NotificationState>("checking");
   const seenRef = useRef<Date | null>(null);
   const knownRef = useRef(new Set<string>());
   // Every event the page has shown: later polls skip them and the cursor moves to the newest.
@@ -262,6 +275,10 @@ export function SignalAlertsSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setPermission(notifier.permission());
+  }, [notifier]);
 
   // New fires since the last poll become in-app rows and, when allowed, browser/OS notifications.
   useEffect(() => {
@@ -411,13 +428,7 @@ export function SignalAlertsSection({
           Strategy and signal alerts evaluate on bar data in a scheduled server
           job; no model runs in the check loop. Phone push:{" "}
           {data.notifications === "configured" ? "on" : "not configured"}.
-          Browser notifications:{" "}
-          {permission === "granted"
-            ? "on"
-            : permission === "unsupported"
-              ? "unsupported here"
-              : "off"}
-          .{" "}
+          Browser notifications: {NOTIFICATION_LABELS[permission]}.{" "}
           {permission === "default" || permission === "denied" ? (
             <Button
               disabled={busy || permission === "denied"}
