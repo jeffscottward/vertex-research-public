@@ -12,6 +12,7 @@ Keep DarkFactory a small, truthful, swappable product template. Build features a
 | --- | --- |
 | `apps/web` | Product app: pages, route handlers, request scope (`src/server/request-scope.ts`) |
 | `apps/operator` | Opt-in agent-SDLC app ([docs/operator.md](docs/operator.md)) |
+| `apps/desktop` | Electron shell for the live site ([docs/desktop.md](docs/desktop.md)) |
 | `packages/api` | oRPC contracts (`src/contracts/`), services (`src/server/`), `openapi.json` |
 | `packages/db` | Drizzle schema, migrations, repositories, seeds, request database scope |
 | `packages/auth` | Better Auth server and client, generated auth schema |
