@@ -90524,9 +90524,25 @@
                             "maxLength": 80,
                             "type": "string"
                           },
+                          "localSymbol": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
                           "orderRef": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "permId": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "price": {
                             "anyOf": [
@@ -90580,6 +90596,8 @@
                           "time",
                           "symbol",
                           "secType",
+                          "localSymbol",
+                          "permId",
                           "side",
                           "shares",
                           "price",
@@ -110093,9 +110111,25 @@
                             "maxLength": 80,
                             "type": "string"
                           },
+                          "localSymbol": {
+                            "maxLength": 40,
+                            "type": "string"
+                          },
                           "orderRef": {
                             "maxLength": 80,
                             "type": "string"
+                          },
+                          "permId": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           },
                           "price": {
                             "anyOf": [
@@ -110149,6 +110183,8 @@
                           "time",
                           "symbol",
                           "secType",
+                          "localSymbol",
+                          "permId",
                           "side",
                           "shares",
                           "price",
