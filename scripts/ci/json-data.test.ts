@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -20,6 +21,8 @@ import {
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const execFileAsync = promisify(execFile);
+// Only the template repository keeps its lists exact; see GateOptions.
+const options = { stale: existsSync(`${root}scripts/init/plan.ts`) };
 
 type Tracked = Readonly<{ path: string; link: boolean; executable: boolean }>;
 
@@ -277,6 +280,14 @@ describe("allowlist checks", () => {
         "data/b.json": "x",
       })
     ).toEqual([]);
+    expect(
+      checkJsonFiles(
+        tracked,
+        ["data/a.json", "data/c.json", "gone.json"],
+        { "data/b.json": "x" },
+        { stale: false }
+      )
+    ).toEqual([]);
   });
 
   it("ratchets runtime reader names in both directions", () => {
@@ -307,6 +318,21 @@ describe("allowlist checks", () => {
       "packages/a/src/d.ts: JSON data reference d.json is gone: remove it from scripts/ci/json-data-allowlist.ts",
       "packages/a/scripts/moved.ts: baseline entry is not a tracked runtime file: remove it if the file is gone; moving a reader out of runtime scope does not remove it",
     ]);
+    expect(
+      report(
+        checkRuntimeReaders(
+          found,
+          {
+            "packages/a/src/a.ts": ["x.json", "y.json", "z.json"],
+            "packages/a/src/gone.ts": ["g.json"],
+          },
+          new Set(["packages/a/src/a.ts"]),
+          { stale: false }
+        )
+      )
+    ).toEqual([
+      "packages/a/src/b.ts: new JSON data reference x.json: read the data from Postgres through a repository (AGENTS.md rule 13)",
+    ]);
   });
 });
 
@@ -316,7 +342,9 @@ describe("repository", () => {
     async () => {
       const tracked = (await trackedFiles()).map(({ path }) => path);
       expect(
-        report(checkJsonFiles(tracked, PENDING_JSON_DATA, KEPT_JSON_DATA))
+        report(
+          checkJsonFiles(tracked, PENDING_JSON_DATA, KEPT_JSON_DATA, options)
+        )
       ).toEqual([]);
     },
     scaledTimeout(30_000)
@@ -337,7 +365,9 @@ describe("repository", () => {
         if (names.length > 0) found.set(path, names);
       }
       expect(
-        report(checkRuntimeReaders(found, RUNTIME_JSON_READERS, runtime))
+        report(
+          checkRuntimeReaders(found, RUNTIME_JSON_READERS, runtime, options)
+        )
       ).toEqual([]);
     },
     scaledTimeout(30_000)

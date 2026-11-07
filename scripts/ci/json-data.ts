@@ -145,13 +145,21 @@ export function jsonDataReferences(source: string, path: string): string[] {
 export type GateViolation = Readonly<{ path: string; problem: string }>;
 
 /**
+ * `stale: false` skips the checks for list entries that no longer match. A project made with
+ * `bun run init` inherits these lists but loses the pruned bricks and history they name; only the
+ * template repository (where scripts/init/ exists) keeps its lists exact.
+ */
+export type GateOptions = Readonly<{ stale: boolean }>;
+
+/**
  * Checks every tracked JSON data file against the pending and kept lists. Each data file must be on
  * exactly one list, and every list entry must still match a tracked data file.
  */
 export function checkJsonFiles(
   tracked: readonly string[],
   pending: readonly string[],
-  kept: Readonly<Record<string, string>>
+  kept: Readonly<Record<string, string>>,
+  { stale }: GateOptions = { stale: true }
 ): GateViolation[] {
   const violations: GateViolation[] = [];
   const dataFiles = tracked.filter(
@@ -170,7 +178,7 @@ export function checkJsonFiles(
       violations.push({ path, problem: "listed as both pending and kept" });
   }
   for (const entry of [...pending, ...Object.keys(kept)])
-    if (!dataFiles.includes(entry))
+    if (stale && !dataFiles.includes(entry))
       violations.push({
         path: entry,
         problem: "allowlist entry matches no tracked JSON data file: remove it",
@@ -186,7 +194,8 @@ export function checkJsonFiles(
 export function checkRuntimeReaders(
   found: ReadonlyMap<string, readonly string[]>,
   baseline: Readonly<Record<string, readonly string[]>>,
-  runtimeFiles: ReadonlySet<string>
+  runtimeFiles: ReadonlySet<string>,
+  { stale }: GateOptions = { stale: true }
 ): GateViolation[] {
   const violations: GateViolation[] = [];
   for (const [path, names] of found) {
@@ -198,7 +207,7 @@ export function checkRuntimeReaders(
           problem: `new JSON data reference ${name}: read the data from Postgres through a repository (AGENTS.md rule 13)`,
         });
   }
-  for (const [path, allowed] of Object.entries(baseline)) {
+  for (const [path, allowed] of stale ? Object.entries(baseline) : []) {
     if (!runtimeFiles.has(path)) {
       violations.push({
         path,
