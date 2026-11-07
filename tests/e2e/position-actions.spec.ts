@@ -13,31 +13,31 @@ import { captureMockEvidence } from "./helpers/evidence.ts";
 const snapshot = fixtureSnapshot({
   positions: [
     fixturePosition({
-      id: "3001",
-      symbol: "MOCKX",
-      secType: "OPT",
-      description: "MOCKX 20281215 50 C",
-      position: 2,
       avgPrice: 150,
-      last: 2,
-      marketValue: 400,
       costBasis: 300,
       dailyPnl: 0,
+      description: "MOCKX 20281215 50 C",
+      id: "3001",
+      last: 2,
+      marketValue: 400,
+      position: 2,
+      secType: "OPT",
+      symbol: "MOCKX",
       unrealized: 100,
       unrealizedPct: 33,
       weightPct: 1,
     }),
     fixturePosition({
-      id: "3002",
-      symbol: "MOCKS",
-      secType: "STK",
-      description: "MOCKS",
-      position: 10,
       avgPrice: 10,
-      last: 11,
-      marketValue: 110,
       costBasis: 100,
       dailyPnl: 0,
+      description: "MOCKS",
+      id: "3002",
+      last: 11,
+      marketValue: 110,
+      position: 10,
+      secType: "STK",
+      symbol: "MOCKS",
       unrealized: 10,
       unrealizedPct: 10,
       weightPct: 1,
@@ -46,18 +46,27 @@ const snapshot = fixtureSnapshot({
 });
 
 for (const viewport of [
-  { name: "mobile", width: 390, height: 844 },
-  { name: "desktop", width: 1440, height: 900 },
+  { height: 844, name: "mobile", width: 390 },
+  { height: 900, name: "desktop", width: 1440 },
 ]) {
   test(`position buttons open a confirm dialog that Cancel closes (${viewport.name})`, async ({
     page,
   }, testInfo) => {
+    // No order may ever leave the page: any submit request is aborted and fails the test.
+    const submitAttempts: string[] = [];
+    await page.route(
+      /\/api\/orpc\/vertexOrders\/(?:submit|comboSubmit)(?:[/?]|$)/u,
+      (route) => {
+        submitAttempts.push(route.request().url());
+        return route.abort();
+      }
+    );
     await page.route("**/api/orpc/ibkrMonitor/snapshot", (route) =>
       route.fulfill({ json: { json: snapshot, meta: [] } })
     );
     await page.setViewportSize({
-      width: viewport.width,
       height: viewport.height,
+      width: viewport.width,
     });
     await signInAs(page, E2E_IDENTITIES.admin);
     await page.goto("/portfolio");
@@ -128,5 +137,6 @@ for (const viewport of [
     // Escape cancels as well.
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(submitAttempts).toEqual([]);
   });
 }
