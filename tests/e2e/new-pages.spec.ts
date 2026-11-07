@@ -287,7 +287,10 @@ test("an Academy lesson opens with its title, section links and transcript at 37
     await expect(
       page.getByRole("heading", { exact: true, level: 2, name: heading })
     ).toBeVisible();
-  await expect(page.locator("[data-concept-note]")).toBeVisible();
+  // Streamed Suspense content can sit briefly in a hidden template outside the main region.
+  await expect(
+    page.locator("#main-content").locator("[data-concept-note]")
+  ).toBeVisible();
   await expect(
     page
       .getByRole("region", { exact: true, name: "Key points" })

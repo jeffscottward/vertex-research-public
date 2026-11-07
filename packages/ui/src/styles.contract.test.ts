@@ -75,16 +75,22 @@ describe("CSS theme contract", () => {
   it("stops focus moves and jumps below the stuck tab bar and, below lg, the sticky top bar", async () => {
     const css = await readFile(stylesheetUrl, "utf8");
     const content = String.raw`\[data-slot="sticky-tabs"\] > \[role="tabpanel"\] \*`;
-    // Below lg the tab bar sticks at top: --header-height under the sticky portal top bar.
+    const root = String.raw`\[data-slot="sticky-tabs"\]`;
+    // Below lg the tab bar sticks under the sticky portal top bar; from lg the top bar is
+    // static and the tab bar sticks at 0. One variable drives the bar's top and the margin.
     expect(css).toMatch(
       new RegExp(
-        `\\n  ${content} \\{\\s*scroll-margin-top: calc\\(var\\(--header-height\\) \\+ 3\\.5rem\\);\\s*\\}`
+        `\\n  ${root} \\{\\s*--sticky-tabs-top: var\\(--header-height\\);\\s*\\}`
       )
     );
-    // From lg the top bar is static and the tab bar sticks at 0.
+    expect(css).toMatch(
+      new RegExp(
+        `@media \\(min-width: 64rem\\) \\{\\s*${root} \\{\\s*--sticky-tabs-top: 0px;\\s*\\}\\s*\\}`
+      )
+    );
     return expect(css).toMatch(
       new RegExp(
-        `@media \\(min-width: 64rem\\) \\{\\s*${content} \\{\\s*scroll-margin-top: 5rem;\\s*\\}\\s*\\}`
+        `\\n  ${content} \\{\\s*scroll-margin-top: calc\\(var\\(--sticky-tabs-top\\) \\+ 3\\.5rem\\);\\s*\\}`
       )
     );
   });
