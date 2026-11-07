@@ -35,14 +35,17 @@ const instrument = {
   symbol: "SPY",
 };
 
+// IBKR TRADES bars are trade prices, so they sit on the cent grid like the real feed does.
+const cents = (price: number) => Math.round(price * 100) / 100;
+
 const dailyBars = () =>
   Array.from({ length: 60 }, (_, index) => {
-    const close = 100 + 5 * Math.sin(index / 6);
+    const close = cents(100 + 5 * Math.sin(index / 6));
     return {
       c: close,
-      h: close + 1.2,
-      l: close - 1.4,
-      o: close - 0.3,
+      h: cents(close + 1.2),
+      l: cents(close - 1.4),
+      o: cents(close - 0.3),
       t: START_SECONDS + index * DAY_SECONDS,
       v: 1000,
     };
@@ -50,12 +53,12 @@ const dailyBars = () =>
 
 const halfHourBars = () =>
   Array.from({ length: 13 }, (_, index) => {
-    const mid = 100 + Math.sin(index / 2);
+    const mid = cents(100 + Math.sin(index / 2));
     return {
-      c: mid + 0.1,
-      h: mid + 0.4,
-      l: mid - 0.4,
-      o: mid - 0.1,
+      c: cents(mid + 0.1),
+      h: cents(mid + 0.4),
+      l: cents(mid - 0.4),
+      o: cents(mid - 0.1),
       t: SESSION_OPEN + index * HALF_HOUR,
       v: 500,
     };
