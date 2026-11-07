@@ -42,6 +42,11 @@ export const createBrowserEngineComparisonGateway =
 const COMPARISON_POLL_MS = 2000;
 /** 20 minutes: the worker's 10-minute pickup limit plus the 9-minute run limit. */
 export const COMPARISON_POLL_MAX = 600;
+/**
+ * Empty reads polled before giving up (30 s at 2 s): the page can read a group before its first
+ * run row is written, and an Autopilot campaign without gate runs stays empty.
+ */
+export const COMPARISON_EMPTY_POLL_MAX = 15;
 
 /** Milliseconds as "123 ms" or "1.2 s"; "n/a" without a value. */
 export const formatMs = (ms: number | null): string => {
@@ -60,6 +65,7 @@ export type ComparisonState = Readonly<{
 
 /**
  * Reads the comparison group and polls it while a run is queued or running, up to the poll limit.
+ * An empty group is read again too (its rows may not be written yet), up to the empty-read limit.
  * A new `revision` (for example a campaign tick) reads it again.
  */
 export const useComparisonRuns = (
@@ -78,6 +84,7 @@ export const useComparisonRuns = (
     if (groupId === null) return;
     let active = true;
     let reads = 0;
+    let emptyReads = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const read = () => {
       reads += 1;
@@ -85,7 +92,11 @@ export const useComparisonRuns = (
         ({ runs }) => {
           if (!active) return;
           setState({ message: null, runs });
-          const waiting = !runs.every(isDone);
+          if (runs.length === 0) emptyReads += 1;
+          const waiting =
+            runs.length === 0
+              ? emptyReads < COMPARISON_EMPTY_POLL_MAX
+              : !runs.every(isDone);
           if (waiting && reads < pollMax) timer = setTimeout(read, pollMs);
         },
         () => {
