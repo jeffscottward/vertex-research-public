@@ -158,6 +158,23 @@ describe("journal trades and contracts", () => {
       ]).map((execution) => execution.execId)
     ).toEqual(["y.01.01", "x.01.02", "plain"]));
 
+  it("keeps an older correction out even when it arrives last, and ids without a numeric version", () =>
+    expect(
+      latestExecutions([
+        fill({ execId: "x.01.02" }),
+        fill({ execId: "x.01.01" }),
+        fill({ execId: "z.abc" }),
+      ]).map((execution) => execution.execId)
+    ).toEqual(["x.01.02", "z.abc"]));
+
+  it("orders contracts sharing a label by security type", () =>
+    expect(
+      journalSymbolRows([
+        fill({ secType: "STK", symbol: "AAPL" }),
+        fill({ secType: "OPT", symbol: "AAPL" }),
+      ]).map((row) => row.secType)
+    ).toEqual(["OPT", "STK"]));
+
   it("separates option contracts from their stock", () =>
     expect(
       journalSymbolRows([

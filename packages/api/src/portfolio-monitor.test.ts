@@ -311,6 +311,17 @@ describe("portfolioMonitor derivation", () => {
     ]);
   });
 
+  it("drops an unset order id (0) from fills", () => {
+    const output = toPortfolioMonitorOutput(
+      upstream({ executions: [execution({ execId: "zero", permId: 0 })] }),
+      at
+    );
+    return expect(output.executions[0]).toMatchObject({
+      execId: "zero",
+      permId: null,
+    });
+  });
+
   it("removes account codes from every text field", () => {
     const output = toPortfolioMonitorOutput(
       upstream({ lastError: `lost ${FAKE_ACCOUNT}` }),

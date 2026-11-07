@@ -165,6 +165,17 @@ describe("research lab entries", () => {
         host.querySelector('[role="tabpanel"]:not([hidden]) [aria-busy="true"]')
       ).toBeNull()
     );
+    expect(
+      host.querySelector(
+        '[role="tabpanel"]:not([hidden]) [data-operator-access="required"]'
+      )
+    ).toBeNull();
+    await vi.waitFor(() =>
+      expect(
+        host.querySelectorAll('[role="tabpanel"]:not([hidden]) tr[data-arc]')
+          .length
+      ).toBeGreaterThan(0)
+    );
   });
 
   it("shows the fake calendar", async () => {

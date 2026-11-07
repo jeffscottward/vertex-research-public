@@ -288,6 +288,24 @@ describe("ibkrMonitor mapping", () => {
     });
   });
 
+  it("drops unset order ids (0 or missing) from fills", () => {
+    const [first, second] = upstream().executions;
+    const output = toIbkrMonitorOutput(
+      upstream({
+        executions: [
+          { ...first, execId: "zero", permId: 0 },
+          { ...second, execId: "missing", permId: undefined },
+        ],
+      }),
+      at
+    );
+    expect(
+      Object.fromEntries(
+        output.executions.map((row) => [row.execId, row.permId])
+      )
+    ).toEqual({ missing: null, zero: null });
+  });
+
   it("falls back to the symbol and ranks positions without a market value last", () => {
     const base = upstream().positions[1];
     const output = toIbkrMonitorOutput(
