@@ -21,12 +21,42 @@ describe("parseSettings", () => {
   it("returns defaults for missing, malformed or invalid JSON", () => {
     expect(parseSettings(null)).toBe(DEFAULT_SETTINGS);
     expect(parseSettings("{")).toBe(DEFAULT_SETTINGS);
-    expect(parseSettings('{"openWorkspaces":["orders"]}')).toBe(
-      DEFAULT_SETTINGS
-    );
-    expect(parseSettings('{"bounds":{"charts":{"width":5}}}')).toBe(
-      DEFAULT_SETTINGS
-    );
+    expect(parseSettings("null")).toBe(DEFAULT_SETTINGS);
+    expect(parseSettings("[]")).toBe(DEFAULT_SETTINGS);
+    expect(parseSettings('"text"')).toBe(DEFAULT_SETTINGS);
+  });
+
+  it("drops only the invalid entries and keeps the rest", () => {
+    expect(
+      parseSettings(
+        JSON.stringify({
+          bounds: {
+            charts: { height: 800, width: 1200, x: -32_000, y: -32_000 },
+            journal: bounds,
+            orders: bounds,
+          },
+          openWorkspaces: ["orders", "journal", 7],
+          siteUrl: "https://vertex.example",
+        })
+      )
+    ).toEqual({
+      bounds: { journal: bounds },
+      openWorkspaces: ["journal"],
+      siteUrl: "https://vertex.example",
+    });
+    expect(
+      parseSettings(
+        JSON.stringify({
+          bounds: null,
+          openWorkspaces: "charts",
+          siteUrl: "x".repeat(2049),
+        })
+      )
+    ).toEqual({ bounds: {}, openWorkspaces: [] });
+    expect(parseSettings('{"siteUrl":5}')).toEqual({
+      bounds: {},
+      openWorkspaces: [],
+    });
   });
 
   it("fills defaults and drops duplicate open workspaces", () => {

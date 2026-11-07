@@ -33,7 +33,7 @@ const electron = vi.hoisted(() => {
     focus() {
       this.calls.push("focus");
     }
-    getBounds() {
+    getNormalBounds() {
       return { height: 1, width: 2, x: 3, y: 4 };
     }
     isMinimized() {
@@ -123,6 +123,7 @@ vi.mock("electron", () => electron.module);
 import {
   createElectronPorts,
   createWindowFactory,
+  EXTERNAL_OPEN_INTERVAL_MS,
   GRANTED_PERMISSIONS,
   hardenSession,
   SITE_PARTITION,
@@ -249,6 +250,25 @@ describe("createWindowFactory", () => {
     });
   });
 
+  it("opens at most one system-browser page per interval", () => {
+    vi.useFakeTimers();
+    try {
+      const { native } = setup();
+      const navigate = native.contentsListeners.get("will-navigate");
+      const event = (url: string) => ({ preventDefault: vi.fn(), url });
+      navigate?.(event("https://a.example/"));
+      navigate?.(event("https://b.example/"));
+      vi.advanceTimersByTime(EXTERNAL_OPEN_INTERVAL_MS);
+      navigate?.(event("https://c.example/"));
+      expect(electron.module.shell.openExternal.mock.calls).toEqual([
+        ["https://a.example/"],
+        ["https://c.example/"],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("keeps same-site navigation, sends other http(s) links to the browser and blocks the rest", () => {
     const { native } = setup();
     const navigate = native.contentsListeners.get("will-navigate");
@@ -313,9 +333,14 @@ describe("createWindowFactory", () => {
     window.focus();
     expect(native.calls).toEqual(["show", "focus", "restore", "show", "focus"]);
     expect(window.bounds()).toEqual({ height: 1, width: 2, x: 3, y: 4 });
+    const closing = vi.fn();
     const closed = vi.fn();
-    window.onClose(closed);
+    window.onClose(closing);
+    window.onClosed(closed);
     native.listeners.get("close")?.();
+    expect(closing).toHaveBeenCalledOnce();
+    expect(closed).not.toHaveBeenCalled();
+    native.listeners.get("closed")?.();
     expect(closed).toHaveBeenCalledOnce();
   });
 });
@@ -351,6 +376,10 @@ describe("createElectronPorts", () => {
     ports.onBeforeQuit(beforeQuit);
     electron.appListeners.get("before-quit")?.();
     expect(beforeQuit).toHaveBeenCalledOnce();
+    const willQuit = vi.fn();
+    ports.onWillQuit(willQuit);
+    electron.appListeners.get("will-quit")?.();
+    expect(willQuit).toHaveBeenCalledOnce();
     const second = vi.fn();
     ports.onSecondInstance(second);
     electron.appListeners.get("second-instance")?.();
@@ -384,7 +413,9 @@ describe("createElectronPorts", () => {
     expect(first?.shown).toBe(true);
     first?.listeners.get("click")?.();
     expect(onClick).toHaveBeenCalledOnce();
-    expect(second?.listeners.has("click")).toBe(false);
+    // A click without a handler, a failure and a close all just release the notification.
+    second?.listeners.get("click")?.();
+    second?.listeners.get("failed")?.();
     first?.listeners.get("close")?.();
     electron.FakeNotification.supported = false;
     ports.notify({ body: "b3", title: "t3" });

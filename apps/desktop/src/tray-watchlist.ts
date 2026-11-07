@@ -175,7 +175,8 @@ export const createTrayWatchlist = (
   }>
 ): TrayWatchlist => {
   let state: WatchlistTrayState = { type: "loading" };
-  let inflight: Promise<void> | null = null;
+  // Each refresh supersedes the one before it; an older load stops drawing and pricing.
+  let generation = 0;
   let stopTimer: (() => void) | null = null;
 
   const render = (next: WatchlistTrayState) => {
@@ -184,16 +185,18 @@ export const createTrayWatchlist = (
     options.tray.setToolTip(trayToolTip(state));
   };
 
-  const load = async () => {
+  const load = async (mine: number) => {
     let entries: readonly WatchlistEntry[];
     try {
       entries = await options.api.watchlist();
     } catch (error) {
+      if (mine !== generation) return;
       const signedOut =
         error instanceof DesktopApiError && error.failure === "signed-out";
       render({ type: signedOut ? "signed-out" : "unavailable" });
       return;
     }
+    if (mine !== generation) return;
     const rows: WatchlistRow[] = entries
       .slice(0, TRAY_MAX_ROWS)
       .map((entry) => ({ entry, quote: "pending" }));
@@ -206,16 +209,15 @@ export const createTrayWatchlist = (
       } catch {
         quote = null;
       }
+      if (mine !== generation) return;
       rows[index] = { entry: row.entry, quote };
       render({ rows: [...rows], total: entries.length, type: "ready" });
     }
   };
 
   const refresh = (): Promise<void> => {
-    inflight ??= load().finally(() => {
-      inflight = null;
-    });
-    return inflight;
+    generation += 1;
+    return load(generation);
   };
 
   const actions: TrayActions = {

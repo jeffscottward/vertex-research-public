@@ -31,7 +31,10 @@ export type FakeWindow = WorkspaceWindow & {
   request: WindowRequest;
   loaded: string[];
   focusCount: number;
+  /** The window closes: close listeners, then closed listeners. */
   close: () => void;
+  /** The window starts closing but a page cancels it: close listeners only. */
+  cancelledClose: () => void;
 };
 
 export const fakeWindowFactory = (
@@ -39,11 +42,16 @@ export const fakeWindowFactory = (
 ): { factory: WindowFactory; windows: FakeWindow[] } => {
   const windows: FakeWindow[] = [];
   const factory: WindowFactory = (request) => {
-    const listeners: (() => void)[] = [];
+    const closing: (() => void)[] = [];
+    const closed: (() => void)[] = [];
     const window: FakeWindow = {
       bounds: () => bounds,
+      cancelledClose: () => {
+        for (const listener of closing) listener();
+      },
       close: () => {
-        for (const listener of listeners.splice(0)) listener();
+        for (const listener of closing) listener();
+        for (const listener of closed.splice(0)) listener();
       },
       focus: () => {
         window.focusCount += 1;
@@ -54,7 +62,10 @@ export const fakeWindowFactory = (
       },
       loaded: [],
       onClose: (listener) => {
-        listeners.push(listener);
+        closing.push(listener);
+      },
+      onClosed: (listener) => {
+        closed.push(listener);
       },
       request,
     };

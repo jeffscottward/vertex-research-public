@@ -71,14 +71,43 @@ describe("createWindowManager", () => {
     });
   });
 
-  it("keeps the open list while quitting so the next start restores it", () => {
+  it("keeps a window whose close a page cancelled", () => {
+    const { manager, settings, windows } = setup();
+    manager.open("charts");
+    windows[0]?.cancelledClose();
+    expect(manager.openWorkspaces()).toEqual(["charts"]);
+    expect(settings.current().bounds.charts).toBeDefined();
+    manager.open("charts");
+    expect(windows).toHaveLength(1);
+  });
+
+  it("writes back the list from the start of a quit once the quit happens", () => {
     const { manager, settings, windows } = setup();
     manager.open("charts");
     manager.open("watchlist");
     manager.beginQuit();
     for (const window of windows) window.close();
+    expect(settings.current().openWorkspaces).toEqual([]);
+    manager.finishQuit();
     expect(settings.current().openWorkspaces).toEqual(["charts", "watchlist"]);
     expect(settings.current().bounds.watchlist).toBeDefined();
+  });
+
+  it("does nothing at finishQuit without a started quit", () => {
+    const { manager, settings } = setup();
+    manager.open("news");
+    manager.finishQuit();
+    expect(settings.current().openWorkspaces).toEqual(["news"]);
+  });
+
+  it("forgets windows closed after a cancelled quit", () => {
+    const { manager, settings, windows } = setup();
+    manager.open("charts");
+    manager.open("news");
+    manager.beginQuit();
+    // The quit was cancelled (no finishQuit); the user then closes one window.
+    windows[1]?.close();
+    expect(settings.current().openWorkspaces).toEqual(["charts"]);
   });
 
   it("restores the saved workspaces, or the dashboard when none", () => {

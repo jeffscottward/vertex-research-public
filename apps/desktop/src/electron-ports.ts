@@ -33,6 +33,8 @@ export const GRANTED_PERMISSIONS: readonly string[] = [
   "fullscreen",
 ];
 const DEFAULT_SIZE = Object.freeze({ height: 900, width: 1440 });
+/** At most one system-browser open per this interval, so a page script cannot flood it. */
+export const EXTERNAL_OPEN_INTERVAL_MS = 1000;
 
 const assetPath = (name: string): string =>
   fileURLToPath(new URL(`../assets/${name}`, import.meta.url));
@@ -74,6 +76,13 @@ export const createWindowFactory = (
 ): WindowFactory => {
   hardenSession(session.fromPartition(SITE_PARTITION), options.siteOrigin);
   const icon = nativeImage.createFromPath(assetPath("icon.png"));
+  let lastExternalOpen = Number.NEGATIVE_INFINITY;
+  const openExternal = (url: string) => {
+    const now = Date.now();
+    if (now - lastExternalOpen < EXTERNAL_OPEN_INTERVAL_MS) return;
+    lastExternalOpen = now;
+    void shell.openExternal(url);
+  };
   return (request) => {
     const window = new BrowserWindow({
       ...(request.bounds ?? DEFAULT_SIZE),
@@ -91,7 +100,7 @@ export const createWindowFactory = (
     const contents = window.webContents;
     const leaveSite = (url: string): boolean => {
       const target = classifyNavigation(options.siteOrigin, url);
-      if (target === "external") void shell.openExternal(url);
+      if (target === "external") openExternal(url);
       return target !== "inside";
     };
     contents.setWindowOpenHandler(({ url }) => {
@@ -112,7 +121,8 @@ export const createWindowFactory = (
     // Keep "Vertex · <workspace>" so each window stays identifiable in the task switcher.
     window.on("page-title-updated", (event) => event.preventDefault());
     return {
-      bounds: () => window.getBounds(),
+      // Normal bounds: a minimised or maximised window still saves its restored size.
+      bounds: () => window.getNormalBounds(),
       focus: () => {
         if (window.isMinimized()) window.restore();
         window.show();
@@ -123,7 +133,10 @@ export const createWindowFactory = (
         contents.loadURL(url).catch(() => undefined);
       },
       onClose: (listener) => {
-        window.once("close", listener);
+        window.on("close", listener);
+      },
+      onClosed: (listener) => {
+        window.once("closed", listener);
       },
     };
   };
@@ -168,8 +181,13 @@ export const createElectronPorts = (): DesktopPorts => ({
       title,
     });
     shownNotifications.add(notification);
-    notification.on("close", () => shownNotifications.delete(notification));
-    if (onClick !== undefined) notification.on("click", onClick);
+    const release = () => shownNotifications.delete(notification);
+    notification.on("close", release);
+    notification.on("failed", release);
+    notification.on("click", () => {
+      release();
+      onClick?.();
+    });
     notification.show();
   },
   now: () => new Date(),
@@ -178,6 +196,9 @@ export const createElectronPorts = (): DesktopPorts => ({
   },
   onSecondInstance: (listener) => {
     app.on("second-instance", listener);
+  },
+  onWillQuit: (listener) => {
+    app.on("will-quit", listener);
   },
   quit: () => app.quit(),
   setAppMenu: (items) =>
