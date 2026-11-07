@@ -137,7 +137,7 @@ def run_options(stock: BacktestResult, prices: dict[tuple[date, int], float], cl
     for d in days:
         start = aum
         priced: list[Trade] = []
-        close = close_minutes.get(d, 390)
+        close = close_minutes[d]  # required: a missing half-day would otherwise exit after its close
         for t in by_day.get(d, []):
             u_in = prices.get((d, t.entry_minute))
             xm = min(t.exit_minute, last_exit_minute(close))

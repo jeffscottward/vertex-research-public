@@ -263,6 +263,12 @@ def main(argv: list[str] | None = None) -> dict:
         else:
             entry["results"] = run_symbol(sessions)
         report["symbols"][sym] = entry
+    for sym, entry in report["symbols"].items():  # pre-registered verdict window: SPY fresh, other ETFs full
+        graded = "fresh" if sym == "SPY" else "full"
+        for name, runs in entry["results"].items():
+            if name in ("primary", "paper_costs", "no_costs"):
+                for w, e in runs.items():
+                    e["graded"] = name == "primary" and w == graded
     tests = [s for s in report["symbols"] if s != "SPY"]
     for sym in tests:  # variant 3 verdict = full window; label a pass as one test among several (pre-registered)
         e = report["symbols"][sym]["results"]["primary"]["full"]
@@ -275,5 +281,6 @@ def main(argv: list[str] | None = None) -> dict:
 
 if __name__ == "__main__":
     r = main()
-    brief = {s: {k: v["results"]["primary"][k]["verdict"] for k in ("full", "fresh")} for s, v in r["symbols"].items()}
+    brief = {s: {k: v["results"]["primary"][k]["verdict"] + ("" if v["results"]["primary"][k]["graded"] else " (rule only, no verdict)")
+                 for k in ("full", "fresh")} for s, v in r["symbols"].items()}
     print(json.dumps(brief))

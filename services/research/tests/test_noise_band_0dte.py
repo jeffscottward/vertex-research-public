@@ -91,7 +91,7 @@ def test_run_options_equity_and_counts():
     other_day = Trade(date(2024, 2, 29), 1, 100, 30, 500.0, 120, 501.0, "stop", 0.0, 0.0)
     stock = BacktestResult(Params(), [], [stock_trade(), stock_trade(side=-1), other_day])
     prices = {(D, 30): 500.0, (D, 120): 501.0}
-    res, counts = run_options(stock, prices, {D: 390}, book, [D, date(2024, 3, 4)])
+    res, counts = run_options(stock, prices, {D: 390, date(2024, 3, 4): 390}, book, [D, date(2024, 3, 4)])
     assert len(res.days) == 2 and len(res.trades) == 1
     assert counts["no_entry_quote"] == 1  # the put has no quote
     assert counts["outside_option_days"] == 1
