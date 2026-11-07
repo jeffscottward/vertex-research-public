@@ -60,9 +60,63 @@ const render = async (
   return host;
 };
 
+const FACTOR_KEYS = [
+  "dealerSign",
+  "regime",
+  "freshness",
+  "expiryMix",
+  "levels",
+  "flow",
+  "dex",
+  "charm",
+  "vanna",
+  "ivRegime",
+  "events",
+] as const;
+
+// Dummy GEX context: one chip per factor, tones cycle through neutral, caution and alert.
+const context: OptionsAnalyticsOutput["context"] = {
+  dealerSignAssumption: "dealers long calls, short puts",
+  expiry: {
+    monthlyOpexDays: 1,
+    nextExpiry: "2026-10-23",
+    nextExpiryDte: 1,
+    nextMonthlyOpex: "2026-10-23",
+  },
+  factors: FACTOR_KEYS.map((key, index) => ({
+    detail: `Why ${key} matters.`,
+    key,
+    label: `Label ${key}`,
+    tone: (["neutral", "caution", "alert"] as const)[index % 3] ?? "neutral",
+    value: `Value ${key}`,
+  })),
+  flow: {
+    bearishPremium: 250_000,
+    bias: "bullish",
+    bullishPremium: 1_000_000,
+    newestTradeAt: "2026-10-22T14:10:00.000Z",
+    weekShare: 0.2,
+    zeroDteShare: 0,
+  },
+  greeks: { netCharm: -1000, netDex: 5_000_000, netVanna: 2000 },
+  iv: { backIv: 0.4, frontIv: 0.5, regime: "inverted" },
+  levels: {
+    callWall: null,
+    callWallMoves: null,
+    dailyMove: 3,
+    flip: 98.684,
+    flipMoves: -0.4,
+    putWall: 90,
+    putWallMoves: -3.3,
+  },
+  regime: "positive",
+  session: "morning",
+};
+
 const fixture = (
   overrides: Partial<OptionsAnalyticsOutput> = {}
 ): OptionsAnalyticsOutput => ({
+  context,
   exposure: {
     gexExpiry: "2026-10-23",
     maxPain: 100,
@@ -181,6 +235,42 @@ describe("OptionsAnalyticsPanel", () => {
       "unusual"
     );
     return expect(view.textContent).toContain("Research only.");
+  });
+
+  it("shows the GEX context strip and the estimated levels next to GEX", async () => {
+    const view = await render({ snapshot: async () => fixture() });
+    const strip = view.querySelector("[data-gex-context]");
+    expect(strip?.getAttribute("data-gex-regime")).toBe("positive");
+    expect(strip?.textContent).toContain(
+      "Read this before trusting the number"
+    );
+    // The strip sits inside the GEX section, before the GEX numbers.
+    expect(
+      strip?.closest("section[data-section-status]")?.textContent
+    ).toContain("Gamma exposure and open interest");
+    const chips = [...(strip?.querySelectorAll("li[data-factor]") ?? [])];
+    expect(chips.map((chip) => chip.getAttribute("data-factor"))).toEqual([
+      ...FACTOR_KEYS,
+    ]);
+    expect(
+      chips.map((chip) => chip.getAttribute("data-tone")).slice(0, 3)
+    ).toEqual(["neutral", "caution", "alert"]);
+    expect(chips[1]?.textContent).toBe("Caution: Label regimeValue regime");
+    expect(chips[1]?.className).toContain("border-warning-border");
+    expect(chips[2]?.className).toContain("border-destructive-border");
+    expect(
+      view.querySelector("[data-gex-context-details]")?.textContent
+    ).toContain("Why dex matters.");
+    // Each chip is described by its entry in "What each badge means".
+    const described = chips[6]?.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(described)?.textContent).toBe(
+      "Why dex matters."
+    );
+    const level = (label: string) =>
+      view.querySelector(`[data-gex-level="${label}"]`)?.textContent;
+    expect(level("Gamma flip (est.)")).toBe("98.68");
+    expect(level("Call wall (largest +GEX)")).toBe("—");
+    return expect(level("Put wall (largest -GEX)")).toBe("90.00");
   });
 
   it("puts each skew point under the target column it was chosen for", async () => {

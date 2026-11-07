@@ -2,6 +2,7 @@ import type { Route } from "@playwright/test";
 
 import { E2E_IDENTITIES, expect, signInAs, test } from "./fixtures.ts";
 import { resetDatabase } from "./helpers/database.ts";
+import { EMPTY_GEX_CONTEXT } from "./helpers/options-snapshot.ts";
 
 // /charts Order flow panel. The IBKR history service is not reachable in a browser run, so the
 // bars, ticks and depth RPCs are answered with clearly fictional data; depth answers ENTITLEMENT
@@ -142,6 +143,7 @@ const fulfillDepthEntitlement = async (route: Route) =>
 const emptySection = { message: null, status: "empty" } as const;
 const fulfillOptionsSnapshot = async (route: Route) =>
   await fulfillJson(route, {
+    context: EMPTY_GEX_CONTEXT,
     exposure: {
       ...emptySection,
       gexExpiry: null,
