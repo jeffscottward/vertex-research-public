@@ -7,6 +7,7 @@ import {
   handleMcpMessage,
   listMcpTools,
   presentBacktest,
+  presentGexContext,
   presentedApiKey,
   presentSweep,
   procedureResultFromResponse,
@@ -62,6 +63,7 @@ describe("MCP tool registry", () => {
       "backtest_runs_sweep",
       "deployment_status",
       "market_bars",
+      "options_gex_context",
       "strategies_list",
       "strategies_get",
       "optimizations_list",
@@ -138,6 +140,69 @@ describe("callMcpTool", () => {
     const result = await callMcpTool("deployment_status", {}, call);
     expect(call).toHaveBeenCalledWith("agentOps/deployment/status", {});
     return expect(result["structuredContent"]).toEqual(value);
+  });
+
+  it("returns the GEX headline and its context from options_gex_context", async () => {
+    const context = { regime: "positive", factors: [] };
+    const value = {
+      symbol: "AAPL",
+      source: "quantdata",
+      receivedAt: "2026-11-06T19:00:00.000Z",
+      spot: 101,
+      rateLimited: false,
+      retryAfterSeconds: null,
+      notes: ["Research only."],
+      volatility: { status: "ok", message: null, termStructure: [], skew: [] },
+      exposure: {
+        status: "ok",
+        message: null,
+        strikes: [{ strike: 100 }, { strike: 105 }],
+        maxPain: 100,
+        totalGex: 1_000_000,
+        gexExpiry: "2026-11-09",
+      },
+      flow: { status: "empty", message: "none", events: [] },
+      context,
+    };
+    const call = okCall(value);
+    const result = await callMcpTool(
+      "options_gex_context",
+      { symbol: "AAPL", flowHours: 6 },
+      call
+    );
+    expect(call).toHaveBeenCalledWith("optionsAnalytics/snapshot", {
+      symbol: "AAPL",
+      flowHours: 6,
+    });
+    expect(result["structuredContent"]).toEqual({
+      context,
+      exposure: {
+        gexExpiry: "2026-11-09",
+        maxPain: 100,
+        message: null,
+        status: "ok",
+        strikeCount: 2,
+        totalGex: 1_000_000,
+      },
+      flowStatus: "empty",
+      notes: ["Research only."],
+      rateLimited: false,
+      receivedAt: "2026-11-06T19:00:00.000Z",
+      retryAfterSeconds: null,
+      source: "quantdata",
+      spot: 101,
+      symbol: "AAPL",
+    });
+    const rejected = await callMcpTool(
+      "options_gex_context",
+      { symbol: "AAPL", flowHours: 2 },
+      call
+    );
+    expect(rejected["isError"]).toBe(true);
+    expect(presentGexContext(null)).toBeNull();
+    expect(presentGexContext({ symbol: "X" })).toEqual({ symbol: "X" });
+    const noFlow = { exposure: value.exposure, flow: null };
+    return expect(presentGexContext(noFlow)).toBe(noFlow);
   });
 
   it("strips the MCP-only includeSeries flag before calling backtests.get", async () => {

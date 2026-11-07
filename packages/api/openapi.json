@@ -101975,6 +101975,366 @@
                 "schema": {
                   "additionalProperties": false,
                   "properties": {
+                    "context": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "dealerSignAssumption": {
+                          "const": "dealers long calls, short puts"
+                        },
+                        "expiry": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "monthlyOpexDays": {
+                              "maximum": 9007199254740991,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "nextExpiry": {
+                              "anyOf": [
+                                {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nextExpiryDte": {
+                              "anyOf": [
+                                {
+                                  "maximum": 9007199254740991,
+                                  "minimum": 0,
+                                  "type": "integer"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "nextMonthlyOpex": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "nextExpiry",
+                            "nextExpiryDte",
+                            "nextMonthlyOpex",
+                            "monthlyOpexDays"
+                          ],
+                          "type": "object"
+                        },
+                        "factors": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "detail": {
+                                "maxLength": 300,
+                                "type": "string"
+                              },
+                              "key": {
+                                "enum": [
+                                  "dealerSign",
+                                  "regime",
+                                  "freshness",
+                                  "expiryMix",
+                                  "levels",
+                                  "flow",
+                                  "dex",
+                                  "charm",
+                                  "vanna",
+                                  "ivRegime",
+                                  "events"
+                                ],
+                                "type": "string"
+                              },
+                              "label": {
+                                "maxLength": 40,
+                                "type": "string"
+                              },
+                              "tone": {
+                                "enum": [
+                                  "neutral",
+                                  "caution",
+                                  "alert"
+                                ],
+                                "type": "string"
+                              },
+                              "value": {
+                                "maxLength": 80,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "key",
+                              "label",
+                              "value",
+                              "tone",
+                              "detail"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "flow": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "bearishPremium": {
+                              "type": "number"
+                            },
+                            "bias": {
+                              "enum": [
+                                "bullish",
+                                "bearish",
+                                "balanced",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            },
+                            "bullishPremium": {
+                              "type": "number"
+                            },
+                            "newestTradeAt": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "weekShare": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "zeroDteShare": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "bias",
+                            "bullishPremium",
+                            "bearishPremium",
+                            "newestTradeAt",
+                            "zeroDteShare",
+                            "weekShare"
+                          ],
+                          "type": "object"
+                        },
+                        "greeks": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "netCharm": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "netDex": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "netVanna": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "netDex",
+                            "netVanna",
+                            "netCharm"
+                          ],
+                          "type": "object"
+                        },
+                        "iv": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "backIv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "frontIv": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "regime": {
+                              "enum": [
+                                "inverted",
+                                "flat",
+                                "contango",
+                                "unknown"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "regime",
+                            "frontIv",
+                            "backIv"
+                          ],
+                          "type": "object"
+                        },
+                        "levels": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "callWall": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "callWallMoves": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "dailyMove": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "flip": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "flipMoves": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "putWall": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "putWallMoves": {
+                              "anyOf": [
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "flip",
+                            "callWall",
+                            "putWall",
+                            "dailyMove",
+                            "flipMoves",
+                            "callWallMoves",
+                            "putWallMoves"
+                          ],
+                          "type": "object"
+                        },
+                        "regime": {
+                          "enum": [
+                            "positive",
+                            "negative",
+                            "unknown"
+                          ],
+                          "type": "string"
+                        },
+                        "session": {
+                          "enum": [
+                            "closed",
+                            "premarket",
+                            "morning",
+                            "midday",
+                            "afternoon",
+                            "afterhours"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "regime",
+                        "dealerSignAssumption",
+                        "levels",
+                        "greeks",
+                        "flow",
+                        "expiry",
+                        "iv",
+                        "session",
+                        "factors"
+                      ],
+                      "type": "object"
+                    },
                     "exposure": {
                       "additionalProperties": false,
                       "properties": {
@@ -102421,7 +102781,8 @@
                     "notes",
                     "volatility",
                     "exposure",
-                    "flow"
+                    "flow",
+                    "context"
                   ],
                   "type": "object"
                 }
@@ -102670,7 +103031,7 @@
             "description": "503"
           }
         },
-        "summary": "Read-only IV term structure, skew, IV surface, estimated GEX and option flow for one symbol",
+        "summary": "Read-only IV term structure, skew, IV surface, estimated GEX, option flow and the GEX context (caveats) for one symbol",
         "tags": [
           "Market data"
         ]

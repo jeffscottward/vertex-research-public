@@ -335,8 +335,41 @@ export const blackScholesGamma = (
   );
 };
 
-// Estimated GEX per strike, dollars per 1 % move: (callOI*gamma - putOI*gamma) * 100 * S^2 * 0.01.
+export type GammaModel = Readonly<{
+  // Expiry whose IVs feed the estimate (first with DTE >= 1).
+  expiry: string;
+  // Years used for every strike (at least half a day).
+  years: number;
+  // Front ATM IV, null when the front expiry has no IV near spot.
+  atmIv: number | null;
+  // IV at a strike for one side; the front ATM IV when the strike has none.
+  ivAt: (strike: number, right: "call" | "put") => number | null;
+}>;
+
+// The IV inputs shared by the GEX estimate and the GEX context.
 // Gamma uses the IV of the nearest expiry with DTE >= 1 at that strike (ATM IV as fallback).
+export const gammaModel = (
+  chain: readonly ChainRow[],
+  spot: number,
+  today: string
+): GammaModel | null => {
+  const expiries = [...new Set(chain.map((row) => row.expiry))];
+  const expiry =
+    expiries.find((item) => daysUntil(item, today) >= 1) ?? expiries[0];
+  if (expiry === undefined) return null;
+  const front = chain.filter((row) => row.expiry === expiry && row.iv !== null);
+  const atmIv = termStructure(front, spot, today)[0]?.atmIv ?? null;
+  return {
+    atmIv,
+    expiry,
+    ivAt: (strike, right) =>
+      front.find((row) => row.strike === strike && row.right === right)?.iv ??
+      atmIv,
+    years: Math.max(daysUntil(expiry, today), 0.5) / 365,
+  };
+};
+
+// Estimated GEX per strike, dollars per 1 % move: (callOI*gamma - putOI*gamma) * 100 * S^2 * 0.01.
 // Assumes dealers are long calls and short puts; aggregate OI spans all expiries.
 export const exposure = (
   oiRows: readonly OpenInterestRow[],
@@ -346,12 +379,9 @@ export const exposure = (
 ): Omit<ExposureSection, "status" | "message"> => {
   const strikes = displayStrikes(oiRows, spot);
   const pain = maxPain(oiRows);
-  const expiries = [...new Set(chain.map((row) => row.expiry))];
-  const gexExpiry =
-    expiries.find((expiry) => daysUntil(expiry, today) >= 1) ??
-    expiries[0] ??
-    null;
-  if (spot === null || spot <= 0 || gexExpiry === null) {
+  const model =
+    spot === null || spot <= 0 ? null : gammaModel(chain, spot, today);
+  if (spot === null || model === null) {
     return {
       gexExpiry: null,
       maxPain: pain,
@@ -359,33 +389,25 @@ export const exposure = (
       totalGex: null,
     };
   }
-  const front = chain.filter(
-    (row) => row.expiry === gexExpiry && row.iv !== null
-  );
-  const atm = termStructure(front, spot, today)[0]?.atmIv ?? null;
-  const years = Math.max(daysUntil(gexExpiry, today), 0.5) / 365;
-  const ivAt = (strike: number, right: "call" | "put"): number | null =>
-    front.find((row) => row.strike === strike && row.right === right)?.iv ??
-    atm;
   let total = 0;
   let any = false;
   const rows = strikes.map((row) => {
-    const callIv = ivAt(row.strike, "call");
-    const putIv = ivAt(row.strike, "put");
+    const callIv = model.ivAt(row.strike, "call");
+    const putIv = model.ivAt(row.strike, "put");
     if (callIv === null || putIv === null) return { ...row, gex: null };
     const scale = 100 * spot * spot * 0.01;
     const gex =
       (row.callOpenInterest *
-        blackScholesGamma(spot, row.strike, callIv, years) -
+        blackScholesGamma(spot, row.strike, callIv, model.years) -
         row.putOpenInterest *
-          blackScholesGamma(spot, row.strike, putIv, years)) *
+          blackScholesGamma(spot, row.strike, putIv, model.years)) *
       scale;
     total += gex;
     any = true;
     return { ...row, gex };
   });
   return {
-    gexExpiry,
+    gexExpiry: model.expiry,
     maxPain: pain,
     strikes: rows,
     totalGex: any ? total : null,

@@ -6,6 +6,7 @@ import type {
   OptionsAnalyticsParsedInput,
 } from "../contracts/options-analytics.ts";
 import type { ApiContext } from "./context.ts";
+import { buildGexContext, newYorkDate } from "./gex-context.ts";
 import {
   exposure,
   ivSurface,
@@ -27,7 +28,8 @@ import {
 // Read-only options analytics (optionsAnalytics.snapshot). Three QuantData requests per
 // uncached call: term-structure (IV chain + spot), open-interest-by-strike and
 // order-flow/consolidated. Each section reports its own status; one failed request does
-// not hide the others. Nothing here can place, change or cancel orders.
+// not hide the others. `context` (gex-context.ts) restates the caveats of the GEX number.
+// Nothing here can place, change or cancel orders.
 
 const CHAIN_TTL_MS = 300_000;
 const FLOW_TTL_MS = 60_000;
@@ -42,14 +44,13 @@ const OPTIONS_ANALYTICS_NOTES = [
 
 type Deps = Readonly<{ now: () => Date; client: QuantDataClient }>;
 
-const isoDay = (date: Date): string => date.toISOString().slice(0, 10);
-
 export const buildOptionsAnalytics = async (
   input: OptionsAnalyticsParsedInput,
   deps: Deps
 ): Promise<OptionsAnalyticsOutput> => {
   const now = deps.now();
-  const today = isoDay(now);
+  // Expiry math follows the New York market day, not the UTC date.
+  const today = newYorkDate(now);
   const { symbol, flowHours } = input;
   const filter = { filter: { ticker: symbol } };
   const end = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
@@ -154,10 +155,21 @@ export const buildOptionsAnalytics = async (
       result.ok ? 0 : (result.retryAfterSeconds ?? 0)
     )
   );
+  const context = buildGexContext({
+    chain: chain.rows,
+    events,
+    exposure: exposureSection,
+    flowHours,
+    flowOk: flowResult.ok,
+    now,
+    spot,
+    term,
+  });
   const notes: string[] = [...OPTIONS_ANALYTICS_NOTES];
   if (chain.expired > 0)
     notes.push(`Excluded ${chain.expired} expired expiries from the IV views.`);
   return {
+    context,
     exposure: exposureSection,
     flow,
     notes,
