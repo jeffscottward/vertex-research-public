@@ -94,6 +94,10 @@ describe("grid limits", () => {
     expect(autoPriceStep(0.01, 0, 1_000_000, 10)).toBe(1_000_000);
     expect(autoPriceStep(1e-8, 99.5, 101.7, 60)).toBe(0.1);
   });
+  it("treats a tick finer than 8 decimals as 1e-8, so the step is never 0", () => {
+    expect(autoPriceStep(1e-9, 100, 100.000_000_2, 60)).toBe(1e-8);
+    expect(autoPriceStep(1e-12, 99.5, 101.7, 60)).toBe(0.1);
+  });
   it("stops after the extra decades when even they exceed the level cap", () => {
     expect(autoPriceStep(1e-8, 0, 1e20, 10)).toBe(1e10);
   });

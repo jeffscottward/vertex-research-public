@@ -72,7 +72,7 @@ export const PRICE_STEP_MULTIPLES = [
   1, 2, 5, 10, 25, 50, 100, 250, 500, 1000,
 ] as const;
 const LARGEST_STEP_MULTIPLE = 1000;
-/** Decades tried past the largest multiple before giving up (1e-8 tick -> up to 1e+7). */
+/** Decades grown past the largest multiple: tick x 1e3 up to tick x 1e18 (the last one unchecked). */
 const EXTRA_STEP_DECADES = 15;
 
 /** Levels between low and high (inclusive) at a step. */
@@ -82,7 +82,8 @@ export const levelCount = (low: number, high: number, step: number): number =>
 /**
  * Smallest tick multiple whose grid over [low, high] has at most `maxLevels` rows. Past the
  * largest offered multiple it keeps growing by decades, so a fine tick (unrounded prices give
- * 1e-8) still yields a readable grid instead of millions of rows.
+ * 1e-8) still yields a readable grid instead of millions of rows. A tick finer than 8 decimals
+ * counts as 1e-8, so no step rounds to 0.
  */
 export const autoPriceStep = (
   tick: number,
@@ -90,12 +91,13 @@ export const autoPriceStep = (
   high: number,
   maxLevels: number
 ): number => {
-  const digits = decimalsOf(tick);
+  const unit = Math.max(tick, 10 ** -MAX_DECIMALS);
+  const digits = decimalsOf(unit);
   for (const multiple of PRICE_STEP_MULTIPLES) {
-    const step = roundPrice(tick * multiple, digits);
+    const step = roundPrice(unit * multiple, digits);
     if (levelCount(low, high, step) <= maxLevels) return step;
   }
-  let step = roundPrice(tick * LARGEST_STEP_MULTIPLE, digits);
+  let step = roundPrice(unit * LARGEST_STEP_MULTIPLE, digits);
   for (let decade = 0; decade < EXTRA_STEP_DECADES; decade += 1) {
     if (levelCount(low, high, step) <= maxLevels) return step;
     step = roundPrice(step * 10, digits);

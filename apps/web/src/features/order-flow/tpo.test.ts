@@ -124,7 +124,8 @@ describe("buildTpoProfile", () => {
     );
   });
 
-  it("falls back to the auto step for a non-finite step option", () => {
+  it("falls back to the auto step for a non-finite or non-positive step option", () => {
+    // Infinity exercises the finite check; NaN and 0 fail the > 0 check.
     for (const priceStep of [Number.NaN, Number.POSITIVE_INFINITY, 0]) {
       expect(
         buildTpoProfile(DAY_ONE, "America/New_York", { priceStep })?.priceStep
