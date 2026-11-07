@@ -71,4 +71,21 @@ describe("CSS theme contract", () => {
       /@media \(prefers-reduced-motion: reduce\) \{[^}]*animation-duration: 0\.01ms !important;[^}]*transition-duration: 0\.01ms !important;/
     );
   });
+
+  it("stops focus moves and jumps below the stuck tab bar and, below lg, the sticky top bar", async () => {
+    const css = await readFile(stylesheetUrl, "utf8");
+    const content = String.raw`\[data-slot="sticky-tabs"\] > \[role="tabpanel"\] \*`;
+    // Below lg the tab bar sticks at top: --header-height under the sticky portal top bar.
+    expect(css).toMatch(
+      new RegExp(
+        `\\n  ${content} \\{\\s*scroll-margin-top: calc\\(var\\(--header-height\\) \\+ 3\\.5rem\\);\\s*\\}`
+      )
+    );
+    // From lg the top bar is static and the tab bar sticks at 0.
+    return expect(css).toMatch(
+      new RegExp(
+        `@media \\(min-width: 64rem\\) \\{\\s*${content} \\{\\s*scroll-margin-top: 3\\.5rem;\\s*\\}\\s*\\}`
+      )
+    );
+  });
 });
