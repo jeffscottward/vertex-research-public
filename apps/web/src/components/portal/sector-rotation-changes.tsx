@@ -7,6 +7,7 @@ import {
   type SectorRotationSnapshot,
 } from "@darkfactory/api";
 import { Button } from "@darkfactory/ui";
+import { ArrowRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { isOperatorAccessDenied } from "./agent-ops-client.tsx";
@@ -147,7 +148,9 @@ const Ready = ({ data }: { readonly data: SectorRotationSnapshot }) => {
                   {change.name === null ? "" : ` ${change.name}`}:
                 </span>
                 <Chip quadrant={change.from} />
-                <span aria-hidden="true">→</span>
+                {/* An icon, not a "→" glyph: axe cannot rate the contrast of a
+                    symbol-only text node and leaves color-contrast incomplete. */}
+                <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
                 <span className="sr-only">to</span>
                 <Chip quadrant={change.to} />
               </li>
