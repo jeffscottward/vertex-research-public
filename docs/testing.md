@@ -101,6 +101,8 @@ The core lane also runs `scripts/ci/native-rust.sh`. It runs `cargo test --locke
 
 TS-side Python tests: every `packages/api` test that starts a Python child uses one interpreter, `VERTEX_TEST_PYTHON` (`packages/api/src/server/research-python.test-support.ts`). Each coverage shard makes it with `scripts/ci/test-python.sh` from `services/research/requirements-sdk-linux-py312.lock` (the services lock plus the research SDK stack: `agno==1.7.12`, `openai==1.93.0`, `httpx==0.28.1` and their closure). In GitHub Actions (`GITHUB_ACTIONS=true`) the interpreter-only suites (`vertex-runtime-composite`, `-hmm` and `-jump`) fail when the variable is missing; locally they skip. `turbo.json` passes `VERTEX_TEST_PYTHON` through to `test:unit`. Local run: `export VERTEX_TEST_PYTHON="$(bash scripts/ci/test-python.sh /tmp/vertex-test-python | tail -1)"`.
 
+The `Native evidence (SDK)` job (owner decision 2026-11-06, card vertex-native-evidence-ci-job) runs beside the shards on every change that runs them, on a GitHub-hosted runner with a 45-minute limit. `scripts/ci/native-evidence.sh` makes the same `VERTEX_TEST_PYTHON` interpreter with `scripts/ci/test-python.sh` and runs only `packages/api/src/server/vertex-research-chat-native-evidence.test.ts`. It fails when any case fails or is skipped, so a missing or broken SDK interpreter is never a green skip. `ci-gate` requires the job on the full lane, like the shards and the coverage merge. The shards still run the suite as part of their coverage run. To run the job locally: `bash scripts/ci/native-evidence.sh` (needs CPython 3.12 as `python3.12` or `VERTEX_RESEARCH_PYTHON`).
+
 ## Writing good tests
 
 - Use fakes from each brick's `./test` export instead of mocking SDKs.

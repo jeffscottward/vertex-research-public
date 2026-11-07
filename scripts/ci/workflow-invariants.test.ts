@@ -199,6 +199,17 @@ describe("GitHub workflow invariants", () => {
     expect(ciJobs["coverage-shards"]!.if).toBe(
       "needs.changes.outputs.heavy == 'true'"
     );
+    // Owner 2026-11-06 (card vertex-native-evidence-ci-job): the real-SDK
+    // native-evidence job runs beside the shards on every heavy change, with
+    // its own time limit (the suite alone needs about 20 minutes hosted).
+    const nativeEvidence = ciJobs["native-evidence"]! as Job & {
+      needs?: string | string[];
+      if?: string;
+      "timeout-minutes"?: number;
+    };
+    expect(nativeEvidence.needs).toBe("changes");
+    expect(nativeEvidence.if).toBe("needs.changes.outputs.heavy == 'true'");
+    expect(nativeEvidence["timeout-minutes"]).toBe(45);
     const on = ci.workflow.on as Record<string, Record<string, unknown> | null>;
     expect(on["pull_request"]?.["types"]).toEqual(
       expect.arrayContaining([
