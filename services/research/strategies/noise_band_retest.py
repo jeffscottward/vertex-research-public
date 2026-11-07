@@ -264,11 +264,10 @@ def main(argv: list[str] | None = None) -> dict:
             entry["results"] = run_symbol(sessions)
         report["symbols"][sym] = entry
     tests = [s for s in report["symbols"] if s != "SPY"]
-    for sym in tests:  # variant 3: label a pass as one test among several (pre-registered wording)
-        for w in ("full", "fresh"):
-            e = report["symbols"][sym]["results"]["primary"][w]
-            if e["verdict"] == "pass":
-                e["label"] = f"PASS (single test among {len(tests)}; needs a forward check)"
+    for sym in tests:  # variant 3 verdict = full window; label a pass as one test among several (pre-registered)
+        e = report["symbols"][sym]["results"]["primary"]["full"]
+        if e["verdict"] == "pass":
+            e["label"] = f"PASS (single test among {len(tests)}; needs a forward check)"
     with open(a.out, "w") as f:
         json.dump(report, f, indent=1)
     return report
