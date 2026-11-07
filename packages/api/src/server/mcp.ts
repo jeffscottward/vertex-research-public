@@ -31,6 +31,7 @@ import {
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
 import { MarketBarsInputSchema } from "../contracts/market-data.ts";
+import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
   BacktestRunGetInputSchema,
   BacktestRunListInputSchema,
@@ -170,6 +171,55 @@ export const presentMarketBars = (
     ...output,
     bars: bars.slice(-lastBars),
     barsOmitted: bars.length - lastBars,
+  };
+};
+
+const OptionsGexContextToolInputSchema = z
+  .object({
+    symbol: z
+      .string()
+      .trim()
+      .min(1)
+      .max(15)
+      .describe("US stock or ETF symbol, e.g. AAPL or SPY."),
+    flowHours: z
+      .union([z.literal(1), z.literal(6), z.literal(24), z.literal(72)])
+      .optional()
+      .describe("Option-flow window in hours: 1, 6, 24 or 72. Default 24."),
+  })
+  .strict();
+
+// The IV surface, skew, per-strike rows (strikeCount says how many) and flow events are dropped; the GEX headline, its
+// context (levels, dealer Greeks, flow bias, freshness, expiry, IV regime, session, events,
+// caveat factors) and the data notes stay.
+export const presentGexContext = (value: unknown): unknown => {
+  if (typeof value !== "object" || value === null) return value;
+  const output = value as OptionsAnalyticsOutput;
+  if (
+    typeof output.exposure !== "object" ||
+    output.exposure === null ||
+    typeof output.flow !== "object" ||
+    output.flow === null
+  )
+    return value;
+  return {
+    context: output.context,
+    exposure: {
+      gexExpiry: output.exposure.gexExpiry,
+      maxPain: output.exposure.maxPain,
+      message: output.exposure.message,
+      status: output.exposure.status,
+      strikeCount: output.exposure.strikes.length,
+      totalGex: output.exposure.totalGex,
+    },
+    flowStatus: output.flow.status,
+    notes: output.notes,
+    rateLimited: output.rateLimited,
+    receivedAt: output.receivedAt,
+    retryAfterSeconds: output.retryAfterSeconds,
+    source: output.source,
+    spot: output.spot,
+    symbol: output.symbol,
   };
 };
 
@@ -388,6 +438,16 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
         value,
         typeof args["lastBars"] === "number" ? args["lastBars"] : 500
       ),
+  },
+  {
+    name: "options_gex_context",
+    title: "Options GEX context",
+    description:
+      "Read-only estimated GEX for one US stock symbol (QuantData) and the context to read before trusting it: regime, gamma flip and call/put walls with distance in one-day implied moves, open-interest delta (DEX, holders' side), estimated dealer vanna and charm, flow bias (bullish vs bearish premium), OI freshness (previous session), expiry mix, IV term regime, New York session, next monthly OpEx and plain-text caveat factors. GEX, level, vanna and charm signs assume dealers long calls, short puts. Research only; not a trade signal.",
+    procedure: "optionsAnalytics/snapshot",
+    input: OptionsGexContextToolInputSchema,
+    readOnly: true,
+    present: (value) => presentGexContext(value),
   },
   {
     name: "strategies_list",
