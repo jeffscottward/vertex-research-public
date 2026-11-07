@@ -245,7 +245,7 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
       />
     ),
     route: "/calendar",
-    title: "Economic & earnings calendar",
+    title: "Calendar",
   },
   {
     group: GROUP,

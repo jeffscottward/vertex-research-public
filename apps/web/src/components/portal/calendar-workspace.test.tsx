@@ -206,9 +206,7 @@ describe("calendar workspace", () => {
     );
     const container = await render({ ...props, now: () => NOW });
 
-    expect(container.querySelector("h1")?.textContent).toBe(
-      "Economic & earnings calendar"
-    );
+    expect(container.querySelector("h1")?.textContent).toBe("Calendar");
     expect(props.newsGateway.watchlist).toHaveBeenCalledWith(720);
     // SPY's SEC source failed, so the earnings side is partial.
     expect(chip(container)).toBe("Partial");
