@@ -1,6 +1,13 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  BACKTEST_RUN_NAUTILUS_ENGINE,
+  ENGINE_COMPARISON_SUPERSEDED_ERROR,
+  NAUTILUS_GPU_NOTE,
+} from "@darkfactory/api";
 import { researchReports } from "@darkfactory/db/schema";
 import {
+  type BacktestRunCreateInput,
+  createBacktestRunsRepository,
   createMarketBarsRepository,
   createNodeDatabase,
   createResearchReportsRepository,
@@ -26,8 +33,9 @@ import { resetDatabase } from "./helpers/database.ts";
 
 // Pages without other browser coverage: an Academy lesson, one research dossier, the Workspace
 // settings tab, the signal alerts on /price-alerts and the engine comparison (dual run) on the
-// instant backtest. Everything runs against the E2E server's own data: a fictional dossier and
-// fictional daily bars seeded here, no provider and no Nautilus worker. Research only; no orders.
+// instant backtest. Everything runs against the E2E server's own data: a fictional dossier,
+// fictional daily bars and a fictional Nautilus run seeded here, no provider and no Nautilus
+// worker (the comparison test plays the worker on the run's database). Research only; no orders.
 
 const PHONE = { height: 812, width: 375 } as const;
 
@@ -141,15 +149,15 @@ const syntheticBars = (size: number): MarketBarRow[] =>
     };
   });
 
-const withRunDatabase = async (
-  work: (database: Database) => Promise<unknown>
-): Promise<void> => {
+const withRunDatabase = async <T>(
+  work: (database: Database) => Promise<T>
+): Promise<T> => {
   const resource = createNodeDatabase({
     connectionString: e2eEnvironment().databaseUrl,
     maxConnections: 1,
   });
   try {
-    await work(resource.db);
+    return await work(resource.db);
   } finally {
     await resource.close();
   }
@@ -158,8 +166,9 @@ const withRunDatabase = async (
 // resetDevelopment truncates user-owned tables only: research dossiers are imported catalog data
 // and survive it, so this spec removes them itself. Revisions and datasets cascade from the report.
 // The E2E database is per run and nothing else stores dossiers in it.
-const removeDossiers = (): Promise<void> =>
-  withRunDatabase((database) => database.delete(researchReports));
+const removeDossiers = async (): Promise<void> => {
+  await withRunDatabase((database) => database.delete(researchReports));
+};
 
 test.beforeAll(async () => {
   await resetDatabase();
@@ -219,9 +228,13 @@ test("an Academy lesson opens with its title, section links and transcript at 37
     has: page.getByRole("heading", { level: 1, name: LESSON.title }),
   });
   await expect(header).toBeVisible();
-  await expect(header.locator('[data-slot="page-status"]')).toHaveText(
-    "Concept lesson"
+  // The status badge reads "Status: Concept lesson" to screen readers; its visible label is the kind.
+  const lessonKind = header.locator(
+    '[data-slot="page-status"] [data-lesson-kind="concept"]'
   );
+  await expect(
+    lessonKind.getByText("Concept lesson", { exact: true })
+  ).toBeVisible();
   // The portal top bar has its own Breadcrumb navigation; the lesson's sits in the page header.
   await expect(
     header
@@ -277,9 +290,12 @@ test("a research dossier opens on its first dataset and switches tabs at 375 px"
     has: page.getByRole("heading", { level: 1, name: `${REPORT_ID} dossier` }),
   });
   await expect(header).toBeVisible();
-  await expect(header.locator('[data-slot="page-status"]')).toHaveText(
-    "Research only"
-  );
+  // The status badge reads "Status: Research only" to screen readers; the visible label follows.
+  await expect(
+    header
+      .locator('[data-slot="page-status"]')
+      .getByText("Research only", { exact: true })
+  ).toBeVisible();
   await expect(
     header.getByRole("link", { exact: true, name: "Research dossiers" })
   ).toHaveAttribute("href", "/research/reports");
@@ -548,23 +564,36 @@ test("with engine comparison off (the E2E default) the instant backtest shows no
   page,
 }) => {
   // VERTEX_ENGINE_COMPARISON is not in the E2E app environment (tests/e2e/env.ts) and defaults to
-  // "off" (packages/config/src/server.ts), so the run is never queued for Nautilus.
+  // "off" (packages/config/src/server.ts), so the run is never queued for Nautilus. The run's body
+  // is not read here: the page can drop it before the test asks for it; the UI and the database
+  // show the outcome.
   const run = page.waitForResponse(
     (response) => new URL(response.url()).pathname === RUN_PATH
   );
   await signInAs(page, E2E_IDENTITIES.alice);
   await openInstantBacktest(page);
-  const body = (await (await run).json()) as { json: Record<string, unknown> };
-  expect(body.json).not.toHaveProperty("comparison");
+  expect((await run).ok()).toBe(true);
   await expect(page.locator("[data-engine-comparison]")).toHaveCount(0);
   await expect(
     page.getByRole("region", { exact: true, name: "Nautilus result" })
   ).toHaveCount(0);
+  expect(
+    await withRunDatabase((database) =>
+      comparisonRuns(database).listComparisons({
+        feature: "instant",
+        limit: 500,
+      })
+    )
+  ).toEqual([]);
 });
 
-// The E2E server has comparison off and no research worker. The real run response gets the
-// comparison timing the server adds when it is on; the Nautilus status is first read from the real
-// comparisons list (empty for the fictional group), then a fictional finished run is returned.
+// The E2E server has comparison off and no research worker on a rig. The real run response gets
+// the comparison timing the server adds when it is on. The spec then does the two jobs of the
+// missing parts on the run's database: it stores the group's queued Nautilus run the way the
+// server's comparison queue does (packages/api/src/engine-comparison.ts#createComparisonQueue),
+// and, as the worker, claims it and stores a finished report. The card reads every state through
+// the real backtestRuns.comparisons.list. The engine.claim/complete procedures, which check a
+// worker's equity against the stored bars, are covered by their unit tests, not here.
 const FAKE_GROUP = "e2e-fake-instant-group";
 const FAKE_TS_HOST = "E2E fake web host";
 const FAKE_RIG = "E2E fake rig";
@@ -573,57 +602,88 @@ const FAKE_TIMING = {
   host: FAKE_TS_HOST,
   wallMs: 4,
 } as const;
-const FAKE_DATE = "2026-01-02T00:00:00.000Z";
 
-const fakeComparisonRun = {
-  comparison: {
-    feature: "instant",
-    groupId: FAKE_GROUP,
-    label: "E2E fake instant backtest",
-    typescript: {
-      host: FAKE_TS_HOST,
-      stats: {
-        bars: 1500,
-        buyHoldMaxDrawdown: -0.1,
-        buyHoldReturn: 0.5,
-        cagr: 0.1,
-        exposure: 0.5,
-        maxDrawdown: -0.1,
-        profitFactor: 1.5,
-        sharpe: 1,
-        sortino: 1,
-        totalReturn: 0.2,
-        trades: 10,
-        winRate: 0.5,
+const FAKE_QUEUED_RUN: BacktestRunCreateInput = {
+  engineVersion: BACKTEST_RUN_NAUTILUS_ENGINE,
+  requestedBy: "e2e-fake-requester",
+  spec: {
+    comparison: {
+      feature: "instant",
+      groupId: FAKE_GROUP,
+      label: "E2E fake instant backtest",
+      typescript: {
+        host: FAKE_TS_HOST,
+        stats: {
+          bars: 1500,
+          buyHoldMaxDrawdown: -0.1,
+          buyHoldReturn: 0.5,
+          cagr: 0.1,
+          exposure: 0.5,
+          maxDrawdown: -0.1,
+          profitFactor: 1.5,
+          sharpe: 1,
+          sortino: 1,
+          totalReturn: 0.2,
+          trades: 10,
+          winRate: 0.5,
+        },
+        tradeCount: 0,
+        trades: [],
+        wallMs: 4,
       },
-      tradeCount: 0,
-      trades: [],
-      wallMs: 4,
     },
+    costBps: 0,
+    from: "1970-01-01",
+    initialCapital: 10_000,
+    rule: { fast: 20, kind: "smaCross", slow: 50 },
+    stopLossPct: 0,
+    symbol: "TEST",
+    takeProfitPct: 0,
+    timeframe: "1d",
+    to: "1974-02-07",
   },
-  createdAt: FAKE_DATE,
+  strategyId: null,
+  strategyRevision: null,
+  strategySnapshot: null,
+};
+
+/** The parts of a worker's report that the comparison list reads (report.engineRun, .differences). */
+const FAKE_REPORT = {
   differences: { items: [], ok: true },
   engineRun: {
     cpuMs: 10,
-    gpu: "not used (Nautilus engine is CPU-only)",
+    gpu: NAUTILUS_GPU_NOTE,
     host: FAKE_RIG,
     processCases: 1,
     processes: 1,
     processWallMs: 20,
     wallMs: 12,
   },
-  engineVersion: "e2e-fake",
-  error: null,
-  finishedAt: FAKE_DATE,
-  from: "1970-01-01",
-  id: "e2e-fake-comparison-run",
-  queueWaitMs: 5,
-  startedAt: FAKE_DATE,
-  status: "succeeded",
-  symbol: "TEST",
-  timeframe: "1d",
-  to: "1974-02-07",
-} as const;
+};
+
+const comparisonRuns = (database: Database) =>
+  createBacktestRunsRepository(database, {
+    generateId: () => randomUUID(),
+    now: () => new Date(),
+  });
+
+/** The fake worker claims the group's queued run, like backtestRuns.engine.claim. */
+const claimFakeRun = (): Promise<string> =>
+  withRunDatabase(async (database) => {
+    const claimed = await comparisonRuns(database).claimNext(
+      BACKTEST_RUN_NAUTILUS_ENGINE
+    );
+    expect(claimed?.spec.comparison).toMatchObject({ groupId: FAKE_GROUP });
+    if (claimed === null) throw new Error("no queued Nautilus run to claim");
+    return claimed.id;
+  });
+
+/** The fake worker stores the finished run, like backtestRuns.engine.complete. */
+const completeFakeRun = (id: string): Promise<void> =>
+  withRunDatabase(async (database) => {
+    const stored = await comparisonRuns(database).complete(id, FAKE_REPORT);
+    expect(stored?.status).toBe("succeeded");
+  });
 
 const addComparisonTiming = async (route: Route): Promise<void> => {
   const response = await route.fetch();
@@ -632,28 +692,27 @@ const addComparisonTiming = async (route: Route): Promise<void> => {
   await route.fulfill({ json: body, response });
 };
 
-// oRPC's RPC serializer marks dates in `meta` as [1, ...path].
-const fulfillFinishedRun = (route: Route): Promise<void> =>
-  route.fulfill({
-    json: {
-      json: { runs: [fakeComparisonRun] },
-      meta: ["createdAt", "startedAt", "finishedAt"].map((field) => [
-        1,
-        "runs",
-        0,
-        field,
-      ]),
-    },
-  });
+const QUEUE_WAIT = String.raw`\(queue (\d+ ms|\d+\.\d s)\)`;
+// The card polls every 2 s while a run is not done.
+const POLL_TIMEOUT = { timeout: 10_000 } as const;
 
-test("a compared instant backtest shows the TypeScript line and the Nautilus card at 375 px", async ({
+test("a compared instant backtest shows the TypeScript line and follows its Nautilus run at 375 px", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
   await signInAs(page, E2E_IDENTITIES.alice);
+  // Queued before the page reads the group: an empty group is done, and the card stops polling.
+  const enqueued = await withRunDatabase((database) =>
+    comparisonRuns(database).enqueueGroup({
+      groupId: FAKE_GROUP,
+      runs: [FAKE_QUEUED_RUN],
+      supersededError: ENGINE_COMPARISON_SUPERSEDED_ERROR,
+    })
+  );
+  expect(enqueued).toMatchObject({ created: 1, reused: false });
   await page.route(`**${RUN_PATH}`, addComparisonTiming);
-  const firstRead = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === COMPARISONS_PATH
+  const groupRead = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === COMPARISONS_PATH
   );
   await openInstantBacktest(page);
 
@@ -664,23 +723,40 @@ test("a compared instant backtest shows the TypeScript line and the Nautilus car
       "u"
     )
   );
+  // The card asks for the group of the run's timing.
+  expect((await groupRead).postDataJSON()).toMatchObject({
+    json: { groupId: FAKE_GROUP },
+  });
   const card = comparison.getByRole("region", {
     exact: true,
     name: "Nautilus result",
   });
-  const read = await firstRead;
-  expect(read.ok()).toBe(true);
-  expect(await read.json()).toMatchObject({ json: { runs: [] } });
-  await expect(card).toHaveAttribute("data-nautilus-card", "waiting");
+  await expect(card).toHaveAttribute("data-nautilus-card", "queued");
   await expect(card).toHaveText("Nautilus · rig · queued");
   await expectNoPageOverflow(page);
 
-  // The card polls every 2 s while no run is done; the next read finds the finished run.
-  await page.route(`**${COMPARISONS_PATH}`, fulfillFinishedRun);
-  await expect(card).toHaveAttribute("data-nautilus-card", "succeeded");
-  await expect(card.locator("p").first()).toHaveText(
-    `Nautilus · ${FAKE_RIG} · 12 ms (queue 5 ms)`
+  const runId = await claimFakeRun();
+  await expect(card).toHaveAttribute(
+    "data-nautilus-card",
+    "running",
+    POLL_TIMEOUT
   );
-  await expect(card.locator('[data-differences="0"]')).toHaveText("match");
+  await expect(card).toHaveText(
+    new RegExp(`^Nautilus · rig · running ${QUEUE_WAIT}$`, "u")
+  );
+
+  await completeFakeRun(runId);
+  await expect(card).toHaveAttribute(
+    "data-nautilus-card",
+    "succeeded",
+    POLL_TIMEOUT
+  );
+  await expect(card.locator("p").first()).toHaveText(
+    new RegExp(`^Nautilus · ${FAKE_RIG} · 12 ms ${QUEUE_WAIT}$`, "u")
+  );
+  // The badge reads "Status: match" to screen readers; its visible label is "match".
+  await expect(
+    card.locator('[data-differences="0"]').getByText("match", { exact: true })
+  ).toBeVisible();
   await expectNoPageOverflow(page);
 });
