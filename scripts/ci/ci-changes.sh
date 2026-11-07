@@ -28,7 +28,9 @@ classify() {
     case "${path}" in
       docs/* | research/* | plans/*)
         case "${path}" in
-          *.ts | *.tsx | *.js | *.mjs | *.cjs | *.mts | *.cts | *.civet | *.py | *.rs | *.json | *.yml | *.yaml | *.toml | *.sql | *.sh) ;;
+          # Any JSON format (rule 13 gate), matched without regard to case.
+          *.*[jJ][sS][oO][nN]*) ;;
+          *.ts | *.tsx | *.js | *.mjs | *.cjs | *.mts | *.cts | *.civet | *.py | *.rs | *.yml | *.yaml | *.toml | *.sql | *.sh) ;;
           *) continue ;;
         esac
         ;;

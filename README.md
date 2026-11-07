@@ -207,6 +207,7 @@ The always-on copy at `http://vertex.localhost` is a separate setup: rig user un
 | `bun run test` | All suites: unit, contract, operations, acceptance, integration and browser |
 | `bun run test:unit` / `test:integration` / `test:e2e` | One suite ([docs/testing.md](docs/testing.md)) |
 | `bun run test:gateway` | The `services/gateway` Python tests in a pinned container |
+| `bun run test:json-data` | The no-JSON-data gate (AGENTS.md rule 13); part of `verify:core` |
 | `bun run verify:prepush` | The pre-push hook (`.husky/pre-push`): `verify:core`, then unit, contract and operations tests |
 | `bun run verify` | The four CI lanes locally: `verify:core`, `verify:coverage`, `verify:integration`, `verify:browser` |
 | `bun run docs:check` | Checks the generated package graph and the file paths named in Markdown |
