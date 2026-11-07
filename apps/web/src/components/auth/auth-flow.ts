@@ -33,11 +33,9 @@ export type AuthResponse = Promise<
 >;
 
 export type AuthFlowClient = Readonly<{
-  signInEmail: (input: {
-    email: string;
-    password: string;
-    callbackURL: string;
-  }) => AuthResponse;
+  // No callbackURL: Better Auth's client would then set window.location.href itself,
+  // and the sign-in form's own location.replace would abort that first navigation.
+  signInEmail: (input: { email: string; password: string }) => AuthResponse;
   signUpEmail: (input: {
     name: string;
     email: string;
@@ -240,10 +238,10 @@ export const submitSignIn = async (
 ): Promise<AuthFlowResult> => {
   const destination = normalizeAuthDestination(input.callbackURL);
   try {
+    // The form navigates to the sanitized destination itself (location.replace).
     const result = await client.signInEmail({
       email: input.email.trim().toLowerCase(),
       password: input.password,
-      callbackURL: destination,
     });
     if (result.error) return signInError(result.error);
     return { status: "success", destination };
