@@ -41,7 +41,7 @@ Source: <https://github.com/NVIDIA/auto-ontology>, read at commit `2a24f5d` (202
 - Backtest metrics live in two places with different meanings and units. Engine runs: `backtest_runs.report.metrics.sharpe` and `maxDrawdownPct`, which holds a positive fraction despite its name (0.2 = 20%; `packages/api/src/backtest-run-report.ts:108-121`). Agent records: `backtest_results.metrics` (free-form keys such as `sharpe_ratio` or `Sharpe`) and `max_drawdown` (negative fraction).
 - Gate outcomes: `autopilot_candidates.status` is `evaluated` (not yet judged), `rejected` (failed `autopilot-gate-v1`) or `verified` (passed). `fitness` is in-sample Sharpe; `oos_sharpe` is out-of-sample.
 - Crown copy-book legs have no data in Vertex. `crownCopy` is only an input flag of the risk allocator (`packages/api/src/contracts/risk-allocator.ts:36-48`).
-- "Open risk" has no table or field. The prototype uses a proposed definition that the owner must certify.
+- "Open risk" has no table or field. Owner decision (2026-11-05): the certified term `open_risk` is the sum of the defined maximum loss of each open option structure (debit paid for long options and debit spreads; width minus credit for defined-width credit spreads). This is a research definition only. It changes no trade or risk setting.
 
 ## Prototype
 
@@ -64,7 +64,7 @@ The prototype is throwaway. Its purpose is to settle the decision above.
 |Term|Source|Definition|Certified|
 |---|---|---|---|
 |`net_liquidation`|feed `vertex-portfolio` `summary.netLiquidation`|NLV of the live IBKR account. Exec-node equity is the paper account and is not NLV.|yes|
-|`open_risk`|feed positions, computed|Sum of the maximum loss of each open option structure: long option = premium paid; vertical spread = width x 100 x contracts - net credit. Also as % of NLV.|**no, owner must certify**|
+|`open_risk`|feed positions, computed|Sum of the maximum loss of each open option structure: long option or debit spread = debit paid; defined-width credit spread = width x 100 x contracts - net credit. Also as % of NLV.|yes (owner, 2026-11-05)|
 |`pnl`|feed `pnl.daily/unrealized/realized`|Live account P&L for one window.|yes|
 |`position`|feed positions|Live positions for one symbol, stock and options separately.|yes|
 |`crown_copy_leg`|none|Returns "not available"; tells the model not to estimate.|no data|
@@ -134,7 +134,7 @@ H4 and H5 test terms that are not in the catalog. In H4 the semantic arm used th
 - The data and feeds are synthetic. Real feeds can be stale or unavailable; the real build must return "unknown" in that case.
 - Arm A emulates the current tools against the fixture. It is not the deployed assistant (which uses `VERTEX_ASSISTANT_MODEL` through OpenRouter).
 - One model family and three trials per cell. The grader is a model, checked by a manual audit.
-- The `open_risk` definition is a proposal. Its references assume the owner accepts it.
+- The owner certified `open_risk` on 2026-11-05, after these trials ran. `eval-results.json` records it as `certified: false` because it is a record of that run.
 
 Artifacts: [fixture.sql](agent-semantic-layer/fixture.sql) and [eval-results.json](agent-semantic-layer/eval-results.json) (questions, references, terms, every answer, tool calls and grade). The harness ran in an OMP eval session and is not part of the product.
 
@@ -147,5 +147,5 @@ Follow the feature workflow in `AGENTS.md` (contract first, failing test, 100% c
 3. **Tools:** add `terms_list` and `terms_query` to `MCP_TOOLS` as read-only tools; they are then available in Plan mode. Do not add a raw SQL tool.
 4. **System prompt:** tell the model to use a certified term when one exists, and to say "not available" when none exists.
 5. **Interim fix in the same card:** change the `deployment_status` tool description to state that its equity, positions and P&L belong to the exec-node account named in `session.trading_mode`, and are not the owner's IBKR account summary.
-6. **Owner inputs for the build:** accept or change the `open_risk` definition, and choose a Crown copy-book data source (or keep the term as "not available").
+6. **Owner inputs for the build:** choose a Crown copy-book data source (or keep the term as "not available"). The `open_risk` definition is certified (2026-11-05).
 7. **Acceptance:** an automated test runs the 25 questions above against fixtures with a recorded model, and checks that each answer carries the certified source.
