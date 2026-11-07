@@ -94,10 +94,13 @@ describe("public tailnet names", () => {
           if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
           throw error;
         }
+        // Too large to scan is a failure, not a pass. latin1 keeps every byte (binaries); dropping NUL bytes
+        // makes UTF-16 text readable as well.
         const inText =
-          data.length > MAX_BYTES || data.includes(0)
-            ? 0
-            : realTailnetLabels(data.toString("utf8")).length;
+          data.length > MAX_BYTES
+            ? 1
+            : realTailnetLabels(data.toString("latin1").replaceAll("\0", ""))
+                .length;
         // Report the file and a count only, never the name itself.
         if (inPath + inText > 0)
           offenders.push(
