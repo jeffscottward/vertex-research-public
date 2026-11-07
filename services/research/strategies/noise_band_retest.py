@@ -38,7 +38,7 @@ from strategies.noise_band_run import NO_COSTS, PAPER_COSTS, TASK_COSTS, load_se
 
 ET = ZoneInfo("America/New_York")
 FIVE_FULL_LAST = 385  # 15:55 bar start
-FIVE_HALF_LASTS = {205}  # 12:55 bar start, 13:00 close
+FIVE_HALF_LASTS = {205, 220}  # 12:55 bar start (13:00 close); 13:10 bar start (13:15 close, 2008 ETF half-days)
 FRESH_START = date(2021, 5, 7)  # first session after the first test's data
 PRIMARY5 = Params(bar_minutes=5, **TASK_COSTS)
 

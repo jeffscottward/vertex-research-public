@@ -32,7 +32,7 @@ from ibapi.contract import Contract
 from ibapi.wrapper import EWrapper
 
 PRIMARY = {"QQQ": "NASDAQ"}  # every other symbol used here is an NYSE Arca ETF
-INFO_CODES = {2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2174, 2176}
+INFO_CODES = {165, 2103, 2104, 2105, 2106, 2107, 2108, 2119, 2157, 2158, 2174, 2176}  # 165: HMDS query notice
 
 
 class App(EWrapper, EClient):
@@ -89,6 +89,7 @@ def main() -> int:
     ap.add_argument("--interval", type=float, default=30.0)
     ap.add_argument("--stop-empty", type=int, default=3)
     ap.add_argument("--months", type=int, default=1, help="calendar months per request (duration = 31 D per month)")
+    ap.add_argument("--dates", default="", help="gap fill: comma-separated YYYY-MM-DD sessions, one 1 D request each")
     a = ap.parse_args()
     host, port = a.gateway.split()
     app = App()
@@ -106,7 +107,11 @@ def main() -> int:
         c.primaryExchange = PRIMARY.get(sym, "ARCA")
         empty = 0
         prefix = "" if a.months == 1 else f"m{a.months}-"
-        for label, end_dt in month_ends(a.start, a.end, a.months):
+        plan = month_ends(a.start, a.end, a.months)
+        if a.dates:
+            prefix = "d-"
+            plan = [(d, d.replace("-", "") + " 23:59:59 US/Eastern") for d in a.dates.split(",")]
+        for label, end_dt in plan:
             path = os.path.join(a.out, sym, prefix + label + ".csv")
             if os.path.exists(path):
                 empty = empty + 1 if os.path.getsize(path) == 0 else 0
@@ -119,7 +124,8 @@ def main() -> int:
             rid += 1
             app.done[rid] = threading.Event()
             last_sent = time.time()
-            app.reqHistoricalData(rid, c, end_dt, f"{31 * a.months} D", "5 mins", "TRADES", 1, 2, False, [])
+            app.reqHistoricalData(rid, c, end_dt, "1 D" if a.dates else f"{31 * a.months} D", "5 mins", "TRADES", 1, 2,
+                                 False, [])
             if not app.done[rid].wait(120):
                 app.cancelHistoricalData(rid)
                 print(f"{sym} {label} timeout; abort", flush=True)
