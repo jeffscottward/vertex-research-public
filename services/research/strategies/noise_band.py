@@ -58,6 +58,7 @@ class Params:
     slippage_bps: float = 1.0
     slippage_per_share: float = 0.0
     aum0: float = 100_000.0
+    bar_minutes: int = 1  # bar length; 5-minute bars give the same checks, open, close and fills (VWAP differs)
 
 
 @dataclass(frozen=True)
@@ -98,9 +99,9 @@ class BacktestResult:
     trades: list[Trade] = field(default_factory=list)
 
 
-def is_check_minute(minute: int, every: int) -> bool:
-    """True when the bar ends on HH:00 or HH:30 (bar start minute + 1 is a multiple of `every`)."""
-    end = minute + 1
+def is_check_minute(minute: int, every: int, bar_minutes: int = 1) -> bool:
+    """True when the bar ends on HH:00 or HH:30 (bar start minute + bar length is a multiple of `every`)."""
+    end = minute + bar_minutes
     return end >= every and end % every == 0
 
 
@@ -202,7 +203,7 @@ def run_backtest(sessions: Sequence[Session], params: Params = Params()) -> Back
 
         last = len(bars) - 1
         for k, bar in enumerate(bars):
-            if k == last or not is_check_minute(bar.minute, p.check_every):
+            if k == last or not is_check_minute(bar.minute, p.check_every, p.bar_minutes):
                 continue
             sigma = sigmas[i].get(bar.minute)
             if sigma is None or shares <= 0:
@@ -220,7 +221,7 @@ def run_backtest(sessions: Sequence[Session], params: Params = Params()) -> Back
                 pos = target
                 entry = (nxt.minute, _fill(nxt.open, target, p))
         if pos != 0:
-            close_pos(bars[last].minute + 1, bars[last].close, "close")
+            close_pos(bars[last].minute + p.bar_minutes, bars[last].close, "close")
         pnl = sum(t.net for t in day_trades)
         result.days.append(DayResult(s.day, aum, aum + pnl, lev, bool(day_trades)))
         result.trades.extend(day_trades)
