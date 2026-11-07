@@ -212,8 +212,8 @@ This repository follows the Claude Code team's review practice ([How the Claude 
 - Verify before review: run the tests, build or browser check, and put the command and its output (or a screenshot) in the PR.
 - Before opening a PR, have a fresh-context reviewer (subagent or `/code-review`) read the diff. Fix each finding or answer it with a reason.
 - When the same finding appears twice, fix it at the source: a lint rule, a test, or a line in this file.
-- Cap review rounds at three, then reconsider the approach. After two rounds, review only the new diff. Flag the whole class of a bug once.
-- The change sets the risk tier, not the author. An agent's approval never replaces a required human approval. The person who prompted an agent-written change owns it.
+- Cap review rounds at three, then reconsider the approach. After two rounds, review only the new diff. Flag the whole class of a bug once, so the author fixes every instance. This cap does not narrow the exact-head merge review or any full-scope review this file requires (security bootstrap, order or risk paths), and it never waives a required check or finding.
+- What the change touches, not who wrote it, decides how much review it needs: order, execution, risk, auth, CI and deploy paths always get a person's review. An agent's approval never replaces a required human approval. The person who prompted an agent-written change owns it.
 - Keep changes small, and state in the PR how to test and how to revert them.
 
 ## Deeper docs
