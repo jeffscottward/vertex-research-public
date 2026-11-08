@@ -40,6 +40,12 @@ export type FlowWindowQuery = Readonly<{
   from: Date;
   /** Inclusive. */
   to: Date;
+  /**
+   * The GEX snapshot is the newest at or before this time (default `to`). The snapshot reader
+   * passes now: GEX comes from previous-session open interest, so it still applies after a
+   * window that ended at a closed market's last print.
+   */
+  gexAt?: Date;
 }>;
 
 export type FlowWindowRows = Readonly<{
@@ -235,7 +241,7 @@ export const createFlowRepository = (
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
-    readWindow: async ({ symbol, from, to }) => {
+    readWindow: async ({ symbol, from, to, gexAt }) => {
       const minutes = await database
         .select()
         .from(flowMinutes)
@@ -283,7 +289,7 @@ export const createFlowRepository = (
       const [gex] = await database
         .select()
         .from(flowGex)
-        .where(and(eq(flowGex.symbol, symbol), lte(flowGex.at, to)))
+        .where(and(eq(flowGex.symbol, symbol), lte(flowGex.at, gexAt ?? to)))
         .orderBy(desc(flowGex.at))
         .limit(1);
       return { books, events, gex: gex ?? null, minutes, prints };

@@ -294,6 +294,7 @@ describe("flow.snapshot", () => {
     expect(output.symbol).toBe("ES");
     expect(repository.readWindow).toHaveBeenCalledWith({
       from: new Date(OPEN.getTime() - 120 * 60_000),
+      gexAt: OPEN,
       symbol: "ES",
       to: OPEN,
     });

@@ -145,6 +145,7 @@ export const readFlowSnapshot = async (
   const windowStart = new Date(windowEnd.getTime() - input.minutes * 60_000);
   const rows = await repository.readWindow({
     from: windowStart,
+    gexAt: now,
     symbol: input.symbol,
     to: windowEnd,
   });
