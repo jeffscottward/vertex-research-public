@@ -65,6 +65,14 @@ export type RunRuleInput = Pick<
   "costBps" | "rule" | "stopLossPct" | "symbol" | "takeProfitPct" | "timeframe"
 >;
 
+/**
+ * True when the form runs a stored options definition. The options book charges its own costs
+ * ($0.65 per contract per leg plus half the bid-ask spread), so the flat cost is 0 and no cost
+ * profile is sent.
+ */
+export const runsOptionsDefinition = (form: Pick<RunForm, "definition">) =>
+  form.definition?.definition.options !== undefined;
+
 /** The rule part of the request: the stored definition, or the SMA cross or breakout rule. */
 const ruleInput = (
   form: RunForm,
@@ -72,7 +80,13 @@ const ruleInput = (
 ): Readonly<{ input: RunRuleInput }> | Readonly<{ error: string }> => {
   const definition = form.definition ?? null;
   if (definition === null) return toRunInput(form.params, series);
-  const { costBps } = form.params;
+  const members: readonly string[] | undefined =
+    definition.definition.portfolio?.symbols;
+  if (members !== undefined && !members.includes(series.symbol))
+    return {
+      error: `The definition trades ${members.join(", ")}; choose one of them.`,
+    };
+  const costBps = runsOptionsDefinition(form) ? 0 : form.params.costBps;
   if (!(costBps >= 0 && costBps <= 500))
     return { error: "Cost per side must be from 0 to 500 bps." };
   return {
@@ -107,7 +121,9 @@ export const toSubmitInput = (
       initialCapital: form.initialCapital,
       strategyId: form.strategyId === "" ? null : form.strategyId,
       to: form.to,
-      ...(form.costProfile === "" ? {} : { costProfile: form.costProfile }),
+      ...(form.costProfile === "" || runsOptionsDefinition(form)
+        ? {}
+        : { costProfile: form.costProfile }),
     },
   };
 };
@@ -449,16 +465,39 @@ export const loadLinkedDefinition = async (
   return linked((await get(link.id, match.revision)).revision, true);
 };
 
-/** The stored series a definition link runs on: its symbol, else the first portfolio symbol. */
+/**
+ * The stored series a definition link runs on. With a portfolio: the link symbol when it is a
+ * member with a stored series, else the first member with one, else an error. Without one: the
+ * link symbol's series; null keeps the form's series.
+ */
 export const definitionSeries = (
   series: readonly InstantBacktestSeries[],
   link: Pick<DefinitionLink, "symbol" | "timeframe">,
   definition: StrategyDefinition
-): InstantBacktestSeries | undefined => {
-  const symbol = link.symbol ?? definition.portfolio?.symbols[0];
-  return series.find(
-    (entry) => entry.symbol === symbol && entry.timeframe === link.timeframe
-  );
+):
+  | Readonly<{ series: InstantBacktestSeries }>
+  | Readonly<{ error: string }>
+  | null => {
+  const stored = (symbol: string | null) =>
+    series.find(
+      (entry) => entry.symbol === symbol && entry.timeframe === link.timeframe
+    );
+  const members: readonly string[] | undefined = definition.portfolio?.symbols;
+  if (members === undefined) {
+    const found = stored(link.symbol);
+    return found === undefined ? null : { series: found };
+  }
+  const candidates =
+    link.symbol !== null && members.includes(link.symbol)
+      ? [link.symbol, ...members]
+      : members;
+  for (const symbol of candidates) {
+    const found = stored(symbol);
+    if (found !== undefined) return { series: found };
+  }
+  return {
+    error: `No stored ${link.timeframe} series for the definition's symbols (${members.join(", ")}). Import bars for one of them first.`,
+  };
 };
 
 /** "Strategy definition: <id> revision 1 (sha 0123456789ab…), <name>." */

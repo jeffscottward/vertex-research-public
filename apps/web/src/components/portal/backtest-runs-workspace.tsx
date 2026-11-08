@@ -64,6 +64,7 @@ import {
   type RunForm,
   readDefinitionLink,
   replayGeometry,
+  runsOptionsDefinition,
   toSubmitInput,
   toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
@@ -648,6 +649,70 @@ const RuleFields = ({
   );
 };
 
+// Flat cost per side and cost profile. An options definition locks both: the options book charges
+// its own costs, so the run sends a flat cost of 0 and no profile.
+const CostFields = ({
+  form,
+  setForm,
+}: Readonly<{
+  form: RunForm;
+  setForm: Dispatch<SetStateAction<RunForm>>;
+}>) => {
+  const costProfileId = useId();
+  const locked = runsOptionsDefinition(form);
+  return (
+    <>
+      <NumberField
+        disabled={locked}
+        label="Cost per side (bps)"
+        onChange={(v) =>
+          setForm((current) => ({
+            ...current,
+            params: { ...current.params, costBps: v },
+          }))
+        }
+        step={0.5}
+        value={locked ? 0 : form.params.costBps}
+      />
+      <div className="grid gap-1">
+        <label className="font-medium text-sm" htmlFor={costProfileId}>
+          Cost profile
+        </label>
+        <select
+          className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm disabled:opacity-60"
+          disabled={locked}
+          id={costProfileId}
+          onChange={(event) => {
+            const value = event.target.value;
+            setForm((current) => ({
+              ...current,
+              costProfile: isCostProfilePresetId(value) ? value : "",
+            }));
+          }}
+          value={locked ? "" : form.costProfile}
+        >
+          <option value="">None (flat cost only)</option>
+          {COST_PROFILE_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {locked ? (
+        <p
+          className="text-muted-foreground text-sm md:col-span-2 lg:col-span-3"
+          data-options-costs=""
+        >
+          The options book charges its own costs: $0.65 per contract per leg
+          plus half the bid-ask spread. Flat cost and cost profile are off for
+          this definition.
+        </p>
+      ) : null}
+    </>
+  );
+};
+
 export type BacktestRunsWorkspaceProps = Readonly<{
   gateway?: BacktestRunsGateway;
   initialRunId?: string | null;
@@ -697,7 +762,6 @@ export const BacktestRunsWorkspace = ({
   const [submitting, setSubmitting] = useState(false);
   const seriesId = useId();
   const strategyId = useId();
-  const costProfileId = useId();
   const fromId = useId();
   const toId = useId();
 
@@ -760,13 +824,16 @@ export const BacktestRunsWorkspace = ({
               link,
               loaded.definition
             );
+            if (target !== null && "error" in target) setMessage(target.error);
+            const picked =
+              target === null || "error" in target ? undefined : target.series;
             // The series select lists the universe only; show every series for one outside it.
             if (
-              target !== undefined &&
-              !visibleSeries(loadedSeries, choice).series.includes(target)
+              picked !== undefined &&
+              !visibleSeries(loadedSeries, choice).series.includes(picked)
             )
               setUniverse("all");
-            applySeries(target);
+            applySeries(picked);
             setForm((current) => ({
               ...current,
               definition: loaded,
@@ -871,11 +938,6 @@ export const BacktestRunsWorkspace = ({
   const plan = toUniverseSubmitInputs(form, visible.series);
   const request = series === undefined ? null : toSubmitInput(form, series);
   const canRun = request !== null && !("error" in request);
-  const setParam = (key: keyof RunForm["params"], value: number) =>
-    setForm((current) => ({
-      ...current,
-      params: { ...current.params, [key]: value },
-    }));
 
   const submit = async () => {
     if (request === null || "error" in request) return;
@@ -920,7 +982,6 @@ export const BacktestRunsWorkspace = ({
     setSubmitting(false);
   };
 
-  const { params } = form;
   return (
     <div className="grid gap-8">
       {load.series.length === 0 ? (
@@ -1007,36 +1068,7 @@ export const BacktestRunsWorkspace = ({
           linkedDefinition={linkedDefinition}
           setForm={setForm}
         />
-        <NumberField
-          label="Cost per side (bps)"
-          onChange={(v) => setParam("costBps", v)}
-          step={0.5}
-          value={params.costBps}
-        />
-        <div className="grid gap-1">
-          <label className="font-medium text-sm" htmlFor={costProfileId}>
-            Cost profile
-          </label>
-          <select
-            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-            id={costProfileId}
-            onChange={(event) => {
-              const value = event.target.value;
-              setForm((current) => ({
-                ...current,
-                costProfile: isCostProfilePresetId(value) ? value : "",
-              }));
-            }}
-            value={form.costProfile}
-          >
-            <option value="">None (flat cost only)</option>
-            {COST_PROFILE_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <CostFields form={form} setForm={setForm} />
         <NumberField
           label="Initial capital"
           onChange={(v) =>
@@ -1084,7 +1116,12 @@ export const BacktestRunsWorkspace = ({
           {batchReady ? (
             <button
               className="min-h-11 rounded-md border px-4 font-medium text-sm disabled:opacity-60"
-              disabled={submitting || !canRun || plan.inputs.length === 0}
+              disabled={
+                submitting ||
+                !canRun ||
+                plan.inputs.length === 0 ||
+                runsOptionsDefinition(form)
+              }
               onClick={() => {
                 void submitUniverse();
               }}
@@ -1095,7 +1132,9 @@ export const BacktestRunsWorkspace = ({
           ) : null}
           {batchReady ? (
             <p className="text-muted-foreground text-sm" data-universe-plan="">
-              {describeUniversePlan(plan)}
+              {runsOptionsDefinition(form)
+                ? "An options definition runs on its own portfolio symbols, one run at a time."
+                : describeUniversePlan(plan)}
             </p>
           ) : null}
           {request !== null && "error" in request ? (
