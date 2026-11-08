@@ -8,6 +8,7 @@ import {
   ACADEMY_MEDIA,
   ACADEMY_SOURCES,
   lessonSummaries,
+  sourceCounts,
   withAcademyMediaBaseUrl,
 } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
@@ -188,6 +189,24 @@ export const STRATEGIES_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/academy",
     title: "Academy",
+  },
+  {
+    group: GROUP,
+    id: "academy-course",
+    // One course's gallery: QuantFinanceToGo (quant charts, unnarrated).
+    render: (params) => (
+      <AcademyGallery
+        course="quantfinancetogo"
+        initialQuery={readAcademyGalleryQuery(Object.fromEntries(params))}
+        lessons={lessonSummaries().filter(
+          (lesson) => lesson.course === "quantfinancetogo"
+        )}
+        media={academyMedia}
+        sourceCount={sourceCounts().quantfinancetogo}
+      />
+    ),
+    route: "/academy/c/[course]",
+    title: "Academy course",
   },
   {
     group: GROUP,

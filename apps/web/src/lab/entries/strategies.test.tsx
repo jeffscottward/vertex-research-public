@@ -131,6 +131,11 @@ describe("strategies lab entries", () => {
     const gallery = await mountEntry("academy");
     expect(gallery.querySelector("h1")?.textContent).toContain("Academy");
     await unmountLab();
+    const course = await mountEntry("academy-course");
+    expect(
+      course.querySelector('[data-academy-gallery="quantfinancetogo"]')
+    ).not.toBeNull();
+    await unmountLab();
     const lesson = await mountEntry("academy-lesson");
     expect(lesson.querySelector("h1")?.textContent).not.toBe("");
     await unmountLab();
