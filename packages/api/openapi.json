@@ -136685,6 +136685,494 @@
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "comparison": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "cagr": {
+                                    "minimum": -1,
+                                    "type": "number"
+                                  },
+                                  "kind": {
+                                    "enum": [
+                                      "buy-and-hold",
+                                      "library",
+                                      "strategy"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "maxDrawdown": {
+                                    "maximum": 0,
+                                    "minimum": -1,
+                                    "type": "number"
+                                  },
+                                  "name": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "sharpe": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "cagr",
+                                  "kind",
+                                  "maxDrawdown",
+                                  "name",
+                                  "sharpe"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            },
+                            "equity": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "drawdown": {
+                                    "maximum": 0,
+                                    "minimum": -1,
+                                    "type": "number"
+                                  },
+                                  "month": {
+                                    "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "minimum": -1,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "drawdown",
+                                  "month",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 400,
+                              "minItems": 2,
+                              "type": "array"
+                            },
+                            "equityLabel": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "forms": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "description": {
+                                    "maxLength": 600,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "key": {
+                                    "enum": [
+                                      "underlying",
+                                      "options"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "label": {
+                                    "maxLength": 120,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "runs": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "buyHoldCagr": {
+                                          "anyOf": [
+                                            {
+                                              "minimum": -1,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "buyHoldSharpe": {
+                                          "anyOf": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "cagr": {
+                                          "minimum": -1,
+                                          "type": "number"
+                                        },
+                                        "exposure": {
+                                          "maximum": 1,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        },
+                                        "from": {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        "market": {
+                                          "maxLength": 60,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "maxDrawdown": {
+                                          "maximum": 0,
+                                          "minimum": -1,
+                                          "type": "number"
+                                        },
+                                        "oosCagr": {
+                                          "anyOf": [
+                                            {
+                                              "minimum": -1,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "oosSharpe": {
+                                          "anyOf": [
+                                            {
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "profitFactor": {
+                                          "anyOf": [
+                                            {
+                                              "minimum": 0,
+                                              "type": "number"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        },
+                                        "sharpe": {
+                                          "type": "number"
+                                        },
+                                        "symbol": {
+                                          "maxLength": 40,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "to": {
+                                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                          "type": "string"
+                                        },
+                                        "trades": {
+                                          "maximum": 9007199254740991,
+                                          "minimum": 0,
+                                          "type": "integer"
+                                        },
+                                        "winRate": {
+                                          "maximum": 1,
+                                          "minimum": 0,
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "buyHoldCagr",
+                                        "buyHoldSharpe",
+                                        "cagr",
+                                        "exposure",
+                                        "from",
+                                        "market",
+                                        "maxDrawdown",
+                                        "oosCagr",
+                                        "oosSharpe",
+                                        "profitFactor",
+                                        "sharpe",
+                                        "symbol",
+                                        "to",
+                                        "trades",
+                                        "winRate"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "maxItems": 40,
+                                    "minItems": 1,
+                                    "type": "array"
+                                  }
+                                },
+                                "required": [
+                                  "description",
+                                  "key",
+                                  "label",
+                                  "runs"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 4,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "gaps": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "choice": {
+                                    "maxLength": 400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "gap": {
+                                    "maxLength": 300,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "choice",
+                                  "gap"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 30,
+                              "type": "array"
+                            },
+                            "id": {
+                              "maxLength": 64,
+                              "minLength": 1,
+                              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "strategy-backtest"
+                            },
+                            "notes": {
+                              "maxLength": 4000,
+                              "type": "string"
+                            },
+                            "provenance": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "commit": {
+                                  "pattern": "^[0-9a-f]{7,40}$",
+                                  "type": "string"
+                                },
+                                "dataHash": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "engine": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "commit",
+                                "dataHash",
+                                "engine",
+                                "runId"
+                              ],
+                              "type": "object"
+                            },
+                            "ran": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "robustness": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "check": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "pass": {
+                                    "anyOf": [
+                                      {
+                                        "type": "boolean"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "result": {
+                                    "maxLength": 300,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "check",
+                                  "pass",
+                                  "result"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 20,
+                              "type": "array"
+                            },
+                            "rules": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "item": {
+                                    "maxLength": 60,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "rule": {
+                                    "maxLength": 400,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "source": {
+                                    "maxLength": 200,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "item",
+                                  "rule",
+                                  "source"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 30,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "sensitivity": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "cagr": {
+                                    "minimum": -1,
+                                    "type": "number"
+                                  },
+                                  "maxDrawdown": {
+                                    "maximum": 0,
+                                    "minimum": -1,
+                                    "type": "number"
+                                  },
+                                  "param": {
+                                    "maxLength": 60,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "sharpe": {
+                                    "type": "number"
+                                  },
+                                  "trades": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
+                                  },
+                                  "value": {
+                                    "maxLength": 40,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "cagr",
+                                  "maxDrawdown",
+                                  "param",
+                                  "sharpe",
+                                  "trades",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 80,
+                              "type": "array"
+                            },
+                            "source": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "label": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "format": "uri",
+                                  "maxLength": 300,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "spec": {
+                              "maxLength": 300,
+                              "pattern": "^docs\\/specs\\/strategies\\/([a-z0-9-]+)\\.md$",
+                              "type": "string"
+                            },
+                            "title": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "verdict": {
+                              "enum": [
+                                "edge",
+                                "no-edge",
+                                "needs-more-data"
+                              ],
+                              "type": "string"
+                            },
+                            "verdictReason": {
+                              "maxLength": 1000,
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "comparison",
+                            "equity",
+                            "equityLabel",
+                            "forms",
+                            "gaps",
+                            "id",
+                            "kind",
+                            "notes",
+                            "provenance",
+                            "ran",
+                            "robustness",
+                            "rules",
+                            "sensitivity",
+                            "source",
+                            "spec",
+                            "title",
+                            "verdict",
+                            "verdictReason"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "additionalProperties": false,
+                          "properties": {
                             "daily": {
                               "properties": {
                                 "costBpsPerSide": {
