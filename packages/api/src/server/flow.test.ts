@@ -61,13 +61,17 @@ const emptyWindow = {
 
 const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
   ({
+    addOptionGap: vi.fn(async () => undefined),
+    deleteOptionGap: vi.fn(async () => undefined),
     insertBooks: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertEvents: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertGex: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertOptionPrints: vi.fn(async (rows: readonly unknown[]) => rows.length),
     latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
+    moveOptionGapEnd: vi.fn(async () => undefined),
     newestDataAt: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(async () => null),
+    optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),

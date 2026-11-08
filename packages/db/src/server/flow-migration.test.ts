@@ -7,6 +7,7 @@ import {
   flowEvents,
   flowGex,
   flowMinutes,
+  flowOptionGaps,
   flowOptionPrints,
   flowSamples,
 } from "../schema/index.ts";
@@ -76,5 +77,53 @@ describe("0052_flow_pipeline migration", () => {
     expect(drops.map((match) => match[1]).sort()).toEqual(
       TABLES.map((table) => getTableConfig(table).name).sort()
     );
+  });
+});
+
+describe("0053_flow_option_gaps migration", () => {
+  const read = (path: string) =>
+    readFileSync(new URL(path, import.meta.url), "utf8");
+  const migration = read("../../migrations/0053_flow_option_gaps.sql");
+  const rollback = read("../../rollback/0053_flow_option_gaps.down.sql");
+  const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
+    entries: { idx: number; tag: string }[];
+  };
+  const config = getTableConfig(flowOptionGaps);
+
+  it("only creates flow_option_gaps and grants the app role what the repository uses", () => {
+    expect(migration).not.toMatch(
+      /^\s*(TRUNCATE|UPDATE|DELETE|INSERT|DROP|ALTER)\s/im
+    );
+    expect(
+      [...migration.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])
+    ).toEqual(["flow_option_gaps"]);
+    expect(migration).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "flow_option_gaps" TO "vertex_research"'
+    );
+  });
+
+  it("matches the drizzle columns, key and check", () => {
+    const sqlColumns = [...migration.matchAll(/^\s+"([a-z_0-9]+)" /gm)].map(
+      (match) => match[1]
+    );
+    expect([...sqlColumns].sort()).toEqual(
+      config.columns.map((column) => column.name).sort()
+    );
+    expect(migration).toContain('PRIMARY KEY("symbol","start_time")');
+    for (const check of config.checks)
+      expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
+  });
+
+  it("is the 54th journal entry and the rollback drops only flow_option_gaps", () => {
+    expect(journal.entries[53]).toMatchObject({
+      idx: 53,
+      tag: "0053_flow_option_gaps",
+    });
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|IF EXISTS "/u);
+    expect(
+      [...rollback.matchAll(/^DROP TABLE "public"\."(\w+)";$/gmu)].map(
+        (match) => match[1]
+      )
+    ).toEqual(["flow_option_gaps"]);
   });
 });

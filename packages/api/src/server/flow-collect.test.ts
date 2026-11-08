@@ -1,4 +1,9 @@
-import type { FlowRepository, FlowSampleRecord } from "@darkfactory/db/server";
+import type {
+  FlowOptionGapRecord,
+  FlowOptionPrintRecord,
+  FlowRepository,
+  FlowSampleRecord,
+} from "@darkfactory/db/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FlowSource, FlowSymbol } from "../contracts/flow.ts";
@@ -12,6 +17,7 @@ import {
   FLOW_OPTION_LOOKBACK_MS,
   FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
+  FLOW_OPTION_RUN_PAGES_MAX,
   FLOW_RETENTION_DAYS,
   type FlowCollectDeps,
   runFlowCollect,
@@ -195,12 +201,52 @@ const sample = (
   symbol,
 });
 
+/**
+ * In-memory option gaps keyed like the table (symbol + start), so a test can run several collects
+ * and see what the previous run left.
+ */
+const gapStore = (initial: FlowOptionGapRecord[] = []) => {
+  const rows = new Map<string, FlowOptionGapRecord>();
+  const key = (symbol: string, start: Date) => `${symbol}@${start.getTime()}`;
+  for (const gap of initial) rows.set(key(gap.symbol, gap.startTime), gap);
+  return {
+    addOptionGap: vi.fn<FlowRepository["addOptionGap"]>(async (gap) => {
+      const stored = rows.get(key(gap.symbol, gap.startTime));
+      rows.set(
+        key(gap.symbol, gap.startTime),
+        stored === undefined || stored.endTime < gap.endTime ? gap : stored
+      );
+    }),
+    deleteOptionGap: vi.fn<FlowRepository["deleteOptionGap"]>(
+      async (symbol, start) => {
+        rows.delete(key(symbol, start));
+      }
+    ),
+    moveOptionGapEnd: vi.fn<FlowRepository["moveOptionGapEnd"]>(
+      async (symbol, start, endTime) => {
+        const stored = rows.get(key(symbol, start));
+        if (stored !== undefined)
+          rows.set(key(symbol, start), { ...stored, endTime });
+      }
+    ),
+    optionGaps: vi.fn<FlowRepository["optionGaps"]>(async (symbol) =>
+      [...rows.values()]
+        .filter((gap) => gap.symbol === symbol)
+        .sort((a, b) => b.endTime.getTime() - a.endTime.getTime())
+    ),
+    rows: () => [...rows.values()],
+  };
+};
+
 const fakeRepository = (
   latest: FlowSampleRecord[] = [],
-  newestOptionPrintAt: FlowRepository["newestOptionPrintAt"] = async () => null
+  newestOptionPrintAt: FlowRepository["newestOptionPrintAt"] = async () => null,
+  gaps: ReturnType<typeof gapStore> = gapStore()
 ) => {
   const count = async (rows: readonly unknown[]) => rows.length;
   return {
+    addOptionGap: gaps.addOptionGap,
+    deleteOptionGap: gaps.deleteOptionGap,
     insertBooks: vi.fn(count),
     insertEvents: vi.fn(count),
     insertGex: vi.fn(count),
@@ -209,8 +255,10 @@ const fakeRepository = (
       latest: latest.filter((row) => row.symbol === symbol),
       latestOk: [],
     })),
+    moveOptionGapEnd: gaps.moveOptionGapEnd,
     newestDataAt: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(newestOptionPrintAt),
+    optionGaps: gaps.optionGaps,
     prune: vi.fn(async () => 42),
     readWindow: vi.fn(),
     recordSample: vi.fn<FlowRepository["recordSample"]>(async () => undefined),
@@ -673,21 +721,119 @@ describe("runFlowCollect options", () => {
     });
   });
 
-  it("pages up to the cap and notes it, with skipped rows", async () => {
-    const pages = Array.from({ length: FLOW_OPTION_PAGES_MAX + 2 }, (_, i) =>
-      page([optionRow({ id: `p${i}` }), { broken: true }], [i])
+  it("pages up to the cap, stores the rest as a gap and reads it with the run's spare requests", async () => {
+    const pages = Array.from(
+      { length: FLOW_OPTION_RUN_PAGES_MAX + 2 },
+      (_, i) => page([optionRow({ id: `p${i}` }), { broken: true }], [i])
     );
     const quantData = fakeQuantData(pages);
-    const deps = depsWith({ quantData });
+    const gaps = gapStore();
+    const deps = depsWith({
+      quantData,
+      repository: fakeRepository([], undefined, gaps),
+    });
     const { run } = await collect(deps, { symbols: ["SPY"] });
-    expect(quantData.request).toHaveBeenCalledTimes(FLOW_OPTION_PAGES_MAX);
+    const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
+    const oldest = new Date(OPEN.getTime() - 60_000);
+    const gapPages = FLOW_OPTION_RUN_PAGES_MAX - FLOW_OPTION_PAGES_MAX;
+    expect(quantData.request).toHaveBeenCalledTimes(FLOW_OPTION_RUN_PAGES_MAX);
+    // The gap ends 1 ms after the oldest print, so prints sharing its millisecond are read again.
+    expect(gaps.addOptionGap).toHaveBeenCalledWith({
+      createdAt: OPEN,
+      endTime: new Date(oldest.getTime() + 1),
+      startTime: floor,
+      symbol: "SPY",
+    });
+    expect(
+      quantData.request.mock.calls[FLOW_OPTION_PAGES_MAX]?.[1]
+    ).toStrictEqual({
+      filter: { ticker: "SPY" },
+      timeRange: {
+        endTime: new Date(oldest.getTime() + 1).toISOString(),
+        startTime: floor.toISOString(),
+      },
+    });
+    expect(run("SPY", "options")).toMatchObject({
+      items: FLOW_OPTION_RUN_PAGES_MAX,
+      message: [
+        `${FLOW_OPTION_PAGES_MAX} prints on ${FLOW_OPTION_PAGES_MAX} page(s) since ${floor.toISOString()}`,
+        `page cap ${FLOW_OPTION_PAGES_MAX} reached, older prints of this window queued as a gap`,
+        `${FLOW_OPTION_PAGES_MAX} rows failed the schema`,
+        `gaps: ${gapPages} prints on ${gapPages} page(s), 0 closed, 1 left (oldest from ${floor.toISOString()})`,
+        `${gapPages} gap rows failed the schema`,
+      ].join("; "),
+      status: "ok",
+    });
+    // Every print sat at one instant: the end still moves back, so the next run moves on.
+    expect(gaps.rows()).toStrictEqual([
+      { createdAt: OPEN, endTime: oldest, startTime: floor, symbol: "SPY" },
+    ]);
+  });
+
+  it("queues the whole capped window when its rows carry no trade time", async () => {
+    const pages = Array.from({ length: FLOW_OPTION_PAGES_MAX }, (_, i) =>
+      page([{ broken: true }], [i])
+    );
+    const gaps = gapStore();
+    const deps = depsWith({
+      quantData: fakeQuantData(pages),
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
+    expect(gaps.addOptionGap).toHaveBeenCalledWith({
+      createdAt: OPEN,
+      endTime: OPEN,
+      startTime: floor,
+      symbol: "SPY",
+    });
+    expect(run("SPY", "options")).toMatchObject({ status: "empty" });
+    expect(run("SPY", "options").message).toContain(
+      `page cap ${FLOW_OPTION_PAGES_MAX} reached, older prints of this window queued as a gap`
+    );
+  });
+
+  it("queues nothing for a capped window of a single millisecond", async () => {
+    const gaps = gapStore();
+    const { run } = await collect(
+      depsWith({
+        quantData: fakeQuantData(
+          Array.from({ length: FLOW_OPTION_PAGES_MAX }, (_, i) =>
+            page([optionRow({ id: `m${i}`, tradeTime: OPEN.getTime() })], [i])
+          )
+        ),
+        repository: fakeRepository([], async () => OPEN, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "options").message).toContain(
+      `page cap ${FLOW_OPTION_PAGES_MAX} reached, nothing older left in this window`
+    );
+    expect(gaps.addOptionGap).not.toHaveBeenCalled();
+  });
+
+  it("queues the prints between an old newest print and the look-back as a gap", async () => {
+    const newest = new Date(OPEN.getTime() - 2 * FLOW_OPTION_LOOKBACK_MS);
+    const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
+    const gaps = gapStore();
+    const deps = depsWith({
+      repository: fakeRepository([], async () => newest, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(gaps.addOptionGap).toHaveBeenCalledWith({
+      createdAt: OPEN,
+      endTime: floor,
+      startTime: newest,
+      symbol: "SPY",
+    });
     expect(run("SPY", "options").message).toBe(
       [
-        `${FLOW_OPTION_PAGES_MAX} prints on ${FLOW_OPTION_PAGES_MAX} page(s) since ${new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS).toISOString()}`,
-        `page cap ${FLOW_OPTION_PAGES_MAX} reached, older prints of this window not fetched`,
-        `${FLOW_OPTION_PAGES_MAX} rows failed the schema`,
+        `1 prints on 1 page(s) since ${floor.toISOString()}`,
+        `prints from ${newest.toISOString()} to the look-back queued as a gap`,
+        "gaps: 0 prints on 1 page(s), 1 closed, 0 left",
       ].join("; ")
     );
+    expect(gaps.rows()).toStrictEqual([]);
   });
 
   it("reports an empty window", async () => {
@@ -698,6 +844,560 @@ describe("runFlowCollect options", () => {
       items: 0,
       status: "empty",
     });
+  });
+});
+
+/**
+ * A QuantData order-flow source with one print per entry of `times` (epoch ms, newest first), ids
+ * s0, s1, ..., served like order-flow/consolidated: inside the inclusive time range, newest first,
+ * `size` rows per page, nextSearchAfter = [time, id] of the page's last row while rows remain.
+ */
+const flowSource = (times: readonly number[], size = 2) => {
+  const rows = times.map((time, i) =>
+    optionRow({ id: `s${i}`, tradeTime: time })
+  );
+  const request = vi.fn<QuantDataClient["request"]>(async (_, payload) => {
+    const { searchAfter, timeRange } = payload as {
+      searchAfter?: [number, string];
+      timeRange: { endTime: string; startTime: string };
+    };
+    const start = Date.parse(timeRange.startTime);
+    const end = Date.parse(timeRange.endTime);
+    const inRange = rows.filter(
+      (row) => row.tradeTime >= start && row.tradeTime <= end
+    );
+    const from =
+      searchAfter === undefined
+        ? 0
+        : inRange.findIndex((row) => row.id === searchAfter[1]) + 1;
+    const data = inRange.slice(from, from + size);
+    const last = data.at(-1);
+    return page(
+      data,
+      last !== undefined && from + size < inRange.length
+        ? [last.tradeTime, last.id]
+        : null
+    );
+  });
+  return {
+    client: { cooldownSeconds: () => 0, request } satisfies QuantDataClient,
+    ids: rows.map((row) => row.id),
+    request,
+  };
+};
+
+/** `count` times one second apart, back from `newest`. */
+const secondsBack = (count: number, newest: Date) =>
+  Array.from({ length: count }, (_, i) => newest.getTime() - i * 1000);
+
+/** A repository whose option prints persist across runs (newest print drives the next window). */
+const printStore = (gaps: ReturnType<typeof gapStore>) => {
+  const prints = new Map<string, Date>();
+  const repository = fakeRepository(
+    [],
+    async () =>
+      prints.size === 0
+        ? null
+        : new Date(Math.max(...[...prints.values()].map((at) => at.getTime()))),
+    gaps
+  );
+  repository.insertOptionPrints.mockImplementation(async (rows) => {
+    let added = 0;
+    for (const row of rows as readonly FlowOptionPrintRecord[])
+      if (!prints.has(row.id)) {
+        prints.set(row.id, row.tradedAt);
+        added += 1;
+      }
+    return added;
+  });
+  return { ids: () => [...prints.keys()].sort(), repository };
+};
+
+const CLOSE = new Date("2026-11-09T21:20:00.000Z"); // 16:20 New York, options closed
+
+describe("runFlowCollect options gaps (page-cap resume)", () => {
+  it("continues a capped window on the next run until every print is stored", async () => {
+    // 2 rows per page. Run 1: 6 window pages (s0-s11), then 2 gap pages from s11 (s11 again,
+    // stored once, to s14): 15 of 28 stored. Run 2: the new window holds s0 only (1 page), the
+    // gap gets the other 7 pages and reads s14-s27 to the end.
+    const newest = new Date(OPEN.getTime() - 1000);
+    const times = secondsBack(28, newest);
+    const source = flowSource(times);
+    const gaps = gapStore();
+    const store = printStore(gaps);
+    const first = depsWith({
+      quantData: source.client,
+      repository: store.repository,
+    });
+    const one = await collect(first, { symbols: ["SPY"] });
+    expect(one.run("SPY", "options")).toMatchObject({
+      items: 15,
+      status: "ok",
+    });
+    expect(one.run("SPY", "options").message).toContain(
+      "gaps: 4 prints on 2 page(s), 0 closed, 1 left"
+    );
+    expect(store.ids()).toHaveLength(15);
+    const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
+    expect(gaps.rows()).toStrictEqual([
+      {
+        createdAt: OPEN,
+        endTime: new Date((times[14] ?? 0) + 1),
+        startTime: floor,
+        symbol: "SPY",
+      },
+    ]);
+    const second = depsWith({
+      now: new Date(OPEN.getTime() + 120_000),
+      quantData: source.client,
+      repository: store.repository,
+    });
+    const two = await collect(second, { symbols: ["SPY"] });
+    expect(two.run("SPY", "options")).toMatchObject({
+      items: 13,
+      status: "ok",
+    });
+    expect(two.run("SPY", "options").message).toContain(
+      "gaps: 14 prints on 7 page(s), 1 closed, 0 left"
+    );
+    expect(store.ids()).toStrictEqual([...source.ids].sort());
+    expect(gaps.rows()).toStrictEqual([]);
+    expect(gaps.deleteOptionGap).toHaveBeenCalledWith("SPY", floor);
+  });
+
+  it("reads prints that share the oldest millisecond across a page boundary", async () => {
+    // s10-s13 share one millisecond; the window stops after s11, the gap resumes at s10's time.
+    const newest = new Date(OPEN.getTime() - 1000);
+    const tie = newest.getTime() - 10_000;
+    const times = [
+      ...secondsBack(10, newest),
+      tie,
+      tie,
+      tie,
+      tie,
+      ...secondsBack(6, new Date(tie - 1000)),
+    ];
+    const source = flowSource(times);
+    const gaps = gapStore();
+    const store = printStore(gaps);
+    await collect(
+      depsWith({ quantData: source.client, repository: store.repository }),
+      { symbols: ["SPY"] }
+    );
+    expect(store.ids()).toEqual(expect.arrayContaining(["s12", "s13"]));
+    expect(gaps.rows()[0]?.endTime).toStrictEqual(new Date(tie));
+    await collect(
+      depsWith({
+        now: new Date(OPEN.getTime() + 120_000),
+        quantData: source.client,
+        repository: store.repository,
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(store.ids()).toStrictEqual([...source.ids].sort());
+    expect(gaps.rows()).toStrictEqual([]);
+  });
+
+  it("catches up while new prints keep capping the window", async () => {
+    // 2 rows per page, 20 new prints between runs: every window is capped and queues a gap.
+    const runs = [0, 120_000, 240_000];
+    const times = runs.flatMap((offset) =>
+      secondsBack(20, new Date(OPEN.getTime() + offset - 1000))
+    );
+    times.sort((a, b) => b - a);
+    const source = flowSource(times);
+    const gaps = gapStore();
+    const store = printStore(gaps);
+    for (const offset of runs)
+      await collect(
+        depsWith({
+          now: new Date(OPEN.getTime() + offset),
+          quantData: source.client,
+          repository: store.repository,
+        }),
+        { symbols: ["SPY"] }
+      );
+    expect(gaps.rows()).toHaveLength(3);
+    // After the close, the gaps get every request until all prints are stored.
+    for (let minutes = 0; gaps.rows().length > 0 && minutes < 20; minutes += 2)
+      await collect(
+        depsWith({
+          now: new Date(CLOSE.getTime() + minutes * 60_000),
+          quantData: source.client,
+          repository: store.repository,
+        }),
+        { symbols: ["SPY"] }
+      );
+    expect(gaps.rows()).toStrictEqual([]);
+    expect(store.ids()).toStrictEqual([...source.ids].sort());
+  });
+
+  it("reads stored gaps after the options close and stops when none are left", async () => {
+    const newest = new Date(CLOSE.getTime() - 3_600_000);
+    const source = flowSource(secondsBack(5, newest));
+    const gaps = gapStore([
+      {
+        createdAt: OPEN,
+        endTime: newest,
+        startTime: new Date(CLOSE.getTime() - 7_200_000),
+        symbol: "SPY",
+      },
+    ]);
+    const store = printStore(gaps);
+    const deps = depsWith({
+      now: CLOSE,
+      quantData: source.client,
+      repository: store.repository,
+    });
+    const { run } = await collect(deps, { symbols: ["SPY", "ES"] });
+    expect(run("SPY", "options")).toMatchObject({
+      items: 5,
+      message:
+        "market closed, gaps only; gaps: 5 prints on 3 page(s), 1 closed, 0 left",
+      status: "ok",
+    });
+    expect(run("ES", "options").message).toBe("market closed");
+    expect(run("SPY", "gex").message).toBe("market closed");
+    expect(gaps.rows()).toStrictEqual([]);
+    const after = await collect(
+      depsWith({
+        now: new Date(CLOSE.getTime() + 120_000),
+        quantData: source.client,
+        repository: store.repository,
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(after.run("SPY", "options").message).toBe("market closed");
+    expect(source.request).toHaveBeenCalledTimes(3);
+  });
+
+  it("reads the newest gap first and leaves the next one when the requests are spent", async () => {
+    const newest = new Date(CLOSE.getTime() - 3_600_000);
+    const source = flowSource(secondsBack(20, newest));
+    const newer = {
+      createdAt: OPEN,
+      endTime: newest,
+      startTime: new Date(newest.getTime() - 15_000),
+      symbol: "SPY" as const,
+    };
+    const older = {
+      createdAt: OPEN,
+      endTime: new Date(newest.getTime() - 16_000),
+      startTime: new Date(newest.getTime() - 3_600_000),
+      symbol: "SPY" as const,
+    };
+    const gaps = gapStore([older, newer]);
+    const deps = depsWith({
+      now: CLOSE,
+      quantData: source.client,
+      repository: printStore(gaps).repository,
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toBe(
+      `market closed, gaps only; gaps: 16 prints on ${FLOW_OPTION_RUN_PAGES_MAX} page(s), 1 closed, 1 left (oldest from ${older.startTime.toISOString()})`
+    );
+    expect(gaps.rows()).toStrictEqual([older]);
+  });
+
+  it("stores the window's gap and reads no gap after a failed window page", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const gaps = gapStore([stored]);
+    const quantData = fakeQuantData([
+      page([optionRow({ id: "n1" })], [1]),
+      refused("later"),
+    ]);
+    const deps = depsWith({
+      quantData,
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toContain(
+      "page 2 failed, older prints of this window queued as a gap; gaps not read after a failed page (2 left)"
+    );
+    expect(quantData.request).toHaveBeenCalledTimes(2);
+    expect(gaps.rows()).toHaveLength(2);
+  });
+
+  it("keeps a gap whose fetch fails and the gap stored before it", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const gaps = gapStore([stored]);
+    const deps = depsWith({
+      quantData: fakeQuantData([page([optionRow()]), refused("gap 503")]),
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({ items: 1, status: "ok" });
+    expect(run("SPY", "options").message).toContain(
+      `gaps: 0 prints on 0 page(s), 0 closed, 1 left (oldest from ${stored.startTime.toISOString()}); gap fetch stopped: gap 503`
+    );
+    expect(gaps.rows()).toStrictEqual([stored]);
+  });
+
+  it("stores the window's gap before its prints, so a failed insert cannot lose it", async () => {
+    const source = flowSource(secondsBack(20, new Date(OPEN.getTime() - 1000)));
+    const gaps = gapStore();
+    const repository = fakeRepository([], undefined, gaps);
+    repository.insertOptionPrints.mockRejectedValueOnce(new Error("db down"));
+    const deps = depsWith({ quantData: source.client, repository });
+    await expect(collect(deps, { symbols: ["SPY"] })).rejects.toThrow(
+      "db down"
+    );
+    expect(gaps.rows()).toHaveLength(1);
+  });
+
+  it("records a failed gap fetch after the close as unavailable", async () => {
+    const gaps = gapStore([
+      {
+        createdAt: OPEN,
+        endTime: new Date(CLOSE.getTime() - 60_000),
+        startTime: new Date(CLOSE.getTime() - 120_000),
+        symbol: "SPY",
+      },
+    ]);
+    const deps = depsWith({
+      now: CLOSE,
+      quantData: fakeQuantData([refused("429")]),
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options")).toMatchObject({
+      message: "gaps: 429",
+      status: "unavailable",
+    });
+    expect(gaps.rows()).toHaveLength(1);
+  });
+
+  it("keeps a gap whose capped rows carry no trade time, and resumes one whose rows do", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const timeless = gapStore([stored]);
+    const one = await collect(
+      depsWith({
+        quantData: fakeQuantData([
+          page([]),
+          ...Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page([{ broken: true }], [i])
+          ),
+        ]),
+        repository: fakeRepository([], undefined, timeless),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(one.run("SPY", "options").message).toContain(
+      "gap fetch stopped: capped pages held no trade time"
+    );
+    expect(timeless.rows()).toStrictEqual([stored]);
+    expect(timeless.deleteOptionGap).not.toHaveBeenCalled();
+    // Rows that fail the schema but carry a trade time still move the gap on.
+    const at = new Date(OPEN.getTime() - 5_400_000);
+    const timed = gapStore([stored]);
+    await collect(
+      depsWith({
+        quantData: fakeQuantData([
+          page([]),
+          ...Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page([{ broken: true, tradeTime: at.getTime() }], [i])
+          ),
+        ]),
+        repository: fakeRepository([], undefined, timed),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(timed.rows()).toStrictEqual([
+      { ...stored, endTime: new Date(at.getTime() + 1) },
+    ]);
+  });
+
+  it("ignores a bad trade time outside the gap when it resumes", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const at = new Date(OPEN.getTime() - 5_400_000);
+    const gaps = gapStore([stored]);
+    await collect(
+      depsWith({
+        quantData: fakeQuantData([
+          page([]),
+          ...Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page(
+              [
+                optionRow({ id: `b${i}`, tradeTime: at.getTime() }),
+                { broken: true, tradeTime: 0 },
+              ],
+              [i]
+            )
+          ),
+        ]),
+        repository: fakeRepository([], undefined, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(gaps.rows()).toStrictEqual([
+      { ...stored, endTime: new Date(at.getTime() + 1) },
+    ]);
+  });
+
+  it("records a gap that cannot be read after the close as unavailable", async () => {
+    const gaps = gapStore([
+      {
+        createdAt: OPEN,
+        endTime: new Date(CLOSE.getTime() - 60_000),
+        startTime: new Date(CLOSE.getTime() - 120_000),
+        symbol: "SPY",
+      },
+    ]);
+    const { run } = await collect(
+      depsWith({
+        now: CLOSE,
+        quantData: fakeQuantData(
+          Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page([{ broken: true }], [i])
+          )
+        ),
+        repository: fakeRepository([], undefined, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "options")).toMatchObject({
+      message: "gaps: capped pages held no trade time",
+      status: "unavailable",
+    });
+    expect(gaps.rows()).toHaveLength(1);
+  });
+
+  it("closes a single-millisecond gap whose capped pages leave nothing older", async () => {
+    const at = new Date(OPEN.getTime() - 60_000);
+    const gaps = gapStore([
+      { createdAt: OPEN, endTime: at, startTime: at, symbol: "SPY" },
+    ]);
+    const deps = depsWith({
+      quantData: fakeQuantData([
+        page([]),
+        ...Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+          page([optionRow({ id: `g${i}`, tradeTime: at.getTime() })], [i])
+        ),
+      ]),
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const { run } = await collect(deps, { symbols: ["SPY"] });
+    expect(run("SPY", "options").message).toContain(
+      `gaps: ${FLOW_OPTION_RUN_PAGES_MAX - 1} prints on ${FLOW_OPTION_RUN_PAGES_MAX - 1} page(s), 1 closed, 0 left`
+    );
+    expect(gaps.rows()).toStrictEqual([]);
+  });
+
+  it("records a failed gap lookup while open and skips the closed market without a sample", async () => {
+    const gaps = gapStore();
+    gaps.optionGaps.mockRejectedValue(new Error("relation missing"));
+    const open = depsWith({ repository: fakeRepository([], undefined, gaps) });
+    const one = await collect(open, { symbols: ["SPY"] });
+    expect(one.run("SPY", "options")).toMatchObject({
+      message: "relation missing",
+      status: "unavailable",
+    });
+    expect(open.quantData?.request).not.toHaveBeenCalled();
+    const closed = depsWith({
+      now: CLOSE,
+      repository: fakeRepository([], undefined, gaps),
+    });
+    const two = await collect(closed, { symbols: ["SPY"] });
+    expect(two.run("SPY", "options")).toMatchObject({
+      message: "market closed; gaps unavailable: relation missing",
+      status: "skipped",
+    });
+    expect(recorded(closed)).not.toContain("SPY:options:skipped");
+  });
+
+  it("uses a generic message for a non-Error gap lookup failure", async () => {
+    const gaps = gapStore();
+    gaps.optionGaps.mockRejectedValue("boom");
+    const { run } = await collect(
+      depsWith({ now: CLOSE, repository: fakeRepository([], undefined, gaps) }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "options").message).toBe(
+      "market closed; gaps unavailable: lookup failed"
+    );
+  });
+
+  it("reads a gap once when a quiet window queues it again with a later end", async () => {
+    const newest = new Date(OPEN.getTime() - 2 * FLOW_OPTION_LOOKBACK_MS);
+    const floor = new Date(OPEN.getTime() - FLOW_OPTION_LOOKBACK_MS);
+    const gaps = gapStore([
+      {
+        createdAt: OPEN,
+        endTime: new Date(floor.getTime() - 60_000),
+        startTime: newest,
+        symbol: "SPY",
+      },
+    ]);
+    const quantData = fakeQuantData([page([]), page([])]);
+    const { run } = await collect(
+      depsWith({
+        quantData,
+        repository: fakeRepository([], async () => newest, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "options").message).toContain(
+      "gaps: 0 prints on 1 page(s), 1 closed, 0 left"
+    );
+    expect(quantData.request).toHaveBeenCalledTimes(2);
+    expect(quantData.request.mock.calls[1]?.[1]).toMatchObject({
+      timeRange: { endTime: floor.toISOString() },
+    });
+    expect(gaps.rows()).toStrictEqual([]);
+  });
+
+  it("writes no gap in a dry run", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const capped = gapStore([stored]);
+    const one = await collect(
+      depsWith({
+        quantData: flowSource(secondsBack(30, new Date(OPEN.getTime() - 1000)))
+          .client,
+        repository: fakeRepository([], undefined, capped),
+      }),
+      { dryRun: true, symbols: ["SPY"] }
+    );
+    expect(one.run("SPY", "options").items).toBe(2 * FLOW_OPTION_RUN_PAGES_MAX);
+    expect(capped.addOptionGap).not.toHaveBeenCalled();
+    expect(capped.moveOptionGapEnd).not.toHaveBeenCalled();
+    // An uncapped window leaves requests for the stored gap, which reads to its end.
+    const closing = gapStore([stored]);
+    const two = await collect(
+      depsWith({
+        quantData: flowSource(secondsBack(3, new Date(OPEN.getTime() - 1000)))
+          .client,
+        repository: fakeRepository([], undefined, closing),
+      }),
+      { dryRun: true, symbols: ["SPY"] }
+    );
+    expect(two.run("SPY", "options").message).toContain("1 closed, 0 left");
+    expect(closing.deleteOptionGap).not.toHaveBeenCalled();
+    expect(closing.rows()).toStrictEqual([stored]);
   });
 });
 
