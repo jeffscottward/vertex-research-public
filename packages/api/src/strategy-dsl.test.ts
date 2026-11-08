@@ -914,4 +914,33 @@ describe("DSL extensions: timeframe, breaks, oncePerLevel, entry.any, management
       "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
     );
   });
+
+  it.each([
+    ["oncePerLevel", { oncePerLevel: false }],
+    [
+      "a 1d indicator",
+      { right: { length: 5, name: "sma", timeframe: "1d", type: "indicator" } },
+    ],
+    [
+      "a 1d indicator on the left",
+      { left: { length: 5, name: "sma", timeframe: "1d", type: "indicator" } },
+    ],
+  ])("rejects a series condition with %s", (_, extra) => {
+    expect(
+      issuesOf(
+        withFilters({
+          condition: {
+            left: close,
+            op: "crossesAbove",
+            right: { length: 5, name: "sma", type: "indicator" },
+            ...extra,
+          },
+          series: "VIX",
+          type: "series",
+        })
+      )
+    ).toEqual([
+      "filters.0.condition: A series condition takes no oncePerLevel or timeframe: the series has one value per date",
+    ]);
+  });
 });

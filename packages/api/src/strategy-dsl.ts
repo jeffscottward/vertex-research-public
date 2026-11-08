@@ -372,6 +372,18 @@ export const SeriesFilterSchema = z
         "A series condition reads the series close only: use the close price and close-sourced indicators other than atr, adx and rvol",
       path: ["condition"],
     }
+  )
+  .refine(
+    (filter) =>
+      filter.condition.oncePerLevel === undefined &&
+      [filter.condition.left, filter.condition.right].every(
+        (expr) => expr.type !== "indicator" || expr.timeframe === undefined
+      ),
+    {
+      message:
+        "A series condition takes no oncePerLevel or timeframe: the series has one value per date",
+      path: ["condition"],
+    }
   );
 
 /** One entry filter. Filters gate entries only; exits are never blocked. */
