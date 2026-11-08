@@ -46,7 +46,7 @@ import {
   ExperienceProvider,
 } from "../../features/experience/shared.tsx";
 import { labReadOnly } from "../fixtures/core.ts";
-import { labFlowSnapshot } from "../fixtures/flow.ts";
+import { labFlowSnapshot } from "../fixtures/flow.ts"; // json-data-ignore: TS lab fixture for the dev lab gallery (fake gateway), not app data
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
 import { labBarsOutput } from "../fixtures/market.ts";
 import {
