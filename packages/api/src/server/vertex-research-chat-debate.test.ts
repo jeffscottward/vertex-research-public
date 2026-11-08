@@ -355,7 +355,9 @@ describe("stepwise bounded debate source-owner acceptance", () => {
         diagnostic.finish();
       }
     },
-    scaledTimeout(600_000)
+    // Owner 2026-11-08 (card vertex-debate-predecessor-query-blowup): 841 s on a
+    // GitHub-hosted coverage shard (run 42526763554); limit raised to 1200 s.
+    scaledTimeout(1_200_000)
   );
   it(
     "accepts only a live owner-issued source token and denies shape-identical forged, cloned and disposed references",
