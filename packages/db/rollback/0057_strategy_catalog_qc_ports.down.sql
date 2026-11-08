@@ -9,6 +9,11 @@ LOCK TABLE "public"."strategies" IN ACCESS EXCLUSIVE MODE;
 DO $$
 BEGIN
   IF EXISTS (
+    SELECT 1 FROM "public"."strategy_definition_revisions" d WHERE d."created_by" = 'migration:0059'
+  ) THEN
+    RAISE EXCEPTION 'the qc-port definitions of 0059 still exist; roll back 0059 first';
+  END IF;
+  IF EXISTS (
     SELECT 1 FROM "public"."strategies" s
     WHERE s."id" IN ('strategy-seed-qc-iv-rank-gate', 'strategy-seed-qc-turn-of-the-month', 'strategy-seed-qc-opex-week', 'strategy-seed-qc-regime-put-vrp', 'strategy-seed-qc-futures-trend-carry', 'strategy-seed-qc-vix-term-gate', 'strategy-seed-qc-asset-class-trend', 'strategy-seed-qc-momentum-rotation', 'strategy-seed-qc-gold-fed-model', 'strategy-seed-qc-oil-predicts-equity', 'strategy-seed-qc-same-month-seasonality')
       AND (

@@ -407,6 +407,20 @@
       "when": 1794159759827,
       "tag": "0057_strategy_catalog_qc_ports",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794172911599,
+      "tag": "0058_market_daily_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794174147046,
+      "tag": "0059_qc_port_definitions",
+      "breakpoints": true
     }
   ]
 }

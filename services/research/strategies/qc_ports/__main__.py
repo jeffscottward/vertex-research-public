@@ -3,6 +3,7 @@
     python -m strategies.qc_ports smoke [--symbol SPY] [--start 2007-01-01] [--nautilus]
     python -m strategies.qc_ports study --ran 2026-11-08 [--no-nautilus] [--report]
     python -m strategies.qc_ports audit
+    python -m strategies.qc_ports definitions
 
 smoke: a monthly call debit vertical. The entry signal is the close of the
 last trading day of each month (so the spread opens at the next close), with no
@@ -73,7 +74,12 @@ def main(argv=None) -> int:
     study_parser.add_argument("--no-nautilus", action="store_true", help="skip the Nautilus parity run")
     study_parser.add_argument("--report", action="store_true", help="print the markdown Results instead")
     sub.add_parser("audit", help="sanity checks of the study (markdown per idea)")
+    sub.add_parser("definitions", help="run A of each idea: its DSL definition and start date (JSON)")
     args = parser.parse_args(argv)
+    if args.command == "definitions":
+        json.dump(definitions(), sys.stdout, separators=(",", ":"))
+        sys.stdout.write("\n")
+        return 0
     if args.command == "audit":
         from . import audit, study
 
@@ -87,6 +93,15 @@ def main(argv=None) -> int:
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
     return 0
+
+
+def definitions() -> dict:
+    """Idea id -> {run, start, definition} of each idea's run A on the data files (the stored definitions)."""
+    from . import ideas, study
+
+    runs = ideas.family(study.load_study_data().facts)
+    return {idea.id: {"run": idea.key("A"), "start": runs[idea.key("A")].start,
+                      "definition": runs[idea.key("A")].definition} for idea in ideas.IDEAS}
 
 
 def _study(ran: str, nautilus: bool, markdown: bool) -> int:

@@ -1107,6 +1107,7 @@ describe("feature item mutation repository", () => {
       "deploymentRequests",
       "assistant",
       "marketBars",
+      "marketDailySeries",
       "backtestRuns",
       "forwardDrift",
       "agentModelRuns",

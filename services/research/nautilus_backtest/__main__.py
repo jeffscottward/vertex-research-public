@@ -4,13 +4,17 @@
   python -m nautilus_backtest batch <in.json|-> <out.json|->  many runs on one bar series
 
 request.json: {"bars": {"t": [...], "o": [...], "h": [...], "l": [...], "c": [...], "v": [...]?}, "spec": {...}}
-in.json:      {"bars": {...}, "cases": [{"id": "...", "spec": {...}, "slice": [first, end]?}, ...]}
+in.json:      {"bars": {...}, "series": {...}?, "cases": [{"id": "...", "spec": {...}, "slice": [first, end]?}, ...]}
 The spec is the plan_run spec of signals.py. A case with "slice" runs on bars[first:end] (its own
-date range inside the shared series). Output: RunResult.to_json(), or {"error": "..."} for an input
-error (exit status 2 for `run`; exit status 3 for both when nautilus-trader is missing). A batch
-writes {"engine": ..., "results": [{"id": ..., "wallMs": ..., "result": {...}} |
-{"id": ..., "wallMs": ..., "error": "..."}], "usage": {"cpuMs": ..., "wallMs": ...}}: the engine
-time of each case and the CPU time (user + system) and wall time of this process.
+date range inside the shared series). "series" holds daily series store rows (id -> {dates, open,
+high, low, close, adjClose}): a dsl case whose definition reads series gets them as its series
+context (spec "context", the run symbol); a dsl case with an options block runs in the options
+runner (strategies.qc_ports.portfolio.run_spec_json: ledger plus NautilusTrader parity) on those
+rows instead of the bars. Output: RunResult.to_json() (options: the run_spec_json document), or
+{"error": "..."} for an input error (exit status 2 for `run`; exit status 3 for both when
+nautilus-trader is missing). A batch writes {"engine": ..., "results": [{"id": ..., "wallMs": ...,
+"result": {...}} | {"id": ..., "wallMs": ..., "error": "..."}], "usage": {"cpuMs": ..., "wallMs":
+...}}: the engine time of each case and the CPU time (user + system) and wall time of this process.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from pathlib import Path
 
 from .bars import Bars, InputError
 from .engine import ENGINE_ID, NautilusUnavailable, run_spec
+from .signals import normalize_definition, strategy_series_refs
 
 
 def _load(path: str) -> dict:
@@ -34,13 +39,33 @@ def _dump(value) -> str:
     return json.dumps(value, allow_nan=False, separators=(",", ":"))
 
 
-def _batch_case(bars: Bars, case: dict) -> dict:
+def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
+    """One case: the options runner for an options definition, else run_spec (with the series context
+    when the definition reads series and rows are given)."""
+    rule = spec.get("rule") or {}
+    if rule.get("kind") == "dsl" and rule.get("definition", {}).get("options") is not None:
+        from strategies.qc_ports.portfolio import run_spec_json
+
+        if not rows:
+            raise InputError("An options definition needs the daily series rows")
+        try:
+            return run_spec_json(spec, rows)
+        except (ValueError, RuntimeError) as error:
+            raise InputError(str(error)) from error
+    if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(rule["definition"])):
+        from strategies.qc_ports.portfolio import context_from_rows
+
+        spec = {**spec, "context": context_from_rows(rows)}
+    return run_spec(bars, spec).to_json()
+
+
+def _batch_case(bars: Bars, case: dict, rows: dict | None = None) -> dict:
     """One batch case with its engine wall time; an input error is the case's result."""
     started = time.perf_counter()
     try:
         window = case.get("slice")
         own = bars if window is None else bars.window(int(window[0]), int(window[1]))
-        outcome = {"result": run_spec(own, case["spec"]).to_json()}
+        outcome = {"result": _run_case(own, case["spec"], rows)}
     except InputError as error:
         outcome = {"error": str(error)}
     return {"id": case["id"], "wallMs": (time.perf_counter() - started) * 1000, **outcome}
@@ -56,14 +81,14 @@ def main(argv: list[str]) -> int:
     if len(argv) >= 2 and argv[0] == "run" and len(argv) == 2:
         request = _load(argv[1])
         try:
-            result = run_spec(Bars.from_columns(request["bars"]), request["spec"])
+            result = _run_case(Bars.from_columns(request["bars"]), request["spec"], request.get("series"))
         except InputError as error:
             print(_dump({"error": str(error)}))
             return 2
         except NautilusUnavailable as error:
             print(str(error), file=sys.stderr)
             return 3
-        print(_dump(result.to_json()))
+        print(_dump(result))
         return 0
     if len(argv) == 3 and argv[0] == "batch":
         started = time.perf_counter()
@@ -72,7 +97,7 @@ def main(argv: list[str]) -> int:
         results = []
         try:
             for case in request["cases"]:
-                results.append(_batch_case(bars, case))
+                results.append(_batch_case(bars, case, request.get("series")))
         except NautilusUnavailable as error:
             print(str(error), file=sys.stderr)
             return 3

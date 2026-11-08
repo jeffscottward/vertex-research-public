@@ -110,3 +110,102 @@ def test_real_spy_monthly_call_debit_matches():
     dates = tuple(day for day in spy.dates if day >= "2007-01-01")
     ledger, _ = assert_parity(book.trades, dates=dates)
     assert len(ledger.trades) > 200
+
+
+# --------------------------------------------------------------------------- worker path (options definitions)
+
+def _worker_rows(size=90):
+    from tests.qc_ports_synthetic import VIX_FOR_20, trading_days
+
+    dates = list(trading_days("2024-01-02", size))
+    closes = [100.0 + 0.2 * k for k in range(size)]
+    return {
+        "SPY": {"dates": dates, **{key: list(closes) for key in ("open", "high", "low", "close", "adjClose")}},
+        "VIX": {"dates": dates, "close": [VIX_FOR_20] * size},
+        "IRX": {"dates": dates, "close": [4.0] * size},
+    }
+
+
+def _worker_spec(rows, **rule_extra):
+    from strategies.qc_ports import ideas as qi
+
+    made = qi.definition("always", qi.MONTHLY_CALL, book=qi.portfolio(["SPY"], "roll"))
+    dates = rows["SPY"]["dates"]
+    return {"symbol": "SPY", "timeframe": "1d", "from": dates[0], "to": dates[-1], "initialCapital": 100000,
+            "costBps": 0, "stopLossPct": 0, "takeProfitPct": 0, "rule": {"kind": "dsl", "definition": made, **rule_extra}}
+
+
+@needs_nautilus
+def test_run_spec_json_books_the_options_run_in_both_ledgers():
+    from strategies.qc_ports import portfolio as pf
+
+    rows = _worker_rows()
+    out = pf.run_spec_json(_worker_spec(rows), rows)
+    assert out["kind"] == "options" and out["capital"] == 100000.0
+    assert out["dates"] == rows["SPY"]["dates"] and len(out["equity"]) == len(out["dates"])
+    assert out["trades"] and out["metrics"]["trades"] == len(out["trades"])
+    assert out["nautilusGap"] is not None and out["nautilusGap"] <= REL_TOL
+    import json
+
+    json.dumps(out, allow_nan=False)
+    with pytest.raises(ValueError, match="options block"):
+        pf.run_spec_json({**_worker_spec(rows), "rule": {"kind": "smaCross", "fast": 5, "slow": 20}}, rows)
+
+
+@needs_nautilus
+def test_batch_cli_routes_options_cases_to_the_options_runner(tmp_path):
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    rows = _worker_rows()
+    bars = {"t": [0.0, 86_400_000.0], "o": [1.0, 1.0], "h": [1.0, 1.0], "l": [1.0, 1.0], "c": [1.0, 1.0]}
+    request = {"bars": bars, "series": rows, "cases": [
+        {"id": "opt", "spec": _worker_spec(rows)},
+        {"id": "no-rows", "spec": _worker_spec(rows)},
+    ]}
+    research = Path(__file__).resolve().parents[1]
+    done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=research,
+                          input=json.dumps(request), capture_output=True, text=True, timeout=600)
+    assert done.returncode == 0, done.stderr
+    results = {item["id"]: item for item in json.loads(done.stdout)["results"]}
+    assert results["opt"]["result"]["kind"] == "options"
+    missing = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=research,
+                             input=json.dumps({**request, "series": None}), capture_output=True, text=True,
+                             timeout=600)
+    assert "needs the daily series rows" in json.loads(missing.stdout)["results"][0]["error"]
+
+
+@needs_nautilus
+def test_batch_cli_passes_series_rows_to_equity_definitions_that_read_series():
+    import json
+    import subprocess
+    import sys
+    from datetime import date
+    from pathlib import Path
+
+    rows = _worker_rows()
+    dates = rows["SPY"]["dates"]
+    closes = rows["SPY"]["close"]
+    epoch = date(1970, 1, 1)
+    t = [float((date.fromisoformat(day) - epoch).days * 86_400_000) for day in dates]
+    bars = {"t": t, "o": closes, "h": closes, "l": closes, "c": closes}
+    gated = {"name": "vix gate", "version": 1,
+             "entry": {"all": [{"left": {"type": "price", "field": "close"}, "op": ">",
+                                "right": {"type": "const", "value": 0}}]},
+             "filters": [{"type": "series", "series": "$iv", "condition": {
+                 "left": {"type": "price", "field": "close"}, "op": "<", "right": {"type": "const", "value": 30}}}]}
+    spec = {"symbol": "SPY", "timeframe": "1d", "from": dates[0], "to": dates[-1], "initialCapital": 10000,
+            "costBps": 0, "stopLossPct": 0, "takeProfitPct": 0, "rule": {"kind": "dsl", "definition": gated}}
+    research = Path(__file__).resolve().parents[1]
+
+    def batch(series):
+        done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=research,
+                              input=json.dumps({"bars": bars, "series": series, "cases": [{"id": "eq", "spec": spec}]}),
+                              capture_output=True, text=True, timeout=600)
+        assert done.returncode == 0, done.stderr
+        return json.loads(done.stdout)["results"][0]
+
+    assert len(batch(rows)["result"]["equity"]) == len(dates)
+    assert "STRATEGY_SERIES_FILTERS_UNSUPPORTED" in batch(None)["error"]
