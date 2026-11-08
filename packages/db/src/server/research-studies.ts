@@ -99,7 +99,7 @@ const write = async (
     throw new DatabasePersistenceError("research study write");
   return {
     // Insert sets both timestamps to the same now(); an update moves only updated_at. now() is the
-    // transaction start, so this also holds inside upsertMany (whose ids are distinct per call).
+    // transaction start, so this also holds inside upsertMany, which refuses repeated ids.
     created: row.createdAt.getTime() === row.updatedAt.getTime(),
     id: row.id,
     updatedAt: row.updatedAt,
@@ -131,6 +131,16 @@ export const createResearchStudyRepository = (
     },
     upsertMany: async (inputs) => {
       if (inputs.length === 0) return [];
+      // A repeated id would be inserted then updated at the same now(), so `created` would be wrong
+      // for both rows; refuse it before opening a transaction.
+      const ids = new Set<string>();
+      for (const { id } of inputs) {
+        if (ids.has(id))
+          throw new InvalidRepositoryInputError(
+            `research study ${id} appears more than once in one batch`
+          );
+        ids.add(id);
+      }
       try {
         return await database.transaction(async (transaction) => {
           const results: ResearchStudyUpsertResult[] = [];

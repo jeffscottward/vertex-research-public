@@ -222,6 +222,23 @@ describe("research study repository upsertMany", () => {
     expect(double.written).toEqual([INPUT, SECOND]);
   });
 
+  it("refuses a repeated id before opening a transaction", async () => {
+    const double = transactional([]);
+    await expect(
+      createResearchStudyRepository(double.database).upsertMany([
+        INPUT,
+        SECOND,
+        { ...INPUT, ranOn: "2026-11-01" },
+      ])
+    ).rejects.toThrow(
+      new InvalidRepositoryInputError(
+        "research study adx-rvol-filters appears more than once in one batch"
+      )
+    );
+    expect(double.transactions()).toBe(0);
+    expect(double.written).toEqual([]);
+  });
+
   it("opens no transaction for no studies", async () => {
     const double = transactional([]);
     await expect(
