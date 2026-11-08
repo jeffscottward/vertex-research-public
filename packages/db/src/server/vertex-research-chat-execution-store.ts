@@ -26,6 +26,7 @@ import {
   researchChatContextUseResource,
   type VertexResearchChatExecutionOptions,
 } from "./vertex-research-chat-execution-ports.ts";
+import { reusePredecessorRead } from "./vertex-research-chat-predecessor-walk.ts";
 import type { ResearchChatSourceInputs } from "./vertex-research-chat-source-ports.ts";
 import { createResearchChatOperations } from "./vertex-research-chat-store.ts";
 // Request-scoped private storage evidence approvals share the review owner,
@@ -1305,7 +1306,7 @@ export const createResearchChatExecutionOperations = (
   // Worker continuation consumes the ORIGINAL stored approval, not a fabricated
   // approveInput/query. Copied content is verified by the lifecycle owner; this
   // join rechecks current original policy/review/rights and owner permissions.
-  const readCurrentOriginalForTransaction = async (
+  const readCurrentOriginalOnce = async (
     tx: Transaction,
     scope: VertexScope,
     responseRequestId: string,
@@ -1535,6 +1536,32 @@ export const createResearchChatExecutionOperations = (
     finalCurrent(at, expiresAt);
     return { plan, approval, configuration, selection, expiresAt };
   };
+  // An earlier debate turn's currency check reads its original several times
+  // (eligibility, inspection, fence ACKs, live proof). Inside one predecessor
+  // walk (withPredecessorWalk) a completed read is reused after the same final
+  // clock checks as a fresh read. Copy-lifecycle callers still check domain
+  // closure and authority loss afresh before each use. Outside a walk every
+  // call reads again.
+  const readCurrentOriginalForTransaction = (
+    tx: Transaction,
+    scope: VertexScope,
+    responseRequestId: string,
+    at: string
+  ) =>
+    reusePredecessorRead(
+      tx,
+      readCurrentOriginalOnce,
+      JSON.stringify([
+        scope.accountAlias,
+        scope.environment,
+        responseRequestId,
+      ]),
+      () => readCurrentOriginalOnce(tx, scope, responseRequestId, at),
+      (kept) => {
+        if (time(kept.approval["approvedAt"]) > time(at)) fail("stale");
+        finalCurrent(at, kept.expiresAt);
+      }
+    );
   const currentDebate = async (
     tx: Transaction,
     scope: VertexScope,

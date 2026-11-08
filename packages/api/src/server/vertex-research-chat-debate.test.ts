@@ -63,11 +63,6 @@ describe("stepwise bounded debate source-owner acceptance", () => {
     async ({ skip }) => {
       // The native consumer round trip runs under the Python parity interpreter.
       skip(researchParityPythonSkip, researchParityPythonSkipNote);
-      // Known production defect (card vertex-debate-predecessor-query-blowup,
-      // 2026-11-06): the predecessor currency check grows about 10x in SQL
-      // queries per ordinal, so five ordinals do not finish. Remove this skip
-      // with the fix; until then the skip is reported, never silent.
-      skip(true, "blocked: card vertex-debate-predecessor-query-blowup");
       const diagnostic = createDebateDiagnostic();
       try {
         const scenario = await diagnostic.run(0, "prepare", () =>
