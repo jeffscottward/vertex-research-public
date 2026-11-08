@@ -178,6 +178,12 @@ const OVERRIDES = {
     reason:
       'Pipeline-growth judgment for pre-revenue names; "qualification cycle" is a sales cycle, not seasonality.',
   },
+  // Hand review 2026-11-08 (QuantFinanceToGo merge, knowledge-bases master rules 91644e65).
+  C229: {
+    cls: "B",
+    reason:
+      'Portfolio stress test beyond VaR (liquidity, correlation breaks); "basis blowouts" is one example, not a futures-curve feed requirement.',
+  },
 };
 
 export function classifyCluster(c, debated = new Map()) {
