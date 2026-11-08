@@ -54,17 +54,18 @@ describe("0054_agent_model_run_grants", () => {
   });
 
   it("rollback skips a table the app role owns, so it never strips an owner's privileges", () => {
-    for (const table of Object.keys(granted)) {
-      const revoke = rollback.indexOf(`ON TABLE "${table}" FROM`);
-      const ownerCheck = rollback.lastIndexOf(
-        `WHERE oid = 'public.${table}'::regclass`,
-        revoke
+    for (const [table, privileges] of Object.entries(granted)) {
+      expect(rollback).toContain(
+        [
+          "    IF NOT EXISTS (",
+          "      SELECT 1 FROM pg_class",
+          `      WHERE oid = '${table}'::regclass`,
+          "        AND relowner = (SELECT oid FROM pg_roles WHERE rolname = 'vertex_research')",
+          "    ) THEN",
+          `      REVOKE ${privileges} ON TABLE "${table}" FROM "vertex_research";`,
+          "    END IF;",
+        ].join("\n")
       );
-      expect(ownerCheck).toBeGreaterThan(-1);
-      expect(rollback.slice(ownerCheck, revoke)).toContain(
-        "AND relowner = (SELECT oid FROM pg_roles WHERE rolname = 'vertex_research')"
-      );
-      expect(rollback.slice(ownerCheck, revoke)).not.toContain("END IF;");
     }
   });
 });
@@ -99,7 +100,7 @@ describe("app-role grants for new tables", () => {
       );
       if (guard === -1) continue;
       for (const match of sql
-        .slice(guard)
+        .slice(guard, sql.indexOf("END IF;", guard))
         .matchAll(
           /GRANT [A-Z, ]+ ON TABLE ((?:"\w+"(?:, )?)+) TO "vertex_research"/gu
         )) {

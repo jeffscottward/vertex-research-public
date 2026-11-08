@@ -8,14 +8,14 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN
     IF NOT EXISTS (
       SELECT 1 FROM pg_class
-      WHERE oid = 'public.agent_model_run_events'::regclass
+      WHERE oid = 'agent_model_run_events'::regclass
         AND relowner = (SELECT oid FROM pg_roles WHERE rolname = 'vertex_research')
     ) THEN
       REVOKE SELECT, INSERT ON TABLE "agent_model_run_events" FROM "vertex_research";
     END IF;
     IF NOT EXISTS (
       SELECT 1 FROM pg_class
-      WHERE oid = 'public.agent_model_runs'::regclass
+      WHERE oid = 'agent_model_runs'::regclass
         AND relowner = (SELECT oid FROM pg_roles WHERE rolname = 'vertex_research')
     ) THEN
       REVOKE SELECT, INSERT, UPDATE ON TABLE "agent_model_runs" FROM "vertex_research";
