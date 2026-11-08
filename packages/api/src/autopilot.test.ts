@@ -879,6 +879,94 @@ describe("autopilot procedures", () => {
     ).toBe("failed");
   });
 
+  it("refuses campaign filters that read series it cannot load, at create and at tick", async () => {
+    const memory = memoryAutopilot();
+    const client = clientFor({ autopilot: memory.repository });
+    for (const filter of [
+      { min: 50, type: "ivRank" as const },
+      { maxRatio: 1, type: "vixTermStructure" as const },
+      { maxTermRatio: 1, maxVix: 20, type: "volRegime" as const },
+      {
+        condition: {
+          left: { field: "close" as const, type: "price" as const },
+          op: ">" as const,
+          right: { type: "const" as const, value: 0 },
+        },
+        series: "ES=F" as const,
+        type: "series" as const,
+      },
+    ])
+      await expectCode(
+        client.autopilot.campaigns.create({
+          filters: [filter],
+          name: "x",
+          symbol: "TEST",
+          timeframe: "1d",
+        }),
+        "VALIDATION_ERROR",
+        `STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ${filter.type} filters need daily series`
+      );
+    // calendarWindow counts trading days: refused on intraday timeframes.
+    await expectCode(
+      client.autopilot.campaigns.create({
+        filters: [{ type: "calendarWindow", window: "opexWeek" }],
+        name: "x",
+        symbol: "TEST",
+        timeframe: "1m",
+      }),
+      "VALIDATION_ERROR",
+      "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+    );
+    expect(memory.campaigns.size).toBe(0);
+    const calendar = await client.autopilot.campaigns.create({
+      filters: [{ type: "calendarWindow", window: "opexWeek" }],
+      name: "Calendar",
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    expect(calendar.config.filters).toEqual([
+      { type: "calendarWindow", window: "opexWeek" },
+    ]);
+    // A row written past the create check fails on its first tick, before any candidate.
+    const stored = await memory.repository.createCampaign({
+      config: {
+        budget,
+        costBps: 5,
+        filters: [{ max: 30, type: "ivRank" }],
+        gateVersion: "autopilot-gate-v1",
+        seed: 1,
+      },
+      createdBy: "user-a",
+      name: "Stored",
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const ticked = (await client.autopilot.campaigns.tick({ id: stored.id }))
+      .results[0];
+    expect(ticked?.status).toBe("failed");
+    expect(ticked?.note).toContain("STRATEGY_SERIES_FILTERS_UNSUPPORTED");
+    expect(
+      memory.candidates.filter((row) => row.campaignId === stored.id)
+    ).toHaveLength(0);
+    const intraday = await memory.repository.createCampaign({
+      config: {
+        budget,
+        costBps: 5,
+        filters: [{ months: [1], type: "calendarWindow", window: "months" }],
+        gateVersion: "autopilot-gate-v1",
+        seed: 1,
+      },
+      createdBy: "user-a",
+      name: "Intraday",
+      symbol: "TEST",
+      timeframe: "1m",
+    });
+    const minute = (await client.autopilot.campaigns.tick({ id: intraday.id }))
+      .results[0];
+    expect(minute?.status).toBe("failed");
+    expect(minute?.note).toContain("STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED");
+  });
+
   it("shows a candidate tearsheet and hands a verified candidate to paper once", async () => {
     clearInstantBacktestCacheForTesting();
     const memory = memoryAutopilot();
@@ -1105,6 +1193,54 @@ describe("autopilot procedures", () => {
       "NOT_FOUND",
       "Campaign"
     );
+    // The paper path runs equity definitions only: an options block or a series filter is
+    // refused before anything is written.
+    const base = verified[0] as Candidate;
+    for (const [id, extra, code] of [
+      [
+        "with-options",
+        {
+          options: {
+            dte: { min: 21, target: 45 },
+            maxLossPct: 2,
+            structure: "putCreditVertical",
+            widthSigma: 0.5,
+          },
+          sizing: { mode: "allIn" },
+          stopLoss: { kind: "none" },
+          takeProfit: { kind: "none" },
+        },
+        "STRATEGY_OPTIONS_UNSUPPORTED",
+      ],
+      [
+        "with-series",
+        { filters: [{ maxRatio: 1, type: "vixTermStructure" }] },
+        "STRATEGY_SERIES_FILTERS_UNSUPPORTED",
+      ],
+    ] as const) {
+      memory.candidates.push({
+        ...base,
+        definition: { ...base.definition, ...extra },
+        id,
+      });
+      const refused = handoffRepositories();
+      await expectCode(
+        clientFor({
+          autopilot: memory.repository,
+          handoff: refused,
+        }).autopilot.candidates.sendToPaper({ id, limits }),
+        "VALIDATION_ERROR",
+        code
+      );
+      expect(refused.definitions.insert).not.toHaveBeenCalled();
+      expect(refused.library.create).not.toHaveBeenCalled();
+      // The tearsheet still shows, without a paper config for the refused definition.
+      const shown = await clientFor({
+        autopilot: memory.repository,
+      }).autopilot.candidates.get({ id });
+      expect(shown.candidate.status).toBe("verified");
+      expect(shown.nautilus).toBeNull();
+    }
     await expectCode(
       clientFor({ autopilot: orphan.repository }).autopilot.candidates.get({
         id: (verified[0] as Candidate).id,

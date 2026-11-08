@@ -7,11 +7,21 @@ import {
   runSignalBacktest,
   type SignalRunOptions,
 } from "./instant-backtest-engine.ts";
-import type {
-  StrategyCondition,
-  StrategyDefinition,
-  StrategyExpr,
-  StrategyFilter,
+import {
+  type CalendarWindowFilter,
+  type IvRankFilter,
+  type SectorQuadrantFilter,
+  type SeriesFilter,
+  STRATEGY_CALENDAR_INTRADAY_REFUSAL,
+  STRATEGY_IV_INDEX,
+  type StrategyCondition,
+  type StrategyDefinition,
+  type StrategyExpr,
+  type StrategyFilter,
+  type StrategyOptions,
+  type StrategyRefusal,
+  serverStrategyRefusal,
+  type VolRegimeFilter,
 } from "./strategy-dsl.ts";
 
 // Compiles a validated strategy definition to engine signals and runs it. Indicator values are NaN
@@ -482,29 +492,34 @@ const compare = (op: StrategyCondition["op"], left: number, right: number) => {
   }
 };
 
-/** Boolean series of one condition. A cross is true when the relation holds now but not on the previous bar. */
-const conditionSeries = (
-  bars: BarColumns,
-  condition: StrategyCondition,
-  cache: SeriesCache
+/** 1 where `left op right` holds. A cross is true when the relation holds now but not on the previous bar. */
+const compareSeries = (
+  op: StrategyCondition["op"],
+  left: Float64Array,
+  right: Float64Array
 ): Uint8Array => {
-  const left = evaluate(bars, condition.left, cache);
-  const right = evaluate(bars, condition.right, cache);
   const out = new Uint8Array(left.length);
-  const cross =
-    condition.op === "crossesAbove" || condition.op === "crossesBelow";
+  const cross = op === "crossesAbove" || op === "crossesBelow";
   let previous = false;
   for (let index = 0; index < left.length; index += 1) {
-    const now = compare(
-      condition.op,
-      left[index] as number,
-      right[index] as number
-    );
+    const now = compare(op, left[index] as number, right[index] as number);
     out[index] = (cross ? now && !previous : now) ? 1 : 0;
     previous = now;
   }
   return out;
 };
+
+/** Boolean series of one condition on the bars. */
+const conditionSeries = (
+  bars: BarColumns,
+  condition: StrategyCondition,
+  cache: SeriesCache
+): Uint8Array =>
+  compareSeries(
+    condition.op,
+    evaluate(bars, condition.left, cache),
+    evaluate(bars, condition.right, cache)
+  );
 
 const minutesOf = (time: string): number => {
   const [hours, minutes] = time.split(":").map(Number) as [number, number];
@@ -530,7 +545,7 @@ const inSession = (
 export type SectorQuadrantPoint = Readonly<{
   /** YYYY-MM-DD of the period close. */
   date: string;
-  quadrant: StrategyFilter["quadrants"][number];
+  quadrant: SectorQuadrantFilter["quadrants"][number];
 }>;
 
 /** Series by `${sector}:${timeframe}` (for example "XLK:weekly"), sorted by date ascending. */
@@ -546,8 +561,413 @@ export class SectorQuadrantDataError extends InstantBacktestInputError {
   }
 }
 
-export const sectorQuadrantKey = (filter: StrategyFilter): string =>
+export const sectorQuadrantKey = (filter: SectorQuadrantFilter): string =>
   `${filter.sector}:${filter.timeframe}`;
+
+/**
+ * Daily values of external series (STRATEGY_SERIES_IDS): series id → YYYY-MM-DD date → value (the
+ * close). Values that are not finite count as missing.
+ */
+export type StrategySeriesContext = Readonly<
+  Record<string, Readonly<Record<string, number>>>
+>;
+
+/** What the ivRank, vixTermStructure, volRegime and series filters read. */
+export type StrategySeriesInput = Readonly<{
+  context: StrategySeriesContext;
+  /** Traded symbol; ivRank reads its implied-volatility index (STRATEGY_IV_INDEX). */
+  symbol?: string;
+}>;
+
+/** A definition has a filter on a series that was not given. */
+export class StrategySeriesDataError extends InstantBacktestInputError {
+  constructor(series: string) {
+    super(`Series data is not available for ${series}`);
+    this.name = "StrategySeriesDataError";
+  }
+}
+
+/** An engine refuses the definition: `code` is STRATEGY_OPTIONS_UNSUPPORTED or STRATEGY_SERIES_FILTERS_UNSUPPORTED. */
+export class StrategyUnsupportedError extends InstantBacktestInputError {
+  readonly code: StrategyRefusal["code"];
+  constructor(refusal: StrategyRefusal) {
+    super(refusal.message);
+    this.name = "StrategyUnsupportedError";
+    this.code = refusal.code;
+  }
+}
+
+/**
+ * Throws StrategyUnsupportedError when the server engines cannot run the definition or filters
+ * (on `timeframe`, when given). Research runners call compileStrategy instead.
+ */
+export const assertServerRunnable = (
+  definition: Readonly<{
+    filters?: readonly StrategyFilter[] | undefined;
+    options?: StrategyOptions | undefined;
+  }>,
+  timeframe?: string
+): void => {
+  const refusal = serverStrategyRefusal(definition, timeframe);
+  if (refusal !== undefined) throw new StrategyUnsupportedError(refusal);
+};
+
+/**
+ * Most trading days (distinct bar dates) a series value is carried past its date, as in the
+ * research loader (qc_ports data.align). Older values are missing.
+ */
+export const STRATEGY_SERIES_MAX_FILL_DAYS = 5;
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+
+type DailySeries = Readonly<{ dates: readonly string[]; values: Float64Array }>;
+
+/** The finite values of one context series, by date ascending. */
+const dailySeries = (
+  input: StrategySeriesInput | undefined,
+  id: string
+): DailySeries => {
+  const byDate = input?.context[id];
+  if (byDate === undefined) throw new StrategySeriesDataError(id);
+  const dates: string[] = [];
+  for (const date of Object.keys(byDate).sort()) {
+    if (!DATE_PATTERN.test(date))
+      throw new InstantBacktestInputError(
+        `Series ${id} has a date that is not YYYY-MM-DD: ${date}`
+      );
+    if (Number.isFinite(byDate[date])) dates.push(date);
+  }
+  return {
+    dates,
+    values: Float64Array.from(dates, (date) => byDate[date] as number),
+  };
+};
+
+/**
+ * The value of a daily series on each bar: the latest value dated on or before the bar date. A
+ * daily value is known after its close, so an intraday bar uses only values dated before its date.
+ * A value is carried for at most STRATEGY_SERIES_MAX_FILL_DAYS later bar dates without a newer
+ * one (the carry restarts whenever a newer value becomes usable). `exact` (daily bars) needs a
+ * value dated on the bar date itself; otherwise NaN.
+ */
+const alignSeries = (
+  series: DailySeries,
+  values: Float64Array,
+  barDates: readonly string[],
+  intraday: boolean,
+  exact: boolean
+): Float64Array => {
+  const { dates } = series;
+  const out = new Float64Array(barDates.length).fill(Number.NaN);
+  let next = 0;
+  let age = 0;
+  let previousDate: string | undefined;
+  for (let index = 0; index < barDates.length; index += 1) {
+    const date = barDates[index] as string;
+    const before = next;
+    while (
+      next < dates.length &&
+      (intraday
+        ? (dates[next] as string) < date
+        : (dates[next] as string) <= date)
+    )
+      next += 1;
+    if (next > before) age = 0;
+    else if (date !== previousDate) age += 1;
+    previousDate = date;
+    if (next === 0 || age > STRATEGY_SERIES_MAX_FILL_DAYS) continue;
+    if (exact && !intraday && dates[next - 1] !== date) continue;
+    out[index] = values[next - 1] as number;
+  }
+  return out;
+};
+
+/** 100 × (v − min) / (max − min) over the `length` values ending at each value; NaN when flat. */
+export const ivRankSeries = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const highest = priorExtreme(values, length - 1, 1);
+  const lowest = priorExtreme(values, length - 1, -1);
+  const out = new Float64Array(values.length).fill(Number.NaN);
+  for (let index = length - 1; index < values.length; index += 1) {
+    const value = values[index] as number;
+    const high = Math.max(highest[index] as number, value);
+    const low = Math.min(lowest[index] as number, value);
+    if (high > low) out[index] = (100 * (value - low)) / (high - low);
+  }
+  return out;
+};
+
+/** VIX / VIX3M on the dates where both have a value (and VIX3M is above 0). */
+const termRatioSeries = (
+  input: StrategySeriesInput | undefined
+): DailySeries => {
+  const vix = dailySeries(input, "VIX");
+  const vix3m = dailySeries(input, "VIX3M");
+  const dates: string[] = [];
+  const ratios: number[] = [];
+  let other = 0;
+  vix.dates.forEach((date, index) => {
+    while (other < vix3m.dates.length && (vix3m.dates[other] as string) < date)
+      other += 1;
+    const denominator = vix3m.values[other] as number;
+    if (vix3m.dates[other] !== date || !(denominator > 0)) return;
+    dates.push(date);
+    ratios.push((vix.values[index] as number) / denominator);
+  });
+  return { dates, values: Float64Array.from(ratios) };
+};
+
+/** True when `value` is a number in [min, max]; a missing bound is open. */
+const within = (
+  value: number,
+  min: number | undefined,
+  max: number | undefined
+): boolean =>
+  !Number.isNaN(value) &&
+  (min === undefined || value >= min) &&
+  (max === undefined || value <= max);
+
+const maskOf = (size: number, pass: (index: number) => boolean): Uint8Array =>
+  Uint8Array.from({ length: size }, (_, index) => (pass(index) ? 1 : 0));
+
+/** 0 Sunday to 6 Saturday of a UTC day number (days since 1970-01-01, a Thursday). */
+const weekday = (day: number): number => (((day + 4) % 7) + 7) % 7;
+
+const utcDay = (year: number, month: number, date: number): number =>
+  Date.UTC(year, month, date) / DAY_MS;
+
+/** UTC day of the `n`th `day` (0 Sunday to 6 Saturday) of a month (0 January). */
+const nthWeekday = (year: number, month: number, day: number, n: number) => {
+  const first = utcDay(year, month, 1);
+  return first + ((day - weekday(first) + 7) % 7) + 7 * (n - 1);
+};
+
+const lastWeekday = (year: number, month: number, day: number): number => {
+  const last = utcDay(year, month + 1, 1) - 1;
+  return last - ((weekday(last) - day + 7) % 7);
+};
+
+/** A Saturday holiday is observed on Friday, a Sunday holiday on Monday. */
+const observed = (day: number): number => {
+  const of = weekday(day);
+  if (of === 6) return day - 1;
+  return of === 0 ? day + 1 : day;
+};
+
+/** Gregorian Easter Sunday (anonymous Gregorian algorithm) as a UTC day. */
+const easterSunday = (year: number): number => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const h =
+    (19 * a +
+      b -
+      Math.floor(b / 4) -
+      Math.floor((b - Math.floor((b + 8) / 25) + 1) / 3) +
+      15) %
+    30;
+  const l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  return utcDay(year, month - 1, ((h + l - 7 * m + 114) % 31) + 1);
+};
+
+/**
+ * Special NYSE full-day closures since 1998 (not set by the holiday rules): September 11 attacks,
+ * the national days of mourning for Presidents Reagan, Ford, G. H. W. Bush and Carter, and
+ * Hurricane Sandy. Python mirror: signals.NYSE_SPECIAL_CLOSURES.
+ */
+export const NYSE_SPECIAL_CLOSURES: readonly string[] = [
+  "2001-09-11",
+  "2001-09-12",
+  "2001-09-13",
+  "2001-09-14",
+  "2004-06-11",
+  "2007-01-02",
+  "2012-10-29",
+  "2012-10-30",
+  "2018-12-05",
+  "2025-01-09",
+];
+
+const holidayCache = new Map<number, ReadonlySet<number>>();
+
+/**
+ * Regular NYSE full-day holidays of a year as UTC days, the rules since 1998 (the same rules as
+ * the research calendar, qc_ports calendar.is_nyse_holiday): New Year (not observed on a Saturday),
+ * Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day, Juneteenth (from
+ * 2022), Independence Day, Labor Day, Thanksgiving and Christmas, plus the special closures of
+ * NYSE_SPECIAL_CLOSURES in that year.
+ */
+export const nyseHolidays = (year: number): ReadonlySet<number> => {
+  const cached = holidayCache.get(year);
+  if (cached !== undefined) return cached;
+  const days = new Set<number>([
+    nthWeekday(year, 0, 1, 3),
+    nthWeekday(year, 1, 1, 3),
+    easterSunday(year) - 2,
+    lastWeekday(year, 4, 1),
+    observed(utcDay(year, 6, 4)),
+    nthWeekday(year, 8, 1, 1),
+    nthWeekday(year, 10, 4, 4),
+    observed(utcDay(year, 11, 25)),
+  ]);
+  const newYear = utcDay(year, 0, 1);
+  if (weekday(newYear) !== 6) days.add(observed(newYear));
+  if (year >= 2022) days.add(observed(utcDay(year, 5, 19)));
+  for (const date of NYSE_SPECIAL_CLOSURES)
+    if (date.startsWith(`${year}-`)) days.add(Date.parse(date) / DAY_MS);
+  holidayCache.set(year, days);
+  return days;
+};
+
+/** A weekday that is not an NYSE holiday (UTC day number). */
+export const isNyseTradingDay = (day: number): boolean => {
+  const of = weekday(day);
+  return (
+    of >= 1 &&
+    of <= 5 &&
+    !nyseHolidays(new Date(day * DAY_MS).getUTCFullYear()).has(day)
+  );
+};
+
+/** First and last UTC day number of the month holding `day`, and its month (1 to 12). */
+const monthOf = (
+  day: number
+): Readonly<{ first: number; last: number; month: number }> => {
+  const date = new Date(day * DAY_MS);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  return {
+    first: Date.UTC(year, month, 1) / DAY_MS,
+    last: Date.UTC(year, month + 1, 1) / DAY_MS - 1,
+    month: month + 1,
+  };
+};
+
+/**
+ * 1 on daily bars inside the calendar window (see CalendarWindowFilterSchema). Trading days come
+ * from the NYSE holiday rules, not from the bars; a bar on a day that does not trade is outside
+ * the turnOfMonth and opexWeek windows.
+ */
+const calendarMask = (
+  filter: CalendarWindowFilter,
+  days: Float64Array
+): Uint8Array => {
+  const count = (from: number, to: number): number => {
+    let total = 0;
+    for (let day = from; day <= to; day += 1)
+      if (isNyseTradingDay(day)) total += 1;
+    return total;
+  };
+  return maskOf(days.length, (index) => {
+    const day = days[index] as number;
+    const month = monthOf(day);
+    if (filter.window === "months") return filter.months.includes(month.month);
+    if (!isNyseTradingDay(day)) return false;
+    if (filter.window === "turnOfMonth")
+      return (
+        -count(day, month.last) >= filter.fromDay ||
+        count(month.first, day) <= filter.toDay
+      );
+    const thirdFriday = month.first + ((5 - weekday(month.first) + 7) % 7) + 14;
+    let expiry = thirdFriday;
+    while (!isNyseTradingDay(expiry)) expiry -= 1;
+    let start = thirdFriday - 5; // the Sunday before the week
+    while (!isNyseTradingDay(start)) start -= 1;
+    return day >= start && day <= expiry;
+  });
+};
+
+/** ivRank mask: the traded symbol's IV index rank on the bar date is within [min, max]. */
+const ivRankMask = (
+  filter: IvRankFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const symbol = input?.symbol;
+  if (symbol === undefined)
+    throw new InstantBacktestInputError("ivRank needs the traded symbol");
+  if (!Object.hasOwn(STRATEGY_IV_INDEX, symbol))
+    throw new InstantBacktestInputError(
+      `ivRank has no implied-volatility index for ${symbol}`
+    );
+  const index = dailySeries(input, STRATEGY_IV_INDEX[symbol] as string);
+  const rank = alignSeries(
+    index,
+    ivRankSeries(index.values, filter.length),
+    barDates,
+    intraday,
+    true
+  );
+  return maskOf(barDates.length, (at) =>
+    within(rank[at] as number, filter.min, filter.max)
+  );
+};
+
+/** volRegime mask: VIX, VIX / VIX3M and the SPY trend on the bar date. */
+const volRegimeMask = (
+  filter: VolRegimeFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const vix = dailySeries(input, "VIX");
+  const ratio = termRatioSeries(input);
+  const spy = dailySeries(input, "SPY");
+  const average = rollingMean(spy.values, filter.trendLength);
+  const trend = spy.values.map((close, index) =>
+    close > (average[index] as number) ? 1 : 0
+  );
+  const vixOn = alignSeries(vix, vix.values, barDates, intraday, true);
+  const ratioOn = alignSeries(ratio, ratio.values, barDates, intraday, true);
+  const trendOn = alignSeries(spy, trend, barDates, intraday, true);
+  return maskOf(
+    barDates.length,
+    (at) =>
+      (vixOn[at] as number) <= filter.maxVix &&
+      (ratioOn[at] as number) <= filter.maxTermRatio &&
+      trendOn[at] === 1
+  );
+};
+
+/** series mask: the condition evaluated on the series, each side aligned to the bars. */
+const seriesMask = (
+  filter: SeriesFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const series = dailySeries(input, filter.series);
+  if (series.values.length === 0) return new Uint8Array(barDates.length);
+  const { values } = series;
+  const columns: BarColumns = {
+    c: values,
+    h: values,
+    l: values,
+    o: values,
+    t: Float64Array.from(series.dates, (date) =>
+      Date.parse(`${date}T00:00:00Z`)
+    ),
+  };
+  const cache: SeriesCache = new Map();
+  const side = (expr: StrategyExpr) =>
+    alignSeries(
+      series,
+      evaluate(columns, expr, cache),
+      barDates,
+      intraday,
+      false
+    );
+  return compareSeries(
+    filter.condition.op,
+    side(filter.condition.left),
+    side(filter.condition.right)
+  );
+};
 
 /** Smallest gap between bars below this means intraday bars. */
 const INTRADAY_GAP_MS = 20 * HOUR_MS;
@@ -567,7 +987,7 @@ const isIntraday = (t: Float64Array): boolean => {
  */
 const filterSeries = (
   t: Float64Array,
-  filter: StrategyFilter,
+  filter: SectorQuadrantFilter,
   points: readonly SectorQuadrantPoint[],
   intraday: boolean
 ): Uint8Array => {
@@ -591,16 +1011,47 @@ const filterSeries = (
 const filterMasks = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  sectorQuadrants: SectorQuadrantSeries | undefined
+  sectorQuadrants: SectorQuadrantSeries | undefined,
+  seriesInput: StrategySeriesInput | undefined
 ): Uint8Array[] => {
   const filters = definition.filters ?? [];
   if (filters.length === 0) return [];
   const intraday = isIntraday(bars.t);
+  const barDates = Array.from(bars.t, (t) =>
+    new Date(t).toISOString().slice(0, 10)
+  );
   return filters.map((filter) => {
-    const points = sectorQuadrants?.[sectorQuadrantKey(filter)];
-    if (points === undefined)
-      throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
-    return filterSeries(bars.t, filter, points, intraday);
+    switch (filter.type) {
+      case "sectorQuadrant": {
+        const points = sectorQuadrants?.[sectorQuadrantKey(filter)];
+        if (points === undefined)
+          throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
+        return filterSeries(bars.t, filter, points, intraday);
+      }
+      case "ivRank":
+        return ivRankMask(filter, seriesInput, barDates, intraday);
+      case "vixTermStructure": {
+        const ratio = termRatioSeries(seriesInput);
+        const on = alignSeries(ratio, ratio.values, barDates, intraday, true);
+        return maskOf(barDates.length, (at) =>
+          within(on[at] as number, filter.minRatio, filter.maxRatio)
+        );
+      }
+      case "volRegime":
+        return volRegimeMask(filter, seriesInput, barDates, intraday);
+      case "calendarWindow":
+        // Fail closed: the UTC date of an intraday bar is not its exchange session.
+        if (intraday)
+          throw new StrategyUnsupportedError(
+            STRATEGY_CALENDAR_INTRADAY_REFUSAL
+          );
+        return calendarMask(
+          filter,
+          bars.t.map((t) => Math.floor(t / DAY_MS))
+        );
+      default:
+        return seriesMask(filter, seriesInput, barDates, intraday);
+    }
   });
 };
 
@@ -610,6 +1061,8 @@ export type CompiledStrategy = Readonly<{
   exits: Uint8Array;
   stopDistance?: Float64Array;
   targetDistance?: Float64Array;
+  /** The definition's options block, unchanged, for the options runner. */
+  options?: StrategyOptions;
 }>;
 
 const distanceSeries = (
@@ -634,11 +1087,12 @@ const distanceSeries = (
 export const compileStrategy = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  seriesInput?: StrategySeriesInput
 ): CompiledStrategy => {
   const size = bars.c.length;
   const cache: SeriesCache = new Map();
-  const filters = filterMasks(bars, definition, sectorQuadrants);
+  const filters = filterMasks(bars, definition, sectorQuadrants, seriesInput);
   const entries = [
     ...definition.entry.all.map((condition) =>
       conditionSeries(bars, condition, cache)
@@ -667,17 +1121,29 @@ export const compileStrategy = (
     signals,
     ...(stopDistance === undefined ? {} : { stopDistance }),
     ...(targetDistance === undefined ? {} : { targetDistance }),
+    ...(definition.options === undefined
+      ? {}
+      : { options: definition.options }),
   };
 };
 
-/** Compiles and runs a validated definition. Starting equity is 1. */
+/**
+ * Compiles and runs a validated definition on the equity engine of the server paths. Starting
+ * equity is 1. Refuses (StrategyUnsupportedError) an options block and series filters.
+ */
 export const runStrategyDefinition = (
   bars: BarColumns,
   definition: StrategyDefinition,
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  timeframe?: string
 ): InstantRunResult => {
+  // The equity engine of the server paths: it would trade the underlying of an options block, and
+  // it gets no series context. Research runners call compileStrategy with their context. With a
+  // known timeframe it also refuses calendar filters on intraday timeframes; compile still checks
+  // the bar spacing when the timeframe is not given.
+  assertServerRunnable(definition, timeframe);
   const compiled = compileStrategy(bars, definition, sectorQuadrants);
   return runSignalBacktest(bars, compiled.signals, {
     costBps,

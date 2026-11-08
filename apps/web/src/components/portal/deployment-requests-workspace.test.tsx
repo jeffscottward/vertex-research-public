@@ -688,6 +688,31 @@ describe("DeploymentsView", () => {
     return expect(link.getAttribute("href")).toBe("/academy/wheel#deploy");
   });
 
+  it("offers no deployment action for a research-only strategy", async () => {
+    const container = await mount(
+      <StrategyDetail
+        describeFailure={() => ""}
+        detail={strategyDetail(
+          summary({ slug: "qc-turn-of-the-month", tags: ["research-only"] })
+        )}
+        gateway={strategiesGateway()}
+        onChanged={async () => undefined}
+        onClose={() => undefined}
+        onTab={() => undefined}
+        tab="overview"
+      />
+    );
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-academy-lesson]")
+    ).toBeNull();
+    return expect(
+      container.querySelector("[data-strategy-research-only]")?.textContent
+    ).toBe("Research only: no deployment");
+  });
+
   return it("links a strategy library detail to a prefilled paper deployment request", async () => {
     const container = await mount(
       <StrategyDetail

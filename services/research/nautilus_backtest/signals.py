@@ -10,9 +10,10 @@ Research only: nothing here places an order.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -20,11 +21,16 @@ from .bars import (
     Bars,
     InputError,
     SectorQuadrantDataError,
+    SeriesDataError,
+    StrategyUnsupportedError,
     assert_columns,
     assert_params,
     assert_signal_options,
     assert_window,
+    calendar_intraday_unsupported,
     is_finite_number,
+    options_unsupported,
+    series_filters_unsupported,
 )
 from .costs import _js_max
 
@@ -53,18 +59,52 @@ INTRADAY_GAP_MS = 20 * HOUR_MS
 REALIZED_VOL_PERIODS_PER_YEAR = 252
 NEW_YORK = ZoneInfo("America/New_York")
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+EPOCH_DAY = date(1970, 1, 1)
+
+# Series that filters may read (strategy-dsl.ts STRATEGY_SERIES_IDS) and the implied-volatility
+# index of each traded symbol (STRATEGY_IV_INDEX).
+SERIES_IDS = (
+    "SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO",
+    "ES=F", "NQ=F", "YM=F", "RTY=F", "GC=F", "SI=F", "CL=F",
+    "VIX", "VIX3M", "VXN", "VXD", "RVX", "GVZ", "OVX", "VXSLV", "IRX", "TNX",
+    "EY_TNX_RATIO",
+)  # fmt: skip
+IV_INDEX = {
+    "DIA": "VXD",
+    "GLD": "GVZ",
+    "IWM": "RVX",
+    "QQQ": "VXN",
+    "SLV": "VXSLV",
+    "SPY": "VIX",
+    "USO": "OVX",
+}
+IV_RANK_DEFAULT_LENGTH = 252
+# Most trading days (distinct bar dates) a series value is carried past its date (TS
+# STRATEGY_SERIES_MAX_FILL_DAYS, research loader qc_ports data.MAX_FILL_DAYS).
+SERIES_MAX_FILL_DAYS = 5
+# Filter types that read external daily series; the server engines refuse them.
+SERIES_FILTER_TYPES = ("ivRank", "vixTermStructure", "volRegime", "series")
+VOL_REGIME_DEFAULT_TREND_LENGTH = 200
+# Indicators that need high, low or volume, which a one-value-per-date series does not have.
+NON_CLOSE_INDICATORS = ("adx", "atr", "rvol")
+SERIES_CLOSE_ONLY = (
+    "A series condition reads the series close only: use the close price and close-sourced"
+    " indicators other than atr, adx and rvol"
+)
 
 Series = list[float]
 
 
 @dataclass(frozen=True)
 class Compiled:
-    """Compiled signals. `exits` is None for fixed rules; distances are None unless ATR levels."""
+    """Compiled signals. `exits` is None for fixed rules; distances are None unless ATR levels.
+    `options` is the definition's options block, unchanged, for the options runner."""
 
     signals: tuple[int, ...]
     exits: tuple[int, ...] | None
     stop_distance: tuple[float, ...] | None
     target_distance: tuple[float, ...] | None
+    options: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -560,6 +600,77 @@ def _normalize_level(level: Mapping[str, Any] | None) -> dict[str, Any]:
     raise InputError(f"Unknown exit level kind: {kind}")
 
 
+def _close_only(expr: Mapping[str, Any]) -> bool:
+    if expr["type"] == "const":
+        return True
+    if expr["type"] == "price":
+        return expr["field"] == "close"
+    return expr["source"] == "close" and expr["name"] not in NON_CLOSE_INDICATORS
+
+
+def _bounds(item: Mapping[str, Any], keys: tuple[str, str], message: str) -> dict[str, float]:
+    """The optional numeric bounds of a filter; at least one must be given."""
+    bounds = {key: float(item[key]) for key in keys if item.get(key) is not None}
+    if not bounds:
+        raise InputError(message)
+    return bounds
+
+
+def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
+    """StrategyFilterSchema defaults for one filter (idempotent)."""
+    kind = item.get("type")
+    if kind == "sectorQuadrant":
+        return {
+            "type": "sectorQuadrant",
+            "sector": item["sector"],
+            "quadrants": list(item["quadrants"]),
+            "timeframe": item.get("timeframe", "weekly"),
+        }
+    if kind == "ivRank":
+        return {
+            "type": "ivRank",
+            "length": int(item.get("length", IV_RANK_DEFAULT_LENGTH)),
+            **_bounds(item, ("min", "max"), "ivRank needs min, max or both"),
+        }
+    if kind == "vixTermStructure":
+        return {
+            "type": "vixTermStructure",
+            **_bounds(
+                item, ("minRatio", "maxRatio"), "vixTermStructure needs minRatio, maxRatio or both"
+            ),
+        }
+    if kind == "volRegime":
+        return {
+            "type": "volRegime",
+            "maxVix": float(item["maxVix"]),
+            "maxTermRatio": float(item["maxTermRatio"]),
+            "trendLength": int(item.get("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH)),
+        }
+    if kind == "calendarWindow":
+        window = item.get("window")
+        if window == "turnOfMonth":
+            return {
+                "type": kind,
+                "window": window,
+                "fromDay": int(item["fromDay"]),
+                "toDay": int(item["toDay"]),
+            }
+        if window == "opexWeek":
+            return {"type": kind, "window": window}
+        if window == "months":
+            return {"type": kind, "window": window, "months": [int(m) for m in item["months"]]}
+        raise InputError(f"Unknown calendar window: {window}")
+    if kind == "series":
+        series = item.get("series")
+        if series not in SERIES_IDS:
+            raise InputError(f"Unknown series: {series}")
+        condition = _normalize_condition(item["condition"])
+        if not (_close_only(condition["left"]) and _close_only(condition["right"])):
+            raise InputError(SERIES_CLOSE_ONLY)
+        return {"type": "series", "series": series, "condition": condition}
+    raise InputError(f"Unknown filter type: {kind}")
+
+
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
     """Applies the StrategyDefinitionSchema defaults and rejects unknown names and operators."""
     entry = definition.get("entry") or {}
@@ -574,28 +685,31 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
         sizing = {"mode": "allIn"}
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
-    filters = []
-    for item in definition.get("filters") or []:
-        if item.get("type") != "sectorQuadrant":
-            raise InputError(f"Unknown filter type: {item.get('type')}")
-        filters.append(
-            {
-                "type": "sectorQuadrant",
-                "sector": item["sector"],
-                "quadrants": list(item["quadrants"]),
-                "timeframe": item.get("timeframe", "weekly"),
-            }
-        )
+    filters = [_normalize_filter(item) for item in definition.get("filters") or []]
+    stop_loss = _normalize_level(definition.get("stopLoss"))
+    take_profit = _normalize_level(definition.get("takeProfit"))
+    options = definition.get("options")
+    if options is not None:
+        if sizing["mode"] == "riskPct":
+            raise InputError(
+                "Option strategies size by options.maxLossPct; remove the riskPct sizing"
+            )
+        if stop_loss["kind"] != "none" or take_profit["kind"] != "none":
+            raise InputError(
+                "Option strategies exit by profitTakePct, exitDte and exit conditions;"
+                " remove the stop loss and take profit"
+            )
     session = definition.get("session")
     return {
         "name": definition.get("name"),
         "entry": {"all": [_normalize_condition(c) for c in entry_all]},
         "exit": {"any": [_normalize_condition(c) for c in exit_any]},
         "filters": filters,
+        "options": None if options is None else dict(options),
         "session": None if session is None else {"startUtc": session["startUtc"], "endUtc": session["endUtc"]},
         "sizing": sizing,
-        "stopLoss": _normalize_level(definition.get("stopLoss")),
-        "takeProfit": _normalize_level(definition.get("takeProfit")),
+        "stopLoss": stop_loss,
+        "takeProfit": take_profit,
     }
 
 
@@ -692,11 +806,8 @@ def _compare(op: str, left: float, right: float) -> bool:
     return left <= right
 
 
-def _condition_series(evaluator: _Evaluator, condition: Mapping[str, Any]) -> list[int]:
-    """1 where the condition holds. A cross holds now but not on the previous bar."""
-    left = evaluator.evaluate(condition["left"])
-    right = evaluator.evaluate(condition["right"])
-    op = condition["op"]
+def _compare_series(op: str, left: Sequence[float], right: Sequence[float]) -> list[int]:
+    """1 where `left op right` holds. A cross holds now but not on the previous bar."""
     cross = op in ("crossesAbove", "crossesBelow")
     out = [0] * len(left)
     previous = False
@@ -705,6 +816,13 @@ def _condition_series(evaluator: _Evaluator, condition: Mapping[str, Any]) -> li
         out[index] = 1 if (now and not previous if cross else now) else 0
         previous = now
     return out
+
+
+def _condition_series(evaluator: _Evaluator, condition: Mapping[str, Any]) -> list[int]:
+    """1 where the condition holds on the bars."""
+    left = evaluator.evaluate(condition["left"])
+    right = evaluator.evaluate(condition["right"])
+    return _compare_series(condition["op"], left, right)
 
 
 def _minutes_of(time: str) -> int:
@@ -755,20 +873,332 @@ def _filter_series(
     return out
 
 
+_DATE_PATTERN = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+DailySeries = tuple[list[str], list[float]]
+
+
+def _daily_series(context: Mapping[str, Any] | None, series_id: str) -> DailySeries:
+    """The finite values of one context series (id -> {date: value}), by date ascending."""
+    by_date = None if context is None else context.get(series_id)
+    if by_date is None:
+        raise SeriesDataError(series_id)
+    dates: list[str] = []
+    for day_date in sorted(by_date):
+        if _DATE_PATTERN.fullmatch(day_date) is None:
+            raise InputError(f"Series {series_id} has a date that is not YYYY-MM-DD: {day_date}")
+        if is_finite_number(by_date[day_date]):
+            dates.append(day_date)
+    return dates, [float(by_date[day_date]) for day_date in dates]
+
+
+def _align_series(
+    dates: Sequence[str],
+    values: Sequence[float],
+    bar_dates: Sequence[str],
+    intraday: bool,
+    exact: bool,
+) -> list[float]:
+    """TS alignSeries: the latest value dated on or before each bar date (before it for intraday
+    bars), carried for at most SERIES_MAX_FILL_DAYS later bar dates without a newer one;
+    `exact` (daily bars) needs a value on the bar date itself, else NaN."""
+    out = [NAN] * len(bar_dates)
+    following = 0
+    age = 0
+    previous_date: str | None = None
+    for index, bar_date in enumerate(bar_dates):
+        before = following
+        while following < len(dates) and (
+            dates[following] < bar_date if intraday else dates[following] <= bar_date
+        ):
+            following += 1
+        if following > before:
+            age = 0
+        elif bar_date != previous_date:
+            age += 1
+        previous_date = bar_date
+        if following == 0 or age > SERIES_MAX_FILL_DAYS:
+            continue
+        if exact and not intraday and dates[following - 1] != bar_date:
+            continue
+        out[index] = values[following - 1]
+    return out
+
+
+def iv_rank_series(values: Sequence[float], length: int) -> Series:
+    """TS ivRankSeries: 100 * (v - min) / (max - min) over the `length` values ending at each
+    value; NaN before that and when the window is flat."""
+    highest = prior_extreme(values, length - 1, 1)
+    lowest = prior_extreme(values, length - 1, -1)
+    out = [NAN] * len(values)
+    for index in range(length - 1, len(values)):
+        value = values[index]
+        high = max(highest[index], value)
+        low = min(lowest[index], value)
+        if high > low:
+            out[index] = 100 * (value - low) / (high - low)
+    return out
+
+
+def _term_ratio(context: Mapping[str, Any] | None) -> DailySeries:
+    """VIX / VIX3M on the dates where both have a value (and VIX3M is above 0)."""
+    vix_dates, vix_values = _daily_series(context, "VIX")
+    long_dates, long_values = _daily_series(context, "VIX3M")
+    dates: list[str] = []
+    ratios: list[float] = []
+    other = 0
+    for index, day_date in enumerate(vix_dates):
+        while other < len(long_dates) and long_dates[other] < day_date:
+            other += 1
+        if other == len(long_dates) or long_dates[other] != day_date:
+            continue
+        denominator = long_values[other]
+        if not denominator > 0:
+            continue
+        dates.append(day_date)
+        ratios.append(vix_values[index] / denominator)
+    return dates, ratios
+
+
+def _within(value: float, low: float | None, high: float | None) -> bool:
+    return (
+        not math.isnan(value)
+        and (low is None or value >= low)
+        and (high is None or value <= high)
+    )
+
+
+def _mask(size: int, passes: Callable[[int], bool]) -> list[int]:
+    return [1 if passes(index) else 0 for index in range(size)]
+
+
+def _weekday(day: int) -> int:
+    """0 Sunday to 6 Saturday of a UTC day number (1970-01-01 was a Thursday)."""
+    return (day + 4) % 7
+
+
+def _day(value: date) -> int:
+    return (value - EPOCH_DAY).days
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> int:
+    """UTC day of the `n`th `weekday` (0 Sunday to 6 Saturday) of a month (1 January)."""
+    first = _day(date(year, month, 1))
+    return first + (weekday - _weekday(first) + 7) % 7 + 7 * (n - 1)
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> int:
+    last = _day(date(year + month // 12, month % 12 + 1, 1)) - 1
+    return last - (_weekday(last) - weekday + 7) % 7
+
+
+def _observed(day: int) -> int:
+    if _weekday(day) == 6:
+        return day - 1
+    return day + 1 if _weekday(day) == 0 else day
+
+
+def _easter_sunday(year: int) -> int:
+    """Gregorian Easter Sunday (anonymous Gregorian algorithm), the TS easterSunday."""
+    a, b, c = year % 19, year // 100, year % 100
+    h = (19 * a + b - b // 4 - (b - (b + 8) // 25 + 1) // 3 + 15) % 30
+    l = (32 + 2 * (b % 4) + 2 * (c // 4) - h - c % 4) % 7  # noqa: E741 (name of the algorithm)
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    return _day(date(year, month, (h + l - 7 * m + 114) % 31 + 1))
+
+
+# Special NYSE full-day closures since 1998 (TS NYSE_SPECIAL_CLOSURES): September 11 attacks, the
+# days of mourning for Presidents Reagan, Ford, G. H. W. Bush and Carter, and Hurricane Sandy.
+NYSE_SPECIAL_CLOSURES = (
+    "2001-09-11", "2001-09-12", "2001-09-13", "2001-09-14", "2004-06-11", "2007-01-02",
+    "2012-10-29", "2012-10-30", "2018-12-05", "2025-01-09",
+)  # fmt: skip
+# Timeframes of one bar per trading day or longer (TS STRATEGY_DAILY_TIMEFRAMES).
+DAILY_TIMEFRAMES = ("1d", "1w")
+
+_HOLIDAYS: dict[int, frozenset[int]] = {}
+
+
+def nyse_holidays(year: int) -> frozenset[int]:
+    """TS nyseHolidays: regular NYSE full-day holidays of a year as UTC days (rules since 1998,
+    the rules of strategies/qc_ports calendar.is_nyse_holiday) plus NYSE_SPECIAL_CLOSURES."""
+    cached = _HOLIDAYS.get(year)
+    if cached is not None:
+        return cached
+    days = {
+        _nth_weekday(year, 1, 1, 3),
+        _nth_weekday(year, 2, 1, 3),
+        _easter_sunday(year) - 2,
+        _last_weekday(year, 5, 1),
+        _observed(_day(date(year, 7, 4))),
+        _nth_weekday(year, 9, 1, 1),
+        _nth_weekday(year, 11, 4, 4),
+        _observed(_day(date(year, 12, 25))),
+    }
+    new_year = _day(date(year, 1, 1))
+    if _weekday(new_year) != 6:
+        days.add(_observed(new_year))
+    if year >= 2022:
+        days.add(_observed(_day(date(year, 6, 19))))
+    days.update(
+        _day(date.fromisoformat(item)) for item in NYSE_SPECIAL_CLOSURES if item.startswith(f"{year}-")
+    )
+    _HOLIDAYS[year] = frozenset(days)
+    return _HOLIDAYS[year]
+
+
+def is_nyse_trading_day(day: int) -> bool:
+    """TS isNyseTradingDay: a weekday that is not an NYSE holiday (UTC day number)."""
+    return 1 <= _weekday(day) <= 5 and day not in nyse_holidays((EPOCH_DAY + timedelta(days=day)).year)
+
+
+def _month_of(day: int) -> tuple[int, int, int]:
+    """First and last UTC day number of the month holding `day`, and the month (1 to 12)."""
+    day_date = EPOCH_DAY + timedelta(days=day)
+    first = date(day_date.year, day_date.month, 1)
+    following = date(day_date.year + day_date.month // 12, day_date.month % 12 + 1, 1)
+    return (first - EPOCH_DAY).days, (following - EPOCH_DAY).days - 1, day_date.month
+
+
+def _calendar_mask(filter_: Mapping[str, Any], days: Sequence[int]) -> list[int]:
+    """TS calendarMask: daily bars inside the calendar window. Trading days come from the NYSE
+    holiday rules; a bar on a day that does not trade is outside turnOfMonth and opexWeek."""
+
+    def count(start: int, end: int) -> int:
+        return sum(1 for day in range(start, end + 1) if is_nyse_trading_day(day))
+
+    window = filter_["window"]
+
+    def passes(index: int) -> bool:
+        day = days[index]
+        first, last, month = _month_of(day)
+        if window == "months":
+            return month in filter_["months"]
+        if not is_nyse_trading_day(day):
+            return False
+        if window == "turnOfMonth":
+            return -count(day, last) >= filter_["fromDay"] or count(first, day) <= filter_["toDay"]
+        third_friday = first + (5 - _weekday(first) + 7) % 7 + 14
+        expiry = third_friday
+        while not is_nyse_trading_day(expiry):
+            expiry -= 1
+        start = third_friday - 5  # the Sunday before the week
+        while not is_nyse_trading_day(start):
+            start -= 1
+        return start <= day <= expiry
+
+    return _mask(len(days), passes)
+
+
+def _iv_rank_mask(
+    filter_: Mapping[str, Any],
+    context: Mapping[str, Any] | None,
+    symbol: str | None,
+    bar_dates: Sequence[str],
+    intraday: bool,
+) -> list[int]:
+    if symbol is None:
+        raise InputError("ivRank needs the traded symbol")
+    index_id = IV_INDEX.get(symbol)
+    if index_id is None:
+        raise InputError(f"ivRank has no implied-volatility index for {symbol}")
+    dates, values = _daily_series(context, index_id)
+    rank = _align_series(
+        dates, iv_rank_series(values, filter_["length"]), bar_dates, intraday, True
+    )
+    low = filter_.get("min")
+    high = filter_.get("max")
+    return _mask(len(bar_dates), lambda at: _within(rank[at], low, high))
+
+
+def _vol_regime_mask(
+    filter_: Mapping[str, Any],
+    context: Mapping[str, Any] | None,
+    bar_dates: Sequence[str],
+    intraday: bool,
+) -> list[int]:
+    vix_dates, vix_values = _daily_series(context, "VIX")
+    ratio_dates, ratio_values = _term_ratio(context)
+    spy_dates, spy_values = _daily_series(context, "SPY")
+    average = rolling_mean(spy_values, filter_["trendLength"])
+    trend = [1.0 if close > average[index] else 0.0 for index, close in enumerate(spy_values)]
+    vix_on = _align_series(vix_dates, vix_values, bar_dates, intraday, True)
+    ratio_on = _align_series(ratio_dates, ratio_values, bar_dates, intraday, True)
+    trend_on = _align_series(spy_dates, trend, bar_dates, intraday, True)
+    max_vix = filter_["maxVix"]
+    max_ratio = filter_["maxTermRatio"]
+    return _mask(
+        len(bar_dates),
+        lambda at: vix_on[at] <= max_vix and ratio_on[at] <= max_ratio and trend_on[at] == 1,
+    )
+
+
+def _series_mask(
+    filter_: Mapping[str, Any],
+    context: Mapping[str, Any] | None,
+    bar_dates: Sequence[str],
+    intraday: bool,
+) -> list[int]:
+    """TS seriesMask: the condition on the series (its own dates), each side aligned to the bars."""
+    dates, values = _daily_series(context, filter_["series"])
+    if not values:
+        return [0] * len(bar_dates)
+    columns = tuple(values)
+    series_bars = Bars(
+        t=tuple(
+            float((date.fromisoformat(day_date) - EPOCH_DAY).days * DAY_MS) for day_date in dates
+        ),
+        o=columns,
+        h=columns,
+        l=columns,
+        c=columns,
+    )
+    evaluator = _Evaluator(series_bars)
+    condition = filter_["condition"]
+    left = _align_series(dates, evaluator.evaluate(condition["left"]), bar_dates, intraday, False)
+    right = _align_series(dates, evaluator.evaluate(condition["right"]), bar_dates, intraday, False)
+    return _compare_series(condition["op"], left, right)
+
+
 def _filter_masks(
-    bars: Bars, definition: Mapping[str, Any], sector_quadrants: Mapping[str, Any] | None
+    bars: Bars,
+    definition: Mapping[str, Any],
+    sector_quadrants: Mapping[str, Any] | None,
+    context: Mapping[str, Any] | None = None,
+    symbol: str | None = None,
 ) -> list[list[int]]:
     filters = definition["filters"]
     if len(filters) == 0:
         return []
     intraday = _is_intraday(bars.t)
+    bar_dates = [_utc_date(t) for t in bars.t]
     masks = []
     for filter_ in filters:
-        key = f"{filter_['sector']}:{filter_['timeframe']}"
-        points = None if sector_quadrants is None else sector_quadrants.get(key)
-        if points is None:
-            raise SectorQuadrantDataError(filter_["sector"], filter_["timeframe"])
-        masks.append(_filter_series(bars.t, filter_, points, intraday))
+        kind = filter_["type"]
+        if kind == "sectorQuadrant":
+            key = f"{filter_['sector']}:{filter_['timeframe']}"
+            points = None if sector_quadrants is None else sector_quadrants.get(key)
+            if points is None:
+                raise SectorQuadrantDataError(filter_["sector"], filter_["timeframe"])
+            masks.append(_filter_series(bars.t, filter_, points, intraday))
+        elif kind == "ivRank":
+            masks.append(_iv_rank_mask(filter_, context, symbol, bar_dates, intraday))
+        elif kind == "vixTermStructure":
+            ratio_dates, ratio_values = _term_ratio(context)
+            ratio_on = _align_series(ratio_dates, ratio_values, bar_dates, intraday, True)
+            low = filter_.get("minRatio")
+            high = filter_.get("maxRatio")
+            masks.append([1 if _within(value, low, high) else 0 for value in ratio_on])
+        elif kind == "volRegime":
+            masks.append(_vol_regime_mask(filter_, context, bar_dates, intraday))
+        elif kind == "calendarWindow":
+            # Fail closed: the UTC date of an intraday bar is not its exchange session.
+            if intraday:
+                raise calendar_intraday_unsupported()
+            masks.append(_calendar_mask(filter_, [math.floor(t / DAY_MS) for t in bars.t]))
+        else:
+            masks.append(_series_mask(filter_, context, bar_dates, intraday))
     return masks
 
 
@@ -788,13 +1218,18 @@ def compile_strategy(
     bars: Bars,
     definition: Mapping[str, Any],
     sector_quadrants: Mapping[str, Any] | None = None,
+    context: Mapping[str, Any] | None = None,
+    symbol: str | None = None,
 ) -> Compiled:
     """TS compileStrategy: 1 when every entry condition and filter holds in the session, else -1
-    when any exit condition holds, else 0. The exit mask keeps exits also on entry bars."""
+    when any exit condition holds, else 0. The exit mask keeps exits also on entry bars.
+
+    `context` maps series id -> {YYYY-MM-DD: value} for the ivRank, vixTermStructure, volRegime
+    and series filters; `symbol` is the traded symbol whose IV index ivRank reads."""
     normalized = normalize_definition(definition)
     size = len(bars.c)
     evaluator = _Evaluator(bars)
-    filters = _filter_masks(bars, normalized, sector_quadrants)
+    filters = _filter_masks(bars, normalized, sector_quadrants, context, symbol)
     entries = [_condition_series(evaluator, c) for c in normalized["entry"]["all"]] + filters
     exits = [_condition_series(evaluator, c) for c in normalized["exit"]["any"]]
     session = normalized["session"]
@@ -816,7 +1251,29 @@ def compile_strategy(
         exits=tuple(exit_mask),
         stop_distance=_distance_series(evaluator, normalized["stopLoss"]),
         target_distance=_distance_series(evaluator, normalized["takeProfit"]),
+        options=normalized["options"],
     )
+
+
+def server_refusal(
+    definition: Mapping[str, Any], timeframe: str | None = None
+) -> StrategyUnsupportedError | None:
+    """TS serverStrategyRefusal of a normalized definition: an options block, then the series
+    filters by type in first-use order, then calendar filters on a non-daily `timeframe`."""
+    if definition["options"] is not None:
+        return options_unsupported()
+    types = list(dict.fromkeys(
+        item["type"] for item in definition["filters"] if item["type"] in SERIES_FILTER_TYPES
+    ))
+    if types:
+        return series_filters_unsupported(types)
+    if (
+        timeframe is not None
+        and timeframe not in DAILY_TIMEFRAMES
+        and any(item["type"] == "calendarWindow" for item in definition["filters"])
+    ):
+        return calendar_intraday_unsupported()
+    return None
 
 
 def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]:
@@ -824,13 +1281,20 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
 
     "dsl" rules work like runStrategyDefinition: percent stop and target, ATR distances, riskPct
     sizing and the exit mask come from the definition (spec stopLossPct/takeProfitPct are
-    ignored). Fixed rules work like runInstantBacktest with the spec stop and target.
+    ignored). Fixed rules work like runInstantBacktest with the spec stop and target. Like the
+    TypeScript server engine it refuses (StrategyUnsupportedError) an options block and series
+    filters.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
     costs = spec.get("costs")
     if rule.get("kind") == "dsl":
         definition = normalize_definition(rule["definition"])
+        # The server equity engine (TS runStrategyDefinition): research runners call
+        # compile_strategy with their series context instead.
+        refusal = server_refusal(definition, spec.get("timeframe"))
+        if refusal is not None:
+            raise refusal
         compiled = compile_strategy(bars, definition, spec.get("sectorQuadrants"))
         stop = definition["stopLoss"]
         target = definition["takeProfit"]
@@ -876,12 +1340,16 @@ __all__ = [
     "compile_rule",
     "compile_strategy",
     "exponential_mean",
+    "is_nyse_trading_day",
+    "iv_rank_series",
+    "nyse_holidays",
     "normalize_definition",
     "plan_run",
     "prior_extreme",
     "realized_volatility",
     "relative_strength",
     "relative_volume_at_time",
+    "server_refusal",
     "rolling_mean",
     "rolling_zscore",
     "wilder_rsi",
