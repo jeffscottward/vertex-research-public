@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
+import { BASE_CSP } from "../../apps/web/src/security-headers.ts";
+
 const caddyfile = readFileSync(new URL("./Caddyfile", import.meta.url), "utf8");
 
 const proxyBlock = (): string => {
@@ -25,7 +27,7 @@ describe("vertex-web-tailnet Caddyfile", () => {
 
   it("falls back to the app's base CSP without replacing the app's nonce CSP", () => {
     return expect(caddyfile).toContain(
-      `?Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"`
+      `?Content-Security-Policy "${BASE_CSP}"`
     );
   });
 
