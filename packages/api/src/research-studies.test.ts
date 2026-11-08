@@ -16,7 +16,12 @@ import { createApiClient } from "./client.ts";
 import {
   type FilterStudy,
   FilterStudySchema,
+  isQcPortStudy,
+  QC_PORT_EQUITY_MAX,
+  type QcPortStudy,
+  QcPortStudySchema,
   RESEARCH_STUDY_ID_PATTERN,
+  ResearchStudyDocumentSchema,
   ResearchStudyGetInputSchema,
 } from "./contracts/research-studies.ts";
 import { buildOpenApiDocument } from "./openapi.ts";
@@ -90,6 +95,113 @@ const record = (
   summary,
   updatedAt: NOW,
 });
+const RUN: QcPortStudy["runs"][number] = {
+  cagr: 0.041,
+  deflatedSharpe: 0.62,
+  exposure: 0.31,
+  maxDrawdown: -0.12,
+  name: "SPY put credit vertical",
+  sharpe: 0.7,
+  skipped: 2,
+  symbols: ["SPY"],
+  trades: 84,
+  winRate: 0.71,
+  worstMonth: { month: "2020-03", ret: -0.06 },
+};
+const QC_STUDY: QcPortStudy = {
+  equity: [
+    { t: "2020-01", v: 100_000 },
+    { t: "2020-02", v: 101_000 },
+  ],
+  gates: [
+    {
+      after: { maxDrawdown: -0.08, sharpe: 0.8, trades: 40 },
+      before: { maxDrawdown: -0.12, sharpe: 0.6, trades: 84 },
+      gate: "IV rank >= 50",
+      host: "qc-regime-put-vrp",
+    },
+  ],
+  id: "qc-iv-rank-gate",
+  kind: "qc-port",
+  notes: "Option prices MODELED.",
+  ran: "2026-11-08",
+  runs: [RUN],
+  spec: "docs/specs/strategies/qc-iv-rank-gate.md",
+  title: "IV-Rank Gate for Credit Spreads",
+  verdict: "PASS",
+};
+
+describe("qc-port study contract", () => {
+  it("accepts a qc-port document with or without gates and null statistics", () => {
+    expect(QcPortStudySchema.parse(QC_STUDY)).toEqual(QC_STUDY);
+    const { gates: _gates, ...noGates } = QC_STUDY;
+    const nullRun = {
+      ...RUN,
+      cagr: null,
+      deflatedSharpe: null,
+      sharpe: null,
+      winRate: null,
+      worstMonth: null,
+    };
+    expect(
+      QcPortStudySchema.safeParse({ ...noGates, equity: [], runs: [nullRun] })
+        .success
+    ).toBe(true);
+  });
+
+  it("rejects bad months, unordered or oversized equity, bad verdicts and extra keys", () => {
+    const bad = (patch: Record<string, unknown>) =>
+      QcPortStudySchema.safeParse({ ...QC_STUDY, ...patch }).success;
+    expect(bad({ verdict: "KEEP" })).toBe(false);
+    expect(bad({ extra: 1 })).toBe(false);
+    expect(bad({ runs: [] })).toBe(false);
+    expect(bad({ runs: [{ ...RUN, exposure: 1.5 }] })).toBe(false);
+    expect(
+      bad({ runs: [{ ...RUN, worstMonth: { month: "2020-13", ret: 0 } }] })
+    ).toBe(false);
+    expect(
+      bad({
+        equity: [
+          { t: "2020-02", v: 1 },
+          { t: "2020-01", v: 1 },
+        ],
+      })
+    ).toBe(false);
+    expect(
+      bad({
+        equity: [
+          { t: "2020-01", v: 1 },
+          { t: "2020-01", v: 1 },
+        ],
+      })
+    ).toBe(false);
+    expect(bad({ equity: [{ t: "2020-01", v: 0 }] })).toBe(false);
+    const months = Array.from({ length: QC_PORT_EQUITY_MAX + 1 }, (_, i) => ({
+      t: `${1900 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`,
+      v: 1,
+    }));
+    expect(bad({ equity: months.slice(0, QC_PORT_EQUITY_MAX) })).toBe(true);
+    expect(bad({ equity: months })).toBe(false);
+  });
+
+  it("selects the schema by kind; a document without kind is a filter study", () => {
+    expect(ResearchStudyDocumentSchema.parse(STUDY)).toEqual(STUDY);
+    expect(
+      ResearchStudyDocumentSchema.parse({ ...STUDY, kind: "filter" })
+    ).toEqual({ ...STUDY, kind: "filter" });
+    expect(ResearchStudyDocumentSchema.parse(QC_STUDY)).toEqual(QC_STUDY);
+    expect(
+      ResearchStudyDocumentSchema.safeParse({ ...QC_STUDY, kind: "other" })
+        .success
+    ).toBe(false);
+    expect(
+      ResearchStudyDocumentSchema.safeParse({ ...STUDY, kind: "qc-port" })
+        .success
+    ).toBe(false);
+    expect(isQcPortStudy(QC_STUDY)).toBe(true);
+    expect(isQcPortStudy(STUDY)).toBe(false);
+  });
+});
 
 describe("research study contract", () => {
   it("accepts a study document and rejects extra keys, bad ids and bad dates", () => {
@@ -123,9 +235,21 @@ describe("research study contract", () => {
       study: STUDY,
       updatedAt: NOW,
     });
+    expect(toResearchStudy({ ...record(QC_STUDY), id: QC_STUDY.id })).toEqual({
+      id: QC_STUDY.id,
+      study: QC_STUDY,
+      updatedAt: NOW,
+    });
     expect(() => toResearchStudy(record({ ...STUDY, ran: 7 }))).toThrow(
       new ResearchStudyShapeError(
         "Research study adx-rvol-filters has an unexpected shape at study.ran"
+      )
+    );
+    expect(() =>
+      toResearchStudy(record({ ...QC_STUDY, runs: [{ ...RUN, trades: -1 }] }))
+    ).toThrow(
+      new ResearchStudyShapeError(
+        "Research study adx-rvol-filters has an unexpected shape at study.runs.0.trades"
       )
     );
   });
@@ -244,6 +368,24 @@ describe("researchStudies.get procedure", () => {
       updatedAt: NOW,
     });
     expect(reads.ids).toEqual(["adx-rvol-filters"]);
+  });
+
+  it("returns a qc-port study by the strategy slug", async () => {
+    const reads = repositoryOf(async (id) => ({
+      ...record(QC_STUDY),
+      id,
+      ranOn: QC_STUDY.ran,
+      specRef: QC_STUDY.spec,
+    }));
+    const output = await clientFor(
+      session("operator"),
+      reads.repository
+    ).researchStudies.get({ id: "qc-iv-rank-gate" });
+    expect(output).toEqual({
+      id: "qc-iv-rank-gate",
+      study: QC_STUDY,
+      updatedAt: NOW,
+    });
   });
 
   it("answers NOT_FOUND for an unknown id and rejects a malformed id", async () => {

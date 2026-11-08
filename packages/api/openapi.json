@@ -130904,33 +130904,142 @@
                       "type": "string"
                     },
                     "study": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "daily": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
                           "properties": {
-                            "costBpsPerSide": {
-                              "type": "number"
-                            },
-                            "trials": {
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991,
-                              "minimum": -9007199254740991,
-                              "type": "integer"
-                            },
-                            "universe": {
+                            "equity": {
                               "items": {
-                                "type": "string"
+                                "additionalProperties": false,
+                                "properties": {
+                                  "t": {
+                                    "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])$",
+                                    "type": "string"
+                                  },
+                                  "v": {
+                                    "exclusiveMinimum": 0,
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "t",
+                                  "v"
+                                ],
+                                "type": "object"
                               },
-                              "minItems": 1,
+                              "maxItems": 400,
                               "type": "array"
                             },
-                            "variants": {
+                            "gates": {
                               "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "after": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "maxDrawdown": {
+                                        "maximum": 1,
+                                        "minimum": -1,
+                                        "type": "number"
+                                      },
+                                      "sharpe": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "trades": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "maxDrawdown",
+                                      "sharpe",
+                                      "trades"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "before": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "maxDrawdown": {
+                                        "maximum": 1,
+                                        "minimum": -1,
+                                        "type": "number"
+                                      },
+                                      "sharpe": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "trades": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "required": [
+                                      "maxDrawdown",
+                                      "sharpe",
+                                      "trades"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "gate": {
+                                    "maxLength": 120,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "host": {
+                                    "maxLength": 120,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "after",
+                                  "before",
+                                  "gate",
+                                  "host"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 40,
+                              "type": "array"
+                            },
+                            "id": {
+                              "maxLength": 64,
+                              "minLength": 1,
+                              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "kind": {
+                              "const": "qc-port"
+                            },
+                            "notes": {
+                              "maxLength": 4000,
+                              "type": "string"
+                            },
+                            "ran": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "runs": {
+                              "items": {
+                                "additionalProperties": false,
                                 "properties": {
                                   "cagr": {
-                                    "type": "number"
-                                  },
-                                  "deflatedProbability": {
                                     "anyOf": [
                                       {
                                         "type": "number"
@@ -130940,17 +131049,32 @@
                                       }
                                     ]
                                   },
-                                  "filter": {
-                                    "enum": [
-                                      "none",
-                                      "adx_above",
-                                      "adx_below",
-                                      "adx_falling"
-                                    ],
-                                    "type": "string"
+                                  "deflatedSharpe": {
+                                    "anyOf": [
+                                      {
+                                        "maximum": 1,
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "exposure": {
+                                    "maximum": 1,
+                                    "minimum": 0,
+                                    "type": "number"
                                   },
                                   "maxDrawdown": {
+                                    "maximum": 1,
+                                    "minimum": -1,
                                     "type": "number"
+                                  },
+                                  "name": {
+                                    "maxLength": 120,
+                                    "minLength": 1,
+                                    "type": "string"
                                   },
                                   "sharpe": {
                                     "anyOf": [
@@ -130962,47 +131086,56 @@
                                       }
                                     ]
                                   },
-                                  "sharpeHalves": {
-                                    "prefixItems": [
-                                      {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      }
-                                    ],
-                                    "type": "array"
+                                  "skipped": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": 0,
+                                    "type": "integer"
                                   },
-                                  "strategy": {
-                                    "type": "string"
+                                  "symbols": {
+                                    "items": {
+                                      "maxLength": 16,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    "maxItems": 40,
+                                    "minItems": 1,
+                                    "type": "array"
                                   },
                                   "trades": {
                                     "maximum": 9007199254740991,
                                     "minimum": 0,
                                     "type": "integer"
                                   },
-                                  "tradesPerYear": {
-                                    "minimum": 0,
-                                    "type": "number"
-                                  },
-                                  "verdict": {
+                                  "winRate": {
                                     "anyOf": [
                                       {
-                                        "type": "string"
+                                        "maximum": 1,
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "worstMonth": {
+                                    "anyOf": [
+                                      {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "month": {
+                                            "pattern": "^\\d{4}-(?:0[1-9]|1[0-2])$",
+                                            "type": "string"
+                                          },
+                                          "ret": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "required": [
+                                          "month",
+                                          "ret"
+                                        ],
+                                        "type": "object"
                                       },
                                       {
                                         "type": "null"
@@ -131012,262 +131145,424 @@
                                 },
                                 "required": [
                                   "cagr",
+                                  "deflatedSharpe",
+                                  "exposure",
                                   "maxDrawdown",
+                                  "name",
                                   "sharpe",
-                                  "sharpeHalves",
+                                  "skipped",
+                                  "symbols",
                                   "trades",
-                                  "tradesPerYear",
-                                  "deflatedProbability",
-                                  "filter",
-                                  "strategy",
-                                  "verdict"
+                                  "winRate",
+                                  "worstMonth"
                                 ],
                                 "type": "object"
                               },
+                              "maxItems": 40,
                               "minItems": 1,
                               "type": "array"
                             },
-                            "window": {
-                              "properties": {
-                                "days": {
-                                  "exclusiveMinimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "minimum": -9007199254740991,
-                                  "type": "integer"
-                                },
-                                "end": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
-                                },
-                                "secondHalfStart": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
-                                },
-                                "start": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "days",
-                                "end",
-                                "secondHalfStart",
-                                "start"
+                            "spec": {
+                              "maxLength": 300,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "title": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "verdict": {
+                              "enum": [
+                                "PASS",
+                                "FAIL"
                               ],
-                              "type": "object"
+                              "type": "string"
                             }
                           },
                           "required": [
-                            "costBpsPerSide",
-                            "trials",
-                            "universe",
-                            "variants",
-                            "window"
+                            "equity",
+                            "id",
+                            "kind",
+                            "notes",
+                            "ran",
+                            "runs",
+                            "spec",
+                            "title",
+                            "verdict"
                           ],
                           "type": "object"
                         },
-                        "id": {
-                          "maxLength": 64,
-                          "minLength": 1,
-                          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                          "type": "string"
-                        },
-                        "intraday": {
+                        {
+                          "additionalProperties": false,
                           "properties": {
-                            "barMinutes": {
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991,
-                              "minimum": -9007199254740991,
-                              "type": "integer"
-                            },
-                            "costBpsPerSide": {
-                              "type": "number"
-                            },
-                            "sensitivity": {
+                            "daily": {
                               "properties": {
                                 "costBpsPerSide": {
                                   "type": "number"
                                 },
-                                "verdict": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "costBpsPerSide",
-                                "verdict"
-                              ],
-                              "type": "object"
-                            },
-                            "spearman": {
-                              "properties": {
-                                "firstHalf": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                },
-                                "secondHalf": {
-                                  "anyOf": [
-                                    {
-                                      "type": "number"
-                                    },
-                                    {
-                                      "type": "null"
-                                    }
-                                  ]
-                                }
-                              },
-                              "required": [
-                                "firstHalf",
-                                "secondHalf"
-                              ],
-                              "type": "object"
-                            },
-                            "symbol": {
-                              "type": "string"
-                            },
-                            "variants": {
-                              "items": {
-                                "properties": {
-                                  "cagr": {
-                                    "type": "number"
-                                  },
-                                  "filter": {
-                                    "enum": [
-                                      "none",
-                                      "rvol_above_1"
-                                    ],
-                                    "type": "string"
-                                  },
-                                  "maxDrawdown": {
-                                    "type": "number"
-                                  },
-                                  "sharpe": {
-                                    "anyOf": [
-                                      {
-                                        "type": "number"
-                                      },
-                                      {
-                                        "type": "null"
-                                      }
-                                    ]
-                                  },
-                                  "sharpeHalves": {
-                                    "prefixItems": [
-                                      {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      },
-                                      {
-                                        "anyOf": [
-                                          {
-                                            "type": "number"
-                                          },
-                                          {
-                                            "type": "null"
-                                          }
-                                        ]
-                                      }
-                                    ],
-                                    "type": "array"
-                                  },
-                                  "trades": {
-                                    "maximum": 9007199254740991,
-                                    "minimum": 0,
-                                    "type": "integer"
-                                  },
-                                  "tradesPerYear": {
-                                    "minimum": 0,
-                                    "type": "number"
-                                  }
-                                },
-                                "required": [
-                                  "cagr",
-                                  "maxDrawdown",
-                                  "sharpe",
-                                  "sharpeHalves",
-                                  "trades",
-                                  "tradesPerYear",
-                                  "filter"
-                                ],
-                                "type": "object"
-                              },
-                              "minItems": 1,
-                              "type": "array"
-                            },
-                            "verdict": {
-                              "type": "string"
-                            },
-                            "window": {
-                              "properties": {
-                                "end": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
-                                },
-                                "secondHalfStart": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
-                                },
-                                "sessions": {
+                                "trials": {
                                   "exclusiveMinimum": 0,
                                   "maximum": 9007199254740991,
                                   "minimum": -9007199254740991,
                                   "type": "integer"
                                 },
-                                "start": {
-                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                                  "type": "string"
+                                "universe": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "variants": {
+                                  "items": {
+                                    "properties": {
+                                      "cagr": {
+                                        "type": "number"
+                                      },
+                                      "deflatedProbability": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "filter": {
+                                        "enum": [
+                                          "none",
+                                          "adx_above",
+                                          "adx_below",
+                                          "adx_falling"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "maxDrawdown": {
+                                        "type": "number"
+                                      },
+                                      "sharpe": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "sharpeHalves": {
+                                        "prefixItems": [
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "strategy": {
+                                        "type": "string"
+                                      },
+                                      "trades": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "tradesPerYear": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      },
+                                      "verdict": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "cagr",
+                                      "maxDrawdown",
+                                      "sharpe",
+                                      "sharpeHalves",
+                                      "trades",
+                                      "tradesPerYear",
+                                      "deflatedProbability",
+                                      "filter",
+                                      "strategy",
+                                      "verdict"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "window": {
+                                  "properties": {
+                                    "days": {
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    "end": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "secondHalfStart": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "start": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "days",
+                                    "end",
+                                    "secondHalfStart",
+                                    "start"
+                                  ],
+                                  "type": "object"
                                 }
                               },
                               "required": [
-                                "end",
-                                "secondHalfStart",
-                                "sessions",
-                                "start"
+                                "costBpsPerSide",
+                                "trials",
+                                "universe",
+                                "variants",
+                                "window"
                               ],
                               "type": "object"
+                            },
+                            "id": {
+                              "maxLength": 64,
+                              "minLength": 1,
+                              "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "intraday": {
+                              "properties": {
+                                "barMinutes": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "costBpsPerSide": {
+                                  "type": "number"
+                                },
+                                "sensitivity": {
+                                  "properties": {
+                                    "costBpsPerSide": {
+                                      "type": "number"
+                                    },
+                                    "verdict": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "costBpsPerSide",
+                                    "verdict"
+                                  ],
+                                  "type": "object"
+                                },
+                                "spearman": {
+                                  "properties": {
+                                    "firstHalf": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "secondHalf": {
+                                      "anyOf": [
+                                        {
+                                          "type": "number"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "firstHalf",
+                                    "secondHalf"
+                                  ],
+                                  "type": "object"
+                                },
+                                "symbol": {
+                                  "type": "string"
+                                },
+                                "variants": {
+                                  "items": {
+                                    "properties": {
+                                      "cagr": {
+                                        "type": "number"
+                                      },
+                                      "filter": {
+                                        "enum": [
+                                          "none",
+                                          "rvol_above_1"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "maxDrawdown": {
+                                        "type": "number"
+                                      },
+                                      "sharpe": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "sharpeHalves": {
+                                        "prefixItems": [
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          }
+                                        ],
+                                        "type": "array"
+                                      },
+                                      "trades": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "tradesPerYear": {
+                                        "minimum": 0,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "cagr",
+                                      "maxDrawdown",
+                                      "sharpe",
+                                      "sharpeHalves",
+                                      "trades",
+                                      "tradesPerYear",
+                                      "filter"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "verdict": {
+                                  "type": "string"
+                                },
+                                "window": {
+                                  "properties": {
+                                    "end": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "secondHalfStart": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    },
+                                    "sessions": {
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    "start": {
+                                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "end",
+                                    "secondHalfStart",
+                                    "sessions",
+                                    "start"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "barMinutes",
+                                "costBpsPerSide",
+                                "sensitivity",
+                                "spearman",
+                                "symbol",
+                                "variants",
+                                "verdict",
+                                "window"
+                              ],
+                              "type": "object"
+                            },
+                            "kind": {
+                              "const": "filter"
+                            },
+                            "ran": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "spec": {
+                              "maxLength": 300,
+                              "minLength": 1,
+                              "type": "string"
                             }
                           },
                           "required": [
-                            "barMinutes",
-                            "costBpsPerSide",
-                            "sensitivity",
-                            "spearman",
-                            "symbol",
-                            "variants",
-                            "verdict",
-                            "window"
+                            "daily",
+                            "id",
+                            "intraday",
+                            "ran",
+                            "spec"
                           ],
                           "type": "object"
-                        },
-                        "ran": {
-                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-                          "type": "string"
-                        },
-                        "spec": {
-                          "maxLength": 300,
-                          "minLength": 1,
-                          "type": "string"
                         }
-                      },
-                      "required": [
-                        "daily",
-                        "id",
-                        "intraday",
-                        "ran",
-                        "spec"
-                      ],
-                      "type": "object"
+                      ]
                     },
                     "updatedAt": {
                       "format": "date-time",
@@ -131527,7 +131822,7 @@
             "description": "503"
           }
         },
-        "summary": "Get one frozen research study (for example the ADX/RVOL filter study)",
+        "summary": "Get one frozen research study (a filter study such as ADX/RVOL, or a qc-port backtest study)",
         "tags": [
           "Research Studies"
         ]

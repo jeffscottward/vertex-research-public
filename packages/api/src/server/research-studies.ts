@@ -13,8 +13,9 @@ import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 
 // researchStudies.get: read-only, operator-only (the same gate as quantLab.list, which the /backtests
-// page shows beside it). The stored study document is validated with FilterStudySchema here, at the
-// boundary, so a row that no longer matches the contract is a storage error, never a broken page.
+// page shows beside it). The stored study document is validated with ResearchStudyDocumentSchema (a
+// filter study or, with kind "qc-port", a qc-port backtest study) here, at the boundary, so a row
+// that no longer matches the contract is a storage error, never a broken page.
 
 export class ResearchStudyShapeError extends Error {
   constructor(message: string) {
