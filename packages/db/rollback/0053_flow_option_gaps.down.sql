@@ -1,7 +1,9 @@
 -- Guarded reversal of 0053_flow_option_gaps only.
--- flow_option_gaps holds derived, regenerable bookkeeping (option-print ranges a capped collector run
--- left unfetched), so the rollback drops it without a data check; the collector then only reads new
--- windows, as before 0053. Deploy the previous collector first: this one needs the table.
+-- flow_option_gaps holds the option-print ranges capped collector runs left unread. Dropping it gives
+-- those ranges up for good (their prints are never fetched; options totals then miss them), so check
+-- `select count(*) from flow_option_gaps` first and roll back only when it is 0 or the loss is accepted.
+-- Deploy the previous collector first; this one cannot read options without the table (samples
+-- turn "unavailable").
 -- No cascading drops, truncation or conditional drops. Drizzle ledger reconciliation is deliberately
 -- not automated: after this rollback the 0053 row stays in drizzle.__drizzle_migrations, so
 -- `db:migrate` skips 0053 and the table stays missing. To re-apply, delete that ledger row (match its

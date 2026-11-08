@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -8,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("node:child_process", () => ({ spawnSync: mocks.spawnSync }));
 vi.mock("node:fs", () => ({ readFileSync: mocks.readFileSync }));
 
-import { runPreCommit } from "./index.ts";
+import { runPostCheckout, runPreCommit } from "./index.ts";
 
 const BUN_VERSION = "1.4.2";
 
@@ -206,6 +208,157 @@ describe("repository hooks", () => {
         expect.any(Object)
       );
     } finally {
+      process.exitCode = previousExitCode;
+    }
+  });
+});
+
+describe("post-checkout dependency refresh", () => {
+  const NULL_HEAD = "0".repeat(40);
+  const HEAD = "a".repeat(40);
+  const INSTALL = [
+    "install",
+    "--frozen-lockfile",
+    "--prefer-offline",
+    "--config.confirm-modules-purge=false",
+  ];
+
+  const lockfiles = (installed: string | undefined, current: string) => {
+    mocks.readFileSync.mockImplementation((path: string) => {
+      if (path === "pnpm-lock.yaml") {
+        return current;
+      }
+      if (path === "node_modules/.pnpm/lock.yaml" && installed !== undefined) {
+        return installed;
+      }
+      throw Object.assign(new Error(`ENOENT: ${path}`), { code: "ENOENT" });
+    });
+  };
+
+  it("leaves branch switches, plain checkouts and current dependencies alone", () => {
+    lockfiles("old", "new");
+    expect(runPostCheckout([HEAD, HEAD, "1"])).toBe(0);
+    expect(runPostCheckout([])).toBe(0);
+    lockfiles(undefined, "new");
+    expect(runPostCheckout([NULL_HEAD, HEAD, "1"])).toBe(0);
+    lockfiles("same", "same");
+    expect(runPostCheckout([NULL_HEAD, HEAD, "1"])).toBe(0);
+    return expect(mocks.spawnSync).not.toHaveBeenCalled();
+  });
+
+  it("installs once, outside Git's hook repository, when a new worktree copied node_modules for another lockfile", () => {
+    const errorOutput = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    vi.stubEnv("GIT_DIR", "/repository/.git/worktrees/copy");
+    try {
+      lockfiles("old", "new");
+      expect(runPostCheckout([NULL_HEAD, HEAD, "1"])).toBe(0);
+      expect(mocks.spawnSync).toHaveBeenCalledTimes(1);
+      expect(mocks.spawnSync).toHaveBeenCalledWith(
+        "pnpm",
+        INSTALL,
+        expect.objectContaining({
+          shell: false,
+          stdio: ["ignore", "inherit", "inherit"],
+        })
+      );
+      const [, , options] = spawnCalls()[0] as SpawnCall;
+      expect(options).toHaveProperty("env");
+      expect(options).not.toHaveProperty("env.GIT_DIR");
+      return expect(errorOutput).toHaveBeenCalledWith(
+        expect.stringContaining("does not match pnpm-lock.yaml")
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("warns but keeps the new worktree when the install fails", () => {
+    const errorOutput = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    lockfiles("old", "new");
+    mocks.spawnSync.mockReturnValue(spawnResult(1));
+
+    expect(runPostCheckout([NULL_HEAD, HEAD, "1"])).toBe(0);
+    expect(errorOutput).toHaveBeenCalledWith(
+      `[hook] failed (1): ${["pnpm", ...INSTALL].map((word) => JSON.stringify(word)).join(" ")}`
+    );
+    return expect(errorOutput).toHaveBeenCalledWith(
+      expect.stringContaining("dependencies are stale")
+    );
+  });
+
+  it("passes Git's hook arguments through the shell hook and never fails a checkout", async () => {
+    // node:child_process and node:fs are mocked in this file; the shell hook
+    // needs the real modules.
+    const childProcess =
+      await vi.importActual<typeof import("node:child_process")>(
+        "node:child_process"
+      );
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const directory = fs.mkdtempSync(join(tmpdir(), "post-checkout-argv-"));
+    try {
+      const printingBun = join(directory, "printing");
+      const failingBun = join(directory, "failing");
+      const withoutBun = join(directory, "none");
+      for (const [binDirectory, script] of [
+        [printingBun, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n"],
+        [failingBun, "#!/bin/sh\nexit 3\n"],
+      ] as const) {
+        fs.mkdirSync(binDirectory);
+        fs.writeFileSync(join(binDirectory, "bun"), script);
+        fs.chmodSync(join(binDirectory, "bun"), 0o755);
+      }
+      fs.mkdirSync(withoutBun);
+      const runHook = (cwd: string, path: string) =>
+        childProcess.spawnSync(
+          "/bin/sh",
+          [join(process.cwd(), ".husky/post-checkout"), NULL_HEAD, HEAD, "1"],
+          {
+            cwd,
+            encoding: "utf8",
+            env: { ...process.env, PATH: path },
+            shell: false,
+          }
+        );
+      const current = runHook(process.cwd(), printingBun);
+      expect(current.status).toBe(0);
+      expect(current.stdout.trimEnd().split("\n")).toEqual([
+        "scripts/hooks/post-checkout.ts",
+        NULL_HEAD,
+        HEAD,
+        "1",
+      ]);
+      // Git runs the hook of the current checkout in the new worktree, which
+      // can be on an older commit without the script.
+      const older = runHook(directory, printingBun);
+      expect(older.status).toBe(0);
+      expect(older.stdout).toBe("");
+      // fm-spawn treats a non-zero `git worktree add` as a failed spawn.
+      const missing = runHook(process.cwd(), withoutBun);
+      expect(missing.status).toBe(0);
+      expect(missing.stderr).toContain("bun not found");
+      const failed = runHook(process.cwd(), failingBun);
+      expect(failed.status).toBe(0);
+      return expect(failed.stderr).toContain("post-checkout failed");
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  return it("wires the post-checkout entrypoint to its hook runner exit code", async () => {
+    const previousArgv = process.argv;
+    const previousExitCode = process.exitCode;
+    try {
+      process.argv = ["bun", "scripts/hooks/post-checkout.ts", HEAD, HEAD, "1"];
+      process.exitCode = undefined;
+      await import("./post-checkout.ts");
+      expect(process.exitCode).toBe(0);
+      return expect(mocks.spawnSync).not.toHaveBeenCalled();
+    } finally {
+      process.argv = previousArgv;
       process.exitCode = previousExitCode;
     }
   });

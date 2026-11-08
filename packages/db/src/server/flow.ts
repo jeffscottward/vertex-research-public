@@ -76,8 +76,14 @@ export type FlowRepository = Readonly<{
   newestOptionPrintAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
   /** Unfetched option-print ranges of a symbol, newest end first. */
   optionGaps: (symbol: FlowSymbolValue) => Promise<FlowOptionGapRecord[]>;
-  /** Stores a gap, or moves the end of the stored gap with the same symbol and start. */
-  saveOptionGap: (gap: FlowOptionGapRecord) => Promise<void>;
+  /** Stores a new gap; a stored gap with the same symbol and start keeps the later end. */
+  addOptionGap: (gap: FlowOptionGapRecord) => Promise<void>;
+  /** Moves a stored gap's end back to where the next read resumes. */
+  moveOptionGapEnd: (
+    symbol: FlowSymbolValue,
+    startTime: Date,
+    endTime: Date
+  ) => Promise<void>;
   /** Deletes a gap that was read completely. */
   deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
@@ -151,6 +157,17 @@ export const createFlowRepository = (
   };
 
   return {
+    addOptionGap: async (gap) => {
+      await database
+        .insert(flowOptionGaps)
+        .values(gap)
+        .onConflictDoUpdate({
+          set: {
+            endTime: sql`greatest(${flowOptionGaps.endTime}, excluded.end_time)`,
+          },
+          target: [flowOptionGaps.symbol, flowOptionGaps.startTime],
+        });
+    },
     deleteOptionGap: async (symbol, startTime) => {
       await database
         .delete(flowOptionGaps)
@@ -204,6 +221,17 @@ export const createFlowRepository = (
       }
       return { latest, latestOk };
     },
+    moveOptionGapEnd: async (symbol, startTime, endTime) => {
+      await database
+        .update(flowOptionGaps)
+        .set({ endTime })
+        .where(
+          and(
+            eq(flowOptionGaps.symbol, symbol),
+            eq(flowOptionGaps.startTime, startTime)
+          )
+        );
+    },
     newestDataAt: async (symbol) => {
       const [minute] = await database
         .select({ at: max(flowMinutes.minute) })
@@ -235,7 +263,7 @@ export const createFlowRepository = (
         .select()
         .from(flowOptionGaps)
         .where(eq(flowOptionGaps.symbol, symbol))
-        .orderBy(desc(flowOptionGaps.endTime)),
+        .orderBy(desc(flowOptionGaps.endTime), desc(flowOptionGaps.startTime)),
     prune: async (before) => {
       const removed = [
         await database
@@ -334,15 +362,6 @@ export const createFlowRepository = (
             status: sql`excluded.status`,
           },
           target: [flowSamples.symbol, flowSamples.source, flowSamples.at],
-        });
-    },
-    saveOptionGap: async (gap) => {
-      await database
-        .insert(flowOptionGaps)
-        .values(gap)
-        .onConflictDoUpdate({
-          set: { endTime: sql`excluded.end_time` },
-          target: [flowOptionGaps.symbol, flowOptionGaps.startTime],
         });
     },
     upsertMinutes: async (rows) => {

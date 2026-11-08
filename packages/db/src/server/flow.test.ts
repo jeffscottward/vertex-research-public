@@ -30,7 +30,8 @@ const TO = new Date("2026-11-02T15:30:00.000Z");
 interface Operation {
   columns?: unknown;
   conflict?: "nothing" | Record<string, unknown>;
-  kind: "select" | "insert" | "delete";
+  kind: "select" | "insert" | "delete" | "update";
+  set?: unknown;
   limit?: number;
   orderBy?: unknown[];
   returning?: unknown;
@@ -70,6 +71,10 @@ const createDouble = (
         operation.orderBy = order;
         return chain;
       },
+      set: (values: unknown) => {
+        operation.set = values;
+        return chain;
+      },
       returning: (columns: unknown) => {
         operation.returning = columns;
         return chain;
@@ -95,6 +100,7 @@ const createDouble = (
     delete: (table: unknown) => builder({ kind: "delete", table }),
     insert: (table: unknown) => builder({ kind: "insert", table }),
     select: (columns?: unknown) => builder({ columns, kind: "select" }),
+    update: (table: unknown) => builder({ kind: "update", table }),
   } as unknown as DatabaseExecutor;
   return { database, operations };
 };
@@ -297,10 +303,10 @@ describe("createFlowRepository option gaps", () => {
     );
   });
 
-  it("saves a gap, moving only the end of a stored gap with the same start", async () => {
+  it("adds a gap; a stored gap with the same start keeps the later end", async () => {
     const double = createDouble([[]]);
     const repository = createFlowRepository(double.database);
-    await repository.saveOptionGap(gap);
+    await repository.addOptionGap(gap);
     const [operation] = double.operations;
     expect(operation).toMatchObject({
       kind: "insert",
@@ -317,8 +323,24 @@ describe("createFlowRepository option gaps", () => {
     ]);
     expect(Object.keys(conflict.set)).toEqual(["endTime"]);
     expect(dialect.sqlToQuery(conflict.set["endTime"] as SQL).sql).toBe(
-      "excluded.end_time"
+      'greatest("flow_option_gaps"."end_time", excluded.end_time)'
     );
+  });
+
+  it("moves one gap's end by symbol and start", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.moveOptionGapEnd("SPY", FROM, TO);
+    const [operation] = double.operations;
+    expect(operation).toMatchObject({
+      kind: "update",
+      set: { endTime: TO },
+      table: flowOptionGaps,
+    });
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY", FROM.toISOString()],
+      sql: '("flow_option_gaps"."symbol" = $1 and "flow_option_gaps"."start_time" = $2)',
+    });
   });
 
   it("deletes one gap by symbol and start", async () => {
