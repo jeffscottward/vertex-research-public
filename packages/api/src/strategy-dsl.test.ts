@@ -8,9 +8,9 @@ import {
   STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
   STRATEGY_DAILY_TIMEFRAMES,
   STRATEGY_IV_INDEX,
+  STRATEGY_OPTION_IS_DEBIT,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_OPTIONS_UNSUPPORTED,
-  STRATEGY_OPTION_IS_DEBIT,
   STRATEGY_SERIES_FILTERS_UNSUPPORTED,
   STRATEGY_SERIES_IDS,
   STRATEGY_TEMPLATES,
@@ -66,7 +66,7 @@ describe("validateStrategyDefinition", () => {
   });
 
   it.each([
-    ["no entry conditions", { ...minimal, entry: { all: [] } }, "entry.all"],
+    ["no entry conditions", { ...minimal, entry: { all: [] } }, "entry"],
     ["unknown version", { ...minimal, version: 2 }, "version"],
     ["blank name", { ...minimal, name: " " }, "name"],
     ["unknown key", { ...minimal, extra: true }, ""],

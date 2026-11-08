@@ -23,21 +23,25 @@ A strategy definition is a small declarative description of a long-only strategy
 | --- | --- |
 | `version` | Always `1`. |
 | `name`, `description` | Display text. |
-| `entry.all` | 1 to 8 conditions. The strategy enters when ALL are true on the signal bar. |
+| `entry.all` | 0 to 8 conditions. The strategy enters when ALL are true on the signal bar. |
+| `entry.any` | Optional, 0 to 8 conditions, no default. When it is not empty, at least one of them must also be true on the signal bar. `entry.all` may be empty when `entry.any` is not; together they need at least one condition. |
 | `exit.any` | 0 to 8 conditions. An open position exits when ANY is true, also on bars where the entry conditions hold. While flat, entry wins when both are true. |
-| `sizing` | `{ "mode": "allIn" }` (default) or `{ "mode": "riskPct", "riskPct": 1 }`. Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. |
+| `sizing` | `{ "mode": "allIn" }` (default) or `{ "mode": "riskPct", "riskPct": 1 }`. Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. With the optional `"maxLeverage": 1..50` (riskPct only, no default) the cap is cash × `maxLeverage` instead (see [Stop management and leverage](#stop-management-and-leverage)). |
 | `stopLoss`, `takeProfit` | `{ "kind": "none" }` (default), `{ "kind": "pct", "pct": 5 }` (percent of the entry price) or `{ "kind": "atr", "length": 14, "multiple": 2 }` (ATR at the signal bar times the multiple). While the ATR is not available yet (too few bars), the strategy does not enter. |
+| `management` | Optional stop management of an open position, no default: `{ "breakevenR": 2, "trail": { "activateR": 1, "length": 14, "multiple": 2 } }`, either part or both. Needs a stop loss and no `options` block (see [Stop management and leverage](#stop-management-and-leverage)). |
 | `session` | Optional `{ "startUtc": "13:30", "endUtc": "20:00" }`. Entries happen only on signal bars whose UTC time is in [start, end). A window can pass midnight. Exits are not limited. |
 | `filters` | Optional, 1 to 4 entry filters (see [Entry filters](#entry-filters)). Every filter must pass for an entry; exits are never blocked. |
 | `options` | Optional defined-risk option vertical traded on the signals (see [Options block](#options-block)). |
 
-A condition is `{ "left": <expr>, "op": <op>, "right": <expr> }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar.
+A condition is `{ "left": <expr>, "op": <op>, "right": <expr>, "oncePerLevel": true (optional) }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`, `breaksAbove`, `breaksBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar. A break compares the previous left value with the current right value: `breaksAbove` at bar i is `left[i] > right[i]` and `left[i − 1] <= right[i]` (`breaksBelow`: `left[i] < right[i]` and `left[i − 1] >= right[i]`). It differs from a cross when the level moves: when the level rises past a close that was above the old level, the next close above the new level is a break but not a cross; when the level falls below an unchanged close, that bar is a cross but not a break. Both are false on the first bar and when a value is not available.
+
+`oncePerLevel` (optional, no default) works only with `crossesAbove`, `crossesBelow`, `breaksAbove` and `breaksBelow`. When true, a bar where the condition holds is dropped if the same right value (an exact number) already made it hold on an earlier bar, so each level fires once. With a constant right value the condition fires at most once in the whole run.
 
 Expressions:
 
 - `{ "type": "price", "field": "open" | "high" | "low" | "close", "offset": 0..1000 (optional) }`
 - `{ "type": "const", "value": 30 }`
-- `{ "type": "indicator", "name": <name>, "length": 1..1000, "source": <price field, default close>, "offset": 0..1000 (optional) }`
+- `{ "type": "indicator", "name": <name>, "length": 1..1000, "source": <price field, default close>, "offset": 0..1000 (optional), "timeframe": "1d" (optional) }`
 
 Indicators: `sma`, `ema` (seeded with the simple average), `rsi` and `atr` (Wilder smoothing; `atr` ignores `source`), `highest` and `lowest` (of the `length` bars BEFORE the signal bar, a Donchian channel), `adx`, `rvol`, `zscore` and `realizedVol`. An indicator value is not available until enough bars exist. A comparison with a value that is not available is false.
 
@@ -62,6 +66,55 @@ Example, "ADX(14) falling over 5 bars" (use `>` for rising):
 ```
 
 A cross operator works with an offset too: `close crossesAbove close offset 1` is true on the first bar of a series of higher closes.
+
+### Daily levels on intraday bars (`timeframe: "1d"`)
+
+An indicator with `"timeframe": "1d"` (optional, no default) runs on daily bars built from the signal bars, so an hourly strategy can read daily levels. A session day starts at 17:00 New York: the day of a bar is the New York date of its time + 7 hours, so US regular-hours bars keep their date and FX or futures days start at the 17:00 New York roll, on both sides of a daylight saving change. A daily bar is the first open, the highest high, the lowest low, the last close and the summed volume of its signal bars.
+
+The daily values map back to the signal bars without look-ahead:
+
+- `highest` and `lowest` on a bar of day D read the value at day D, which is the extreme of the `length` days BEFORE D (the current day is never in the window), so a breakout of yesterday's 20-day high can fire during day D.
+- Every other indicator (`sma`, `ema`, `rsi`, `atr`, `adx`, `zscore`, `realizedVol`) reads day D − 1, the last completed day. On the first day the value is not available.
+- `length` counts days and must not exceed the number of daily bars in the run (an input error, even when there are enough signal bars). `realizedVol` keeps its √252 factor, which is right for daily bars.
+- `offset` still counts signal bars and applies after the mapping.
+- `rvol` takes no `timeframe`: it already compares whole sessions.
+
+### Stop management and leverage
+
+`management` moves the stop of an open position up; it never moves it down. R is the entry price minus the initial stop. At the close of every bar the position is open (the entry bar included), after that bar's stop and target check:
+
+- `breakevenR` (above 0, at most 100): once the highest high since entry reaches entry + `breakevenR` × R, the stop becomes at least the entry price.
+- `trail` (`activateR` and `multiple` above 0 and at most 100, `length` 1 to 1000): once the highest high since entry reaches entry + `activateR` × R, the stop becomes at least the highest close since entry − `multiple` × ATR(`length`) of that bar (the Wilder ATR of the signal bars). A bar where that ATR is not available leaves the stop.
+- A new stop applies from the next bar, so the bar that raised it cannot stop out on it; a gap through the raised stop fills at the open.
+
+With both parts the higher stop wins. Without a stop loss nothing moves, which is why the schema needs one.
+
+`sizing.maxLeverage` (1 to 50, riskPct only) caps the position cost at cash × `maxLeverage` instead of the cash. The borrowed part makes the unused cash negative; equity is that cash plus the position marked at the close. The TypeScript engine and the Nautilus engine charge no financing; the LD34 study runner (`services/research/strategies/ld34/metrics.py`) charges it in research.
+
+### LD34 example
+
+LD34 (nested Donchian long-only breakout) enters when the close breaks above any of the 20, 50, 100 and 200-day highest highs or lowest lows (a return above a Donchian low counts too), once per level, risks 1% of equity on a 2 × ATR(14) stop with up to 20× leverage, moves the stop to breakeven at 2R and trails 2 × ATR(14) below the highest close from 1R. The golden fixture runs it on 400 days of hourly FX-week bars (`reel:ld34:*` in `scripts/research/nautilus-golden.ts`).
+
+```json
+{
+  "version": 1,
+  "name": "LD34 nested Donchian long-only breakout",
+  "entry": {
+    "all": [],
+    "any": [
+      { "left": { "type": "price", "field": "close" }, "op": "breaksAbove", "oncePerLevel": true,
+        "right": { "type": "indicator", "name": "highest", "length": 20, "source": "high", "timeframe": "1d" } },
+      { "left": { "type": "price", "field": "close" }, "op": "breaksAbove", "oncePerLevel": true,
+        "right": { "type": "indicator", "name": "lowest", "length": 20, "source": "low", "timeframe": "1d" } }
+    ]
+  },
+  "stopLoss": { "kind": "atr", "length": 14, "multiple": 2 },
+  "sizing": { "mode": "riskPct", "riskPct": 1, "maxLeverage": 20 },
+  "management": { "breakevenR": 2, "trail": { "activateR": 1, "length": 14, "multiple": 2 } }
+}
+```
+
+The full definition repeats both conditions for 50, 100 and 200 days (eight `entry.any` conditions).
 
 ## Entry filters
 
@@ -137,7 +190,7 @@ The server engines run equity strategies and load sector points only. `serverStr
 
 ## Execution model
 
-The compiler turns a definition into one signal per bar and runs the engine model of the instant backtest: signals use data up to the close of the signal bar and fill at the next open; stops and targets are checked inside each bar and a gap fills at the open; costs are charged in basis points on each side. In a backtest run, the run-level `stopLossPct` and `takeProfitPct` apply only to the fixed rules; a definition carries its own stop, target and sizing.
+The compiler turns a definition into one signal per bar and runs the engine model of the instant backtest: signals use data up to the close of the signal bar and fill at the next open; stops and targets are checked inside each bar and a gap fills at the open; costs are charged in basis points on each side. `management` raises the stop at bar closes as described in [Stop management and leverage](#stop-management-and-leverage). In a backtest run, the run-level `stopLossPct` and `takeProfitPct` apply only to the fixed rules; a definition carries its own stop, target, sizing, management and leverage.
 
 ## Versioning
 
@@ -155,8 +208,9 @@ A definition run without a library strategy stores a snapshot that depends only 
 
 - Schema validation, templates, the filters and options schema, and the pinned revisions of existing definitions: `packages/api/src/strategy-dsl.test.ts`.
 - Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`. The entry filters are covered there too.
-- TypeScript and Python parity: `bun run research:nautilus-golden` writes `services/research/tests/fixtures/nautilus_backtest/golden.json` with definitions using each filter (the `qc:*` cases, on synthetic VIX, VIX3M, VXN, SPY, ES=F and GC=F series and a spring 2019 calendar with a Good Friday expiration); `services/research/tests/test_nautilus_backtest_signals.py` must match the signals exactly, and `scripts/research/nautilus-golden.test.ts` checks the committed file is current.
-- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`.
+- DSL extensions (`timeframe: "1d"`, breaks, `oncePerLevel`, `entry.any`, `management`, `maxLeverage`): schema checks in `strategy-dsl.test.ts`, compiled series in `strategy-dsl-compile.test.ts` (hand-built session days across the 17:00 New York roll), the engine stop management and leverage sizing in `packages/api/src/instant-backtest-engine.test.ts`, and the same cases in Python in `services/research/tests/test_nautilus_backtest_signals.py` and `test_nautilus_backtest_engine.py`.
+- TypeScript and Python parity: `bun run research:nautilus-golden` writes `services/research/tests/fixtures/nautilus_backtest/golden.json` with definitions using each filter (the `qc:*` cases, on synthetic VIX, VIX3M, VXN, SPY, ES=F and GC=F series and a spring 2019 calendar with a Good Friday expiration) and the `reel:*` cases (LD34 and a mixed daily-level definition that enters, on 400 days of hourly bars); `services/research/tests/test_nautilus_backtest_signals.py` must match the signals exactly, and `scripts/research/nautilus-golden.test.ts` checks the committed file is current.
+- Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`. The visual builder edits `entry.all`, `exit.any`, the stop, target and sizing; it keeps `entry.any`, `oncePerLevel`, `timeframe`, `management` and `maxLeverage` written in the JSON editor.
 - Headless browser flow, including builder-made SMA 10/40 against the golden rule on `/backtest-runs`: `tests/e2e/strategy-builder.spec.ts`.
 
 ## Limits

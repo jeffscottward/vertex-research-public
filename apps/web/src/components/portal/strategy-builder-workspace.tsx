@@ -77,6 +77,8 @@ const OPERATOR_LABELS: Record<StrategyCondition["op"], string> = {
   "<=": "is at or below",
   ">": "is above",
   ">=": "is at or above",
+  breaksAbove: "breaks above",
+  breaksBelow: "breaks below",
   crossesAbove: "crosses above",
   crossesBelow: "crosses below",
 };
