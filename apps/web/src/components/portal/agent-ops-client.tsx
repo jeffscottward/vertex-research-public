@@ -382,6 +382,7 @@ export const OPERATOR_FEATURE_COPY = Object.freeze({
     "Agent work and the IBKR monitor on Mission control are limited to operators.",
   optimizations: "Optimization runs are limited to operators.",
   papers: "The research paper pipeline is limited to operators.",
+  plays: "The plays list is limited to operators.",
   "strategy-library": "The strategy library is limited to operators.",
   "watchlist-analysis":
     "Watchlist relationships and exposure (IBKR bars and positions) are limited to operators.",

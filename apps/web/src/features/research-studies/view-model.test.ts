@@ -133,7 +133,7 @@ describe("toFilterStudyViewModel", () => {
     ).toThrow();
   });
 
-  it("accepts the seeded study (the 0050_research_studies migration row)", () => {
+  it("accepts the seeded study (the 0051_research_studies migration row)", () => {
     const parsed = FilterStudySchema.parse(seeded);
     expect(parsed.daily.variants).toHaveLength(13);
     return expect(

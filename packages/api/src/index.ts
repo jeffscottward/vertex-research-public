@@ -111,6 +111,7 @@ export * from "./contracts/autopilot.ts";
 export * from "./contracts/backtest-sweep.ts";
 export * from "./contracts/engine-comparison.ts";
 export * from "./contracts/instant-backtest.ts";
+export * from "./contracts/plays.ts";
 export * from "./contracts/setup-replay.ts";
 export * from "./signal-alerts.ts";
 export * from "./backtest-report-depth.ts";

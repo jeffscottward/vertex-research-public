@@ -620,6 +620,58 @@ export const pickListMembers = pgTable(
   ]
 );
 
+// Operator's options plays (research ideas with defined risk). Options only; never orders.
+// legs: [{ side, right, strike, expiry, quantity }]; validated by the repository on write and
+// shape-checked here (non-empty array). Defined risk is required: max_loss_usd > 0 and
+// defined_risk must be true.
+export const PLAYS_MAX = 200;
+export const PLAY_STATUSES = ["idea", "armed", "taken", "dropped"] as const;
+export type PlayStatus = (typeof PLAY_STATUSES)[number];
+export interface PlayLeg {
+  readonly expiry: string;
+  readonly quantity: number;
+  readonly right: "call" | "put";
+  readonly side: "buy" | "sell";
+  readonly strike: number;
+}
+
+export const plays = pgTable(
+  "plays",
+  {
+    id: text("id").primaryKey(),
+    ticker: text("ticker").notNull(),
+    structure: text("structure").notNull(),
+    legs: jsonb("legs").$type<PlayLeg[]>().notNull(),
+    maxLossUsd: numeric("max_loss_usd").notNull(),
+    definedRisk: boolean("defined_risk").default(true).notNull(),
+    thesis: text("thesis").notNull(),
+    trigger: text("trigger").notNull(),
+    exitRule: text("exit_rule").notNull(),
+    status: text("status").$type<PlayStatus>().notNull(),
+    notes: text("notes"),
+    sourceUrl: text("source_url"),
+    createdAt: utcTimestamp("created_at").defaultNow().notNull(),
+    updatedAt: utcTimestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("plays_updated_at_idx").on(table.updatedAt),
+    check("plays_max_loss_check", sql`${table.maxLossUsd} > 0`),
+    check("plays_defined_risk_check", sql`${table.definedRisk} = true`),
+    check(
+      "plays_status_check",
+      sql`${table.status} in ('idea', 'armed', 'taken', 'dropped')`
+    ),
+    check(
+      "plays_legs_check",
+      sql`case when jsonb_typeof(${table.legs}) = 'array' then jsonb_array_length(${table.legs}) between 1 and 8 else false end`
+    ),
+    check(
+      "plays_fields_check",
+      sql`${table.ticker} ~ '^[A-Z][A-Z0-9.\\-]{0,9}$' and char_length(trim(${table.structure})) between 1 and 80 and char_length(trim(${table.thesis})) between 1 and 2000 and char_length(trim(${table.trigger})) between 1 and 500 and char_length(trim(${table.exitRule})) between 1 and 500 and (${table.notes} is null or char_length(${table.notes}) <= 2000) and (${table.sourceUrl} is null or ${table.sourceUrl} ~ '^https://')`
+    ),
+  ]
+);
+
 // Workspace-scoped agent operations ledger and research paper library.
 // Single-operator fund: rows are not owned by a user; any authenticated session reads and writes.
 export const AGENT_TASK_KINDS = [
@@ -2004,6 +2056,8 @@ export type BasketMember = typeof basketMembers.$inferSelect;
 export type PickList = typeof pickLists.$inferSelect;
 export type PickListSnapshot = typeof pickListSnapshots.$inferSelect;
 export type PickListMember = typeof pickListMembers.$inferSelect;
+export type Play = typeof plays.$inferSelect;
+export type NewPlay = typeof plays.$inferInsert;
 export type ResearchPaper = typeof researchPapers.$inferSelect;
 export type NewResearchPaper = typeof researchPapers.$inferInsert;
 export type AgentTask = typeof agentTasks.$inferSelect;

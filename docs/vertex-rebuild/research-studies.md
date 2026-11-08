@@ -8,7 +8,7 @@ Frozen research studies, such as the ADX/RVOL filter study (`docs/specs/research
 
 | Part | Code |
 | --- | --- |
-| Table | `research_studies` (`packages/db/src/schema/research-studies.ts`, migration `0050_research_studies`, rollback `packages/db/rollback/0050_research_studies.down.sql`) |
+| Table | `research_studies` (`packages/db/src/schema/research-studies.ts`, migration `0051_research_studies`, rollback `packages/db/rollback/0051_research_studies.down.sql`) |
 | Repository | `packages/db/src/server/research-studies.ts` (`get`, `upsert`) |
 | Contract | `packages/api/src/contracts/research-studies.ts`: `FilterStudySchema`, `researchStudies.get` (`GET /research-studies/{id}`) |
 | Service | `packages/api/src/server/research-studies.ts` (operator-only, the same gate as `quantLab.list`) |
@@ -21,7 +21,7 @@ One row per study: `id` (slug, for example `adx-rvol-filters`), `spec_ref`, `ran
 
 The migration seeds the ADX/RVOL study run on 2026-10-31 (public research on public prices). The seed runs once, in the same migration that creates the table.
 
-Rollback: `packages/db/rollback/0050_research_studies.down.sql` refuses while an imported study exists. It does not touch the Drizzle ledger, so the 0050 row stays in `drizzle.__drizzle_migrations` and `db:migrate` skips 0050 afterwards (the table stays missing and `researchStudies.get` answers `STORAGE_ERROR`). To re-apply, delete that ledger row (match its hash), then run `db:migrate`.
+Rollback: `packages/db/rollback/0051_research_studies.down.sql` refuses while an imported study exists. It does not touch the Drizzle ledger, so the 0051 row stays in `drizzle.__drizzle_migrations` and `db:migrate` skips 0051 afterwards (the table stays missing and `researchStudies.get` answers `STORAGE_ERROR`). To re-apply, delete that ledger row (match its hash), then run `db:migrate`.
 
 ## Store a new run
 

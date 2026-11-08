@@ -7,11 +7,11 @@ import { researchStudies } from "../schema/index.ts";
 const read = (path: string): string =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 
-describe("0050_research_studies migration", () => {
-  const migration = read("../../migrations/0050_research_studies.sql");
-  const rollback = read("../../rollback/0050_research_studies.down.sql");
+describe("0051_research_studies migration", () => {
+  const migration = read("../../migrations/0051_research_studies.sql");
+  const rollback = read("../../rollback/0051_research_studies.down.sql");
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
-    entries: { idx: number; tag: string }[];
+    entries: { idx: number; tag: string; when: number }[];
   };
   const config = getTableConfig(researchStudies);
   const dialect = new PgDialect();
@@ -61,11 +61,15 @@ describe("0050_research_studies migration", () => {
     expect(document).toEqual(fixture);
   });
 
-  it("is the 51st journal entry and the rollback keeps imported studies", () => {
-    expect(journal.entries[50]).toMatchObject({
-      idx: 50,
-      tag: "0050_research_studies",
+  it("is the 52nd journal entry after 0050_plays and the rollback keeps imported studies", () => {
+    expect(journal.entries[51]).toMatchObject({
+      idx: 51,
+      tag: "0051_research_studies",
     });
+    expect(journal.entries[50]).toMatchObject({ idx: 50, tag: "0050_plays" });
+    expect(journal.entries[51]?.when).toBeGreaterThan(
+      journal.entries[50]?.when ?? Number.POSITIVE_INFINITY
+    );
     expect(rollback).toContain(
       "RAISE EXCEPTION 'research_studies holds imported studies"
     );

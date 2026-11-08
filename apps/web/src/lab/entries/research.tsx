@@ -17,6 +17,10 @@ import { MarketNewsWorkspace } from "../../components/portal/market-news-workspa
 import { PapersWorkspace } from "../../components/portal/papers-workspace.tsx";
 import type { PickListGateway } from "../../components/portal/pick-lists-client.ts";
 import { PickListsWorkspace } from "../../components/portal/pick-lists-workspace.tsx";
+import {
+  type PlaysGateway,
+  PlaysWorkspace,
+} from "../../components/portal/plays-workspace.tsx";
 import type { PortfolioMonitorGateway } from "../../components/portal/portfolio-monitor-client.ts";
 import type { PriceAlertsGateway } from "../../components/portal/price-alerts-client.ts";
 import { PriceAlertsWorkspace } from "../../components/portal/price-alerts-workspace.tsx";
@@ -157,6 +161,45 @@ const labPapersGateway: PapersGateway = {
   update: labReadOnly,
 };
 
+const labPlaysGateway: PlaysGateway = {
+  list: () =>
+    Promise.resolve({
+      plays: [
+        {
+          createdAt: "2026-01-02T12:00:00.000Z",
+          definedRisk: true,
+          exitRule: "Close at 50% loss or 3 days before the front expiry",
+          id: "mockx-cal-50",
+          legs: [
+            {
+              expiry: "2099-12-18",
+              quantity: 1,
+              right: "call",
+              side: "sell",
+              strike: 50,
+            },
+            {
+              expiry: "2100-01-15",
+              quantity: 1,
+              right: "call",
+              side: "buy",
+              strike: 50,
+            },
+          ],
+          maxLossUsd: 300,
+          notes: null,
+          sourceUrl: null,
+          status: "idea",
+          structure: "call calendar",
+          thesis: "Fictional lab example: range-bound into earnings",
+          ticker: "MOCKX",
+          trigger: "MOCKX trades near 50",
+          updatedAt: "2026-01-02T12:00:00.000Z",
+        },
+      ],
+    }),
+};
+
 export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
   {
     group: GROUP,
@@ -272,6 +315,18 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/pick-lists",
     title: "Pick lists",
+  },
+  {
+    group: GROUP,
+    id: "plays",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Plays" />
+        <PlaysWorkspace gateway={labPlaysGateway} />
+      </div>
+    ),
+    route: "/plays",
+    title: "Plays",
   },
   {
     group: GROUP,

@@ -118,7 +118,8 @@ describe("0022 assistant migration", () => {
       "0047_sector_rotation",
       "0048_pick_lists",
       "0049_signal_alerts",
-      "0050_research_studies",
+      "0050_plays",
+      "0051_research_studies",
     ]);
   });
 

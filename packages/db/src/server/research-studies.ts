@@ -1,7 +1,7 @@
 // What: Drizzle repository for frozen research studies (one jsonb study document per row).
 // Used by: packages/db/src/server/repositories.ts (createRepositories) for researchStudies.get, and
 // scripts/research-studies/import.ts (`bun run vertex:research-studies:import`) for writes.
-// See: packages/db/migrations/0050_research_studies.sql; docs/vertex-rebuild/research-studies.md.
+// See: packages/db/migrations/0051_research_studies.sql; docs/vertex-rebuild/research-studies.md.
 // The document is stored and returned as given; callers validate it with FilterStudySchema
 // (packages/api/src/contracts/research-studies.ts). Research records only.
 import { eq, sql } from "drizzle-orm";
