@@ -53,13 +53,13 @@ type DiagnosticStage =
   | "readRun";
 export const createDebateDiagnostic = () => {
   // The budget stops a runaway diagnostic run. The five-turn acceptance run
-  // makes about 1.4M SQL attempts with the linear predecessor walk;
+  // makes a little over 3M SQL attempts with the linear predecessor walk;
   // VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET overrides the default.
   const enabled = process.env["VERTEX_CHAT_DEBATE_DIAGNOSTICS"] === "1",
     started = performance.now(),
     budgetSetting = process.env["VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET"],
     maximumSqlAttempts =
-      budgetSetting === undefined ? 3_000_000 : Number(budgetSetting);
+      budgetSetting === undefined ? 8_000_000 : Number(budgetSetting);
   if (!(Number.isSafeInteger(maximumSqlAttempts) && maximumSqlAttempts > 0))
     throw new Error(
       "VERTEX_CHAT_DEBATE_DIAGNOSTIC_SQL_BUDGET must be a positive integer"
