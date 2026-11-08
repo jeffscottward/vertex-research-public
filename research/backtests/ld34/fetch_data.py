@@ -31,7 +31,7 @@ def fetch(inst: str, side: str, start: date, end: date, timeframe: str = "h1") -
     with tempfile.TemporaryDirectory() as tmp:
         cmd = ["npx", "-y", "dukascopy-node@1.51.1", "-i", inst, "-from", start.isoformat(), "-to", end.isoformat(),
                "-t", timeframe, "-p", side, "-v", "-f", "csv", "-dir", tmp, "-fn", "x", "-r", "3", "-bs", "10", "-bp", "300"]
-        proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=900)
+        proc = subprocess.run(cmd, cwd=ROOT, check=False, capture_output=True, text=True, timeout=900)
         path = Path(tmp) / "x.csv"
         if proc.returncode != 0 or "wrong" in proc.stdout or not path.exists():
             return None
@@ -63,9 +63,11 @@ def months(start: date, end: date):
         cur = nxt
 
 
-def main() -> None:
+def main() -> int:
+    """Exit status 1 when any month could not be fetched (the series would have a gap)."""
     OUT.mkdir(exist_ok=True)
     only = set(sys.argv[1:])
+    gaps: list[str] = []
     for inst, first in LIST:
         if only and inst not in only:
             continue
@@ -100,8 +102,13 @@ def main() -> None:
                 for key in sorted(rows, key=int):
                     w.writerow(rows[key])
             print(f"{inst} {side} rows={len(rows)} failed_months={failed}", flush=True)
+            gaps += [f"{inst} {side} {month}" for month in failed]
+    if gaps:
+        print("GAPS (refetch before use): " + ", ".join(gaps), flush=True)
+        return 1
     print("DONE", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -162,9 +162,11 @@ class VerdictTest(unittest.TestCase):
         from strategies.ld34.study import _verdict
 
         dsr = {"probability": 0.97}
-        self.assertEqual(_verdict(self._summary(0.8), dsr, self._checks([True] * 5), self._summary(0.2), 500)[0], "edge")
-        self.assertEqual(_verdict(self._summary(0.8), dsr, self._checks([True] * 5), self._summary(-0.2), 500)[0],
-                         "needs-more-data")
+        all_pass = self._checks([True] * 5)
+        self.assertEqual(_verdict(self._summary(0.8), dsr, all_pass, self._summary(0.2), 500)[0], "edge")
+        self.assertEqual(_verdict(self._summary(0.8), dsr, all_pass, self._summary(-0.2), 500)[0], "needs-more-data")
+        # Fewer than 100 trades never reaches edge.
+        self.assertEqual(_verdict(self._summary(0.8), dsr, all_pass, self._summary(0.2), 50)[0], "needs-more-data")
         oos_fail = self._checks([False, True, True, True, True])
         self.assertEqual(_verdict(self._summary(-0.1), dsr, oos_fail, self._summary(0.2), 500)[0], "no-edge")
         dsr_fail = self._checks([True, False, True, True, True])
@@ -173,9 +175,38 @@ class VerdictTest(unittest.TestCase):
         verdict, reason = _verdict(self._summary(0.6), {"probability": 0.8}, three, self._summary(-1), 500)
         self.assertEqual(verdict, "needs-more-data")
         self.assertIn("g1: r1; g4: r4", reason)
-        self.assertEqual(_verdict(self._summary(0.6), {"probability": 0.8}, three, self._summary(-1), 50)[0], "needs-more-data")
         two = self._checks([True, False, True, False, False])
         self.assertEqual(_verdict(self._summary(0.6), {"probability": 0.8}, two, self._summary(-1), 500)[0], "no-edge")
+        # At most 2 gates is no edge even with few trades.
+        self.assertEqual(_verdict(self._summary(0.6), {"probability": 0.8}, two, self._summary(-1), 50)[0], "no-edge")
+
+
+class StudyHelpersTest(unittest.TestCase):
+    def test_exit_day_moves_the_post_close_hour(self) -> None:
+        from strategies.ld34.study import _exit_day
+
+        self.assertEqual(_exit_day(ms("2026-01-05T20:00:00")), "2026-01-05")  # 15:00 EST bar ends at the close
+        self.assertEqual(_exit_day(ms("2026-01-05T21:00:00")), "2026-01-06")  # 16:00 EST bar ends after it
+        self.assertEqual(_exit_day(ms("2026-07-06T20:00:00")), "2026-07-07")  # 16:00 EDT
+        self.assertEqual(_exit_day(ms("2026-01-05T22:00:00")), "2026-01-06")  # 17:00 EST: next session
+
+    def test_trade_returns_net_of_financing_inside_window(self) -> None:
+        from strategies.ld34.study import _trade_returns
+
+        times = [ms("2024-01-02T15:00:00") + i * 86_400_000 for i in range(12)]
+        run = {"times": times, "equity": [1.0] * 12,
+               "trades": [{"entryIndex": 1, "exitIndex": 11, "units": 0.03, "entryPrice": 100.0, "pnl": 0.05},
+                          {"entryIndex": 0, "exitIndex": 1, "units": 0.005, "entryPrice": 100.0, "pnl": -0.01}]}
+        out = _trade_returns(run, {"2023-12-29": 5.0}, "2024-01-01")
+        self.assertAlmostEqual(out[0], 0.05 - 2 * 0.065 * 10 / 365)
+        self.assertAlmostEqual(out[1], -0.01)
+        self.assertEqual(len(_trade_returns(run, {"2023-12-29": 5.0}, "2024-01-03")), 1)
+
+    def test_summary_and_finite_guards(self) -> None:
+        from strategies.ld34.study import _finite, _summary
+
+        self.assertEqual(_summary([("2024-01-01", 1.0)])["outOfSample"]["sharpe"], 0.0)
+        self.assertEqual(_finite({"a": [1.0, float("nan")], "b": float("inf"), "c": "x"}), {"a": [1.0, 0.0], "b": 0.0, "c": "x"})
 
 
 class RulesTest(unittest.TestCase):

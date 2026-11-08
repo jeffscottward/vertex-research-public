@@ -110,27 +110,30 @@ def trade_stats(trades: Sequence[Mapping]) -> dict:
     }
 
 
+def trade_fee(trade: Mapping, times: Sequence[float], equity: Sequence[float], days_sorted: Sequence[str],
+              rate_by_day: Mapping[str, float]) -> float:
+    """Interest (unit equity) on the borrowed part of one position: notional above the equity at entry,
+    for the time held, at IRX / 100 + FINANCING_SPREAD (IRX of the entry day, else the latest earlier one)."""
+    entry, exit_ = trade["entryIndex"], trade["exitIndex"]
+    before = equity[entry - 1] if entry > 0 else equity[0]
+    borrowed = trade["units"] * trade["entryPrice"] - before
+    if borrowed <= 0:
+        return 0.0
+    held = (times[exit_] - times[entry]) / 86_400_000
+    rate = _rate_on(session_day(times[entry]), days_sorted, rate_by_day) / 100 + FINANCING_SPREAD
+    return borrowed * max(rate, 0.0) * held / 365
+
+
 def financing_factors(trades: Sequence[Mapping], times: Sequence[float], equity: Sequence[float],
                       rate_by_day: Mapping[str, float]) -> dict[str, float]:
-    """Interest on the borrowed part of each position (notional above the equity at entry), charged at
-    exit: day -> fraction of equity lost that day. Rate = IRX / 100 + FINANCING_SPREAD (IRX of the
-    entry day, else the latest earlier one)."""
+    """The trade_fee of each position, charged at exit: day -> fraction of equity lost that day."""
     days_sorted = sorted(rate_by_day)
     charges: dict[str, float] = {}
     for trade in trades:
-        entry, exit_ = trade["entryIndex"], trade["exitIndex"]
-        before = equity[entry - 1] if entry > 0 else equity[0]
-        notional = trade["units"] * trade["entryPrice"]
-        borrowed = notional - before
-        if borrowed <= 0:
-            continue
-        held = (times[exit_] - times[entry]) / 86_400_000
-        entry_day = session_day(times[entry])
-        rate = _rate_on(entry_day, days_sorted, rate_by_day) / 100 + FINANCING_SPREAD
-        fee = borrowed * max(rate, 0.0) * held / 365
-        at_exit = equity[exit_]
-        if at_exit > 0:
-            day = session_day(times[exit_])
+        fee = trade_fee(trade, times, equity, days_sorted, rate_by_day)
+        at_exit = equity[trade["exitIndex"]]
+        if fee > 0 and at_exit > 0:
+            day = session_day(times[trade["exitIndex"]])
             charges[day] = charges.get(day, 0.0) + fee / at_exit
     return charges
 

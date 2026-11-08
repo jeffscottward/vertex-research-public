@@ -37,7 +37,7 @@ class Instrument:
     twin: str | None = None  # Core 7 ETF twin whose options express the signal
 
 
-# Leverage caps: ESMA retail CFD limits (index 20, major FX 30, other FX and gold 20,
+# Leverage caps: ESMA retail CFD limits (major index 20, other index 10, major FX 30, other FX and gold 20,
 # other commodities 10, crypto 2); ETFs: Reg T overnight margin 2.
 INSTRUMENTS: tuple[Instrument, ...] = (
     Instrument("SPX500", "usa500idxusd", "S&P 500 index CFD", "reel-sheet", "index", 20, 1.0, "SPY"),
@@ -50,7 +50,7 @@ INSTRUMENTS: tuple[Instrument, ...] = (
     Instrument("EURJPY", "eurjpy", "EUR/JPY", "reel-results", "fx", 20, 0.5),
     Instrument("XAUUSD", "xauusd", "Gold / USD", "reel-results", "metal", 20, 1.0, "GLD"),
     Instrument("US30", "usa30idxusd", "Dow 30 index CFD", "core7", "index", 20, 1.0, "DIA"),
-    Instrument("US2000", "ussc2000idxusd", "Russell 2000 index CFD", "core7", "index", 20, 1.0, "IWM"),
+    Instrument("US2000", "ussc2000idxusd", "Russell 2000 index CFD", "core7", "index", 10, 1.0, "IWM"),
     Instrument("XAGUSD", "xagusd", "Silver / USD", "core7", "metal", 10, 2.0, "SLV"),
     Instrument("WTI", "lightcmdusd", "WTI light crude CFD", "core7", "energy", 10, 2.0, "USO"),
     Instrument("SPY", "spyususd", "SPY ETF", "etf-twin", "etf", 2, 1.0),

@@ -36,7 +36,7 @@ GAPS: list[dict[str, str]] = [
     {"gap": "ATR timeframe", "choice": "ATR(14) of the H1 bars (the chart the EA runs on)."},
     {"gap": "Trail anchor", "choice": "Highest H1 close since entry minus 2 x ATR(14), moved at each H1 close, never lowered; armed once the high reaches +1R."},
     {"gap": "Stop fill", "choice": "Stop-market: the stop price, or the bar open when the bar gaps through it."},
-    {"gap": "Leverage", "choice": "1 % risk needs leverage on tight hourly stops: capped at ESMA retail CFD limits (index 20, FX 20-30, gold 20, other commodities 10, crypto 2) and 2 for ETFs."},
+    {"gap": "Leverage", "choice": "1 % risk needs leverage on tight hourly stops: capped at ESMA retail CFD limits (major index 20, Russell 10, FX 20-30, gold 20, other commodities 10, crypto 2) and 2 for ETFs."},
     {"gap": "Costs", "choice": "Measured median Dukascopy spread + 0.5-5 bps slippage; IBKR Pro Fixed for ETFs; interest on the borrowed part at T-bill + 1.5 %."},
     {"gap": "Data", "choice": "Dukascopy public H1 bid/ask (the reel's NDX row is Dukascopy data): indices 2012/2013+, FX and metals 2003+, BTC 2017+, ETFs 2017+."},
     {"gap": "Options form (Vertex)", "choice": "45-DTE call debit vertical on the Core 7 ETF twin per signal, 2 % max loss, exits with the underlying or at 7 DTE; no BTC options form."},

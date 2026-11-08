@@ -5,8 +5,8 @@
 
 study: every Nautilus run of the pre-registered study (docs/specs/strategies/
 ld34-nested-donchian-breakout.md) on the Dukascopy H1 data (VERTEX_LD34_DATA)
-and the qc-ports option data. Prints one JSON line {"id", "summary"} (the input
-of `bun run vertex:research-studies:import`); progress goes to stderr. With
+and the qc-ports option data. Prints the strategy-backtest study document (the
+input of `bun run vertex:research-studies:import`); progress goes to stderr. With
 --artifacts it also writes the daily curves for the report into DIR (outside
 the repository).
 """

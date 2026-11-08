@@ -7,17 +7,19 @@ Pre-registered rules: docs/specs/strategies/ld34-nested-donchian-breakout.md.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from .data import BY_KEY, CORE7, ETF_TWINS, INSTRUMENTS, REEL_SHEET, load_hourly
 from .definition import BASE, SENSITIVITY, WALK_FORWARD_GRID, Params
 from .metrics import (
+    NEW_YORK,
     apply_charges,
     combine,
     daily_points,
@@ -25,8 +27,10 @@ from .metrics import (
     financing_factors,
     monte_carlo,
     monthly,
+    session_day,
     split,
     stats,
+    trade_fee,
     trade_stats,
     walk_forward,
 )
@@ -85,13 +89,19 @@ def _row(item_key: str, run: Mapping, points: list, bh: list) -> dict:
     }
 
 
-def _trade_returns(run: Mapping) -> list[float]:
+def _trade_returns(run: Mapping, irx: Mapping[str, float], first_day: str) -> list[float]:
+    """Per-trade return on the equity before the trade, net of its financing, for trades entered on or
+    after first_day."""
+    days_sorted = sorted(irx)
     out = []
     for trade in run["trades"]:
         entry = trade["entryIndex"]
+        if session_day(run["times"][entry]) < first_day:
+            continue
         before = run["equity"][entry - 1] if entry > 0 else run["equity"][0]
         if before > 0:
-            out.append(trade["pnl"] / before)
+            fee = trade_fee(trade, run["times"], run["equity"], days_sorted, irx)
+            out.append((trade["pnl"] - fee) / before)
     return out
 
 
@@ -100,6 +110,9 @@ def _hold_days(run: Mapping) -> list[float]:
 
 
 def _summary(points: list) -> dict:
+    if len(points) < 3:
+        empty = stats(points)
+        return {"full": empty, "inSample": empty, "outOfSample": empty}
     full = stats(points)
     is_part, oos = split(points, IS_FRACTION)
     return {"full": full, "inSample": stats(is_part), "outOfSample": stats(oos)}
@@ -121,12 +134,11 @@ def _options_form(base_runs: Mapping[str, dict], log: Log) -> dict:
         if twin is None or run is None:
             continue
         market = load_market(twin)
-        index = {day: i for i, day in enumerate(market.dates)}
         days = list(market.dates)
         events = []
         for trade in run["trades"]:
             entry_day = _session(run["times"][trade["entryIndex"]])
-            exit_day = _session(run["times"][trade["exitIndex"]])
+            exit_day = _exit_day(run["times"][trade["exitIndex"]])
             e = _index_on_or_after(days, entry_day)
             x = _index_on_or_after(days, exit_day)
             if e is None or e == 0:
@@ -140,7 +152,6 @@ def _options_form(base_runs: Mapping[str, dict], log: Log) -> dict:
             events.append(SignalEvent(twin, entry_signal, exit_signal))
         markets[twin] = market
         events_by_symbol[twin] = events
-        del index
     per_symbol = {}
     for twin, events in events_by_symbol.items():
         book = build_book(events, OPTIONS_BLOCK, {twin: markets[twin]})
@@ -157,8 +168,16 @@ def _options_form(base_runs: Mapping[str, dict], log: Log) -> dict:
 
 
 def _session(t_ms: float) -> str:
-    from .metrics import session_day
     return session_day(t_ms)
+
+
+def _exit_day(t_ms: float) -> str:
+    """ETF day whose close follows an underlying exit in the bar opening at t_ms: the session day, or the
+    next day when the bar is the 16:00-17:00 New York hour (it ends after the ETF close)."""
+    day = session_day(t_ms)
+    if datetime.fromtimestamp(t_ms / 1000, UTC).astimezone(NEW_YORK).hour == 16:
+        return (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+    return day
 
 
 def _index_on_or_after(days: Sequence[str], day: str) -> int | None:
@@ -190,7 +209,8 @@ def _library_rows(repo: Path) -> list[dict]:
             if universe.get("id") != "core7-etf-twins":
                 continue
             s = universe["combined"]["summary"]
-            rows.append({"name": f"{strategy['name']} (library, Core 7 ETF twins, daily)", "kind": "library",
+            window = f"{s.get('start', '?')[:4]}-{s.get('end', '?')[:4]}"
+            rows.append({"name": f"{strategy['name']} (library, ETF twins, daily, {window})"[:80], "kind": "library",
                          "sharpe": s["sharpe"], "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"]})
     return rows
 
@@ -206,7 +226,9 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     stress_keys = list(dict.fromkeys(REEL_SHEET + CORE7))
     jobs += [(key, BASE, float(GATE["costStressMultiple"])) for key in stress_keys]
     jobs += [(key, params, 1.0) for _, _, params in SENSITIVITY for key in REEL_SHEET]
-    wf_extra = [p for p in WALK_FORWARD_GRID if p != BASE]
+    # Distinct configurations only: grid points already in SENSITIVITY (or BASE) are not run or counted twice.
+    sens_params = [params for _, _, params in SENSITIVITY]
+    wf_extra = [p for p in WALK_FORWARD_GRID if p != BASE and p not in sens_params]
     jobs += [(key, params, 1.0) for params in wf_extra for key in REEL_SHEET]
     log(f"{len(jobs)} Nautilus runs on {workers} workers")
     results = _run_all(jobs, root, workers, log)
@@ -258,7 +280,7 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     for params in WALK_FORWARD_GRID:
         port = combine([_net_points(find(k, params), irx) for k in REEL_SHEET])
         wf_candidates.append(port)
-        if params != BASE:
+        if params in wf_extra:
             trial_sharpes.append(stats(port)["sharpePerDay"])
     wf = walk_forward(wf_candidates)
     wf_stats = stats(wf["curve"]) if len(wf["curve"]) > 2 else stats(primary)
@@ -267,7 +289,8 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     stress = combine([_net_points(find(k, BASE, float(GATE["costStressMultiple"])), irx) for k in REEL_SHEET])
     stress_stats = stats(stress)
     # Each sleeve holds 1/len of the portfolio, so a trade moves portfolio equity by its sleeve return / len.
-    trade_rets = [r / len(REEL_SHEET) for k in REEL_SHEET for r in _trade_returns(base_runs[k])]
+    # Trades net of financing, inside the portfolio window; resampled independently (overlap ignored).
+    trade_rets = [r / len(REEL_SHEET) for k in REEL_SHEET for r in _trade_returns(base_runs[k], irx, primary[0][0])]
     mc = monte_carlo(trade_rets)
     n_trials = 1 + len(SENSITIVITY) + len(wf_extra)
     dsr = deflated_sharpe(primary, n_trials, trial_sharpes)
@@ -307,7 +330,7 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
 
     checks = _checks(primary_summary, dsr, mc, neighbour_share, stress_stats, wf_stats, base_on_wf, opt_summary)
     verdict, reason = _verdict(primary_summary, dsr, checks, opt_summary,
-                               sum(len(base_runs[k]["trades"]) for k in REEL_SHEET))
+                               len(trade_rets))
     holds = sorted(d for k in REEL_SHEET for d in _hold_days(base_runs[k]))
     detail = {
         "rows": rows, "optionRows": opt_rows, "portfolios": {n: _summary(p) for n, p in portfolios.items()},
@@ -357,7 +380,7 @@ def _checks(primary: dict, dsr: dict, mc: dict, neighbour_share: float, stress: 
         {"check": "Monte Carlo drawdown P5", "value": mc.get("maxDrawdownP5"), "threshold": GATE["monteCarloDrawdownP5Min"],
          "pass": mc.get("maxDrawdownP5", -1) >= GATE["monteCarloDrawdownP5Min"],
          "result": f"P5 max drawdown {mc.get('maxDrawdownP5', 0):.1%} over {mc.get('paths', 0)} trade bootstraps; "
-                   f"loss share {mc.get('lossShare', 0):.0%}"},
+                   f"loss share {mc.get('lossShare', 0):.0%} (net of financing; overlapping trades resampled independently)"},
         {"check": "Parameter neighbours with Sharpe > 0", "value": neighbour_share, "threshold": GATE["neighbourShareMin"],
          "pass": neighbour_share >= GATE["neighbourShareMin"], "result": f"{neighbour_share:.0%} of {len(SENSITIVITY)} one-at-a-time changes"},
         {"check": "2x costs", "value": stress["sharpe"], "threshold": 0, "pass": stress["sharpe"] > 0,
@@ -379,13 +402,13 @@ def _verdict(primary: dict, dsr: dict, checks: list[dict], options: dict, trades
     opt = options["outOfSample"]["sharpe"]
     tail = (f"{passed}/5 gates pass on the reel-sheet portfolio (OOS Sharpe {oos:.2f}, deflated Sharpe probability "
             f"{dsr['probability']:.2f}). Failed: {failed}. Options form OOS Sharpe {opt:.2f}.")
-    if all(c["pass"] for c in gates) and opt > 0:
-        return "edge", tail
-    if oos <= 0 or dsr["probability"] < 0.5:
+    if oos <= 0 or dsr["probability"] < 0.5 or passed <= 2:
         return "no-edge", tail
     if trades < 100:
         return "needs-more-data", f"Only {trades} trades on the reel-sheet markets. " + tail
-    return ("no-edge" if passed <= 2 else "needs-more-data"), tail
+    if passed == len(gates) and opt > 0:
+        return "edge", tail
+    return "needs-more-data", tail
 
 
 def _document(ran, rows, opt_rows, detail, primary, sens_rows, repo, results, verdict, reason, checks,
@@ -420,7 +443,7 @@ def _document(ran, rows, opt_rows, detail, primary, sens_rows, repo, results, ve
         "spec": SPEC_PATH,
         "source": {"url": REEL_URL, "label": "Instagram reel DffCOSDBMoC, hooper.algo.fxx, 2026-11-08"},
         "verdict": verdict,
-        "verdictReason": reason[:1000],
+        "verdictReason": reason[:1000].rstrip(),
         "rules": RULES,
         "gaps": GAPS,
         "forms": [
@@ -459,6 +482,13 @@ def _notes(detail: dict) -> str:
     lines.append(f"Options form: {detail['options']['trades']} spreads, {detail['options']['skipped']} signals skipped; "
                  f"ledger vs Nautilus max equity gap {detail['options']['ledgerNautilusMaxGap']:.2f} USD.")
     lines.append("BTCUSD has no options form (no listed BTC ETF options history long enough); FX crosses are replication only.")
+    lines.append("Financing is a margin-loan model (interest on the borrowed part at T-bill + 1.5 %), not retail CFD funding on "
+                 "the full notional; stops trigger on mid prices with a constant median spread charged at each fill. Both "
+                 "favour the result slightly.")
+    lines.append("The deflated Sharpe counts every distinct configuration tried; they are one-step neighbours, so their Sharpe "
+                 "variance is small and the deflation is mild.")
+    lines.append("Library and buy-and-hold rows cover their own windows (see the labels); the LD34 portfolios start when "
+                 "all their markets have data.")
     return "\n".join(line for line in lines if line)[:4000]
 
 
@@ -471,11 +501,23 @@ def _write_artifacts(out_dir: Path, detail: dict, portfolios: dict, bh_portfolio
     artifact.write_text(json.dumps(payload, default=str))
 
 
+def _finite(value, path: str = "$"):
+    """The document with every non-finite number replaced by 0.0 (each one reported on stderr)."""
+    if isinstance(value, float) and not math.isfinite(value):
+        _log(f"warning: non-finite number at {path}, stored as 0")
+        return 0.0
+    if isinstance(value, dict):
+        return {k: _finite(v, f"{path}.{k}") for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite(v, f"{path}[{i}]") for i, v in enumerate(value)]
+    return value
+
+
 def main_study(ran: str, workers: int, out_dir: str | None) -> int:
     date.fromisoformat(ran)
     root = os.environ.get("VERTEX_LD34_DATA")
     doc = run_study(ran, root=root, workers=workers, out_dir=Path(out_dir) if out_dir else None)
-    print(json.dumps(doc, allow_nan=False))
+    print(json.dumps(_finite(doc), allow_nan=False))
     return 0
 
 
