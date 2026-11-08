@@ -8,7 +8,7 @@ How it works: the API stores a new backtest run with the engine `nautilus-trader
 
 | File | Use |
 | --- | --- |
-| `vertex-nautilus-worker.service` | User unit, `Restart=always`. `SIGTERM` stops the worker; a running engine process is killed and its run fails. |
+| `vertex-nautilus-worker.service` | User unit, `Restart=always`. Every start waits 65 s first (`ExecStartPre`), so the key limiter count of the previous process has reset. `SIGTERM` stops the worker; a running engine process is killed and its run fails. |
 | `vertex-nautilus-worker-run.sh` | Start script template. It reads the write key from its own `0600` file and starts the worker from a runner checkout. Contains placeholders only. |
 
 ## Install
@@ -54,7 +54,7 @@ The agent key limiter (better-auth api-key plugin, `rate_limit_max` 600 and `rat
 The worker therefore:
 
 - Backs off when idle: 3 s after an empty claim, then 6, 12 and 24 s up to `VERTEX_WORKER_IDLE_MAX_MS` (45 s). A claim that returns work resets the wait to 3 s.
-- Sends at most 150 requests (a quarter of the limit; `VERTEX_WORKER_REQUEST_BUDGET`) and then nothing for 125 s (two limiter windows plus 5 s; `VERTEX_WORKER_QUIET_PAUSE_MS`). A worker restart starts a new budget. With its own key see [Own key](#own-key-fast-polling).
+- Sends at most 150 requests (a quarter of the limit; `VERTEX_WORKER_REQUEST_BUDGET`) and then nothing for 125 s (two limiter windows plus 5 s; `VERTEX_WORKER_QUIET_PAUSE_MS`). A worker restart starts a new budget but not a new limiter count, so the unit waits 65 s before it starts the worker (`ExecStartPre=/usr/bin/sleep 65`). With its own key see [Own key](#own-key-fast-polling).
 - On a 429 answer to a claim, waits the quiet pause (125 s by default), or the `Retry-After` time when the answer has a longer one, and then starts again with the 3 s idle wait.
 - On a 429 answer while it delivers a result, waits once (125 s, or less when the run would pass the API's 10-minute stale limit; it stops 30 s before it) and tries once more. With less than 1 s left it does not try again. A second 429 fails the run with "Could not deliver the Nautilus result". Without this cut a 9-minute run plus the wait would pass the stale limit, and the API would refuse the finished result with 409.
 

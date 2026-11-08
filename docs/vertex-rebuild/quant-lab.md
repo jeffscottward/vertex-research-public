@@ -32,9 +32,9 @@ Status: research only. Nothing in this pipeline places orders, reads broker acco
 
 ## Engine
 
-Quant Lab has two engines with the same input (a frozen spec and frozen CSV bars) and the same result record. The result has an `engine` field: `stdlib-daily-v1` (default) or `nautilus-trader-1.227.0`. The existing `backtesting/` package plans and verifies runs but does not simulate fills.
+Quant Lab has two engines with the same input (a frozen spec and frozen CSV bars) and the same result record. The result has an `engine` field: `nautilus-trader-1.227.0` (the CLI default since 2026-11-08, switch plan step 3 in [nautilus-backtest-engine.md](nautilus-backtest-engine.md#switch-plan)) or `stdlib-daily-v1` (`--engine stdlib`). The existing `backtesting/` package plans and verifies runs but does not simulate fills.
 
-`quantlab/engine.py` (default) is a deterministic, standard-library daily simulator:
+`quantlab/engine.py` (`--engine stdlib`) is a deterministic, standard-library daily simulator:
 
 - Signals use adjusted closes up to the decision day. The trade fills at the next session's open. Month-end detection uses the next trading date, which is known from the exchange calendar in advance.
 - Costs per side: commission + half-spread + slippage on traded notional. A 5x cost stress run is included.
@@ -42,39 +42,39 @@ Quant Lab has two engines with the same input (a frozen spec and frozen CSV bars
 - Validation: fixed-parameter in-sample/out-of-sample split at the preregistered date, and a rolling walk-forward (train window selects the lookback by Sharpe; next test window uses it). The Backtests page shows the stitched walk-forward curve and a buy-and-hold benchmark on the same days.
 - Limits: bar-level fills; no queue position, partial fills, borrow, taxes or intraday gaps beyond the open.
 
-### NautilusTrader engine (optional)
+### NautilusTrader engine (default)
 
-`quantlab/nautilus_engine.py` runs the same spec in a NautilusTrader `BacktestEngine`. Select it with `--engine nautilus`. The pin is `nautilus-trader==1.227.0`, the version of the Vertex Quant node. It is a lazy import: the package imports without it, and `--engine nautilus` without the pinned version stops with exit code 2 and an install hint. Install from the hash lock `services/research/requirements-nautilus-linux-py312.lock` (CPython 3.12, Linux x86_64, glibc 2.35 or later; NautilusTrader is LGPL-3.0 and is a pinned dependency only, never vendored). Research only: one simulated venue, no live client, broker, order route or network.
+`quantlab/nautilus_engine.py` runs the same spec in a NautilusTrader `BacktestEngine`. The CLI uses it unless `--engine stdlib` is given (`run_spec` in Python still defaults to stdlib, so the base test lane needs no Nautilus). The pin is `nautilus-trader==1.227.0`, the version of the Vertex Quant node. It is a lazy import: the package imports without it, and a Nautilus run (the default, or `--engine nautilus`) without the pinned version stops with exit code 2, an install hint and the `--engine stdlib` alternative. Install from the hash lock `services/research/requirements-nautilus-linux-py312.lock` (CPython 3.12, Linux x86_64, glibc 2.35 or later; NautilusTrader is LGPL-3.0 and is a pinned dependency only, never vendored). Research only: one simulated venue, no live client, broker, order route or network.
 
 Known advisory exception (owner decision 2026-11-05, card vertex-fsspec-bump): the lock pins `fsspec==2026.2.0`, which has PYSEC-2026-4217 (code execution through Jinja templates in `ReferenceFileSystem` references JSON, fixed in 2026.6.0). Every nautilus-trader release from 1.227.0 to 1.231.0 requires `fsspec<=2026.2.0`, so the fix cannot be installed. Vertex code does not use `ReferenceFileSystem`, `reference://` URLs, kerchunk or xarray, and the engine opens no untrusted fsspec URL. Audit this lock with `uvx pip-audit --disable-pip --no-deps --ignore-vuln PYSEC-2026-4217 -r services/research/requirements-nautilus-linux-py312.lock`. Remove the exception and bump fsspec when a nautilus-trader release allows fsspec 2026.6.0 or later.
 
 How it maps the spec:
 
 - Each session is three one-minute bars with open = high = low = close: the opening print (adjusted open), the closing print (adjusted close), and an end-of-day mark at the close price. Bar-based execution fills a market order at the price of the print where the strategy submits it.
-- Decisions: the same `engine.signals` function as the default engine, read at the end-of-day mark. The order goes in at the next session's opening print (`next_open`) or closing print (`next_close`). So fill dates and fill prices are the same as in the default engine.
+- Decisions: the same `engine.signals` function as the stdlib engine, read at the end-of-day mark. The order goes in at the next session's opening print (`next_open`) or closing print (`next_close`). So fill dates and fill prices are the same as in the stdlib engine.
 - Costs: commission + half-spread + slippage per side are the instrument fee on traded notional. The fill price is the print price; spread and slippage are a fee, not a worse price.
 - Cash interest: a simulation module credits the daily T-bill rate on the cash balance before the first print of each session.
 - Account: CASH account, 100,000,000 USD start, whole shares. An entry buys `floor(weight × equity / (1 + weight × fee) / price)` shares; an exit sells all.
 - The buy-and-hold benchmark stays closed-form for both engines.
 
-Differences from the default engine:
+Differences from the stdlib engine:
 
 - Whole shares, cent-rounded fees and interest, and the fee charged on notional instead of on equity. With weight 1 the close equity agrees within 1e-5 (relative); the parity tests (`services/research/tests/test_quantlab_nautilus.py`) check this tolerance and equal trade dates, sides and fill prices.
-- The share count is fixed between rebalances. With a weight below 1 the exposure drifts with the price; the default engine keeps the weight constant every day.
+- The share count is fixed between rebalances. With a weight below 1 the exposure drifts with the price; the stdlib engine keeps the weight constant every day.
 - About 15 times slower (a full SPY 1993–2026 spec with an 11-value walk-forward grid and the cost stress: about 35 seconds on this host).
 - The result `strategy` label ends in `(walk-forward, nautilus-trader-1.227.0)`. The recorder drops the top-level `engine` key and the stored `runConfig` is a closed contract, so the label is how a recorded row shows the engine.
 
 ## Commands
 
-From `services/research` with Python 3.12 (the package uses only the standard library; tests need pytest, for example `uv run --python 3.12 --with pytest python -m pytest tests/test_quantlab.py`). The `--engine nautilus` line needs a separate virtual environment from `requirements-nautilus-linux-py312.lock` (`python -m pip install --no-deps --require-hashes --only-binary=:all: -r requirements-nautilus-linux-py312.lock`):
+From `services/research` with Python 3.12 (the package uses only the standard library; tests need pytest, for example `uv run --python 3.12 --with pytest python -m pytest tests/test_quantlab.py`). The default (Nautilus) `backtest` line needs a separate virtual environment from `requirements-nautilus-linux-py312.lock` (`python -m pip install --no-deps --require-hashes --only-binary=:all: -r requirements-nautilus-linux-py312.lock`):
 
 ```sh
 python -m quantlab paper --doi 10.2139/ssrn.2242795 --topic "moving average market timing"
 python -m quantlab spec --capture ../../private/quantlab/captures/ssrn-2242795.json --draft quantlab/drafts/zakamulin-2013-sma-timing.json
 python -m quantlab freeze --symbol SPY --start 1993-01-01 --end 2026-10-17
 python -m quantlab freeze --symbol ^IRX --start 1993-01-01 --end 2026-10-17
-python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest>
-python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest> --engine nautilus
+python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest>                  # NautilusTrader
+python -m quantlab backtest --spec <spec.json> --bars <spy manifest> --rates <irx manifest> --engine stdlib    # stdlib engine
 ```
 
 From the repository root. `DATABASE_URL` selects the target database; for the QuantVPS database use an SSH tunnel to its `127.0.0.1:5433`:

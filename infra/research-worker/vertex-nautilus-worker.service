@@ -13,6 +13,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# A restart starts a new request budget, but the agent key limiter keeps its count until more than
+# 60 s pass without an accepted request (README.md, request budget). Wait 65 s before the first
+# claim, so two restarts close together never meet a 429 (one did on 2026-11-06 06:47Z).
+ExecStartPre=/usr/bin/sleep 65
+TimeoutStartSec=120
 ExecStart=%h/.local/bin/vertex-nautilus-worker-run
 Restart=always
 RestartSec=10

@@ -4,7 +4,10 @@
 //   bun run research:quantjourney                     # render the inventory doc
 //   bun run research:quantjourney -- --check          # exit 1 if the doc is out of date
 //   bun run research:quantjourney -- --rerun --data <dir> --runs <dir>
+//       [--engine nautilus|typescript] [--python <path>]
 //                                                     # recompute results.json, then render
+// The Vertex re-run uses NautilusTrader by default (switch plan step 3); a Nautilus re-run also
+// runs each job on the TypeScript engine and writes nothing outside the parity tolerance.
 //
 // research/backtests/quantjourney/library.json is the inventory (source of truth); results.json
 // holds the re-run summaries (no price series: the Yahoo data is not redistributable).
@@ -24,7 +27,17 @@ import {
   type TrialReturns,
 } from "../../packages/api/src/quant-multiple-testing.ts";
 import { StrategyDefinitionSchema } from "../../packages/api/src/strategy-dsl.ts";
-import { runStrategyDefinition } from "../../packages/api/src/strategy-dsl-compile.ts";
+import {
+  type DslJob,
+  type DslRunner,
+  engineOptions,
+  type NautilusIo,
+  type PreparedEngine,
+  parityFailure,
+  prepareEngine,
+  typescriptEngine,
+  typescriptRunner,
+} from "./dsl-engine.ts";
 import { renderDoc } from "./quantjourney-render.ts";
 
 export const RESEARCH_DIR = "research/backtests/quantjourney";
@@ -157,6 +170,18 @@ const resultSchema = z.object({
 
 export const resultsDocSchema = z.object({
   data: z.object({ manifestSha256: z.string(), source: z.string() }),
+  // Engine of the Vertex re-run; absent in files written before 2026-11-08 (TypeScript engine).
+  engine: z.string().optional(),
+  engineParity: z
+    .object({
+      against: z.string(),
+      equityRelTolerance: z.number(),
+      jobs: z.number().int(),
+      maxEquityRel: z.number(),
+      pass: z.number().int(),
+    })
+    .nullable()
+    .optional(),
   generated: z.string(),
   strategies: z.array(resultSchema),
   trials: z.number().int(),
@@ -322,16 +347,15 @@ export const combineSleeves = (
 export const runDslSleeves = (
   strategy: LibraryStrategy,
   tables: ReadonlyMap<string, PriceTable>,
-  costBps: number
+  costBps: number,
+  runner: DslRunner = typescriptRunner
 ): AnalyticsEquityPoint[] | null => {
   const definition = strategy.dsl;
   if (definition === null) return null;
   const sleeves = strategy.universe.map((symbol) => {
     const table = tables.get(symbol);
     if (table === undefined) throw new Error(`missing data for ${symbol}`);
-    const equity = [
-      ...runStrategyDefinition(table.bars, definition, costBps).equity,
-    ];
+    const equity = runner(table.bars, definition, costBps);
     return table.dates.map((date, i) => point(date, at(equity, i)));
   });
   return combineSleeves(sleeves);
@@ -503,9 +527,25 @@ export type RerunInputs = Readonly<{
   ) => PriceTable;
 }>;
 
-export const rerunStrategy = (
+/** Price tables of a strategy's DSL re-run (empty without a DSL definition). */
+const dslTables = (
   strategy: LibraryStrategy,
   inputs: RerunInputs
+): Map<string, PriceTable> => {
+  const { start, end } = strategy.period;
+  const gran = strategy.granularity === "1h" ? "1h" : "1d";
+  return new Map(
+    (strategy.dsl === null ? [] : strategy.universe).map((symbol) => [
+      symbol,
+      inputs.prices(symbol, gran, start, end),
+    ])
+  );
+};
+
+export const rerunStrategy = (
+  strategy: LibraryStrategy,
+  inputs: RerunInputs,
+  runner: DslRunner = typescriptRunner
 ): StrategyResult => {
   if (strategy.rerun.status === "no-data") {
     return {
@@ -522,18 +562,16 @@ export const rerunStrategy = (
     };
   }
   const { start, end } = strategy.period;
-  const gran = strategy.granularity === "1h" ? "1h" : "1d";
   const adapter = adapterRun(inputs.adapterFile(strategy.id, ""));
   const vertexCost = adapterRun(
     inputs.adapterFile(strategy.id, `.cost${VERTEX_COST_BPS}`)
   );
-  const tables = new Map(
-    (strategy.dsl === null ? [] : strategy.universe).map((symbol) => [
-      symbol,
-      inputs.prices(symbol, gran, start, end),
-    ])
+  const dslEquity = runDslSleeves(
+    strategy,
+    dslTables(strategy, inputs),
+    VERTEX_COST_BPS,
+    runner
   );
-  const dslEquity = runDslSleeves(strategy, tables, VERTEX_COST_BPS);
   const dsl = dslEquity === null ? null : summarize(dslEquity);
   let primary: StrategyResult["primary"] = null;
   if (dsl) primary = "dsl";
@@ -626,19 +664,51 @@ export const fileInputs = async (
   };
 };
 
+/**
+ * Builds results.json. `prepare` picks the engine and gets every DSL job first, so Nautilus runs
+ * one batch per price table; the price tables are cached so both passes use the same tables.
+ */
 export const buildResults = (
   library: LibraryDoc,
   inputs: RerunInputs,
-  meta: Readonly<{ generated: string; source: string; manifestSha256: string }>
-): ResultsDoc => ({
-  data: { manifestSha256: meta.manifestSha256, source: meta.source },
-  generated: meta.generated,
-  strategies: applyGates(
-    library.strategies.map((strategy) => rerunStrategy(strategy, inputs))
-  ),
-  trials: TRIALS,
-  vertexCostBps: VERTEX_COST_BPS,
-});
+  meta: Readonly<{ generated: string; source: string; manifestSha256: string }>,
+  prepare: (jobs: readonly DslJob[]) => PreparedEngine = typescriptEngine
+): ResultsDoc => {
+  const cache = new Map<string, PriceTable>();
+  const shared: RerunInputs = {
+    adapterFile: inputs.adapterFile,
+    prices: (symbol, granularity, start, end) => {
+      const key = [symbol, granularity, start, end].join("|");
+      const table =
+        cache.get(key) ?? inputs.prices(symbol, granularity, start, end);
+      cache.set(key, table);
+      return table;
+    },
+  };
+  const jobs = library.strategies.flatMap((strategy) => {
+    const { dsl } = strategy;
+    if (dsl === null || strategy.rerun.status === "no-data") return [];
+    return [...dslTables(strategy, shared).values()].map((table) => ({
+      bars: table.bars,
+      costBps: VERTEX_COST_BPS,
+      definition: dsl,
+    }));
+  });
+  const engine = prepare(jobs);
+  return {
+    data: { manifestSha256: meta.manifestSha256, source: meta.source },
+    engine: engine.engine,
+    engineParity: engine.parity,
+    generated: meta.generated,
+    strategies: applyGates(
+      library.strategies.map((strategy) =>
+        rerunStrategy(strategy, shared, engine.runner)
+      )
+    ),
+    trials: TRIALS,
+    vertexCostBps: VERTEX_COST_BPS,
+  };
+};
 
 type Output = Readonly<{ write: (text: string) => unknown }>;
 
@@ -655,13 +725,23 @@ export const runQuantJourneyCli = async (
     stderr: Output;
     now: () => Date;
     sha256: (text: string) => string;
+    /** Python of the Nautilus lock when --python is absent (VERTEX_NAUTILUS_PYTHON; else python3). */
+    defaultPython: string | undefined;
+    nautilus: Omit<NautilusIo, "python" | "root">;
   }>
 ): Promise<number> => {
-  const known = ["--check", "--rerun", "--data", "--runs"];
+  const valued = ["--data", "--runs", "--engine", "--python"];
+  const known = ["--check", "--rerun", ...valued];
   const unknown = args.filter(
-    (arg, i) =>
-      !(known.includes(arg) || ["--data", "--runs"].includes(args[i - 1] ?? ""))
+    (arg, i) => !(known.includes(arg) || valued.includes(args[i - 1] ?? ""))
   );
+  const options = engineOptions(args, io.defaultPython);
+  if (options === null) {
+    io.stderr.write(
+      "--engine takes nautilus or typescript; --python takes a path\n"
+    );
+    return 2;
+  }
   if (unknown.length > 0) {
     io.stderr.write(`unknown argument: ${unknown.join(" ")}\n`);
     return 2;
@@ -683,8 +763,18 @@ export const runQuantJourneyCli = async (
         manifestSha256: io.sha256(manifest),
         source:
           "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)",
-      }
+      },
+      prepareEngine(options.engine, {
+        ...io.nautilus,
+        python: options.python,
+        root: io.root,
+      })
     );
+    const failure = parityFailure(results.engineParity ?? null);
+    if (failure !== null) {
+      io.stderr.write(failure);
+      return 1;
+    }
     await writeFile(
       join(io.root, RESEARCH_DIR, "results.json"),
       `${JSON.stringify(results, null, 2)}\n`,

@@ -7,7 +7,8 @@ Commands
   spec      --capture capture.json --draft draft.json                          validate + freeze spec
   freeze    --symbol SPY --start YYYY-MM-DD --end YYYY-MM-DD                   freeze daily bars
   backtest  --spec spec.json --bars m.json [--rates m.json] [--start DATE]     run spec, write result
-            [--engine stdlib|nautilus]   stdlib (default) or NautilusTrader 1.227.0 (optional install)
+            [--engine nautilus|stdlib]   NautilusTrader 1.227.0 (default since 2026-11-08) or the
+                                         stdlib simulator; without the Nautilus lock, pass --engine stdlib
 
 All output goes under $QUANTLAB_HOME (default: <repo>/private/quantlab). Research only:
 no orders, no broker access, no credentials.
@@ -50,7 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     f = sub.add_parser("freeze"); f.add_argument("--symbol", required=True); f.add_argument("--start", required=True)
     f.add_argument("--end", required=True)
     t = sub.add_parser("backtest"); t.add_argument("--spec", required=True); t.add_argument("--bars", required=True)
-    t.add_argument("--rates"); t.add_argument("--start"); t.add_argument("--engine", choices=ENGINES, default="stdlib")
+    t.add_argument("--rates"); t.add_argument("--start")
+    # Nautilus is the default engine (switch plan step 3, docs/vertex-rebuild/nautilus-backtest-engine.md).
+    t.add_argument("--engine", choices=ENGINES, default="nautilus")
     args = parser.parse_args(argv)
     root = home()
 
@@ -98,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
             result = run_spec(spec, data.load(bars_manifest), data.load(rates_manifest) if rates_manifest else None,
                               data_label=label, start=args.start, engine=args.engine)
         except NautilusUnavailable as error:  # optional engine not installed or wrong version
-            print(json.dumps({"error": str(error)}), file=sys.stderr)
+            print(json.dumps({"error": f"{error} (or pass --engine stdlib)"}), file=sys.stderr)
             return 2
         result["specId"], result["specSha256"] = spec["id"], spec["spec_sha256"]
         result["data"] = {"bars": bars_manifest, "rates": rates_manifest}

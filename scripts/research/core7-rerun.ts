@@ -1,7 +1,12 @@
 // Core 7 re-run of the QuantJourney strategy library (research only). Nothing here creates,
 // routes or simulates broker orders, and nothing is promoted to paper trading.
 //
-//   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data
+//   bun run research:core7 -- --data ~/Documents/reports/vertex-core7/data \
+//     [--engine nautilus|typescript] [--python <venv python with the Nautilus lock>]
+//
+// NautilusTrader is the default engine (switch plan step 3, docs/vertex-rebuild/
+// nautilus-backtest-engine.md). A Nautilus run also runs each job on the TypeScript engine and
+// writes nothing when the unit equity differs by more than the parity tolerance (dsl-engine.ts).
 //
 // Runs every library strategy with a daily Vertex DSL definition on each member of the
 // "Core 7 futures" and "Core 7 ETF twins" universes (packages/shared/src/universes/index.ts),
@@ -13,12 +18,23 @@ import { z } from "zod";
 import type { AnalyticsEquityPoint } from "../../packages/api/src/backtest-analytics.ts";
 import { at } from "../../packages/api/src/quant-arrays.ts";
 import type { StrategyDefinition } from "../../packages/api/src/strategy-dsl.ts";
-import { runStrategyDefinition } from "../../packages/api/src/strategy-dsl-compile.ts";
 import {
   BACKTEST_UNIVERSES,
   type BacktestUniverse,
   type BacktestUniverseId,
 } from "../../packages/shared/src/universes/index.ts";
+import {
+  type DslJob,
+  type DslRunner,
+  type EngineParity,
+  engineOptions,
+  type NautilusIo,
+  type PreparedEngine,
+  parityFailure,
+  prepareEngine,
+  typescriptEngine,
+  typescriptRunner,
+} from "./dsl-engine.ts";
 import {
   combineSleeves,
   type LibraryDoc,
@@ -97,6 +113,10 @@ export type Core7Results = Readonly<{
       >
     >;
   }>;
+  /** Engine id of the strategy runs (buy and hold is closed-form). */
+  engine: string;
+  /** Nautilus runs only: every job compared with the TypeScript engine. */
+  engineParity: EngineParity | null;
   generated: string;
   method: readonly string[];
   promoted: readonly string[];
@@ -153,11 +173,10 @@ export const buyAndHoldEquity = (table: PriceTable): AnalyticsEquityPoint[] =>
 export const dslEquity = (
   table: PriceTable,
   definition: StrategyDefinition,
-  costBps: number = CORE7_COST_BPS
+  costBps: number = CORE7_COST_BPS,
+  runner: DslRunner = typescriptRunner
 ): AnalyticsEquityPoint[] => {
-  const equity = Array.from(
-    runStrategyDefinition(table.bars, definition, costBps).equity
-  );
+  const equity = runner(table.bars, definition, costBps);
   return table.dates.map((date, i) => point(date, at(equity, i)));
 };
 
@@ -229,7 +248,8 @@ const tableOf =
 
 export const rerunOnCore7 = (
   strategy: LibraryStrategy,
-  tables: ReadonlyMap<string, PriceTable>
+  tables: ReadonlyMap<string, PriceTable>,
+  runner: DslRunner = typescriptRunner
 ): StrategyRun => {
   const { dsl, id, name } = strategy;
   if (dsl === null)
@@ -242,16 +262,37 @@ export const rerunOnCore7 = (
     name,
     status: "run",
     universes: BACKTEST_UNIVERSES.map((universe) =>
-      universeRun(universe, (symbol) => dslEquity(table(symbol), dsl))
+      universeRun(universe, (symbol) =>
+        dslEquity(table(symbol), dsl, CORE7_COST_BPS, runner)
+      )
     ),
   };
 };
 
-/** Builds rerun-results.json from the library and the daily CSV text of each symbol. */
+/** Every engine run of the re-run: each daily DSL strategy on each Core 7 symbol. */
+const core7Jobs = (
+  library: LibraryDoc,
+  tables: ReadonlyMap<string, PriceTable>
+): DslJob[] =>
+  library.strategies.flatMap(({ dsl, granularity }) =>
+    dsl === null || granularity !== "1d"
+      ? []
+      : [...tables.values()].map((table) => ({
+          bars: table.bars,
+          costBps: CORE7_COST_BPS,
+          definition: dsl,
+        }))
+  );
+
+/**
+ * Builds rerun-results.json from the library and the daily CSV text of each symbol. `prepare`
+ * picks the engine; it gets every job first, so Nautilus runs one batch per symbol.
+ */
 export const buildCore7Results = (
   library: LibraryDoc,
   texts: ReadonlyMap<string, string>,
-  meta: Readonly<{ files: ReadonlyMap<string, DataFile>; generated: string }>
+  meta: Readonly<{ files: ReadonlyMap<string, DataFile>; generated: string }>,
+  prepare: (jobs: readonly DslJob[]) => PreparedEngine = typescriptEngine
 ): Core7Results => {
   const tables = new Map(
     core7Symbols().map((symbol) => {
@@ -261,6 +302,7 @@ export const buildCore7Results = (
     })
   );
   const table = tableOf(tables);
+  const engine = prepare(core7Jobs(library, tables));
   const symbols = Object.fromEntries(
     [...tables].map(([symbol, t]) => {
       const file = meta.files.get(symbol);
@@ -282,12 +324,14 @@ export const buildCore7Results = (
     ),
     costBps: CORE7_COST_BPS,
     data: { source: DATA_SOURCE, symbols },
+    engine: engine.engine,
+    engineParity: engine.parity,
     generated: meta.generated,
     method: METHOD,
     promoted: [],
     researchOnly: true,
     strategies: library.strategies.map((strategy) =>
-      rerunOnCore7(strategy, tables)
+      rerunOnCore7(strategy, tables, engine.runner)
     ),
   };
 };
@@ -301,6 +345,10 @@ const manifestSchema = z.object({
 
 type Output = Readonly<{ write: (text: string) => unknown }>;
 
+const USAGE =
+  "usage: bun run research:core7 -- --data <dir> [--engine nautilus|typescript] [--python <path>]\n";
+const FLAGS = ["--data", "--engine", "--python"];
+
 export const runCore7RerunCli = async (
   args: readonly string[],
   io: Readonly<{
@@ -309,13 +357,21 @@ export const runCore7RerunCli = async (
     sha256: (text: string) => string;
     stderr: Output;
     stdout: Output;
+    /** Python of the Nautilus lock when --python is absent (VERTEX_NAUTILUS_PYTHON; else python3). */
+    defaultPython: string | undefined;
+    nautilus: Omit<NautilusIo, "python" | "root">;
   }>
 ): Promise<number> => {
-  if (args.length !== 2 || args[0] !== "--data") {
-    io.stderr.write("usage: bun run research:core7 -- --data <dir>\n");
+  const options = engineOptions(args, io.defaultPython);
+  const pairs =
+    args.length % 2 === 0 &&
+    args.every((arg, i) => i % 2 === 1 || FLAGS.includes(arg));
+  const dataIndex = args.indexOf("--data");
+  if (options === null || !pairs || dataIndex === -1) {
+    io.stderr.write(USAGE);
     return 2;
   }
-  const data = at(args, 1);
+  const data = at(args, dataIndex + 1);
   const library = await loadLibrary(io.root);
   const texts = new Map<string, string>();
   const files = new Map<string, DataFile>();
@@ -333,15 +389,26 @@ export const runCore7RerunCli = async (
       manifestSha256: io.sha256(manifest),
     });
   }
-  const results = buildCore7Results(library, texts, {
-    files,
-    generated: io.now().toISOString(),
-  });
+  const results = buildCore7Results(
+    library,
+    texts,
+    { files, generated: io.now().toISOString() },
+    prepareEngine(options.engine, {
+      ...io.nautilus,
+      python: options.python,
+      root: io.root,
+    })
+  );
+  const failure = parityFailure(results.engineParity);
+  if (failure !== null) {
+    io.stderr.write(failure);
+    return 1;
+  }
   await writeFile(
     join(io.root, RESULTS_PATH),
     `${JSON.stringify(results, null, 2)}\n`,
     "utf8"
   );
-  io.stdout.write(`wrote ${RESULTS_PATH}\n`);
+  io.stdout.write(`wrote ${RESULTS_PATH} (${results.engine})\n`);
   return 0;
 };

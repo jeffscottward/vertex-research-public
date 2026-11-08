@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AnalyticsEquityPoint } from "../../packages/api/src/backtest-analytics.ts";
+import { fakeNautilus } from "./dsl-engine.test-support.ts";
+import { NAUTILUS_ENGINE_ID, TYPESCRIPT_ENGINE_ID } from "./dsl-engine.ts";
 import {
   type AdapterRun,
   adapterRun,
@@ -223,6 +225,8 @@ describe("QuantJourney inventory", () => {
   it("keeps the generated doc in step with library.json and results.json", async () => {
     const out: string[] = [];
     const code = await runQuantJourneyCli(["--check"], {
+      defaultPython: "python3",
+      nautilus: fakeNautilus(),
       now: () => new Date(0),
       root: repoRoot,
       sha256: () => "",
@@ -537,7 +541,13 @@ describe("re-run assembly", () => {
 // ------------------------------------------------------------------ CLI and rendering
 
 describe("CLI and rendering", () => {
+  let nautilus = fakeNautilus();
+  afterEach(() => {
+    nautilus = fakeNautilus();
+  });
   const io = (root: string, out: string[]) => ({
+    defaultPython: "venv-python",
+    nautilus,
     now: () => new Date("2026-10-31T12:00:00Z"),
     root,
     sha256: (text: string) => `sha:${text.length}`,
@@ -563,7 +573,9 @@ describe("CLI and rendering", () => {
     );
     writeFileSync(
       join(root, RESEARCH_DIR, "library.json"),
-      JSON.stringify(library([strategy({ universe: ["AAA"] })]))
+      JSON.stringify(
+        library([strategy({ dsl: dslDefinition, universe: ["AAA"] })])
+      )
     );
     const out: string[] = [];
     expect(await runQuantJourneyCli(["--bogus"], io(root, out))).toBe(2);
@@ -585,12 +597,48 @@ describe("CLI and rendering", () => {
     );
     expect(results).toMatchObject({
       data: { manifestSha256: "sha:2" },
+      engine: NAUTILUS_ENGINE_ID,
+      engineParity: { against: TYPESCRIPT_ENGINE_ID, jobs: 1, pass: 1 },
       generated: "2026-10-31",
     });
+    expect(nautilus.calls.map((call) => call.python)).toEqual(["venv-python"]);
     expect(await runQuantJourneyCli(["--check"], io(root, out))).toBe(0);
-    return expect(out.join("")).toContain(
+    expect(await readFile(join(root, DOC_PATH), "utf8")).toContain(
+      `- Vertex re-run engine: \`${NAUTILUS_ENGINE_ID}\` (each job also run on \`${TYPESCRIPT_ENGINE_ID}\`: 1 of 1`
+    );
+    expect(out.join("")).toContain(
       "out of date: docs/vertex-rebuild/quantjourney-library.md"
     );
+    // --engine typescript runs no batch; a Nautilus result outside the tolerance writes nothing.
+    const rerun = ["--rerun", "--data", data, "--runs", runs];
+    expect(
+      await runQuantJourneyCli(
+        [...rerun, "--engine", "typescript"],
+        io(root, out)
+      )
+    ).toBe(0);
+    expect(nautilus.calls).toHaveLength(1);
+    const typescript = JSON.parse(
+      await readFile(join(root, RESEARCH_DIR, "results.json"), "utf8")
+    );
+    expect(typescript).toMatchObject({
+      engine: TYPESCRIPT_ENGINE_ID,
+      engineParity: null,
+    });
+    expect(typescript.strategies).toEqual(results.strategies);
+    expect(
+      await runQuantJourneyCli([...rerun, "--engine", "qj"], io(root, out))
+    ).toBe(2);
+    nautilus = fakeNautilus({ scale: 1.01 });
+    expect(await runQuantJourneyCli(rerun, io(root, out))).toBe(1);
+    expect(out.join("")).toContain(
+      "Nautilus differs from instant-2 on 1 of 1 jobs"
+    );
+    return expect(
+      JSON.parse(
+        await readFile(join(root, RESEARCH_DIR, "results.json"), "utf8")
+      )
+    ).toMatchObject({ engine: TYPESCRIPT_ENGINE_ID });
   });
 
   it("renders every verdict and empty cell", () => {
