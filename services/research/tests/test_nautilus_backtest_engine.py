@@ -20,6 +20,7 @@ import pytest
 
 from nautilus_backtest import engine
 from nautilus_backtest.bars import Bars, InputError
+from nautilus_backtest.signals import Compiled, RunOptions
 
 RESEARCH = Path(__file__).resolve().parents[1]
 GOLDEN = json.loads((RESEARCH / "tests/fixtures/nautilus_backtest/golden.json").read_text())
@@ -145,3 +146,100 @@ def test_pre_1970_bars_are_an_input_error():
             "costBps": 0, "costs": None}
     with pytest.raises(InputError, match="after 1970"):
         engine.run_spec(bars, spec)
+
+
+# Stop management and maxLeverage: the cases of instant-backtest-engine.test.ts
+# ("runSignalBacktest stop management" and "runSignalBacktest maxLeverage").
+
+DAY_MS = 86_400_000.0
+START_MS = 1_704_153_600_000.0  # 2024-01-02 UTC
+
+
+def _rows_bars(rows):
+    return Bars.from_columns({
+        "t": [START_MS + index * DAY_MS for index in range(len(rows))],
+        "o": [row[0] for row in rows], "h": [row[1] for row in rows],
+        "l": [row[2] for row in rows], "c": [row[3] for row in rows],
+    })
+
+
+def _managed_run(rows, management=None, stop=5.0, **options):
+    signals = (1,) + (0,) * (len(rows) - 1)
+    compiled = Compiled(signals=signals, exits=None,
+                        stop_distance=None if stop is None else (stop,) * len(rows),
+                        target_distance=None, management=management)
+    return engine.run_signal_backtest(_rows_bars(rows), compiled, RunOptions(
+        cost_bps=0, stop_loss_pct=0, take_profit_pct=0, costs=None, **options))
+
+
+def _exit(result):
+    trade = result.trades[0]
+    return trade["exitIndex"], trade["exitReason"], trade["exitPrice"]
+
+
+# Entry at the bar 1 open (100) with a 5 stop: R = 5. Bar 2 reaches entry + 1R with a low below
+# the entry; the raised stop applies from bar 3.
+BREAKEVEN_ROWS = [
+    (100, 100, 100, 100), (100, 103, 99, 102), (102, 106, 99, 104), (104, 104, 99.5, 100),
+    (100, 101, 99.5, 100),
+]
+# The trail activates at a high of 105: stop 105 - 2 x 1 = 103, then 107 - 2 = 105; ATR 3 at bar 4
+# would give 101, but the stop never moves down.
+TRAIL_ROWS = [
+    (100, 100, 100, 100), (100, 104, 99, 103), (103, 106, 102, 105), (105, 108, 104, 107),
+    (107, 108, 106, 107), (107, 107, 104.5, 105), (105, 106, 104, 105),
+]
+TRAIL_ATR = (1.0, 1.0, 1.0, 1.0, 3.0, 1.0, 1.0)
+
+
+@needs_nautilus
+def test_breakeven_moves_the_stop_to_the_entry_from_the_next_bar():
+    assert _exit(_managed_run(BREAKEVEN_ROWS, {"breakevenR": 1.0})) == (3, "stop", 100.0)
+    assert _exit(_managed_run(BREAKEVEN_ROWS, {"breakevenR": 2.0}))[:2] == (4, "end")
+    # Without a stop nothing moves.
+    assert _exit(_managed_run(BREAKEVEN_ROWS, {"breakevenR": 1.0}, stop=None))[:2] == (4, "end")
+
+
+@needs_nautilus
+def test_trail_activates_follows_the_highest_close_and_never_lowers():
+    trail = {"activateR": 1.0, "multiple": 2.0, "atr": TRAIL_ATR}
+    assert _exit(_managed_run(TRAIL_ROWS, {"trail": trail})) == (5, "stop", 105.0)
+    assert _exit(_managed_run(TRAIL_ROWS, {"trail": {**trail, "activateR": 2.0}}))[:2] == (6, "end")
+    assert _exit(_managed_run(TRAIL_ROWS, {"breakevenR": 1.0, "trail": trail})) == (5, "stop", 105.0)
+
+
+@needs_nautilus
+def test_trail_leaves_the_stop_on_a_nan_atr():
+    trail = {"activateR": 1.0, "multiple": 2.0, "atr": (math.nan,) * len(TRAIL_ROWS)}
+    assert _exit(_managed_run(TRAIL_ROWS, {"trail": trail}))[:2] == (6, "end")
+
+
+LEVERAGE_ROWS = [(100, 100, 100, 100), (100, 102, 100, 102), (102, 103, 101, 103)]
+
+
+@needs_nautilus
+@pytest.mark.parametrize(("max_leverage", "units", "equity"), [
+    (None, 0.01, 1.02),  # capped at the cash
+    (5.0, 0.05, 1.1),  # capped at cash x 5: rest -4 + 0.05 x 102
+    (20.0, 0.1, 1.2),  # risk size (10) below the cap: rest -9 + 0.1 x 102
+])
+def test_max_leverage_caps_the_position_at_cash_times_leverage(max_leverage, units, equity):
+    result = _managed_run(LEVERAGE_ROWS, stop=1.0, risk_pct=10.0, max_leverage=max_leverage)
+    assert math.isclose(result.trades[0]["units"], units, rel_tol=1e-6)
+    assert math.isclose(result.equity[1], equity, rel_tol=EQUITY_REL_TOL)
+
+
+@pytest.mark.parametrize(("management", "options", "message"), [
+    (None, {"max_leverage": 2.0}, "maxLeverage needs riskPct"),
+    (None, {"max_leverage": 0.5, "risk_pct": 1.0}, "maxLeverage must be from 1 to 50"),
+    (None, {"max_leverage": 51.0, "risk_pct": 1.0}, "maxLeverage must be from 1 to 50"),
+    ({"breakevenR": 0.0}, {}, "breakevenR must be above 0"),
+    ({"breakevenR": math.inf}, {}, "breakevenR must be above 0"),
+    ({"trail": {"activateR": 0.0, "multiple": 1.0, "atr": (1.0,) * 7}}, {}, "trail activateR must be above 0"),
+    ({"trail": {"activateR": 1.0, "multiple": math.nan, "atr": (1.0,) * 7}}, {}, "trail multiple must be above 0"),
+    ({"trail": {"activateR": 1.0, "multiple": 1.0, "atr": (1.0,) * 6}}, {}, "trail ATR must match the bar count"),
+])
+def test_management_and_leverage_input_errors(management, options, message):
+    with pytest.raises(InputError) as raised:
+        _managed_run(TRAIL_ROWS, management, **options)
+    assert str(raised.value) == message
