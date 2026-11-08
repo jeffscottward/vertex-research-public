@@ -132,9 +132,7 @@ describe("strategies lab entries", () => {
     expect(gallery.querySelector("h1")?.textContent).toContain("Academy");
     await unmountLab();
     const course = await mountEntry("academy-course");
-    expect(
-      course.querySelector('[data-academy-gallery="quantfinancetogo"]')
-    ).not.toBeNull();
+    expect(course.querySelector('[data-academy-gallery="dyr"]')).not.toBeNull();
     await unmountLab();
     const lesson = await mountEntry("academy-lesson");
     expect(lesson.querySelector("h1")?.textContent).not.toBe("");

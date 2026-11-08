@@ -1,13 +1,16 @@
 import { COURSE_LIST } from "@darkfactory/academy";
-import { lessonSummaries, sourceCounts } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
 import { headers } from "next/headers";
-import { AcademyCatalog } from "../../../components/portal/academy/academy-gallery.tsx";
+import {
+  AcademyCatalog,
+  type AcademyCourseListing,
+} from "../../../components/portal/academy/academy-gallery.tsx";
 import {
   type AcademySearchParams,
   readAcademyGalleryQuery,
 } from "../../../components/portal/academy/academy-gallery-query.ts";
 import { OperatorAccessRequired } from "../../../components/portal/agent-ops-client.tsx";
+import { loadCourseLessons } from "../../../lib/academy-lessons.ts";
 import { academyMedia } from "../../../lib/academy-media.ts";
 import { getRequestPortalSession } from "../../../lib/request-portal-session.ts";
 
@@ -29,15 +32,16 @@ export default async function AcademyPage({
         <OperatorAccessRequired feature="academy" />
       </div>
     );
-  const lessons = lessonSummaries();
-  const counts = sourceCounts();
+  // Database courses (QuantFinanceToGo) come through academy.lessons; one read at a time per request.
+  const courses: AcademyCourseListing[] = [];
+  for (const course of COURSE_LIST)
+    courses.push({
+      course: course.id,
+      ...(await loadCourseLessons(course.id, requestHeaders.get("cookie"))),
+    });
   return (
     <AcademyCatalog
-      courses={COURSE_LIST.map((course) => ({
-        course: course.id,
-        lessons: lessons.filter((lesson) => lesson.course === course.id),
-        sourceCount: counts[course.id],
-      }))}
+      courses={courses}
       initialQuery={readAcademyGalleryQuery(await searchParams)}
       media={academyMedia()}
     />

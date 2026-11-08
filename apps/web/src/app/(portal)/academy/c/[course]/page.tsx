@@ -1,5 +1,4 @@
 import { isCourseId } from "@darkfactory/academy";
-import { lessonSummaries, sourceCounts } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -10,6 +9,7 @@ import {
   readAcademyGalleryQuery,
 } from "../../../../../components/portal/academy/academy-gallery-query.ts";
 import { OperatorAccessRequired } from "../../../../../components/portal/agent-ops-client.tsx";
+import { loadCourseLessons } from "../../../../../lib/academy-lessons.ts";
 import { academyMedia } from "../../../../../lib/academy-media.ts";
 import { getRequestPortalSession } from "../../../../../lib/request-portal-session.ts";
 
@@ -37,13 +37,17 @@ export default async function AcademyCoursePage({
     );
   const { course } = await params;
   if (!isCourseId(course)) notFound();
+  const { lessons, sourceCount } = await loadCourseLessons(
+    course,
+    requestHeaders.get("cookie")
+  );
   return (
     <AcademyGallery
       course={course}
       initialQuery={readAcademyGalleryQuery(await searchParams)}
-      lessons={lessonSummaries().filter((lesson) => lesson.course === course)}
+      lessons={lessons}
       media={academyMedia()}
-      sourceCount={sourceCounts()[course]}
+      sourceCount={sourceCount}
     />
   );
 }

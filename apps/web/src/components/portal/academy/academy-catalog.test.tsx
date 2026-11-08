@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { COURSES, type LessonSummary } from "@darkfactory/academy";
-import { lessonSummaries } from "@darkfactory/academy/lessons";
+import { lessonSummaries, toLessonSummary } from "@darkfactory/academy/lessons";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ import {
   type AcademyCourseListing,
   AcademyGallery,
 } from "./academy-gallery.tsx";
+import { DATABASE_COURSE_LESSONS } from "../../../../../../packages/academy/src/lessons/database-courses.test-support.ts";
 import { DEFAULT_ACADEMY_QUERY } from "./academy-gallery-query.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -26,8 +27,8 @@ afterEach(async () => {
 });
 
 const dyr = lessonSummaries().filter((lesson) => lesson.course === "dyr");
-// Two shipped QuantFinanceToGo concept lessons.
-const qftg: LessonSummary[] = lessonSummaries()
+// Two QuantFinanceToGo concept lessons (database course: the authored import input).
+const qftg: LessonSummary[] = DATABASE_COURSE_LESSONS.map(toLessonSummary)
   .filter(
     (lesson) =>
       lesson.course === "quantfinancetogo" && lesson.kind === "concept"
