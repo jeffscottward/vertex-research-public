@@ -290,7 +290,7 @@ describe("post-checkout dependency refresh", () => {
     );
   });
 
-  it("passes Git's hook arguments through the shell hook and skips worktrees from before the script", async () => {
+  it("passes Git's hook arguments through the shell hook and never fails a checkout", async () => {
     // node:child_process and node:fs are mocked in this file; the shell hook
     // needs the real modules.
     const childProcess =
@@ -300,21 +300,30 @@ describe("post-checkout dependency refresh", () => {
     const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
     const directory = fs.mkdtempSync(join(tmpdir(), "post-checkout-argv-"));
     try {
-      const executable = join(directory, "bun");
-      fs.writeFileSync(executable, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n");
-      fs.chmodSync(executable, 0o755);
-      const runHook = (cwd: string) =>
+      const printingBun = join(directory, "printing");
+      const failingBun = join(directory, "failing");
+      const withoutBun = join(directory, "none");
+      for (const [binDirectory, script] of [
+        [printingBun, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n"],
+        [failingBun, "#!/bin/sh\nexit 3\n"],
+      ] as const) {
+        fs.mkdirSync(binDirectory);
+        fs.writeFileSync(join(binDirectory, "bun"), script);
+        fs.chmodSync(join(binDirectory, "bun"), 0o755);
+      }
+      fs.mkdirSync(withoutBun);
+      const runHook = (cwd: string, path: string) =>
         childProcess.spawnSync(
           "/bin/sh",
           [join(process.cwd(), ".husky/post-checkout"), NULL_HEAD, HEAD, "1"],
           {
             cwd,
             encoding: "utf8",
-            env: { ...process.env, PATH: directory },
+            env: { ...process.env, PATH: path },
             shell: false,
           }
         );
-      const current = runHook(process.cwd());
+      const current = runHook(process.cwd(), printingBun);
       expect(current.status).toBe(0);
       expect(current.stdout.trimEnd().split("\n")).toEqual([
         "scripts/hooks/post-checkout.ts",
@@ -324,9 +333,16 @@ describe("post-checkout dependency refresh", () => {
       ]);
       // Git runs the hook of the current checkout in the new worktree, which
       // can be on an older commit without the script.
-      const older = runHook(directory);
+      const older = runHook(directory, printingBun);
       expect(older.status).toBe(0);
-      return expect(older.stdout).toBe("");
+      expect(older.stdout).toBe("");
+      // fm-spawn treats a non-zero `git worktree add` as a failed spawn.
+      const missing = runHook(process.cwd(), withoutBun);
+      expect(missing.status).toBe(0);
+      expect(missing.stderr).toContain("bun not found");
+      const failed = runHook(process.cwd(), failingBun);
+      expect(failed.status).toBe(0);
+      return expect(failed.stderr).toContain("post-checkout failed");
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }
