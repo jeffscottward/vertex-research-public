@@ -96,7 +96,58 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-vix-term-gate`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict. The quintile table is stored in the same study.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-vix-term-gate`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Native DSL `vixTermStructure` filter. Its bound is inclusive, so the strict contango rule (ratio < 1.0) is written `maxRatio` = the largest double below 1.0. Gated host runs S3 and D3 start 2006-07-17 and are compared with S0 and D0 over the same dates.
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|2006-07-17|-0.0%|-0.05|0.006|-5.0%|2018-12 -1.7%|209|76.1%|51.2%|5|
+|B|2006-07-17|-0.0%|-0.03|0.007|-5.1%|2018-12 -1.7%|239|76.2%|57.1%|5|
+|S0|1993-01-29|-2.2%|-0.45|0.000|-57.0%|2000-01 -4.3%|514|32.9%|57.5%|44|
+|S3|2006-07-17|-0.5%|-0.09|0.004|-23.9%|2014-01 -3.4%|331|36.0%|64.5%|0|
+|D0|1993-01-29|-4.7%|-0.44|0.000|-82.9%|2011-05 -12.9%|700|35.0%|58.5%|328|
+|D3|2006-07-17|-5.1%|-0.31|0.000|-72.3%|2011-05 -14.7%|701|37.1%|75.6%|179|
+
+|Gate|Host|Before Sharpe|After Sharpe|Before max DD|After max DD|Before CAGR|After CAGR|Before trades|After trades|Before exposure|After exposure|Helps|
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|vixTermStructure < 1 (contango)|sma30-market-timing (SPY) from 2006-07-17|-0.09|-0.09|-23.9%|-23.9%|-0.5%|-0.5%|338|331|65.2%|64.5%|yes|
+|vixTermStructure < 1 (contango)|donchianBreakout (Core 7) from 2006-07-17|-0.35|-0.31|-74.8%|-72.3%|-5.5%|-5.1%|703|701|77.3%|75.6%|yes|
+
+- Gate overlap at 244 month-ends from 2006-07-31: both pass 169, only contango 45, only volRegime 0, neither 30.
+- VIX/VIX3M tie days (exactly 1.00): 2 of 5111.
+
+VIX predicts index returns (descriptive, not a run): 405 month-ends 1993-01-29 to 2026-09-30, next-month SPY total return.
+
+Two-year VIX percentile (504-value window):
+
+|Quintile|Count|Mean|Median|Share positive|Std|t|
+|---|---|---|---|---|---|---|
+|Q1|101|0.52%|1.07%|61.4%|2.78%|1.86|
+|Q2|72|0.72%|1.55%|66.7%|3.59%|1.69|
+|Q3|59|1.37%|2.05%|69.5%|4.19%|2.52|
+|Q4|71|0.77%|1.04%|60.6%|4.18%|1.56|
+|Q5|102|1.41%|1.81%|67.6%|5.72%|2.49|
+
+Q5 − Q1: 0.89% (Welch t 1.42).
+
+Full-sample VIX level quintiles (uses future data):
+
+|Quintile|Count|Mean|Median|Share positive|Std|t|
+|---|---|---|---|---|---|---|
+|Q1|80|0.89%|1.37%|70.0%|2.57%|3.09|
+|Q2|82|0.82%|1.13%|70.7%|2.41%|3.08|
+|Q3|81|1.06%|1.72%|70.4%|3.67%|2.60|
+|Q4|81|0.67%|1.28%|54.3%|4.74%|1.28|
+|Q5|81|1.29%|1.91%|59.3%|6.52%|1.78|
+
+Q5 − Q1: 0.40% (Welch t 0.51).
+
+By term structure from 2006-07-31: contango n 213, mean 1.05%, t 3.90; not contango n 30, mean 0.55%, t 0.43.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: no (A Sharpe -0.05, B Sharpe -0.03, deflated 0.006, max drawdown -5.0%).
 
 ## Limits
 

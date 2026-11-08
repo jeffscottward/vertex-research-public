@@ -82,7 +82,26 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-futures-trend-carry`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-futures-trend-carry`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). T and C are computed in Python on the SPY calendar (futures aligned with the 5-day carry) and read by DSL `series` filters on the research-only ids `qc:futTrend:<ETF>` and `qc:futCarry:<ETF>` (> 0 for the call leg, < 0 for the put leg).
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|2001-09-28|-3.9%|-0.33|0.000|-67.0%|2018-10 -10.0%|816|45.3%|89.0%|187|
+|A-L|2001-09-28|-1.3%|-0.06|0.002|-38.6%|2019-05 -8.7%|775|48.6%|86.4%|34|
+|B|2001-09-28|-5.6%|-0.39|0.000|-80.2%|2011-05 -10.7%|1105|43.6%|98.9%|494|
+
+- Per-member attribution, run A: SPY 178 trades, P&L USD -6,502, win 51%; QQQ 177 trades, P&L USD 7,917, win 49%; DIA 170 trades, P&L USD -9,426, win 52%; IWM 56 trades, P&L USD -8,000, win 32%; GLD 78 trades, P&L USD -10,939, win 40%; SLV 77 trades, P&L USD -24,782, win 38%; USO 80 trades, P&L USD -11,298, win 35%.
+- Run A legs: long 644 trades, P&L USD -23,299, win 48%; short 172 trades, P&L USD -39,731, win 35%.
+- All 7 live, run A (2018-07-31 to 2026-11-06): Sharpe -0.58, CAGR -5.8%, max drawdown -46.9%.
+- All 7 live, run A-L (2018-07-31 to 2026-11-06): Sharpe -0.18, CAGR -3.0%, max drawdown -34.9%.
+- All 7 live, run B (2018-07-31 to 2026-11-06): Sharpe -0.09, CAGR -1.3%, max drawdown -24.9%.
+- First eligible month-ends: SPY 2001-09-28, QQQ 2001-09-28, DIA 2005-11-30, IWM 2018-07-31, GLD 2008-06-30, SLV 2011-03-31, USO 2007-05-31.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: no; Sharpe above run B: yes (A Sharpe -0.33, B Sharpe -0.39, deflated 0.000, max drawdown -67.0%).
 
 ## Limits
 

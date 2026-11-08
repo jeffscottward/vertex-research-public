@@ -79,7 +79,27 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-opex-week`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-opex-week`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Native DSL `calendarWindow` `opexWeek`. Run A evaluates the same window one bar ahead (the trading calendar is known in advance), so the spread opens at the close before the week and closes at the expiration close; run A-L uses the filter on signal bars. A spread opens on the first bar of each full window and closes after its last bar.
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|1993-01-29|-3.2%|-0.44|0.000|-67.4%|2018-12 -6.0%|995|44.4%|23.2%|175|
+|A-L|1993-01-29|-3.4%|-0.48|0.000|-69.9%|2015-08 -7.0%|980|44.9%|23.2%|190|
+|B|1993-01-29|-1.1%|-0.02|0.001|-68.7%|2019-05 -8.0%|1147|48.2%|100.0%|27|
+
+- Per-member attribution, run A: SPY 340 trades, P&L USD -22,889, win 48%; QQQ 241 trades, P&L USD -20,394, win 44%; DIA 212 trades, P&L USD -13,076, win 40%; IWM 202 trades, P&L USD -10,212, win 45%.
+- All four live, run A (2009-09-16 to 2026-11-06): Sharpe -0.43, CAGR -3.5%, max drawdown -48.5%.
+- All four live, run A-L (2009-09-16 to 2026-11-06): Sharpe -0.36, CAGR -2.9%, max drawdown -43.7%.
+- All four live, run B (2009-09-16 to 2026-11-06): Sharpe 0.26, CAGR 2.9%, max drawdown -31.7%.
+- Source window, run A (2007-01-03 to 2018-08-01): Sharpe -0.42, CAGR -4.2%, max drawdown -50.0%.
+- Source window, run B (2007-01-03 to 2018-08-01): Sharpe 0.14, CAGR 0.9%, max drawdown -42.0%.
+- Runs B of qc-opex-week and qc-turn-of-the-month are the same definition and dates (both pre-registered and counted).
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: no; Sharpe above run B: no (A Sharpe -0.44, B Sharpe -0.02, deflated 0.000, max drawdown -67.4%).
 
 ## Limits
 

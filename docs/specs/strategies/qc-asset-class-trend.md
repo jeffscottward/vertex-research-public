@@ -78,7 +78,23 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-asset-class-trend`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-asset-class-trend`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). The 10-month SMA is the DSL `sma` (length 10) compiled on month-end `adj_close` bars of each member.
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|1993-10-29|-2.2%|-0.13|0.000|-66.6%|2011-05 -11.9%|1109|46.3%|87.7%|137|
+|B|1993-10-29|-4.6%|-0.32|0.000|-83.6%|2012-05 -12.0%|1280|44.5%|99.2%|528|
+
+- Per-member attribution, run A: SPY 271 trades, P&L USD -414, win 50%; QQQ 189 trades, P&L USD -4,134, win 49%; DIA 191 trades, P&L USD -11,546, win 52%; IWM 153 trades, P&L USD -11,118, win 41%; GLD 138 trades, P&L USD -3,073, win 38%; SLV 63 trades, P&L USD -10,909, win 38%; USO 104 trades, P&L USD -11,634, win 43%.
+- All 7 live, run A (2011-03-31 to 2026-11-06): Sharpe -0.18, CAGR -3.6%, max drawdown -57.8%.
+- All 7 live, run B (2011-03-31 to 2026-11-06): Sharpe -0.36, CAGR -5.9%, max drawdown -68.0%.
+- Months in (signals), A vs B: 1246 of 1808.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: no; Sharpe above run B: yes (A Sharpe -0.13, B Sharpe -0.32, deflated 0.000, max drawdown -66.6%).
 
 ## Limits
 

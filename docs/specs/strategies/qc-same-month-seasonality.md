@@ -79,7 +79,23 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-same-month-seasonality`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-same-month-seasonality`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). The same-month score and top-2 selection are computed in Python and read by DSL `series` filters on `qc:seasonSelected:<ETF>` (run A) and `qc:seasonEligible:<ETF>` (run B).
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|1998-01-30|-1.8%|-0.22|0.000|-53.0%|2005-01 -4.7%|514|45.1%|89.9%|30|
+|B|1998-01-30|-5.2%|-0.36|0.000|-81.3%|2012-05 -12.0%|1170|44.4%|99.1%|445|
+
+- All 7 eligible, run A (2011-04-29 to 2026-11-06): Sharpe -0.04, CAGR -0.6%, max drawdown -25.8%.
+- All 7 eligible, run B (2011-04-29 to 2026-11-06): Sharpe -0.40, CAGR -6.3%, max drawdown -66.8%.
+- Per-member attribution, run A: SPY 119 trades, P&L USD -25,054, win 42%; QQQ 59 trades, P&L USD -8,833, win 44%; DIA 90 trades, P&L USD 9,576, win 58%; IWM 81 trades, P&L USD 1,371, win 44%; GLD 65 trades, P&L USD -5,427, win 40%; SLV 60 trades, P&L USD -10,600, win 42%; USO 40 trades, P&L USD -1,301, win 42%.
+- First eligible month-ends: SPY 1998-01-30, QQQ 2004-03-31, DIA 2005-11-30, IWM 2009-09-30, GLD 2009-11-30, SLV 2011-04-29, USO 2011-04-29.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: no; Sharpe above run B: yes (A Sharpe -0.22, B Sharpe -0.36, deflated 0.000, max drawdown -53.0%).
 
 ## Limits
 

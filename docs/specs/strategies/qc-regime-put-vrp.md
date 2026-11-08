@@ -88,7 +88,31 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-regime-put-vrp`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-regime-put-vrp`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Native DSL `volRegime` filter. Gated host runs S2 and D2 start 2006-07-17 (VIX3M starts; the gate cannot pass before); the gate table compares them with S0 and D0 run over the same dates (same rule, not extra trials).
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|2006-07-17|0.1%|0.09|0.030|-3.7%|2018-10 -1.4%|167|76.6%|41.9%|2|
+|B|2006-07-17|-0.0%|-0.03|0.007|-5.1%|2018-12 -1.7%|239|76.2%|57.1%|5|
+|S0|1993-01-29|-2.2%|-0.45|0.000|-57.0%|2000-01 -4.3%|514|32.9%|57.5%|44|
+|S2|2006-07-17|-1.1%|-0.25|0.000|-27.4%|2014-01 -3.4%|285|33.7%|56.7%|0|
+|D0|1993-01-29|-4.7%|-0.44|0.000|-82.9%|2011-05 -12.9%|700|35.0%|58.5%|328|
+|D2|2006-07-17|-5.5%|-0.39|0.000|-73.5%|2011-05 -14.6%|604|34.9%|64.1%|166|
+
+|Gate|Host|Before Sharpe|After Sharpe|Before max DD|After max DD|Before CAGR|After CAGR|Before trades|After trades|Before exposure|After exposure|Helps|
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|volRegime|sma30-market-timing (SPY) from 2006-07-17|-0.09|-0.25|-23.9%|-27.4%|-0.5%|-1.1%|338|285|65.2%|56.7%|no|
+|volRegime|donchianBreakout (Core 7) from 2006-07-17|-0.35|-0.39|-74.8%|-73.5%|-5.5%|-5.5%|703|604|77.3%|64.1%|no|
+
+- Run A drawdown within 2008 0.0%, 2020 -0.1%, 2022 -1.8%.
+- Run B drawdown within 2008 -3.1%, 2020 -1.5%, 2022 -1.9%.
+- Month-ends from 2006-07-31: 244; volRegime passes at 169.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: yes (A Sharpe 0.09, B Sharpe -0.03, deflated 0.030, max drawdown -3.7%).
 
 ## Limits
 

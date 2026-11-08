@@ -80,7 +80,22 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-oil-predicts-equity`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-oil-predicts-equity`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). The 60-month OLS prediction is computed in Python and read by the DSL `series` filter `qc:oilPrediction:<ETF>` > 0.
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|2011-05-31|3.5%|0.45|0.404|-17.8%|2019-05 -4.6%|341|52.5%|93.5%|0|
+|B|2011-05-31|3.6%|0.44|0.395|-18.8%|2019-05 -4.2%|372|52.4%|99.9%|0|
+
+- SPY: 186 regressions, months in 89.8%, mean a1 -0.001, |t(a1)| > 2 in 3.8%, last a1 -0.003 (t -0.05).
+- QQQ: 186 regressions, months in 93.5%, mean a1 0.000, |t(a1)| > 2 in 4.8%, last a1 0.039 (t 0.55).
+- Per-member attribution, run A: SPY 167 trades, P&L USD 31,018, win 55%; QQQ 174 trades, P&L USD 38,829, win 50%.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: yes (A Sharpe 0.45, B Sharpe 0.44, deflated 0.404, max drawdown -17.8%).
 
 ## Limits
 

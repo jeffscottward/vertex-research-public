@@ -89,7 +89,33 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-iv-rank-gate`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-iv-rank-gate`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Native DSL `ivRank` filter (length 252, min 50). Gated host runs start where the gate is first defined (1993-01-29, the same dates as S0/D0).
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|1993-01-29|-0.5%|-0.22|0.000|-21.4%|2020-03 -9.0%|305|71.5%|21.2%|22|
+|B|1993-01-29|-2.4%|-0.61|0.000|-58.5%|2018-10 -7.7%|1420|69.9%|71.8%|324|
+|S0|1993-01-29|-2.2%|-0.45|0.000|-57.0%|2000-01 -4.3%|514|32.9%|57.5%|44|
+|S1|1993-01-29|-0.5%|-0.23|0.000|-16.8%|1996-12 -3.2%|89|30.3%|9.4%|0|
+|D0|1993-01-29|-4.7%|-0.44|0.000|-82.9%|2011-05 -12.9%|700|35.0%|58.5%|328|
+|D1|1993-01-29|-1.4%|-0.31|0.000|-41.9%|2018-02 -7.7%|130|29.2%|17.7%|3|
+
+|Gate|Host|Before Sharpe|After Sharpe|Before max DD|After max DD|Before CAGR|After CAGR|Before trades|After trades|Before exposure|After exposure|Helps|
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|ivRank >= 50|sma30-market-timing (SPY) from 1993-01-29|-0.45|-0.23|-57.0%|-16.8%|-2.2%|-0.5%|514|89|57.5%|9.4%|yes|
+|ivRank >= 50|donchianBreakout (Core 7) from 1993-01-29|-0.44|-0.31|-82.9%|-41.9%|-4.7%|-1.4%|700|130|58.5%|17.7%|yes|
+
+- Per-member attribution, run A: SPY 74 trades, P&L USD -880, win 72%; QQQ 54 trades, P&L USD -2,161, win 72%; DIA 49 trades, P&L USD -2,275, win 73%; IWM 28 trades, P&L USD -484, win 82%; GLD 30 trades, P&L USD 1,829, win 80%; SLV 27 trades, P&L USD -4,355, win 56%; USO 43 trades, P&L USD -6,882, win 65%.
+- Per-member attribution, run B: SPY 325 trades, P&L USD -8,089, win 70%; QQQ 218 trades, P&L USD -10,270, win 69%; DIA 185 trades, P&L USD -6,695, win 72%; IWM 181 trades, P&L USD -2,934, win 73%; GLD 192 trades, P&L USD -1,699, win 77%; SLV 136 trades, P&L USD -16,728, win 50%; USO 183 trades, P&L USD -8,967, win 72%.
+- All 7 live, run A (2012-03-14 to 2026-11-06): Sharpe -0.27, CAGR -0.7%, max drawdown -16.3%.
+- All 7 live, run B (2012-03-14 to 2026-11-06): Sharpe -0.72, CAGR -3.5%, max drawdown -44.8%.
+- Member join (252 IV index values): SPY 1993-01-29, QQQ 2002-01-28, DIA 2006-11-22, IWM 2010-09-15, GLD 2009-06-02, SLV 2012-03-14, USO 2008-05-08.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: yes (A Sharpe -0.22, B Sharpe -0.61, deflated 0.000, max drawdown -21.4%).
 
 ## Limits
 

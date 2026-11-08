@@ -1,12 +1,17 @@
-"""Smoke run of the qc-ports options runner on the public data (research only).
+"""qc-ports options runner commands on the public data (research only).
 
     python -m strategies.qc_ports smoke [--symbol SPY] [--start 2007-01-01] [--nautilus]
+    python -m strategies.qc_ports study --ran 2026-11-08 [--no-nautilus] [--report]
 
-Strategy: a monthly call debit vertical. The entry signal is the close of the
+smoke: a monthly call debit vertical. The entry signal is the close of the
 last trading day of each month (so the spread opens at the next close), with no
 signal exit; the trade closes at +50% of the debit, at 7 DTE or at expiration.
-Prints the metrics (and the ledger-vs-Nautilus equity gap with --nautilus); it
-writes no files.
+Prints the metrics (and the ledger-vs-Nautilus equity gap with --nautilus).
+
+study: the 32 pre-registered runs of the 11 QuantConnect idea ports
+(study.py). Prints one JSON document per idea (JSON lines, the input of
+`bun run vertex:research-studies:import`), or with --report the markdown
+Results of each spec. Progress goes to stderr. Neither command writes files.
 """
 from __future__ import annotations
 
@@ -58,10 +63,31 @@ def main(argv=None) -> int:
     run.add_argument("--symbol", default="SPY")
     run.add_argument("--start", default="2007-01-01")
     run.add_argument("--nautilus", action="store_true")
+    study_parser = sub.add_parser("study", help="the 32 pre-registered runs; one JSON document per idea")
+    study_parser.add_argument("--ran", required=True, help="run date, YYYY-MM-DD")
+    study_parser.add_argument("--no-nautilus", action="store_true", help="skip the Nautilus parity run")
+    study_parser.add_argument("--report", action="store_true", help="print the markdown Results instead")
     args = parser.parse_args(argv)
+    if args.command == "study":
+        return _study(args.ran, not args.no_nautilus, args.report)
     report = smoke(args.symbol, args.start, args.nautilus)
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
+    return 0
+
+
+def _study(ran: str, nautilus: bool, markdown: bool) -> int:
+    from . import ideas, study
+
+    data = study.load_study_data()
+    docs, outcomes, metrics, variance = study.documents(
+        data, ran, nautilus, progress=lambda key: print(f"ran {key}", file=sys.stderr, flush=True))
+    for idea, doc in zip(ideas.IDEAS, docs, strict=True):
+        if markdown:
+            sys.stdout.write(f"## {idea.id}\n\n")
+            sys.stdout.write(study.report(idea, doc, outcomes, metrics, variance, data, nautilus) + "\n\n")
+        else:
+            sys.stdout.write(json.dumps(doc, separators=(",", ":")) + "\n")
     return 0
 
 

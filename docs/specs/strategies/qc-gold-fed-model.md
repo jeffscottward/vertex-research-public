@@ -80,7 +80,21 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Not run yet. Results are stored in Postgres `research_studies` (id `qc-gold-fed-model`) and filled in here after the run: run date, data manifest, the metrics of every run in this spec and the verdict.
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-gold-fed-model`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). DSL `series` filter `EY_TNX_RATIO` > 2; entry signals stop at the last month-end with a Shiller input (2026-09-30), as rule 2 requires.
+
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
+|---|---|---|---|---|---|---|---|---|---|---|
+|A|2008-06-30|-0.7%|-0.20|0.001|-26.3%|2015-11 -2.3%|99|35.4%|45.0%|0|
+|B|2008-06-30|-0.0%|0.02|0.018|-28.4%|2026-09 -2.8%|221|38.9%|100.0%|0|
+
+- EY_TNX_RATIO at 220 month-ends with input: share in (> 2) 45.0%, min 0.24, max 7.47, last 0.75 (2026-09-30); no input after 2026-09-30.
+- Months in: 99, 2010-08 to 2022-02.
+
+### Verdict
+
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: no; Sharpe above run B: no (A Sharpe -0.20, B Sharpe 0.02, deflated 0.001, max drawdown -26.3%).
 
 ## Limits
 
