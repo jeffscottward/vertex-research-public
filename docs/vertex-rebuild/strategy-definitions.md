@@ -131,7 +131,7 @@ The server engines run equity strategies and load sector points only. `serverStr
 | `autopilot.candidates.sendToPaper` | `VALIDATION_ERROR` before any write. |
 | `runStrategyDefinition` (TypeScript) and `plan_run` (Python Nautilus engine) | `StrategyUnsupportedError` with `code` `STRATEGY_OPTIONS_UNSUPPORTED` for an options block. `compileStrategy` / `compile_strategy` still compile it (signals plus the block) for the options runner. Series filters without a context raise `StrategySeriesDataError` / `SeriesDataError`. |
 
-`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing. Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
+`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing (decision 2026-11-08, card vertex-qc-ports: save accepts, every execution path refuses, so a saved options or series definition stays usable by the research runner and can never run ungated). Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
 
 ## Execution model
 
