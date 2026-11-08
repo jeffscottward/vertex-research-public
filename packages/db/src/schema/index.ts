@@ -28,6 +28,7 @@ export * from "./research-reports.ts";
 export * from "./research-studies.ts";
 export * from "./flow.ts";
 export * from "./semantic-layer.ts";
+export * from "./academy-content.ts";
 
 import { sql } from "drizzle-orm";
 import {

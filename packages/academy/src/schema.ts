@@ -449,7 +449,7 @@ export type LessonSpec = z.infer<typeof LessonSpecSchema>;
 /** A spec as authored (TypeScript spec modules: defaults may be omitted). */
 export type LessonSpecInput = z.input<typeof LessonSpecSchema>;
 
-/** Transcript and source data attached at build time from the knowledge base (not authored). */
+/** Transcript and source data taken from the knowledge base (not authored). */
 export type LessonSource = Readonly<{
   /** Course whose knowledge base holds the source (sources.json entries omit it: dyr). */
   course: CourseId;
@@ -465,6 +465,31 @@ export type LessonSource = Readonly<{
   transcript: readonly Readonly<{ start: number; text: string }>[];
   duplicateOf?: string;
 }>;
+
+/** Publish date of a source: a date (YYYY-MM-DD) or a UTC timestamp, as the knowledge base has it. */
+const PUBLISHED_AT = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?Z)?$/u;
+
+/**
+ * A knowledge-base source of one course, as stored in Postgres (academy_lesson_sources) and served by
+ * academy.lesson. The limits match the table's checks (packages/db/src/schema/academy-content.ts).
+ */
+export const LessonSourceSchema = z
+  .object({
+    course: z.enum(COURSE_IDS),
+    sourceId: z.string().regex(/^[A-Za-z0-9_-]{5,20}$/u),
+    url: z
+      .string()
+      .regex(/^https:\/\//u)
+      .max(500),
+    caption: z.string().max(5000),
+    publishedAt: z.string().regex(PUBLISHED_AT),
+    durationSeconds: z.number().min(0).max(86_400),
+    transcript: z
+      .array(z.object({ start: z.number().min(0), text: z.string() }).strict())
+      .max(2000),
+    duplicateOf: z.string().min(1).max(20).optional(),
+  })
+  .strict();
 
 export type Lesson = LessonSpec & Readonly<{ source: LessonSource }>;
 

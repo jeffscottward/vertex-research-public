@@ -447,6 +447,20 @@ export {
   type ResearchStudyUpsertInput,
   type ResearchStudyUpsertResult,
 } from "./research-studies.ts";
+export {
+  type AcademyContentRepository,
+  type AcademyCourseImportInput,
+  type AcademyCourseImportResult,
+  type AcademyImportCounts,
+  type AcademyLessonListEntry,
+  type AcademyLessonRecord,
+  type AcademyLessonSourceRecord,
+  type AcademyLessonSpecRecord,
+  academyLessonSpecHash,
+  createAcademyContentRepository,
+  parseAcademyCourseImport,
+  type ValidatedAcademyImport,
+} from "./academy-content.ts";
 export type {
   QuantLabBacktestRow,
   QuantLabCaptureRow,
