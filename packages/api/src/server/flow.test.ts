@@ -61,6 +61,7 @@ const emptyWindow = {
 
 const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
   ({
+    deleteOptionGap: vi.fn(async () => undefined),
     insertBooks: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertEvents: vi.fn(async (rows: readonly unknown[]) => rows.length),
     insertGex: vi.fn(async (rows: readonly unknown[]) => rows.length),
@@ -68,9 +69,11 @@ const fakeRepository = (overrides: Partial<FlowRepository> = {}) =>
     latestSamples: vi.fn(async () => ({ latest: [], latestOk: [] })),
     newestDataAt: vi.fn(async () => null),
     newestOptionPrintAt: vi.fn(async () => null),
+    optionGaps: vi.fn(async () => []),
     prune: vi.fn(async () => 0),
     readWindow: vi.fn(async () => emptyWindow),
     recordSample: vi.fn(async () => undefined),
+    saveOptionGap: vi.fn(async () => undefined),
     upsertMinutes: vi.fn(async (rows: readonly unknown[]) => rows.length),
     ...overrides,
   }) satisfies FlowRepository;

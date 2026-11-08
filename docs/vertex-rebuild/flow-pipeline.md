@@ -12,7 +12,7 @@ per-minute features and events in Postgres. The `/flow` page and the agent read 
 | --- | --- | --- | --- |
 | Ticks (time & sales) | IBKR historical ticks through `vertex-history` | `flow_minutes` (delta, buy/sell volume, VWAP, OHLC, covered seconds, large and off-exchange prints, stacked imbalances, absorption) and `flow_events` | one fetch of the newest 1000 prints per symbol about every 4 minutes |
 | Depth (L2) | IBKR market depth through `vertex-history` | `flow_book` (best bid/ask, top-10 bid and ask size, book pressure) | about every minute |
-| Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print |
+| Options flow | QuantData `order-flow/consolidated` (SPY; SPX for ES) | `flow_option_prints` (aggressor side, sweep/block, moneyness, vol > OI, opening, premium) and option events | about every 2 minutes, paged from the newest stored print; capped ranges resume in `flow_option_gaps` |
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 
 Every attempt writes one `flow_samples` row (status `ok`, `empty`, `unavailable` or `skipped`, with
@@ -100,12 +100,30 @@ Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 mi
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
+## Options paging and gaps
+
+QuantData serves `order-flow/consolidated` newest first, 50 rows per page. Per symbol and run the
+collector reads the new window (from the newest stored print to now) with at most 6 pages (300
+prints). When the window holds more, the unfetched older part [window start, oldest fetched print]
+becomes a row in `flow_option_gaps` (migration 0053) and the sample message says "page cap 6
+reached, older prints of this window queued as a gap". The same run then reads gaps, newest first,
+with the rest of its 8 pages: a range read to its end is deleted; a capped one keeps its start and
+moves its end back to the oldest print fetched (inclusive, so prints sharing that time are not lost;
+stored print ids are skipped), at least 1 ms per run so every resume moves on. After the options
+close (16:15 New York) the collector keeps reading gaps every ~2 minutes, all 8 pages per symbol,
+until none are left, so a busy session is stored in full by the evening. Gaps whose end is older
+than the 14-day retention are pruned.
+
+Budget: at most 8 QuantData requests per symbol per ~2 minutes (16 for both symbols), inside the
+vertex-web client limit of 30 per minute that `/charts` shares, and the account limit of 240 per
+60 s. A refused request (rate limit or error) stops the run's paging; the gap stays for the next run.
+
 ## Known gaps
 
-- Options flow is paged newest first with a cap of 6 pages (300 prints) per run. In busy regular
-  hours a window can hold more prints than that, and the older part of the window is not fetched
-  (the sample message says "page cap 6 reached"). Until the collector filters at the source or
-  resumes the unfetched range, options totals cover the fetched prints only.
+- Options totals cover the stored prints. A busy window that is still in `flow_option_gaps` (see
+  "Options paging and gaps") is complete only after later runs read the gap; the sample message
+  shows the gaps left. Prints QuantData publishes late, with a trade time before the newest stored
+  print, are not fetched.
 - The GEX snapshot shown is the newest one up to now, even when the order-flow window ended at a
   closed market's last print (GEX uses previous-session open interest).
 
@@ -123,6 +141,8 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
    Drizzle ledger is incomplete): apply `packages/db/migrations/0052_flow_pipeline.sql` alone with
    `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container, then check
    that the six `flow_*` tables exist and `vertex_research` has SELECT, INSERT, UPDATE and DELETE.
+   Apply `0053_flow_option_gaps.sql` the same way (alone, one transaction) before the collector that
+   reads gaps is deployed, and check `flow_option_gaps` and its grants.
 2. Install the timer from a clean checkout of the deployed commit:
    `infra/flow/quantvps/install.sh` (needs `/etc/vertex-autopilot/autopilot.env` with an operator write
    key). `journalctl -u vertex-flow.service` shows each run.
@@ -131,7 +151,8 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
    options look-back 72 h; the IBKR budget check still applies).
 4. Rollback: disable `vertex-flow.timer`; the tables can stay (`flow.snapshot` then shows stale data).
    Dropping them uses `packages/db/rollback/0052_flow_pipeline.down.sql`; to re-apply later, delete
-   the 0052 row from `drizzle.__drizzle_migrations` first.
+   the 0052 row from `drizzle.__drizzle_migrations` first. `flow_option_gaps` alone:
+   `packages/db/rollback/0053_flow_option_gaps.down.sql`, after the previous collector is deployed.
 
 ## Agent semantic layer
 

@@ -7,6 +7,7 @@ import {
   flowEvents,
   flowGex,
   flowMinutes,
+  flowOptionGaps,
   flowOptionPrints,
   flowSamples,
 } from "../schema/index.ts";
@@ -240,12 +241,20 @@ describe("createFlowRepository.recordSample", () => {
 });
 
 describe("createFlowRepository.prune", () => {
-  it("deletes from all six tables before the cutoff and sums removed rows", async () => {
-    const double = createDouble([[{}], [], [{}, {}], [{}], [], [{}, {}, {}]]);
+  it("deletes from every flow table before the cutoff and sums removed rows", async () => {
+    const double = createDouble([
+      [{}],
+      [],
+      [{}, {}],
+      [{}],
+      [],
+      [{}, {}, {}],
+      [{}],
+    ]);
     const repository = createFlowRepository(double.database);
-    await expect(repository.prune(FROM)).resolves.toBe(7);
+    await expect(repository.prune(FROM)).resolves.toBe(8);
     expect(double.operations.map((operation) => operation.kind)).toEqual(
-      new Array(6).fill("delete")
+      new Array(7).fill("delete")
     );
     expect(double.operations.map((operation) => operation.table)).toEqual([
       flowSamples,
@@ -254,12 +263,74 @@ describe("createFlowRepository.prune", () => {
       flowOptionPrints,
       flowEvents,
       flowGex,
+      flowOptionGaps,
     ]);
+    expect(whereOf(double.operations[6]).sql).toContain('"end_time" < $1');
     for (const operation of double.operations) {
       const where = whereOf(operation);
       expect(where.sql).toContain(" < $1");
       expect(where.params).toEqual([FROM.toISOString()]);
     }
+  });
+});
+
+describe("createFlowRepository option gaps", () => {
+  const gap = {
+    createdAt: FROM,
+    endTime: TO,
+    startTime: FROM,
+    symbol: "SPY" as const,
+  };
+
+  it("reads one symbol's gaps, newest end first", async () => {
+    const double = createDouble([[gap]]);
+    const repository = createFlowRepository(double.database);
+    await expect(repository.optionGaps("SPY")).resolves.toEqual([gap]);
+    const [operation] = double.operations;
+    expect(operation?.table).toBe(flowOptionGaps);
+    expect(whereOf(operation)).toMatchObject({
+      params: ["SPY"],
+      sql: '"flow_option_gaps"."symbol" = $1',
+    });
+    expect(dialect.sqlToQuery(operation?.orderBy?.[0] as SQL).sql).toBe(
+      '"flow_option_gaps"."end_time" desc'
+    );
+  });
+
+  it("saves a gap, moving only the end of a stored gap with the same start", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.saveOptionGap(gap);
+    const [operation] = double.operations;
+    expect(operation).toMatchObject({
+      kind: "insert",
+      table: flowOptionGaps,
+      values: gap,
+    });
+    const conflict = operation?.conflict as {
+      set: Record<string, SQL>;
+      target: unknown[];
+    };
+    expect(conflict.target).toEqual([
+      flowOptionGaps.symbol,
+      flowOptionGaps.startTime,
+    ]);
+    expect(Object.keys(conflict.set)).toEqual(["endTime"]);
+    expect(dialect.sqlToQuery(conflict.set["endTime"] as SQL).sql).toBe(
+      "excluded.end_time"
+    );
+  });
+
+  it("deletes one gap by symbol and start", async () => {
+    const double = createDouble([[]]);
+    const repository = createFlowRepository(double.database);
+    await repository.deleteOptionGap("ES", FROM);
+    const [operation] = double.operations;
+    expect(operation).toMatchObject({ kind: "delete", table: flowOptionGaps });
+    expect(whereOf(operation)).toMatchObject({
+      params: ["ES", FROM.toISOString()],
+      sql: '("flow_option_gaps"."symbol" = $1 and "flow_option_gaps"."start_time" = $2)',
+    });
   });
 });
 

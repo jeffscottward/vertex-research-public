@@ -5,7 +5,11 @@
 // staggered so the two symbols never fetch in the same ~2 minutes, and only while at most 2 of the
 // 6 slots are in use, so /charts keeps at least 2 free. Depth uses its own subscription pacer.
 // Research only: nothing here places, changes or cancels orders. Doc: docs/vertex-rebuild/flow-pipeline.md.
-import type { FlowRepository, FlowSampleRecord } from "@darkfactory/db/server";
+import type {
+  FlowOptionGapRecord,
+  FlowRepository,
+  FlowSampleRecord,
+} from "@darkfactory/db/server";
 
 import {
   FLOW_SYMBOLS,
@@ -47,7 +51,14 @@ const FLOW_TICKS_STAGGER_SECONDS = 110;
 const FLOW_IBKR_MAX_RECENT = 2;
 export const FLOW_TICKS_COUNT = 1000;
 export const FLOW_DEPTH_ROWS = 10;
+/** QuantData pages for the new options window of one symbol per run. */
 export const FLOW_OPTION_PAGES_MAX = 6;
+/**
+ * QuantData pages per symbol and run in total: the new window first, stored gaps get the rest (at
+ * least 2). Both symbols: at most 16 requests per ~2 minutes, inside the vertex-web QuantData budget
+ * (30 per minute, shared with /charts) and the account limit (240 per 60 s).
+ */
+export const FLOW_OPTION_RUN_PAGES_MAX = 8;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
 export const FLOW_RETENTION_DAYS = 14;
@@ -241,11 +252,13 @@ type OptionPage = Readonly<{
   next: unknown[] | null;
 }>;
 
+/** One QuantData flow query over [start, end] (inclusive), newest first, until done or `maxPages`. */
 const fetchOptionPages = async (
   client: QuantDataClient,
   ticker: FlowOptionTicker,
-  since: Date,
-  now: Date
+  start: Date,
+  end: Date,
+  maxPages: number
 ): Promise<Readonly<{ pages: OptionPage[]; capped: boolean }> | string> => {
   const pages: OptionPage[] = [];
   let searchAfter: unknown[] | null = null;
@@ -256,8 +269,8 @@ const fetchOptionPages = async (
         filter: { ticker },
         ...(searchAfter === null ? {} : { searchAfter }),
         timeRange: {
-          endTime: now.toISOString(),
-          startTime: since.toISOString(),
+          endTime: end.toISOString(),
+          startTime: start.toISOString(),
         },
       },
       30_000
@@ -269,60 +282,281 @@ const fetchOptionPages = async (
     const next = result.body["nextSearchAfter"];
     searchAfter = Array.isArray(next) ? next : null;
     pages.push({ data: result.data, next: searchAfter });
-  } while (searchAfter !== null && pages.length < FLOW_OPTION_PAGES_MAX);
+  } while (searchAfter !== null && pages.length < maxPages);
   return { capped: searchAfter !== null, pages };
 };
 
-const collectOptions = async (
+type OptionFetch = Readonly<{
+  pages: number;
+  prints: number;
+  skipped: number;
+  items: number;
+  events: number;
+  /** More prints are left in the range (page cap, or a later page failed). */
+  capped: boolean;
+  /** Oldest fetched print time; a capped range resumes there. */
+  oldest: Date | null;
+}>;
+
+/** Fetches one range and stores its prints and events (insert-once by print id). */
+const fetchAndStoreOptions = async (
   state: RunState,
-  instrument: FlowInstrument
-): Promise<Attempt> => {
-  const client = state.deps.quantData;
-  if (client === null) return notDue("QuantData not configured");
-  const { now, repository } = state.deps;
-  const floor = new Date(
-    now.getTime() -
-      (state.seed ? FLOW_SEED_OPTION_LOOKBACK_MS : FLOW_OPTION_LOOKBACK_MS)
-  );
-  let newest: Date | null;
-  try {
-    newest = await repository.newestOptionPrintAt(instrument.symbol);
-  } catch (error) {
-    return failed(error);
-  }
-  const since = newest !== null && newest > floor ? newest : floor;
+  client: QuantDataClient,
+  instrument: FlowInstrument,
+  start: Date,
+  end: Date,
+  maxPages: number
+): Promise<OptionFetch | string> => {
   const fetched = await fetchOptionPages(
     client,
     instrument.optionsTicker,
-    since,
-    now
+    start,
+    end,
+    maxPages
   );
-  if (typeof fetched === "string") return failed(new Error(fetched));
+  if (typeof fetched === "string") return fetched;
   const parsed = fetched.pages.map((page) =>
     parseOptionPrints(page.data, instrument.symbol, instrument.optionsTicker)
   );
   const prints = parsed.flatMap((page) => page.prints);
-  const skipped = parsed.reduce((total, page) => total + page.skipped, 0);
   const items = await store(state, prints, (rows) =>
-    repository.insertOptionPrints(rows)
+    state.deps.repository.insertOptionPrints(rows)
   );
   const events = await storeEvents(
     state,
     optionEvents(prints, instrument.optionEventPremium)
   );
-  const notes = [
-    `${prints.length} prints on ${fetched.pages.length} page(s) since ${since.toISOString()}`,
-    fetched.capped
-      ? `page cap ${FLOW_OPTION_PAGES_MAX} reached, older prints of this window not fetched`
-      : null,
-    skipped > 0 ? `${skipped} rows failed the schema` : null,
-  ].filter((note) => note !== null);
   return {
+    capped: fetched.capped,
     events,
     items,
-    message: notes.join("; "),
+    oldest:
+      prints.length === 0
+        ? null
+        : new Date(
+            Math.min(...prints.map((print) => print.tradedAt.getTime()))
+          ),
+    pages: fetched.pages.length,
+    prints: prints.length,
+    skipped: parsed.reduce((total, page) => total + page.skipped, 0),
+  };
+};
+
+/**
+ * The new end of a capped range [start, end]: its oldest fetched print (inclusive again, so prints
+ * sharing that time are not lost; stored ids are skipped), and at least 1 ms below `end` so every
+ * resume moves on. Null: nothing is left before `start`, or the capped pages held no valid print.
+ */
+const resumeEnd = (
+  start: Date,
+  end: Date,
+  oldest: Date | null
+): Date | null => {
+  if (oldest === null) return null;
+  const next = Math.min(oldest.getTime(), end.getTime() - 1);
+  return next < start.getTime() ? null : new Date(next);
+};
+
+type GapWork = Readonly<{ gap: FlowOptionGapRecord; stored: boolean }>;
+
+type GapResume = Readonly<{
+  pages: number;
+  prints: number;
+  skipped: number;
+  items: number;
+  events: number;
+  closed: number;
+  left: number;
+  error: string | null;
+}>;
+
+/**
+ * Reads unfetched ranges newest first within `budget` pages. A range read completely is deleted;
+ * a capped one is saved with its end moved back to the oldest fetched print; ranges this run did
+ * not reach stay (new ones are saved). Dry runs write nothing.
+ */
+const resumeOptionGaps = async (
+  state: RunState,
+  client: QuantDataClient,
+  instrument: FlowInstrument,
+  gaps: readonly GapWork[],
+  budget: number
+): Promise<GapResume> => {
+  const { repository } = state.deps;
+  const pending = [...gaps];
+  const total = { events: 0, items: 0, pages: 0, prints: 0, skipped: 0 };
+  let closed = 0;
+  let error: string | null = null;
+  const save = async (gap: FlowOptionGapRecord) => {
+    if (!state.dryRun) await repository.saveOptionGap(gap);
+  };
+  for (let work = pending[0]; work !== undefined; work = pending[0]) {
+    if (total.pages >= budget) break;
+    const fetched = await fetchAndStoreOptions(
+      state,
+      client,
+      instrument,
+      work.gap.startTime,
+      work.gap.endTime,
+      budget - total.pages
+    );
+    if (typeof fetched === "string") {
+      error = fetched;
+      break;
+    }
+    pending.shift();
+    total.pages += fetched.pages;
+    total.prints += fetched.prints;
+    total.skipped += fetched.skipped;
+    total.items += fetched.items;
+    total.events += fetched.events;
+    const end = fetched.capped
+      ? resumeEnd(work.gap.startTime, work.gap.endTime, fetched.oldest)
+      : null;
+    if (end !== null) {
+      const gap = { ...work.gap, endTime: end };
+      await save(gap);
+      pending.unshift({ gap, stored: true });
+      // Capped: the budget is spent, or a later page failed (retry next run).
+      break;
+    }
+    if (work.stored && !state.dryRun)
+      await repository.deleteOptionGap(work.gap.symbol, work.gap.startTime);
+    closed += 1;
+  }
+  for (const work of pending) if (!work.stored) await save(work.gap);
+  return { ...total, closed, error, left: pending.length };
+};
+
+type OptionWindow = Readonly<{
+  fetched: OptionFetch;
+  notes: string[];
+  /** The older part of a capped window, not stored yet. */
+  gap: FlowOptionGapRecord | null;
+}>;
+
+/** The new window, from the newest stored print (inside the look-back) to now. */
+const readOptionWindow = async (
+  state: RunState,
+  client: QuantDataClient,
+  instrument: FlowInstrument,
+  newest: Date | null
+): Promise<OptionWindow | string> => {
+  const { now } = state.deps;
+  const floor = new Date(
+    now.getTime() -
+      (state.seed ? FLOW_SEED_OPTION_LOOKBACK_MS : FLOW_OPTION_LOOKBACK_MS)
+  );
+  const since = newest !== null && newest > floor ? newest : floor;
+  const fetched = await fetchAndStoreOptions(
+    state,
+    client,
+    instrument,
+    since,
+    now,
+    FLOW_OPTION_PAGES_MAX
+  );
+  if (typeof fetched === "string") return fetched;
+  const notes = [
+    `${fetched.prints} prints on ${fetched.pages} page(s) since ${since.toISOString()}`,
+  ];
+  let gap: FlowOptionGapRecord | null = null;
+  if (fetched.capped) {
+    const end = resumeEnd(since, now, fetched.oldest);
+    if (end !== null)
+      gap = {
+        createdAt: now,
+        endTime: end,
+        startTime: since,
+        symbol: instrument.symbol,
+      };
+    const reason =
+      fetched.pages >= FLOW_OPTION_PAGES_MAX
+        ? `page cap ${FLOW_OPTION_PAGES_MAX} reached`
+        : `page ${fetched.pages + 1} failed`;
+    notes.push(
+      gap === null
+        ? `${reason}, older prints not tracked (no valid row on the fetched pages)`
+        : `${reason}, older prints of this window queued as a gap`
+    );
+  }
+  if (fetched.skipped > 0)
+    notes.push(`${fetched.skipped} rows failed the schema`);
+  return { fetched, gap, notes };
+};
+
+const NO_WINDOW: OptionWindow = {
+  fetched: {
+    capped: false,
+    events: 0,
+    items: 0,
+    oldest: null,
+    pages: 0,
+    prints: 0,
+    skipped: 0,
+  },
+  gap: null,
+  notes: ["market closed, gaps only"],
+};
+
+/**
+ * Options flow for one symbol. While the options session is open: the new window (from the newest
+ * stored print) first, at most FLOW_OPTION_PAGES_MAX pages; a capped window queues its older part
+ * as a gap. Then stored gaps, newest first, with the rest of FLOW_OPTION_RUN_PAGES_MAX. After the
+ * close the run reads gaps only, until none are left.
+ */
+const collectOptions = async (
+  state: RunState,
+  instrument: FlowInstrument,
+  open: boolean
+): Promise<Attempt> => {
+  const client = state.deps.quantData;
+  if (client === null) return notDue("QuantData not configured");
+  const { repository } = state.deps;
+  let stored: FlowOptionGapRecord[];
+  let newest: Date | null = null;
+  try {
+    stored = await repository.optionGaps(instrument.symbol);
+    if (open) newest = await repository.newestOptionPrintAt(instrument.symbol);
+  } catch (error) {
+    return failed(error);
+  }
+  if (!open && stored.length === 0) return notDue("market closed");
+  const window = open
+    ? await readOptionWindow(state, client, instrument, newest)
+    : NO_WINDOW;
+  if (typeof window === "string") return failed(new Error(window));
+  const gaps: GapWork[] = [
+    ...(window.gap === null ? [] : [{ gap: window.gap, stored: false }]),
+    ...stored.map((gap) => ({ gap, stored: true })),
+  ];
+  const notes = [...window.notes];
+  let resumed: GapResume | null = null;
+  if (gaps.length > 0) {
+    resumed = await resumeOptionGaps(
+      state,
+      client,
+      instrument,
+      gaps,
+      FLOW_OPTION_RUN_PAGES_MAX - window.fetched.pages
+    );
+    if (!open && resumed.pages === 0 && resumed.error !== null)
+      return failed(new Error(`gaps: ${resumed.error}`));
+    notes.push(
+      `gaps: ${resumed.prints} prints on ${resumed.pages} page(s), ${resumed.closed} closed, ${resumed.left} left`
+    );
+    if (resumed.skipped > 0)
+      notes.push(`${resumed.skipped} gap rows failed the schema`);
+    if (resumed.error !== null)
+      notes.push(`gap fetch failed: ${resumed.error.slice(0, 80)}`);
+  }
+  const prints = window.fetched.prints + (resumed?.prints ?? 0);
+  return {
+    events: window.fetched.events + (resumed?.events ?? 0),
+    items: window.fetched.items + (resumed?.items ?? 0),
+    message: notes.join("; ").slice(0, 300),
     record: true,
-    status: prints.length > 0 ? "ok" : "empty",
+    status: prints > 0 ? "ok" : "empty",
   };
 };
 
@@ -405,7 +639,7 @@ const COLLECTORS: Readonly<
 > = {
   depth: collectDepth,
   gex: collectGex,
-  options: collectOptions,
+  options: (state, instrument) => collectOptions(state, instrument, true),
   ticks: collectTicks,
 };
 
@@ -415,15 +649,19 @@ const attempt = async (
   source: FlowSource
 ): Promise<Attempt> => {
   if (state.seed) return await COLLECTORS[source](state, instrument);
-  if (!flowSessionOpen(source, instrument.symbol, state.deps.now))
-    return notDue("market closed");
+  const open = flowSessionOpen(source, instrument.symbol, state.deps.now);
+  // Options keep reading their unfetched gaps after the close; without gaps collectOptions answers
+  // "market closed" before any QuantData request.
+  if (!open && source !== "options") return notDue("market closed");
   const age = secondsSince(
     state,
     state.last.get(sampleKey(instrument.symbol, source))
   );
   if (age < FLOW_DUE_SECONDS[source])
     return notDue(`not due (last attempt ${Math.round(age)} s ago)`);
-  return await COLLECTORS[source](state, instrument);
+  return open
+    ? await COLLECTORS[source](state, instrument)
+    : await collectOptions(state, instrument, false);
 };
 
 const lastAttempts = async (
