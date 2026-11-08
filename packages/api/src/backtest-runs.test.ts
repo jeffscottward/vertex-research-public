@@ -906,6 +906,26 @@ describe("backtestRuns procedures", () => {
       },
       "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the volRegime filters"
     );
+    // calendarWindow counts trading days: refused on intraday timeframes, allowed on daily.
+    await expect(
+      client.backtestRuns.submit({
+        ...submitInput,
+        rule: {
+          definition: StrategyDefinitionSchema.parse({
+            ...STRATEGY_TEMPLATES.smaCross,
+            filters: [{ type: "calendarWindow", window: "opexWeek" }],
+          }),
+          kind: "dsl",
+        },
+        timeframe: "1m",
+      })
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: expect.stringContaining(
+        "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+      ),
+      status: 422,
+    });
     expect(runs.rows.size).toBe(0);
     const calendar = await client.backtestRuns.submit({
       ...submitInput,
@@ -1342,6 +1362,24 @@ describe("executeBacktestRun", () => {
     await executeBacktestRun({ marketBars: bars, runs }, claimed.id);
     expect(runs.rows.get(claimed.id)?.status).toBe("running");
     expect(bars.getSeries).not.toHaveBeenCalled();
+  });
+
+  it("fails a queued calendarWindow run on intraday bars with the typed refusal", async () => {
+    const runs = memoryRuns();
+    const run = await queue(runs, {
+      rule: {
+        definition: StrategyDefinitionSchema.parse({
+          ...STRATEGY_TEMPLATES.smaCross,
+          filters: [{ type: "calendarWindow", window: "opexWeek" }],
+        }),
+        kind: "dsl",
+      },
+      timeframe: "1m",
+    });
+    await executeBacktestRun({ marketBars: fakeBars(), runs }, run.id);
+    expect(runs.rows.get(run.id)?.error).toContain(
+      "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+    );
   });
 
   it("fails a queued options or series-filter definition with the typed refusal", async () => {
@@ -2509,6 +2547,50 @@ describe("backtest runs on the Nautilus engine", () => {
     );
     expect(runs.rows.get(term.id)?.error).toContain(
       "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the vixTermStructure filters"
+    );
+  });
+
+  it("fails refused runs inside a batch claim (max N) and claims the next batch", async () => {
+    const runs = memoryRuns();
+    const client = clientFor({ bars: fakeBars(), runs });
+    const refusedSpec = (extra: Record<string, unknown>) => ({
+      spec: {
+        ...spec,
+        rule: {
+          definition: StrategyDefinitionSchema.parse({
+            ...STRATEGY_TEMPLATES.smaCross,
+            ...extra,
+          }),
+          kind: "dsl" as const,
+        },
+      },
+    });
+    const options = await queue(
+      runs,
+      refusedSpec({
+        options: {
+          dte: { min: 20, target: 30 },
+          maxLossPct: 2,
+          structure: "putDebitVertical",
+          widthSigma: 1,
+        },
+      })
+    );
+    const rank = await queue(
+      runs,
+      refusedSpec({ filters: [{ min: 50, type: "ivRank" }] })
+    );
+    const good = await queue(runs);
+    const { batch } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 5,
+    });
+    expect(batch?.runs.map((entry) => entry.id)).toEqual([good.id]);
+    expect(runs.rows.get(options.id)?.error).toContain(
+      "STRATEGY_OPTIONS_UNSUPPORTED"
+    );
+    expect(runs.rows.get(rank.id)?.error).toContain(
+      "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ivRank filters"
     );
   });
 

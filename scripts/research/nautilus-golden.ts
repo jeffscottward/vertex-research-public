@@ -37,8 +37,11 @@ import {
   relativeVolumeAtTime,
   rollingZScore,
   runStrategyDefinition,
+  type CompiledStrategy,
+  nyseHolidays,
   type SectorQuadrantSeries,
   type StrategySeriesContext,
+  type StrategyUnsupportedError,
 } from "../../packages/api/src/strategy-dsl-compile.ts";
 import {
   STRATEGY_TEMPLATES,
@@ -565,6 +568,12 @@ const seriesContext = (): SeriesJson => {
     },
     VIX3M: record(weekdays, vix3m, (index) => index % 53 === 11),
     VXN: record(weekdays, walk(weekdays, 12, 20, 1.3, 0.04), () => false),
+    // Gaps of 12 and 4 weekdays: the series filter carries a value at most 5 trading days.
+    "CL=F": record(
+      weekdays,
+      walk(weekdays, 16, 60, 1.2, 0),
+      (index) => (index >= 60 && index < 72) || (index >= 200 && index < 204)
+    ),
   };
 };
 
@@ -714,6 +723,28 @@ const qcDefinitions: {
     symbols: ["QQQ", "intraday"],
   },
   {
+    definition: maskDefinition("Oil above 60, carried 5 days", [
+      {
+        condition: {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { type: "const", value: 60 },
+        },
+        series: "CL=F",
+        type: "series",
+      },
+    ]),
+    id: "qc:series:oilGap",
+    symbols: ["SPY", "intraday"],
+  },
+  {
+    definition: trendDefinition("Opex trend", [
+      { type: "calendarWindow", window: "opexWeek" },
+    ]),
+    id: "qc:calendar:opexTrend",
+    symbols: ["SPY", "QQQ", "calendar"],
+  },
+  {
     definition: {
       ...(trendDefinition("Put credit vertical", [
         { length: 60, min: 30, type: "ivRank" },
@@ -836,9 +867,6 @@ interface Spec {
   costBps: number;
   costs: { profile: CostProfile; capital: number } | null;
   sectorQuadrants: SectorQuadrantSeries | null;
-  /** Series filter context ({id: {date: value}}) and traded symbol; only on series cases. */
-  series?: SeriesJson;
-  symbol?: string;
 }
 
 const LENGTHS = [2, 5, 14, 20, 50, 200];
@@ -960,12 +988,19 @@ const buildCompiled = (
 ): Json[] => {
   const compiledJson = (definition: Json, symbol: string) => {
     const parsed = StrategyDefinitionSchema.parse(definition);
-    const compiled = compileStrategy(
-      datasets[symbol] as BarColumns,
-      parsed,
-      sectorQuadrants,
-      { context: series as StrategySeriesContext, symbol }
-    );
+    let compiled: CompiledStrategy;
+    try {
+      compiled = compileStrategy(
+        datasets[symbol] as BarColumns,
+        parsed,
+        sectorQuadrants,
+        { context: series as StrategySeriesContext, symbol }
+      );
+    } catch (error) {
+      // A refusal is part of the contract: Python must refuse with the same code and message.
+      const { code, message } = error as StrategyUnsupportedError;
+      return { refused: { code, message } };
+    }
     return {
       exits: Array.from(compiled.exits),
       signals: Array.from(compiled.signals),
@@ -1112,8 +1147,7 @@ const buildCosts = (): Json[] =>
 /** 5. Engine cases. Adds the gap-case bars to `datasets`. */
 const buildEngine = (
   datasets: Record<string, BarColumns>,
-  libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[],
-  series: SeriesJson
+  libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[]
 ): Json[] => {
   const resultJson = (result: InstantRunResult) => ({
     equity: list(result.equity),
@@ -1142,13 +1176,7 @@ const buildEngine = (
       definition,
       spec.costBps,
       spec.costs ?? undefined,
-      spec.sectorQuadrants ?? undefined,
-      spec.series === undefined
-        ? undefined
-        : {
-            context: spec.series as StrategySeriesContext,
-            ...(spec.symbol === undefined ? {} : { symbol: spec.symbol }),
-          }
+      spec.sectorQuadrants ?? undefined
     );
     engine.push({ id, spec, symbol, ...resultJson(result) });
   };
@@ -1209,11 +1237,12 @@ const buildEngine = (
     }),
     sectorQuadrants,
   });
+  // Calendar filters run on the server engine; series filters and options blocks are refused.
   for (const [id, symbol] of [
-    ["qc:volRegime", "SPY"],
-    ["qc:ivRank:min", "QQQ"],
-    ["qc:series:goldCross", "SPY"],
-    ["qc:volRegime", "QQQ"],
+    ["qc:calendar:opexTrend", "SPY"],
+    ["qc:calendar:opexTrend", "QQQ"],
+    ["qc:calendar:opexTrend", "calendar"],
+    ["qc:calendar:turnOfMonth", "SPY"],
   ] as const) {
     dslCase(`${id}:${symbol}`, symbol, {
       ...baseSpec({
@@ -1221,8 +1250,6 @@ const buildEngine = (
         kind: "dsl",
       }),
       sectorQuadrants,
-      series,
-      symbol,
     });
   }
   const alwaysIn = (stopPct: number, targetPct: number): Json => ({
@@ -1298,6 +1325,40 @@ const buildEngine = (
   return engine;
 };
 
+/** NYSE holidays 1998 to 2035 (YYYY-MM-DD), the calendar the calendarWindow filter uses. */
+const holidayDates = (): string[] => {
+  const dates: string[] = [];
+  for (let year = 1998; year <= 2035; year += 1)
+    for (const day of [...nyseHolidays(year)].sort((a, b) => a - b))
+      dates.push(new Date(day * 86_400_000).toISOString().slice(0, 10));
+  return dates;
+};
+
+/** 6. Server engine refusals: runStrategyDefinition (TS) and plan_run (Python) refuse alike. */
+const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
+  [
+    ["qc:options:putCredit", "SPY"],
+    ["qc:ivRank:min", "SPY"],
+    ["qc:series:esTrend", "SPY"],
+    ["qc:calendar:opexWeek", "intraday"],
+  ].map(([id, symbol]) => {
+    const definition = qcDefinitions.find((entry) => entry.id === id)
+      ?.definition as Json;
+    try {
+      runStrategyDefinition(
+        datasets[symbol as string] as BarColumns,
+        StrategyDefinitionSchema.parse(definition),
+        10,
+        undefined,
+        sectorQuadrants
+      );
+      return { id, ran: true };
+    } catch (error) {
+      const { code, message } = error as StrategyUnsupportedError;
+      return { code, definition, id, message, symbol };
+    }
+  });
+
 const buildGolden = (io: GoldenIo): string => {
   const csv = (file: string) =>
     io.readText(join("tests/fixtures/golden", file));
@@ -1330,7 +1391,8 @@ const buildGolden = (io: GoldenIo): string => {
   const fixedRules = buildFixedRules(datasets);
   const costs = buildCosts();
   // Runs last: the engine cases add the gap-case bars to `datasets`.
-  const engine = buildEngine(datasets, libraryDefinitions, series);
+  const engine = buildEngine(datasets, libraryDefinitions);
+  const engineRefusals = buildEngineRefusals(datasets);
   const golden = {
     barCount: BAR_COUNT,
     bars: Object.fromEntries(
@@ -1341,6 +1403,8 @@ const buildGolden = (io: GoldenIo): string => {
     engine,
     fixedRules,
     indicators,
+    engineRefusals,
+    nyseHolidays: holidayDates(),
     sectorQuadrants,
     series,
   };

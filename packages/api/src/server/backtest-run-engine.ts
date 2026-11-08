@@ -134,7 +134,7 @@ const runInputs = async (
     if (spec.rule.kind === "dsl") {
       const definition = StrategyDefinitionSchema.parse(spec.rule.definition);
       // The worker gets no series context and runs equity only: refuse, never run it half.
-      assertServerRunnable(definition);
+      assertServerRunnable(definition, spec.timeframe);
       sectorQuadrants = await loadSectorQuadrants(
         dependencies.sectorRotation,
         definition,

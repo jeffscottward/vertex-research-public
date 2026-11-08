@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import {
   parseStrategyDefinitionText,
+  STRATEGY_CALENDAR_INTRADAY_REFUSAL,
+  STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
+  STRATEGY_DAILY_TIMEFRAMES,
   STRATEGY_IV_INDEX,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_OPTIONS_UNSUPPORTED,
@@ -681,5 +684,78 @@ describe("serverStrategyRefusal", () => {
       message:
         "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ivRank, vixTermStructure filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.",
     });
+  });
+});
+
+describe("serverStrategyRefusal with a timeframe", () => {
+  const calendar = StrategyDefinitionSchema.parse({
+    ...minimal,
+    filters: [{ type: "calendarWindow", window: "opexWeek" }],
+  });
+
+  it("refuses calendarWindow filters on intraday timeframes only", () => {
+    expect(STRATEGY_DAILY_TIMEFRAMES).toEqual(["1d", "1w"]);
+    expect(serverStrategyRefusal(calendar, "1d")).toBeUndefined();
+    expect(serverStrategyRefusal(calendar, "1w")).toBeUndefined();
+    expect(serverStrategyRefusal(calendar)).toBeUndefined();
+    expect(serverStrategyRefusal(calendar, "1m")).toBe(
+      STRATEGY_CALENDAR_INTRADAY_REFUSAL
+    );
+    expect(serverStrategyRefusal(calendar, "5m")?.code).toBe(
+      STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
+    );
+    expect(
+      serverStrategyRefusal(StrategyDefinitionSchema.parse(minimal), "1m")
+    ).toBeUndefined();
+  });
+});
+
+describe("options bounds", () => {
+  const base = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    structure: "putCreditVertical",
+    widthSigma: 0.5,
+  };
+  const ok = (options: Record<string, unknown>) =>
+    validateStrategyDefinition({ ...minimal, options }).ok;
+
+  it.each([
+    ["maxLossPct exactly 2", { maxLossPct: 2 }, true],
+    ["maxLossPct just above 2", { maxLossPct: 2.000_001 }, false],
+    ["a tiny maxLossPct", { maxLossPct: 0.01 }, true],
+    ["shortDelta 0.05", { shortDelta: 0.05 }, true],
+    ["shortDelta 0.95", { shortDelta: 0.95 }, true],
+    ["shortDelta below 0.05", { shortDelta: 0.049 }, false],
+    ["shortDelta above 0.95", { shortDelta: 0.951 }, false],
+    [
+      "longDelta 0.05 on a debit vertical",
+      { longDelta: 0.05, structure: "callDebitVertical" },
+      true,
+    ],
+    [
+      "longDelta 0.95 on a debit vertical",
+      { longDelta: 0.95, structure: "putDebitVertical" },
+      true,
+    ],
+    [
+      "longDelta above 0.95",
+      { longDelta: 0.96, structure: "callDebitVertical" },
+      false,
+    ],
+    ["profitTakePct 1", { profitTakePct: 1 }, true],
+    ["profitTakePct 100", { profitTakePct: 100 }, true],
+    ["profitTakePct below 1", { profitTakePct: 0.5 }, false],
+    ["profitTakePct above 100", { profitTakePct: 101 }, false],
+    ["widthSigma 0.1", { widthSigma: 0.1 }, true],
+    ["widthSigma 3", { widthSigma: 3 }, true],
+    ["widthSigma below 0.1", { widthSigma: 0.09 }, false],
+    ["dte.target 7 with min 1", { dte: { min: 1, target: 7 } }, true],
+    ["dte.target 6", { dte: { min: 1, target: 6 } }, false],
+    ["dte.target 400", { dte: { min: 30, target: 400 } }, true],
+    ["exitDte 0", { exitDte: 0 }, true],
+    ["a fractional exitDte", { exitDte: 1.5 }, false],
+  ])("%s", (_, change, valid) => {
+    expect(ok({ ...base, ...change })).toBe(valid);
   });
 });

@@ -111,7 +111,10 @@ const create = api.autopilot.campaigns.create
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
     // Campaign filters join every candidate; the runner loads sector points only.
-    const refusal = serverStrategyRefusal({ filters: input.filters });
+    const refusal = serverStrategyRefusal(
+      { filters: input.filters },
+      input.timeframe
+    );
     if (refusal !== undefined)
       throw failures.VALIDATION_ERROR({ message: refusal.message });
     const repository = repositoryFor(context, failures);
@@ -264,8 +267,10 @@ const candidateGet = api.autopilot.candidates.get
         paperRequestId: row.deploymentRequestId,
         verified: row.status === "verified",
       }),
+      // No paper config for a definition the paper path refuses (options block, series filters).
       nautilus:
-        row.status === "verified"
+        row.status === "verified" &&
+        serverStrategyRefusal(definition, campaign.timeframe) === undefined
           ? nautilusPaperConfig(
               row,
               {
@@ -339,7 +344,7 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
     }
     const definition = StrategyDefinitionSchema.parse(row.definition);
     // The paper path runs equity definitions only; refuse before any write.
-    const refusal = serverStrategyRefusal(definition);
+    const refusal = serverStrategyRefusal(definition, campaign.timeframe);
     if (refusal !== undefined)
       throw failures.VALIDATION_ERROR({ message: refusal.message });
     const sha256 = await strategyDefinitionSha256(definition);

@@ -12,8 +12,8 @@ import {
   type IvRankFilter,
   type SectorQuadrantFilter,
   type SeriesFilter,
+  STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_IV_INDEX,
-  STRATEGY_OPTIONS_REFUSAL,
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
@@ -597,16 +597,26 @@ export class StrategyUnsupportedError extends InstantBacktestInputError {
   }
 }
 
-/** Throws StrategyUnsupportedError when the server engines cannot run the definition or filters. */
+/**
+ * Throws StrategyUnsupportedError when the server engines cannot run the definition or filters
+ * (on `timeframe`, when given). Research runners call compileStrategy instead.
+ */
 export const assertServerRunnable = (
   definition: Readonly<{
     filters?: readonly StrategyFilter[] | undefined;
     options?: StrategyOptions | undefined;
-  }>
+  }>,
+  timeframe?: string
 ): void => {
-  const refusal = serverStrategyRefusal(definition);
+  const refusal = serverStrategyRefusal(definition, timeframe);
   if (refusal !== undefined) throw new StrategyUnsupportedError(refusal);
 };
+
+/**
+ * Most trading days (distinct bar dates) a series value is carried past its date, as in the
+ * research loader (qc_ports data.align). Older values are missing.
+ */
+export const STRATEGY_SERIES_MAX_FILL_DAYS = 5;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 
@@ -636,7 +646,9 @@ const dailySeries = (
 /**
  * The value of a daily series on each bar: the latest value dated on or before the bar date. A
  * daily value is known after its close, so an intraday bar uses only values dated before its date.
- * `exact` (daily bars) needs a value dated on the bar date itself; otherwise NaN.
+ * A value is carried for at most STRATEGY_SERIES_MAX_FILL_DAYS later bar dates without a newer
+ * one (the carry restarts whenever a newer value becomes usable). `exact` (daily bars) needs a
+ * value dated on the bar date itself; otherwise NaN.
  */
 const alignSeries = (
   series: DailySeries,
@@ -648,8 +660,11 @@ const alignSeries = (
   const { dates } = series;
   const out = new Float64Array(barDates.length).fill(Number.NaN);
   let next = 0;
+  let age = 0;
+  let previousDate: string | undefined;
   for (let index = 0; index < barDates.length; index += 1) {
     const date = barDates[index] as string;
+    const before = next;
     while (
       next < dates.length &&
       (intraday
@@ -657,7 +672,10 @@ const alignSeries = (
         : (dates[next] as string) <= date)
     )
       next += 1;
-    if (next === 0) continue;
+    if (next > before) age = 0;
+    else if (date !== previousDate) age += 1;
+    previousDate = date;
+    if (next === 0 || age > STRATEGY_SERIES_MAX_FILL_DAYS) continue;
     if (exact && !intraday && dates[next - 1] !== date) continue;
     out[index] = values[next - 1] as number;
   }
@@ -717,18 +735,81 @@ const maskOf = (size: number, pass: (index: number) => boolean): Uint8Array =>
 /** 0 Sunday to 6 Saturday of a UTC day number (days since 1970-01-01, a Thursday). */
 const weekday = (day: number): number => (((day + 4) % 7) + 7) % 7;
 
+const utcDay = (year: number, month: number, date: number): number =>
+  Date.UTC(year, month, date) / DAY_MS;
+
+/** UTC day of the `n`th `day` (0 Sunday to 6 Saturday) of a month (0 January). */
+const nthWeekday = (year: number, month: number, day: number, n: number) => {
+  const first = utcDay(year, month, 1);
+  return first + ((day - weekday(first) + 7) % 7) + 7 * (n - 1);
+};
+
+const lastWeekday = (year: number, month: number, day: number): number => {
+  const last = utcDay(year, month + 1, 1) - 1;
+  return last - ((weekday(last) - day + 7) % 7);
+};
+
+/** A Saturday holiday is observed on Friday, a Sunday holiday on Monday. */
+const observed = (day: number): number => {
+  const of = weekday(day);
+  if (of === 6) return day - 1;
+  return of === 0 ? day + 1 : day;
+};
+
+/** Gregorian Easter Sunday (anonymous Gregorian algorithm) as a UTC day. */
+const easterSunday = (year: number): number => {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const h =
+    (19 * a +
+      b -
+      Math.floor(b / 4) -
+      Math.floor((b - Math.floor((b + 8) / 25) + 1) / 3) +
+      15) %
+    30;
+  const l = (32 + 2 * (b % 4) + 2 * Math.floor(c / 4) - h - (c % 4)) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  return utcDay(year, month - 1, ((h + l - 7 * m + 114) % 31) + 1);
+};
+
+const holidayCache = new Map<number, ReadonlySet<number>>();
+
 /**
- * Trading-day test of the bars: inside the bar date range a day trades when it has a bar; outside
- * it every weekday trades (holidays there are unknown).
+ * Regular NYSE full-day holidays of a year as UTC days, the rules since 1998 (the same rules as
+ * the research calendar, qc_ports calendar.is_nyse_holiday): New Year (not observed on a Saturday),
+ * Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day, Juneteenth (from
+ * 2022), Independence Day, Labor Day, Thanksgiving and Christmas. Special closures are not modeled.
  */
-const tradingDays = (days: Float64Array): ((day: number) => boolean) => {
-  const known = new Set<number>(days);
-  const first = days[0] as number;
-  const last = days.at(-1) as number;
-  return (day) =>
-    day >= first && day <= last
-      ? known.has(day)
-      : weekday(day) >= 1 && weekday(day) <= 5;
+export const nyseHolidays = (year: number): ReadonlySet<number> => {
+  const cached = holidayCache.get(year);
+  if (cached !== undefined) return cached;
+  const days = new Set<number>([
+    nthWeekday(year, 0, 1, 3),
+    nthWeekday(year, 1, 1, 3),
+    easterSunday(year) - 2,
+    lastWeekday(year, 4, 1),
+    observed(utcDay(year, 6, 4)),
+    nthWeekday(year, 8, 1, 1),
+    nthWeekday(year, 10, 4, 4),
+    observed(utcDay(year, 11, 25)),
+  ]);
+  const newYear = utcDay(year, 0, 1);
+  if (weekday(newYear) !== 6) days.add(observed(newYear));
+  if (year >= 2022) days.add(observed(utcDay(year, 5, 19)));
+  holidayCache.set(year, days);
+  return days;
+};
+
+/** A weekday that is not an NYSE holiday (UTC day number). */
+export const isNyseTradingDay = (day: number): boolean => {
+  const of = weekday(day);
+  return (
+    of >= 1 &&
+    of <= 5 &&
+    !nyseHolidays(new Date(day * DAY_MS).getUTCFullYear()).has(day)
+  );
 };
 
 /** First and last UTC day number of the month holding `day`, and its month (1 to 12). */
@@ -745,21 +826,26 @@ const monthOf = (
   };
 };
 
-/** 1 on bars inside the calendar window (see CalendarWindowFilterSchema). */
+/**
+ * 1 on daily bars inside the calendar window (see CalendarWindowFilterSchema). Trading days come
+ * from the NYSE holiday rules, not from the bars; a bar on a day that does not trade is outside
+ * the turnOfMonth and opexWeek windows.
+ */
 const calendarMask = (
   filter: CalendarWindowFilter,
   days: Float64Array
 ): Uint8Array => {
-  const trades = tradingDays(days);
   const count = (from: number, to: number): number => {
     let total = 0;
-    for (let day = from; day <= to; day += 1) if (trades(day)) total += 1;
+    for (let day = from; day <= to; day += 1)
+      if (isNyseTradingDay(day)) total += 1;
     return total;
   };
   return maskOf(days.length, (index) => {
     const day = days[index] as number;
     const month = monthOf(day);
     if (filter.window === "months") return filter.months.includes(month.month);
+    if (!isNyseTradingDay(day)) return false;
     if (filter.window === "turnOfMonth")
       return (
         -count(day, month.last) >= filter.fromDay ||
@@ -767,9 +853,9 @@ const calendarMask = (
       );
     const thirdFriday = month.first + ((5 - weekday(month.first) + 7) % 7) + 14;
     let expiry = thirdFriday;
-    while (!trades(expiry)) expiry -= 1;
+    while (!isNyseTradingDay(expiry)) expiry -= 1;
     let start = thirdFriday - 5; // the Sunday before the week
-    while (!trades(start)) start -= 1;
+    while (!isNyseTradingDay(start)) start -= 1;
     return day >= start && day <= expiry;
   });
 };
@@ -933,6 +1019,11 @@ const filterMasks = (
       case "volRegime":
         return volRegimeMask(filter, seriesInput, barDates, intraday);
       case "calendarWindow":
+        // Fail closed: the UTC date of an intraday bar is not its exchange session.
+        if (intraday)
+          throw new StrategyUnsupportedError(
+            STRATEGY_CALENDAR_INTRADAY_REFUSAL
+          );
         return calendarMask(
           filter,
           bars.t.map((t) => Math.floor(t / DAY_MS))
@@ -1015,24 +1106,21 @@ export const compileStrategy = (
   };
 };
 
-/** Compiles and runs a validated definition. Starting equity is 1. */
+/**
+ * Compiles and runs a validated definition on the equity engine of the server paths. Starting
+ * equity is 1. Refuses (StrategyUnsupportedError) an options block and series filters.
+ */
 export const runStrategyDefinition = (
   bars: BarColumns,
   definition: StrategyDefinition,
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
-  sectorQuadrants?: SectorQuadrantSeries,
-  seriesInput?: StrategySeriesInput
+  sectorQuadrants?: SectorQuadrantSeries
 ): InstantRunResult => {
-  // The equity engine would trade the underlying, not the spread: options run elsewhere.
-  if (definition.options !== undefined)
-    throw new StrategyUnsupportedError(STRATEGY_OPTIONS_REFUSAL);
-  const compiled = compileStrategy(
-    bars,
-    definition,
-    sectorQuadrants,
-    seriesInput
-  );
+  // The equity engine of the server paths: it would trade the underlying of an options block, and
+  // it gets no series context. Research runners call compileStrategy with their context.
+  assertServerRunnable(definition);
+  const compiled = compileStrategy(bars, definition, sectorQuadrants);
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),

@@ -137,7 +137,7 @@ const executeClaimed = async (
   if (rule.kind === "dsl") {
     const definition = StrategyDefinitionSchema.parse(rule.definition);
     // Queued before the submit check, or written past it: refuse rather than run it half.
-    assertServerRunnable(definition);
+    assertServerRunnable(definition, spec.timeframe);
     const sectorQuadrants = await loadSectorQuadrants(
       dependencies.sectorRotation,
       definition,
@@ -239,7 +239,10 @@ const submit = api.backtestRuns.submit
     const failures = errors as unknown as Failures;
     // The server engines cannot run an options block or series filters: refuse before queueing.
     if (input.rule.kind === "dsl") {
-      const refusal = serverStrategyRefusal(input.rule.definition);
+      const refusal = serverStrategyRefusal(
+        input.rule.definition,
+        input.timeframe
+      );
       if (refusal !== undefined)
         throw failures.VALIDATION_ERROR({ message: refusal.message });
     }

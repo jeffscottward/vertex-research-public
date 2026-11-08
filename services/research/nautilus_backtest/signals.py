@@ -22,12 +22,15 @@ from .bars import (
     InputError,
     SectorQuadrantDataError,
     SeriesDataError,
+    StrategyUnsupportedError,
     assert_columns,
     assert_params,
     assert_signal_options,
     assert_window,
+    calendar_intraday_unsupported,
     is_finite_number,
     options_unsupported,
+    series_filters_unsupported,
 )
 from .costs import _js_max
 
@@ -76,6 +79,11 @@ IV_INDEX = {
     "USO": "OVX",
 }
 IV_RANK_DEFAULT_LENGTH = 252
+# Most trading days (distinct bar dates) a series value is carried past its date (TS
+# STRATEGY_SERIES_MAX_FILL_DAYS, research loader qc_ports data.MAX_FILL_DAYS).
+SERIES_MAX_FILL_DAYS = 5
+# Filter types that read external daily series; the server engines refuse them.
+SERIES_FILTER_TYPES = ("ivRank", "vixTermStructure", "volRegime", "series")
 VOL_REGIME_DEFAULT_TREND_LENGTH = 200
 # Indicators that need high, low or volume, which a one-value-per-date series does not have.
 NON_CLOSE_INDICATORS = ("adx", "atr", "rvol")
@@ -892,15 +900,24 @@ def _align_series(
     exact: bool,
 ) -> list[float]:
     """TS alignSeries: the latest value dated on or before each bar date (before it for intraday
-    bars); `exact` (daily bars) needs a value on the bar date itself, else NaN."""
+    bars), carried for at most SERIES_MAX_FILL_DAYS later bar dates without a newer one;
+    `exact` (daily bars) needs a value on the bar date itself, else NaN."""
     out = [NAN] * len(bar_dates)
     following = 0
+    age = 0
+    previous_date: str | None = None
     for index, bar_date in enumerate(bar_dates):
+        before = following
         while following < len(dates) and (
             dates[following] < bar_date if intraday else dates[following] <= bar_date
         ):
             following += 1
-        if following == 0:
+        if following > before:
+            age = 0
+        elif bar_date != previous_date:
+            age += 1
+        previous_date = bar_date
+        if following == 0 or age > SERIES_MAX_FILL_DAYS:
             continue
         if exact and not intraday and dates[following - 1] != bar_date:
             continue
@@ -960,6 +977,70 @@ def _weekday(day: int) -> int:
     return (day + 4) % 7
 
 
+def _day(value: date) -> int:
+    return (value - EPOCH_DAY).days
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> int:
+    """UTC day of the `n`th `weekday` (0 Sunday to 6 Saturday) of a month (1 January)."""
+    first = _day(date(year, month, 1))
+    return first + (weekday - _weekday(first) + 7) % 7 + 7 * (n - 1)
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> int:
+    last = _day(date(year + month // 12, month % 12 + 1, 1)) - 1
+    return last - (_weekday(last) - weekday + 7) % 7
+
+
+def _observed(day: int) -> int:
+    if _weekday(day) == 6:
+        return day - 1
+    return day + 1 if _weekday(day) == 0 else day
+
+
+def _easter_sunday(year: int) -> int:
+    """Gregorian Easter Sunday (anonymous Gregorian algorithm), the TS easterSunday."""
+    a, b, c = year % 19, year // 100, year % 100
+    h = (19 * a + b - b // 4 - (b - (b + 8) // 25 + 1) // 3 + 15) % 30
+    l = (32 + 2 * (b % 4) + 2 * (c // 4) - h - c % 4) % 7  # noqa: E741 (name of the algorithm)
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    return _day(date(year, month, (h + l - 7 * m + 114) % 31 + 1))
+
+
+_HOLIDAYS: dict[int, frozenset[int]] = {}
+
+
+def nyse_holidays(year: int) -> frozenset[int]:
+    """TS nyseHolidays: regular NYSE full-day holidays of a year as UTC days (rules since 1998,
+    the rules of strategies/qc_ports calendar.is_nyse_holiday); special closures are not modeled."""
+    cached = _HOLIDAYS.get(year)
+    if cached is not None:
+        return cached
+    days = {
+        _nth_weekday(year, 1, 1, 3),
+        _nth_weekday(year, 2, 1, 3),
+        _easter_sunday(year) - 2,
+        _last_weekday(year, 5, 1),
+        _observed(_day(date(year, 7, 4))),
+        _nth_weekday(year, 9, 1, 1),
+        _nth_weekday(year, 11, 4, 4),
+        _observed(_day(date(year, 12, 25))),
+    }
+    new_year = _day(date(year, 1, 1))
+    if _weekday(new_year) != 6:
+        days.add(_observed(new_year))
+    if year >= 2022:
+        days.add(_observed(_day(date(year, 6, 19))))
+    _HOLIDAYS[year] = frozenset(days)
+    return _HOLIDAYS[year]
+
+
+def is_nyse_trading_day(day: int) -> bool:
+    """TS isNyseTradingDay: a weekday that is not an NYSE holiday (UTC day number)."""
+    return 1 <= _weekday(day) <= 5 and day not in nyse_holidays((EPOCH_DAY + timedelta(days=day)).year)
+
+
 def _month_of(day: int) -> tuple[int, int, int]:
     """First and last UTC day number of the month holding `day`, and the month (1 to 12)."""
     day_date = EPOCH_DAY + timedelta(days=day)
@@ -969,19 +1050,11 @@ def _month_of(day: int) -> tuple[int, int, int]:
 
 
 def _calendar_mask(filter_: Mapping[str, Any], days: Sequence[int]) -> list[int]:
-    """TS calendarMask: bars inside the calendar window. Inside the bar date range a day trades
-    when it has a bar; outside it every weekday trades."""
-    known = set(days)
-    first_day = days[0] if days else 0
-    last_day = days[-1] if days else -1
-
-    def trades(day: int) -> bool:
-        if first_day <= day <= last_day:
-            return day in known
-        return 1 <= _weekday(day) <= 5
+    """TS calendarMask: daily bars inside the calendar window. Trading days come from the NYSE
+    holiday rules; a bar on a day that does not trade is outside turnOfMonth and opexWeek."""
 
     def count(start: int, end: int) -> int:
-        return sum(1 for day in range(start, end + 1) if trades(day))
+        return sum(1 for day in range(start, end + 1) if is_nyse_trading_day(day))
 
     window = filter_["window"]
 
@@ -990,14 +1063,16 @@ def _calendar_mask(filter_: Mapping[str, Any], days: Sequence[int]) -> list[int]
         first, last, month = _month_of(day)
         if window == "months":
             return month in filter_["months"]
+        if not is_nyse_trading_day(day):
+            return False
         if window == "turnOfMonth":
             return -count(day, last) >= filter_["fromDay"] or count(first, day) <= filter_["toDay"]
         third_friday = first + (5 - _weekday(first) + 7) % 7 + 14
         expiry = third_friday
-        while not trades(expiry):
+        while not is_nyse_trading_day(expiry):
             expiry -= 1
         start = third_friday - 5  # the Sunday before the week
-        while not trades(start):
+        while not is_nyse_trading_day(start):
             start -= 1
         return start <= day <= expiry
 
@@ -1106,6 +1181,9 @@ def _filter_masks(
         elif kind == "volRegime":
             masks.append(_vol_regime_mask(filter_, context, bar_dates, intraday))
         elif kind == "calendarWindow":
+            # Fail closed: the UTC date of an intraday bar is not its exchange session.
+            if intraday:
+                raise calendar_intraday_unsupported()
             masks.append(_calendar_mask(filter_, [math.floor(t / DAY_MS) for t in bars.t]))
         else:
             masks.append(_series_mask(filter_, context, bar_dates, intraday))
@@ -1165,29 +1243,37 @@ def compile_strategy(
     )
 
 
+def server_refusal(definition: Mapping[str, Any]) -> StrategyUnsupportedError | None:
+    """TS serverStrategyRefusal (without a timeframe) of a normalized definition: an options
+    block, then the series filters by type in first-use order."""
+    if definition["options"] is not None:
+        return options_unsupported()
+    types = list(dict.fromkeys(
+        item["type"] for item in definition["filters"] if item["type"] in SERIES_FILTER_TYPES
+    ))
+    return series_filters_unsupported(types) if types else None
+
+
 def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]:
     """Signals and run options for one backtest spec (JSON from TypeScript).
 
     "dsl" rules work like runStrategyDefinition: percent stop and target, ATR distances, riskPct
     sizing and the exit mask come from the definition (spec stopLossPct/takeProfitPct are
-    ignored). Fixed rules work like runInstantBacktest with the spec stop and target. Optional
-    spec "series" ({id: {date: value}}) and "symbol" feed the series filters.
+    ignored). Fixed rules work like runInstantBacktest with the spec stop and target. Like the
+    TypeScript server engine it refuses (StrategyUnsupportedError) an options block and series
+    filters.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
     costs = spec.get("costs")
     if rule.get("kind") == "dsl":
         definition = normalize_definition(rule["definition"])
-        # The equity engine would trade the underlying, not the spread: options run elsewhere.
-        if definition["options"] is not None:
-            raise options_unsupported()
-        compiled = compile_strategy(
-            bars,
-            definition,
-            spec.get("sectorQuadrants"),
-            spec.get("series"),
-            spec.get("symbol"),
-        )
+        # The server equity engine (TS runStrategyDefinition): research runners call
+        # compile_strategy with their series context instead.
+        refusal = server_refusal(definition)
+        if refusal is not None:
+            raise refusal
+        compiled = compile_strategy(bars, definition, spec.get("sectorQuadrants"))
         stop = definition["stopLoss"]
         target = definition["takeProfit"]
         sizing = definition["sizing"]
@@ -1232,13 +1318,16 @@ __all__ = [
     "compile_rule",
     "compile_strategy",
     "exponential_mean",
+    "is_nyse_trading_day",
     "iv_rank_series",
+    "nyse_holidays",
     "normalize_definition",
     "plan_run",
     "prior_extreme",
     "realized_volatility",
     "relative_strength",
     "relative_volume_at_time",
+    "server_refusal",
     "rolling_mean",
     "rolling_zscore",
     "wilder_rsi",

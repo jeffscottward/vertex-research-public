@@ -9,6 +9,7 @@ import {
   runSignalBacktest,
 } from "./instant-backtest-engine.ts";
 import {
+  STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_TEMPLATES,
   type StrategyDefinition,
@@ -21,7 +22,9 @@ import {
   averageTrueRange,
   compileStrategy,
   exponentialMean,
+  isNyseTradingDay,
   ivRankSeries,
+  nyseHolidays,
   REALIZED_VOL_PERIODS_PER_YEAR,
   realizedVolatility,
   relativeStrength,
@@ -30,6 +33,7 @@ import {
   runStrategyDefinition,
   SectorQuadrantDataError,
   type SectorQuadrantPoint,
+  STRATEGY_SERIES_MAX_FILL_DAYS,
   type StrategySeriesContext,
   StrategySeriesDataError,
   StrategyUnsupportedError,
@@ -1312,16 +1316,62 @@ describe("calendarWindow filter", () => {
     });
     expect(april.length).toBe(21);
     expect(april.every((date) => date?.startsWith("2019-04"))).toBe(true);
-    // Inside the bar range, only bar dates trade: 29 March is the last trading day of March.
-    const hourly = barsOn(["2019-03-29", "2019-04-01", "2019-04-02"], 2);
+    // Intraday bars are refused, whatever the window: the UTC date is not the session.
+    const hourly = barsOn(["2019-03-29", "2019-04-01"], 2);
+    for (const window of ["months", "opexWeek"] as const) {
+      const filter =
+        window === "months"
+          ? { months: [4], type: "calendarWindow", window }
+          : { type: "calendarWindow", window };
+      expect(() => maskOf(hourly, filter)).toThrow(
+        new StrategyUnsupportedError(STRATEGY_CALENDAR_INTRADAY_REFUSAL)
+      );
+    }
+  });
+
+  it("takes trading days from the NYSE holiday rules, not from the bars", () => {
+    // No bars on 1, 4 and 5 March or around the holiday: the rules still count them. A bar on a
+    // Saturday or on Good Friday is outside the turn-of-month and opex windows.
+    const sparse = ["2019-04-15", "2019-04-18", "2019-04-19", "2019-04-20"];
     expect(
-      maskOf(hourly, {
+      maskOf(barsOn(sparse), { type: "calendarWindow", window: "opexWeek" })
+    ).toEqual([1, 1, 0, 0]);
+    const monthEnd = ["2019-03-29", "2019-03-30", "2019-04-01", "2019-04-02"];
+    expect(
+      maskOf(barsOn(monthEnd), {
         fromDay: -1,
         toDay: 1,
         type: "calendarWindow",
         window: "turnOfMonth",
       })
-    ).toEqual([1, 1, 1, 1, 0, 0]);
+    ).toEqual([1, 0, 1, 0]);
+  });
+
+  it("knows the NYSE holiday rules", () => {
+    const iso = (year: number) =>
+      [...nyseHolidays(year)]
+        .sort((a, b) => a - b)
+        .map((day) => new Date(day * DAY_MS).toISOString().slice(0, 10));
+    // 2021: New Year on a Friday; 2022 New Year is a Saturday, so 31 Dec 2021 trades.
+    expect(iso(2021)).toEqual([
+      "2021-01-01",
+      "2021-01-18",
+      "2021-02-15",
+      "2021-04-02",
+      "2021-05-31",
+      "2021-07-05",
+      "2021-09-06",
+      "2021-11-25",
+      "2021-12-24",
+    ]);
+    expect(iso(2022)).toContain("2022-06-20");
+    expect(iso(2022)).not.toContain("2021-12-31");
+    expect(iso(2023)).toContain("2023-01-02");
+    expect(iso(2027)).toContain("2027-06-18");
+    expect(nyseHolidays(2021)).toBe(nyseHolidays(2021));
+    expect(isNyseTradingDay(Date.parse("2021-12-31") / DAY_MS)).toBe(true);
+    expect(isNyseTradingDay(Date.parse("2021-07-05") / DAY_MS)).toBe(false);
+    expect(isNyseTradingDay(Date.parse("2021-07-03") / DAY_MS)).toBe(false);
   });
 });
 
@@ -1339,6 +1389,22 @@ describe("series filter", () => {
     condition,
     series,
     type: "series",
+  });
+
+  it("carries a value at most five trading days (bar dates), daily and intraday", () => {
+    const days = weekdayDates("2024-01-08", "2024-01-22");
+    const above = seriesFilter(closeAbove(100));
+    const context = {
+      "GC=F": { [days[0] as string]: 101, [days[8] as string]: 102 },
+    };
+    expect(STRATEGY_SERIES_MAX_FILL_DAYS).toBe(5);
+    expect(maskOf(barsOn(days), above, context)).toEqual([
+      1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1,
+    ]);
+    // Intraday: the value of day 0 is usable from day 1 on, for 5 more bar dates.
+    expect(maskOf(barsOn(days.slice(0, 8), 2), above, context)).toEqual([
+      0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0,
+    ]);
   });
 
   it("compares the latest series value on or before each bar date", () => {
@@ -1465,30 +1531,34 @@ describe("filters with exits, runs and the options block", () => {
     ).toBe(false);
   });
 
-  it("runs a definition with series filters", () => {
+  it("runs calendar filters on the server engine and refuses series filters there", () => {
     const run = runStrategyDefinition(
       bars,
-      filtered(
-        { months: [1], type: "calendarWindow", window: "months" },
-        {
-          condition: closeAbove(14),
-          series: "VIX",
-          type: "series",
-        }
-      ),
-      0,
-      undefined,
-      undefined,
-      {
-        context: {
-          VIX: byDate(
-            dates,
-            dates.map(() => 15)
-          ),
-        },
-      }
+      filtered({ months: [1], type: "calendarWindow", window: "months" }),
+      0
     );
     expect(run.trades.length).toBe(1);
+    const series = filtered({
+      condition: closeAbove(14),
+      series: "VIX",
+      type: "series",
+    });
+    expect(() => runStrategyDefinition(bars, series, 0)).toThrow(
+      "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the series filters need daily series"
+    );
+    // Research runners compile it with their context.
+    expect(
+      Array.from(
+        compileStrategy(bars, series, undefined, {
+          context: {
+            VIX: byDate(
+              dates,
+              dates.map(() => 15)
+            ),
+          },
+        }).signals
+      )
+    ).toEqual(dates.map(() => 1));
   });
 });
 

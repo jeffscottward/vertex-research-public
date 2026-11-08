@@ -137,7 +137,7 @@ export const StrategyConditionSchema = z
 
 /**
  * Daily series that filters may read (Core 7 ETFs, futures, volatility and rate indices, and
- * EY_TNX_RATIO: Shiller earnings yield lagged 3 months over the 10-year yield). Each series is one
+ * EY_TNX_RATIO: Shiller earnings yield lagged 6 months over the 10-year yield). Each series is one
  * value per date (the close).
  */
 export const STRATEGY_SERIES_IDS = [
@@ -549,11 +549,15 @@ export const STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED";
 /** Refusal code: the filter reads daily series that the server does not load. */
 export const STRATEGY_SERIES_FILTERS_UNSUPPORTED =
   "STRATEGY_SERIES_FILTERS_UNSUPPORTED";
+/** Refusal code: calendar windows count trading days, which intraday bars in UTC misplace. */
+export const STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED =
+  "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED";
 
 export type StrategyRefusal = Readonly<{
   code:
     | typeof STRATEGY_OPTIONS_UNSUPPORTED
-    | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED;
+    | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED
+    | typeof STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED;
   message: string;
 }>;
 
@@ -561,6 +565,14 @@ export const STRATEGY_OPTIONS_REFUSAL: StrategyRefusal = {
   code: STRATEGY_OPTIONS_UNSUPPORTED,
   message: `${STRATEGY_OPTIONS_UNSUPPORTED}: the options block runs only in the options research runner; an equity backtest refuses it. Remove "options" to test the underlying signals.`,
 };
+
+export const STRATEGY_CALENDAR_INTRADAY_REFUSAL: StrategyRefusal = {
+  code: STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
+  message: `${STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED}: calendarWindow filters run on daily bars only; on intraday bars the UTC date misplaces the exchange session.`,
+};
+
+/** Timeframes of one bar per trading day or longer; every other timeframe is intraday. */
+export const STRATEGY_DAILY_TIMEFRAMES: readonly string[] = ["1d", "1w"];
 
 /** Filter types that read external daily series (no server loader yet). */
 const READS_SERIES: Readonly<Record<StrategyFilter["type"], boolean>> = {
@@ -576,27 +588,35 @@ const READS_SERIES: Readonly<Record<StrategyFilter["type"], boolean>> = {
  * Why the server engines (instant backtest, run queue and Nautilus worker, Autopilot, paper
  * hand-off) cannot run a definition or a campaign filter list, or undefined when they can. They
  * run equity strategies and load sector points only, so they refuse an options block and the
- * ivRank, vixTermStructure, volRegime and series filters; sectorQuadrant and calendarWindow work.
+ * ivRank, vixTermStructure, volRegime and series filters. With a `timeframe` that is not daily
+ * they also refuse calendarWindow filters. sectorQuadrant filters work everywhere.
  */
 export const serverStrategyRefusal = (
   definition: Readonly<{
     filters?: readonly StrategyFilter[] | undefined;
     options?: StrategyOptions | undefined;
-  }>
+  }>,
+  timeframe?: string
 ): StrategyRefusal | undefined => {
   if (definition.options !== undefined) return STRATEGY_OPTIONS_REFUSAL;
+  const filters = definition.filters ?? [];
   const types = [
     ...new Set(
-      (definition.filters ?? [])
-        .map((filter) => filter.type)
-        .filter((type) => READS_SERIES[type])
+      filters.map((filter) => filter.type).filter((type) => READS_SERIES[type])
     ),
   ];
-  if (types.length === 0) return undefined;
-  return {
-    code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
-    message: `${STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the ${types.join(", ")} filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.`,
-  };
+  if (types.length > 0)
+    return {
+      code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
+      message: `${STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the ${types.join(", ")} filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.`,
+    };
+  if (
+    timeframe !== undefined &&
+    !STRATEGY_DAILY_TIMEFRAMES.includes(timeframe) &&
+    filters.some((filter) => filter.type === "calendarWindow")
+  )
+    return STRATEGY_CALENDAR_INTRADAY_REFUSAL;
+  return undefined;
 };
 
 /** Validates an unknown value. Issue paths use dots, for example "entry.all.0.left.length". */

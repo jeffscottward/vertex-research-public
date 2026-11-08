@@ -19,6 +19,7 @@ import pytest
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import (
+    STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
     STRATEGY_OPTIONS_UNSUPPORTED,
     Bars,
     InputError,
@@ -104,6 +105,15 @@ COMPILED = golden()["compiled"]
 
 @pytest.mark.parametrize("case", COMPILED, ids=_ids(COMPILED, "id", "symbol"))
 def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
+    if "refused" in case:
+        with pytest.raises(StrategyUnsupportedError) as raised:
+            sig.compile_strategy(
+                bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"],
+                golden()["series"], case["symbol"],
+            )
+        assert raised.value.code == case["refused"]["code"]
+        assert str(raised.value) == case["refused"]["message"]
+        return
     compiled = sig.compile_strategy(
         bars_of(case["symbol"]),
         case["definition"],
@@ -123,6 +133,37 @@ def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
         else:
             assert actual is not None, name
             assert_series(actual, expected, name)
+
+
+REFUSALS = golden()["engineRefusals"]
+
+
+@pytest.mark.parametrize("case", REFUSALS, ids=_ids(REFUSALS, "id", "symbol"))
+def test_plan_run_refuses_like_the_typescript_server_engine(case: dict[str, Any]) -> None:
+    spec = {"rule": {"kind": "dsl", "definition": case["definition"]}, "costBps": 10, "costs": None,
+            "sectorQuadrants": golden()["sectorQuadrants"]}
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of(case["symbol"]), spec)
+    assert raised.value.code == case["code"]
+    assert str(raised.value) == case["message"]
+
+
+def test_nyse_holidays_match_typescript_and_the_research_calendar() -> None:
+    from strategies.qc_ports.calendar import is_nyse_holiday
+
+    expected = golden()["nyseHolidays"]
+    actual = [
+        (sig.EPOCH_DAY + timedelta(days=day)).isoformat()
+        for year in range(1998, 2036)
+        for day in sorted(sig.nyse_holidays(year))
+    ]
+    assert actual == expected
+    # Same rules as the qc-ports research calendar, day by day.
+    first = date(1998, 1, 1)
+    for offset in range((date(2035, 12, 31) - first).days + 1):
+        day = first + timedelta(days=offset)
+        number = (day - sig.EPOCH_DAY).days
+        assert sig.is_nyse_trading_day(number) == (day.weekday() < 5 and not is_nyse_holiday(day)), day
 
 
 FIXED = golden()["fixedRules"]
@@ -181,11 +222,7 @@ def test_plan_run_matches_typescript_options(case: dict[str, Any]) -> None:
     if rule["kind"] == "dsl":
         assert compiled.exits is not None
         expected = sig.compile_strategy(
-            bars_of(case["symbol"]),
-            rule["definition"],
-            spec["sectorQuadrants"],
-            spec.get("series"),
-            spec.get("symbol"),
+            bars_of(case["symbol"]), rule["definition"], spec["sectorQuadrants"]
         )
         assert compiled.signals == expected.signals
         assert compiled.exits == expected.exits
@@ -495,3 +532,45 @@ def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
     assert isinstance(raised.value, InputError)
     # The options research runner compiles it: signals plus the block, unchanged.
     assert sig.compile_strategy(bars_of("SPY"), _filtered(options=options)).options == options
+
+
+def test_calendar_window_refuses_intraday_bars() -> None:
+    hourly = Bars.from_columns(
+        {k: [1.0, 2.0] for k in "ohlc"} | {"t": [1_546_300_800_000.0, 1_546_304_400_000.0]}
+    )
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.compile_strategy(hourly, _filtered({"type": "calendarWindow", "window": "opexWeek"}))
+    assert raised.value.code == STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
+
+
+def test_calendar_window_uses_nyse_holidays_not_bar_presence() -> None:
+    # Bars on 2019-04-18 (Thursday before Good Friday) and on a Saturday: no bar on the holiday is
+    # needed, and the Saturday bar is outside the turn-of-month and opex windows.
+    dates = ["2019-04-15", "2019-04-18", "2019-04-20", "2019-04-30", "2019-05-01"]
+    bars = _bars_on(dates)
+
+    def mask(filter_: dict[str, Any]) -> tuple[int, ...]:
+        return sig.compile_strategy(bars, _filtered(filter_)).signals
+
+    assert mask({"type": "calendarWindow", "window": "opexWeek"}) == (1, 1, 0, 0, 0)
+    assert mask({"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -1, "toDay": 1}) == (
+        0, 0, 0, 1, 1,
+    )
+    assert mask({"type": "calendarWindow", "window": "months", "months": [4]}) == (1, 1, 1, 1, 0)
+
+
+def test_series_filter_carries_a_value_at_most_five_trading_days() -> None:
+    dates = _weekdays("2024-01-08", "2024-01-22")
+    compiled = sig.compile_strategy(
+        _bars_on(dates),
+        _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "const", "value": 100}}}),
+        None,
+        {"GC=F": {dates[0]: 101, dates[8]: 102}},
+    )
+    # Value of day 0 carried to days 1-5, missing on 6-7, then day 8 and its 2 carried days.
+    assert compiled.signals == (1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1)
+
+
+def test_server_refusal_passes_equity_definitions() -> None:
+    plain = sig.normalize_definition(_filtered({"type": "calendarWindow", "window": "opexWeek"}))
+    assert sig.server_refusal(plain) is None

@@ -362,7 +362,10 @@ export const tickAutopilotCampaign = async (
     );
   const config = parsed.data;
   // A campaign stored before the create check: fail it rather than run without its series.
-  const refusal = serverStrategyRefusal({ filters: config.filters });
+  const refusal = serverStrategyRefusal(
+    { filters: config.filters },
+    campaign.timeframe
+  );
   if (refusal !== undefined)
     return await failure(dependencies, campaign, refusal.message);
   const bars = await loadBars(dependencies, campaign);
