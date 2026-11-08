@@ -3,10 +3,11 @@ packages:
   - "packages/*"
 
 # Pinned so every shell records the same pnpm workspace state. pnpm sets it to
-# false when CI is set and leaves it unset otherwise (both mean off), and
-# `pnpm run`/`pnpm exec` reinstall when the recorded value differs. A shell
-# without CI and one with CI=true (agent shells) would reinstall in turns
-# (card vertex-prepush-api-task-serial-install, 2026-11-08).
+# false when it detects CI (ci-info: CI=true, BUILD_ID and similar variables)
+# and leaves it unset otherwise (both mean off), and `pnpm run`/`pnpm exec`
+# reinstall when the recorded value differs. A shell with CI=true (agent
+# shells) and one without would reinstall in turns (card
+# vertex-prepush-api-task-serial-install, 2026-11-08).
 enableGlobalVirtualStore: false
 
 allowBuilds:

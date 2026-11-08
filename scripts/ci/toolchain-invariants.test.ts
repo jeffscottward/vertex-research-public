@@ -109,8 +109,9 @@ describe("toolchain pins", () => {
 
   // pnpm records enableGlobalVirtualStore in node_modules/.pnpm-workspace-state-v1.json
   // and reinstalls before `pnpm run`/`pnpm exec` when it differs. Unset, it is
-  // false with CI=true and unset without CI, so shells that differ only in CI
-  // reinstalled the whole workspace each time they took turns (card
+  // false when pnpm detects CI (ci-info, e.g. CI=true) and unset otherwise, so
+  // shells that differ only in CI detection reinstalled the whole workspace
+  // each time they took turns (card
   // vertex-prepush-api-task-serial-install).
   it("pins enableGlobalVirtualStore so CI and local shells share pnpm's workspace state", async () => {
     const workspace = parse(await read("pnpm-workspace.yaml")) as Readonly<{
