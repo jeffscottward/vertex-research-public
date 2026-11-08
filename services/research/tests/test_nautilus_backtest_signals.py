@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -17,7 +19,15 @@ import pytest
 
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
-from nautilus_backtest.bars import Bars, InputError, SectorQuadrantDataError
+from nautilus_backtest.bars import (
+    STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
+    STRATEGY_OPTIONS_UNSUPPORTED,
+    Bars,
+    InputError,
+    SectorQuadrantDataError,
+    SeriesDataError,
+    StrategyUnsupportedError,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nautilus_backtest" / "golden.json"
 
@@ -96,11 +106,25 @@ COMPILED = golden()["compiled"]
 
 @pytest.mark.parametrize("case", COMPILED, ids=_ids(COMPILED, "id", "symbol"))
 def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
+    if "refused" in case:
+        with pytest.raises(StrategyUnsupportedError) as raised:
+            sig.compile_strategy(
+                bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"],
+                golden()["series"], case["symbol"],
+            )
+        assert raised.value.code == case["refused"]["code"]
+        assert str(raised.value) == case["refused"]["message"]
+        return
     compiled = sig.compile_strategy(
-        bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"]
+        bars_of(case["symbol"]),
+        case["definition"],
+        golden()["sectorQuadrants"],
+        golden()["series"],
+        case["symbol"],
     )
     assert list(compiled.signals) == case["signals"]
     assert list(compiled.exits or ()) == case["exits"]
+    assert compiled.options == case.get("options")
     for name, actual, expected in (
         ("stopDistance", compiled.stop_distance, case["stopDistance"]),
         ("targetDistance", compiled.target_distance, case["targetDistance"]),
@@ -110,6 +134,71 @@ def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
         else:
             assert actual is not None, name
             assert_series(actual, expected, name)
+
+
+REFUSALS = golden()["engineRefusals"]
+
+
+@pytest.mark.parametrize("case", REFUSALS, ids=_ids(REFUSALS, "id", "symbol"))
+def test_plan_run_refuses_like_the_typescript_server_engine(case: dict[str, Any]) -> None:
+    spec = {"rule": {"kind": "dsl", "definition": case["definition"]}, "costBps": 10, "costs": None,
+            "sectorQuadrants": golden()["sectorQuadrants"], "timeframe": case.get("timeframe")}
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of(case["symbol"]), spec)
+    assert raised.value.code == case["code"]
+    assert str(raised.value) == case["message"]
+
+
+def _bar_dates(path: Path) -> list[str]:
+    with path.open() as handle:
+        return [line.split(",", 1)[0] for line in handle.read().splitlines()[1:] if line]
+
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+def _assert_calendar_matches_research(dates: list[str], last: date) -> None:
+    """The DSL trading days equal qc_ports TradingCalendar over the bar dates, and outside them
+    the qc_ports holiday rules plus the special closures, from 1998 to `last`."""
+    from strategies.qc_ports.calendar import TradingCalendar, is_nyse_holiday
+
+    calendar = TradingCalendar(dates)
+    closures = {date.fromisoformat(item) for item in sig.NYSE_SPECIAL_CLOSURES}
+    first = date(1998, 1, 1)
+    for offset in range((last - first).days + 1):
+        day = first + timedelta(days=offset)
+        if calendar.first <= day <= calendar.last:
+            expected = calendar.is_trading_day(day)
+        else:
+            expected = day.weekday() < 5 and not is_nyse_holiday(day) and day not in closures
+        assert sig.is_nyse_trading_day((day - sig.EPOCH_DAY).days) == expected, day
+
+
+def test_nyse_holidays_match_typescript_and_the_research_calendar() -> None:
+    expected = golden()["nyseHolidays"]
+    actual = [
+        (sig.EPOCH_DAY + timedelta(days=day)).isoformat()
+        for year in range(1998, 2036)
+        for day in sorted(sig.nyse_holidays(year))
+    ]
+    assert actual == expected
+    assert set(sig.NYSE_SPECIAL_CLOSURES) <= set(expected)
+    # SPY bar dates 2015-2024 in the repo (2018-12-05 has no bar).
+    _assert_calendar_matches_research(
+        _bar_dates(REPO / "tests" / "fixtures" / "golden" / "SPY-1d.csv"), date(2035, 12, 31)
+    )
+
+
+def test_nyse_calendar_matches_the_real_spy_bar_dates() -> None:
+    """Over the local qc-ports data (SPY since 1993, when present), every SPY bar date trades and
+    every weekday without a bar is a holiday or special closure."""
+    from strategies.qc_ports.data import DATA_ENV, DEFAULT_ROOT
+
+    root = Path(os.environ.get(DATA_ENV, DEFAULT_ROOT))
+    if not (root / "SPY.csv").exists():
+        pytest.skip("qc-ports data not present")
+    dates = [item for item in _bar_dates(root / "SPY.csv") if item >= "1998-01-01"]
+    _assert_calendar_matches_research(dates, date.fromisoformat(dates[-1]))
 
 
 FIXED = golden()["fixedRules"]
@@ -286,3 +375,247 @@ def test_bars_window_is_a_batch_case_slice() -> None:
     for first, end in ((2, 2), (-1, 2), (0, 5)):
         with pytest.raises(InputError, match="is outside the"):
             bars.window(first, end)
+
+
+# ---------------------------------------------------------------------------------------------
+# Series and calendar filters, options block (mirrors strategy-dsl*.test.ts).
+
+
+def _weekdays(start: str, end: str, skip: tuple[str, ...] = ()) -> list[str]:
+    first = date.fromisoformat(start)
+    days = (date.fromisoformat(end) - first).days
+    out = []
+    for offset in range(days + 1):
+        day = first + timedelta(days=offset)
+        if day.weekday() < 5 and day.isoformat() not in skip:
+            out.append(day.isoformat())
+    return out
+
+
+def _bars_on(dates: list[str]) -> Bars:
+    t = [(date.fromisoformat(d) - date(1970, 1, 1)).days * 86_400_000 for d in dates]
+    c = [100 + index for index in range(len(dates))]
+    return Bars.from_columns({"t": t, "o": c, "h": c, "l": c, "c": c})
+
+
+ALWAYS = {"left": {"type": "price", "field": "close"}, "op": ">", "right": {"type": "const", "value": 0}}
+
+
+def _filtered(*filters: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "filters": list(filters), **extra}
+
+
+def test_new_filter_defaults_are_applied_and_idempotent() -> None:
+    definition = _filtered(
+        {"type": "ivRank", "max": 30},
+        {"type": "vixTermStructure", "maxRatio": 1},
+        {"type": "volRegime", "maxVix": 20, "maxTermRatio": 1},
+        {"type": "series", "series": "ES=F", "condition": ALWAYS},
+    )
+    normalized = sig.normalize_definition(definition)
+    assert normalized["filters"][0] == {"type": "ivRank", "length": 252, "max": 30.0}
+    assert normalized["filters"][1] == {"type": "vixTermStructure", "maxRatio": 1.0}
+    assert normalized["filters"][2]["trendLength"] == 200
+    assert normalized["filters"][3]["condition"]["left"]["offset"] == 0
+    assert normalized["options"] is None
+    assert sig.normalize_definition(normalized) == normalized
+
+
+def test_iv_rank_series_matches_the_typescript_example() -> None:
+    actual = sig.iv_rank_series([1, 3, 2, 2, 2, 2, 5], 3)
+    assert_series(actual, [None, None, 50, 0, None, None, 100], "ivRank")
+
+
+def test_calendar_windows_use_bar_dates_as_the_trading_calendar() -> None:
+    dates = _weekdays("2019-03-06", "2019-05-30", ("2019-04-19", "2019-05-27"))
+    bars = _bars_on(dates)
+
+    def passing(filter_: dict[str, Any]) -> list[str]:
+        signals = sig.compile_strategy(bars, _filtered(filter_)).signals
+        return [d for d, s in zip(dates, signals, strict=True) if s == 1]
+
+    opex = passing({"type": "calendarWindow", "window": "opexWeek"})
+    assert opex[5:11] == ["2019-03-15", "2019-04-12", "2019-04-15", "2019-04-16", "2019-04-17", "2019-04-18"]
+    turn = passing({"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -2, "toDay": 3})
+    assert turn[0] == "2019-03-28" and turn[-1] == "2019-05-30" and len(turn) == 11
+    assert len(passing({"type": "calendarWindow", "window": "months", "months": [4]})) == 21
+
+
+def test_options_block_is_passed_through_unchanged() -> None:
+    options = {"structure": "callDebitVertical", "dte": {"target": 30, "min": 20}, "widthSigma": 1, "maxLossPct": 1}
+    compiled = sig.compile_strategy(
+        _bars_on(_weekdays("2024-01-01", "2024-01-05")), _filtered(options=options)
+    )
+    assert compiled.options == options
+
+
+SERIES_BARS = _bars_on(_weekdays("2024-01-08", "2024-01-12"))
+GC_CLOSE = {"type": "series", "series": "GC=F", "condition": ALWAYS}
+
+
+@pytest.mark.parametrize(
+    ("definition", "context", "symbol", "message"),
+    [
+        (_filtered({"type": "ivRank"}), None, None, "ivRank needs min, max or both"),
+        (_filtered({"type": "vixTermStructure"}), None, None, "vixTermStructure needs minRatio, maxRatio or both"),
+        (_filtered({"type": "calendarWindow", "window": "eclipse"}), None, None, "Unknown calendar window: eclipse"),
+        (_filtered({"type": "moon"}), None, None, "Unknown filter type: moon"),
+        (_filtered({**GC_CLOSE, "series": "BTC"}), None, None, "Unknown series: BTC"),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 3}}}),
+            None,
+            None,
+            sig.SERIES_CLOSE_ONLY,
+        ),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "price", "field": "high"}}}),
+            None,
+            None,
+            sig.SERIES_CLOSE_ONLY,
+        ),
+        (
+            _filtered(options={"maxLossPct": 1}, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
+            None,
+            None,
+            "Option strategies size by options.maxLossPct; remove the riskPct sizing",
+        ),
+        (
+            _filtered(options={"maxLossPct": 1}, takeProfit={"kind": "pct", "pct": 5}),
+            None,
+            None,
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
+        ),
+        (_filtered({"type": "ivRank", "min": 50}), {}, None, "ivRank needs the traded symbol"),
+        (_filtered({"type": "ivRank", "min": 50}), {}, "XLK", "ivRank has no implied-volatility index for XLK"),
+        (_filtered(GC_CLOSE), {"GC=F": {"2024-1-8": 1}}, None, "Series GC=F has a date that is not YYYY-MM-DD: 2024-1-8"),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "left": {"type": "indicator", "name": "sma", "length": 5}}}),
+            {"GC=F": {"2024-01-08": 1}},
+            None,
+            "sma length 5 is longer than the 1 bars",
+        ),
+    ],
+)
+def test_series_filter_input_errors(
+    definition: dict[str, Any], context: dict[str, Any] | None, symbol: str | None, message: str
+) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.compile_strategy(SERIES_BARS, definition, None, context, symbol)
+    assert str(raised.value) == message
+
+
+@pytest.mark.parametrize(
+    ("filter_", "context", "missing"),
+    [
+        (GC_CLOSE, None, "GC=F"),
+        ({"type": "ivRank", "min": 50}, {}, "VIX"),
+        ({"type": "vixTermStructure", "maxRatio": 1}, {"VIX": {}}, "VIX3M"),
+        ({"type": "volRegime", "maxVix": 20, "maxTermRatio": 1}, {"VIX": {}, "VIX3M": {}}, "SPY"),
+    ],
+)
+def test_series_data_error(filter_: dict[str, Any], context: dict[str, Any] | None, missing: str) -> None:
+    with pytest.raises(SeriesDataError) as raised:
+        sig.compile_strategy(SERIES_BARS, _filtered(filter_), None, context, "SPY")
+    assert str(raised.value) == f"Series data is not available for {missing}"
+    assert isinstance(raised.value, InputError)
+
+
+def test_series_filter_without_values_blocks_entries() -> None:
+    compiled = sig.compile_strategy(SERIES_BARS, _filtered(GC_CLOSE), None, {"GC=F": {"2024-01-08": None}})
+    assert compiled.signals == (0, 0, 0, 0, 0)
+
+
+def test_term_structure_needs_both_values_on_the_bar_date() -> None:
+    # Same case as strategy-dsl-compile.test.ts: ratios d0 1, d1 0.9, d3 1.2; none on d2 (VIX3M
+    # 0), d4 (VIX3M not finite) and d5 (no VIX).
+    dates = _weekdays("2024-01-01", "2024-01-08")
+    d0, d1, d2, d3, d4, d5 = dates
+    context = {
+        "VIX": {d0: 20, d1: 18, d2: 15, d3: 30, d4: 16},
+        "VIX3M": {"2023-12-29": 10, d0: 20, d1: 20, d2: 0, d3: 25, d4: math.nan, d5: 20},
+    }
+    bars = _bars_on(dates)
+
+    def mask(filter_: dict[str, Any]) -> tuple[int, ...]:
+        return sig.compile_strategy(bars, _filtered(filter_), None, context).signals
+
+    assert mask({"type": "vixTermStructure", "maxRatio": 1}) == (1, 1, 0, 0, 0, 0)
+    assert mask({"type": "vixTermStructure", "minRatio": 1.1}) == (0, 0, 0, 1, 0, 0)
+
+
+def test_series_filter_has_no_value_before_the_first_series_date() -> None:
+    dates = _weekdays("2024-01-08", "2024-01-15")
+    compiled = sig.compile_strategy(
+        _bars_on(dates),
+        _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "const", "value": 100}}}),
+        None,
+        {"GC=F": {dates[2]: 101}},
+    )
+    assert compiled.signals == (0, 0, 1, 1, 1, 1)
+
+
+def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
+    options = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 2}
+    spec = {"rule": {"kind": "dsl", "definition": _filtered(options=options)}, "costBps": 0, "costs": None}
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of("SPY"), spec)
+    assert raised.value.code == STRATEGY_OPTIONS_UNSUPPORTED
+    assert str(raised.value) == (
+        "STRATEGY_OPTIONS_UNSUPPORTED: the options block runs only in the options research runner;"
+        ' an equity backtest refuses it. Remove "options" to test the underlying signals.'
+    )
+    assert isinstance(raised.value, InputError)
+    # The options research runner compiles it: signals plus the block, unchanged.
+    assert sig.compile_strategy(bars_of("SPY"), _filtered(options=options)).options == options
+
+
+def test_calendar_window_refuses_intraday_bars() -> None:
+    hourly = Bars.from_columns(
+        {k: [1.0, 2.0] for k in "ohlc"} | {"t": [1_546_300_800_000.0, 1_546_304_400_000.0]}
+    )
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.compile_strategy(hourly, _filtered({"type": "calendarWindow", "window": "opexWeek"}))
+    assert raised.value.code == STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
+
+
+def test_calendar_window_uses_nyse_holidays_not_bar_presence() -> None:
+    # Bars on 2019-04-18 (Thursday before Good Friday) and on a Saturday: no bar on the holiday is
+    # needed, and the Saturday bar is outside the turn-of-month and opex windows.
+    dates = ["2019-04-15", "2019-04-18", "2019-04-20", "2019-04-30", "2019-05-01"]
+    bars = _bars_on(dates)
+
+    def mask(filter_: dict[str, Any]) -> tuple[int, ...]:
+        return sig.compile_strategy(bars, _filtered(filter_)).signals
+
+    assert mask({"type": "calendarWindow", "window": "opexWeek"}) == (1, 1, 0, 0, 0)
+    assert mask({"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -1, "toDay": 1}) == (
+        0, 0, 0, 1, 1,
+    )
+    assert mask({"type": "calendarWindow", "window": "months", "months": [4]}) == (1, 1, 1, 1, 0)
+
+
+def test_series_filter_carries_a_value_at_most_five_trading_days() -> None:
+    dates = _weekdays("2024-01-08", "2024-01-22")
+    compiled = sig.compile_strategy(
+        _bars_on(dates),
+        _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "const", "value": 100}}}),
+        None,
+        {"GC=F": {dates[0]: 101, dates[8]: 102}},
+    )
+    # Value of day 0 carried to days 1-5, missing on 6-7, then day 8 and its 2 carried days.
+    assert compiled.signals == (1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1)
+
+
+def test_server_refusal_passes_equity_definitions() -> None:
+    plain = sig.normalize_definition(_filtered({"type": "calendarWindow", "window": "opexWeek"}))
+    assert sig.server_refusal(plain) is None
+
+
+def test_plan_run_checks_a_known_timeframe() -> None:
+    definition = _filtered({"type": "calendarWindow", "window": "opexWeek"})
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "costs": None}
+    compiled, _ = sig.plan_run(bars_of("SPY"), {**spec, "timeframe": "1d"})
+    assert len(compiled.signals) == len(bars_of("SPY").c)
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of("SPY"), {**spec, "timeframe": "5m"})
+    assert raised.value.code == STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED

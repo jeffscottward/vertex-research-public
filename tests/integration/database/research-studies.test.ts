@@ -131,4 +131,40 @@ describe("research study repository (Postgres)", () => {
     ).rejects.toThrow(/research_studies_summary_check/u);
     expect(await database().select().from(researchStudies)).toHaveLength(2);
   });
+
+  it("upsertMany stores every study in one transaction, or none when one fails", async () => {
+    const repository = createResearchStudyRepository(database());
+    const study = (id: string) => ({
+      id,
+      ranOn: "2026-11-08",
+      specRef: `docs/specs/strategies/${id}.md`,
+      summary: {
+        id,
+        kind: "qc-port",
+        ran: "2026-11-08",
+        spec: `docs/specs/strategies/${id}.md`,
+      },
+    });
+    const before = (await database().select().from(researchStudies)).length;
+    await expect(
+      repository.upsertMany([
+        study("qc-batch-one"),
+        { ...study("qc-batch-two"), specRef: "docs/specs/strategies/other.md" },
+      ])
+    ).rejects.toThrow(/research_studies_summary_check/u);
+    await expect(repository.get("qc-batch-one")).resolves.toBeNull();
+    const stored = await repository.upsertMany([
+      study("qc-batch-one"),
+      study("qc-batch-two"),
+    ]);
+    expect(stored.map((row) => [row.id, row.created])).toEqual([
+      ["qc-batch-one", true],
+      ["qc-batch-two", true],
+    ]);
+    const replaced = await repository.upsertMany([study("qc-batch-two")]);
+    expect(replaced[0]?.created).toBe(false);
+    expect(await database().select().from(researchStudies)).toHaveLength(
+      before + 2
+    );
+  });
 });
