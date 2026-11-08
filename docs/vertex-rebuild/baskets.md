@@ -16,7 +16,7 @@ An operator groups symbols into a basket, for example TITY = VSXY, ESTA and AVTR
 | History reads (one request at a time, short cache, per-view time budget) | `packages/api/src/server/basket-history.ts` |
 | Tables `baskets`, `basket_members` and repository | `packages/db/src/schema/index.ts`, `packages/db/src/server/basket-repository.ts`, migrations `0041_baskets` and `0042_basket_benchmark_base`, rollbacks in `packages/db/rollback/` |
 | Portal page `/baskets` and watchlist rows | `apps/web/src/app/(portal)/baskets/page.tsx`, `apps/web/src/components/portal/baskets-workspace.tsx`, `apps/web/src/components/portal/basket-watchlist-section.tsx` |
-| Owner seed | `research/baskets/owner-baskets.json`, `packages/db/src/server/basket-seed.ts`, `scripts/baskets/seed.ts`, `bun run vertex:baskets:seed` |
+| Owner seed | `packages/db/src/server/basket-seed.ts`, `scripts/baskets/seed.ts`, `bun run vertex:baskets:seed` |
 
 ## Rules
 
@@ -49,10 +49,10 @@ A cold 21-member basket fills in over a few loads. The cache is in memory only, 
 
 ## Seed
 
-`research/baskets/owner-baskets.json` holds TITY and the "unique winners" tiers (UW10Y, UW5Y, UW2Y, UW1Y). The seed matches baskets by symbol and never changes an existing basket, so a rerun is safe.
+The owner's baskets (TITY and the "unique winners" tiers UW10Y, UW5Y, UW2Y, UW1Y) live in Postgres; production has every basket and member (checked 2026-11-08). The seed file is no longer in the repository (AGENTS.md rule 13): pass a private seed file to the command. The seed matches baskets by symbol and never changes an existing basket, so a rerun is safe.
 
 ```sh
-DATABASE_URL=... VERTEX_BASKET_OWNER_EMAIL=... bun run vertex:baskets:seed -- research/baskets/owner-baskets.json --dry-run
+DATABASE_URL=... VERTEX_BASKET_OWNER_EMAIL=... bun run vertex:baskets:seed -- /path/to/baskets.json --dry-run
 ```
 
 ## Known limits

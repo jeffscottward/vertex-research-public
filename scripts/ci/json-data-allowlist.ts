@@ -161,7 +161,6 @@ export const PENDING_JSON_DATA: readonly string[] = [
   "packages/academy/src/lessons/specs/win-four-of-five-scenarios.json",
   "packages/academy/src/lessons/specs/worst-case-each-position.json",
   "packages/academy/src/lessons/specs/would-you-buy-it-today.json",
-  "research/baskets/owner-baskets.json",
   "research/macro/crown-desk-checklist-2026-10-16.json",
 ];
 
