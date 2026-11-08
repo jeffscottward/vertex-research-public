@@ -13,6 +13,36 @@ const SEMANTIC_TERM_SOURCES = ["postgres", "feed", "none"] as const;
 const SEMANTIC_QUERY_STATUSES = ["ok", "unknown", "not_available"] as const;
 const SEMANTIC_CATALOG_KINDS = ["term", "attribute", "relationship"] as const;
 const SEMANTIC_PARAM_TYPES = ["text", "number"] as const;
+/**
+ * What one row of a SQL attribute stands for (migration 0058). The backtest terms have two attributes:
+ * `strategy` (latest succeeded engine run per linked strategy) and `run_spec` (latest succeeded engine
+ * run per symbol, rule and timeframe, for runs with no strategy). Same list as the database check.
+ */
+export const SEMANTIC_ATTRIBUTE_GRAINS = [
+  "strategy",
+  "run_spec",
+  "candidate",
+  "request",
+  "monitor",
+] as const;
+// not_run: certified but not run (the term is not certified, or an earlier attribute failed).
+/** How the assistant answer and the operator page name the rows of one grain. */
+export const SEMANTIC_GRAIN_LABELS: Readonly<
+  Record<(typeof SEMANTIC_ATTRIBUTE_GRAINS)[number], string>
+> = {
+  candidate: "per gate candidate",
+  monitor: "per drift monitor",
+  request: "per deployment request",
+  run_spec:
+    "per run spec (symbol, rule, timeframe) for engine runs with no strategy",
+  strategy: "per strategy (engine runs linked to a strategy)",
+};
+const SEMANTIC_GROUPING_STATUSES = [
+  "ok",
+  "unknown",
+  "not_certified",
+  "not_run",
+] as const;
 const SEMANTIC_RELATIONSHIP_CARDINALITIES = [
   "many_to_one",
   "one_to_one",
@@ -48,12 +78,22 @@ const CertificationSchema = {
   updatedBy: z.string().max(200).nullable(),
 };
 
+const SemanticGrainSchema = z.enum(SEMANTIC_ATTRIBUTE_GRAINS);
+
 /** One term as the assistant sees it in terms_list. */
 export const SemanticTermSummarySchema = z
   .object({
-    // A Postgres term is certified only when its SQL attribute is certified too.
+    // A Postgres term is certified only when at least one of its SQL attributes is certified too.
     certified: z.boolean(),
     description: z.string().max(TEXT_MAX),
+    // Postgres terms: one entry per SQL attribute (row grouping), with its own certification.
+    groupings: z
+      .array(
+        z
+          .object({ certified: z.boolean(), grain: SemanticGrainSchema })
+          .strict()
+      )
+      .max(SEMANTIC_ATTRIBUTE_GRAINS.length),
     id: IdSchema,
     label: z.string().max(120),
     params: z.array(SemanticParamSpecSchema).max(10),
@@ -94,17 +134,33 @@ const CellSchema = z.union([
 ]);
 export const SemanticRowSchema = z.record(z.string().max(64), CellSchema);
 
+/** One SQL attribute of a Postgres term in a query answer and whether it ran. */
+export const SemanticGroupingResultSchema = z
+  .object({
+    attribute: IdSchema,
+    certified: z.boolean(),
+    grain: SemanticGrainSchema,
+    rowCount: z.number().int().nonnegative(),
+    status: z.enum(SEMANTIC_GROUPING_STATUSES),
+  })
+  .strict();
+
 export const SemanticTermQueryOutputSchema = z
   .object({
     answer: z.string().max(TEXT_MAX),
     asOf: IsoSchema.nullable(),
     certified: z.boolean(),
+    // Postgres terms: every SQL attribute; rows of a term with several carry a `grain` cell.
+    groupings: z
+      .array(SemanticGroupingResultSchema)
+      .max(SEMANTIC_ATTRIBUTE_GRAINS.length),
     label: z.string().max(120).nullable(),
     params: z.record(z.string().max(32), SemanticParamValueSchema),
-    // The SQL that ran (with $n parameters) or the feed path; null when nothing ran.
+    // The certified SQL that ran (with $n parameters; several are joined, each after a
+    // `-- grain <grain>` line) or the feed path; null when nothing ran.
     query: z
       .string()
-      .max(SQL_MAX + 200)
+      .max(SEMANTIC_ATTRIBUTE_GRAINS.length * (SQL_MAX + 200))
       .nullable(),
     rowCount: z.number().int().nonnegative(),
     rows: z.array(SemanticRowSchema).max(SEMANTIC_QUERY_MAX_ROWS),
@@ -134,6 +190,7 @@ const SemanticCatalogTermSchema = z
 const SemanticCatalogAttributeSchema = z
   .object({
     description: z.string().max(TEXT_MAX),
+    grain: SemanticGrainSchema,
     id: IdSchema,
     sql: z.string().max(SQL_MAX),
     termId: IdSchema,
@@ -216,6 +273,9 @@ export type SemanticTermQueryOutput = z.infer<
   typeof SemanticTermQueryOutputSchema
 >;
 export type SemanticRow = z.infer<typeof SemanticRowSchema>;
+export type SemanticGroupingResult = z.infer<
+  typeof SemanticGroupingResultSchema
+>;
 export type SemanticCatalogOutput = z.infer<typeof SemanticCatalogOutputSchema>;
 
 export const SEMANTIC_TERMS_API_ERRORS = {

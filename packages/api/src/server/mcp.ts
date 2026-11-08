@@ -458,7 +458,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "terms_list",
     title: "List certified terms",
     description:
-      "The certified business terms of the semantic layer: id, definition, synonyms, source (postgres, feed or none), unit, parameters and certified flag. Call it before terms_query when you are not sure which term fits.",
+      "The certified business terms of the semantic layer: id, definition, synonyms, source (postgres, feed or none), unit, parameters, certified flag and groupings (the row groupings of a postgres term, each with its own certification). Call it before terms_query when you are not sure which term fits.",
     procedure: "semanticTerms/list",
     input: SemanticTermsListInputSchema,
     readOnly: true,
@@ -467,7 +467,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "terms_query",
     title: "Query a certified term",
     description:
-      "Answer one certified term: { term, params }. Returns status (ok, unknown or not_available), answer, rows, the SQL or feed path that produced them (query), source, unit and asOf. Account terms (net_liquidation, pnl, position, open_risk) read the owner's live IBKR account (vertex-portfolio feed), never the paper exec node. status unknown or not_available means: give no value.",
+      "Answer one certified term: { term, params }. Returns status (ok, unknown or not_available), answer, rows, the SQL or feed path that produced them (query), source, unit and asOf. Account terms (net_liquidation, pnl, position, open_risk) read the owner's live IBKR account (vertex-portfolio feed), never the paper exec node. status unknown or not_available means: give no value. A term with several groupings (backtest_sharpe and backtest_max_drawdown: per strategy, and per run spec (symbol, rule, timeframe) for engine runs with no strategy) runs each certified grouping; every row has a grain cell, and groupings says which ran and which wait for certification. Say which grouping each row uses. Their strategy parameter also matches the symbol of a run with no strategy (for example IWM).",
     procedure: "semanticTerms/query",
     input: SemanticTermQueryInputSchema,
     readOnly: true,

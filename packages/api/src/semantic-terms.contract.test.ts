@@ -1,7 +1,9 @@
+import { SEMANTIC_ATTRIBUTE_GRAINS as DB_GRAINS } from "@darkfactory/db/schema";
 import { describe, expect, it } from "vitest";
 
 import { appContract } from "./contract.ts";
 import {
+  SEMANTIC_ATTRIBUTE_GRAINS,
   SEMANTIC_QUERY_MAX_ROWS,
   SEMANTIC_TERMS_API_ERRORS,
   SemanticCatalogCertifyInputSchema,
@@ -23,6 +25,10 @@ describe("semanticTerms contract", () => {
       "query",
       "update",
     ]);
+  });
+
+  it("names the same SQL attribute grains as the database check", () => {
+    expect(SEMANTIC_ATTRIBUTE_GRAINS).toEqual(DB_GRAINS);
   });
 
   it("pins the method, path and operation id of every route", () => {
@@ -92,6 +98,7 @@ describe("semanticTerms contract", () => {
       answer: "ok",
       asOf: null,
       certified: true,
+      groupings: [],
       label: "P&L",
       params: {},
       query: "pnl",
@@ -111,6 +118,18 @@ describe("semanticTerms contract", () => {
       { ...base, rows: tooMany },
       { ...base, rows: [{ a: { b: 1 } }] },
       { ...base, status: "maybe" },
+      {
+        ...base,
+        groupings: [
+          {
+            attribute: "a_sql",
+            certified: true,
+            grain: "per_symbol",
+            rowCount: 0,
+            status: "ok",
+          },
+        ],
+      },
     ]) {
       expect(SemanticTermQueryOutputSchema.safeParse(bad).success).toBe(false);
     }

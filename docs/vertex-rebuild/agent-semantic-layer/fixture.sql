@@ -26,6 +26,20 @@ insert into backtest_runs(id, status, strategy_id, spec, engine_version, request
    '{"metrics":{"sharpe":1.31,"maxDrawdownPct":0.225,"totalReturn":0.402,"totalTrades":58,"winRate":0.57}}', '2026-10-28T14:00Z', '2026-10-28T14:06Z'),
   ('br_vix_1', 'queued',    's_vix', '{"symbol":"VIXY","timeframe":"1d"}', 'vx-engine-1.5', 'u_owner', null, null, '2026-11-04T14:00Z', null);
 
+-- Engine runs with no strategy (strategy_id null), answered per run spec (symbol, rule, timeframe) by the
+-- run_spec SQL attributes of migration 0058: IWM sma 10/30 twice (the newer run is the latest), DIA breakout
+-- with a newer failed run, GLD sma 5/20 with a drawdown worse than 20%.
+insert into backtest_runs(id, status, strategy_id, spec, engine_version, requested_by, error, report, created_at, finished_at) values
+  ('br_free_iwm_1', 'succeeded', null, '{"symbol":"IWM","timeframe":"1d","rule":{"kind":"smaCross","fast":10,"slow":30}}', 'vx-engine-1.5', 'u_owner', null,
+   '{"metrics":{"sharpe":0.64,"maxDrawdownPct":0.311,"totalReturn":0.087,"totalTrades":41,"winRate":0.49}}', '2026-10-10T14:00Z', '2026-10-10T14:02Z'),
+  ('br_free_iwm_2', 'succeeded', null, '{"symbol":"IWM","timeframe":"1d","rule":{"kind":"smaCross","fast":10,"slow":30}}', 'vx-engine-1.5', 'u_owner', null,
+   '{"metrics":{"sharpe":0.71,"maxDrawdownPct":0.258,"totalReturn":0.095,"totalTrades":43,"winRate":0.51}}', '2026-10-25T14:00Z', '2026-10-25T14:02Z'),
+  ('br_free_dia_1', 'succeeded', null, '{"symbol":"DIA","timeframe":"1m","rule":{"kind":"breakout","entryLookback":20,"exitLookback":10,"trendSma":200}}', 'vx-engine-1.5', 'u_owner', null,
+   '{"metrics":{"sharpe":1.21,"maxDrawdownPct":0.083,"totalReturn":0.212,"totalTrades":133,"winRate":0.58}}', '2026-10-18T14:00Z', '2026-10-18T14:05Z'),
+  ('br_free_dia_2', 'failed',    null, '{"symbol":"DIA","timeframe":"1m","rule":{"kind":"breakout","entryLookback":20,"exitLookback":10,"trendSma":200}}', 'vx-engine-1.5', 'u_owner', 'bars missing for 2026-11-01', null, '2026-11-02T14:00Z', '2026-11-02T14:01Z'),
+  ('br_free_gld_1', 'succeeded', null, '{"symbol":"GLD","timeframe":"1d","rule":{"kind":"smaCross","fast":5,"slow":20}}', 'vx-engine-1.5', 'u_owner', null,
+   '{"metrics":{"sharpe":-0.12,"maxDrawdownPct":0.412,"totalReturn":-0.034,"totalTrades":77,"winRate":0.44}}', '2026-10-30T14:00Z', '2026-10-30T14:03Z');
+
 -- Agent-recorded backtests. metrics keys are free-form; max_drawdown is a negative fraction.
 insert into agent_tasks(id, kind, agent, title, status, metrics, links) values
   ('t_bt_1', 'backtest', 'research-agent', 'ORB in-sample sweep', 'succeeded', '{}', '[]'),
@@ -62,10 +76,10 @@ insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level
   ('m_mr',  'RSI MR paper forward',          'br_mr_1',  '{}', 'ok',    'u_owner', 'off',     '2026-10-16T14:00Z', '2026-11-05T14:00Z');
 
 -- Give the engine rows the full spec and report shape the API validates (contracts/backtest-runs.ts), so
--- backtest_runs_list and backtest_runs_get work on this fixture. The metrics above win over these defaults.
+-- backtest_runs_list and backtest_runs_get work on this fixture. The metrics and rules above win over these defaults.
 update backtest_runs set spec = jsonb_build_object(
   'costBps', 1, 'from', '2021-01-01', 'to', '2026-09-30', 'initialCapital', 100000,
-  'rule', jsonb_build_object('kind', 'smaCross', 'fast', 20, 'slow', 50),
+  'rule', coalesce(spec->'rule', jsonb_build_object('kind', 'smaCross', 'fast', 20, 'slow', 50)),
   'stopLossPct', 0, 'takeProfitPct', 0, 'symbol', spec->>'symbol',
   'timeframe', case when spec->>'timeframe' = '1d' then '1d' else '1m' end);
 update backtest_runs set report = jsonb_build_object(
@@ -80,4 +94,11 @@ update backtest_runs set report = jsonb_build_object(
     'profitFactor', null, 'profitTrades', 0, 'recoveryFactor', null, 'sortino', null
   ) || (report->'metrics'))
 where report is not null;
+
+-- Migration 0058 seeds the run_spec SQL attributes NOT certified; in production the owner certifies them on
+-- /semantic-terms. This synthetic database certifies them as that operator would, so the eval and the
+-- integration tests exercise the certified answer for engine runs with no strategy.
+update semantic_sql_attributes set certified = true, certified_at = '2026-11-08T12:00Z',
+  certified_by = 'eval fixture (stands in for the owner)', certification_note = 'Synthetic eval database only.'
+where grain = 'run_spec';
 commit;

@@ -13,8 +13,10 @@ import { implement } from "@orpc/server";
 import { appContract } from "../contract.ts";
 import type { PortfolioMonitorOutput } from "../contracts/portfolio-monitor.ts";
 import {
+  SEMANTIC_GRAIN_LABELS,
   SEMANTIC_QUERY_MAX_ROWS,
   type SemanticCatalogOutput,
+  type SemanticGroupingResult,
   type SemanticParamSpec,
   type SemanticParamValue,
   type SemanticRow,
@@ -90,31 +92,43 @@ const storage = async <T>(failures: Failures, work: () => Promise<T>) => {
 const iso = (value: Date | null): string | null =>
   value === null ? null : value.toISOString();
 
+// A Postgres term answers when the term and at least one of its SQL attributes are certified; only the
+// certified attributes run.
 const effectiveCertified = (
   term: SemanticTermRow,
-  attribute: SemanticSqlAttributeRow | null | undefined
+  attributes: readonly SemanticSqlAttributeRow[]
 ): boolean =>
   term.certified &&
-  (term.source !== "postgres" || (attribute?.certified ?? false));
+  (term.source !== "postgres" ||
+    attributes.some((attribute) => attribute.certified));
 
 export const summarizeTerms = (
   semanticCatalog: SemanticCatalog
 ): SemanticTermSummary[] =>
-  semanticCatalog.terms.map((term) => ({
-    certified: effectiveCertified(
-      term,
-      semanticCatalog.attributes.find(
-        (attribute) => attribute.termId === term.id
-      )
-    ),
-    description: term.description,
-    id: term.id,
-    label: term.label,
-    params: term.params.map((param) => ({ ...param })) as SemanticParamSpec[],
-    source: term.source,
-    synonyms: [...term.synonyms],
-    unit: term.unit,
-  }));
+  semanticCatalog.terms.map((term) => {
+    const attributes =
+      term.source === "postgres"
+        ? semanticCatalog.attributes.filter(
+            (attribute) => attribute.termId === term.id
+          )
+        : [];
+    return {
+      certified: effectiveCertified(term, attributes),
+      description: term.description,
+      groupings: attributes.map((attribute) => ({
+        certified: attribute.certified,
+        grain: attribute.grain,
+      })),
+      id: term.id,
+      label: term.label,
+      params: term.params.map((param) => ({
+        ...param,
+      })) as SemanticParamSpec[],
+      source: term.source,
+      synonyms: [...term.synonyms],
+      unit: term.unit,
+    };
+  });
 
 const certificationOf = (row: SemanticTermRow | SemanticSqlAttributeRow) => ({
   certificationNote: row.certificationNote,
@@ -130,6 +144,7 @@ export const catalogOutput = (
 ): Omit<SemanticCatalogOutput, "canWrite"> => ({
   attributes: semanticCatalog.attributes.map((row) => ({
     description: row.description,
+    grain: row.grain,
     id: row.id,
     sql: row.sql,
     termId: row.termId,
@@ -225,6 +240,8 @@ export const bindParams = (
 };
 
 const CELL_TEXT_MAX = 2000;
+/** SemanticTermQueryOutputSchema caps `answer` at this length. */
+const ANSWER_MAX = 2000;
 const toCell = (value: unknown): SemanticRow[string] => {
   if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -313,6 +330,114 @@ const answerFeedTerm = async (
   };
 };
 
+/**
+ * The SQL of a Postgres term as one text. One attribute: its SQL as is. Several: each after a
+ * `-- grain <grain> (attribute <id>[, not certified])` line. Null when the term has none.
+ */
+const sqlText = (
+  attributes: readonly SemanticSqlAttributeRow[],
+  sqlOf: (attribute: SemanticSqlAttributeRow) => string,
+  headed = attributes.length > 1
+): string | null => {
+  if (!headed) {
+    const [only] = attributes;
+    return only === undefined ? null : sqlOf(only);
+  }
+  return attributes
+    .map(
+      (attribute) =>
+        `-- grain ${attribute.grain} (attribute ${attribute.id}${attribute.certified ? "" : ", not certified"})\n${sqlOf(attribute)}`
+    )
+    .join("\n\n");
+};
+
+/**
+ * Runs every certified SQL attribute of a certified Postgres term. An attribute that is not certified
+ * does not run; the answer says it waits for certification. Rows of a term with several attributes
+ * carry a `grain` cell naming their grouping. Any failed attribute makes the whole answer unknown, with
+ * no rows, so a partial answer is never read as complete.
+ */
+const answerSqlTerm = async (
+  term: SemanticTermRow,
+  attributes: readonly SemanticSqlAttributeRow[],
+  values: readonly SemanticParamValue[],
+  described: Omit<SemanticTermQueryOutput, "answer" | "status">,
+  { now, reader }: Pick<QueryContext, "now" | "reader">
+): Promise<SemanticTermQueryOutput> => {
+  const several = attributes.length > 1;
+  const groupings: SemanticGroupingResult[] = [];
+  const rows: SemanticRow[] = [];
+  const ran = new Map<string, string>();
+  let truncated = false;
+  for (const attribute of attributes) {
+    const grouping = {
+      attribute: attribute.id,
+      certified: attribute.certified,
+      grain: attribute.grain,
+    };
+    if (!attribute.certified) {
+      groupings.push({ ...grouping, rowCount: 0, status: "not_certified" });
+      continue;
+    }
+    const result = await reader.run(attribute, values as DbParamValue[], {
+      rowLimit: SEMANTIC_QUERY_MAX_ROWS,
+      timeoutMs: SEMANTIC_SQL_TIMEOUT_MS,
+    });
+    if (result.status === "failed") {
+      groupings.push({ ...grouping, rowCount: 0, status: "unknown" });
+      return {
+        ...described,
+        answer: `Unknown${several ? ` (${SEMANTIC_GRAIN_LABELS[attribute.grain]})` : ""}: ${result.message} No value is given.`,
+        groupings: [
+          ...groupings,
+          ...described.groupings.slice(groupings.length),
+        ],
+        query: result.query,
+        status: "unknown",
+      };
+    }
+    ran.set(attribute.id, result.query);
+    truncated ||= result.truncated;
+    groupings.push({ ...grouping, rowCount: result.rows.length, status: "ok" });
+    rows.push(
+      ...result.rows.map((row) =>
+        toRow(several ? { grain: attribute.grain, ...row } : row)
+      )
+    );
+  }
+  const shown = rows.slice(0, SEMANTIC_QUERY_MAX_ROWS);
+  truncated ||= rows.length > shown.length;
+  const count =
+    shown.length === 0
+      ? "No rows match."
+      : `${shown.length}${truncated ? "+" : ""} row(s).`;
+  const parts = groupings.map((grouping) => {
+    const label = SEMANTIC_GRAIN_LABELS[grouping.grain];
+    if (grouping.status === "not_certified") {
+      return `${label}: not answered, this SQL waits for owner certification on /semantic-terms`;
+    }
+    return `${label}: ${grouping.rowCount === 0 ? "no rows match" : `${grouping.rowCount} row(s)`}`;
+  });
+  const answer = several
+    ? `${count} ${parts.join("; ")}. The grain cell of each row names its grouping. ${term.description}`
+    : `${count} ${term.description}`;
+  return {
+    ...described,
+    answer: answer.slice(0, ANSWER_MAX),
+    asOf: now.toISOString(),
+    groupings,
+    query: sqlText(
+      attributes.filter((attribute) => ran.has(attribute.id)),
+      (attribute) => ran.get(attribute.id) ?? attribute.sql,
+      several
+    ),
+    rowCount: shown.length,
+    rows: shown,
+    status: "ok",
+    truncated,
+  };
+};
+
 export const answerTerm = async (
   input: SemanticTermQueryInput,
   { now, readFeed, reader, repository }: QueryContext
@@ -321,6 +446,7 @@ export const answerTerm = async (
   const base = {
     asOf: null,
     certified: false,
+    groupings: [],
     label: null,
     params,
     query: null,
@@ -339,14 +465,25 @@ export const answerTerm = async (
       status: "not_available",
     };
   }
-  const { attribute, term } = entry;
-  const certified = effectiveCertified(term, attribute);
+  const { attributes, term } = entry;
+  const certified = effectiveCertified(term, attributes);
   const described = {
     ...base,
     certified,
+    groupings: attributes.map(
+      (attribute): SemanticGroupingResult => ({
+        attribute: attribute.id,
+        certified: attribute.certified,
+        grain: attribute.grain,
+        rowCount: 0,
+        status: attribute.certified ? "not_run" : "not_certified",
+      })
+    ),
     label: term.label,
     query:
-      term.source === "postgres" ? (attribute?.sql ?? null) : term.feedPath,
+      term.source === "postgres"
+        ? sqlText(attributes, (attribute) => attribute.sql)
+        : term.feedPath,
     source: term.source,
     unit: term.unit,
   };
@@ -364,33 +501,10 @@ export const answerTerm = async (
   if (!bound.ok) throw new SemanticParamsError(bound.message);
 
   if (term.source === "postgres") {
-    const result = await reader.run(
-      attribute as SemanticSqlAttributeRow,
-      bound.values as DbParamValue[],
-      { rowLimit: SEMANTIC_QUERY_MAX_ROWS, timeoutMs: SEMANTIC_SQL_TIMEOUT_MS }
-    );
-    if (result.status === "failed") {
-      return {
-        ...described,
-        answer: `Unknown: ${result.message} No value is given.`,
-        query: result.query,
-        status: "unknown",
-      };
-    }
-    const rows = result.rows.map(toRow);
-    return {
-      ...described,
-      answer:
-        rows.length === 0
-          ? `No rows match. ${term.description}`
-          : `${rows.length}${result.truncated ? "+" : ""} row(s). ${term.description}`,
-      asOf: now.toISOString(),
-      query: result.query,
-      rowCount: rows.length,
-      rows,
-      status: "ok",
-      truncated: result.truncated,
-    };
+    return await answerSqlTerm(term, attributes, bound.values, described, {
+      now,
+      reader,
+    });
   }
 
   return await answerFeedTerm(term, bound.values, described, { now, readFeed });

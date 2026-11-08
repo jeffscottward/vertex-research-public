@@ -1,5 +1,5 @@
-// The 25 owner-style questions of docs/vertex-rebuild/agent-semantic-layer.md (Q1-Q20 main set, H1-H5
-// held-out set) with a fixed grading rubric over the synthetic fixture (fixture.sql + the feed fixtures in
+// The 30 owner-style questions of docs/vertex-rebuild/agent-semantic-layer.md (Q1-Q20 main set, H1-H5
+// held-out set, U1-U5 engine runs with no strategy, answered per run spec) with a fixed grading rubric over the synthetic fixture (fixture.sql + the feed fixtures in
 // fixtures.ts). Grades:
 // - correct: every `required` pattern matches and no `forbidden` pattern matches;
 // - wrong: a `forbidden` pattern matches (a value from the wrong source or a wrong value);
@@ -8,7 +8,7 @@
 // from the live account, and quoting the paper value next to it invites the error this layer prevents.
 
 export type QuestionKind = "account" | "research" | "not_available";
-export type QuestionSet = "main" | "held_out";
+export type QuestionSet = "main" | "held_out" | "unlinked";
 
 export type EvalQuestion = Readonly<{
   id: string;
@@ -179,7 +179,8 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     id: "Q16",
     kind: "research",
     question: "Do any strategies have a backtest drawdown worse than 20%?",
-    reference: "Yes, only Sector Momentum (22.5%).",
+    reference:
+      "Yes: among strategies only Sector Momentum (22.5%). Engine runs with no strategy, per run spec, also exceed 20% (GLD smaCross 5/20 41.2%, IWM smaCross 10/30 25.8%); listing them as run specs is correct, calling them strategies is not required.",
     required: [/sector momentum/i, /\b22\.50?\s?%/],
     set: "main",
   },
@@ -267,6 +268,71 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     reference: "Not available: no certified term exposes live buying power.",
     required: [NOT_AVAILABLE],
     set: "held_out",
+  },
+  // Engine runs with no strategy (migration 0058): run_spec rows of backtest_sharpe and
+  // backtest_max_drawdown, latest succeeded run per symbol, rule and timeframe. Older runs and
+  // notebook records are wrong values.
+  {
+    forbidden: [...PAPER, /\b0\.64\b/],
+    id: "U1",
+    kind: "research",
+    question: "What's the backtest Sharpe of the IWM SMA 10/30 runs?",
+    reference:
+      "0.71 (latest succeeded IWM smaCross 10/30 1d run br_free_iwm_2, per run spec; the runs have no strategy).",
+    required: [/\b0\.71\b/],
+    set: "unlinked",
+  },
+  {
+    forbidden: [...PAPER, /\b1\.62\b/],
+    id: "U2",
+    kind: "research",
+    question:
+      "Among the backtests that aren't linked to a strategy, which one has the best Sharpe?",
+    reference:
+      "DIA breakout 20/10 with a 200 trend SMA (1m), Sharpe 1.21 (run br_free_dia_1, per run spec).",
+    required: [/\bDIA\b/, /\b1\.21\b/],
+    set: "unlinked",
+  },
+  {
+    forbidden: [...PAPER, /\b31\.1\d*\s?%/],
+    id: "U3",
+    kind: "research",
+    question:
+      "Do any backtest runs without a strategy have a max drawdown worse than 20%?",
+    reference:
+      "Yes: GLD smaCross 5/20 (41.2%) and IWM smaCross 10/30 (25.8%), per run spec.",
+    required: [/\bGLD\b/, /\b41\.20?\s?%/, /\bIWM\b/, /\b25\.80?\s?%/],
+    set: "unlinked",
+  },
+  {
+    forbidden: PAPER,
+    id: "U4",
+    kind: "research",
+    question: "What was the max drawdown of the latest DIA breakout backtest?",
+    reference:
+      "8.3% (run br_free_dia_1; the newer DIA run failed). Per run spec; no strategy.",
+    required: [/\b8\.30?\s?%/],
+    set: "unlinked",
+  },
+  {
+    forbidden: [...PAPER, /\b1\.9\b/, /\b1\.62\b/],
+    id: "U5",
+    kind: "research",
+    question:
+      "List the backtest Sharpe of every strategy and every unlinked engine run, and say which grouping each row uses.",
+    reference:
+      "Per strategy: RSI Mean Reversion 1.45, Sector Momentum 1.31, Opening Range Breakout 0.82. Per run spec (no strategy): DIA breakout 1.21, IWM smaCross 10/30 0.71, GLD smaCross 5/20 -0.12.",
+    required: [
+      /\b1\.45\b/,
+      /\b1\.31\b/,
+      /\b0\.82\b/,
+      /\b1\.21\b/,
+      /\b0\.71\b/,
+      /-\s?0\.12\b|−0\.12\b/,
+      /per strategy|by strategy|strategy grouping|linked/i,
+      /run spec|no strategy|without a strategy|unlinked|not linked/i,
+    ],
+    set: "unlinked",
   },
 ];
 
