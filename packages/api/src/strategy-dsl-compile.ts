@@ -7,11 +7,17 @@ import {
   runSignalBacktest,
   type SignalRunOptions,
 } from "./instant-backtest-engine.ts";
-import type {
-  StrategyCondition,
-  StrategyDefinition,
-  StrategyExpr,
-  StrategyFilter,
+import {
+  type CalendarWindowFilter,
+  type IvRankFilter,
+  type SectorQuadrantFilter,
+  type SeriesFilter,
+  STRATEGY_IV_INDEX,
+  type StrategyCondition,
+  type StrategyDefinition,
+  type StrategyExpr,
+  type StrategyOptions,
+  type VolRegimeFilter,
 } from "./strategy-dsl.ts";
 
 // Compiles a validated strategy definition to engine signals and runs it. Indicator values are NaN
@@ -482,29 +488,34 @@ const compare = (op: StrategyCondition["op"], left: number, right: number) => {
   }
 };
 
-/** Boolean series of one condition. A cross is true when the relation holds now but not on the previous bar. */
-const conditionSeries = (
-  bars: BarColumns,
-  condition: StrategyCondition,
-  cache: SeriesCache
+/** 1 where `left op right` holds. A cross is true when the relation holds now but not on the previous bar. */
+const compareSeries = (
+  op: StrategyCondition["op"],
+  left: Float64Array,
+  right: Float64Array
 ): Uint8Array => {
-  const left = evaluate(bars, condition.left, cache);
-  const right = evaluate(bars, condition.right, cache);
   const out = new Uint8Array(left.length);
-  const cross =
-    condition.op === "crossesAbove" || condition.op === "crossesBelow";
+  const cross = op === "crossesAbove" || op === "crossesBelow";
   let previous = false;
   for (let index = 0; index < left.length; index += 1) {
-    const now = compare(
-      condition.op,
-      left[index] as number,
-      right[index] as number
-    );
+    const now = compare(op, left[index] as number, right[index] as number);
     out[index] = (cross ? now && !previous : now) ? 1 : 0;
     previous = now;
   }
   return out;
 };
+
+/** Boolean series of one condition on the bars. */
+const conditionSeries = (
+  bars: BarColumns,
+  condition: StrategyCondition,
+  cache: SeriesCache
+): Uint8Array =>
+  compareSeries(
+    condition.op,
+    evaluate(bars, condition.left, cache),
+    evaluate(bars, condition.right, cache)
+  );
 
 const minutesOf = (time: string): number => {
   const [hours, minutes] = time.split(":").map(Number) as [number, number];
@@ -530,7 +541,7 @@ const inSession = (
 export type SectorQuadrantPoint = Readonly<{
   /** YYYY-MM-DD of the period close. */
   date: string;
-  quadrant: StrategyFilter["quadrants"][number];
+  quadrant: SectorQuadrantFilter["quadrants"][number];
 }>;
 
 /** Series by `${sector}:${timeframe}` (for example "XLK:weekly"), sorted by date ascending. */
@@ -546,8 +557,285 @@ export class SectorQuadrantDataError extends InstantBacktestInputError {
   }
 }
 
-export const sectorQuadrantKey = (filter: StrategyFilter): string =>
+export const sectorQuadrantKey = (filter: SectorQuadrantFilter): string =>
   `${filter.sector}:${filter.timeframe}`;
+
+/**
+ * Daily values of external series (STRATEGY_SERIES_IDS): series id → YYYY-MM-DD date → value (the
+ * close). Values that are not finite count as missing.
+ */
+export type StrategySeriesContext = Readonly<
+  Record<string, Readonly<Record<string, number>>>
+>;
+
+/** What the ivRank, vixTermStructure, volRegime and series filters read. */
+export type StrategySeriesInput = Readonly<{
+  context: StrategySeriesContext;
+  /** Traded symbol; ivRank reads its implied-volatility index (STRATEGY_IV_INDEX). */
+  symbol?: string;
+}>;
+
+/** A definition has a filter on a series that was not given. */
+export class StrategySeriesDataError extends InstantBacktestInputError {
+  constructor(series: string) {
+    super(`Series data is not available for ${series}`);
+    this.name = "StrategySeriesDataError";
+  }
+}
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
+
+type DailySeries = Readonly<{ dates: readonly string[]; values: Float64Array }>;
+
+/** The finite values of one context series, by date ascending. */
+const dailySeries = (
+  input: StrategySeriesInput | undefined,
+  id: string
+): DailySeries => {
+  const byDate = input?.context[id];
+  if (byDate === undefined) throw new StrategySeriesDataError(id);
+  const dates: string[] = [];
+  for (const date of Object.keys(byDate).sort()) {
+    if (!DATE_PATTERN.test(date))
+      throw new InstantBacktestInputError(
+        `Series ${id} has a date that is not YYYY-MM-DD: ${date}`
+      );
+    if (Number.isFinite(byDate[date])) dates.push(date);
+  }
+  return {
+    dates,
+    values: Float64Array.from(dates, (date) => byDate[date] as number),
+  };
+};
+
+/**
+ * The value of a daily series on each bar: the latest value dated on or before the bar date. A
+ * daily value is known after its close, so an intraday bar uses only values dated before its date.
+ * `exact` (daily bars) needs a value dated on the bar date itself; otherwise NaN.
+ */
+const alignSeries = (
+  series: DailySeries,
+  values: Float64Array,
+  barDates: readonly string[],
+  intraday: boolean,
+  exact: boolean
+): Float64Array => {
+  const { dates } = series;
+  const out = new Float64Array(barDates.length).fill(Number.NaN);
+  let next = 0;
+  for (let index = 0; index < barDates.length; index += 1) {
+    const date = barDates[index] as string;
+    while (
+      next < dates.length &&
+      (intraday
+        ? (dates[next] as string) < date
+        : (dates[next] as string) <= date)
+    )
+      next += 1;
+    if (next === 0) continue;
+    if (exact && !intraday && dates[next - 1] !== date) continue;
+    out[index] = values[next - 1] as number;
+  }
+  return out;
+};
+
+/** 100 × (v − min) / (max − min) over the `length` values ending at each value; NaN when flat. */
+export const ivRankSeries = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const highest = priorExtreme(values, length - 1, 1);
+  const lowest = priorExtreme(values, length - 1, -1);
+  const out = new Float64Array(values.length).fill(Number.NaN);
+  for (let index = length - 1; index < values.length; index += 1) {
+    const value = values[index] as number;
+    const high = Math.max(highest[index] as number, value);
+    const low = Math.min(lowest[index] as number, value);
+    if (high > low) out[index] = (100 * (value - low)) / (high - low);
+  }
+  return out;
+};
+
+/** VIX / VIX3M on the dates where both have a value (and VIX3M is above 0). */
+const termRatioSeries = (
+  input: StrategySeriesInput | undefined
+): DailySeries => {
+  const vix = dailySeries(input, "VIX");
+  const vix3m = dailySeries(input, "VIX3M");
+  const dates: string[] = [];
+  const ratios: number[] = [];
+  let other = 0;
+  vix.dates.forEach((date, index) => {
+    while (other < vix3m.dates.length && (vix3m.dates[other] as string) < date)
+      other += 1;
+    const denominator = vix3m.values[other] as number;
+    if (vix3m.dates[other] !== date || !(denominator > 0)) return;
+    dates.push(date);
+    ratios.push((vix.values[index] as number) / denominator);
+  });
+  return { dates, values: Float64Array.from(ratios) };
+};
+
+/** True when `value` is a number in [min, max]; a missing bound is open. */
+const within = (
+  value: number,
+  min: number | undefined,
+  max: number | undefined
+): boolean =>
+  !Number.isNaN(value) &&
+  (min === undefined || value >= min) &&
+  (max === undefined || value <= max);
+
+const maskOf = (size: number, pass: (index: number) => boolean): Uint8Array =>
+  Uint8Array.from({ length: size }, (_, index) => (pass(index) ? 1 : 0));
+
+/** 0 Sunday to 6 Saturday of a UTC day number (days since 1970-01-01, a Thursday). */
+const weekday = (day: number): number => (((day + 4) % 7) + 7) % 7;
+
+/**
+ * Trading-day test of the bars: inside the bar date range a day trades when it has a bar; outside
+ * it every weekday trades (holidays there are unknown).
+ */
+const tradingDays = (days: Float64Array): ((day: number) => boolean) => {
+  const known = new Set<number>(days);
+  const first = days[0] as number;
+  const last = days.at(-1) as number;
+  return (day) =>
+    day >= first && day <= last
+      ? known.has(day)
+      : weekday(day) >= 1 && weekday(day) <= 5;
+};
+
+/** First and last UTC day number of the month holding `day`, and its month (1 to 12). */
+const monthOf = (
+  day: number
+): Readonly<{ first: number; last: number; month: number }> => {
+  const date = new Date(day * DAY_MS);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  return {
+    first: Date.UTC(year, month, 1) / DAY_MS,
+    last: Date.UTC(year, month + 1, 1) / DAY_MS - 1,
+    month: month + 1,
+  };
+};
+
+/** 1 on bars inside the calendar window (see CalendarWindowFilterSchema). */
+const calendarMask = (
+  filter: CalendarWindowFilter,
+  days: Float64Array
+): Uint8Array => {
+  const trades = tradingDays(days);
+  const count = (from: number, to: number): number => {
+    let total = 0;
+    for (let day = from; day <= to; day += 1) if (trades(day)) total += 1;
+    return total;
+  };
+  return maskOf(days.length, (index) => {
+    const day = days[index] as number;
+    const month = monthOf(day);
+    if (filter.window === "months") return filter.months.includes(month.month);
+    if (filter.window === "turnOfMonth")
+      return (
+        -count(day, month.last) >= filter.fromDay ||
+        count(month.first, day) <= filter.toDay
+      );
+    const thirdFriday = month.first + ((5 - weekday(month.first) + 7) % 7) + 14;
+    let expiry = thirdFriday;
+    while (!trades(expiry)) expiry -= 1;
+    let start = thirdFriday - 5; // the Sunday before the week
+    while (!trades(start)) start -= 1;
+    return day >= start && day <= expiry;
+  });
+};
+
+/** ivRank mask: the traded symbol's IV index rank on the bar date is within [min, max]. */
+const ivRankMask = (
+  filter: IvRankFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const symbol = input?.symbol;
+  if (symbol === undefined)
+    throw new InstantBacktestInputError("ivRank needs the traded symbol");
+  if (!Object.hasOwn(STRATEGY_IV_INDEX, symbol))
+    throw new InstantBacktestInputError(
+      `ivRank has no implied-volatility index for ${symbol}`
+    );
+  const index = dailySeries(input, STRATEGY_IV_INDEX[symbol] as string);
+  const rank = alignSeries(
+    index,
+    ivRankSeries(index.values, filter.length),
+    barDates,
+    intraday,
+    true
+  );
+  return maskOf(barDates.length, (at) =>
+    within(rank[at] as number, filter.min, filter.max)
+  );
+};
+
+/** volRegime mask: VIX, VIX / VIX3M and the SPY trend on the bar date. */
+const volRegimeMask = (
+  filter: VolRegimeFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const vix = dailySeries(input, "VIX");
+  const ratio = termRatioSeries(input);
+  const spy = dailySeries(input, "SPY");
+  const average = rollingMean(spy.values, filter.trendLength);
+  const trend = spy.values.map((close, index) =>
+    close > (average[index] as number) ? 1 : 0
+  );
+  const vixOn = alignSeries(vix, vix.values, barDates, intraday, true);
+  const ratioOn = alignSeries(ratio, ratio.values, barDates, intraday, true);
+  const trendOn = alignSeries(spy, trend, barDates, intraday, true);
+  return maskOf(
+    barDates.length,
+    (at) =>
+      (vixOn[at] as number) <= filter.maxVix &&
+      (ratioOn[at] as number) <= filter.maxTermRatio &&
+      trendOn[at] === 1
+  );
+};
+
+/** series mask: the condition evaluated on the series, each side aligned to the bars. */
+const seriesMask = (
+  filter: SeriesFilter,
+  input: StrategySeriesInput | undefined,
+  barDates: readonly string[],
+  intraday: boolean
+): Uint8Array => {
+  const series = dailySeries(input, filter.series);
+  if (series.values.length === 0) return new Uint8Array(barDates.length);
+  const { values } = series;
+  const columns: BarColumns = {
+    c: values,
+    h: values,
+    l: values,
+    o: values,
+    t: Float64Array.from(series.dates, (date) =>
+      Date.parse(`${date}T00:00:00Z`)
+    ),
+  };
+  const cache: SeriesCache = new Map();
+  const side = (expr: StrategyExpr) =>
+    alignSeries(
+      series,
+      evaluate(columns, expr, cache),
+      barDates,
+      intraday,
+      false
+    );
+  return compareSeries(
+    filter.condition.op,
+    side(filter.condition.left),
+    side(filter.condition.right)
+  );
+};
 
 /** Smallest gap between bars below this means intraday bars. */
 const INTRADAY_GAP_MS = 20 * HOUR_MS;
@@ -567,7 +855,7 @@ const isIntraday = (t: Float64Array): boolean => {
  */
 const filterSeries = (
   t: Float64Array,
-  filter: StrategyFilter,
+  filter: SectorQuadrantFilter,
   points: readonly SectorQuadrantPoint[],
   intraday: boolean
 ): Uint8Array => {
@@ -591,16 +879,42 @@ const filterSeries = (
 const filterMasks = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  sectorQuadrants: SectorQuadrantSeries | undefined
+  sectorQuadrants: SectorQuadrantSeries | undefined,
+  seriesInput: StrategySeriesInput | undefined
 ): Uint8Array[] => {
   const filters = definition.filters ?? [];
   if (filters.length === 0) return [];
   const intraday = isIntraday(bars.t);
+  const barDates = Array.from(bars.t, (t) =>
+    new Date(t).toISOString().slice(0, 10)
+  );
   return filters.map((filter) => {
-    const points = sectorQuadrants?.[sectorQuadrantKey(filter)];
-    if (points === undefined)
-      throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
-    return filterSeries(bars.t, filter, points, intraday);
+    switch (filter.type) {
+      case "sectorQuadrant": {
+        const points = sectorQuadrants?.[sectorQuadrantKey(filter)];
+        if (points === undefined)
+          throw new SectorQuadrantDataError(filter.sector, filter.timeframe);
+        return filterSeries(bars.t, filter, points, intraday);
+      }
+      case "ivRank":
+        return ivRankMask(filter, seriesInput, barDates, intraday);
+      case "vixTermStructure": {
+        const ratio = termRatioSeries(seriesInput);
+        const on = alignSeries(ratio, ratio.values, barDates, intraday, true);
+        return maskOf(barDates.length, (at) =>
+          within(on[at] as number, filter.minRatio, filter.maxRatio)
+        );
+      }
+      case "volRegime":
+        return volRegimeMask(filter, seriesInput, barDates, intraday);
+      case "calendarWindow":
+        return calendarMask(
+          filter,
+          bars.t.map((t) => Math.floor(t / DAY_MS))
+        );
+      default:
+        return seriesMask(filter, seriesInput, barDates, intraday);
+    }
   });
 };
 
@@ -610,6 +924,8 @@ export type CompiledStrategy = Readonly<{
   exits: Uint8Array;
   stopDistance?: Float64Array;
   targetDistance?: Float64Array;
+  /** The definition's options block, unchanged, for the options runner. */
+  options?: StrategyOptions;
 }>;
 
 const distanceSeries = (
@@ -634,11 +950,12 @@ const distanceSeries = (
 export const compileStrategy = (
   bars: BarColumns,
   definition: StrategyDefinition,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  seriesInput?: StrategySeriesInput
 ): CompiledStrategy => {
   const size = bars.c.length;
   const cache: SeriesCache = new Map();
-  const filters = filterMasks(bars, definition, sectorQuadrants);
+  const filters = filterMasks(bars, definition, sectorQuadrants, seriesInput);
   const entries = [
     ...definition.entry.all.map((condition) =>
       conditionSeries(bars, condition, cache)
@@ -667,6 +984,9 @@ export const compileStrategy = (
     signals,
     ...(stopDistance === undefined ? {} : { stopDistance }),
     ...(targetDistance === undefined ? {} : { targetDistance }),
+    ...(definition.options === undefined
+      ? {}
+      : { options: definition.options }),
   };
 };
 
@@ -676,9 +996,15 @@ export const runStrategyDefinition = (
   definition: StrategyDefinition,
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  seriesInput?: StrategySeriesInput
 ): InstantRunResult => {
-  const compiled = compileStrategy(bars, definition, sectorQuadrants);
+  const compiled = compileStrategy(
+    bars,
+    definition,
+    sectorQuadrants,
+    seriesInput
+  );
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),

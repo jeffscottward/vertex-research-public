@@ -25,6 +25,13 @@ class SectorQuadrantDataError(InputError):
         )
 
 
+class SeriesDataError(InputError):
+    """A definition has a filter on a series that was not given (TS StrategySeriesDataError)."""
+
+    def __init__(self, series: str) -> None:
+        super().__init__(f"Series data is not available for {series}")
+
+
 def _column(values: Sequence[Any]) -> tuple[float, ...]:
     # JSON null means NaN (the golden fixtures write NaN as null).
     return tuple(math.nan if value is None else float(value) for value in values)

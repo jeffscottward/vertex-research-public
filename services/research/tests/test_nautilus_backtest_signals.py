@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,7 @@ import pytest
 
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
-from nautilus_backtest.bars import Bars, InputError, SectorQuadrantDataError
+from nautilus_backtest.bars import Bars, InputError, SectorQuadrantDataError, SeriesDataError
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nautilus_backtest" / "golden.json"
 
@@ -97,10 +98,15 @@ COMPILED = golden()["compiled"]
 @pytest.mark.parametrize("case", COMPILED, ids=_ids(COMPILED, "id", "symbol"))
 def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
     compiled = sig.compile_strategy(
-        bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"]
+        bars_of(case["symbol"]),
+        case["definition"],
+        golden()["sectorQuadrants"],
+        golden()["series"],
+        case["symbol"],
     )
     assert list(compiled.signals) == case["signals"]
     assert list(compiled.exits or ()) == case["exits"]
+    assert compiled.options == case.get("options")
     for name, actual, expected in (
         ("stopDistance", compiled.stop_distance, case["stopDistance"]),
         ("targetDistance", compiled.target_distance, case["targetDistance"]),
@@ -168,7 +174,11 @@ def test_plan_run_matches_typescript_options(case: dict[str, Any]) -> None:
     if rule["kind"] == "dsl":
         assert compiled.exits is not None
         expected = sig.compile_strategy(
-            bars_of(case["symbol"]), rule["definition"], spec["sectorQuadrants"]
+            bars_of(case["symbol"]),
+            rule["definition"],
+            spec["sectorQuadrants"],
+            spec.get("series"),
+            spec.get("symbol"),
         )
         assert compiled.signals == expected.signals
         assert compiled.exits == expected.exits
@@ -286,3 +296,180 @@ def test_bars_window_is_a_batch_case_slice() -> None:
     for first, end in ((2, 2), (-1, 2), (0, 5)):
         with pytest.raises(InputError, match="is outside the"):
             bars.window(first, end)
+
+
+# ---------------------------------------------------------------------------------------------
+# Series and calendar filters, options block (mirrors strategy-dsl*.test.ts).
+
+
+def _weekdays(start: str, end: str, skip: tuple[str, ...] = ()) -> list[str]:
+    first = date.fromisoformat(start)
+    days = (date.fromisoformat(end) - first).days
+    out = []
+    for offset in range(days + 1):
+        day = first + timedelta(days=offset)
+        if day.weekday() < 5 and day.isoformat() not in skip:
+            out.append(day.isoformat())
+    return out
+
+
+def _bars_on(dates: list[str]) -> Bars:
+    t = [(date.fromisoformat(d) - date(1970, 1, 1)).days * 86_400_000 for d in dates]
+    c = [100 + index for index in range(len(dates))]
+    return Bars.from_columns({"t": t, "o": c, "h": c, "l": c, "c": c})
+
+
+ALWAYS = {"left": {"type": "price", "field": "close"}, "op": ">", "right": {"type": "const", "value": 0}}
+
+
+def _filtered(*filters: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, "filters": list(filters), **extra}
+
+
+def test_new_filter_defaults_are_applied_and_idempotent() -> None:
+    definition = _filtered(
+        {"type": "ivRank", "max": 30},
+        {"type": "vixTermStructure", "maxRatio": 1},
+        {"type": "volRegime", "maxVix": 20, "maxTermRatio": 1},
+        {"type": "series", "series": "ES=F", "condition": ALWAYS},
+    )
+    normalized = sig.normalize_definition(definition)
+    assert normalized["filters"][0] == {"type": "ivRank", "length": 252, "max": 30.0}
+    assert normalized["filters"][1] == {"type": "vixTermStructure", "maxRatio": 1.0}
+    assert normalized["filters"][2]["trendLength"] == 200
+    assert normalized["filters"][3]["condition"]["left"]["offset"] == 0
+    assert normalized["options"] is None
+    assert sig.normalize_definition(normalized) == normalized
+
+
+def test_iv_rank_series_matches_the_typescript_example() -> None:
+    actual = sig.iv_rank_series([1, 3, 2, 2, 2, 2, 5], 3)
+    assert_series(actual, [None, None, 50, 0, None, None, 100], "ivRank")
+
+
+def test_calendar_windows_use_bar_dates_as_the_trading_calendar() -> None:
+    dates = _weekdays("2019-03-06", "2019-05-30", ("2019-04-19", "2019-05-27"))
+    bars = _bars_on(dates)
+
+    def passing(filter_: dict[str, Any]) -> list[str]:
+        signals = sig.compile_strategy(bars, _filtered(filter_)).signals
+        return [d for d, s in zip(dates, signals, strict=True) if s == 1]
+
+    opex = passing({"type": "calendarWindow", "window": "opexWeek"})
+    assert opex[5:11] == ["2019-03-15", "2019-04-12", "2019-04-15", "2019-04-16", "2019-04-17", "2019-04-18"]
+    turn = passing({"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -2, "toDay": 3})
+    assert turn[0] == "2019-03-28" and turn[-1] == "2019-05-30" and len(turn) == 11
+    assert len(passing({"type": "calendarWindow", "window": "months", "months": [4]})) == 21
+
+
+def test_options_block_is_passed_through_unchanged() -> None:
+    options = {"structure": "callDebitVertical", "dte": {"target": 30, "min": 20}, "widthSigma": 1, "maxLossPct": 1}
+    compiled = sig.compile_strategy(
+        _bars_on(_weekdays("2024-01-01", "2024-01-05")), _filtered(options=options)
+    )
+    assert compiled.options == options
+
+
+SERIES_BARS = _bars_on(_weekdays("2024-01-08", "2024-01-12"))
+GC_CLOSE = {"type": "series", "series": "GC=F", "condition": ALWAYS}
+
+
+@pytest.mark.parametrize(
+    ("definition", "context", "symbol", "message"),
+    [
+        (_filtered({"type": "ivRank"}), None, None, "ivRank needs min, max or both"),
+        (_filtered({"type": "vixTermStructure"}), None, None, "vixTermStructure needs minRatio, maxRatio or both"),
+        (_filtered({"type": "calendarWindow", "window": "eclipse"}), None, None, "Unknown calendar window: eclipse"),
+        (_filtered({"type": "moon"}), None, None, "Unknown filter type: moon"),
+        (_filtered({**GC_CLOSE, "series": "BTC"}), None, None, "Unknown series: BTC"),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 3}}}),
+            None,
+            None,
+            sig.SERIES_CLOSE_ONLY,
+        ),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "price", "field": "high"}}}),
+            None,
+            None,
+            sig.SERIES_CLOSE_ONLY,
+        ),
+        (
+            _filtered(options={"maxLossPct": 1}, sizing={"mode": "riskPct", "riskPct": 1}, stopLoss={"kind": "pct", "pct": 5}),
+            None,
+            None,
+            "Option strategies size by options.maxLossPct; remove the riskPct sizing",
+        ),
+        (
+            _filtered(options={"maxLossPct": 1}, takeProfit={"kind": "pct", "pct": 5}),
+            None,
+            None,
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
+        ),
+        (_filtered({"type": "ivRank", "min": 50}), {}, None, "ivRank needs the traded symbol"),
+        (_filtered({"type": "ivRank", "min": 50}), {}, "XLK", "ivRank has no implied-volatility index for XLK"),
+        (_filtered(GC_CLOSE), {"GC=F": {"2024-1-8": 1}}, None, "Series GC=F has a date that is not YYYY-MM-DD: 2024-1-8"),
+        (
+            _filtered({**GC_CLOSE, "condition": {**ALWAYS, "left": {"type": "indicator", "name": "sma", "length": 5}}}),
+            {"GC=F": {"2024-01-08": 1}},
+            None,
+            "sma length 5 is longer than the 1 bars",
+        ),
+    ],
+)
+def test_series_filter_input_errors(
+    definition: dict[str, Any], context: dict[str, Any] | None, symbol: str | None, message: str
+) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.compile_strategy(SERIES_BARS, definition, None, context, symbol)
+    assert str(raised.value) == message
+
+
+@pytest.mark.parametrize(
+    ("filter_", "context", "missing"),
+    [
+        (GC_CLOSE, None, "GC=F"),
+        ({"type": "ivRank", "min": 50}, {}, "VIX"),
+        ({"type": "vixTermStructure", "maxRatio": 1}, {"VIX": {}}, "VIX3M"),
+        ({"type": "volRegime", "maxVix": 20, "maxTermRatio": 1}, {"VIX": {}, "VIX3M": {}}, "SPY"),
+    ],
+)
+def test_series_data_error(filter_: dict[str, Any], context: dict[str, Any] | None, missing: str) -> None:
+    with pytest.raises(SeriesDataError) as raised:
+        sig.compile_strategy(SERIES_BARS, _filtered(filter_), None, context, "SPY")
+    assert str(raised.value) == f"Series data is not available for {missing}"
+    assert isinstance(raised.value, InputError)
+
+
+def test_series_filter_without_values_blocks_entries() -> None:
+    compiled = sig.compile_strategy(SERIES_BARS, _filtered(GC_CLOSE), None, {"GC=F": {"2024-01-08": None}})
+    assert compiled.signals == (0, 0, 0, 0, 0)
+
+
+def test_term_structure_needs_both_values_on_the_bar_date() -> None:
+    # Same case as strategy-dsl-compile.test.ts: ratios d0 1, d1 0.9, d3 1.2; none on d2 (VIX3M
+    # 0), d4 (VIX3M not finite) and d5 (no VIX).
+    dates = _weekdays("2024-01-01", "2024-01-08")
+    d0, d1, d2, d3, d4, d5 = dates
+    context = {
+        "VIX": {d0: 20, d1: 18, d2: 15, d3: 30, d4: 16},
+        "VIX3M": {"2023-12-29": 10, d0: 20, d1: 20, d2: 0, d3: 25, d4: math.nan, d5: 20},
+    }
+    bars = _bars_on(dates)
+
+    def mask(filter_: dict[str, Any]) -> tuple[int, ...]:
+        return sig.compile_strategy(bars, _filtered(filter_), None, context).signals
+
+    assert mask({"type": "vixTermStructure", "maxRatio": 1}) == (1, 1, 0, 0, 0, 0)
+    assert mask({"type": "vixTermStructure", "minRatio": 1.1}) == (0, 0, 0, 1, 0, 0)
+
+
+def test_series_filter_has_no_value_before_the_first_series_date() -> None:
+    dates = _weekdays("2024-01-08", "2024-01-15")
+    compiled = sig.compile_strategy(
+        _bars_on(dates),
+        _filtered({**GC_CLOSE, "condition": {**ALWAYS, "right": {"type": "const", "value": 100}}}),
+        None,
+        {"GC=F": {dates[2]: 101}},
+    )
+    assert compiled.signals == (0, 0, 1, 1, 1, 1)

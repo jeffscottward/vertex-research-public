@@ -1,6 +1,6 @@
 # Strategy definitions and the strategy builder
 
-Updated: 2026-10-23. Research and backtest use only. A strategy definition never creates, routes or simulates broker orders.
+Updated: 2026-11-08. Research and backtest use only. A strategy definition never creates, routes or simulates broker orders.
 
 ## Purpose
 
@@ -11,7 +11,8 @@ A strategy definition is a small declarative description of a long-only strategy
 | Part | File |
 | --- | --- |
 | Schema, validation, text parser, templates | `packages/api/src/strategy-dsl.ts` |
-| Indicators, compiler, run | `packages/api/src/strategy-dsl-compile.ts` |
+| Indicators, compiler, run, entry filters | `packages/api/src/strategy-dsl-compile.ts` |
+| Python mirror of the compiler (Nautilus engine), golden parity fixture | `services/research/nautilus_backtest/signals.py`, `scripts/research/nautilus-golden.ts` |
 | Signal engine (fills, stops, targets, risk sizing) | `runSignalBacktest` in `packages/api/src/instant-backtest-engine.ts` |
 | Backtest run rule `{ kind: "dsl", definition }` | `packages/api/src/contracts/backtest-runs.ts`, `packages/api/src/server/backtest-runs.ts` |
 | Page `/strategy-builder` | `apps/web/src/app/(portal)/strategy-builder/`, `apps/web/src/components/portal/strategy-builder-workspace.tsx`, `strategy-builder-model.ts` |
@@ -27,6 +28,8 @@ A strategy definition is a small declarative description of a long-only strategy
 | `sizing` | `{ "mode": "allIn" }` (default) or `{ "mode": "riskPct", "riskPct": 1 }`. Risk sizing needs a stop loss. The position loses about `riskPct` of equity when the stop fills, before costs and gaps, and is capped at the available cash. |
 | `stopLoss`, `takeProfit` | `{ "kind": "none" }` (default), `{ "kind": "pct", "pct": 5 }` (percent of the entry price) or `{ "kind": "atr", "length": 14, "multiple": 2 }` (ATR at the signal bar times the multiple). While the ATR is not available yet (too few bars), the strategy does not enter. |
 | `session` | Optional `{ "startUtc": "13:30", "endUtc": "20:00" }`. Entries happen only on signal bars whose UTC time is in [start, end). A window can pass midnight. Exits are not limited. |
+| `filters` | Optional, 1 to 4 entry filters (see [Entry filters](#entry-filters)). Every filter must pass for an entry; exits are never blocked. |
+| `options` | Optional defined-risk option vertical traded on the signals (see [Options block](#options-block)). |
 
 A condition is `{ "left": <expr>, "op": <op>, "right": <expr> }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar.
 
@@ -60,6 +63,57 @@ Example, "ADX(14) falling over 5 bars" (use `>` for rising):
 
 A cross operator works with an offset too: `close crossesAbove close offset 1` is true on the first bar of a series of higher closes.
 
+## Entry filters
+
+A filter gates entries only: the entry signal needs every entry condition and every filter; exit conditions still close a position on any bar. `filters`, the filter fields marked optional and `options` have no default, so a definition without them keeps the same canonical JSON and revision (pinned in `strategy-dsl.test.ts`).
+
+| Filter | Passes on a bar when |
+| --- | --- |
+| `{ "type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"], "timeframe": "weekly" }` | The latest stored sector rotation point of `sector` dated on or before the bar has a quadrant in `quadrants` ([sector-rotation.md](sector-rotation.md)). `timeframe` defaults to `weekly`. |
+| `{ "type": "ivRank", "length": 252, "min": 50, "max": 100 }` | The IV rank of the traded symbol's implied-volatility index on the bar date is in [`min`, `max`]. IV rank = 100 × (v − min) / (max − min) over the last `length` index values (20 to 1000, default 252), the current one included. Not available before `length` values, on a flat window, or without an index value on the bar date. At least one of `min`, `max` (0 to 100). |
+| `{ "type": "vixTermStructure", "maxRatio": 0.95, "minRatio": 0.8 }` | VIX / VIX3M on the bar date is in [`minRatio`, `maxRatio`] (below 1 is contango). Both indices need a value on that date. At least one bound. |
+| `{ "type": "volRegime", "maxVix": 20, "maxTermRatio": 1, "trendLength": 200 }` | On the bar date VIX ≤ `maxVix`, VIX / VIX3M ≤ `maxTermRatio` and the SPY close is above its `trendLength`-day simple average (default 200, over the SPY series' own dates). |
+| `{ "type": "calendarWindow", "window": "turnOfMonth", "fromDay": -2, "toDay": 3 }` | The bar is one of the last `-fromDay` trading days of its month (-1 is the last) or one of the first `toDay` trading days (1 is the first). `fromDay` -10 to -1, `toDay` 1 to 10. |
+| `{ "type": "calendarWindow", "window": "opexWeek" }` | The bar is between the last trading day before the Monday-to-Friday week of the monthly expiration and the expiration itself (the third Friday, or the trading day before it when that Friday is a holiday). |
+| `{ "type": "calendarWindow", "window": "months", "months": [1, 12] }` | The bar is in one of the listed months (1 to 12, no repeats). |
+| `{ "type": "series", "series": "ES=F", "condition": <condition> }` | `condition` holds on another daily series (cross-asset). |
+
+Calendar windows use the bars as the trading calendar: inside the bar date range a date trades when it has a bar; outside it every weekday trades (so a data set that starts or ends mid-month still counts the missing weekdays).
+
+Series ids: Core 7 ETFs `SPY QQQ DIA IWM GLD SLV USO`, futures `ES=F NQ=F YM=F RTY=F GC=F SI=F CL=F`, indices `VIX VIX3M VXN VXD RVX GVZ OVX VXSLV IRX TNX`, and `EY_TNX_RATIO` (Shiller earnings yield lagged 3 months over TNX). The IV index of each traded symbol: SPY VIX, QQQ VXN, DIA VXD, IWM RVX, GLD GVZ, SLV VXSLV, USO OVX.
+
+A series is one value per date (the close), so a `series` condition may use only the close price, constants and close-sourced indicators other than `atr`, `adx` and `rvol`. Its indicators and offsets run over the series' own dates; then each side takes the latest series value dated on or before the bar date (a series date missing in the bars, such as a futures Sunday, carries forward), and the operator compares the aligned sides bar by bar, so a cross is relative to the previous bar.
+
+Series data reaches the compiler like the sector points: `compileStrategy(bars, definition, sectorQuadrants?, seriesInput?)` and `runStrategyDefinition(..., sectorQuadrants?, seriesInput?)`, where `seriesInput` is `{ context: { [seriesId]: { "YYYY-MM-DD": value } }, symbol }`; `symbol` is the traded symbol for `ivRank`. Values that are not finite count as missing. A filter whose series is not in the context throws `StrategySeriesDataError` ("Series data is not available for VIX"); `ivRank` without a known traded symbol throws an input error. The Python port takes the same mapping: `compile_strategy(bars, definition, sector_quadrants, context, symbol)`, and `plan_run` reads the spec keys `series` and `symbol`. The server backtest and Autopilot paths do not load series or pass a symbol yet, so a definition with an `ivRank`, `vixTermStructure`, `volRegime` or `series` filter fails there with an input error (`calendarWindow` needs only the bars and works everywhere); the research runners pass the context.
+
+Look-ahead: a daily value is known after its close. Daily bars (signal at the close) use values dated on the bar date; intraday bars use only values dated before the bar date. `ivRank`, `vixTermStructure` and `volRegime` need the value on the bar date itself (the latest earlier date for intraday bars); `series` carries the latest earlier value.
+
+## Options block
+
+```json
+{
+  "structure": "putCreditVertical",
+  "dte": { "target": 45, "min": 21 },
+  "shortDelta": 0.2,
+  "widthSigma": 0.5,
+  "profitTakePct": 50,
+  "exitDte": 7,
+  "maxLossPct": 2
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `structure` | `callDebitVertical`, `putDebitVertical`, `putCreditVertical` or `callCreditVertical`. Defined risk only. |
+| `dte` | `target` 7 to 400, `min` 1 to 400 and at most `target`: the standard monthly expiry nearest `target` with at least `min` days. |
+| `longDelta`, `shortDelta` | 0.05 to 0.95. `longDelta` only on debit verticals (runner default 0.5), `shortDelta` only on credit verticals (runner default 0.25). |
+| `widthSigma` | 0.1 to 3. Strike distance between the legs = `widthSigma` × ATM IV × √T × spot, at least one strike step. |
+| `profitTakePct` | Optional, 1 to 100. Credit: close when the spread value ≤ (1 − p/100) × credit. Debit: close at +p% of the debit. |
+| `exitDte` | Optional, 0 to 400 and below `dte.min`: close when DTE ≤ `exitDte`. |
+| `maxLossPct` | Above 0 and at most 2: contracts = floor(`maxLossPct`% of equity / max loss per contract). Above 2 is refused. |
+
+With `options`, `sizing` must be `allIn` (or omitted) and `stopLoss` and `takeProfit` must be `none`: the options block sizes and exits the spread. The compiler still produces the entry and exit signal arrays, and `CompiledStrategy.options` (Python `Compiled.options`) is the block unchanged for the options runner, which turns signal bars into spreads. The equity engine run of such a definition is the underlying signal run, not the option P&L.
+
 ## Execution model
 
 The compiler turns a definition into one signal per bar and runs the engine model of the instant backtest: signals use data up to the close of the signal bar and fill at the next open; stops and targets are checked inside each bar and a gap fills at the open; costs are charged in basis points on each side. In a backtest run, the run-level `stopLossPct` and `takeProfitPct` apply only to the fixed rules; a definition carries its own stop, target and sizing.
@@ -78,8 +132,9 @@ A definition run without a library strategy stores a snapshot that depends only 
 
 ## Tests
 
-- Schema validation and templates: `packages/api/src/strategy-dsl.test.ts`.
-- Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`.
+- Schema validation, templates, the filters and options schema, and the pinned revisions of existing definitions: `packages/api/src/strategy-dsl.test.ts`.
+- Compile parity: a definition SMA cross equals the golden `smaCross` rule (trades, equity, statistics), and the Donchian template equals the golden `breakout` rule without a trend filter: `packages/api/src/strategy-dsl-compile.test.ts`, `packages/api/src/backtest-runs.test.ts`. The entry filters are covered there too.
+- TypeScript and Python parity: `bun run research:nautilus-golden` writes `services/research/tests/fixtures/nautilus_backtest/golden.json` with definitions using each filter (the `qc:*` cases, on synthetic VIX, VIX3M, VXN, SPY, ES=F and GC=F series and a spring 2019 calendar with a Good Friday expiration); `services/research/tests/test_nautilus_backtest_signals.py` must match the signals exactly, and `scripts/research/nautilus-golden.test.ts` checks the committed file is current.
 - Builder page: `apps/web/src/components/portal/strategy-builder-workspace.test.tsx`.
 - Headless browser flow, including builder-made SMA 10/40 against the golden rule on `/backtest-runs`: `tests/e2e/strategy-builder.spec.ts`.
 

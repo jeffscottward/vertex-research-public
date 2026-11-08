@@ -28,7 +28,7 @@ const SECTOR_SYMBOLS: ReadonlySet<string> = new Set(
  * on `timeframe`, dated on or before the signal bar, has a quadrant in `quadrants`. No point at or
  * before the bar means no entry. Exits are never blocked.
  */
-export const StrategyFilterSchema = z
+export const SectorQuadrantFilterSchema = z
   .object({
     quadrants: z
       .array(z.enum(SECTOR_ROTATION_QUADRANTS))
@@ -44,12 +44,6 @@ export const StrategyFilterSchema = z
     type: z.literal("sectorQuadrant"),
   })
   .strict();
-
-/** One to STRATEGY_DSL_MAX_FILTERS entry filters; Autopilot campaigns use the same list. */
-export const StrategyFiltersSchema = z
-  .array(StrategyFilterSchema)
-  .min(1)
-  .max(STRATEGY_DSL_MAX_FILTERS);
 
 export const STRATEGY_PRICE_FIELDS = ["open", "high", "low", "close"] as const;
 export const STRATEGY_INDICATORS = [
@@ -141,6 +135,292 @@ export const StrategyConditionSchema = z
   })
   .strict();
 
+/**
+ * Daily series that filters may read (Core 7 ETFs, futures, volatility and rate indices, and
+ * EY_TNX_RATIO: Shiller earnings yield lagged 3 months over the 10-year yield). Each series is one
+ * value per date (the close).
+ */
+export const STRATEGY_SERIES_IDS = [
+  "SPY",
+  "QQQ",
+  "DIA",
+  "IWM",
+  "GLD",
+  "SLV",
+  "USO",
+  "ES=F",
+  "NQ=F",
+  "YM=F",
+  "RTY=F",
+  "GC=F",
+  "SI=F",
+  "CL=F",
+  "VIX",
+  "VIX3M",
+  "VXN",
+  "VXD",
+  "RVX",
+  "GVZ",
+  "OVX",
+  "VXSLV",
+  "IRX",
+  "TNX",
+  "EY_TNX_RATIO",
+] as const;
+export type StrategySeriesId = (typeof STRATEGY_SERIES_IDS)[number];
+
+/** Implied-volatility index of each traded symbol, read by the ivRank filter. */
+export const STRATEGY_IV_INDEX: Readonly<Record<string, StrategySeriesId>> = {
+  DIA: "VXD",
+  GLD: "GVZ",
+  IWM: "RVX",
+  QQQ: "VXN",
+  SLV: "VXSLV",
+  SPY: "VIX",
+  USO: "OVX",
+};
+
+export const STRATEGY_IV_RANK_MIN_LENGTH = 20;
+export const STRATEGY_IV_RANK_DEFAULT_LENGTH = 252;
+export const STRATEGY_VOL_REGIME_DEFAULT_TREND_LENGTH = 200;
+
+const PercentileSchema = z.number().min(0).max(100);
+const RatioSchema = z.number().gt(0).max(10);
+
+/**
+ * Entry filter: IV rank of the traded symbol's implied-volatility index (STRATEGY_IV_INDEX), 0 to
+ * 100: 100 × (v − min) / (max − min) over the last `length` index values, the current one included.
+ * Passes when the rank is within [min, max]. No rank (fewer values, max equal to min, or no index
+ * value on the bar date) means no entry.
+ */
+export const IvRankFilterSchema = z
+  .object({
+    length: z
+      .number()
+      .int()
+      .min(STRATEGY_IV_RANK_MIN_LENGTH)
+      .max(STRATEGY_DSL_MAX_LENGTH)
+      .default(STRATEGY_IV_RANK_DEFAULT_LENGTH),
+    max: PercentileSchema.optional(),
+    min: PercentileSchema.optional(),
+    type: z.literal("ivRank"),
+  })
+  .strict()
+  .refine((filter) => filter.min !== undefined || filter.max !== undefined, {
+    message: "ivRank needs min, max or both",
+  })
+  .refine(
+    (filter) =>
+      filter.min === undefined ||
+      filter.max === undefined ||
+      filter.min <= filter.max,
+    { message: "ivRank min must not be above max", path: ["min"] }
+  );
+
+/**
+ * Entry filter: VIX / VIX3M on the bar date is within [minRatio, maxRatio] (below 1 is contango).
+ * A missing value of either index on that date means no entry.
+ */
+export const VixTermStructureFilterSchema = z
+  .object({
+    maxRatio: RatioSchema.optional(),
+    minRatio: RatioSchema.optional(),
+    type: z.literal("vixTermStructure"),
+  })
+  .strict()
+  .refine(
+    (filter) => filter.minRatio !== undefined || filter.maxRatio !== undefined,
+    { message: "vixTermStructure needs minRatio, maxRatio or both" }
+  )
+  .refine(
+    (filter) =>
+      filter.minRatio === undefined ||
+      filter.maxRatio === undefined ||
+      filter.minRatio <= filter.maxRatio,
+    {
+      message: "vixTermStructure minRatio must not be above maxRatio",
+      path: ["minRatio"],
+    }
+  );
+
+/**
+ * Entry filter, a calm-market regime: on the bar date VIX ≤ maxVix, VIX / VIX3M ≤ maxTermRatio and
+ * the SPY close is above its `trendLength`-day simple average. Any missing value means no entry.
+ */
+export const VolRegimeFilterSchema = z
+  .object({
+    maxTermRatio: RatioSchema,
+    maxVix: z.number().gt(0).max(200),
+    trendLength: LengthSchema.default(STRATEGY_VOL_REGIME_DEFAULT_TREND_LENGTH),
+    type: z.literal("volRegime"),
+  })
+  .strict();
+
+/**
+ * Entry filter on the trading calendar of the bars (dates without a bar are holidays; outside the
+ * bar dates every weekday is a trading day).
+ * - turnOfMonth: trading-day offsets around a month end, -1 the last trading day of a month and 1
+ *   the first of the next; passes on the bars in [fromDay, toDay].
+ * - opexWeek: from the last trading day before the Monday-to-Friday week of the monthly expiration
+ *   (third Friday, or the trading day before it when it is a holiday) through the expiration day.
+ * - months: bars in the listed calendar months (1 is January).
+ */
+export const CalendarWindowFilterSchema = z.discriminatedUnion("window", [
+  z
+    .object({
+      fromDay: z.number().int().min(-10).max(-1),
+      toDay: z.number().int().min(1).max(10),
+      type: z.literal("calendarWindow"),
+      window: z.literal("turnOfMonth"),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("calendarWindow"),
+      window: z.literal("opexWeek"),
+    })
+    .strict(),
+  z
+    .object({
+      months: z
+        .array(z.number().int().min(1).max(12))
+        .min(1)
+        .max(12)
+        .refine((values) => new Set(values).size === values.length, {
+          message: "Months must not repeat",
+        }),
+      type: z.literal("calendarWindow"),
+      window: z.literal("months"),
+    })
+    .strict(),
+]);
+
+/** Indicators that need high, low or volume, which a one-value-per-date series does not have. */
+const NON_CLOSE_INDICATORS: Readonly<Record<string, true>> = {
+  adx: true,
+  atr: true,
+  rvol: true,
+};
+
+const closeOnly = (expr: z.infer<typeof StrategyExprSchema>): boolean => {
+  if (expr.type === "const") return true;
+  if (expr.type === "price") return expr.field === "close";
+  return expr.source === "close" && NON_CLOSE_INDICATORS[expr.name] !== true;
+};
+
+/**
+ * Entry filter on another daily series (cross-asset): `condition` is evaluated on that series, its
+ * indicators over the series' own dates, then each side takes the latest value dated on or before
+ * the bar date. Crosses compare with the previous bar. A series is one value per date, so only the
+ * close price and close-sourced indicators other than atr, adx and rvol are allowed.
+ */
+export const SeriesFilterSchema = z
+  .object({
+    condition: StrategyConditionSchema,
+    series: z.enum(STRATEGY_SERIES_IDS),
+    type: z.literal("series"),
+  })
+  .strict()
+  .refine(
+    (filter) =>
+      closeOnly(filter.condition.left) && closeOnly(filter.condition.right),
+    {
+      message:
+        "A series condition reads the series close only: use the close price and close-sourced indicators other than atr, adx and rvol",
+      path: ["condition"],
+    }
+  );
+
+/** One entry filter. Filters gate entries only; exits are never blocked. */
+export const StrategyFilterSchema = z.discriminatedUnion("type", [
+  SectorQuadrantFilterSchema,
+  IvRankFilterSchema,
+  VixTermStructureFilterSchema,
+  VolRegimeFilterSchema,
+  CalendarWindowFilterSchema,
+  SeriesFilterSchema,
+]);
+
+/** One to STRATEGY_DSL_MAX_FILTERS entry filters; Autopilot campaigns use the same list. */
+export const StrategyFiltersSchema = z
+  .array(StrategyFilterSchema)
+  .min(1)
+  .max(STRATEGY_DSL_MAX_FILTERS);
+
+export const STRATEGY_OPTION_STRUCTURES = [
+  "callDebitVertical",
+  "putDebitVertical",
+  "putCreditVertical",
+  "callCreditVertical",
+] as const;
+/** Debit verticals pay to open; credit verticals collect a credit. */
+export const STRATEGY_OPTION_IS_DEBIT: Readonly<
+  Record<(typeof STRATEGY_OPTION_STRUCTURES)[number], boolean>
+> = {
+  callCreditVertical: false,
+  callDebitVertical: true,
+  putCreditVertical: false,
+  putDebitVertical: true,
+};
+/** Most equity at risk per trade, in percent. */
+export const STRATEGY_OPTIONS_MAX_LOSS_PCT = 2;
+
+const DeltaSchema = z.number().min(0.05).max(0.95);
+
+/**
+ * Defined-risk option vertical traded on the definition's entry and exit signals. The options
+ * runner picks the standard monthly expiry nearest `dte.target` with at least `dte.min` days,
+ * places the legs `widthSigma` × ATM IV × √T × spot apart (at least one strike step), closes at
+ * `profitTakePct` or when DTE ≤ `exitDte`, and buys floor(maxLossPct% of equity / max loss per
+ * contract) contracts. longDelta (debit, runner default 0.5) and shortDelta (credit, runner
+ * default 0.25) have no schema default, so the stored definition keeps only what was written.
+ */
+export const StrategyOptionsSchema = z
+  .object({
+    dte: z
+      .object({
+        min: z.number().int().min(1).max(400),
+        target: z.number().int().min(7).max(400),
+      })
+      .strict()
+      .refine((dte) => dte.min <= dte.target, {
+        message: "dte.min must not be above dte.target",
+        path: ["min"],
+      }),
+    exitDte: z.number().int().min(0).max(400).optional(),
+    longDelta: DeltaSchema.optional(),
+    maxLossPct: z
+      .number()
+      .gt(0)
+      .max(STRATEGY_OPTIONS_MAX_LOSS_PCT, {
+        message: `maxLossPct must be at most ${STRATEGY_OPTIONS_MAX_LOSS_PCT} (percent of equity per trade)`,
+      }),
+    profitTakePct: z.number().min(1).max(100).optional(),
+    shortDelta: DeltaSchema.optional(),
+    structure: z.enum(STRATEGY_OPTION_STRUCTURES),
+    widthSigma: z.number().min(0.1).max(3),
+  })
+  .strict()
+  .refine(
+    (options) =>
+      STRATEGY_OPTION_IS_DEBIT[options.structure]
+        ? options.shortDelta === undefined
+        : options.longDelta === undefined,
+    {
+      message:
+        "Debit verticals take longDelta and credit verticals take shortDelta",
+      path: ["structure"],
+    }
+  )
+  .refine(
+    (options) =>
+      options.exitDte === undefined || options.exitDte < options.dte.min,
+    {
+      message: "exitDte must be below dte.min, or a new spread closes at once",
+      path: ["exitDte"],
+    }
+  );
+
 const ExitLevelSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("none") }).strict(),
   z.object({ kind: z.literal("pct"), pct: z.number().gt(0).max(99) }).strict(),
@@ -180,6 +460,13 @@ export const StrategyDefinitionSchema = z
     /** Optional with no default, so definitions without it keep the same canonical JSON. */
     filters: StrategyFiltersSchema.optional(),
     name: z.string().trim().min(1).max(120),
+    /**
+     * Defined-risk option vertical traded on the signals. Optional with no default, so definitions
+     * without it keep the same canonical JSON. Sizing comes from options.maxLossPct and exits from
+     * the exit conditions, profitTakePct and exitDte, so riskPct sizing, stop loss and take profit
+     * must be left out.
+     */
+    options: StrategyOptionsSchema.optional(),
     /** Entries happen only on signal bars whose UTC time is in [start, end). Omit for all bars. */
     session: z
       .object({ endUtc: TimeSchema, startUtc: TimeSchema })
@@ -211,12 +498,41 @@ export const StrategyDefinitionSchema = z
       definition.sizing.mode !== "riskPct" ||
       definition.stopLoss.kind !== "none",
     { message: "Risk-percent sizing needs a stop loss", path: ["sizing"] }
+  )
+  .refine(
+    (definition) =>
+      definition.options === undefined || definition.sizing.mode !== "riskPct",
+    {
+      message:
+        "Option strategies size by options.maxLossPct; remove the riskPct sizing",
+      path: ["sizing"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.options === undefined ||
+      (definition.stopLoss.kind === "none" &&
+        definition.takeProfit.kind === "none"),
+    {
+      message:
+        "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
+      path: ["options"],
+    }
   );
 
 export type StrategyExpr = z.infer<typeof StrategyExprSchema>;
 export type StrategyCondition = z.infer<typeof StrategyConditionSchema>;
 export type StrategyDefinition = z.infer<typeof StrategyDefinitionSchema>;
 export type StrategyFilter = z.infer<typeof StrategyFilterSchema>;
+export type SectorQuadrantFilter = z.infer<typeof SectorQuadrantFilterSchema>;
+export type IvRankFilter = z.infer<typeof IvRankFilterSchema>;
+export type VixTermStructureFilter = z.infer<
+  typeof VixTermStructureFilterSchema
+>;
+export type VolRegimeFilter = z.infer<typeof VolRegimeFilterSchema>;
+export type CalendarWindowFilter = z.infer<typeof CalendarWindowFilterSchema>;
+export type SeriesFilter = z.infer<typeof SeriesFilterSchema>;
+export type StrategyOptions = z.infer<typeof StrategyOptionsSchema>;
 export type StrategyDefinitionInput = z.input<typeof StrategyDefinitionSchema>;
 
 export type StrategyValidationIssue = Readonly<{
