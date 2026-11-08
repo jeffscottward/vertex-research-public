@@ -53,7 +53,7 @@ ATR(14) of the H1 bars; the trail anchors on the highest H1 close since entry; 1
 - Primary result: the reel-sheet portfolio (SPX500, NAS100, BTCUSD), equal capital, rebalanced daily, on the common window.
 - Robustness: in-sample first 60 % / out-of-sample last 40 % of the time; walk-forward (3 years train, 1 year test, best Sharpe of a
   3 x 3 stop x trail multiple grid); 18 one-at-a-time parameter changes; doubled spread and slippage; 2,000 trade bootstraps; deflated
-  Sharpe over every configuration tried (27).
+  Sharpe over every distinct configuration tried (23).
 - Comparisons: buy and hold of the same markets and windows; the library strategies re-run on the Core 7 ETF twins
   (`research/backtests/core7/rerun-results.json`).
 
@@ -65,6 +65,14 @@ Carlo P5 max drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0
 - edge: all five gates pass and the options form has a positive OOS Sharpe.
 - no edge: OOS Sharpe <= 0, or deflated Sharpe probability < 0.5, or at most 2 gates pass.
 - needs more data: anything else (also fewer than 100 trades on the reel-sheet markets).
+
+## Deviations (after the first run, from the fresh-context review)
+
+- The trial count is 23 distinct configurations, not 27: four walk-forward grid points are also sensitivity rows.
+- An underlying exit in the 16:00-17:00 New York bar closes the spread at the next ETF close (that bar ends after the ETF close).
+- The Monte Carlo resamples trades net of financing and only inside the portfolio window; the trade count of the rule uses the same trades.
+- The Russell 2000 CFD leverage cap is 10 (not an ESMA major index).
+- The verdict checks "no edge" first, then fewer than 100 trades, then "edge", as the rule reads.
 
 ## Code and tests
 
