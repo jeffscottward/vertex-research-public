@@ -1,5 +1,5 @@
 // What: UI lab entries for Markets & Research: research chat, dossiers, watchlist, price alerts,
-// news, baskets, pick lists and papers. Each renders the real page body with fake gateways.
+// news, baskets, pick lists, flow, plays and papers. Each renders the real page body with fake gateways.
 // Used by: apps/web/src/lab/entries/index.ts.
 "use client";
 
@@ -10,6 +10,10 @@ import { BasketWatchlistSection } from "../../components/portal/basket-watchlist
 import type { BasketGateway } from "../../components/portal/baskets-client.ts";
 import { BasketsWorkspace } from "../../components/portal/baskets-workspace.tsx";
 import { CalendarWorkspace } from "../../components/portal/calendar-workspace.tsx";
+import {
+  type FlowGateway,
+  FlowWorkspace,
+} from "../../components/portal/flow-workspace.tsx";
 import type { MarketDataGateway } from "../../components/portal/market-data-client.ts";
 import type { MarketFeedsGateway } from "../../components/portal/market-feeds-workspace.tsx";
 import type { MarketNewsGateway } from "../../components/portal/market-news-client.ts";
@@ -42,6 +46,7 @@ import {
   ExperienceProvider,
 } from "../../features/experience/shared.tsx";
 import { labReadOnly } from "../fixtures/core.ts";
+import { labFlowSnapshot } from "../fixtures/flow.ts";
 import { LAB_MARKET_CONTEXT } from "../fixtures/lenses.ts";
 import { labBarsOutput } from "../fixtures/market.ts";
 import {
@@ -159,6 +164,11 @@ const labPapersGateway: PapersGateway = {
   addFromArxiv: labReadOnly,
   list: () => Promise.resolve(LAB_PAPERS),
   update: labReadOnly,
+};
+
+const labFlowGateway: FlowGateway = {
+  snapshot: ({ minutes, symbol }) =>
+    Promise.resolve(labFlowSnapshot(symbol, minutes)),
 };
 
 const labPlaysGateway: PlaysGateway = {
@@ -315,6 +325,18 @@ export const RESEARCH_LAB_ENTRIES: readonly LabEntry[] = [
     ),
     route: "/pick-lists",
     title: "Pick lists",
+  },
+  {
+    group: GROUP,
+    id: "flow",
+    render: () => (
+      <div className="space-y-8">
+        <PageHeader title="Flow" />
+        <FlowWorkspace gateway={labFlowGateway} />
+      </div>
+    ),
+    route: "/flow",
+    title: "Flow",
   },
   {
     group: GROUP,

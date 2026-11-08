@@ -1,0 +1,28 @@
+# Vertex flow pipeline sampled collection (research only, no orders). Owner decision 2026-11-08:
+# sampled IBKR ingest inside the 6 requests / 120 s budget shared with /charts; the server holds the
+# due logic and the pacing check. Card vertex-flow-pipeline; see docs/vertex-rebuild/flow-pipeline.md.
+[Unit]
+Description=Vertex flow pipeline sampled collection (research only)
+After=network-online.target vertex-web.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/vertex-autopilot/autopilot.env
+WorkingDirectory=/opt/vertex-flow
+ExecStart=/opt/vertex-autopilot/bin/node /opt/vertex-flow/vertex-flow-tick.mjs
+TimeoutStartSec=170
+Nice=10
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes

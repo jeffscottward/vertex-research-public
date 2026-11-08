@@ -84557,6 +84557,10 @@
                     "default": false,
                     "type": "boolean"
                   },
+                  "seed": {
+                    "default": false,
+                    "type": "boolean"
+                  },
                   "symbols": {
                     "items": {
                       "enum": [

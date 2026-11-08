@@ -68,6 +68,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/journal",
   "/research",
   "/charts",
+  "/flow",
   "/watchlist",
   "/price-alerts",
   "/news",

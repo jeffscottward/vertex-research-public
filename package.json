@@ -83,6 +83,7 @@
     "vertex:alerts:tick": "bun --no-env-file scripts/vertex-price-alerts-tick.ts",
     "vertex:signal-alerts:tick": "bun --no-env-file scripts/vertex-signal-alerts-tick.ts",
     "vertex:sector-rotation:tick": "bun --no-env-file scripts/vertex-sector-rotation-tick.ts",
+    "vertex:flow:tick": "bun --no-env-file scripts/vertex-flow-tick.ts",
     "vertex:pick-lists": "bun --no-env-file scripts/vertex-pick-lists.ts",
     "research:sector-rotation:freeze": "bun --no-env-file scripts/sector-rotation-backtest-freeze.ts",
     "doctor": "bun scripts/doctor.ts",

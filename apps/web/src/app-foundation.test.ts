@@ -269,6 +269,7 @@ describe("application navigation manifest", () => {
         [
           "/research",
           "/charts",
+          "/flow",
           "/watchlist",
           "/price-alerts",
           "/news",
@@ -829,6 +830,7 @@ describe("root metadata and theme contract", () => {
       "/optimizations",
       "/autopilot",
       "/charts",
+      "/flow",
       "/deployments",
       "/engines",
       "/forgot-password",

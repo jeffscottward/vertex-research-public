@@ -227,4 +227,17 @@ describe("research lab entries", () => {
     expect(host.querySelectorAll("[data-play-leg]")).toHaveLength(2);
     expect(host.textContent).toContain("Defined risk");
   });
+
+  it("shows the fictional flow snapshot with its as-of stamp", async () => {
+    const host = await render("flow");
+    expect(host.querySelector("h1")?.textContent).toBe("Flow");
+    await vi.waitFor(() =>
+      expect(host.querySelector("[data-flow-as-of]")?.textContent).toContain(
+        "As of Oct 30, 4:00 PM EDT"
+      )
+    );
+    expect(host.querySelectorAll("[data-flow-source]")).toHaveLength(4);
+    expect(host.querySelector("[data-flow-chart]")).not.toBeNull();
+    expect(host.textContent).toContain("Fictional lab data");
+  });
 });

@@ -93,6 +93,9 @@ export * from "./contracts/assistant.ts";
 export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/market-data.ts";
 export * from "./contracts/options-analytics.ts";
+// contracts/flow.ts shares FlowEvent/FlowEventSchema with contracts/options-analytics.ts, so only
+// the snapshot type the /flow page reads is re-exported here.
+export type { FlowSnapshot } from "./contracts/flow.ts";
 export * from "./contracts/jev-verdict.ts";
 export * from "./contracts/options-chain.ts";
 export {

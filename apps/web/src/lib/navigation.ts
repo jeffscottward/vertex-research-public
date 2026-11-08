@@ -4,6 +4,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  AudioWaveform,
   BellRing,
   Blocks,
   BookOpen,
@@ -124,6 +125,7 @@ export const PORTAL_RESEARCH_NAVIGATION: readonly NavigationItem[] =
   Object.freeze([
     { href: "/research", icon: MessageSquare, label: "Research" },
     { href: "/charts", icon: ChartCandlestick, label: "Charts" },
+    { href: "/flow", icon: AudioWaveform, label: "Flow" },
     { href: "/watchlist", icon: ListChecks, label: "Watchlist" },
     { href: "/price-alerts", icon: BellRing, label: "Price alerts" },
     { href: "/news", icon: Newspaper, label: "News monitor" },
@@ -312,6 +314,7 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
   "/engines",
   "/watchlist",
@@ -384,6 +387,7 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
   "/baskets",
   "/pick-lists",

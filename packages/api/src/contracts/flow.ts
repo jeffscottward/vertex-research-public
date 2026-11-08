@@ -103,6 +103,11 @@ export const FlowCollectInputSchema = z
   .object({
     /** Fetch and compute, but store nothing. */
     dryRun: z.boolean().default(false),
+    /**
+     * Operator backfill: ignore market sessions and due times (IBKR budget checks still apply), and
+     * read options flow from the last 72 h, so a closed market shows its last session.
+     */
+    seed: z.boolean().default(false),
     /** Limit the run to these symbols (default: all). */
     symbols: z.array(z.enum(FLOW_SYMBOLS)).min(1).max(2).optional(),
   })

@@ -49,6 +49,7 @@ export const FLOW_TICKS_COUNT = 1000;
 export const FLOW_DEPTH_ROWS = 10;
 export const FLOW_OPTION_PAGES_MAX = 6;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
+export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
 export const FLOW_RETENTION_DAYS = 14;
 /** Pruning runs once an hour, in the run that lands in this UTC minute. */
 export const FLOW_PRUNE_MINUTE = 7;
@@ -84,11 +85,13 @@ type Attempt = Readonly<{
 interface RunState {
   readonly deps: FlowCollectDeps;
   readonly dryRun: boolean;
+  /** Operator backfill: no session or due checks, longer options look-back. */
+  readonly seed: boolean;
   /** Newest attempt per symbol and source (stored samples). */
   readonly last: Map<string, Date>;
+  pacing: MarketHistoryPacing | null | undefined;
   /** Symbol price from this run's depth or ticks (for the ES − SPX basis). */
   readonly prices: Map<FlowSymbol, number>;
-  pacing: MarketHistoryPacing | null | undefined;
 }
 
 const sampleKey = (symbol: FlowSymbol, source: FlowSource) =>
@@ -140,14 +143,14 @@ const historyPacing = async (
   return state.pacing;
 };
 
-/** Why a tick fetch must wait (budget, stagger), or null when it may go. */
+/** Why a tick fetch must wait (budget, stagger), or null when it may go (its requests then count). */
 const ticksBlocked = async (state: RunState): Promise<string | null> => {
   const lastTicks = Math.min(
     ...FLOW_SYMBOLS.map((symbol) =>
       secondsSince(state, state.last.get(sampleKey(symbol, "ticks")))
     )
   );
-  if (lastTicks < FLOW_TICKS_STAGGER_SECONDS)
+  if (!state.seed && lastTicks < FLOW_TICKS_STAGGER_SECONDS)
     return `staggered: another tick sample ${Math.round(lastTicks)} s ago`;
   const pacing = await historyPacing(state);
   if (pacing === null) return "IBKR pacing unknown (history health failed)";
@@ -155,6 +158,8 @@ const ticksBlocked = async (state: RunState): Promise<string | null> => {
     return `IBKR pacing back-off, ${pacing.backoffSeconds} s left`;
   if (pacing.recentRequests > FLOW_IBKR_MAX_RECENT)
     return `IBKR window busy (${pacing.recentRequests}/6 in 120 s); /charts has priority`;
+  // Count the two historical requests (TRADES, BID_ASK) against the window for the next symbol.
+  state.pacing = { ...pacing, recentRequests: pacing.recentRequests + 2 };
   return null;
 };
 
@@ -164,12 +169,6 @@ const collectTicks = async (
 ): Promise<Attempt> => {
   const blocked = await ticksBlocked(state);
   if (blocked !== null) return notDue(blocked);
-  // Count the two historical requests (TRADES, BID_ASK) against the window for the next symbol.
-  if (state.pacing)
-    state.pacing = {
-      ...state.pacing,
-      recentRequests: state.pacing.recentRequests + 2,
-    };
   state.last.set(sampleKey(instrument.symbol, "ticks"), state.deps.now);
   let output: MarketTicksOutput;
   try {
@@ -279,7 +278,10 @@ const collectOptions = async (
   const client = state.deps.quantData;
   if (client === null) return notDue("QuantData not configured");
   const { now, repository } = state.deps;
-  const floor = new Date(now.getTime() - FLOW_OPTION_LOOKBACK_MS);
+  const floor = new Date(
+    now.getTime() -
+      (state.seed ? FLOW_SEED_OPTION_LOOKBACK_MS : FLOW_OPTION_LOOKBACK_MS)
+  );
   let newest: Date | null;
   try {
     newest = await repository.newestOptionPrintAt(instrument.symbol);
@@ -410,6 +412,7 @@ const attempt = async (
   instrument: FlowInstrument,
   source: FlowSource
 ): Promise<Attempt> => {
+  if (state.seed) return await COLLECTORS[source](state, instrument);
   if (!flowSessionOpen(source, instrument.symbol, state.deps.now))
     return notDue("market closed");
   const age = secondsSince(
@@ -471,6 +474,7 @@ export const runFlowCollect = async (
     last: await lastAttempts(deps.repository, FLOW_SYMBOLS),
     pacing: undefined,
     prices: new Map(),
+    seed: input.seed,
   };
   const runs: Run[] = [];
   for (const source of SOURCE_ORDER)

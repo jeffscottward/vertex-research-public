@@ -49,6 +49,7 @@ export default function robots() {
         "/optimizations",
         "/autopilot",
         "/charts",
+        "/flow",
         "/deployments",
         "/engines",
         "/forgot-password",
