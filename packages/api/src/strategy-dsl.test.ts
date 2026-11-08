@@ -12,10 +12,11 @@ import {
   STRATEGY_DSL_MAX_EXPR_NODES,
   STRATEGY_FUTURE_TWIN,
   STRATEGY_IV_INDEX,
-  STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
-  STRATEGY_OPTIONS_REFUSAL,
-  STRATEGY_OPTIONS_UNSUPPORTED,
+  STRATEGY_MONTHLY_INDICATOR_MESSAGE,
   STRATEGY_OPTION_IS_DEBIT,
+  STRATEGY_OPTIONS_REFUSAL,
+  STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
+  STRATEGY_OPTIONS_UNSUPPORTED,
   STRATEGY_SERIES_FILTERS_UNSUPPORTED,
   STRATEGY_SERIES_IDS,
   STRATEGY_TEMPLATES,
@@ -1165,7 +1166,7 @@ describe("portfolio block", () => {
       {
         entry: {
           all: [
-            { ...always, left: { field: "close", offset: 0, type: "price" } },
+            { ...always, left: { field: "close", offset: 1, type: "price" } },
           ],
         },
       },
@@ -1218,12 +1219,182 @@ describe("portfolio block", () => {
     expect(
       issues(
         withPortfolio({
+          legs: [{ ...leg, ...change }],
           policy: "window",
           symbols: ["SPY"],
-          legs: [{ ...leg, ...change }],
         })
       )
     ).toEqual([]);
+  });
+
+  it("takes an explicit offset 0 on a shifted window entry as no offset", () => {
+    const zero = {
+      entry: {
+        all: [
+          { ...always, left: { field: "close", offset: 0, type: "price" } },
+        ],
+      },
+    };
+    const portfolio = { policy: "window", shift: 2, symbols: ["SPY"] };
+    expect(issues(withPortfolio(portfolio, zero))).toEqual([]);
+    expect(
+      issues(withPortfolio({ ...portfolio, legs: [{ ...leg, ...zero }] }))
+    ).toEqual([]);
+  });
+
+  it.each(["atr", "adx", "rvol"])(
+    "refuses %s anywhere in a monthly frame definition",
+    (name) => {
+      const indicator = { length: 5, name, type: "indicator" };
+      const condition = { ...always, left: indicator };
+      const message = `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`;
+      const roll = { policy: "roll", symbols: ["SPY"] };
+      const monthly = { ...roll, frame: "monthly" };
+      // Daily bars have a range and volume.
+      expect(
+        issues(withPortfolio(roll, { entry: { all: [condition] } }))
+      ).toEqual([]);
+      expect(
+        issues(withPortfolio(monthly, { entry: { all: [condition] } }))
+      ).toEqual([message]);
+      expect(
+        issues(withPortfolio(monthly, { exit: { any: [condition] } }))
+      ).toEqual([message]);
+      expect(
+        issues(
+          withPortfolio({
+            ...monthly,
+            legs: [{ ...leg, exit: { any: [condition] } }],
+          })
+        )
+      ).toEqual([message]);
+      const nested = {
+        left: indicator,
+        op: "div",
+        right: { type: "const", value: 2 },
+        type: "math",
+      };
+      expect(
+        issues(withPortfolio({ ...monthly, select: { score: nested, top: 1 } }))
+      ).toEqual([message]);
+      expect(
+        issues(
+          withPortfolio({
+            ...monthly,
+            select: {
+              score: { series: "$tr", type: "series" },
+              tieBreak: indicator,
+              top: 1,
+            },
+          })
+        )
+      ).toEqual([message]);
+    }
+  );
+
+  it("keeps other indicators on the monthly frame", () => {
+    const sma = { length: 5, name: "sma", type: "indicator" };
+    expect(
+      issues(
+        withPortfolio(
+          { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+          { entry: { all: [{ ...always, left: sma }] } }
+        )
+      )
+    ).toEqual([]);
+  });
+
+  it("refuses a 20000-level selection score without overflowing the stack", () => {
+    let deep: unknown = { series: "$tr", type: "series" };
+    for (let level = 0; level < 20_000; level += 1)
+      deep = { length: 1, of: deep, type: "change" };
+    const message = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+    const roll = { policy: "roll", symbols: ["SPY"] };
+    expect(
+      issues(withPortfolio({ ...roll, select: { score: deep, top: 1 } }))
+    ).toEqual([`portfolio.select.score: ${message}`]);
+    expect(
+      issues(
+        withPortfolio({
+          ...roll,
+          select: {
+            score: { series: "$tr", type: "series" },
+            tieBreak: deep,
+            top: 1,
+          },
+        })
+      )
+    ).toEqual([`portfolio.select.tieBreak: ${message}`]);
+  });
+});
+
+describe("deeply nested expressions", () => {
+  const message = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+  const nest = (levels: number, wrap: (of: unknown) => unknown) => {
+    let expr: unknown = { field: "close", type: "price" };
+    for (let level = 0; level < levels; level += 1) expr = wrap(expr);
+    return expr;
+  };
+  const one = { type: "const", value: 1 };
+
+  it.each([
+    ["change", (of: unknown) => ({ length: 1, of, type: "change" })],
+    [
+      "math",
+      (left: unknown) => ({ left, op: "add", right: one, type: "math" }),
+    ],
+    [
+      "regression",
+      (y: unknown) => ({ lag: 0, length: 3, type: "regression", x: one, y }),
+    ],
+  ])(
+    "refuses 20000 levels of %s on either side without overflowing the stack",
+    (_label, wrap) => {
+      const deep = nest(20_000, wrap);
+      for (const condition of [
+        { left: deep, op: ">", right: one },
+        { left: one, op: ">", right: deep },
+      ] as const) {
+        const result = StrategyDefinitionSchema.safeParse({
+          ...minimal,
+          entry: { all: [condition] },
+        });
+        expect(result.success).toBe(false);
+        expect(
+          result.error?.issues.map((issue) => [
+            issue.path.join("."),
+            issue.message,
+          ])
+        ).toEqual([["entry.all.0", message]]);
+      }
+    }
+  );
+
+  it("still accepts the deepest allowed expression", () => {
+    const deep = nest(STRATEGY_DSL_MAX_EXPR_DEPTH - 1, (of) => ({
+      length: 1,
+      of,
+      type: "change",
+    }));
+    const result = StrategyDefinitionSchema.safeParse({
+      ...minimal,
+      entry: { all: [{ left: deep, op: ">", right: one }] },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("resolveStrategySeries", () => {
+  it("reads only own symbols of the relative tables", () => {
+    for (const ref of ["$tr", "$iv", "$future"] as const)
+      for (const symbol of [
+        "constructor",
+        "toString",
+        "__proto__",
+        "hasOwnProperty",
+      ])
+        expect(resolveStrategySeries(ref, symbol)).toBeUndefined();
+    expect(resolveStrategySeries("$tr", "SPY")).toBe("SPY:TR");
   });
 });
 

@@ -594,13 +594,42 @@ def _offset(expr: Mapping[str, Any]) -> int:
     return 0 if offset is None else _whole(offset, "offset", 0, MAX_LENGTH)
 
 
+_EXPR_DEPTH_MESSAGE = f"An expression may nest at most {MAX_EXPR_DEPTH} levels"
+# Child keys of each nested expression type (raw input; other types are leaves).
+_RAW_EXPR_CHILD_KEYS: dict[str, tuple[str, ...]] = {
+    "change": ("of",),
+    "math": ("left", "right"),
+    "regression": ("y", "x"),
+    "returnStdev": ("of",),
+    "seasonal": ("of",),
+}
+
+
+def _check_raw_expr_depth(expr: Any) -> None:
+    """TS rawStrategyExprTooDeep: rejects raw input nesting deeper than MAX_EXPR_DEPTH. Iterative
+    and stops at the first node past the limit, so any input depth is safe for the recursive
+    normalizer."""
+    stack: list[tuple[Any, int]] = [(expr, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if not isinstance(node, Mapping):
+            continue
+        if depth > MAX_EXPR_DEPTH:
+            raise InputError(_EXPR_DEPTH_MESSAGE)
+        kind = node.get("type")
+        for key in _RAW_EXPR_CHILD_KEYS.get(kind, ()) if isinstance(kind, str) else ():
+            if key in node:
+                stack.append((node[key], depth + 1))
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     """StrategyExprSchema defaults of one expression tree (idempotent); offsets default to 0."""
+    _check_raw_expr_depth(expr)
     kind = expr.get("type")
     if kind == "price":
         if expr.get("field") not in PRICE_FIELDS:
             raise InputError(f"Unknown price field: {expr.get('field')}")
-        return {"type": "price", "field": expr["field"], "offset": int(expr.get("offset") or 0)}
+        return {"type": "price", "field": expr["field"], "offset": _offset(expr)}
     if kind == "const":
         value = expr.get("value")
         if not is_finite_number(value):
@@ -622,7 +651,7 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
             "name": name,
             "length": int(length),
             "source": source,
-            "offset": int(expr.get("offset") or 0),
+            "offset": _offset(expr),
         }
     if kind == "series":
         series = expr.get("series")
@@ -705,7 +734,7 @@ def _check_expr_limits(exprs: Sequence[Mapping[str, Any]]) -> None:
     for expr in exprs:
         depth, size = expr_size(expr)
         if depth > MAX_EXPR_DEPTH:
-            raise InputError(f"An expression may nest at most {MAX_EXPR_DEPTH} levels")
+            raise InputError(_EXPR_DEPTH_MESSAGE)
         nodes += size
     if nodes > MAX_EXPR_NODES:
         raise InputError(f"A condition may hold at most {MAX_EXPR_NODES} expression nodes")
@@ -856,7 +885,7 @@ def _calendar_only(part: Mapping[str, Any]) -> bool:
         only.get("op") == ">"
         and left.get("type") == "price"
         and left.get("field") == "close"
-        and left.get("offset") is None
+        and left.get("offset", 0) in (None, 0)
         and right.get("type") == "const"
         and is_finite_number(right.get("value"))
         and right["value"] == 0
@@ -866,8 +895,101 @@ def _calendar_only(part: Mapping[str, Any]) -> bool:
     )
 
 
+_PORTFOLIO_KEYS = frozenset({"cadence", "frame", "legs", "policy", "select", "shift", "symbols"})
+_SELECT_KEYS = frozenset({"score", "tieBreak", "top"})
+
+
+def _check_keys(block: Any, known: frozenset[str], name: str) -> None:
+    """zod .strict() object with optional (not nullable) keys: an object, no unknown keys, no
+    null values."""
+    if not isinstance(block, Mapping):
+        raise InputError(f"{name} must be an object")
+    for key, value in block.items():
+        if key not in known:
+            raise InputError(f"Unknown {name} key: {key}")
+        if value is None:
+            raise InputError(f"{name} {key} must not be null")
+
+
+def _with_expr_defaults(expr: Mapping[str, Any]) -> dict[str, Any]:
+    """The zod output of a validated raw expression: indicators get source close; offsets stay
+    absent when absent (unlike _normalize_expr)."""
+    out = dict(expr)
+    if out.get("type") == "indicator":
+        out.setdefault("source", "close")
+    for key in _RAW_EXPR_CHILD_KEYS.get(out.get("type"), ()):
+        out[key] = _with_expr_defaults(out[key])
+    return out
+
+
+def _with_condition_defaults(condition: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        **condition,
+        "left": _with_expr_defaults(condition["left"]),
+        "right": _with_expr_defaults(condition["right"]),
+    }
+
+
+def _with_filter_defaults(item: Mapping[str, Any]) -> dict[str, Any]:
+    out = dict(item)
+    kind = out.get("type")
+    if kind == "sectorQuadrant":
+        out.setdefault("timeframe", "weekly")
+        out["quadrants"] = list(out["quadrants"])
+    elif kind == "ivRank":
+        out.setdefault("length", IV_RANK_DEFAULT_LENGTH)
+    elif kind == "volRegime":
+        out.setdefault("trendLength", VOL_REGIME_DEFAULT_TREND_LENGTH)
+    elif kind == "calendarWindow" and "months" in out:
+        out["months"] = list(out["months"])
+    elif kind == "series":
+        out["condition"] = _with_condition_defaults(out["condition"])
+    return out
+
+
+def ts_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
+    """The StrategyPortfolioSchema output (zod defaults applied, absent optional keys absent) of a
+    validated raw portfolio block: what TS compileStrategy returns as `portfolio`."""
+    out = dict(portfolio)
+    out["symbols"] = list(out["symbols"])
+    if "legs" in out:
+        legs = []
+        for leg in out["legs"]:
+            ts_leg = dict(leg)
+            ts_leg["options"] = dict(leg["options"])
+            ts_leg["entry"] = {"all": [_with_condition_defaults(c) for c in leg["entry"]["all"]]}
+            if "exit" in leg:
+                ts_leg["exit"] = {"any": [_with_condition_defaults(c) for c in leg["exit"]["any"]]}
+            if "filters" in leg:
+                ts_leg["filters"] = [_with_filter_defaults(item) for item in leg["filters"]]
+            legs.append(ts_leg)
+        out["legs"] = legs
+    if "select" in out:
+        select = dict(out["select"])
+        select["score"] = _with_expr_defaults(select["score"])
+        if "tieBreak" in select:
+            select["tieBreak"] = _with_expr_defaults(select["tieBreak"])
+        out["select"] = select
+    return out
+
+
+MONTHLY_UNSUPPORTED_INDICATORS = ("atr", "adx", "rvol")
+MONTHLY_INDICATOR_MESSAGE = (
+    "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available"
+)
+
+
+def _uses_bar_range_indicator(expr: Mapping[str, Any]) -> bool:
+    """Whether a normalized expression reads atr, adx or rvol (TS usesBarRangeIndicator)."""
+    return (
+        expr["type"] == "indicator" and expr["name"] in MONTHLY_UNSUPPORTED_INDICATORS
+    ) or any(_uses_bar_range_indicator(child) for child in _expr_children(expr))
+
+
 def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
-    """StrategyPortfolioSchema with its refinements (same messages); optional keys stay absent."""
+    """StrategyPortfolioSchema with its refinements (same messages); optional keys stay absent.
+    Like zod .strict() with .optional() keys, unknown keys and null values are refused."""
+    _check_keys(portfolio, _PORTFOLIO_KEYS, "portfolio")
     policy = portfolio.get("policy")
     if policy not in PORTFOLIO_POLICIES:
         raise InputError(f"Unknown portfolio policy: {policy}")
@@ -897,6 +1019,7 @@ def _normalize_portfolio(portfolio: Mapping[str, Any]) -> dict[str, Any]:
         normalized["legs"] = [_normalize_leg(leg) for leg in legs]
     select = portfolio.get("select")
     if select is not None:
+        _check_keys(select, _SELECT_KEYS, "portfolio select")
         normalized["select"] = {
             "score": _selection_score(select["score"]),
             "top": _whole(select.get("top"), "select top", 1, len(OPTION_SYMBOLS)),
@@ -959,10 +1082,25 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
                 " calendarWindow filters only"
             )
     session = definition.get("session")
+    entry_conditions = [_normalize_condition(c) for c in entry_all]
+    exit_conditions = [_normalize_condition(c) for c in exit_any]
+    if normalized_portfolio is not None and normalized_portfolio.get("frame") == "monthly":
+        select = normalized_portfolio.get("select") or {}
+        exprs = [
+            side
+            for part in [
+                {"entry": {"all": entry_conditions}, "exit": {"any": exit_conditions}},
+                *normalized_portfolio.get("legs", []),
+            ]
+            for condition in [*part["entry"]["all"], *(part.get("exit") or {}).get("any", [])]
+            for side in (condition["left"], condition["right"])
+        ] + [select[key] for key in ("score", "tieBreak") if key in select]
+        if any(_uses_bar_range_indicator(expr) for expr in exprs):
+            raise InputError(MONTHLY_INDICATOR_MESSAGE)
     return {
         "name": definition.get("name"),
-        "entry": {"all": [_normalize_condition(c) for c in entry_all]},
-        "exit": {"any": [_normalize_condition(c) for c in exit_any]},
+        "entry": {"all": entry_conditions},
+        "exit": {"any": exit_conditions},
         "filters": filters,
         "options": None if options is None else dict(options),
         "portfolio": normalized_portfolio,
@@ -1706,7 +1844,9 @@ def compile_strategy(
         stop_distance=_distance_series(evaluator, normalized["stopLoss"]),
         target_distance=_distance_series(evaluator, normalized["takeProfit"]),
         options=normalized["options"],
-        portfolio=None if definition.get("portfolio") is None else dict(definition["portfolio"]),
+        portfolio=None
+        if definition.get("portfolio") is None
+        else ts_portfolio(definition["portfolio"]),
     )
 
 

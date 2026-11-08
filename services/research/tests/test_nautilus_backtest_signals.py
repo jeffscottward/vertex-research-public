@@ -869,7 +869,7 @@ SHIFT_MESSAGE = (
 @pytest.mark.parametrize(
     "change",
     [
-        {"entry": {"all": [{**ALWAYS, "left": {**CLOSE, "offset": 0}}]}},
+        {"entry": {"all": [{**ALWAYS, "left": {**CLOSE, "offset": 1}}]}},
         {"entry": {"all": [{**ALWAYS, "op": ">="}]}},
         {"entry": {"all": [{**ALWAYS, "right": {"type": "const", "value": 1}}]}},
         {"entry": {"all": [ALWAYS, ALWAYS]}},
@@ -896,7 +896,7 @@ def test_a_portfolio_needs_an_options_block() -> None:
         sig.normalize_definition(definition)
 
 
-def test_portfolio_is_normalized_and_returned_unchanged() -> None:
+def test_portfolio_is_normalized_and_returned_with_the_ts_defaults() -> None:
     portfolio = {
         "policy": "roll", "frame": "monthly", "symbols": ["SPY", "QQQ"],
         "select": {"score": {"type": "series", "series": "$tr"}, "tieBreak": CLOSE, "top": 1},
@@ -910,7 +910,11 @@ def test_portfolio_is_normalized_and_returned_unchanged() -> None:
     assert sig.normalize_definition(normalized) == normalized
     assert sig.strategy_series_refs(normalized) == ["$iv", "$tr"]
     compiled = sig.compile_strategy(bars_of("SPY"), definition)
-    assert compiled.portfolio == portfolio
+    # TS compileStrategy returns the zod output: defaults applied, absent offsets stay absent.
+    assert compiled.portfolio == {
+        **portfolio,
+        "legs": [{**portfolio["legs"][0], "filters": [{"type": "ivRank", "max": 30, "length": 252}]}],
+    }
     assert compiled.options == OPTIONS
     plain = sig.compile_strategy(bars_of("SPY"), _filtered())
     assert plain.portfolio is None
@@ -946,3 +950,146 @@ def test_plan_run_loads_series_with_a_context() -> None:
         bars_of("SPY"), definition, None, golden()["series"], "SPY", calendar
     ).signals
 
+
+def test_portfolio_ts_defaults_reach_nested_indicators_and_filters() -> None:
+    sma = {"type": "indicator", "name": "sma", "length": 3}
+    condition = {"left": CLOSE, "op": ">", "right": sma}
+    portfolio = {
+        "policy": "roll", "symbols": ["SPY"],
+        "select": {"score": {"type": "math", "op": "sub", "left": sma, "right": CLOSE}, "top": 1},
+        "legs": [{
+            "entry": {"all": [condition]},
+            "filters": [
+                {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"]},
+                {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1},
+            ],
+            "options": OPTIONS,
+        }],
+    }
+    compiled = sig.compile_strategy(bars_of("SPY"), _portfolio_definition(portfolio))
+    with_source = {**sma, "source": "close"}
+    assert compiled.portfolio == {
+        "policy": "roll", "symbols": ["SPY"],
+        "select": {"score": {"type": "math", "op": "sub", "left": with_source, "right": CLOSE}, "top": 1},
+        "legs": [{
+            "entry": {"all": [{"left": CLOSE, "op": ">", "right": with_source}]},
+            "filters": [
+                {"type": "sectorQuadrant", "sector": "XLK", "quadrants": ["leading"], "timeframe": "weekly"},
+                {"type": "volRegime", "maxVix": 30, "maxTermRatio": 1, "trendLength": 200},
+            ],
+            "options": OPTIONS,
+        }],
+    }
+    # The input is not changed.
+    assert "source" not in portfolio["legs"][0]["entry"]["all"][0]["right"]
+
+
+@pytest.mark.parametrize("key", ["cadence", "frame", "legs", "select", "shift"])
+def test_portfolio_refuses_null_optional_keys(key: str) -> None:
+    portfolio = {"policy": "roll", "symbols": ["SPY"], key: None}
+    with pytest.raises(InputError, match=f"^portfolio {key} must not be null$"):
+        sig.normalize_definition(_portfolio_definition(portfolio))
+
+
+def test_portfolio_refuses_unknown_keys_and_null_tie_break() -> None:
+    with pytest.raises(InputError, match="^Unknown portfolio key: frames$"):
+        sig.normalize_definition(
+            _portfolio_definition({"policy": "roll", "symbols": ["SPY"], "frames": "monthly"})
+        )
+    select = {"score": CLOSE, "top": 1, "tieBreak": None}
+    with pytest.raises(InputError, match="^portfolio select tieBreak must not be null$"):
+        sig.normalize_definition(
+            _portfolio_definition({"policy": "roll", "symbols": ["SPY"], "select": select})
+        )
+    with pytest.raises(InputError, match="^Unknown portfolio select key: bottom$"):
+        sig.normalize_definition(
+            _portfolio_definition(
+                {"policy": "roll", "symbols": ["SPY"], "select": {"score": CLOSE, "top": 1, "bottom": 1}}
+            )
+        )
+
+
+def _definition_of(conditions: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"version": 1, "name": "x", "entry": {"all": conditions}}
+
+
+def _deep(levels: int) -> dict[str, Any]:
+    expr: dict[str, Any] = CLOSE
+    for _ in range(levels):
+        expr = {"type": "change", "length": 1, "of": expr}
+    return expr
+
+
+DEPTH_MESSAGE = f"^An expression may nest at most {sig.MAX_EXPR_DEPTH} levels$"
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+def test_a_20000_level_expression_is_refused_without_recursion(side: str) -> None:
+    condition = {**ALWAYS, side: _deep(20000)}
+    with pytest.raises(InputError, match=DEPTH_MESSAGE):
+        sig.normalize_definition(_definition_of([condition]))
+    math: dict[str, Any] = CLOSE
+    for _ in range(20000):
+        math = {"type": "math", "op": "add", "left": math, "right": CLOSE}
+    with pytest.raises(InputError, match=DEPTH_MESSAGE):
+        sig.normalize_definition(_definition_of([{**ALWAYS, side: math}]))
+
+
+@pytest.mark.parametrize("key", ["score", "tieBreak"])
+def test_a_20000_level_selection_score_is_refused_without_recursion(key: str) -> None:
+    select = {"score": CLOSE, "top": 1, key: _deep(20000)}
+    with pytest.raises(InputError, match=DEPTH_MESSAGE):
+        sig.normalize_definition(
+            _portfolio_definition({"policy": "roll", "symbols": ["SPY"], "select": select})
+        )
+
+
+def test_the_deepest_allowed_expression_still_normalizes() -> None:
+    deepest = _deep(sig.MAX_EXPR_DEPTH - 1)
+    sig.normalize_definition(_definition_of([{**ALWAYS, "left": deepest}]))
+
+
+@pytest.mark.parametrize("name", ["atr", "adx", "rvol"])
+def test_monthly_frame_refuses_bar_range_indicators_anywhere(name: str) -> None:
+    indicator = {"type": "indicator", "name": name, "length": 5}
+    condition = {**ALWAYS, "left": indicator}
+    monthly = {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]}
+    message = f"^{re.escape(sig.MONTHLY_INDICATOR_MESSAGE)}$"
+    # Daily bars have a range and volume.
+    sig.normalize_definition(
+        _portfolio_definition({"policy": "roll", "symbols": ["SPY"]}, entry={"all": [condition]})
+    )
+    cases = [
+        _portfolio_definition(monthly, entry={"all": [condition]}),
+        _portfolio_definition(monthly, exit={"any": [condition]}),
+        _portfolio_definition(
+            {**monthly, "legs": [{"entry": {"all": [ALWAYS]}, "exit": {"any": [condition]}, "options": OPTIONS}]}
+        ),
+        _portfolio_definition(
+            {**monthly, "select": {"score": {"type": "math", "op": "div", "left": indicator,
+                                             "right": {"type": "const", "value": 2}}, "top": 1}}
+        ),
+        _portfolio_definition({**monthly, "select": {"score": CLOSE, "tieBreak": indicator, "top": 1}}),
+    ]
+    for definition in cases:
+        with pytest.raises(InputError, match=message):
+            sig.normalize_definition(definition)
+    sma = {**indicator, "name": "sma"}
+    sig.normalize_definition(_portfolio_definition(monthly, entry={"all": [{**ALWAYS, "left": sma}]}))
+
+
+def test_a_shifted_window_takes_an_explicit_offset_0_as_no_offset() -> None:
+    zero = {"all": [{**ALWAYS, "left": {**CLOSE, "offset": 0}}]}
+    portfolio = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
+    sig.normalize_definition(_portfolio_definition(portfolio, entry=zero))
+
+
+@pytest.mark.parametrize("kind", ["price", "indicator"])
+@pytest.mark.parametrize("offset", [-1, 1001, 1.5, True, "2"])
+def test_price_and_indicator_offsets_are_validated(kind: str, offset: Any) -> None:
+    leaf = CLOSE if kind == "price" else {"type": "indicator", "name": "sma", "length": 2}
+    with pytest.raises(InputError, match="^offset must be a whole number from 0 to 1000$"):
+        sig.normalize_definition(_definition_of([{**ALWAYS, "left": {**leaf, "offset": offset}}]))
+    assert sig.normalize_definition(
+        _definition_of([{**ALWAYS, "left": {**leaf, "offset": 3.0}}])
+    )["entry"]["all"][0]["left"]["offset"] == 3

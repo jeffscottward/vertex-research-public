@@ -10,9 +10,9 @@ import { join } from "node:path";
 
 import {
   affordableUnits,
-  averageTrueRange as costAverageTrueRange,
   COST_PROFILE_PRESETS,
   type CostProfile,
+  averageTrueRange as costAverageTrueRange,
   fillCosts,
   orderCharges,
 } from "../../packages/api/src/backtest-costs.ts";
@@ -20,32 +20,14 @@ import {
   type BarColumns,
   InstantBacktestInputError,
   type InstantRule,
-  type InstantTrade,
-  signalsFor,
   type InstantRunResult,
+  type InstantTrade,
   priorExtreme,
   rollingMean,
   runInstantBacktest,
+  signalsFor,
   wilderRsi,
 } from "../../packages/api/src/instant-backtest-engine.ts";
-import {
-  averageDirectionalIndex,
-  averageTrueRange,
-  compileStrategy,
-  evaluateStrategyExpression,
-  exponentialMean,
-  realizedVolatility,
-  relativeStrength,
-  relativeVolumeAtTime,
-  rollingZScore,
-  runStrategyDefinition,
-  type CompiledStrategy,
-  nyseHolidays,
-  type SectorQuadrantSeries,
-  type StrategySeriesContext,
-  type StrategySeriesInput,
-  StrategyUnsupportedError,
-} from "../../packages/api/src/strategy-dsl-compile.ts";
 import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
@@ -54,6 +36,24 @@ import {
   type StrategyServerSupport,
   serverStrategyRefusal,
 } from "../../packages/api/src/strategy-dsl.ts";
+import {
+  averageDirectionalIndex,
+  averageTrueRange,
+  type CompiledStrategy,
+  compileStrategy,
+  evaluateStrategyExpression,
+  exponentialMean,
+  nyseHolidays,
+  realizedVolatility,
+  relativeStrength,
+  relativeVolumeAtTime,
+  rollingZScore,
+  runStrategyDefinition,
+  type SectorQuadrantSeries,
+  type StrategySeriesContext,
+  type StrategySeriesInput,
+  StrategyUnsupportedError,
+} from "../../packages/api/src/strategy-dsl-compile.ts";
 
 const BAR_COUNT = 500;
 
@@ -243,6 +243,11 @@ export const assertGapExit = (
 
 /** Builds golden.json (text with a trailing newline). Deterministic. */
 const sectorQuadrants: SectorQuadrantSeries = {
+  "XLE:daily": [
+    { date: "2024-03-05", quadrant: "leading" },
+    { date: "2024-03-08", quadrant: "lagging" },
+    { date: "2024-03-12", quadrant: "leading" },
+  ],
   "XLK:weekly": [
     { date: "2015-01-30", quadrant: "improving" },
     { date: "2015-03-06", quadrant: "leading" },
@@ -250,11 +255,6 @@ const sectorQuadrants: SectorQuadrantSeries = {
     { date: "2015-07-02", quadrant: "lagging" },
     { date: "2015-09-04", quadrant: "improving" },
     { date: "2016-01-08", quadrant: "leading" },
-  ],
-  "XLE:daily": [
-    { date: "2024-03-05", quadrant: "leading" },
-    { date: "2024-03-08", quadrant: "lagging" },
-    { date: "2024-03-12", quadrant: "leading" },
   ],
 };
 
@@ -589,6 +589,12 @@ const seriesContext = (): SeriesJson => {
   );
   const withSundays = spans(true);
   return {
+    // Gaps of 12 and 4 weekdays: the series filter carries a value at most 5 trading days.
+    "CL=F": record(
+      weekdays,
+      walk(weekdays, 16, 60, 1.2, 0),
+      (index) => (index >= 60 && index < 72) || (index >= 200 && index < 204)
+    ),
     "ES=F": record(
       withSundays,
       walk(withSundays, 14, 2000, 18, 0),
@@ -600,24 +606,18 @@ const seriesContext = (): SeriesJson => {
       (index) => index % 7 === 3
     ),
     SPY: record(weekdays, walk(weekdays, 13, 200, 1.6, 0), () => false),
-    VIX: {
-      ...record(weekdays, vix, (index) => index % 41 === 7),
-      [weekdays[100] as string]: null,
-    },
-    VIX3M: record(weekdays, vix3m, (index) => index % 53 === 11),
-    VXN: record(weekdays, walk(weekdays, 12, 20, 1.3, 0.04), () => false),
     // Total-return close of SPY ($tr), missing every 11th weekday.
     "SPY:TR": record(
       weekdays,
       walk(weekdays, 17, 180, 1.4, 0),
       (index) => index % 11 === 5
     ),
-    // Gaps of 12 and 4 weekdays: the series filter carries a value at most 5 trading days.
-    "CL=F": record(
-      weekdays,
-      walk(weekdays, 16, 60, 1.2, 0),
-      (index) => (index >= 60 && index < 72) || (index >= 200 && index < 204)
-    ),
+    VIX: {
+      ...record(weekdays, vix, (index) => index % 41 === 7),
+      [weekdays[100] as string]: null,
+    },
+    VIX3M: record(weekdays, vix3m, (index) => index % 53 === 11),
+    VXN: record(weekdays, walk(weekdays, 12, 20, 1.3, 0.04), () => false),
   };
 };
 
@@ -1202,15 +1202,15 @@ const exprDefinitions: readonly ExprDefinition[] = [
     symbol: "monthly",
   })),
   {
+    calendar: "weekdays",
     definition: {
       entry: {
         all: [exprCondition(seriesOf("$tr", 1), "<", seriesOf("$tr"))],
       },
-      filters: [{ max: 60, type: "ivRank", length: 20 }],
+      filters: [{ length: 20, max: 60, type: "ivRank" }],
       name: "Refs on month ends",
       version: 1,
     },
-    calendar: "weekdays",
     id: "expr:refs:calendar",
     seriesSymbol: "SPY",
     symbol: "monthly",
@@ -1241,12 +1241,12 @@ const exprDefinitions: readonly ExprDefinition[] = [
     symbol: "QQQ",
   },
   {
+    calendar: "weekdays2015",
     definition: {
       entry: { all: [exprCondition(seriesOf("VIX"), "<", constant(20))] },
       name: "Calendar without the 2016 bars",
       version: 1,
     },
-    calendar: "weekdays2015",
     id: "expr:error:calendar",
     symbol: "SPY",
   },
@@ -1274,6 +1274,50 @@ const exprDefinitions: readonly ExprDefinition[] = [
       version: 1,
     },
     id: "expr:portfolio",
+    symbol: "SPY",
+  },
+  {
+    // Defaulted fields come back with their defaults: indicator source close (leg condition,
+    // selection score), ivRank length and sectorQuadrant timeframe on a leg filter.
+    definition: {
+      entry: { all: [always] },
+      name: "Portfolio defaults",
+      options: {
+        dte: { min: 21, target: 30 },
+        maxLossPct: 1,
+        structure: "callDebitVertical",
+        widthSigma: 0.5,
+      },
+      portfolio: {
+        legs: [
+          {
+            entry: {
+              all: [
+                exprCondition(priceExpr("close"), ">", indicator("sma", 5)),
+              ],
+            },
+            filters: [
+              { max: 40, type: "ivRank" },
+              { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+            ],
+            options: {
+              dte: { min: 21, target: 30 },
+              maxLossPct: 1,
+              structure: "callDebitVertical",
+              widthSigma: 0.5,
+            },
+          },
+        ],
+        policy: "roll",
+        select: {
+          score: math("sub", priceExpr("close"), indicator("ema", 3)),
+          top: 1,
+        },
+        symbols: ["SPY", "QQQ"],
+      },
+      version: 1,
+    },
+    id: "expr:portfolioDefaults",
     symbol: "SPY",
   },
 ];
@@ -1436,32 +1480,32 @@ const customProfile = (overrides: Partial<CostProfile>): CostProfile => ({
 });
 const costProfiles: Record<string, CostProfile> = {
   ...COST_PROFILE_PRESETS,
+  "custom-atr": customProfile({
+    slippage: { fraction: 0.1, kind: "atr", period: 14 },
+    spreadBps: 2,
+  }),
   "custom-bps": customProfile({
     commission: {
-      maxPerOrder: 7.5,
       maxPercentOfValue: null,
+      maxPerOrder: 7.5,
       minPerOrder: 0.5,
       perContract: 0,
-      perShare: 0.004,
       percentOfValue: 0.05,
+      perShare: 0.004,
       premiumTiers: [],
     },
     fees: { ofCommission: 0.01, ofSaleValue: 0.0001, perUnit: 0.001 },
     slippage: { bps: 3, kind: "bps" },
     spreadBps: 5,
   }),
-  "custom-atr": customProfile({
-    slippage: { fraction: 0.1, kind: "atr", period: 14 },
-    spreadBps: 2,
-  }),
   "custom-option": customProfile({
     commission: {
-      maxPerOrder: 40,
       maxPercentOfValue: 5,
+      maxPerOrder: 40,
       minPerOrder: 1,
       perContract: 0.7,
-      perShare: 0,
       percentOfValue: 0.01,
+      perShare: 0,
       premiumTiers: [
         { belowPremium: 0.1, perContract: 0.3 },
         { belowPremium: 1, perContract: 0.55 },
@@ -1481,12 +1525,12 @@ const costProfiles: Record<string, CostProfile> = {
 };
 
 interface Spec {
-  rule: Json;
-  stopLossPct: number;
-  takeProfitPct: number;
   costBps: number;
   costs: { profile: CostProfile; capital: number } | null;
+  rule: Json;
   sectorQuadrants: SectorQuadrantSeries | null;
+  stopLossPct: number;
+  takeProfitPct: number;
 }
 
 const LENGTHS = [2, 5, 14, 20, 50, 200];
@@ -1781,8 +1825,8 @@ const buildFixedRules = (datasets: Record<string, BarColumns>): Json[] => {
         fixedRules.push({
           id: "smaCross-2-3",
           rule: tiny,
-          symbol,
           signals: Array.from(signalsFor(bars, tiny, bars.c.length)),
+          symbol,
         });
         continue;
       }
@@ -2096,13 +2140,13 @@ const buildGolden = (io: GoldenIo): string => {
     io.readText(join("tests/fixtures/golden", file));
   const intraday = intradayBars();
   const datasets: Record<string, BarColumns> = {
-    SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
-    QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
-    intraday,
-    gap: gapBars(),
     bothHit: bothHitBars(),
     calendar: calendarBars(),
+    gap: gapBars(),
+    intraday,
     monthly: monthlyBars(),
+    QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
+    SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
   };
 
   // 2. Compiled DSL definitions.
@@ -2133,17 +2177,17 @@ const buildGolden = (io: GoldenIo): string => {
     bars: Object.fromEntries(
       Object.entries(datasets).map(([key, bars]) => [key, barsJson(bars)])
     ),
+    calendars: calendars(),
     compiled,
     costs,
     engine,
+    engineRefusals,
+    expressions,
     fixedRules,
     indicators,
-    engineRefusals,
     nyseHolidays: holidayDates(),
     sectorQuadrants,
     series,
-    calendars: calendars(),
-    expressions,
     serverRefusals,
   };
 

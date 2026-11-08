@@ -377,14 +377,59 @@ export const strategyExprSeries = (
   ...strategyExprChildren(expr).flatMap(strategyExprSeries),
 ];
 
+const EXPR_DEPTH_MESSAGE = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+
+/** Child keys of each nested expression type (raw input; other types are leaves). */
+const RAW_EXPR_CHILD_KEYS: Readonly<Record<string, readonly string[]>> = {
+  change: ["of"],
+  math: ["left", "right"],
+  regression: ["y", "x"],
+  returnStdev: ["of"],
+  seasonal: ["of"],
+};
+
+/**
+ * Whether raw (unparsed) expression input nests deeper than STRATEGY_DSL_MAX_EXPR_DEPTH. Iterative
+ * and stops at the first node past the limit, so any input depth is safe (the recursive parse is
+ * not: a deep enough input overflows the stack).
+ */
+export const rawStrategyExprTooDeep = (value: unknown): boolean => {
+  const stack: [unknown, number][] = [[value, 1]];
+  for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+    const [node, depth] = item;
+    if (typeof node !== "object" || node === null) continue;
+    if (depth > STRATEGY_DSL_MAX_EXPR_DEPTH) return true;
+    const record = node as Record<string, unknown>;
+    const type = Object.hasOwn(record, "type") ? record["type"] : undefined;
+    if (typeof type !== "string" || !Object.hasOwn(RAW_EXPR_CHILD_KEYS, type))
+      continue;
+    for (const key of RAW_EXPR_CHILD_KEYS[type] ?? [])
+      if (Object.hasOwn(record, key)) stack.push([record[key], depth + 1]);
+  }
+  return false;
+};
+
+/**
+ * `schema` behind an iterative depth check of the raw expressions `exprs(value)` picks from its
+ * input, so the recursive parse cannot overflow the stack. The issue sits at the schema's path.
+ */
+const depthGuarded = <S extends z.ZodType>(
+  schema: S,
+  exprs: (value: unknown) => readonly unknown[]
+): S =>
+  z.preprocess((value, context) => {
+    if (exprs(value).some(rawStrategyExprTooDeep))
+      context.addIssue({ code: "custom", message: EXPR_DEPTH_MESSAGE });
+    return value;
+  }, schema) as unknown as S;
+
 const exprLimitIssue = (
   exprs: readonly AnyStrategyExpr[]
 ): string | undefined => {
   let nodes = 0;
   for (const expr of exprs) {
     const size = strategyExprSize(expr);
-    if (size.depth > STRATEGY_DSL_MAX_EXPR_DEPTH)
-      return `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+    if (size.depth > STRATEGY_DSL_MAX_EXPR_DEPTH) return EXPR_DEPTH_MESSAGE;
     nodes += size.nodes;
   }
   return nodes > STRATEGY_DSL_MAX_EXPR_NODES
@@ -392,18 +437,29 @@ const exprLimitIssue = (
     : undefined;
 };
 
-export const StrategyConditionSchema = z
-  .object({
-    left: StrategyExprSchema,
-    op: z.enum(STRATEGY_OPERATORS),
-    right: StrategyExprSchema,
-  })
-  .strict()
-  .superRefine((condition, context) => {
-    const issue = exprLimitIssue([condition.left, condition.right]);
-    if (issue !== undefined)
-      context.addIssue({ code: "custom", message: issue });
-  });
+export const StrategyConditionSchema = depthGuarded(
+  z
+    .object({
+      left: StrategyExprSchema,
+      op: z.enum(STRATEGY_OPERATORS),
+      right: StrategyExprSchema,
+    })
+    .strict()
+    .superRefine((condition, context) => {
+      const issue = exprLimitIssue([condition.left, condition.right]);
+      if (issue !== undefined)
+        context.addIssue({ code: "custom", message: issue });
+    }),
+  (value) =>
+    typeof value === "object" && value !== null
+      ? [
+          Object.hasOwn(value, "left") ? Reflect.get(value, "left") : undefined,
+          Object.hasOwn(value, "right")
+            ? Reflect.get(value, "right")
+            : undefined,
+        ]
+      : []
+);
 
 export const STRATEGY_IV_RANK_MIN_LENGTH = 20;
 export const STRATEGY_IV_RANK_DEFAULT_LENGTH = 252;
@@ -683,6 +739,10 @@ const SelectionScoreSchema = StrategyExprSchema.superRefine((expr, context) => {
   const issue = exprLimitIssue([expr]);
   if (issue !== undefined) context.addIssue({ code: "custom", message: issue });
 });
+const DepthGuardedSelectionScoreSchema = depthGuarded(
+  SelectionScoreSchema,
+  (value) => [value]
+);
 
 /**
  * How an options definition trades a set of symbols (docs/vertex-rebuild/strategy-definitions.md,
@@ -707,8 +767,8 @@ export const StrategyPortfolioSchema = z
     policy: z.enum(STRATEGY_PORTFOLIO_POLICIES),
     select: z
       .object({
-        score: SelectionScoreSchema,
-        tieBreak: SelectionScoreSchema.optional(),
+        score: DepthGuardedSelectionScoreSchema,
+        tieBreak: DepthGuardedSelectionScoreSchema.optional(),
         top: z.number().int().min(1).max(STRATEGY_OPTION_SYMBOLS.length),
       })
       .strict()
@@ -764,7 +824,7 @@ const calendarOnly = (
     only.op === ">" &&
     only.left.type === "price" &&
     only.left.field === "close" &&
-    only.left.offset === undefined &&
+    (only.left.offset ?? 0) === 0 &&
     only.right.type === "const" &&
     only.right.value === 0 &&
     (leg.exit?.any.length ?? 0) === 0 &&
@@ -772,6 +832,64 @@ const calendarOnly = (
     leg.filters.length > 0 &&
     leg.filters.every((filter) => filter.type === "calendarWindow")
   );
+};
+
+/** Indicators that read high, low or volume, which monthly total-return bars do not have. */
+export const STRATEGY_MONTHLY_UNSUPPORTED_INDICATORS = [
+  "atr",
+  "adx",
+  "rvol",
+] as const;
+export const STRATEGY_MONTHLY_INDICATOR_MESSAGE =
+  "frame monthly bars have high = low = close and no volume: atr, adx and rvol are not available";
+
+const usesBarRangeIndicator = (expr: AnyStrategyExpr): boolean =>
+  (expr.type === "indicator" &&
+    "name" in expr &&
+    typeof expr.name === "string" &&
+    (STRATEGY_MONTHLY_UNSUPPORTED_INDICATORS as readonly string[]).includes(
+      expr.name
+    )) ||
+  strategyExprChildren(expr).some(usesBarRangeIndicator);
+
+/** Every condition side of a definition and its legs, and the selection score and tie break. */
+const definitionExprs = (
+  definition: Readonly<{
+    entry: { all: readonly StrategyCondition[] };
+    exit?: { any: readonly StrategyCondition[] } | undefined;
+    portfolio?:
+      | Readonly<{
+          legs?:
+            | readonly Readonly<{
+                entry: { all: readonly StrategyCondition[] };
+                exit?: { any: readonly StrategyCondition[] } | undefined;
+              }>[]
+            | undefined;
+          select?:
+            | Readonly<{
+                score: StrategyExpr;
+                tieBreak?: StrategyExpr | undefined;
+              }>
+            | undefined;
+        }>
+      | undefined;
+  }>
+): AnyStrategyExpr[] => {
+  const select = definition.portfolio?.select;
+  return [
+    ...[definition, ...(definition.portfolio?.legs ?? [])].flatMap((part) =>
+      [...part.entry.all, ...(part.exit?.any ?? [])].flatMap((condition) => [
+        condition.left,
+        condition.right,
+      ])
+    ),
+    ...(select === undefined
+      ? []
+      : [
+          select.score,
+          ...(select.tieBreak === undefined ? [] : [select.tieBreak]),
+        ]),
+  ];
 };
 
 const ExitLevelSchema = z.discriminatedUnion("kind", [
@@ -895,6 +1013,15 @@ export const StrategyDefinitionSchema = z
       message:
         "A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only",
       path: ["portfolio", "shift"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.portfolio?.frame !== "monthly" ||
+      !definitionExprs(definition).some(usesBarRangeIndicator),
+    {
+      message: STRATEGY_MONTHLY_INDICATOR_MESSAGE,
+      path: ["portfolio", "frame"],
     }
   );
 
@@ -1035,7 +1162,9 @@ export const resolveStrategySeries = (
           ? STRATEGY_FUTURE_TWIN
           : undefined;
   if (table === undefined) return ref as StrategySeriesId;
-  return symbol === undefined ? undefined : table[symbol];
+  return symbol === undefined || !Object.hasOwn(table, symbol)
+    ? undefined
+    : table[symbol];
 };
 
 /** What a server path loads for a run: daily series, and the options runner. */
