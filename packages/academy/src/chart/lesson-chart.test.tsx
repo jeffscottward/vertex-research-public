@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { ACADEMY_LESSONS } from "../lessons/index.ts";
+import { ALL_ACADEMY_LESSONS as ACADEMY_LESSONS } from "../lessons/database-courses.test-support.ts";
 import { defaultValues } from "../position.ts";
 import { buildScene, elementColors } from "../scenes.ts";
 import { buildTables } from "../tables.ts";

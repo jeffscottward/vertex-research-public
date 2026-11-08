@@ -1,7 +1,7 @@
 // What: The Academy course registry. A course is one creator's lesson series (one knowledge-base
 // folder of transcripts). Every course-specific string (gallery copy, disclaimer, strategy prefix,
-// library section, spec and source locations) comes from here, so adding a course is one entry plus
-// its sources file (docs/vertex-academy.md, "Courses").
+// library section, where its lessons are stored) comes from here, so adding a course is one entry plus
+// its sources (docs/vertex-academy.md, "Courses").
 
 export const COURSE_IDS = ["dyr", "quantfinancetogo"] as const;
 export type CourseId = (typeof COURSE_IDS)[number];
@@ -36,12 +36,23 @@ export type Course = Readonly<{
   librarySection: string;
   /** First strategy-library tag of those records. */
   strategyTag: string;
-  /** Spec folder below packages/academy/src/lessons/specs ("" = the specs folder itself). */
+  /**
+   * Where the app reads the course's lessons. "package": this package ships the specs and sources
+   * (Define Your Risk JSON files, awaiting their move to Postgres). "database": Postgres
+   * (academy_lesson_specs and academy_lesson_sources), served by the operator-only academy.lessons and
+   * academy.lesson procedures and loaded by `bun run vertex:academy:import` (AGENTS.md rule 13). The
+   * app never imports a database course's authored files.
+   */
+  store: "package" | "database";
+  /**
+   * Repository-relative folder of the authored spec files. Package courses: inside this package.
+   * Database courses: under scripts/academy/lessons/<course>/specs, input of the import CLI only.
+   */
   specDir: string;
   /**
    * Spec file format. Define Your Risk specs are JSON files awaiting their move to Postgres (AGENTS.md
    * rule 13 forbids new JSON data files); newer courses author each spec as a TypeScript module that
-   * exports `spec`. The sources file (transcripts) follows the same format: a generated TS module.
+   * exports `spec`.
    */
   specFormat: "json" | "ts";
 }>;
@@ -64,7 +75,8 @@ export const COURSES: Readonly<Record<CourseId, Course>> = {
     strategyPrefix: "dyr-",
     librarySection: "Define Your Risk Academy",
     strategyTag: "define-your-risk",
-    specDir: "",
+    store: "package",
+    specDir: "packages/academy/src/lessons/specs",
     specFormat: "json",
   },
   quantfinancetogo: {
@@ -84,7 +96,8 @@ export const COURSES: Readonly<Record<CourseId, Course>> = {
     strategyPrefix: "qftg-",
     librarySection: "QuantFinanceToGo Academy",
     strategyTag: "quantfinancetogo",
-    specDir: "quantfinancetogo",
+    store: "database",
+    specDir: "scripts/academy/lessons/quantfinancetogo/specs",
     specFormat: "ts",
   },
 };
@@ -125,5 +138,5 @@ export const lessonSpecPath = (
   lesson: Readonly<{ slug: string; course?: CourseId | undefined }>
 ): string => {
   const { specDir, specFormat } = courseOf(lesson);
-  return `packages/academy/src/lessons/specs/${specDir === "" ? "" : `${specDir}/`}${lesson.slug}.${specFormat}`;
+  return `${specDir}/${lesson.slug}.${specFormat}`;
 };

@@ -1,22 +1,30 @@
-// What: Build-time file names per Academy course (scripts only; the app never names these files).
-// Define Your Risk keeps its JSON sources file until it moves to Postgres (AGENTS.md rule 13); newer
-// courses get a generated TypeScript module, the same format as their lesson specs (courses.ts
-// `specFormat`).
-import type { CourseId } from "../../packages/academy/src/courses.ts";
+// What: Build-time file locations per Academy course (scripts only; the app never names these files).
+// Package courses (Define Your Risk) keep their JSON sources file and spec index in
+// packages/academy/src/lessons until they move to Postgres (AGENTS.md rule 13). Database courses
+// (courses.ts `store: "database"`) keep their authored specs, generated spec index and generated
+// sources module under scripts/academy/lessons/<course>: tool input of `bun run vertex:academy:import`,
+// which writes them to Postgres.
+import { dirname } from "node:path";
+
+import { COURSES, type CourseId } from "../../packages/academy/src/courses.ts";
 
 export type SourcesOutput = Readonly<{
-  /** File in packages/academy/src/lessons. */
-  file: string;
+  /** Repository-relative path of the course's sources file. */
+  path: string;
   format: "json" | "ts";
 }>;
 
 export const SOURCES_OUTPUT: Readonly<Record<CourseId, SourcesOutput>> = {
-  dyr: { file: "sources.json", format: "json" },
+  dyr: { path: "packages/academy/src/lessons/sources.json", format: "json" },
   quantfinancetogo: {
-    file: "sources.quantfinancetogo.generated.ts",
+    path: "scripts/academy/lessons/quantfinancetogo/sources.generated.ts",
     format: "ts",
   },
 };
+
+/** Repository-relative path of a course's generated spec index (beside its specs folder). */
+export const specIndexPath = (course: CourseId): string =>
+  `${dirname(COURSES[course].specDir)}/specs.generated.ts`;
 
 /** Contents of a generated TypeScript sources module (`export const SOURCES`). */
 export const sourcesModule = (

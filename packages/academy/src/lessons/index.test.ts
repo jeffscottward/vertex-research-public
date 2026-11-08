@@ -49,16 +49,19 @@ describe("lesson catalog", () => {
     );
   });
 
-  it("tags the sources of each course file and counts videos per course", () => {
-    const qftg = ACADEMY_SOURCES.filter(
-      (source) => source.course === "quantfinancetogo"
-    );
-    expect(qftg.length).toBeGreaterThan(0);
+  it("ships only the package courses' sources and counts videos per course", () => {
+    // QuantFinanceToGo is a database course: its sources live in Postgres, not in this package.
+    expect(
+      ACADEMY_SOURCES.some((source) => source.course === "quantfinancetogo")
+    ).toBe(false);
+    expect(
+      ACADEMY_LESSONS.some((lesson) => lesson.course === "quantfinancetogo")
+    ).toBe(false);
     expect(
       ACADEMY_SOURCES.find((s) => s.sourceId === "DTlH37JjmfZ")?.course
     ).toBe("dyr");
     const counts = sourceCounts();
-    expect(counts.quantfinancetogo).toBe(qftg.length);
+    expect(counts.quantfinancetogo).toBe(0);
     // The recorded exact duplicate is not counted.
     expect(counts.dyr).toBe(
       ACADEMY_SOURCES.filter((source) => source.course === "dyr").length - 1
@@ -75,9 +78,9 @@ describe("lesson catalog", () => {
 
   it("refuses a source in the wrong course file or listed twice", () => {
     const source = { sourceId: "Dx1", url: "", caption: "", publishedAt: "" };
-    expect(
-      loadSources({ dyr: [source], quantfinancetogo: [] }).map((s) => s.course)
-    ).toEqual(["dyr"]);
+    expect(loadSources({ dyr: [source] }).map((s) => s.course)).toEqual([
+      "dyr",
+    ]);
     expect(() =>
       loadSources({
         dyr: [],

@@ -22,7 +22,8 @@ describe("course registry", () => {
       librarySection: "Define Your Risk Academy",
       narrated: true,
       shortTitle: "DYR",
-      specDir: "",
+      store: "package",
+      specDir: "packages/academy/src/lessons/specs",
       specFormat: "json",
       strategyPrefix: "dyr-",
       strategyTag: "define-your-risk",
@@ -41,7 +42,8 @@ describe("course registry", () => {
       kbPath: "trading/quantfinancetogo",
       narrated: false,
       profileUrl: "https://www.instagram.com/quantfinancetogo/",
-      specDir: "quantfinancetogo",
+      store: "database",
+      specDir: "scripts/academy/lessons/quantfinancetogo/specs",
       specFormat: "ts",
       strategyPrefix: "qftg-",
       timestamps: "segments",
@@ -102,6 +104,6 @@ describe("course registry", () => {
     );
     expect(
       lessonSpecPath({ slug: "binomial", course: "quantfinancetogo" })
-    ).toBe("packages/academy/src/lessons/specs/quantfinancetogo/binomial.ts");
+    ).toBe("scripts/academy/lessons/quantfinancetogo/specs/binomial.ts");
   });
 });

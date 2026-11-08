@@ -149,7 +149,7 @@ describe("buildLessonIndex", () => {
     writeFileSync(out, "stale");
     expect(await buildLessonIndex(["--check"], options())).toBe(1);
     expect(errorLines()).toEqual([
-      "specs.generated.ts is stale; run bun scripts/academy/build-lesson-index.ts",
+      "packages/academy/src/lessons/specs.generated.ts is stale; run bun scripts/academy/build-lesson-index.ts",
     ]);
     expect(readFileSync(out, "utf8")).toBe("stale");
 
@@ -235,8 +235,9 @@ describe("buildLessonIndex", () => {
 });
 
 describe("buildLessonIndex with a second course", () => {
-  const QFTG_SOURCES =
-    "packages/academy/src/lessons/sources.quantfinancetogo.generated.ts";
+  const QFTG_DIR = "scripts/academy/lessons/quantfinancetogo";
+  const QFTG_SOURCES = `${QFTG_DIR}/sources.generated.ts`;
+  const QFTG_INDEX = `${QFTG_DIR}/specs.generated.ts`;
   const writeQftgSources = (sources: readonly unknown[]) =>
     writeFileSync(
       join(root, QFTG_SOURCES),
@@ -249,26 +250,32 @@ describe("buildLessonIndex with a second course", () => {
     sourceId,
   });
   const addCourse = (specsByName: Record<string, unknown>) => {
+    mkdirSync(join(root, QFTG_DIR, "specs"), { recursive: true });
     writeQftgSources([{ sourceId: "QftgReel01" }, { sourceId: "QftgReel02" }]);
-    mkdirSync(join(specs, "quantfinancetogo"));
     for (const [name, spec] of Object.entries(specsByName))
       writeFileSync(
-        join(specs, "quantfinancetogo", name),
+        join(root, QFTG_DIR, "specs", name),
         `export const spec = ${JSON.stringify(spec)};\n`
       );
   };
 
-  it("indexes course folders after the default course", async () => {
+  it("indexes a database course beside its own specs folder, never into the package", async () => {
     addCourse({ "binomial-tree.ts": qftgSpec("binomial-tree") });
     expect(await buildLessonIndex([], options())).toBe(0);
     expect(readFileSync(out, "utf8")).toBe(
-      generated([
-        `${SLUG_A}.json`,
-        `${SLUG_B}.json`,
-        "quantfinancetogo/binomial-tree.ts",
-      ])
+      generated([`${SLUG_A}.json`, `${SLUG_B}.json`])
+    );
+    expect(readFileSync(join(root, QFTG_INDEX), "utf8")).toBe(
+      generated(["binomial-tree.ts"])
     );
     expect(stdout).toEqual(["3 lesson specs valid\n"]);
+    // --check compares every course index; a missing one is stale.
+    stdout = [];
+    rmSync(join(root, QFTG_INDEX));
+    expect(await buildLessonIndex(["--check"], options())).toBe(1);
+    expect(errorLines()).toEqual([
+      `${QFTG_INDEX} is stale; run bun scripts/academy/build-lesson-index.ts`,
+    ]);
     // --only finds a spec in a course folder by its slug.
     stdout = [];
     expect(await buildLessonIndex(["--only", "binomial-tree"], options())).toBe(
@@ -292,7 +299,7 @@ describe("buildLessonIndex with a second course", () => {
     ]);
     expect(await buildLessonIndex([], options())).toBe(1);
     expect(errorLines()).toEqual([
-      `sources.quantfinancetogo.generated.ts: sourceId ${readSpec(SLUG_B).sourceId} already listed by sources.json`,
+      `${QFTG_SOURCES}: sourceId ${readSpec(SLUG_B).sourceId} already listed by packages/academy/src/lessons/sources.json`,
       `${SLUG_B}.json: slug ${SLUG_B} also used by quantfinancetogo/${SLUG_B}.ts`,
       `quantfinancetogo/dyr-source.ts: sourceId ${readSpec(SLUG_A).sourceId} is a dyr source, not quantfinancetogo`,
       `quantfinancetogo/dyr-source.ts: sourceId ${readSpec(SLUG_A).sourceId} already used by ${SLUG_A}.json`,

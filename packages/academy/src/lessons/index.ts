@@ -1,6 +1,9 @@
-// What: The lesson catalog: validated specs joined with their knowledge-base source (transcript),
-// for every course in the registry (courses.ts). Server-side only in the web app (pages pass one
-// lesson or the summaries to client components).
+// What: The packaged lesson catalog: validated specs joined with their knowledge-base source
+// (transcript) for the courses this package ships (courses.ts `store: "package"`: Define Your Risk).
+// Database courses (QuantFinanceToGo) live in Postgres and reach the web app through academy.lessons
+// and academy.lesson; their lessons use the same helpers below (buildCatalog, neighboursIn,
+// toLessonSummary). Server-side only in the web app (pages pass one lesson or the summaries to client
+// components).
 import { COURSE_IDS, COURSES, type CourseId } from "../courses.ts";
 import {
   type Lesson,
@@ -11,16 +14,14 @@ import {
 } from "../schema.ts";
 import mediaManifest from "./media-manifest.json" with { type: "json" };
 import dyrSources from "./sources.json" with { type: "json" };
-import { SOURCES as quantfinancetogoSources } from "./sources.quantfinancetogo.generated.ts";
 import { LESSON_SPECS } from "./specs.generated.ts";
 
-/** Contents of each course's sources file (scripts/academy/course-files.ts). */
-export type SourceFiles = Readonly<Record<CourseId, readonly unknown[]>>;
+/** Contents of the sources file of each course this package ships (scripts/academy/course-files.ts). */
+export type SourceFiles = Readonly<
+  Partial<Record<CourseId, readonly unknown[]>>
+>;
 
-const SOURCE_FILES: SourceFiles = {
-  dyr: dyrSources,
-  quantfinancetogo: quantfinancetogoSources,
-};
+const SOURCE_FILES: SourceFiles = { dyr: dyrSources };
 
 type RawSource = Omit<LessonSource, "course"> & { course?: string };
 
@@ -28,7 +29,7 @@ type RawSource = Omit<LessonSource, "course"> & { course?: string };
 export const loadSources = (files: SourceFiles): LessonSource[] => {
   const seen = new Set<string>();
   return COURSE_IDS.flatMap((course) =>
-    (files[course] as RawSource[]).map((raw): LessonSource => {
+    ((files[course] ?? []) as RawSource[]).map((raw): LessonSource => {
       if (raw.course !== undefined && raw.course !== course)
         throw new Error(
           `source ${raw.sourceId} in the ${COURSES[course].title} sources names course ${raw.course}`

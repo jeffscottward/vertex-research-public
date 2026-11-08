@@ -1,14 +1,16 @@
-// Builds one course's sources file (packages/academy/src/lessons/<file>, course-files.ts) from its
-// knowledge base. Usage: bun scripts/academy/build-sources.ts [--course <id>] [<kb transcripts dir>]
-// The course defaults to dyr (sources.json); other courses get a generated TS module. Research data only.
+// Builds one course's sources file (course-files.ts SOURCES_OUTPUT) from its knowledge base.
+// Usage: bun scripts/academy/build-sources.ts [--course <id>] [<kb transcripts dir>]
+// The course defaults to dyr (packages/academy/src/lessons/sources.json); database courses get a
+// generated TS module under scripts/academy/lessons/<course>, the input of `bun run
+// vertex:academy:import` (which can also read the notes directly with --kb). Research data only.
 // - dyr: transcripts/D*.md notes. Each transcript becomes sentences with start times ESTIMATED from
 //   word position over the audio duration (the notes store plain text without segment timestamps).
 // - quantfinancetogo: raw/ig-<post id>.md notes with YAML frontmatter (post_id, url, published,
 //   duration, title), a ## Caption text block and ## Transcript segments `- [mm:ss] text`. Segment
 //   start times come from the speech-to-text model.
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import {
   COURSE_IDS,
@@ -137,8 +139,29 @@ const READERS: Readonly<Record<CourseId, Reader>> = {
   quantfinancetogo: { dir: "raw", file: /^ig-.+\.md$/u, parse: parseReelNote },
 };
 
+/** The course's notes folder in the default knowledge-base checkout (~/Github/knowledge-bases). */
+export const knowledgeBaseDir = (course: CourseId, home: string): string =>
+  join(
+    home,
+    "Github/knowledge-bases",
+    COURSES[course].kbPath,
+    READERS[course].dir
+  );
+
+/** Every source of the course from its knowledge-base notes folder, in file-name order. */
+export const readKnowledgeBaseSources = (
+  course: CourseId,
+  kb: string
+): SourceRecord[] => {
+  const reader = READERS[course];
+  return readdirSync(kb)
+    .filter((name) => reader.file.test(name))
+    .sort()
+    .map((name) => reader.parse(name, readFileSync(join(kb, name), "utf8")));
+};
+
 export type BuildSourcesOptions = Readonly<{
-  /** Repository root receiving packages/academy/src/lessons/<sources file> (course-files.ts). */
+  /** Repository root receiving the course's sources file (course-files.ts). */
   root: string;
   /** Home directory holding the default knowledge-base checkout. */
   home: string;
@@ -161,18 +184,13 @@ export const buildSources = (
     (_, index) =>
       courseIndex < 0 || (index !== courseIndex && index !== courseIndex + 1)
   );
-  const reader = READERS[course];
-  const kb =
-    positional[0] ??
-    join(home, "Github/knowledge-bases", COURSES[course].kbPath, reader.dir);
+  const kb = positional[0] ?? knowledgeBaseDir(course, home);
   const output = SOURCES_OUTPUT[course];
-  const out = join(root, "packages/academy/src/lessons", output.file);
+  const out = join(root, output.path);
 
-  const sources = readdirSync(kb)
-    .filter((name) => reader.file.test(name))
-    .sort()
-    .map((name) => reader.parse(name, readFileSync(join(kb, name), "utf8")));
+  const sources = readKnowledgeBaseSources(course, kb);
 
+  mkdirSync(dirname(out), { recursive: true });
   writeFileSync(
     out,
     output.format === "ts"

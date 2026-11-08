@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { COURSES, courseOf } from "./courses.ts";
-import { ACADEMY_LESSONS } from "./lessons/index.ts";
+import { ALL_ACADEMY_LESSONS as ACADEMY_LESSONS } from "./lessons/database-courses.test-support.ts";
 import narration from "./lessons/narration-timing.json" with { type: "json" };
 import {
   INTRO_SECONDS,

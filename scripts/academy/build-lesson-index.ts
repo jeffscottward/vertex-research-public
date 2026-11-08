@@ -1,10 +1,11 @@
-// Regenerates packages/academy/src/lessons/specs.generated.ts (static imports of every lesson spec of
-// every course) and validates every spec. Usage:
+// Regenerates each course's spec index (specs.generated.ts beside its specs folder: static imports of
+// every lesson spec) and validates every spec of every course. Usage:
 // bun scripts/academy/build-lesson-index.ts [--check | --only <slug>[,<slug>]]
-// Specs of the default course (dyr) live in specs/<slug>.json; every other course in
-// specs/<course specDir>/<slug>.<specFormat> with a matching `course` field: TypeScript modules that
-// export `spec` (AGENTS.md rule 13: no new JSON data files). Slugs and sourceIds are unique across
-// all courses.
+// Specs live in the course's specDir (courses.ts) as <slug>.<specFormat> with a matching `course`
+// field. Define Your Risk (store "package"): JSON files in packages/academy/src/lessons/specs, indexed
+// into the package. Database courses: TypeScript modules exporting `spec` under
+// scripts/academy/lessons/<course>/specs (AGENTS.md rule 13: no new JSON data files), indexed for the
+// import CLI (`bun run vertex:academy:import`) only. Slugs and sourceIds are unique across all courses.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,63 +14,31 @@ import {
   COURSE_LIST,
   type CourseId,
 } from "../../packages/academy/src/courses.ts";
-
-import {
-  buildScene,
-  buildTables,
-  type LessonSpec,
-  LessonSpecSchema,
-  lessonVtt,
-} from "../../packages/academy/src/index.ts";
-import { defaultValues } from "../../packages/academy/src/position.ts";
-import { SOURCES_OUTPUT } from "./course-files.ts";
+import { LessonSpecSchema } from "../../packages/academy/src/index.ts";
+import { SOURCES_OUTPUT, specIndexPath } from "./course-files.ts";
+import { sceneErrors } from "./spec-checks.ts";
 
 interface Writer {
   write: (text: string) => unknown;
 }
 
-/** Builds the lesson's scenes, tables and captions; returns one message per problem. */
-const sceneErrors = (file: string, lesson: LessonSpec): string[] => {
-  const errors: string[] = [];
-  try {
-    const values = defaultValues(lesson.params);
-    for (const t of [0, 0.5, 1]) {
-      const scene = buildScene(lesson, values, t);
-      for (const panel of scene.panels)
-        for (const series of panel.series)
-          if (
-            series.points.some(
-              (point) =>
-                !(Number.isFinite(point[0]) && Number.isFinite(point[1]))
-            )
-          )
-            errors.push(
-              `${file}: non-finite point in ${panel.id}/${series.element} at t=${t}`
-            );
-      buildTables(lesson, values, t);
-    }
-    lessonVtt(lesson);
-  } catch (error) {
-    errors.push(
-      `${file}: scene failed: ${error instanceof Error ? error.message : String(error)}`
-    );
-  }
-  return errors;
-};
-
 type SpecFile = Readonly<{
   course: CourseId;
-  /** Path below the specs folder (`<slug>.json` or `<course specDir>/<slug>.<specFormat>`). */
+  /** Label in messages: `<slug>.json` (package course) or `<course>/<slug>.<specFormat>`. */
   file: string;
+  /** File name inside the course's specs folder. */
+  name: string;
+  /** Absolute path of the file. */
+  path: string;
   /** Lesson slug the file name promises (file name without its extension). */
   slug: string;
   format: "json" | "ts";
 }>;
 
 /** Spec files of every course: the default course first, then each course folder (courses.ts). */
-const specFiles = (dir: string): SpecFile[] =>
+const specFiles = (root: string): SpecFile[] =>
   COURSE_LIST.flatMap((course) => {
-    const folder = join(dir, course.specDir);
+    const folder = join(root, course.specDir);
     if (!existsSync(folder)) return [];
     const extension = `.${course.specFormat}`;
     return readdirSync(folder)
@@ -77,8 +46,10 @@ const specFiles = (dir: string): SpecFile[] =>
       .sort()
       .map((name) => ({
         course: course.id,
-        file: course.specDir === "" ? name : `${course.specDir}/${name}`,
+        file: course.store === "package" ? name : `${course.id}/${name}`,
         format: course.specFormat,
+        name,
+        path: join(folder, name),
         slug: name.slice(0, -extension.length),
       }));
   });
@@ -95,11 +66,10 @@ const readData = async (
         name
       ];
 
-const readSpec = (dir: string, spec: SpecFile): Promise<unknown> =>
-  readData(join(dir, spec.file), spec.format, "spec");
+const readSpec = (spec: SpecFile): Promise<unknown> =>
+  readData(spec.path, spec.format, "spec");
 
 type SpecContext = Readonly<{
-  dir: string;
   /** sourceId → course of the sources file that lists it. */
   sourceCourses: ReadonlyMap<string, CourseId>;
   /** sourceId → first file that used it; updated as specs are checked. */
@@ -113,11 +83,11 @@ type SpecContext = Readonly<{
 const otherUser = async (
   sourceId: string,
   spec: SpecFile,
-  { dir, allFiles }: SpecContext
+  { allFiles }: SpecContext
 ): Promise<string | undefined> => {
   for (const other of allFiles) {
     if (other.file === spec.file) continue;
-    const raw = (await readSpec(dir, other)) as { sourceId?: string };
+    const raw = (await readSpec(other)) as { sourceId?: string };
     if (raw.sourceId === sourceId) return other.file;
   }
   return undefined;
@@ -129,8 +99,8 @@ const specErrors = async (
   context: SpecContext
 ): Promise<string[]> => {
   const { course, file, slug } = spec;
-  const { dir, sourceCourses, seen, only, allFiles } = context;
-  const parsed = LessonSpecSchema.safeParse(await readSpec(dir, spec));
+  const { sourceCourses, seen, only, allFiles } = context;
+  const parsed = LessonSpecSchema.safeParse(await readSpec(spec));
   if (!parsed.success)
     return [
       `${file}: ${parsed.error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}`,
@@ -170,13 +140,13 @@ const specErrors = async (
 
 /** sourceId → course of every sources file present; a sourceId listed twice is an error. */
 const readSourceCourses = async (
-  lessons: string,
+  root: string,
   errors: string[]
 ): Promise<Map<string, CourseId>> => {
   const sourceCourses = new Map<string, CourseId>();
   for (const course of COURSE_LIST) {
     const output = SOURCES_OUTPUT[course.id];
-    const path = join(lessons, output.file);
+    const path = join(root, output.path);
     const sources = existsSync(path)
       ? ((await readData(path, output.format, "SOURCES")) as {
           sourceId: string;
@@ -187,36 +157,43 @@ const readSourceCourses = async (
       if (other === undefined) sourceCourses.set(sourceId, course.id);
       else
         errors.push(
-          `${output.file}: sourceId ${sourceId} already listed by ${SOURCES_OUTPUT[other].file}`
+          `${output.path}: sourceId ${sourceId} already listed by ${SOURCES_OUTPUT[other].path}`
         );
     }
   }
   return sourceCourses;
 };
 
-/** One import line of the generated index. */
+/** One import line of a generated index (the index sits beside the specs folder). */
 const importLine = (spec: SpecFile, index: number): string =>
   spec.format === "json"
-    ? `import spec${index} from "./specs/${spec.file}" with { type: "json" };`
-    : `import { spec as spec${index} } from "./specs/${spec.file}";`;
+    ? `import spec${index} from "./specs/${spec.name}" with { type: "json" };`
+    : `import { spec as spec${index} } from "./specs/${spec.name}";`;
+
+/** Contents of one course's generated spec index. */
+const indexBody = (files: readonly SpecFile[]): string =>
+  [
+    "// Generated by scripts/academy/build-lesson-index.ts. Do not edit by hand.",
+    ...files.map(importLine),
+    "",
+    `export const LESSON_SPECS: readonly unknown[] = [${files.map((_, index) => `spec${index}`).join(", ")}];`,
+    "",
+  ].join("\n");
 
 export type LessonIndexOptions = Readonly<{
-  /** Repository root holding packages/academy. */
+  /** Repository root holding packages/academy and scripts/academy. */
   root: string;
   stdout: Writer;
   stderr: Writer;
 }>;
 
-/** Validates the lesson specs and writes or checks the generated index; resolves to the exit code. */
+/** Validates the lesson specs and writes or checks the generated indexes; resolves to the exit code. */
 export const buildLessonIndex = async (
   args: readonly string[],
   { root, stdout, stderr }: LessonIndexOptions
 ): Promise<number> => {
-  const lessons = join(root, "packages/academy/src/lessons");
-  const dir = join(lessons, "specs");
-  const out = join(lessons, "specs.generated.ts");
   const errors: string[] = [];
-  const sourceCourses = await readSourceCourses(lessons, errors);
+  const sourceCourses = await readSourceCourses(root, errors);
 
   // --only a,b.json,c.ts validates just those slugs and writes nothing (safe for parallel authors).
   const onlyIndex = args.indexOf("--only");
@@ -228,36 +205,35 @@ export const buildLessonIndex = async (
             .map((name) => name.replace(/\.(?:json|ts)$/u, ""))
         )
       : null;
-  const allFiles = specFiles(dir);
+  const allFiles = specFiles(root);
   const files =
     only === null ? allFiles : allFiles.filter((spec) => only.has(spec.slug));
   const seen = new Map<string, string>();
   for (const spec of files)
     errors.push(
-      ...(await specErrors(spec, { allFiles, dir, only, seen, sourceCourses }))
+      ...(await specErrors(spec, { allFiles, only, seen, sourceCourses }))
     );
 
-  const body = [
-    "// Generated by scripts/academy/build-lesson-index.ts. Do not edit by hand.",
-    ...files.map(importLine),
-    "",
-    `export const LESSON_SPECS: readonly unknown[] = [${files.map((_, index) => `spec${index}`).join(", ")}];`,
-    "",
-  ].join("\n");
-
-  if (only !== null) {
+  if (only === null)
+    // One index per course whose specs folder exists.
+    for (const course of COURSE_LIST) {
+      if (!existsSync(join(root, course.specDir))) continue;
+      const index = specIndexPath(course.id);
+      const out = join(root, index);
+      const body = indexBody(files.filter((spec) => spec.course === course.id));
+      if (!args.includes("--check")) writeFileSync(out, body);
+      else if (!existsSync(out) || readFileSync(out, "utf8") !== body)
+        errors.push(
+          `${index} is stale; run bun scripts/academy/build-lesson-index.ts`
+        );
+    }
+  else {
     const missing = [...only].filter(
       (name) => !files.some((spec) => spec.slug === name)
     );
     if (missing.length > 0)
       errors.push(`missing spec files: ${missing.join(", ")}`);
-  } else if (args.includes("--check")) {
-    const current = readFileSync(out, "utf8");
-    if (current !== body)
-      errors.push(
-        "specs.generated.ts is stale; run bun scripts/academy/build-lesson-index.ts"
-      );
-  } else writeFileSync(out, body);
+  }
 
   if (errors.length > 0) {
     stderr.write(`${errors.join("\n")}\n`);

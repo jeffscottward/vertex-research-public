@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { FORMULAS } from "../formulas.ts";
-import { spec as bisectionSpec } from "../lessons/specs/quantfinancetogo/implied-volatility-by-bisection.ts";
-import { spec as marketMakerSpec } from "../lessons/specs/quantfinancetogo/market-maker-theta-vs-gamma.ts";
-import { spec as smileSpec } from "../lessons/specs/quantfinancetogo/volatility-smile-and-skew.ts";
+import { spec as bisectionSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/implied-volatility-by-bisection.ts";
+import { spec as marketMakerSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/market-maker-theta-vs-gamma.ts";
+import { spec as smileSpec } from "../../../../scripts/academy/lessons/quantfinancetogo/specs/volatility-smile-and-skew.ts";
 import type { ParamValues } from "../position.ts";
 import type { Panel, SceneData } from "../scene-kit.ts";
 import { QUANT_MODE_ELEMENTS } from "../schema.ts";
