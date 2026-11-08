@@ -4,6 +4,7 @@ import type { LessonSpecInput } from "../../../schema.ts";
 export const spec: LessonSpecInput = {
   caveats: [
     "The creator's figures (500 simulated stocks, 30 years): long-short 5.9% a year, t 6.00, beta −0.01; long-only 13.7% a year, beta 0.99.",
+    "The 40% crash month, factor B (4.7% a year, 10% volatility) and the −0.4 correlation are illustrative inputs, not figures from the reel; it only says momentum had very large losses, e.g. spring 2009.",
   ],
   course: "quantfinancetogo",
   formulas: ["longShort"],
@@ -139,7 +140,7 @@ export const spec: LessonSpecInput = {
     },
     {
       caption:
-        "A momentum crash: past losers rebound fast and the factor loses 40% in a month.",
+        "An illustrative momentum crash: past losers rebound fast and the factor loses 40% in a month.",
       color: "red",
       element: "crash",
     },

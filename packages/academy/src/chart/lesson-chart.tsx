@@ -442,6 +442,13 @@ const PanelView = ({
       </g>
     );
   };
+  // A background-colored outline keeps marker labels readable over grid lines, series and dots.
+  const labelHalo = {
+    paintOrder: "stroke",
+    stroke: palette.background,
+    strokeLinejoin: "round",
+    strokeWidth: 3,
+  } as const;
   const markerView = (marker: Marker, key: number) => {
     const progress = progressOf(revealed, marker.element);
     if (progress <= 0) return null;
@@ -514,6 +521,7 @@ const PanelView = ({
           />
           {label === null ? null : (
             <text
+              {...labelHalo}
               fill={color}
               fontSize={font * 0.8}
               x={x + 4}
@@ -545,6 +553,7 @@ const PanelView = ({
           />
           {label === null ? null : (
             <text
+              {...labelHalo}
               fill={color}
               fontSize={font * 0.8}
               textAnchor="end"
@@ -576,6 +585,7 @@ const PanelView = ({
           />
           {label === null ? null : (
             <text
+              {...labelHalo}
               fill={color}
               fontSize={font * 0.8}
               textAnchor="middle"
@@ -711,7 +721,13 @@ const PanelView = ({
         {panel.series.map(seriesView)}
         {panel.markers
           .filter((marker) => marker.kind !== "band")
-          .map((marker, key) => markerView(marker, key + 100))}
+          .map((marker, key) => ({ key: key + 100, marker }))
+          // Labelled markers draw last, so an unlabelled dot cloud never covers their text.
+          .sort(
+            (a, b) =>
+              Number(a.marker.label !== "") - Number(b.marker.label !== "")
+          )
+          .map(({ key, marker }) => markerView(marker, key))}
       </g>
       {legend.length > 0 ? (
         <g>
