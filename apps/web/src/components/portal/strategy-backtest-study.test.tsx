@@ -30,7 +30,10 @@ import {
   RESEARCH_STUDIES_IMPORT_COMMAND,
   type ResearchStudyGateway,
 } from "./filter-studies-section.tsx";
-import { StrategyBacktestStudy } from "./strategy-backtest-study.tsx";
+import {
+  NOT_APPROVAL,
+  StrategyBacktestStudy,
+} from "./strategy-backtest-study.tsx";
 import { StrategyDetail } from "./strategy-library-detail.tsx";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -79,12 +82,21 @@ describe("StrategyBacktestStudy", () => {
     expect(container.querySelector("h3")?.textContent).toBe("Backtest study");
     expect(
       container.querySelector("[data-qc-port-verdict]")?.textContent
-    ).toContain("FAIL");
+    ).toContain("Backtest FAIL");
     expect(
       container
         .querySelector("[data-qc-port-verdict]")
         ?.getAttribute("data-status")
-    ).toBe("destructive");
+    ).toBe("neutral");
+    expect(
+      container.querySelector("[data-qc-port-not-approval]")?.textContent
+    ).toBe("A backtest result is not approval to trade (research only).");
+    expect(
+      container.querySelector("[data-qc-port-criteria]")?.textContent
+    ).toContain("deflated Sharpe above 0.90");
+    expect(
+      container.querySelector("[data-qc-port-provenance]")?.textContent
+    ).toContain("nautilus_trader 1.221.0");
     expect(
       container.querySelector("[data-qc-port-modeled]")?.textContent
     ).toContain("MODELED option prices");
@@ -128,7 +140,12 @@ describe("StrategyBacktestStudy", () => {
       container
         .querySelector("[data-qc-port-verdict]")
         ?.getAttribute("data-status")
-    ).toBe("success");
+    ).toBe("neutral");
+    // A PASS never reads as approval: same neutral badge, same notice.
+    expect(
+      container.querySelector("[data-qc-port-verdict]")?.textContent
+    ).toContain("Backtest PASS");
+    expect(container.textContent).toContain(NOT_APPROVAL);
     expect(container.querySelector("[data-qc-port-gates]")).toBeNull();
     expect(container.querySelector('[data-chart="empty"]')?.textContent).toBe(
       "No monthly equity stored."
@@ -163,6 +180,9 @@ describe("StrategyBacktestStudy", () => {
       />
     );
     expect(stateOf(loading)).toBe("loading");
+    expect(
+      loading.querySelector("[data-qc-port-not-approval]")?.textContent
+    ).toBe(NOT_APPROVAL);
     expect(loading.querySelector("[aria-busy='true']")?.textContent).toBe(
       "Loading backtest study"
     );
@@ -197,6 +217,7 @@ describe("StrategyBacktestStudy", () => {
       />
     );
     expect(stateOf(missing)).toBe("not-found");
+    expect(missing.textContent).toContain(NOT_APPROVAL);
     expect(missing.textContent).toContain("No backtest study stored yet");
     expect(missing.querySelector("code")?.textContent).toBe(
       RESEARCH_STUDIES_IMPORT_COMMAND

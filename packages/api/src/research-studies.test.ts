@@ -20,6 +20,7 @@ import {
   QC_PORT_EQUITY_MAX,
   type QcPortStudy,
   QcPortStudySchema,
+  qcPortVerdict,
   RESEARCH_STUDY_ID_PATTERN,
   ResearchStudyDocumentSchema,
   ResearchStudyGetInputSchema,
@@ -108,7 +109,14 @@ const RUN: QcPortStudy["runs"][number] = {
   winRate: 0.71,
   worstMonth: { month: "2020-03", ret: -0.06 },
 };
+const CRITERIA: QcPortStudy["criteria"] = {
+  beatBaseline: false,
+  maxDrawdown: 0.25,
+  minDeflatedSharpe: 0.5,
+  minSharpe: 0.5,
+};
 const QC_STUDY: QcPortStudy = {
+  criteria: CRITERIA,
   equity: [
     { t: "2020-01", v: 100_000 },
     { t: "2020-02", v: 101_000 },
@@ -124,6 +132,12 @@ const QC_STUDY: QcPortStudy = {
   id: "qc-iv-rank-gate",
   kind: "qc-port",
   notes: "Option prices MODELED.",
+  provenance: {
+    codeRevision: "0123456789abcdef0123456789abcdef01234567",
+    dataSha256: "ab".repeat(32),
+    engine: "nautilus_trader 1.221.0",
+    runId: "qc-ports-2026-11-08",
+  },
   ran: "2026-11-08",
   runs: [RUN],
   spec: "docs/specs/strategies/qc-iv-rank-gate.md",
@@ -144,9 +158,88 @@ describe("qc-port study contract", () => {
       worstMonth: null,
     };
     expect(
-      QcPortStudySchema.safeParse({ ...noGates, equity: [], runs: [nullRun] })
-        .success
+      QcPortStudySchema.safeParse({
+        ...noGates,
+        equity: [],
+        runs: [nullRun],
+        verdict: "FAIL",
+      }).success
     ).toBe(true);
+  });
+
+  it("recomputes the verdict from runs[0] and the stored criteria and rejects a mismatch", () => {
+    const verdictOf = (patch: Partial<QcPortStudy["runs"][number]>) =>
+      qcPortVerdict([{ ...RUN, ...patch }], CRITERIA);
+    expect(verdictOf({})).toBe("PASS");
+    // Every bound is strict.
+    expect(verdictOf({ sharpe: 0.5 })).toBe("FAIL");
+    expect(verdictOf({ sharpe: null })).toBe("FAIL");
+    expect(verdictOf({ deflatedSharpe: 0.5 })).toBe("FAIL");
+    expect(verdictOf({ deflatedSharpe: null })).toBe("FAIL");
+    expect(verdictOf({ maxDrawdown: -0.25 })).toBe("FAIL");
+    expect(verdictOf({ maxDrawdown: 0.25 })).toBe("FAIL");
+    expect(verdictOf({ maxDrawdown: 0.2 })).toBe("PASS");
+    expect(qcPortVerdict([], CRITERIA)).toBe("FAIL");
+    const beat = { ...CRITERIA, beatBaseline: true };
+    expect(qcPortVerdict([RUN, { ...RUN, sharpe: 0.69 }], beat)).toBe("PASS");
+    expect(qcPortVerdict([RUN, { ...RUN, sharpe: 0.7 }], beat)).toBe("FAIL");
+    expect(qcPortVerdict([RUN, { ...RUN, sharpe: null }], beat)).toBe("PASS");
+    expect(qcPortVerdict([RUN], beat)).toBe("FAIL");
+
+    const issues = (patch: Record<string, unknown>) =>
+      QcPortStudySchema.safeParse({ ...QC_STUDY, ...patch }).error?.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      );
+    expect(issues({ verdict: "FAIL" })).toEqual([
+      "verdict: Expected verdict PASS: runs[0] against the stored criteria",
+    ]);
+    expect(issues({ criteria: { ...CRITERIA, minSharpe: 0.8 } })).toEqual([
+      "verdict: Expected verdict FAIL: runs[0] against the stored criteria",
+    ]);
+    expect(issues({ criteria: { ...CRITERIA, beatBaseline: true } })).toEqual([
+      "runs: beatBaseline needs a baseline run (runs[1])",
+    ]);
+    expect(
+      issues({
+        criteria: { ...CRITERIA, beatBaseline: true },
+        runs: [RUN, { ...RUN, sharpe: 0.9 }],
+        verdict: "FAIL",
+      })
+    ).toBeUndefined();
+  });
+
+  it("requires provenance, criteria and a qc spec path whose slug is the id", () => {
+    const valid = (patch: Record<string, unknown>) =>
+      QcPortStudySchema.safeParse({ ...QC_STUDY, ...patch }).success;
+    const { provenance: _p, ...noProvenance } = QC_STUDY;
+    const { criteria: _c, ...noCriteria } = QC_STUDY;
+    expect(QcPortStudySchema.safeParse(noProvenance).success).toBe(false);
+    expect(QcPortStudySchema.safeParse(noCriteria).success).toBe(false);
+    for (const provenance of [
+      { ...QC_STUDY.provenance, codeRevision: "0123abc" },
+      { ...QC_STUDY.provenance, codeRevision: "G".repeat(40) },
+      { ...QC_STUDY.provenance, dataSha256: "ab" },
+      { ...QC_STUDY.provenance, engine: "" },
+      { ...QC_STUDY.provenance, runId: "run id" },
+      { ...QC_STUDY.provenance, extra: 1 },
+    ])
+      expect(valid({ provenance })).toBe(false);
+    expect(valid({ criteria: { ...CRITERIA, maxDrawdown: 0 } })).toBe(false);
+    expect(valid({ criteria: { ...CRITERIA, minDeflatedSharpe: 1.1 } })).toBe(
+      false
+    );
+    expect(valid({ spec: "docs/specs/research/adx-filter.md" })).toBe(false);
+    expect(valid({ spec: "docs/specs/strategies/qc-iv-rank-gate.txt" })).toBe(
+      false
+    );
+    expect(
+      QcPortStudySchema.safeParse({
+        ...QC_STUDY,
+        spec: "docs/specs/strategies/qc-opex-week.md",
+      }).error?.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      )
+    ).toEqual(["id: Expected id to equal the spec slug qc-opex-week"]);
   });
 
   it("rejects bad months, unordered or oversized equity, bad verdicts and extra keys", () => {
@@ -338,6 +431,7 @@ const repositoryOf = (get: ResearchStudyRepository["get"]) => {
       return get(id);
     },
     upsert: () => Promise.reject(new Error("read-only procedure")),
+    upsertMany: () => Promise.reject(new Error("read-only procedure")),
   };
   return { ids, repository };
 };

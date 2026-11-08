@@ -39,6 +39,10 @@ export type QcPortStudyViewModel = Readonly<{
   ran: string;
   spec: string;
   notes: string;
+  /** The stored pass rule, in words. */
+  criteria: string;
+  /** Code revision, engine, data hash and run id of the study. */
+  provenance: string;
   runs: readonly QcPortRunRow[];
   gates: readonly QcPortGateRow[];
   /** Return since the first month (0 = starting equity), oldest first, for lineGeometry. */
@@ -66,6 +70,12 @@ export const toQcPortStudyViewModel = (
   }));
   const last = equity.at(-1);
   return {
+    criteria: [
+      `Sharpe above ${formatRatio(study.criteria.minSharpe)}`,
+      `deflated Sharpe above ${formatRatio(study.criteria.minDeflatedSharpe)}`,
+      `max drawdown below ${formatSignedPercent(study.criteria.maxDrawdown)}`,
+      ...(study.criteria.beatBaseline ? ["Sharpe above the baseline run"] : []),
+    ].join(", "),
     equity,
     equitySummary:
       last === undefined || first === undefined
@@ -86,6 +96,7 @@ export const toQcPortStudyViewModel = (
       trades: change(count(gate.before.trades), count(gate.after.trades)),
     })),
     notes: study.notes,
+    provenance: `Code ${study.provenance.codeRevision.slice(0, 12)} · ${study.provenance.engine} · data sha256 ${study.provenance.dataSha256.slice(0, 12)} · run ${study.provenance.runId}`,
     ran: study.ran,
     runs: study.runs.map((run, index) => ({
       cagr: formatSignedPercent(run.cagr),

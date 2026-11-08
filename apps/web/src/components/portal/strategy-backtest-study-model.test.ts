@@ -16,6 +16,12 @@ describe("toQcPortStudyViewModel", () => {
       title: "IV-Rank Gate for Credit Spreads",
       verdict: "FAIL",
     });
+    expect(model.criteria).toBe(
+      "Sharpe above 0.50, deflated Sharpe above 0.90, max drawdown below 25.00%, Sharpe above the baseline run"
+    );
+    expect(model.provenance).toBe(
+      "Code 0123456789ab · nautilus_trader 1.221.0 · data sha256 abababababab · run qc-ports-2026-11-08"
+    );
     expect(model.runs[0]).toEqual({
       cagr: "3.10%",
       deflatedSharpe: "0.41",
@@ -66,11 +72,13 @@ describe("toQcPortStudyViewModel", () => {
     const { gates: _gates, ...rest } = STUDY;
     const model = toQcPortStudyViewModel({
       ...rest,
+      criteria: { ...STUDY.criteria, beatBaseline: false },
       equity: [],
       runs: [{ ...STUDY.runs[0]!, maxDrawdown: 0.25 }],
       verdict: "PASS",
     });
     expect(model.runs[0]?.maxDrawdown).toBe("-25.00%");
+    expect(model.criteria).not.toContain("baseline");
     expect(model.gates).toEqual([]);
     expect(model.equity).toEqual([]);
     expect(model.equitySummary).toBe("No monthly equity stored.");

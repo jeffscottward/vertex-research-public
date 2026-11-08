@@ -157,13 +157,70 @@ export const QcPortRunSchema = z
   .strict();
 export type QcPortRun = z.infer<typeof QcPortRunSchema>;
 
+/** A qc-port spec path; the captured slug is the study id (and the strategy library slug). */
+export const QC_PORT_SPEC_PATTERN =
+  /^docs\/specs\/strategies\/(qc-[a-z0-9-]+)\.md$/u;
+
+/**
+ * The pre-registered pass rule, stored with the study so the verdict can be recomputed. All
+ * bounds are strict: the primary run (runs[0]) passes when its Sharpe is above minSharpe, its
+ * deflated Sharpe is above minDeflatedSharpe, its drawdown magnitude is below maxDrawdown and,
+ * with beatBaseline, its Sharpe is above the Sharpe of runs[1] (a baseline without a Sharpe is
+ * beaten by any primary Sharpe).
+ */
+export const QcPortCriteriaSchema = z
+  .object({
+    beatBaseline: z.boolean(),
+    maxDrawdown: z.number().gt(0).max(1),
+    minDeflatedSharpe: Fraction,
+    minSharpe: z.number(),
+  })
+  .strict();
+export type QcPortCriteria = z.infer<typeof QcPortCriteriaSchema>;
+
+/** Where a qc-port study came from, so a stored result can be traced and re-run. */
+export const QcPortProvenanceSchema = z
+  .object({
+    // Full git commit SHA of the code that ran the study.
+    codeRevision: z.string().regex(/^[0-9a-f]{40}$/u),
+    // SHA-256 of the input data manifest.
+    dataSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    // Backtest engine and version, for example "nautilus_trader 1.221.0".
+    engine: z.string().min(1).max(120),
+    runId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/u),
+  })
+  .strict();
+export type QcPortProvenance = z.infer<typeof QcPortProvenanceSchema>;
+
+/** The verdict the criteria give for these runs (runs[0] is the primary run, runs[1] the baseline). */
+export const qcPortVerdict = (
+  runs: readonly QcPortRun[],
+  criteria: QcPortCriteria
+): "PASS" | "FAIL" => {
+  const [primary, baseline] = runs;
+  if (primary === undefined) return "FAIL";
+  const { deflatedSharpe, maxDrawdown, sharpe } = primary;
+  const passes =
+    sharpe !== null &&
+    sharpe > criteria.minSharpe &&
+    deflatedSharpe !== null &&
+    deflatedSharpe > criteria.minDeflatedSharpe &&
+    Math.abs(maxDrawdown) < criteria.maxDrawdown &&
+    (!criteria.beatBaseline ||
+      baseline?.sharpe === null ||
+      (baseline !== undefined && sharpe > baseline.sharpe));
+  return passes ? "PASS" : "FAIL";
+};
+
 /**
  * One qc-port backtest study: the pre-registered spec, its runs, a monthly equity curve (oldest
  * first) and, for reusable gates, the before/after effect on each host strategy. Option prices in
- * these studies are MODELED (Black-Scholes on CBOE vol-index proxies), not quoted.
+ * these studies are MODELED (Black-Scholes on CBOE vol-index proxies), not quoted. The schema
+ * recomputes the verdict from runs and criteria and rejects a document whose verdict differs.
  */
 export const QcPortStudySchema = z
   .object({
+    criteria: QcPortCriteriaSchema,
     equity: z
       .array(z.object({ t: MonthText, v: z.number().positive() }).strict())
       .max(QC_PORT_EQUITY_MAX)
@@ -191,13 +248,38 @@ export const QcPortStudySchema = z
     id: ResearchStudyIdSchema,
     kind: z.literal(QC_PORT_STUDY_KIND),
     notes: z.string().max(QC_PORT_NOTES_MAX),
+    provenance: QcPortProvenanceSchema,
     ran: DateText,
     runs: z.array(QcPortRunSchema).min(1).max(QC_PORT_RUNS_MAX),
-    spec: z.string().min(1).max(RESEARCH_STUDY_SPEC_MAX),
+    spec: z.string().regex(QC_PORT_SPEC_PATTERN).max(RESEARCH_STUDY_SPEC_MAX),
     title: z.string().min(1).max(200),
     verdict: z.enum(["PASS", "FAIL"]),
   })
-  .strict();
+  .strict()
+  .superRefine((study, context) => {
+    const slug = QC_PORT_SPEC_PATTERN.exec(study.spec)?.[1];
+    if (slug !== study.id)
+      context.addIssue({
+        code: "custom",
+        message: `Expected id to equal the spec slug ${slug}`,
+        path: ["id"],
+      });
+    if (study.criteria.beatBaseline && study.runs.length < 2) {
+      context.addIssue({
+        code: "custom",
+        message: "beatBaseline needs a baseline run (runs[1])",
+        path: ["runs"],
+      });
+      return;
+    }
+    const expected = qcPortVerdict(study.runs, study.criteria);
+    if (study.verdict !== expected)
+      context.addIssue({
+        code: "custom",
+        message: `Expected verdict ${expected}: runs[0] against the stored criteria`,
+        path: ["verdict"],
+      });
+  });
 export type QcPortStudy = z.infer<typeof QcPortStudySchema>;
 
 /** Any stored study document; `kind` selects the schema (absent means a filter study). */

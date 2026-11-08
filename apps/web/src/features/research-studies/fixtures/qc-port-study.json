@@ -5,6 +5,18 @@
   "kind": "qc-port",
   "verdict": "FAIL",
   "title": "IV-Rank Gate for Credit Spreads",
+  "criteria": {
+    "minSharpe": 0.5,
+    "minDeflatedSharpe": 0.9,
+    "maxDrawdown": 0.25,
+    "beatBaseline": true
+  },
+  "provenance": {
+    "codeRevision": "0123456789abcdef0123456789abcdef01234567",
+    "engine": "nautilus_trader 1.221.0",
+    "dataSha256": "abababababababababababababababababababababababababababababababab",
+    "runId": "qc-ports-2026-11-08"
+  },
   "runs": [
     {
       "name": "SPY put credit vertical, ungated",

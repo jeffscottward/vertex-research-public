@@ -136338,6 +136338,34 @@
                         {
                           "additionalProperties": false,
                           "properties": {
+                            "criteria": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "beatBaseline": {
+                                  "type": "boolean"
+                                },
+                                "maxDrawdown": {
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 1,
+                                  "type": "number"
+                                },
+                                "minDeflatedSharpe": {
+                                  "maximum": 1,
+                                  "minimum": 0,
+                                  "type": "number"
+                                },
+                                "minSharpe": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "beatBaseline",
+                                "maxDrawdown",
+                                "minDeflatedSharpe",
+                                "minSharpe"
+                              ],
+                              "type": "object"
+                            },
                             "equity": {
                               "items": {
                                 "additionalProperties": false,
@@ -136460,6 +136488,35 @@
                             "notes": {
                               "maxLength": 4000,
                               "type": "string"
+                            },
+                            "provenance": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "codeRevision": {
+                                  "pattern": "^[0-9a-f]{40}$",
+                                  "type": "string"
+                                },
+                                "dataSha256": {
+                                  "pattern": "^[0-9a-f]{64}$",
+                                  "type": "string"
+                                },
+                                "engine": {
+                                  "maxLength": 120,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "runId": {
+                                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "codeRevision",
+                                "dataSha256",
+                                "engine",
+                                "runId"
+                              ],
+                              "type": "object"
                             },
                             "ran": {
                               "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
@@ -136594,7 +136651,7 @@
                             },
                             "spec": {
                               "maxLength": 300,
-                              "minLength": 1,
+                              "pattern": "^docs\\/specs\\/strategies\\/(qc-[a-z0-9-]+)\\.md$",
                               "type": "string"
                             },
                             "title": {
@@ -136611,10 +136668,12 @@
                             }
                           },
                           "required": [
+                            "criteria",
                             "equity",
                             "id",
                             "kind",
                             "notes",
+                            "provenance",
                             "ran",
                             "runs",
                             "spec",

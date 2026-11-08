@@ -55,20 +55,21 @@ const cli = (
 };
 
 const storeDouble = (
-  upsert: ResearchStudyStore["upsert"] = async (input) => ({
-    created: true,
-    id: input.id,
-    updatedAt: UPDATED_AT,
-  })
+  upsertMany: ResearchStudyStore["upsertMany"] = async (inputs) =>
+    inputs.map((input) => ({
+      created: true,
+      id: input.id,
+      updatedAt: UPDATED_AT,
+    }))
 ) => {
   const urls: string[] = [];
   const close = vi.fn(async () => undefined);
-  const upsertSpy = vi.fn(upsert);
+  const upsertSpy = vi.fn(upsertMany);
   const open: OpenResearchStudyStore = (url) => {
     urls.push(url);
-    return { close, upsert: upsertSpy };
+    return { close, upsertMany: upsertSpy };
   };
-  return { close, open, upsert: upsertSpy, urls };
+  return { close, open, upsertMany: upsertSpy, urls };
 };
 
 describe("parseStudyDocuments", () => {
@@ -171,12 +172,14 @@ describe("runResearchStudiesImport", () => {
       runResearchStudiesImport([], run.io, store.open)
     ).resolves.toBe(0);
     expect(store.urls).toEqual(["postgres://studies.test/db"]);
-    expect(store.upsert).toHaveBeenCalledWith({
-      id: "adx-rvol-filters",
-      ranOn: "2026-10-31",
-      specRef: "docs/specs/research/adx-filter.md",
-      summary: JSON.parse(SEEDED),
-    });
+    expect(store.upsertMany).toHaveBeenCalledWith([
+      {
+        id: "adx-rvol-filters",
+        ranOn: "2026-10-31",
+        specRef: "docs/specs/research/adx-filter.md",
+        summary: JSON.parse(SEEDED),
+      },
+    ]);
     expect(JSON.parse(run.out.join(""))).toEqual({
       created: true,
       id: "adx-rvol-filters",
@@ -185,7 +188,7 @@ describe("runResearchStudiesImport", () => {
     expect(store.close).toHaveBeenCalledTimes(1);
   });
 
-  it("upserts every JSON line in order and prints one line per stored study", async () => {
+  it("upserts every JSON line in one store call, in order, and prints one line per stored study", async () => {
     const store = storeDouble();
     const run = cli(
       chunks(
@@ -195,11 +198,13 @@ describe("runResearchStudiesImport", () => {
     await expect(
       runResearchStudiesImport([], run.io, store.open)
     ).resolves.toBe(0);
-    expect(store.upsert.mock.calls.map(([input]) => input.id)).toEqual([
+    expect(store.upsertMany).toHaveBeenCalledTimes(1);
+    const inputs = store.upsertMany.mock.calls[0]?.[0] ?? [];
+    expect(inputs.map((input) => input.id)).toEqual([
       "qc-opex-week",
       "qc-vix-term-gate",
     ]);
-    expect(store.upsert.mock.calls[0]?.[0]).toMatchObject({
+    expect(inputs[0]).toMatchObject({
       ranOn: "2026-11-08",
       specRef: "docs/specs/strategies/qc-opex-week.md",
       summary: { kind: "qc-port" },
@@ -268,13 +273,17 @@ describe("runResearchStudiesImport", () => {
         "research study fails research_studies_summary_check"
       );
     });
-    const run = cli(chunks(SEEDED));
+    const run = cli(
+      chunks(`${qcPortLine("qc-opex-week")}\n${qcPortLine("qc-vix-term-gate")}`)
+    );
     await expect(
       runResearchStudiesImport([], run.io, rejecting.open)
     ).resolves.toBe(2);
     expect(run.err.join("")).toBe(
       "Invalid repository input: research study fails research_studies_summary_check\n"
     );
+    // The batch is one transaction: nothing stored, so no result line.
+    expect(run.out).toEqual([]);
     expect(rejecting.close).toHaveBeenCalledTimes(1);
   });
 
@@ -306,12 +315,14 @@ describe("runResearchStudiesImport", () => {
       "postgresql://nobody:nothing@127.0.0.1:1/none"
     );
     await expect(
-      store.upsert({
-        id: "adx-rvol-filters",
-        ranOn: "2026-10-31",
-        specRef: "docs/specs/research/adx-filter.md",
-        summary: {},
-      })
+      store.upsertMany([
+        {
+          id: "adx-rvol-filters",
+          ranOn: "2026-10-31",
+          specRef: "docs/specs/research/adx-filter.md",
+          summary: {},
+        },
+      ])
     ).rejects.toThrow();
     await store.close();
   });

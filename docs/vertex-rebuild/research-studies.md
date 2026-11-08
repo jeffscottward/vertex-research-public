@@ -14,7 +14,7 @@ Frozen research studies are stored in Postgres and served through oRPC. The app 
 | Part | Code |
 | --- | --- |
 | Table | `research_studies` (`packages/db/src/schema/research-studies.ts`, migration `0051_research_studies`, rollback `packages/db/rollback/0051_research_studies.down.sql`) |
-| Repository | `packages/db/src/server/research-studies.ts` (`get`, `upsert`) |
+| Repository | `packages/db/src/server/research-studies.ts` (`get`, `upsert`, `upsertMany` in one transaction) |
 | Contract | `packages/api/src/contracts/research-studies.ts`: `FilterStudySchema`, `QcPortStudySchema`, `ResearchStudyDocumentSchema` (the union, selected by `kind`), `researchStudies.get` (`GET /research-studies/{id}`) |
 | Service | `packages/api/src/server/research-studies.ts` (operator-only, the same gate as `quantLab.list`) |
 | Pages | `/backtests`: `apps/web/src/components/portal/filter-studies-section.tsx` loads the filter study; `filter-studies-panel.tsx` renders it. Strategy library: `strategy-backtest-study.tsx` (Backtest study section, mapped by `strategy-backtest-study-model.ts`) |
@@ -24,16 +24,18 @@ Frozen research studies are stored in Postgres and served through oRPC. The app 
 
 | Field | Meaning |
 | --- | --- |
-| `id`, `spec`, `ran` | Strategy slug, spec path (`docs/specs/strategies/<slug>.md`), run date `YYYY-MM-DD` |
+| `id`, `spec`, `ran` | Strategy slug, spec path, run date `YYYY-MM-DD`. The spec must match `docs/specs/strategies/qc-<slug>.md` and the id must equal that `qc-<slug>` |
 | `kind` | `"qc-port"` |
-| `verdict` | `"PASS"` or `"FAIL"` against the pre-registered spec |
+| `verdict` | `"PASS"` or `"FAIL"`. The schema recomputes it from `runs[0]` and `criteria` and rejects a document whose verdict differs |
+| `criteria` | The pre-registered pass rule: `{minSharpe, minDeflatedSharpe, maxDrawdown, beatBaseline}`. Bounds are strict: `runs[0]` passes when its Sharpe is above `minSharpe`, its deflated Sharpe is above `minDeflatedSharpe` (0 to 1), its drawdown magnitude is below `maxDrawdown` (above 0, at most 1) and, with `beatBaseline`, its Sharpe is above the Sharpe of `runs[1]` (required then; a baseline without a Sharpe counts as beaten). A null Sharpe or deflated Sharpe fails |
+| `provenance` | `{codeRevision, engine, dataSha256, runId}`: the full 40-character git commit SHA, the engine and version (for example `nautilus_trader 1.221.0`), the SHA-256 of the data manifest and the run id |
 | `title` | Display title |
 | `runs` | 1 to 40 runs: `name`, `symbols`, `cagr`, `sharpe`, `deflatedSharpe` (0 to 1), `maxDrawdown` (-1 to 1; the page shows the magnitude as a loss), `worstMonth` (`{month: "YYYY-MM", ret}`), `trades`, `winRate` (0 to 1), `exposure` (0 to 1), `skipped`. `cagr`, `sharpe`, `deflatedSharpe`, `winRate` and `worstMonth` may be null when the run has too few days or no trades. |
 | `equity` | Up to 400 monthly points `{t: "YYYY-MM", v}`, oldest first, months strictly increasing, `v` positive. The page charts the return since the first month. |
 | `gates` | Optional, up to 40: `{gate, host, before, after}`, where `before` and `after` are `{sharpe, maxDrawdown, trades}` of the host strategy without and with the gate |
 | `notes` | Free text, at most 4000 characters (may be empty) |
 
-Unknown keys are rejected. Option prices in qc-port studies are MODELED (Black-Scholes on CBOE vol-index proxies); the Backtest study section says so. The section has no arm, deploy or order control.
+Unknown keys are rejected. Option prices in qc-port studies are MODELED (Black-Scholes on CBOE vol-index proxies); the Backtest study section says so. The section always shows "A backtest result is not approval to trade (research only).", in every state, and the verdict badge is neutral for PASS and FAIL alike. It also shows the pass rule and the provenance. The section has no arm, deploy or order control.
 
 ## Table
 
@@ -55,7 +57,7 @@ From the repository root:
 
 qc-port studies go through the same command: pipe one document, or JSON lines with one document per line (for example all 11 ports of one run).
 
-The import CLI reads stdin as one JSON document (pretty-printed or not) or as JSON lines (at most 100 documents, distinct ids). It checks every document with `ResearchStudyDocumentSchema` before it stores any, then upserts each by id in order and prints one result line per stored study. `--dry-run` checks the documents without a database and prints one line per document. Exit codes: 0 stored, 2 usage or input problem (including a document the database checks reject), 1 storage failure. A JSON lines run that fails part way keeps the studies already stored; their result lines are printed. Dates must be real calendar dates. The API checks the stored document again on every read; a document that fails the schema is a `STORAGE_ERROR`, not a broken page.
+The import CLI reads stdin as one JSON document (pretty-printed or not) or as JSON lines (at most 100 documents, distinct ids). It checks every document with `ResearchStudyDocumentSchema` before it stores any, then upserts all of them by id, in order, in one database transaction (`upsertMany` in the repository) and prints one result line per stored study after the transaction commits. `--dry-run` checks the documents without a database and prints one line per document. Exit codes: 0 stored, 2 usage or input problem (including a document the database checks reject), 1 storage failure. When any write fails (for example a document the database checks reject), the transaction rolls back and no study of that run is stored. Dates must be real calendar dates. The API checks the stored document again on every read; a document that fails the schema is a `STORAGE_ERROR`, not a broken page.
 
 ## Tests
 

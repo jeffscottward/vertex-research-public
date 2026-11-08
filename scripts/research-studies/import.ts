@@ -6,8 +6,8 @@
 // stdin holds one JSON document (pretty-printed or not) or JSON lines (one document per line, for
 // example every qc-port study of a run). Each document is checked with ResearchStudyDocumentSchema
 // (@darkfactory/api: a filter study, or a qc-port backtest study with `kind: "qc-port"`); nothing is
-// stored unless every document is valid. Each is then upserted by id through the Drizzle research
-// study repository: a new id adds a study, a known id replaces it.
+// stored unless every document is valid. All are then upserted by id in one database transaction
+// (a new id adds a study, a known id replaces it); when any write fails, none is stored.
 // --dry-run checks the documents and prints what would be stored, without a database.
 // Research records only: nothing here places or routes orders.
 import {
@@ -43,7 +43,7 @@ export type CliIo = Readonly<{
 
 export type ResearchStudyStore = Readonly<{
   close: () => Promise<void>;
-  upsert: ResearchStudyRepository["upsert"];
+  upsertMany: ResearchStudyRepository["upsertMany"];
 }>;
 
 /** Test seam: opens the study store for a database URL. */
@@ -55,7 +55,7 @@ export const openResearchStudyStore: OpenResearchStudyStore = (databaseUrl) => {
   const resource = createNodeDatabase({ connectionString: databaseUrl });
   return {
     close: () => resource.close(),
-    upsert: createResearchStudyRepository(resource.db).upsert,
+    upsertMany: createResearchStudyRepository(resource.db).upsertMany,
   };
 };
 
@@ -191,17 +191,18 @@ const run = async (
   }
   const store = open(databaseUrl);
   try {
-    // One line per stored study as it is written, so a later failure leaves a record of what landed.
-    for (const { row, study } of rows) {
-      const stored = await store.upsert({ ...row, summary: study });
+    // One transaction for all documents; result lines are printed only after it commits.
+    const stored = await store.upsertMany(
+      rows.map(({ row, study }) => ({ ...row, summary: study }))
+    );
+    for (const result of stored)
       io.stdout.write(
         `${JSON.stringify({
-          created: stored.created,
-          id: stored.id,
-          updatedAt: stored.updatedAt.toISOString(),
+          created: result.created,
+          id: result.id,
+          updatedAt: result.updatedAt.toISOString(),
         })}\n`
       );
-    }
   } finally {
     await store.close();
   }

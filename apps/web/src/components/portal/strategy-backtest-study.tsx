@@ -42,6 +42,10 @@ const numHead = "px-2 py-1 text-right font-normal text-muted-foreground";
 const cell = "whitespace-normal px-2 py-1";
 const numCell = "px-2 py-1 text-right font-mono";
 
+/** Shown in every state of the section. */
+export const NOT_APPROVAL =
+  "A backtest result is not approval to trade (research only).";
+
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 120;
 
@@ -117,17 +121,18 @@ const RUN_COLUMNS = [
 const StudyBody = ({ model }: { readonly model: QcPortStudyViewModel }) => (
   <div className="space-y-3" data-qc-port-study={model.verdict}>
     <div className="flex flex-wrap items-center gap-2">
-      <StatusBadge
-        data-qc-port-verdict={model.verdict}
-        status={model.verdict === "PASS" ? "success" : "destructive"}
-      >
-        {model.verdict}
+      {/* Neutral on purpose: a PASS is a research result, never a go signal. */}
+      <StatusBadge data-qc-port-verdict={model.verdict} status="neutral">
+        Backtest {model.verdict}
       </StatusBadge>
       <span className="font-medium text-sm">{model.title}</span>
       <span className="text-muted-foreground text-xs">
         Ran {model.ran} · <span className="font-mono">{model.spec}</span>
       </span>
     </div>
+    <p className="text-muted-foreground text-xs" data-qc-port-criteria="">
+      Pre-registered pass rule (first run): {model.criteria}.
+    </p>
     <p className="text-warning-foreground text-xs" data-qc-port-modeled="">
       MODELED option prices: Black-Scholes on CBOE vol-index proxies, not market
       quotes. Research only; this study places no orders.
@@ -215,6 +220,12 @@ const StudyBody = ({ model }: { readonly model: QcPortStudyViewModel }) => (
       </Table>
     )}
     <EquityChart model={model} />
+    <p
+      className="break-words font-mono text-muted-foreground text-xs"
+      data-qc-port-provenance=""
+    >
+      {model.provenance}
+    </p>
     {model.notes === "" ? null : (
       <p className="whitespace-pre-line text-muted-foreground text-xs">
         {model.notes}
@@ -326,6 +337,9 @@ export const StrategyBacktestStudy = ({
       <h3 className="font-medium text-sm" id="strategy-backtest-study-heading">
         Backtest study
       </h3>
+      <p className="font-medium text-sm" data-qc-port-not-approval="">
+        {NOT_APPROVAL}
+      </p>
       {state.type === "ready" ? (
         <StudyBody model={state.model} />
       ) : (
