@@ -7,7 +7,8 @@ Run (rig):
 
 Output, one file per symbol: <name>.csv with the header `date,close` (Yahoo daily close, split-adjusted,
 not dividend-adjusted: auto_adjust=False). Names: SPY QQQ TQQQ SOXL VIX VIX3M VXN IRX.
-SHA256SUMS lists every file. The data is not committed: Yahoo terms do not allow redistribution.
+For the four ETFs also <name>.splits.csv with the header `date,ratio` (Yahoo split events, e.g. 2 = 2-for-1),
+so the backtest can price fixed per-share costs at the traded (unadjusted) price level.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ SYMBOLS = {
     "IRX": "^IRX",
 }
 START = "2010-01-01"
-
+ETFS = ("SPY", "QQQ", "TQQQ", "SOXL")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -48,9 +49,15 @@ def main() -> None:
                 lines.append(f"{stamp.strftime('%Y-%m-%d')},{float(close):.6f}")
         path = out / f"{name}.csv"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        sums.append(f"{digest}  {path.name}")
+        sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
         print(f"{name}: {len(lines) - 1} rows {lines[1][:10]} .. {lines[-1][:10]}")
+    for name in ETFS:
+        splits = yf.Ticker(name).splits
+        rows = ["date,ratio"] + [f"{stamp.strftime('%Y-%m-%d')},{float(ratio):g}" for stamp, ratio in splits.items()]
+        path = out / f"{name}.splits.csv"
+        path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        sums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
+        print(f"{name} splits: {', '.join(rows[1:]) or 'none'}")
     (out / "SHA256SUMS").write_text("\n".join(sums) + "\n", encoding="utf-8")
 
 

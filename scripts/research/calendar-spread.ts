@@ -19,15 +19,15 @@ import { at } from "../../packages/api/src/quant-arrays.ts";
 const DAY_MS = 86_400_000;
 const DAYS_PER_YEAR = 365;
 const TRADING_DAYS = 252;
-export const COMMISSION_PER_SHARE = 0.0065;
-export const MIN_SLIPPAGE = 0.01;
-export const TERM_LIMIT = 1.1;
-export const PROFIT_MULTIPLE = 1.5;
+const COMMISSION_PER_SHARE = 0.0065;
+const MIN_SLIPPAGE = 0.01;
+const TERM_LIMIT = 1.1;
+const PROFIT_MULTIPLE = 1.5;
 export const MIN_CYCLES = 30;
-export const MIN_T_STAT = 2;
+const MIN_T_STAT = 2;
 export const RV_WINDOW = 60;
-export const RV_FLOOR = 0.2;
-export const STUDY_START = "2011-01-03";
+const RV_FLOOR = 0.2;
+const STUDY_START = "2011-01-03";
 
 export type LegInput = Readonly<{
   right: OptionRight;
@@ -170,9 +170,17 @@ export const strikeForCallDelta = (
   return (low + high) / 2;
 };
 
-/** Cost per share for one leg on one side: commission plus slippage max(0.01, s x price). */
-export const legCost = (price: number, slippage: number): number =>
-  COMMISSION_PER_SHARE + Math.max(MIN_SLIPPAGE, slippage * price);
+/**
+ * Cost per share for one leg on one side: commission plus slippage max(0.01, s x price). The fixed
+ * parts are in traded dollars; `fixedScale` converts them to split-adjusted dollars (1 / later splits).
+ */
+export const legCost = (
+  price: number,
+  slippage: number,
+  fixedScale = 1
+): number =>
+  COMMISSION_PER_SHARE * fixedScale +
+  Math.max(MIN_SLIPPAGE * fixedScale, slippage * price);
 
 /** 30-day and 93-day implied volatility, interpolated linearly in total variance, flat outside. */
 export const termStructureIv = (
@@ -208,6 +216,8 @@ export type Market = Readonly<{
   symbol: string;
   dates: readonly string[];
   spot: readonly number[];
+  /** Per day: 1 / product of later split ratios (split-adjusted dollars per traded dollar). */
+  costScale: readonly number[];
   rate: readonly number[];
   dividendYield: number;
   slippage: number;
@@ -339,6 +349,8 @@ export const simulate = (
       }
     }
     const exit = value(exitIndex);
+    const entryScale = at(market.costScale, index);
+    const exitScale = at(market.costScale, exitIndex);
     cycles.push({
       entryDate: at(dates, index),
       exitDate: at(dates, exitIndex),
@@ -347,15 +359,17 @@ export const simulate = (
       debit,
       ret: netReturn(
         debit,
-        legCost(entry.near, slippage) + legCost(entry.far, slippage),
+        legCost(entry.near, slippage, entryScale) +
+          legCost(entry.far, slippage, entryScale),
         exit.far - exit.near,
-        legCost(exit.near, slippage) + legCost(exit.far, slippage)
+        legCost(exit.near, slippage, exitScale) +
+          legCost(exit.far, slippage, exitScale)
       ),
       callRet: netReturn(
         entry.near,
-        legCost(entry.near, slippage),
+        legCost(entry.near, slippage, entryScale),
         exit.near,
-        legCost(exit.near, slippage)
+        legCost(exit.near, slippage, exitScale)
       ),
       daysHeld: at(days, exitIndex) - today,
     });
@@ -524,13 +538,25 @@ export const buildMarket = (
     return parseCloses(text);
   };
   const closes = read(underlying.symbol);
-  const allDates = [...closes.keys()].sort();
+  // Prices stay split-adjusted (as option contracts are adjusted at a split); only the fixed per-share
+  // costs (B7) are converted from traded dollars with costScale (deviation D1).
+  const entries = [...closes.entries()].sort(([left], [right]) =>
+    left.localeCompare(right)
+  );
+  const allDates = entries.map(([date]) => date);
+  const adjusted = entries.map(([, close]) => close);
+  const splits = [...read(`${underlying.symbol}.splits`).entries()];
   const offset = allDates.findIndex((date) => date >= start);
   if (offset < RV_WINDOW)
     throw new Error(
       `${underlying.symbol} needs ${RV_WINDOW} closes before ${start}`
     );
-  const allSpot = allDates.map((date) => closes.get(date) ?? 0);
+  const costScale = allDates.map((date) =>
+    splits.reduce(
+      (scale, [day, ratio]) => (day > date ? scale / ratio : scale),
+      1
+    )
+  );
   const dates = allDates.slice(offset);
   const rate = alignForward(dates, read("IRX"), "IRX").map(
     (value) => value / 100
@@ -546,14 +572,15 @@ export const buildMarket = (
     iv = (index) => at(flat, index) / 100;
   } else {
     const rv = dates.map((_, index) =>
-      Math.max(RV_FLOOR, realizedVol(allSpot, index + offset, RV_WINDOW))
+      Math.max(RV_FLOOR, realizedVol(adjusted, index + offset, RV_WINDOW))
     );
     iv = (index) => at(rv, index);
   }
   return {
     symbol: underlying.symbol,
     dates,
-    spot: allSpot.slice(offset),
+    spot: adjusted.slice(offset),
+    costScale: costScale.slice(offset),
     rate,
     dividendYield: underlying.dividendYield,
     slippage: underlying.slippage,
@@ -642,7 +669,7 @@ export type PlayInput = Readonly<{
 }>;
 
 /** Text summary of one concrete calendar: Greeks, peak, break-evens at the near expiry. */
-export const describePlay = (play: PlayInput): string => {
+const describePlay = (play: PlayInput): string => {
   const input: CalendarInput = {
     right: play.right,
     spot: play.spot,
@@ -702,11 +729,10 @@ export const runCalendarSpreadCli = async (
     const [command, ...rest] = args;
     if (command === "backtest") {
       const data = option(rest, "data");
+      const etfs = UNDERLYINGS.map((underlying) => underlying.symbol);
       const names = [
-        "SPY",
-        "QQQ",
-        "TQQQ",
-        "SOXL",
+        ...etfs,
+        ...etfs.map((symbol) => `${symbol}.splits`),
         "VIX",
         "VIX3M",
         "VXN",
