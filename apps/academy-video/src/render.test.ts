@@ -201,11 +201,12 @@ describe("renderLessons", () => {
       fakes({ durationInFrames: 90, fps: 30 })
     );
     expect(code).toBe(0);
-    // --all selects narrated courses only (unnarrated QuantFinanceToGo lessons have no video).
+    // --all selects narrated courses only. The package catalog holds only narrated courses now
+    // (unnarrated QuantFinanceToGo lessons live in Postgres and have no video).
     const narrated = ACADEMY_LESSONS.filter(
       (lesson) => courseOf(lesson).narrated
     ).length;
-    expect(narrated).toBeLessThan(ACADEMY_LESSONS.length);
+    expect(narrated).toBe(ACADEMY_LESSONS.length);
     expect(stdout).toEqual([`0 of ${narrated} lessons need rendering\n`]);
     expect(calls["bundle"]).toEqual([]);
   });
