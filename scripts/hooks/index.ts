@@ -217,6 +217,29 @@ interface PushDependencies {
 const runPrePushScripts: BunScriptRunner = (scripts) =>
   runBunScripts(scripts, [], withoutGitRepositoryEnvironment(process.env));
 
+// A copied node_modules from another pnpm layout needs a purge; hooks have no
+// terminal to confirm it.
+const DEPENDENCY_INSTALL: readonly string[] = Object.freeze([
+  "install",
+  "--frozen-lockfile",
+  "--prefer-offline",
+  "--config.confirm-modules-purge=false",
+]);
+
+// Returns 0, or the failed install's exit code after reporting it. Git's hook
+// repository variables would point pnpm's lifecycle scripts (husky) at the
+// wrong repository.
+function installDependencies(): number {
+  const result = spawnSync("pnpm", DEPENDENCY_INSTALL, {
+    env: withoutGitRepositoryEnvironment(process.env),
+    shell: false,
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  return result.error || result.signal || result.status !== 0
+    ? failureExitCode("pnpm", DEPENDENCY_INSTALL, result)
+    : 0;
+}
+
 function readPushInput(): string {
   const buffer = Buffer.alloc(MAX_PUSH_INPUT_BYTES + 1);
   let length = 0;
@@ -398,6 +421,20 @@ export function runPrePush(
       return checkoutStatus;
     }
     warnBunRuntime();
+    // pnpm 11 checks node_modules before each `pnpm run` and installs when it
+    // does not match the lockfile (verifyDepsBeforeRun defaults to install).
+    // After a lockfile-changing pull, each parallel turbo task would start its
+    // own install into the same node_modules (ERR_PNPM_ENOTEMPTY, "Failed to
+    // create bin"), and knip would check the stale tree first. One install here
+    // uses pnpm's own up-to-date check and takes about 0.5 s when nothing
+    // changed (card vertex-prepush-stale-deps-parallel-install, 2026-11-08).
+    const installStatus = installDependencies();
+    if (installStatus !== 0) {
+      console.error(
+        "[hook] dependency install failed; local lanes not run on stale dependencies"
+      );
+      return installStatus;
+    }
     for (const script of PRE_PUSH_SCRIPTS) {
       const status = (dependencies.runScripts ?? runPrePushScripts)([script]);
       if (status !== 0) {
@@ -415,14 +452,6 @@ export function runPrePush(
 }
 
 const INSTALLED_LOCKFILE = "node_modules/.pnpm/lock.yaml";
-// A copied node_modules from another pnpm layout needs a purge; the hook has no
-// terminal to confirm it.
-const POST_CHECKOUT_INSTALL: readonly string[] = Object.freeze([
-  "install",
-  "--frozen-lockfile",
-  "--prefer-offline",
-  "--config.confirm-modules-purge=false",
-]);
 
 function readOptionalText(path: string): string | undefined {
   try {
@@ -456,13 +485,7 @@ export function runPostCheckout(argv: readonly string[]): number {
   console.error(
     "[hook] node_modules was copied from another checkout and does not match pnpm-lock.yaml; installing"
   );
-  const result = spawnSync("pnpm", POST_CHECKOUT_INSTALL, {
-    env: withoutGitRepositoryEnvironment(process.env),
-    shell: false,
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  if (result.status !== 0) {
-    failureExitCode("pnpm", POST_CHECKOUT_INSTALL, result);
+  if (installDependencies() !== 0) {
     console.error(
       "[hook] WARNING: dependencies are stale; run `pnpm install --frozen-lockfile` before you test or push"
     );
