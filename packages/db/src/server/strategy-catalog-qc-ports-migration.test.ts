@@ -56,8 +56,19 @@ describe("0057_strategy_catalog_qc_ports", () => {
     return expect(migration).toContain('ON CONFLICT ("slug") DO NOTHING');
   });
 
-  return it("rolls back only unedited rows without presets or backtests", () => {
+  return it("rolls back only unedited rows that nothing references", () => {
     for (const [, id] of rows) expect(rollback).toContain(`'${id}'`);
+    for (const table of [
+      "strategy_presets",
+      "backtest_results",
+      "backtest_runs",
+      "optimization_runs",
+      "strategy_specs",
+      "deployment_requests",
+      "autopilot_candidates",
+    ]) {
+      expect(rollback).toContain(`"public"."${table}"`);
+    }
     return expect(rollback).toContain("refusing rollback");
   });
 });

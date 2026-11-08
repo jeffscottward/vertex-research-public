@@ -1,5 +1,6 @@
 -- Guarded reversal of 0057_strategy_catalog_qc_ports only.
--- Deletes the catalog row only while it was not edited, linked to a backtest or given a preset.
+-- Deletes the catalog rows only while none was edited or is referenced by a preset, spec, backtest,
+-- backtest run, optimization run, deployment request or Autopilot candidate (no silent SET NULL).
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
@@ -14,9 +15,14 @@ BEGIN
         s."updated_at" <> s."created_at"
         OR EXISTS (SELECT 1 FROM "public"."strategy_presets" p WHERE p."strategy_id" = s."id")
         OR EXISTS (SELECT 1 FROM "public"."backtest_results" b WHERE b."strategy_id" = s."id")
+        OR EXISTS (SELECT 1 FROM "public"."backtest_runs" r WHERE r."strategy_id" = s."id")
+        OR EXISTS (SELECT 1 FROM "public"."optimization_runs" o WHERE o."strategy_id" = s."id")
+        OR EXISTS (SELECT 1 FROM "public"."strategy_specs" q WHERE q."strategy_id" = s."id")
+        OR EXISTS (SELECT 1 FROM "public"."deployment_requests" d WHERE d."strategy_id" = s."id")
+        OR EXISTS (SELECT 1 FROM "public"."autopilot_candidates" a WHERE a."strategy_id" = s."id")
       )
   ) THEN
-    RAISE EXCEPTION 'catalog strategy has operator edits, presets or backtests; refusing rollback';
+    RAISE EXCEPTION 'catalog strategy has operator edits or linked rows; refusing rollback';
   END IF;
 END
 $$;
