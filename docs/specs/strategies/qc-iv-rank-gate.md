@@ -89,33 +89,77 @@ Planned paths; this spec is committed before the code.
 
 ## Results
 
-Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06. The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-iv-rank-gate`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000232. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
+Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06, code revision `737c371768e006a5722ee0c4fbe2f2b7241d6f59` (run id `qc-ports-2026-11-08-737c371768e0`). The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-iv-rank-gate`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000218. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
 
-Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Native DSL `ivRank` filter (length 252, min 50). Gated host runs start where the gate is first defined (1993-01-29, the same dates as S0/D0).
+Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Max open risk = the largest share of equity at risk (contracts x max loss) in open spreads at any close (reported only, no cap). Native DSL `ivRank` filter (length 252, min 50). Gated host runs start where the gate is first defined (1993-01-29, the same dates as S0/D0).
 
-|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|
-|---|---|---|---|---|---|---|---|---|---|---|
-|A|1993-01-29|-0.5%|-0.22|0.000|-21.4%|2020-03 -9.0%|305|71.5%|21.2%|22|
-|B|1993-01-29|-2.4%|-0.61|0.000|-58.5%|2018-10 -7.7%|1420|69.9%|71.8%|324|
-|S0|1993-01-29|-2.2%|-0.45|0.000|-57.0%|2000-01 -4.3%|514|32.9%|57.5%|44|
-|S1|1993-01-29|-0.5%|-0.23|0.000|-16.8%|1996-12 -3.2%|89|30.3%|9.4%|0|
-|D0|1993-01-29|-4.7%|-0.44|0.000|-82.9%|2011-05 -12.9%|700|35.0%|58.5%|328|
-|D1|1993-01-29|-1.4%|-0.31|0.000|-41.9%|2018-02 -7.7%|130|29.2%|17.7%|3|
+|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|Max open risk|Stale-IV exits|
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|A|1993-01-29|-0.4%|-0.20|0.000|-19.3%|2020-03 -7.3%|303|71.3%|21.0%|24|12.5%|0|
+|B|1993-01-29|-2.1%|-0.57|0.000|-53.7%|2018-10 -6.8%|1443|70.0%|72.1%|301|13.7%|0|
+|S0|1993-01-29|-2.0%|-0.45|0.000|-54.5%|2000-01 -3.7%|513|32.9%|57.5%|45|2.0%|0|
+|S1|1993-01-29|-0.5%|-0.25|0.000|-17.2%|1996-12 -3.0%|89|30.3%|9.4%|0|2.0%|0|
+|D0|1993-01-29|-3.9%|-0.40|0.000|-78.5%|2011-05 -11.5%|723|35.3%|59.3%|305|13.0%|0|
+|D1|1993-01-29|-1.2%|-0.29|0.000|-36.5%|2018-02 -6.9%|129|29.5%|17.6%|4|9.0%|0|
 
 |Gate|Host|Before Sharpe|After Sharpe|Before max DD|After max DD|Before CAGR|After CAGR|Before trades|After trades|Before exposure|After exposure|Helps|
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-|ivRank >= 50|sma30-market-timing (SPY) from 1993-01-29|-0.45|-0.23|-57.0%|-16.8%|-2.2%|-0.5%|514|89|57.5%|9.4%|yes|
-|ivRank >= 50|donchianBreakout (Core 7) from 1993-01-29|-0.44|-0.31|-82.9%|-41.9%|-4.7%|-1.4%|700|130|58.5%|17.7%|yes|
+|ivRank >= 50|sma30-market-timing (SPY) from 1993-01-29|-0.45|-0.25|-54.5%|-17.2%|-2.0%|-0.5%|513|89|57.5%|9.4%|yes|
+|ivRank >= 50|donchianBreakout (Core 7) from 1993-01-29|-0.40|-0.29|-78.5%|-36.5%|-3.9%|-1.2%|723|129|59.3%|17.6%|yes|
 
-- Per-member attribution, run A: SPY 74 trades, P&L USD -880, win 72%; QQQ 54 trades, P&L USD -2,161, win 72%; DIA 49 trades, P&L USD -2,275, win 73%; IWM 28 trades, P&L USD -484, win 82%; GLD 30 trades, P&L USD 1,829, win 80%; SLV 27 trades, P&L USD -4,355, win 56%; USO 43 trades, P&L USD -6,882, win 65%.
-- Per-member attribution, run B: SPY 325 trades, P&L USD -8,089, win 70%; QQQ 218 trades, P&L USD -10,270, win 69%; DIA 185 trades, P&L USD -6,695, win 72%; IWM 181 trades, P&L USD -2,934, win 73%; GLD 192 trades, P&L USD -1,699, win 77%; SLV 136 trades, P&L USD -16,728, win 50%; USO 183 trades, P&L USD -8,967, win 72%.
-- All 7 live, run A (2012-03-14 to 2026-11-06): Sharpe -0.27, CAGR -0.7%, max drawdown -16.3%.
-- All 7 live, run B (2012-03-14 to 2026-11-06): Sharpe -0.72, CAGR -3.5%, max drawdown -44.8%.
+- Per-member attribution, run A: SPY 74 trades, P&L USD -895, win 72%; QQQ 53 trades, P&L USD -2,299, win 72%; DIA 49 trades, P&L USD -2,319, win 73%; IWM 28 trades, P&L USD -387, win 82%; GLD 30 trades, P&L USD 1,778, win 80%; SLV 27 trades, P&L USD -3,650, win 56%; USO 42 trades, P&L USD -5,678, win 64%.
+- Per-member attribution, run B: SPY 334 trades, P&L USD -8,058, win 70%; QQQ 221 trades, P&L USD -10,079, win 69%; DIA 190 trades, P&L USD -6,878, win 72%; IWM 188 trades, P&L USD -2,970, win 73%; GLD 195 trades, P&L USD -1,170, win 77%; SLV 136 trades, P&L USD -15,555, win 50%; USO 179 trades, P&L USD -5,932, win 73%.
+- All 7 live, run A (2012-03-14 to 2026-11-06): Sharpe -0.23, CAGR -0.6%, max drawdown -13.8%.
+- All 7 live, run B (2012-03-14 to 2026-11-06): Sharpe -0.68, CAGR -3.1%, max drawdown -41.0%.
 - Member join (252 IV index values): SPY 1993-01-29, QQQ 2002-01-28, DIA 2006-11-22, IWM 2010-09-15, GLD 2009-06-02, SLV 2012-03-14, USO 2008-05-08.
+
+### Sanity checks
+
+Reported only; no run or parameter changed. `python -m strategies.qc_ports audit` (reference ledger).
+
+|Run A|Sharpe|Deflated Sharpe|CAGR|Max drawdown|Run B Sharpe|Verdict|Failing clauses|
+|---|---|---|---|---|---|---|---|
+|Net (as run)|-0.20|0.000|-0.4%|-19.3%|-0.57|FAIL|Sharpe above 0.5; deflated Sharpe above 0.9 (n_trials 32)|
+|Gross (zero costs)|0.11|0.013|0.2%|-8.4%|0.32|FAIL|Sharpe above 0.5; deflated Sharpe above 0.9 (n_trials 32); Sharpe above run B|
+|ATM IV 1.0 x index, no skew|0.07|0.008|0.1%|-12.4%|0.06|FAIL|(sensitivity, not deciding)|
+
+- Mean round-trip cost per contract of run A (303 booked trades): 3.70% of the max loss, 20.27% of the premium (debit paid or credit received).
+- Costs decide the verdict: no (the verdict is the same at zero costs).
+
+Known-edge case (SPY call debit vertical, 0.5 delta, opened at every month start of the period, closed at the next one; must be clearly profitable):
+
+|Period|Expression|Trades|Winners|P&L USD|Account return|SPY total return|
+|---|---|---|---|---|---|---|
+|2013|60 DTE, monthly roll|12|10|8,078|8.1%|31.0%|
+|2013|30 DTE, monthly roll|12|9|8,524|8.5%|31.0%|
+|2023-2024|60 DTE, monthly roll|24|15|7,395|7.4%|57.2%|
+|2023-2024|30 DTE, monthly roll|24|15|7,832|7.8%|57.2%|
+
+Priced-trade check (5 random SPY trades of the 30 DTE monthly roll, seed 20261108; values per contract; held = the same spread priced to expiration):
+
+|Entry|Expiry|Spot|Strikes|Entry value|Width|Spot at expiry|Held value|Intrinsic|Settles at intrinsic|Marks in [0, width]|Values in [0, width], spot 0.7x-1.3x|Largest move against spot (USD)|
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|2007-01-03|2007-02-16|141.37|142/147|186.73|500|145.73|373.00|373.00|yes|yes|yes|0.62|
+|2012-04-02|2012-05-18|141.84|142/149|243.59|700|129.74|0.00|0.00|yes|yes|yes|0.93|
+|2002-08-01|2002-09-20|88.78|89/100|389.73|1100|84.35|0.00|0.00|yes|yes|yes|0.00|
+|2005-10-03|2005-11-18|122.60|123/128|175.44|500|125.13|213.00|213.00|yes|yes|yes|0.48|
+|2009-07-01|2009-08-21|92.33|92/100|305.88|800|102.97|800.00|800.00|yes|yes|yes|0.00|
+
+Largest move of a spread value against the spot over the grid: USD 0.93 per contract. It comes from the clamp of the skew model (options.py: standardized moneyness clamped at +-3), which flattens the smile of a deep in-the-money leg while the other leg's IV still moves; it is a small model artifact far from the money, not a pricing error in the runs.
 
 ### Verdict
 
-**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: yes (A Sharpe -0.22, B Sharpe -0.61, deflated 0.000, max drawdown -21.4%).
+**FAIL**. Run A: Sharpe above 0.5: no; deflated Sharpe above 0.9 (n_trials 32): no; max drawdown smaller than 25%: yes; Sharpe above run B: yes (A Sharpe -0.20, B Sharpe -0.57, deflated 0.000, max drawdown -19.3%).
+
+## Deviations (bug fixes after the first run)
+
+Review round 1 (2026-11-08) found these bugs after the first run of the 32 runs; all 32 were run again with the fixes, and the results above are from that rerun. No rule or parameter of the pre-registration changed except as listed. First run, superseded: run A Sharpe -0.22, verdict FAIL.
+
+- Max loss per contract now includes the worst-case exit cost (both legs: USD 0.65 commission + the half-spread of a leg worth the spread width), and every closing cost is capped at that worst case: the vertical closes as a package, so a deep in-the-money exit costs no more. Sizing (2% of equity over the max loss) therefore bounds the realized loss of a trade at 2%; before the fix a crash exit could cost more than the max loss (test: a -30% move with implied volatility doubling).
+- An open spread whose IV index is stale for more than 5 trading days (no value after the 5-day carry) is closed at that close, priced with the last IV used (exit reason `stale-iv`, counted per run). Before, the last value was carried for the whole trade.
+- Inputs are validated: the option model refuses NaN, infinite or negative time, rate, dividend yield, spot or volatility; market columns must be finite (closes and IV above 0, rates not negative); instrument value and sizing refuse NaN instead of treating it as 0; the deflated Sharpe is left empty when its standard-error radicand is not positive (never a square root of a negative number).
+- Data rows with a missing open, high, low or adj_close are dropped instead of filled with the close (no row of the current files is affected).
+- Reported, not changing a run: the largest concurrent open risk per run.
 
 ## Limits
 
