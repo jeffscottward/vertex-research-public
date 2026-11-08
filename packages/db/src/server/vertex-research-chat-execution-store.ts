@@ -1372,22 +1372,20 @@ export const createResearchChatExecutionOperations = (
       scope,
       responseRequestId
     );
-    await ctx.authorize(
-      principal,
-      scope,
-      null,
-      "research-chat",
-      "read",
-      ctx.now()
-    );
-    await ctx.authorize(
-      principal,
-      scope,
-      null,
-      "research-chat",
-      "publish",
-      ctx.now()
-    );
+    // Grants and rights hold only at the moment they are checked, so a reuse
+    // inside a predecessor walk runs these checks again.
+    const ownerAuthority = async (): Promise<void> => {
+      for (const action of ["read", "publish"] as const)
+        await ctx.authorize(
+          principal,
+          scope,
+          null,
+          "research-chat",
+          action,
+          ctx.now()
+        );
+    };
+    await ownerAuthority();
     const local = chatExecutionTransactionContext(ctx, tx, at);
     await createResearchChatOperations(local).readResearchChatThread(
       principal,
@@ -1463,7 +1461,8 @@ export const createResearchChatExecutionOperations = (
       (await ctx.hash(retention["policy"])) !== plan["retentionSha256"]
     )
       return fail("stale");
-    const queries = createQueryOperations(local);
+    const queries = createQueryOperations(local),
+      pinAuthorities: (() => Promise<void>)[] = [];
     for (const pin of array(plan["reviewPins"], 16).map(object)) {
       const accepted = await queries.getAcceptedEvidence(
         principal,
@@ -1482,30 +1481,27 @@ export const createResearchChatExecutionOperations = (
         accepted.evidence["snapshotId"] !== plan["snapshotId"]
       )
         return fail("denied");
-      await ctx.authorize(
-        { actorId: identifier(accepted.review["actorId"]) },
-        scope,
-        identifier(plan["collectionId"]),
-        accepted.artifact.artifactId,
-        "review",
-        ctx.now()
-      );
-      await ctx.rights(
-        tx,
-        scope,
-        identifier(plan["collectionId"]),
-        accepted.artifact.rights,
-        "derive",
-        ctx.now()
-      );
-      await ctx.rights(
-        tx,
-        scope,
-        identifier(plan["collectionId"]),
-        accepted.artifact.rights,
-        "export",
-        ctx.now()
-      );
+      const pinAuthority = async (): Promise<void> => {
+        await ctx.authorize(
+          { actorId: identifier(accepted.review["actorId"]) },
+          scope,
+          identifier(plan["collectionId"]),
+          accepted.artifact.artifactId,
+          "review",
+          ctx.now()
+        );
+        for (const action of ["derive", "export"] as const)
+          await ctx.rights(
+            tx,
+            scope,
+            identifier(plan["collectionId"]),
+            accepted.artifact.rights,
+            action,
+            ctx.now()
+          );
+      };
+      await pinAuthority();
+      pinAuthorities.push(pinAuthority);
     }
     const review =
       await reviews.readResearchChatStorageQualificationForTransaction(
@@ -1534,34 +1530,44 @@ export const createResearchChatExecutionOperations = (
       debateEnd,
     ].reduce((a, b) => (time(a) <= time(b) ? a : b));
     finalCurrent(at, expiresAt);
-    return { plan, approval, configuration, selection, expiresAt };
+    return {
+      value: { plan, approval, configuration, selection, expiresAt },
+      authority: async (): Promise<void> => {
+        await ownerAuthority();
+        for (const pinAuthority of pinAuthorities) await pinAuthority();
+      },
+    };
   };
   // An earlier debate turn's currency check reads its original several times
   // (eligibility, inspection, fence ACKs, live proof). Inside one predecessor
-  // walk (withPredecessorWalk) a completed read is reused after the same final
-  // clock checks as a fresh read. Copy-lifecycle callers still check domain
-  // closure and authority loss afresh before each use. Outside a walk every
-  // call reads again.
-  const readCurrentOriginalForTransaction = (
+  // walk (withPredecessorWalk) a completed read is reused. A reuse runs the
+  // owner and review grant and rights checks again, then the same final clock
+  // checks as a fresh read. Copy-lifecycle callers still check domain closure
+  // and authority loss afresh before each use. Outside a walk every call reads
+  // again.
+  const readCurrentOriginalForTransaction = async (
     tx: Transaction,
     scope: VertexScope,
     responseRequestId: string,
     at: string
   ) =>
-    reusePredecessorRead(
-      tx,
-      readCurrentOriginalOnce,
-      JSON.stringify([
-        scope.accountAlias,
-        scope.environment,
-        responseRequestId,
-      ]),
-      () => readCurrentOriginalOnce(tx, scope, responseRequestId, at),
-      (kept) => {
-        if (time(kept.approval["approvedAt"]) > time(at)) fail("stale");
-        finalCurrent(at, kept.expiresAt);
-      }
-    );
+    (
+      await reusePredecessorRead(
+        tx,
+        readCurrentOriginalOnce,
+        JSON.stringify([
+          scope.accountAlias,
+          scope.environment,
+          responseRequestId,
+        ]),
+        () => readCurrentOriginalOnce(tx, scope, responseRequestId, at),
+        async (kept) => {
+          await kept.authority();
+          if (time(kept.value.approval["approvedAt"]) > time(at)) fail("stale");
+          finalCurrent(at, kept.value.expiresAt);
+        }
+      )
+    ).value;
   const currentDebate = async (
     tx: Transaction,
     scope: VertexScope,

@@ -17,8 +17,8 @@ import type { Transaction } from "./client.ts";
 // that was running during that insert is not kept. The one raw write a region
 // can reach, settling a debate step from reserved to spent, changes no kept
 // value. Each reuse runs the owner's recheck (clock bounds and the checks that
-// are valid only at one moment). Reads are kept per reading owner, so one owner
-// never reuses another owner's result.
+// are valid only at one moment). Reads are kept per reader function (the
+// `owner` argument), so one reader never reuses another reader's result.
 const walks = new WeakMap<object, WeakMap<object, Map<string, unknown>>>();
 
 export const withPredecessorWalk = async <T>(

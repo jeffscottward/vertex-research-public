@@ -1906,9 +1906,9 @@ export const createVertexResearchChatOutputRuntime = (
             : 3)
       )
         return null;
-      // Inside a predecessor walk both reads can share one kept original, so
-      // plan and approval are compared across walks only; any insert in
-      // between drops the kept read.
+      // Inside one predecessor walk both reads can return the same kept
+      // original, so this comparison only catches changes between walks. An
+      // insert in between drops the kept read.
       const after = await worker.derivedForTransaction(
         tx,
         scope,
@@ -2119,8 +2119,8 @@ export const createVertexResearchChatOutputRuntime = (
       publishedAt: before.publication.publishedAt,
     };
     if (!same(pin, expected)) return fail("integrity");
-    // Read grant and rights hold only at the moment they are checked, so a
-    // reuse inside a predecessor walk runs this again.
+    // Grants and rights hold only at the moment they are checked, so a reuse
+    // inside a predecessor walk runs these checks again.
     const authority = async (): Promise<void> => {
       await ctx.authorize(
         principal,
@@ -2176,14 +2176,26 @@ export const createVertexResearchChatOutputRuntime = (
         authoritySha256,
         expiresAt,
       },
-      authority,
+      // A reuse also checks the caller grants again.
+      recheck: async (): Promise<void> => {
+        await authority();
+        const again = await conversationCallerForTransaction(
+          tx,
+          principal,
+          scope,
+          ctx.now(),
+          false,
+          caller
+        );
+        if (time(ctx.now()) >= time(again.expiresAt)) fail("stale");
+      },
     };
   };
   // A nested currency check of an earlier debate turn reads the same exact pins
   // again. Inside one predecessor walk (withPredecessorWalk) a completed read is
   // reused. The key binds the caller, the scope and the full pin. A reuse runs
-  // the read grant and rights checks again, then the same final clock checks
-  // as a fresh read.
+  // the copy read grant, rights and caller grant checks again, then the same
+  // final clock checks as a fresh read.
   const readPublishedPredecessorForTransaction = (
     tx: Transaction,
     principal: VertexPrincipal,
@@ -2200,7 +2212,7 @@ export const createVertexResearchChatOutputRuntime = (
         canonicalArtifactJson({ actorId: principal.actorId, scope, pin }),
         () => readPublishedPredecessorOnce(tx, principal, scope, pin, at),
         async (kept) => {
-          await kept.authority();
+          await kept.recheck();
           if (
             time(ctx.now()) < time(at) ||
             time(ctx.now()) >= time(kept.source.expiresAt)
