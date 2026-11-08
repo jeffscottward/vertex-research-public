@@ -48,8 +48,6 @@ describe("0057 qc-port catalog rows (Postgres)", () => {
       maxConnections: 2,
     });
     await migrate(resource.db);
-    // Not journaled until its number is free on the base branch; apply the file directly.
-    await testDatabase.query(migrationSql);
   }, 60_000);
 
   afterAll(async () => {
