@@ -8,7 +8,8 @@
   daily returns. The variance of the trial Sharpes is the caller's (measured
   over the trials) or, without it, the sampling variance of the Sharpe
   estimator (1 - skew*SR + (kurt-1)/4*SR^2) / (T - 1). With one trial the
-  benchmark is 0 (probabilistic Sharpe).
+  benchmark is 0 (probabilistic Sharpe). With a non-positive radicand or a
+  negative trial variance the deflated Sharpe is None.
 - Max drawdown, worst calendar month (month-end equity over the previous
   month-end, the first month over the start), trades, win rate (pnl > 0) and
   exposure (share of days ending with an open trade).
@@ -70,7 +71,12 @@ def _moments(returns: Sequence[float]) -> tuple[float, float, float, float]:
 def _deflated(sharpe: float, n_trials: int, variance: float | None, n: int, skew: float, kurt: float) -> dict:
     radicand = 1 - skew * sharpe + (kurt - 1) / 4 * sharpe ** 2
     if variance is None:
-        variance = radicand / (n - 1)
+        variance = radicand / (n - 1) if n >= 2 else None
+    # The Sharpe standard error needs a positive radicand and a finite, non-negative trial variance;
+    # otherwise the deflated Sharpe is undefined (None), never a square root of a negative number.
+    if n < 2 or not (math.isfinite(radicand) and radicand > 0) or variance is None or not (
+            math.isfinite(variance) and variance >= 0):
+        return {"deflatedSharpe": None, "expectedMaxSharpe": None, "sharpeVariance": variance}
     if n_trials >= 2:
         result = deflated_sharpe_ratio(sharpe, n_trials, variance, n, skew, kurt)
         return {"deflatedSharpe": result.probability, "expectedMaxSharpe": result.expected_max_sharpe,

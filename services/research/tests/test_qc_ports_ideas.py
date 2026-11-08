@@ -167,3 +167,20 @@ def test_contango_bound_is_strict():
     assert qi.CONTANGO_MAX < 1.0
     assert qi.CONTANGO_MAX == math.nextafter(1.0, 0.0)
     assert 0.9999999999 <= qi.CONTANGO_MAX
+
+
+def test_shifted_legs_only_read_the_calendar():
+    window = {"type": "calendarWindow", "window": "opexWeek"}
+    qi.Leg("SPY", qi.definition("ok", qi.CALENDAR_CALL, filters=[window]), "window", "2024-01-01", shift=1)
+    bad = [
+        qi.definition("price", qi.CALENDAR_CALL, filters=[window], entry=[qi.condition(qi.CLOSE, ">", qi.indicator("sma", 3))]),
+        qi.definition("series", qi.CALENDAR_CALL, filters=[window, qi.series_filter("VIX", "<", 20)]),
+        qi.definition("gate", qi.CALENDAR_CALL, filters=[window, qi.GATES["ivRank"]]),
+        qi.definition("exit", qi.CALENDAR_CALL, filters=[window], exit=[qi.condition(qi.CLOSE, "<", qi.const(1))]),
+        qi.definition("none", qi.CALENDAR_CALL),
+    ]
+    for definition in bad:
+        with pytest.raises(ValueError, match="calendarWindow"):
+            qi.Leg("SPY", definition, "window", "2024-01-01", shift=1)
+    with pytest.raises(ValueError):
+        qi.Leg("SPY", qi.definition("ok", qi.CALENDAR_CALL, filters=[window]), "roll", "2024-01-01", shift=1)

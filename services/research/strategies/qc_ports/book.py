@@ -11,7 +11,7 @@ Rules:
 - Timing: an entry or exit signal at the close of bar i trades at the close of
   bar i + 1 at the modeled price. Profit-take, exitDte and expiry are checked
   at each close after the entry close and executed at that close. Precedence
-  on one close: expiry, exitDte, profit-take, signal, end of data.
+  on one close: expiry, stale-iv, exitDte, profit-take, signal, end of data.
 - Expiry: the standard monthly expiration whose calendar DTE is nearest
   dte.target among those with DTE >= dte.min (ties -> the earlier one).
 - Strikes on the grid (options.strike_step): the anchor leg is the strike whose
@@ -22,12 +22,18 @@ Rules:
   at least one step.
 - Instrument value per contract (always >= 0): debit = spread value * 100,
   credit = (width - spread value) * 100 (fully collateralised). Values are
-  rounded to cents. Max loss per contract = entry value + entry costs.
+  rounded to cents. Max loss per contract = entry value + entry costs + the
+  worst-case exit cost (worst_exit_cost: commissions + the half-spread of a
+  leg worth the width, per leg); every closing cost is capped at that worst
+  case (the vertical closes as a package), so a trade never loses more than
+  its max loss.
 - Costs per contract and side = sum over legs of $0.65 + 100 * half-spread
   (options.leg_cost), rounded to cents; held to expiration the spread settles
   at intrinsic value without costs.
 - Missing IV index or rate on the entry bar (after the 5-day carry in data.py)
-  -> no trade. While a trade is open a missing value carries the last one used
+  -> no trade. While a trade is open, an IV index stale for more than 5 trading
+  days (None after the carry) closes it at that bar, priced with the last IV
+  used (exit reason "stale-iv"); a missing rate carries the last one used
   (counted in `stale_days`).
 """
 from __future__ import annotations
@@ -44,6 +50,7 @@ from .data import IV_INDEX, Market
 __all__ = [
     "MAX_LOSS_PCT_CAP", "STRUCTURES", "Book", "OptionsSpec", "PricedTrade", "SignalEvent", "Skip", "build_book",
     "choose_expiry", "choose_strikes", "contracts_for", "instrument_value", "parse_options", "spread_legs",
+    "worst_exit_cost",
 ]
 
 STRUCTURES = {
@@ -177,6 +184,8 @@ def contracts_for(equity: float, cash: float, max_loss_pct: float, max_loss: flo
     """floor(maxLossPct% * equity / max loss per contract), capped by the cash for the entry (value + costs)."""
     if not 0 < max_loss_pct <= MAX_LOSS_PCT_CAP:
         raise ValueError(f"maxLossPct {max_loss_pct:g} refused: must be above 0 and at most {MAX_LOSS_PCT_CAP:g}")
+    if not all(math.isfinite(value) for value in (equity, cash, max_loss, unit_cost)):
+        raise ValueError("contracts_for needs finite equity, cash, max loss and unit cost")
     if not (max_loss > 0 and equity > 0 and cash > 0):
         return 0
     contracts = math.floor(max_loss_pct / 100 * equity / max_loss)
@@ -254,12 +263,20 @@ def spread_legs(pricing: _Pricing, right: str, long_strike: float, short_strike:
 
 def instrument_value(kind: str, long_mid: float, short_mid: float, width: float) -> float:
     """$ per contract, rounded to cents: debit = (long - short) * 100, credit = (width - (short - long)) * 100."""
+    if not all(math.isfinite(value) for value in (long_mid, short_mid, width)):
+        raise ValueError("instrument value needs finite leg prices and width")
     spread = long_mid - short_mid if kind == "debit" else width - (short_mid - long_mid)
     return round(max(0.0, spread) * om.MULTIPLIER, 2)
 
 
 def _fee(symbol: str, long_mid: float, short_mid: float) -> float:
     return round(om.leg_cost(symbol, long_mid) + om.leg_cost(symbol, short_mid), 2)
+
+
+def worst_exit_cost(symbol: str, width: float) -> float:
+    """Most a closing trade costs per contract: both legs at commission + the half-spread of a leg worth the
+    spread width (the vertical closes as a package, so a deep in-the-money exit costs no more)."""
+    return round(2 * om.leg_cost(symbol, width), 2)
 
 
 def _event(item: SignalEvent | Sequence) -> SignalEvent:
@@ -300,6 +317,7 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
     long_mid, short_mid = spread_legs(pricing, right, long_strike, short_strike)
     entry_price = instrument_value(kind, long_mid, short_mid, width)
     entry_fee = _fee(market.symbol, long_mid, short_mid)
+    worst_exit = worst_exit_cost(market.symbol, width)
     premium = abs(long_mid - short_mid)
     exit_signal = None if event.exit_index is None else event.exit_index + 1
     credit = width * om.MULTIPLIER - entry_price
@@ -313,13 +331,15 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
         rate = market.rate[bar] if market.rate[bar] is not None else rate
         stale += market.iv_index[bar] is None or market.rate[bar] is None
         days_left = (expiry - day).days
-        pricing = _Pricing(market.close[bar], days_left / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
+        pricing = _Pricing(market.close[bar], max(0, days_left) / DAYS_PER_YEAR, rate, q, om.atm_iv(index_id, level), slope)
         long_mid, short_mid = spread_legs(pricing, right, long_strike, short_strike)
         value = instrument_value(kind, long_mid, short_mid, width)
         marks.append((market.dates[bar], value))
         reason = None
         if days_left <= 0:
             reason = "expiry"
+        elif market.iv_index[bar] is None:
+            reason = "stale-iv"
         elif spec.exit_dte is not None and days_left <= spec.exit_dte:
             reason = "exitDte"
         elif spec.profit_take_pct is not None and (
@@ -336,8 +356,9 @@ def _price_event(event: SignalEvent, market: Market, spec: OptionsSpec, calendar
             trade_id=trade_id, symbol=market.symbol, structure=spec.structure, expiry=expiry.isoformat(),
             long_strike=long_strike, short_strike=short_strike, width=width, entry_index=entry, exit_index=bar,
             entry_date=market.dates[entry], exit_date=market.dates[bar], entry_price=entry_price, exit_price=value,
-            entry_fee=entry_fee, exit_fee=0.0 if reason == "expiry" else _fee(market.symbol, long_mid, short_mid),
-            max_loss=round(entry_price + entry_fee, 2), max_loss_pct=spec.max_loss_pct, premium=premium,
+            entry_fee=entry_fee,
+            exit_fee=0.0 if reason == "expiry" else min(_fee(market.symbol, long_mid, short_mid), worst_exit),
+            max_loss=round(entry_price + entry_fee + worst_exit, 2), max_loss_pct=spec.max_loss_pct, premium=premium,
             exit_reason=reason, marks=tuple(marks), stale_days=stale)
     raise AssertionError("unreachable: the last bar always exits")
 

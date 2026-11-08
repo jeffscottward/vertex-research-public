@@ -55,6 +55,9 @@ EPOCH = date(1970, 1, 1)
 PASS_SHARPE = 0.5
 PASS_DEFLATED = 0.9
 PASS_DRAWDOWN = -0.25
+# The pass rule of the 11 specs, stored with each document (QcPortCriteriaSchema; all bounds strict).
+CRITERIA = {"minSharpe": PASS_SHARPE, "minDeflatedSharpe": PASS_DEFLATED, "maxDrawdown": -PASS_DRAWDOWN,
+            "beatBaseline": True}
 
 
 # --------------------------------------------------------------------------- DSL compile
@@ -329,6 +332,21 @@ class Outcome:
     book_skipped: int
     signals: Mapping[str, int]
     nautilus_gap: float | None
+    priced: tuple[PricedTrade, ...] = ()
+
+
+def max_open_risk(result: LedgerResult, priced: Sequence[PricedTrade]) -> float:
+    """Largest share of equity at risk in open spreads at a day's close: sum of contracts * max loss per
+    contract of the trades open after that day's exits and entries, over that day's equity (reported only)."""
+    max_loss = {trade.trade_id: trade.max_loss for trade in priced}
+    spans = [(record["entryDate"], record["exitDate"], record["contracts"] * max_loss[record["id"]])
+             for record in result.trades]
+    worst = 0.0
+    for day, equity in zip(result.dates, result.equity):
+        risk = sum(amount for entry, exit_, amount in spans if entry <= day < exit_)
+        if risk and equity > 0:
+            worst = max(worst, risk / equity)
+    return worst
 
 
 def run_trades(run: qi.RunSpec, data: StudyData) -> tuple[list[PricedTrade], int, dict[str, int]]:
@@ -359,7 +377,7 @@ def execute(run: qi.RunSpec, data: StudyData, nautilus: bool = True) -> Outcome:
         same = [(t["id"], t["contracts"]) for t in result.trades] == [(t["id"], t["contracts"]) for t in other.trades]
         if gap > PARITY_REL_TOL or not same:
             raise RuntimeError(f"{run.key}: ledger and Nautilus disagree (gap {gap:.3g}, trades match {same})")
-    return Outcome(run, result, book_skipped, signals, gap)
+    return Outcome(run, result, book_skipped, signals, gap, tuple(trades))
 
 
 def daily_sharpe(result: LedgerResult) -> float:
@@ -388,6 +406,8 @@ def run_family(data: StudyData, nautilus: bool = True, progress=None) -> tuple[d
     for key, outcome in outcomes.items():
         stats = summarize(outcome.result, N_TRIALS, trial_variance)
         stats["skipped"] = stats["skipped"] + outcome.book_skipped
+        stats["maxOpenRisk"] = max_open_risk(outcome.result, outcome.priced)
+        stats["staleIvExits"] = sum(1 for trade in outcome.result.trades if trade["exitReason"] == "stale-iv")
         metrics[key] = stats
     return outcomes, metrics, trial_variance
 
@@ -452,17 +472,46 @@ def idea_notes(idea: qi.Idea, outcomes: Mapping[str, Outcome], metrics: Mapping[
     for label, key in idea.runs:
         outcome = outcomes[key]
         lines.append(f"{label} from {outcome.run.start}: signals {sum(outcome.signals.values())}, "
-                     f"trades {metrics[key]['trades']}, skipped {metrics[key]['skipped']}.")
+                     f"trades {metrics[key]['trades']}, skipped {metrics[key]['skipped']}, max open risk "
+                     f"{metrics[key]['maxOpenRisk']:.1%}, stale-IV exits {metrics[key]['staleIvExits']}.")
     text = " ".join(lines)
     return text[:NOTES_MAX]
 
 
+def code_revision(cwd=None) -> tuple[str, bool]:
+    """(HEAD commit sha, whether the qc-ports code differs from it)."""
+    import subprocess
+    from pathlib import Path
+
+    here = cwd or Path(__file__).resolve().parent
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=here, check=True, capture_output=True,
+                         text=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", "."], cwd=here, check=True, capture_output=True,
+                           text=True).stdout.strip() != ""
+    return sha, dirty
+
+
+def provenance(ran: str, data: StudyData, nautilus: bool, revision: str) -> dict:
+    """QcPortProvenanceSchema: the code, engine, data manifest and run id of this study."""
+    if nautilus:
+        from quantlab.nautilus_engine import NAUTILUS_VERSION
+
+        engine = f"qc-ports ledger + nautilus_trader {NAUTILUS_VERSION} (parity checked)"
+    else:
+        engine = "qc-ports ledger (reference, no Nautilus parity run)"
+    return {"codeRevision": revision, "engine": engine, "dataSha256": data.manifest,
+            "runId": f"qc-ports-{ran}-{revision[:12]}"}
+
+
 def document(idea: qi.Idea, outcomes: Mapping[str, Outcome], metrics: Mapping[str, dict], variance_: float,
-             ran: str, data: StudyData, nautilus: bool) -> dict:
+             ran: str, data: StudyData, nautilus: bool, revision: str = "0" * 40) -> dict:
+    if [label for label, _ in idea.runs[:2]] != ["A", "B"]:
+        raise ValueError(f"{idea.id}: runs[0] must be A and runs[1] the baseline B")
     primary, baseline = metrics[idea.key("A")], metrics[idea.key("B")]
     result, checks = verdict(primary, baseline)
     doc = {
         "kind": "qc-port", "id": idea.id, "spec": idea.spec, "title": idea.title, "ran": ran, "verdict": result,
+        "criteria": dict(CRITERIA), "provenance": provenance(ran, data, nautilus, revision),
         "runs": [run_entry(label, outcomes[key], metrics[key]) for label, key in idea.runs],
         "equity": equity_points(outcomes[idea.key("A")].result),
         "notes": idea_notes(idea, outcomes, metrics, variance_, checks, data, nautilus),
@@ -482,11 +531,17 @@ def _gate_metrics(stats: Mapping) -> dict:
     return {"sharpe": stats["sharpe"], "maxDrawdown": stats["maxDrawdown"], "trades": stats["trades"]}
 
 
-def documents(data: StudyData, ran: str, nautilus: bool = True, progress=None):
-    """(documents, outcomes, metrics, variance)."""
+def documents(data: StudyData, ran: str, nautilus: bool = True, progress=None, revision: str | None = None):
+    """(documents, outcomes, metrics, variance). `revision` defaults to the git HEAD of this code."""
     date.fromisoformat(ran)
+    if revision is None:
+        revision, dirty = code_revision()
+        if dirty:
+            import sys
+
+            print("warning: the qc-ports code differs from HEAD; provenance.codeRevision is HEAD", file=sys.stderr)
     outcomes, metrics, variance_ = run_family(data, nautilus, progress)
-    docs = [document(idea, outcomes, metrics, variance_, ran, data, nautilus) for idea in qi.IDEAS]
+    docs = [document(idea, outcomes, metrics, variance_, ran, data, nautilus, revision) for idea in qi.IDEAS]
     return docs, outcomes, metrics, variance_
 
 
@@ -621,14 +676,16 @@ def year_drawdowns(result: LedgerResult, years: Sequence[int]) -> dict[int, floa
 # --------------------------------------------------------------------------- report (markdown)
 
 def _metrics_table(idea: qi.Idea, metrics: Mapping[str, dict], outcomes: Mapping[str, Outcome]) -> list[str]:
-    lines = ["|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|",
-             "|---|---|---|---|---|---|---|---|---|---|---|"]
+    lines = [("|Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|"
+             "Max open risk|Stale-IV exits|"),
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for label, key in idea.runs:
         m = metrics[key]
         worst = "n/a" if m["worstMonth"] is None else f"{m['worstMonth']} {_fmt(m['worstMonthReturn'], 2, True)}"
         lines.append(f"|{label}|{outcomes[key].run.start}|{_fmt(m['cagr'], 2, True)}|{_fmt(m['sharpe'])}|"
                      f"{_fmt(m['deflatedSharpe'], 3)}|{_fmt(m['maxDrawdown'], 2, True)}|{worst}|{m['trades']}|"
-                     f"{_fmt(m['winRate'], 2, True)}|{_fmt(m['exposure'], 2, True)}|{m['skipped']}|")
+                     f"{_fmt(m['winRate'], 2, True)}|{_fmt(m['exposure'], 2, True)}|{m['skipped']}|"
+                     f"{_fmt(m['maxOpenRisk'], 2, True)}|{m['staleIvExits']}|")
     return lines
 
 

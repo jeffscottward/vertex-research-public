@@ -147,7 +147,7 @@ def test_debit_trade_held_to_exit_dte():
     assert trade.entry_price == round(100 * (entry[0] - entry[1]), 2)
     assert trade.premium == pytest.approx(entry[0] - entry[1])
     assert trade.entry_fee == fee(*entry)
-    assert trade.max_loss == round(trade.entry_price + trade.entry_fee, 2)
+    assert trade.max_loss == round(trade.entry_price + trade.entry_fee + bk.worst_exit_cost("SPY", trade.width), 2)
     # First close with DTE <= 7: Fri 2024-02-09 (7 days to Feb 16).
     assert (trade.exit_date, trade.exit_reason) == ("2024-02-09", "exitDte")
     leave = (call(100, 100, 7), call(100, 103, 7))
@@ -179,7 +179,7 @@ def test_credit_profit_take_and_values():
     assert (trade.short_strike, trade.long_strike) == (96.0, 93.0)
     credit = put(100, 96, 44) - put(100, 93, 44)
     assert trade.entry_price == round(100 * (3 - credit), 2)
-    assert trade.max_loss == round(trade.entry_price + trade.entry_fee, 2)
+    assert trade.max_loss == round(trade.entry_price + trade.entry_fee + bk.worst_exit_cost("SPY", trade.width), 2)
     liability = put(108, 96, 38) - put(108, 93, 38)
     assert liability <= 0.5 * credit
     assert (trade.exit_date, trade.exit_reason) == ("2024-01-09", "profitTake")
@@ -228,12 +228,30 @@ def test_skips_without_iv_rate_bars_or_time():
     assert book.skipped[0].event == bk.SignalEvent("SPY", 0, None)
 
 
-def test_open_trade_carries_the_last_iv():
+def test_stale_iv_closes_the_open_trade():
+    # None = the IV index is stale for more than 5 trading days (after the data.py carry).
     ivs = [200 / 9] * 3 + [None] * 3 + [200 / 9] * 39
     (trade,) = run([100.0] * 45, {**DEBIT, "exitDte": 7}, ivs=ivs).trades
-    assert trade.stale_days == 3
     (plain,) = run([100.0] * 45, {**DEBIT, "exitDte": 7}).trades
-    assert trade.marks == plain.marks
+    assert (trade.exit_reason, trade.exit_index, trade.stale_days) == ("stale-iv", 3, 1)
+    assert trade.marks == plain.marks[:3]  # priced with the last IV used
+    assert trade.exit_fee > 0
+
+
+def test_worst_exit_cost_bounds_every_exit():
+    width = 5.0
+    assert bk.worst_exit_cost("SPY", width) == round(2 * (0.65 + 100 * 0.01 * width), 2)
+    (trade,) = run([100.0] * 45, {**DEBIT, "exitDte": 7}).trades
+    assert trade.exit_fee <= bk.worst_exit_cost("SPY", trade.width)
+
+
+def test_nan_is_refused_not_zero():
+    with pytest.raises(ValueError):
+        bk.instrument_value("debit", math.nan, 1.0, 5.0)
+    with pytest.raises(ValueError):
+        bk.contracts_for(math.nan, 1000.0, 2, 100.0, 100.0)
+    with pytest.raises(ValueError):
+        bk.contracts_for(1000.0, 1000.0, 2, math.inf, 100.0)
 
 
 def test_trade_ids_follow_accepted_events():

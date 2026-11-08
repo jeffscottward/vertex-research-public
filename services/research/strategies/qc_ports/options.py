@@ -45,19 +45,30 @@ def _d1_d2(spot: float, strike: float, t: float, r: float, q: float, sigma: floa
     return d1, d1 - root
 
 
-def _check(right: str, spot: float, strike: float, sigma: float) -> None:
+def _finite(**values: float) -> None:
+    for name, value in values.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{name} must be a finite number")
+
+
+def _check(right: str, spot: float, strike: float, sigma: float, t: float = 0.0, r: float = 0.0,
+           q: float = 0.0) -> None:
+    """Refuses NaN, infinities and out-of-range inputs (spot, strike, sigma > 0; t, r, q >= 0)."""
     if right not in ("call", "put"):
         raise ValueError("right must be call or put")
+    _finite(spot=spot, strike=strike, sigma=sigma, t=t, r=r, q=q)
     if not (spot > 0 and strike > 0):
         raise ValueError("spot and strike must be above 0")
     if not sigma > 0:
         raise ValueError("sigma must be above 0")
+    if t < 0 or r < 0 or q < 0:
+        raise ValueError("t, r and q must not be negative")
 
 
 def bs_price(right: str, spot: float, strike: float, t: float, r: float, q: float, sigma: float) -> float:
-    """Black-Scholes-Merton price per share; intrinsic value when t <= 0."""
-    _check(right, spot, strike, sigma)
-    if t <= 0:
+    """Black-Scholes-Merton price per share; intrinsic value at t = 0."""
+    _check(right, spot, strike, sigma, t, r, q)
+    if t == 0:
         return max(0.0, spot - strike) if right == "call" else max(0.0, strike - spot)
     d1, d2 = _d1_d2(spot, strike, t, r, q, sigma)
     growth, discount = math.exp(-q * t), math.exp(-r * t)
@@ -68,8 +79,8 @@ def bs_price(right: str, spot: float, strike: float, t: float, r: float, q: floa
 
 def bs_delta(right: str, spot: float, strike: float, t: float, r: float, q: float, sigma: float) -> float:
     """Spot delta (call in [0, 1], put in [-1, 0])."""
-    _check(right, spot, strike, sigma)
-    if t <= 0:
+    _check(right, spot, strike, sigma, t, r, q)
+    if t == 0:
         if right == "call":
             return 1.0 if spot > strike else 0.0
         return -1.0 if spot < strike else 0.0
@@ -82,6 +93,7 @@ def atm_iv(index_id: str, level: float) -> float:
     """ATM implied vol (fraction) from an IV index level in percent."""
     if index_id not in ATM_FACTOR:
         raise ValueError(f"No ATM factor for {index_id}")
+    _finite(level=level)
     if not level > 0:
         raise ValueError("IV index level must be above 0")
     return ATM_FACTOR[index_id] * level / 100
@@ -89,6 +101,7 @@ def atm_iv(index_id: str, level: float) -> float:
 
 def smile_iv(atm: float, spot: float, strike: float, t: float, slope: float) -> float:
     """IV at `strike`: ATM scaled by the linear skew in standardized moneyness (floored, clamped)."""
+    _finite(atm=atm, spot=spot, strike=strike, t=t, slope=slope)
     if not atm > 0:
         raise ValueError("ATM IV must be above 0")
     if t <= 0 or slope == 0:
@@ -106,6 +119,9 @@ def half_spread(symbol: str, mid: float) -> float:
     """Half the bid/ask spread per share of one option at `mid`."""
     if symbol not in HALF_SPREAD_PCT:
         raise ValueError(f"No spread model for {symbol}")
+    _finite(mid=mid)
+    if mid < 0:
+        raise ValueError("mid must not be negative")
     return max(MIN_HALF_SPREAD, HALF_SPREAD_PCT[symbol] * mid)
 
 

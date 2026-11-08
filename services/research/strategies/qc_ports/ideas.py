@@ -343,6 +343,19 @@ class Leg:
     shift: int = 0
     end: str | None = None
 
+    def __post_init__(self) -> None:
+        if self.shift == 0:
+            return
+        if self.shift < 0 or self.policy != "window":
+            raise ValueError("Only window legs may be shifted, by a positive number of bars")
+        # Reading a window ahead is look-ahead free only for the trading calendar: no price condition,
+        # no exit condition and calendarWindow filters only.
+        filters = self.definition.get("filters") or []
+        entry = (self.definition.get("entry") or {}).get("all") or []
+        if (not filters or any(item.get("type") != "calendarWindow" for item in filters)
+                or entry != [ALWAYS] or (self.definition.get("exit") or {}).get("any")):
+            raise ValueError("A shifted leg may only hold calendarWindow filters (entry always true, no exit)")
+
 
 @dataclass(frozen=True)
 class RunSpec:
@@ -369,7 +382,7 @@ class Gate:
 class Idea:
     id: str
     title: str
-    runs: tuple[tuple[str, str], ...]  # (label in the spec, run key)
+    runs: tuple[tuple[str, str], ...]  # (label in the spec, run key); A first, then the baseline B
     gates: tuple[Gate, ...] = ()
 
     @property
@@ -539,7 +552,7 @@ IDEAS: tuple[Idea, ...] = (
     Idea("qc-asset-class-trend", "Asset-Class Trend Following (QuantConnect port)",
          (("A", "asset-class-trend/A"), ("B", "asset-class-trend/B"))),
     Idea("qc-futures-trend-carry", "Futures Trend and Carry (QuantConnect port)",
-         (("A", "futures-trend-carry/A"), ("A-L", "futures-trend-carry/A-L"), ("B", "futures-trend-carry/B"))),
+         (("A", "futures-trend-carry/A"), ("B", "futures-trend-carry/B"), ("A-L", "futures-trend-carry/A-L"))),
     Idea("qc-gold-fed-model", "Gold Timing with the Fed Model (QuantConnect port)",
          (("A", "gold-fed-model/A"), ("B", "gold-fed-model/B"))),
     Idea("qc-iv-rank-gate", "IV Rank Entry Gate (QuantConnect port)",
@@ -550,14 +563,14 @@ IDEAS: tuple[Idea, ...] = (
     Idea("qc-oil-predicts-equity", "Oil Predicts Equity (QuantConnect port)",
          (("A", "oil-predicts-equity/A"), ("B", "oil-predicts-equity/B"))),
     Idea("qc-opex-week", "Option Expiration Week (QuantConnect port)",
-         (("A", "opex-week/A"), ("A-L", "opex-week/A-L"), ("B", "opex-week/B"))),
+         (("A", "opex-week/A"), ("B", "opex-week/B"), ("A-L", "opex-week/A-L"))),
     Idea("qc-regime-put-vrp", "Regime-Gated Put Premium (QuantConnect port)",
          (("A", "regime-put-vrp/A"), ("B", "put-credit/B"), ("S0", "S0"), ("S2", "S2"), ("D0", "D0"),
           ("D2", "D2")), _gates("volRegime", 2)),
     Idea("qc-same-month-seasonality", "Same-Month Seasonality (QuantConnect port)",
          (("A", "same-month-seasonality/A"), ("B", "same-month-seasonality/B"))),
     Idea("qc-turn-of-the-month", "Turn of the Month (QuantConnect port)",
-         (("A", "turn-of-the-month/A"), ("A-L", "turn-of-the-month/A-L"), ("B", "turn-of-the-month/B"))),
+         (("A", "turn-of-the-month/A"), ("B", "turn-of-the-month/B"), ("A-L", "turn-of-the-month/A-L"))),
     Idea("qc-vix-term-gate", "VIX Term-Structure Gate (QuantConnect port)",
          (("A", "vix-term-gate/A"), ("B", "put-credit/B"), ("S0", "S0"), ("S3", "S3"), ("D0", "D0"),
           ("D3", "D3")), _gates("vixTermStructure < 1 (contango)", 3)),

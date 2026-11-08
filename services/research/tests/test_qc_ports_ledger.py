@@ -123,3 +123,26 @@ def test_metrics_edge_cases():
         summarize(_result((100.0,), ("2024-01-02",), (0,)), n_trials=1)
     assert max_drawdown([1.0, 2.0, 1.0, 3.0]) == -0.5
     assert worst_month([], [], 1.0) is None
+
+
+@pytest.mark.parametrize("options", [
+    {"structure": "putCreditVertical", "dte": {"target": 45, "min": 30}, "shortDelta": 0.25, "widthSigma": 0.5,
+     "profitTakePct": 50, "exitDte": 21, "maxLossPct": 2},
+    {"structure": "callDebitVertical", "dte": {"target": 30, "min": 21}, "longDelta": 0.5, "widthSigma": 1.0,
+     "exitDte": 5, "maxLossPct": 2},
+])
+def test_vol_doubling_crash_never_loses_more_than_two_percent(options):
+    from strategies.qc_ports.book import SignalEvent, build_book, worst_exit_cost
+    from tests.qc_ports_synthetic import VIX_FOR_20, market
+
+    closes = [100.0] * 5 + [100.0 - 6 * k for k in range(1, 6)] + [70.0] * 40  # -30% in five days
+    ivs = [VIX_FOR_20] * 5 + [2 * VIX_FOR_20] * 45  # implied volatility doubles
+    spy = market(closes, ivs=ivs, rate=0.04)
+    book = build_book([SignalEvent("SPY", 2, None)], options, {"SPY": spy})
+    result = run_ledger(book.trades, dates=spy.dates)
+    (record,) = result.trades
+    (priced,) = book.trades
+    assert record["pnl"] < 0
+    assert -record["pnl"] <= 0.02 * 100_000
+    assert -record["pnl"] <= record["contracts"] * priced.max_loss + 1e-6
+    assert priced.exit_fee <= worst_exit_cost("SPY", priced.width)

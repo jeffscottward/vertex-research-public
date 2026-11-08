@@ -37,7 +37,7 @@ SERIES_IDS = ETF_SYMBOLS + FUTURES + INDICES + DERIVED
 # Implied-volatility index of each traded symbol.
 IV_INDEX = {"SPY": "VIX", "QQQ": "VXN", "DIA": "VXD", "IWM": "RVX", "GLD": "GVZ", "SLV": "VXSLV", "USO": "OVX"}
 # Months between the Shiller month and its use (earnings are published late).
-EARNINGS_LAG_MONTHS = 3
+EARNINGS_LAG_MONTHS = 6
 
 
 def data_root(root: str | os.PathLike | None = None) -> Path:
@@ -84,9 +84,19 @@ class Market:
             raise ValueError("Market columns must have the same length")
         if any(later <= earlier for earlier, later in zip(self.dates, self.dates[1:])):
             raise ValueError("Market dates must be strictly increasing")
+        if not all(_finite(value) and value > 0 for value in self.close):
+            raise ValueError("Market closes must be finite and above 0")
+        if not all(value is None or (_finite(value) and value > 0) for value in self.iv_index):
+            raise ValueError("Market IV index values must be None or finite and above 0")
+        if not all(value is None or (_finite(value) and value >= 0) for value in self.rate):
+            raise ValueError("Market rates must be None or finite and not negative")
 
     def __len__(self) -> int:
         return len(self.dates)
+
+
+def _finite(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _number(text: str) -> float | None:
@@ -103,17 +113,20 @@ def _rows(path: Path) -> Iterable[dict[str, str]]:
 
 
 def load_bars(symbol: str, root: str | os.PathLike | None = None) -> Bars:
-    """Reads `<symbol>.csv` (OHLC + adj_close). Rows with a missing or non-positive close are dropped."""
+    """Reads `<symbol>.csv` (OHLC + adj_close). Rows with a missing or non-positive close, or a missing
+    open, high, low or adj_close, are dropped (never filled)."""
     columns: dict[str, list] = {key: [] for key in ("date", "open", "high", "low", "close", "adj_close")}
     for row in _rows(data_root(root) / f"{symbol}.csv"):
         close = _number(row["close"])
         if close is None or close <= 0:
             continue
         values = {key: _number(row[key]) for key in ("open", "high", "low", "adj_close")}
+        if any(value is None for value in values.values()):
+            continue
         columns["date"].append(row["date"])
         columns["close"].append(close)
         for key, value in values.items():
-            columns[key].append(close if value is None else value)
+            columns[key].append(value)
     bars = Bars(symbol, *(tuple(columns[key]) for key in ("date", "open", "high", "low", "close", "adj_close")))
     if any(later <= earlier for earlier, later in zip(bars.dates, bars.dates[1:])):
         raise ValueError(f"{symbol}: dates must be strictly increasing")
@@ -149,7 +162,7 @@ def _shift_month(month: str, delta: int) -> str:
 
 
 def ey_tnx_ratio(shiller: Mapping[str, tuple[float, float]], tnx: Mapping[str, float]) -> dict[str, float]:
-    """Fed model ratio per TNX date: 100 * E/P of the Shiller month 3 months back, over the TNX yield (percent)."""
+    """Fed model ratio per TNX date: 100 * E/P of the Shiller month 6 months back, over the TNX yield (percent)."""
     ratio: dict[str, float] = {}
     for date, yield_pct in tnx.items():
         row = shiller.get(_shift_month(date[:7], -EARNINGS_LAG_MONTHS))

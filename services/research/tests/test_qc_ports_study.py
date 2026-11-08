@@ -194,3 +194,52 @@ def test_run_entry_matches_the_study_schema_fields():
                           "trades", "winRate", "exposure", "skipped"}
     assert entry["worstMonth"] == {"month": "2024-01", "ret": 0.0}
     assert entry["name"] == "A: name" and entry["symbols"] == ["SPY"]
+
+
+def _stats(sharpe, deflated, drawdown):
+    return {"cagr": 0.01, "sharpe": sharpe, "deflatedSharpe": deflated, "maxDrawdown": drawdown,
+            "worstMonth": None, "worstMonthReturn": None, "trades": 0, "winRate": None, "exposure": 0.0,
+            "skipped": 0, "maxOpenRisk": 0.0, "staleIvExits": 0}
+
+
+def _qc_verdict(doc):
+    """packages/api qcPortVerdict, the check the importer runs."""
+    primary, baseline = doc["runs"][0], doc["runs"][1]
+    c = doc["criteria"]
+    ok = (primary["sharpe"] is not None and primary["sharpe"] > c["minSharpe"]
+          and primary["deflatedSharpe"] is not None and primary["deflatedSharpe"] > c["minDeflatedSharpe"]
+          and abs(primary["maxDrawdown"]) < c["maxDrawdown"]
+          and (not c["beatBaseline"] or baseline["sharpe"] is None or primary["sharpe"] > baseline["sharpe"]))
+    return "PASS" if ok else "FAIL"
+
+
+@pytest.mark.parametrize("a, b, expected", [
+    ((0.8, 0.95, -0.1), (0.3, 0.1, -0.2), "PASS"),
+    ((0.8, 0.95, -0.1), (0.9, 0.1, -0.2), "FAIL"),
+    ((0.8, 0.95, -0.25), (0.3, 0.1, -0.2), "FAIL"),
+    ((0.8, 0.9, -0.1), (None, None, 0.0), "FAIL"),
+    ((0.8, 0.95, -0.1), (None, None, 0.0), "PASS"),
+])
+def test_document_criteria_provenance_and_verdict(a, b, expected):
+    data = _data([100.0] * 45)
+    data = study.StudyData(data.spy_dates, data.bars, data.markets, {}, None, {}, "f" * 64)
+    run = qi.RunSpec("k", "name", (qi.Leg("SPY", qi.definition("x", qi.MONTHLY_CALL), "roll", data.spy_dates[0]),),
+                     data.spy_dates[0])
+    outcome = study.Outcome(run, run_ledger([], dates=data.spy_dates), 0, {"SPY": 0}, None)
+    idea = qi.Idea("qc-test-idea", "Test", (("A", "a"), ("B", "b"), ("A-L", "c")))
+    metrics = {"a": _stats(*a), "b": _stats(*b), "c": _stats(1.0, 1.0, 0.0)}
+    outcomes = {"a": outcome, "b": outcome, "c": outcome}
+    doc = study.document(idea, outcomes, metrics, 0.0002, "2026-11-08", data, False, "a" * 40)
+    assert doc["verdict"] == expected == _qc_verdict(doc)
+    assert doc["criteria"] == {"minSharpe": 0.5, "minDeflatedSharpe": 0.9, "maxDrawdown": 0.25, "beatBaseline": True}
+    assert doc["provenance"] == {"codeRevision": "a" * 40, "dataSha256": "f" * 64,
+                                 "engine": "qc-ports ledger (reference, no Nautilus parity run)",
+                                 "runId": "qc-ports-2026-11-08-aaaaaaaaaaaa"}
+    assert [run["name"][:2] for run in doc["runs"]] == ["A:", "B:", "A-"]
+    swapped = qi.Idea("qc-test-idea", "Test", (("A", "a"), ("A-L", "c"), ("B", "b")))
+    with pytest.raises(ValueError, match="runs\\[0\\]"):
+        study.document(swapped, outcomes, metrics, 0.0002, "2026-11-08", data, False, "a" * 40)
+
+
+def test_every_idea_lists_a_then_b():
+    assert all([label for label, _ in idea.runs[:2]] == ["A", "B"] for idea in qi.IDEAS)

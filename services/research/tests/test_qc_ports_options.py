@@ -39,7 +39,19 @@ def test_delta_values():
 def test_expiry_values_are_intrinsic():
     assert om.bs_price("call", 105, 100, 0, 0.05, 0, 0.2) == 5
     assert om.bs_price("put", 105, 100, 0, 0.05, 0, 0.2) == 0
-    assert om.bs_price("put", 95, 100, -0.01, 0.05, 0, 0.2) == 5
+    assert om.bs_price("put", 95, 100, 0, 0.05, 0, 0.2) == 5
+
+
+@pytest.mark.parametrize("args", [
+    (math.nan, 100, 0.1, 0.05, 0, 0.2), (100, 100, math.nan, 0.05, 0, 0.2), (100, 100, -0.01, 0.05, 0, 0.2),
+    (100, 100, 0.1, -0.01, 0, 0.2), (100, 100, 0.1, 0.05, -0.01, 0.2), (100, 100, 0.1, 0.05, 0, math.inf),
+    (100, 100, 0.1, math.nan, 0, 0.2), (-1, 100, 0.1, 0.05, 0, 0.2), (100, 100, 0.1, 0.05, 0, 0.0),
+])
+def test_bad_inputs_are_refused(args):
+    with pytest.raises(ValueError):
+        om.bs_price("call", *args)
+    with pytest.raises(ValueError):
+        om.bs_delta("put", *args)
     assert om.bs_delta("call", 105, 100, 0, 0, 0, 0.2) == 1.0
     assert om.bs_delta("call", 95, 100, 0, 0, 0, 0.2) == 0.0
     assert om.bs_delta("put", 95, 100, 0, 0, 0, 0.2) == -1.0
