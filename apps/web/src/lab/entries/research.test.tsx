@@ -219,4 +219,12 @@ describe("research lab entries", () => {
       expect(host.textContent).toContain("Demo: Time-series momentum")
     );
   });
+
+  it("shows the fictional play with its legs and defined risk", async () => {
+    const host = await render("plays");
+    expect(host.querySelector("h1")?.textContent).toBe("Plays");
+    await vi.waitFor(() => expect(host.textContent).toContain("MOCKX"));
+    expect(host.querySelectorAll("[data-play-leg]")).toHaveLength(2);
+    expect(host.textContent).toContain("Defined risk");
+  });
 });

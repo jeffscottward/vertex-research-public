@@ -56,9 +56,9 @@ import LegacyProfilePage from "./account/profile/page.ts";
 import LegacySecurityPage from "./account/security/page.ts";
 import LegacyAdminPage from "./admin/page.ts";
 import LegacyAdminUsersPage from "./admin/users/page.ts";
-import LegacyDataPage from "./data/page.ts";
 import DashboardError from "./dashboard/error.tsx";
 import DashboardLoading from "./dashboard/loading.tsx";
+import LegacyDataPage from "./data/page.ts";
 import PortalLayout from "./layout.tsx";
 import AddressSettingsPage from "./settings/account/address/page.tsx";
 import AccountSettingsError from "./settings/account/error.tsx";
@@ -280,6 +280,7 @@ describe("portal route manifests", () =>
       "/news",
       "/baskets",
       "/pick-lists",
+      "/plays",
       "/todos",
       "/today",
       "/portfolio",

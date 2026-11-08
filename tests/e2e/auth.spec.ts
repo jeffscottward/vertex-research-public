@@ -226,6 +226,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/charts",
   "/deployments",
   "/engines",
+  "/plays",
   "/journal",
   "/calendar",
 ] as const;

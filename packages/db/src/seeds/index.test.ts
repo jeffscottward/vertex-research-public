@@ -9,6 +9,7 @@ const convergence = vi.hoisted(() => ({
   profiles: vi.fn(),
   preferences: vi.fn(),
   content: vi.fn(),
+  plays: vi.fn(),
 }));
 
 vi.mock("./profiles.ts", () => ({
@@ -19,6 +20,9 @@ vi.mock("./preferences.ts", () => ({
 }));
 vi.mock("./content.ts", () => ({
   convergeDevelopmentContent: convergence.content,
+}));
+vi.mock("./plays.ts", () => ({
+  convergeDevelopmentPlays: convergence.plays,
 }));
 
 import {
@@ -175,6 +179,8 @@ beforeEach(() => {
   convergence.profiles.mockReset();
   convergence.preferences.mockReset();
   convergence.content.mockReset();
+  convergence.plays.mockReset();
+  convergence.plays.mockResolvedValue(undefined);
   convergence.profiles.mockResolvedValue(undefined);
   convergence.preferences.mockResolvedValue(undefined);
   return convergence.content.mockResolvedValue(undefined);
@@ -212,6 +218,9 @@ describe("development seed orchestration", () => {
     convergence.content.mockImplementation(async () =>
       applicationOrder.push("content")
     );
+    convergence.plays.mockImplementation(async () =>
+      applicationOrder.push("plays")
+    );
 
     const result = await seedDevelopment(double.database, {
       environment: "test",
@@ -231,7 +240,13 @@ describe("development seed orchestration", () => {
         return transaction === double.transactionExecutor;
       })
     ).toBe(true);
-    expect(applicationOrder).toEqual(["profiles", "preferences", "content"]);
+    expect(applicationOrder).toEqual([
+      "profiles",
+      "preferences",
+      "content",
+      "plays",
+    ]);
+    expect(convergence.plays).toHaveBeenCalledWith(double.transactionExecutor);
     expect(convergence.profiles).toHaveBeenCalledWith(
       double.transactionExecutor
     );

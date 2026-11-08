@@ -53,7 +53,7 @@ describe("0049_signal_alerts migration", () => {
   });
 
   it("is the 50th journal entry and the rollback refuses while rules exist", () => {
-    expect(journal.entries.at(-1)).toMatchObject({
+    expect(journal.entries[49]).toMatchObject({
       idx: 49,
       tag: "0049_signal_alerts",
     });

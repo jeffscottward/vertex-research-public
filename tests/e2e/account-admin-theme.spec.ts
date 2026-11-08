@@ -74,6 +74,7 @@ const PORTAL_NAVIGATION_HREFS = [
   "/calendar",
   "/baskets",
   "/pick-lists",
+  "/plays",
   "/papers",
   "/rotation-matrix",
   "/sector-rotation",

@@ -45,6 +45,7 @@ export const resetDevelopment = async (
         "pick_lists",
         "pick_list_snapshots",
         "pick_list_members",
+        "plays",
         "contact_rate_limits",
         "audit_records",
         "user",
