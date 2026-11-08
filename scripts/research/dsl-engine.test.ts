@@ -10,6 +10,7 @@ import {
   catchNautilusErrors,
   type DslJob,
   NautilusBatchError,
+  type NautilusIo,
   engineOptions,
   engineParity,
   NAUTILUS_ENGINE_ID,
@@ -106,6 +107,29 @@ describe("nautilusRunner", () => {
         spawn: () => ({ status: 0, stderr: "" }),
       })
     ).toThrow("nautilus batch output unreadable (no file ");
+    // The setup hint only for setup causes: no start, exit 3 (no nautilus-trader), import errors.
+    const hint = (spawn: NautilusIo["spawn"], base = io()) => {
+      try {
+        nautilusRunner(jobs, { ...base, spawn });
+      } catch (error) {
+        return (error as NautilusBatchError).setupHint;
+      }
+      return "no error";
+    };
+    expect(hint(() => ({ status: 1, stderr: traceback }))).toBe(true);
+    expect(hint(() => ({ status: 3, stderr: "missing" }))).toBe(true);
+    expect(
+      hint(() => ({ error: new Error("ENOENT"), status: null, stderr: null }))
+    ).toBe(true);
+    expect(
+      hint(() => ({
+        status: 1,
+        stderr: "Traceback\nRuntimeError: sell fill without an open position\n",
+      }))
+    ).toBe(false);
+    expect(hint(() => ({ status: 9, stderr: null }))).toBe(false);
+    const ok = io();
+    expect(hint(ok.spawn, ok)).toBe("no error");
     expect(() =>
       nautilusRunner(
         jobs,

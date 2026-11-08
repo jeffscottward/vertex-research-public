@@ -157,9 +157,15 @@ const runBatch = (
       run.error?.message ??
       run.stderr?.trim().split("\n").filter(Boolean).at(-1) ??
       "";
+    // Setup causes: the process did not start, nautilus-trader is missing (exit 3 from
+    // nautilus_backtest), or the Python cannot import a module. Anything else is a batch error.
+    const setup =
+      run.error !== undefined ||
+      run.status === 3 ||
+      /^(?:ModuleNotFoundError|ImportError)\b/u.test(detail);
     throw new NautilusBatchError(
       `nautilus batch failed (${detail || `status ${run.status}`})`,
-      true
+      setup
     );
   }
   let batch: Batch;
