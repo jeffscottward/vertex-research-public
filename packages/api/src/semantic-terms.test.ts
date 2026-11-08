@@ -1081,7 +1081,7 @@ describe("answerTerm", () => {
       );
       expect(output).toMatchObject({
         answer:
-          "No rows match. per strategy (engine runs linked to a strategy): no rows match; per run spec (symbol, rule, timeframe) for engine runs with no strategy: not answered, this SQL waits for owner certification on /semantic-terms. The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
+          "Partial: No rows match. per strategy (engine runs linked to a strategy): no rows match; per run spec (symbol, rule, timeframe) for engine runs with no strategy: not answered, this SQL waits for owner certification on /semantic-terms. The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
         certified: true,
         groupings: [
           {
@@ -1169,8 +1169,9 @@ describe("answerTerm", () => {
       ).resolves.toMatchObject({
         answer:
           "Unknown (per run spec (symbol, rule, timeframe) for engine runs with no strategy): The query ran past 5 s. No value is given.",
+        // The strategy rows ran, but an unknown answer gives no count either.
         groupings: [
-          { grain: "strategy", rowCount: 1, status: "ok" },
+          { grain: "strategy", rowCount: 0, status: "not_run" },
           { grain: "run_spec", rowCount: 0, status: "unknown" },
         ],
         query: "ran run-spec sql",
@@ -1200,9 +1201,36 @@ describe("answerTerm", () => {
       const output = await answer({ term: "backtest_sharpe" }, repository);
       expect(output.rows).toHaveLength(SEMANTIC_QUERY_MAX_ROWS);
       expect(output.truncated).toBe(true);
+      // Counts are the rows shown: 60 strategy rows, then 40 of the 60 run-spec rows.
+      expect(output.groupings.map((grouping) => grouping.rowCount)).toEqual([
+        60, 40,
+      ]);
+      expect(output.answer).toContain(
+        "for engine runs with no strategy: 40 row(s) (more not shown)"
+      );
       expect(
         output.answer.startsWith(`${SEMANTIC_QUERY_MAX_ROWS}+ row(s).`)
       ).toBe(true);
+    });
+
+    it("keeps the grain cell first even when the SQL returns its own grain column", async () => {
+      const repository = sharpeRepository(true);
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "a",
+          rows: [{ grain: "fake", sharpe: 1 }],
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "b",
+          rows: [],
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(output.rows).toEqual([{ grain: "strategy", sharpe: 1 }]);
+      expect(output.answer.startsWith("1 row(s).")).toBe(true);
     });
 
     it("lists both groupings with their certification in terms_list", () => {

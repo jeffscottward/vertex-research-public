@@ -204,13 +204,14 @@ describe("semantic layer (Postgres)", () => {
     ).toEqual([["Sector Momentum", 22.5]]);
   });
 
-  it("backtest_sharpe per run spec: latest succeeded run per symbol, rule and timeframe, only runs with no strategy", async () => {
+  it("backtest_sharpe per run spec: latest succeeded run per full run spec, only runs with no strategy", async () => {
     const rows = await okRows("backtest_sharpe", [null], "run_spec");
     expect(
       rows.map((row) => [
         row["symbol"],
         row["timeframe"],
         row["rule"],
+        row["stop_loss_pct"],
         row["sharpe"],
         row["run_id"],
         row["succeeded_runs_in_spec"],
@@ -221,17 +222,31 @@ describe("semantic layer (Postgres)", () => {
         "DIA",
         "1m",
         "breakout entry 20 exit 10 trend SMA 200",
+        0,
         1.21,
         "br_free_dia_1",
         1,
         1,
       ],
-      ["IWM", "1d", "smaCross fast 10 slow 30", 0.71, "br_free_iwm_2", 2, 0],
-      ["GLD", "1d", "smaCross fast 5 slow 20", -0.12, "br_free_gld_1", 1, 0],
+      ["IWM", "1d", "smaCross fast 10 slow 30", 0, 0.71, "br_free_iwm_2", 2, 0],
+      // Same rule as the GLD row below with a 2% stop: a different backtest (sweep cell), its own row.
+      [
+        "GLD",
+        "1d",
+        "smaCross fast 5 slow 20",
+        0.02,
+        0.33,
+        "br_free_gld_2",
+        1,
+        0,
+      ],
+      ["GLD", "1d", "smaCross fast 5 slow 20", 0, -0.12, "br_free_gld_1", 1, 0],
     ]);
     expect(rows[0]).toMatchObject({
+      cost_bps: 1,
       date_from: "2021-01-01",
       date_to: "2026-09-30",
+      take_profit_pct: 0,
       engine_version: "vx-engine-1.5",
       strategy_on_run: null,
     });

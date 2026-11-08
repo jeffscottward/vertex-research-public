@@ -309,15 +309,18 @@ describe("0058_semantic_unlinked_runs migration", () => {
     ]);
   });
 
-  it("reads only engine runs without a strategy, latest per symbol, timeframe and rule", () => {
+  it("reads only engine runs without a strategy, latest per full run spec", () => {
     expect(sqlBodies).toHaveLength(2);
     for (const body of sqlBodies) {
       expect(body).toContain(
         "where run.status = 'succeeded' and run.strategy_id is null and run.report is not null"
       );
       expect(body).toContain(
-        "select distinct on (runs.symbol, runs.timeframe, runs.rule)"
+        "select distinct on (runs.symbol, runs.timeframe, runs.rule, runs.stop_loss_pct, runs.take_profit_pct, runs.cost_bps, runs.date_from, runs.date_to)"
       );
+      // Only the metrics travel through the window and sort, not the whole report.
+      expect(body).toContain("run.report -> 'metrics' as metrics");
+      expect(body).not.toMatch(/run\.report,|run\.report\s*$/mu);
       expect(body).not.toMatch(/backtest_results|strategies|\$3/u);
     }
     expect(sqlBodies[0]).not.toContain("$2");
@@ -336,6 +339,14 @@ describe("0058_semantic_unlinked_runs migration", () => {
   it("has a guarded rollback that refuses on operator work and restores one attribute per term", () => {
     expect(rollback).toContain(
       "run-spec SQL attributes have operator work or unknown rows; refusing rollback"
+    );
+    // The guard compares the note with the exact seed note.
+    const seedNote = migration.match(
+      /'(Needs owner certification: [^']+)'/u
+    )?.[1];
+    expect(seedNote).toBeDefined();
+    expect(rollback).toContain(
+      `"certification_note" IS DISTINCT FROM '${seedNote}'`
     );
     expect(rollback).toContain(
       `DELETE FROM "public"."semantic_sql_attributes" WHERE "grain" = 'run_spec' AND "id" IN ('backtest_sharpe_run_spec', 'backtest_max_drawdown_run_spec');`

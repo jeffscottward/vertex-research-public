@@ -365,48 +365,74 @@ const answerSqlTerm = async (
   { now, reader }: Pick<QueryContext, "now" | "reader">
 ): Promise<SemanticTermQueryOutput> => {
   const several = attributes.length > 1;
-  const groupings: SemanticGroupingResult[] = [];
-  const rows: SemanticRow[] = [];
-  const ran = new Map<string, string>();
-  let truncated = false;
-  for (const attribute of attributes) {
-    const grouping = {
-      attribute: attribute.id,
-      certified: attribute.certified,
-      grain: attribute.grain,
-    };
-    if (!attribute.certified) {
-      groupings.push({ ...grouping, rowCount: 0, status: "not_certified" });
-      continue;
-    }
+  const answered: {
+    attribute: SemanticSqlAttributeRow;
+    rows: SemanticRow[];
+    truncated: boolean;
+    query: string;
+  }[] = [];
+  for (const [index, attribute] of attributes.entries()) {
+    if (!attribute.certified) continue;
     const result = await reader.run(attribute, values as DbParamValue[], {
       rowLimit: SEMANTIC_QUERY_MAX_ROWS,
       timeoutMs: SEMANTIC_SQL_TIMEOUT_MS,
     });
     if (result.status === "failed") {
-      groupings.push({ ...grouping, rowCount: 0, status: "unknown" });
+      // No counts either: an unknown answer gives no value, and a row count is one.
       return {
         ...described,
         answer: `Unknown${several ? ` (${SEMANTIC_GRAIN_LABELS[attribute.grain]})` : ""}: ${result.message} No value is given.`,
-        groupings: [
-          ...groupings,
-          ...described.groupings.slice(groupings.length),
-        ],
+        groupings: described.groupings.map((grouping, position) =>
+          position === index ? { ...grouping, status: "unknown" } : grouping
+        ),
         query: result.query,
         status: "unknown",
       };
     }
-    ran.set(attribute.id, result.query);
-    truncated ||= result.truncated;
-    groupings.push({ ...grouping, rowCount: result.rows.length, status: "ok" });
-    rows.push(
-      ...result.rows.map((row) =>
-        toRow(several ? { grain: attribute.grain, ...row } : row)
-      )
-    );
+    answered.push({
+      attribute,
+      query: result.query,
+      // With several attributes each row starts with the grain of its attribute; a SQL column
+      // named grain cannot replace it.
+      rows: result.rows.map((row) =>
+        toRow(
+          several
+            ? {
+                grain: attribute.grain,
+                ...Object.fromEntries(
+                  Object.entries(row).filter(([key]) => key !== "grain")
+                ),
+              }
+            : row
+        )
+      ),
+      truncated: result.truncated,
+    });
   }
-  const shown = rows.slice(0, SEMANTIC_QUERY_MAX_ROWS);
-  truncated ||= rows.length > shown.length;
+  // One row cap for the whole answer: earlier groupings fill it first.
+  let room = SEMANTIC_QUERY_MAX_ROWS;
+  const shownBy = new Map<string, { rows: SemanticRow[]; cut: boolean }>();
+  for (const entry of answered) {
+    const rows = entry.rows.slice(0, room);
+    room -= rows.length;
+    shownBy.set(entry.attribute.id, {
+      cut: entry.truncated || rows.length < entry.rows.length,
+      rows,
+    });
+  }
+  const shown = answered.flatMap(
+    (entry) => shownBy.get(entry.attribute.id)?.rows ?? []
+  );
+  const truncated = [...shownBy.values()].some((entry) => entry.cut);
+  const groupings = described.groupings.map((grouping) => {
+    const entry = shownBy.get(grouping.attribute);
+    return entry === undefined
+      ? grouping
+      : { ...grouping, rowCount: entry.rows.length, status: "ok" as const };
+  });
+  const partial = groupings.some(
+    (grouping) => grouping.status === "not_certified"
+  );
   const count =
     shown.length === 0
       ? "No rows match."
@@ -416,10 +442,13 @@ const answerSqlTerm = async (
     if (grouping.status === "not_certified") {
       return `${label}: not answered, this SQL waits for owner certification on /semantic-terms`;
     }
-    return `${label}: ${grouping.rowCount === 0 ? "no rows match" : `${grouping.rowCount} row(s)`}`;
+    const more = shownBy.get(grouping.attribute)?.cut
+      ? " (more not shown)"
+      : "";
+    return `${label}: ${grouping.rowCount === 0 ? "no rows match" : `${grouping.rowCount} row(s)`}${more}`;
   });
   const answer = several
-    ? `${count} ${parts.join("; ")}. The grain cell of each row names its grouping. ${term.description}`
+    ? `${partial ? "Partial: " : ""}${count} ${parts.join("; ")}. The grain cell of each row names its grouping. ${term.description}`
     : `${count} ${term.description}`;
   return {
     ...described,
@@ -427,8 +456,10 @@ const answerSqlTerm = async (
     asOf: now.toISOString(),
     groupings,
     query: sqlText(
-      attributes.filter((attribute) => ran.has(attribute.id)),
-      (attribute) => ran.get(attribute.id) ?? attribute.sql,
+      answered.map((entry) => entry.attribute),
+      (attribute) =>
+        answered.find((entry) => entry.attribute.id === attribute.id)?.query ??
+        attribute.sql,
       several
     ),
     rowCount: shown.length,

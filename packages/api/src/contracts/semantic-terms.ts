@@ -25,7 +25,6 @@ export const SEMANTIC_ATTRIBUTE_GRAINS = [
   "request",
   "monitor",
 ] as const;
-// not_run: certified but not run (the term is not certified, or an earlier attribute failed).
 /** How the assistant answer and the operator page name the rows of one grain. */
 export const SEMANTIC_GRAIN_LABELS: Readonly<
   Record<(typeof SEMANTIC_ATTRIBUTE_GRAINS)[number], string>
@@ -37,6 +36,7 @@ export const SEMANTIC_GRAIN_LABELS: Readonly<
     "per run spec (symbol, rule, timeframe) for engine runs with no strategy",
   strategy: "per strategy (engine runs linked to a strategy)",
 };
+// not_run: certified but not run (the term is not certified, or another attribute failed).
 const SEMANTIC_GROUPING_STATUSES = [
   "ok",
   "unknown",

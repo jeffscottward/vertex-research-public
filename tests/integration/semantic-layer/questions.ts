@@ -180,7 +180,7 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     kind: "research",
     question: "Do any strategies have a backtest drawdown worse than 20%?",
     reference:
-      "Yes: among strategies only Sector Momentum (22.5%). Engine runs with no strategy, per run spec, also exceed 20% (GLD smaCross 5/20 41.2%, IWM smaCross 10/30 25.8%); listing them as run specs is correct, calling them strategies is not required.",
+      "Yes: among strategies only Sector Momentum (22.5%). Engine runs with no strategy, per run spec, also exceed 20% (GLD smaCross 5/20 41.2%, IWM smaCross 10/30 25.8%); listing them labelled as run specs (not strategies) next to Sector Momentum is correct; presenting them as strategies is wrong.",
     required: [/sector momentum/i, /\b22\.50?\s?%/],
     set: "main",
   },
@@ -321,7 +321,7 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     question:
       "List the backtest Sharpe of every strategy and every unlinked engine run, and say which grouping each row uses.",
     reference:
-      "Per strategy: RSI Mean Reversion 1.45, Sector Momentum 1.31, Opening Range Breakout 0.82. Per run spec (no strategy): DIA breakout 1.21, IWM smaCross 10/30 0.71, GLD smaCross 5/20 -0.12.",
+      "Per strategy: RSI Mean Reversion 1.45, Sector Momentum 1.31, Opening Range Breakout 0.82. Per run spec (no strategy): DIA breakout 1.21, IWM smaCross 10/30 0.71, GLD smaCross 5/20 with a 2% stop loss 0.33, GLD smaCross 5/20 without a stop -0.12.",
     required: [
       /\b1\.45\b/,
       /\b1\.31\b/,
@@ -329,7 +329,7 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
       /\b1\.21\b/,
       /\b0\.71\b/,
       /-\s?0\.12\b|−0\.12\b/,
-      /per strategy|by strategy|strategy grouping|linked/i,
+      /per strategy|by strategy|strategy grouping|(?<!un|not )linked to a strategy/i,
       /run spec|no strategy|without a strategy|unlinked|not linked/i,
     ],
     set: "unlinked",

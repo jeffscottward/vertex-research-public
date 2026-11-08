@@ -28,7 +28,8 @@ insert into backtest_runs(id, status, strategy_id, spec, engine_version, request
 
 -- Engine runs with no strategy (strategy_id null), answered per run spec (symbol, rule, timeframe) by the
 -- run_spec SQL attributes of migration 0058: IWM sma 10/30 twice (the newer run is the latest), DIA breakout
--- with a newer failed run, GLD sma 5/20 with a drawdown worse than 20%.
+-- with a newer failed run, GLD sma 5/20 with a drawdown worse than 20% and, as a separate run spec, the same
+-- rule with a 2% stop loss (a sweep cell: a different backtest, not a newer run of the first).
 insert into backtest_runs(id, status, strategy_id, spec, engine_version, requested_by, error, report, created_at, finished_at) values
   ('br_free_iwm_1', 'succeeded', null, '{"symbol":"IWM","timeframe":"1d","rule":{"kind":"smaCross","fast":10,"slow":30}}', 'vx-engine-1.5', 'u_owner', null,
    '{"metrics":{"sharpe":0.64,"maxDrawdownPct":0.311,"totalReturn":0.087,"totalTrades":41,"winRate":0.49}}', '2026-10-10T14:00Z', '2026-10-10T14:02Z'),
@@ -38,7 +39,9 @@ insert into backtest_runs(id, status, strategy_id, spec, engine_version, request
    '{"metrics":{"sharpe":1.21,"maxDrawdownPct":0.083,"totalReturn":0.212,"totalTrades":133,"winRate":0.58}}', '2026-10-18T14:00Z', '2026-10-18T14:05Z'),
   ('br_free_dia_2', 'failed',    null, '{"symbol":"DIA","timeframe":"1m","rule":{"kind":"breakout","entryLookback":20,"exitLookback":10,"trendSma":200}}', 'vx-engine-1.5', 'u_owner', 'bars missing for 2026-11-01', null, '2026-11-02T14:00Z', '2026-11-02T14:01Z'),
   ('br_free_gld_1', 'succeeded', null, '{"symbol":"GLD","timeframe":"1d","rule":{"kind":"smaCross","fast":5,"slow":20}}', 'vx-engine-1.5', 'u_owner', null,
-   '{"metrics":{"sharpe":-0.12,"maxDrawdownPct":0.412,"totalReturn":-0.034,"totalTrades":77,"winRate":0.44}}', '2026-10-30T14:00Z', '2026-10-30T14:03Z');
+   '{"metrics":{"sharpe":-0.12,"maxDrawdownPct":0.412,"totalReturn":-0.034,"totalTrades":77,"winRate":0.44}}', '2026-10-30T14:00Z', '2026-10-30T14:03Z'),
+  ('br_free_gld_2', 'succeeded', null, '{"symbol":"GLD","timeframe":"1d","rule":{"kind":"smaCross","fast":5,"slow":20},"stopLossPct":0.02}', 'vx-engine-1.5', 'u_owner', null,
+   '{"metrics":{"sharpe":0.33,"maxDrawdownPct":0.152,"totalReturn":0.041,"totalTrades":81,"winRate":0.47}}', '2026-11-01T14:00Z', '2026-11-01T14:03Z');
 
 -- Agent-recorded backtests. metrics keys are free-form; max_drawdown is a negative fraction.
 insert into agent_tasks(id, kind, agent, title, status, metrics, links) values
@@ -80,7 +83,7 @@ insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level
 update backtest_runs set spec = jsonb_build_object(
   'costBps', 1, 'from', '2021-01-01', 'to', '2026-09-30', 'initialCapital', 100000,
   'rule', coalesce(spec->'rule', jsonb_build_object('kind', 'smaCross', 'fast', 20, 'slow', 50)),
-  'stopLossPct', 0, 'takeProfitPct', 0, 'symbol', spec->>'symbol',
+  'stopLossPct', coalesce((spec->>'stopLossPct')::numeric, 0), 'takeProfitPct', 0, 'symbol', spec->>'symbol',
   'timeframe', case when spec->>'timeframe' = '1d' then '1d' else '1m' end);
 update backtest_runs set report = jsonb_build_object(
   'bars', 1000, 'equity', '[]'::jsonb, 'firstT', 1609459200, 'lastT', 1759190400, 'prices', '[]'::jsonb,
