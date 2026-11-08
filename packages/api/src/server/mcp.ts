@@ -379,7 +379,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "backtest_runs_submit",
     title: "Run backtest",
     description:
-      "Queue a backtest of a long-only rule (smaCross fast/slow, breakout entryLookback/exitLookback/trendSma, or dsl with a version-1 strategy definition that carries its own stop, target and sizing) over stored bars for symbol, timeframe 1d|1m and a from/to date range, with optional stopLossPct, takeProfitPct, costBps, initialCapital and strategyId (ties the run to a SHA-256 revision of that strategy). Returns the run; poll backtest_runs_get until it succeeds or fails. Research only, no orders. Needs a write key.",
+      "Queue a backtest of a long-only rule (smaCross fast/slow, breakout entryLookback/exitLookback/trendSma, or dsl with a version-1 strategy definition that carries its own stop, target and sizing) over stored bars for symbol, timeframe 1d|1m and a from/to date range, with optional stopLossPct, takeProfitPct, costBps, initialCapital and strategyId (ties the run to a SHA-256 revision of that strategy). A definition may read daily series (ivRank, vixTermStructure, volRegime and series filters, series expressions): the run loads them from the series store and fails when one is missing. A definition with an options block runs in the options runner on 1d only, with costBps 0, no costProfile, stopLossPct and takeProfitPct 0 and a symbol from portfolio.symbols (else one of SPY, QQQ, DIA, IWM, GLD, SLV, USO); its report adds the options book result. Returns the run; poll backtest_runs_get until it succeeds or fails. Research only, no orders. Needs a write key.",
     procedure: "backtestRuns/submit",
     input: BacktestRunSubmitInputSchema,
     readOnly: false,

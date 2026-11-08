@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   BACKTEST_RUN_TRADES_MAX,
+  type BacktestRunOptionsMetrics,
   buildBacktestRunReport,
+  buildOptionsRunReport,
+  type OptionsRunReportInput,
 } from "./backtest-run-report.ts";
 import type {
   BarColumns,
@@ -210,5 +213,154 @@ describe("buildBacktestRunReport", () => {
       1
     );
     expect(report).not.toHaveProperty("costs");
+  });
+});
+
+describe("buildOptionsRunReport", () => {
+  const metrics: BacktestRunOptionsMetrics = {
+    cagr: 0.1,
+    days: 4,
+    deflatedSharpe: 0.6,
+    end: "1970-01-05",
+    expectedMaxSharpe: 0,
+    exposure: 0.5,
+    finalEquity: 1010,
+    maxDrawdown: -0.02,
+    maxOpenRisk: 0.02,
+    nTrials: 1,
+    sharpe: 1.5,
+    sharpeVariance: 0.1,
+    skipped: 0,
+    staleIvExits: 0,
+    start: "1970-01-01",
+    totalReturn: 0.01,
+    trades: 2,
+    winRate: 0.5,
+    worstMonth: "1970-01",
+    worstMonthReturn: 0.01,
+  };
+  const spread = (
+    id: number,
+    entryDate: string,
+    exitDate: string,
+    pnl: number
+  ) => ({
+    contracts: 2,
+    entryDate,
+    entryFee: 2.6,
+    entryPrice: 150,
+    exitDate,
+    exitFee: 2.6,
+    exitPrice: 150 + pnl / 2,
+    exitReason: "profitTake" as const,
+    expiry: "1970-02-20",
+    id,
+    longStrike: 95,
+    pnl,
+    returnOnRisk: pnl / 700,
+    shortStrike: 97,
+    structure: "putCreditVertical" as const,
+    symbol: "SPY",
+  });
+  const input = (closes: readonly number[]): OptionsRunReportInput => ({
+    bars: bars(closes),
+    ledger: {
+      capital: 1000,
+      dates: ["1970-01-01", "1970-01-02", "1970-01-05", "1970-01-06"],
+      equity: [1000, 990, 1020, 1010],
+      trades: [
+        spread(1, "1970-01-01", "1970-01-02", -10),
+        spread(2, "1970-01-02", "1970-01-05", 30),
+      ],
+    },
+    metrics,
+    nautilusGap: 1e-12,
+    signals: { SPY: 3 },
+    symbols: ["SPY"],
+  });
+
+  it("reports the ledger equity, its spreads as trades and the options book", () => {
+    // Daily bars on every calendar day: the weekend bars are not ledger dates.
+    const report = buildOptionsRunReport(input([10, 11, 12, 13, 14, 15, 16]));
+    expect(report.bars).toBe(4);
+    expect(report.firstT).toBe(0);
+    expect(report.lastT).toBe(5 * 86_400_000);
+    expect(report.equity.map((point) => point.equity)).toEqual([
+      1000, 990, 1020, 1010,
+    ]);
+    expect(report.equity[1]?.drawdownPct).toBeCloseTo(0.01, 12);
+    expect(
+      report.prices.map((price) => [price.t / 86_400_000, price.c])
+    ).toEqual([
+      [0, 10],
+      [1, 11],
+      [4, 14],
+      [5, 15],
+    ]);
+    expect(report.metrics).toMatchObject({
+      buyHoldReturn: 0.5,
+      cagr: 0.1,
+      exposure: 0.5,
+      finalEquity: 1010,
+      grossLoss: -10,
+      grossProfit: 30,
+      maxDrawdownAbs: 10,
+      netProfit: 10,
+      sharpe: 1.5,
+      totalReturn: 0.01,
+      totalTrades: 2,
+      winRate: 0.5,
+    });
+    expect(report.metrics.sortino).toBeGreaterThan(0);
+    expect(report.trades).toEqual([
+      {
+        balanceAfter: 990,
+        entryPrice: 150,
+        entryT: 0,
+        exitPrice: 145,
+        exitReason: "profitTake",
+        exitT: 86_400_000,
+        n: 1,
+        netReturn: -10 / 700,
+        pnl: -10,
+        units: 2,
+      },
+      expect.objectContaining({ balanceAfter: 1020, n: 2, pnl: 30 }),
+    ]);
+    expect(report.options).toMatchObject({
+      capital: 1000,
+      nautilusGap: 1e-12,
+      signals: { SPY: 3 },
+      symbols: ["SPY"],
+    });
+    expect(report.options?.trades).toHaveLength(2);
+    expect(report.tradesTruncated).toBe(false);
+  });
+
+  it("has no buy and hold without bars on the ledger dates", () => {
+    const report = buildOptionsRunReport({
+      ...input([10]),
+      bars: { ...bars([10]), t: Float64Array.from([-86_400_000]) },
+    });
+    expect(report.prices).toEqual([]);
+    expect(report.metrics.buyHoldReturn).toBe(0);
+    const one = buildOptionsRunReport(input([10]));
+    expect(one.prices).toHaveLength(1);
+    expect(one.metrics.buyHoldReturn).toBe(0);
+  });
+
+  it("caps the spreads at the trade limit", () => {
+    const base = input([10, 11]);
+    const many = Array.from(
+      { length: BACKTEST_RUN_TRADES_MAX + 1 },
+      (_, index) => spread(index + 1, "1970-01-01", "1970-01-02", 1)
+    );
+    const report = buildOptionsRunReport({
+      ...base,
+      ledger: { ...base.ledger, trades: many },
+    });
+    expect(report.trades).toHaveLength(BACKTEST_RUN_TRADES_MAX);
+    expect(report.options?.trades).toHaveLength(BACKTEST_RUN_TRADES_MAX);
+    expect(report.tradesTruncated).toBe(true);
   });
 });

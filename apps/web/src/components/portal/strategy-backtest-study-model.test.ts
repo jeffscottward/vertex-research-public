@@ -1,8 +1,16 @@
-import { type QcPortStudy, QcPortStudySchema } from "@darkfactory/api";
+import {
+  type QcPortStudy,
+  QcPortStudySchema,
+  type StrategyParamOutput,
+} from "@darkfactory/api";
 import { describe, expect, it } from "vitest";
 
 import fixture from "../../features/research-studies/fixtures/qc-port-study.json";
-import { toQcPortStudyViewModel } from "./strategy-backtest-study-model.ts";
+import {
+  qcPortDefinitionRef,
+  qcPortRunHref,
+  toQcPortStudyViewModel,
+} from "./strategy-backtest-study-model.ts";
 
 const STUDY: QcPortStudy = QcPortStudySchema.parse(fixture);
 
@@ -82,5 +90,60 @@ describe("toQcPortStudyViewModel", () => {
     expect(model.gates).toEqual([]);
     expect(model.equity).toEqual([]);
     expect(model.equitySummary).toBe("No monthly equity stored.");
+  });
+});
+
+// Fixed choice params of a qc-port row (migration 0059).
+const choice = (name: string, value: string): StrategyParamOutput => ({
+  default: value,
+  name,
+  options: [value],
+  title: name,
+  type: "choice",
+});
+const SHA = "b0742b461b978bd39aff8b32cd8062fcb21fe4ae2bdb60d8cff5cf425deeb3c8";
+const PARAMS = [
+  choice("definitionId", "qc-asset-class-trend"),
+  choice("definitionSha256", SHA),
+  choice("runFrom", "1993-10-29"),
+  choice("initialCapital", "100000"),
+];
+
+describe("qc-port definition link", () => {
+  it("reads the stored definition params and builds the Backtest runs link", () => {
+    const ref = qcPortDefinitionRef(PARAMS);
+    expect(ref).toEqual({
+      definitionId: "qc-asset-class-trend",
+      initialCapital: 100_000,
+      runFrom: "1993-10-29",
+      sha256: SHA,
+    });
+    expect(
+      qcPortRunHref(
+        ref as NonNullable<typeof ref>,
+        "strategy-seed-qc-asset-class-trend"
+      )
+    ).toBe(
+      `/backtest-runs?definition=qc-asset-class-trend&sha=${SHA}&strategy=strategy-seed-qc-asset-class-trend&timeframe=1d&from=1993-10-29&initialCapital=100000&costBps=0`
+    );
+  });
+
+  it("needs the definition id and SHA-256; run start and capital are optional", () => {
+    expect(qcPortDefinitionRef([])).toBeNull();
+    expect(qcPortDefinitionRef(PARAMS.slice(0, 1))).toBeNull();
+    expect(qcPortDefinitionRef(PARAMS.slice(1))).toBeNull();
+    const bare = qcPortDefinitionRef([
+      ...PARAMS.slice(0, 2),
+      choice("initialCapital", "a lot"),
+    ]);
+    expect(bare).toEqual({
+      definitionId: "qc-asset-class-trend",
+      initialCapital: null,
+      runFrom: null,
+      sha256: SHA,
+    });
+    expect(qcPortRunHref(bare as NonNullable<typeof bare>, "s-1")).toBe(
+      `/backtest-runs?definition=qc-asset-class-trend&sha=${SHA}&strategy=s-1&timeframe=1d&costBps=0`
+    );
   });
 });

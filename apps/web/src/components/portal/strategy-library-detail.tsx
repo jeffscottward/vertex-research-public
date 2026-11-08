@@ -33,7 +33,10 @@ import {
 } from "./backtests-workspace.tsx";
 import { newRequestHref } from "./deployment-requests-model.ts";
 import type { ResearchStudyGateway } from "./filter-studies-section.tsx";
-import { StrategyBacktestStudy } from "./strategy-backtest-study.tsx";
+import {
+  QcPortDefinitionLink,
+  StrategyBacktestStudy,
+} from "./strategy-backtest-study.tsx";
 import { QC_IDEA_TAG } from "./strategy-backtest-study-model.ts";
 import {
   descriptionLinks,
@@ -102,33 +105,25 @@ export interface StrategyDetailProps {
   readonly tab: StrategyTab;
 }
 
-// Roving focus for the tab list: arrows move and select, Home/End jump.
+// Roving focus for the tab list: arrows move and select (wrapping), Home/End jump.
 const tabKeyTarget = (
   key: string,
   current: StrategyTab
 ): StrategyTab | null => {
+  const count = STRATEGY_TABS.length;
   const index = STRATEGY_TABS.indexOf(current);
-  switch (key) {
-    case "ArrowRight": {
-      return STRATEGY_TABS[(index + 1) % STRATEGY_TABS.length] ?? null;
-    }
-    case "ArrowLeft": {
-      return (
-        STRATEGY_TABS[
-          (index - 1 + STRATEGY_TABS.length) % STRATEGY_TABS.length
-        ] ?? null
-      );
-    }
-    case "Home": {
-      return STRATEGY_TABS[0];
-    }
-    case "End": {
-      return STRATEGY_TABS.at(-1) ?? null;
-    }
-    default: {
-      return null;
-    }
-  }
+  const target =
+    key === "ArrowRight"
+      ? (index + 1) % count
+      : key === "ArrowLeft"
+        ? (index - 1 + count) % count
+        : key === "Home"
+          ? 0
+          : key === "End"
+            ? count - 1
+            : null;
+  // Every target is an index of STRATEGY_TABS.
+  return target === null ? null : (STRATEGY_TABS[target] as StrategyTab);
 };
 
 const Message = ({
@@ -755,13 +750,20 @@ const BacktestsTab = ({
   const latest = strategy.latestBacktest;
   return (
     <div className="space-y-3">
-      {/* QuantConnect idea ports keep their backtest study in research_studies under the slug. */}
+      {/* QuantConnect idea ports keep their backtest study in research_studies under the slug and
+          link their stored strategy definition (Run backtest opens Backtest runs with it). */}
       {strategy.tags.includes(QC_IDEA_TAG) ? (
-        <StrategyBacktestStudy
-          gateway={researchStudies}
-          key={strategy.slug}
-          slug={strategy.slug}
-        />
+        <>
+          <QcPortDefinitionLink
+            params={strategy.params}
+            strategyId={strategy.id}
+          />
+          <StrategyBacktestStudy
+            gateway={researchStudies}
+            key={strategy.slug}
+            slug={strategy.slug}
+          />
+        </>
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs" data-latest-summary="">

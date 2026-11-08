@@ -18,12 +18,19 @@ import {
 
 import {
   defaultExpr,
+  describeCondition,
+  describeExpr,
+  describeFilter,
+  describeOptions,
+  describePortfolio,
   INDICATOR_LABELS,
+  isEditableExpr,
   lengthUnit,
   numberOf,
   pickBuilderRun,
   readBuilderQuery,
   replaceAt,
+  seriesRefLabel,
   templateDefinition,
   toBuilderRunInput,
   usesSource,
@@ -999,5 +1006,323 @@ describe("StrategyBuilderWorkspace", () => {
         StrategyDefinitionSchema.safeParse(templateDefinition(id)).success
       ).toBe(true);
     }
+  });
+});
+
+// Definitions with the newer expression types, series refs, filters and options and portfolio
+// blocks: the builder shows what it does not edit read-only and keeps it unchanged.
+const CHANGE_FUTURE = {
+  length: 252,
+  of: { series: "$future", type: "series" },
+  type: "change",
+} as const;
+const OPTIONS_DEFINITION = {
+  entry: {
+    all: [{ left: CHANGE_FUTURE, op: ">", right: { type: "const", value: 0 } }],
+  },
+  exit: {
+    any: [
+      {
+        left: {
+          left: { field: "close", type: "price" },
+          op: "div",
+          right: { series: "SPY:TR", type: "series" },
+          type: "math",
+        },
+        op: "<",
+        right: { type: "const", value: 1 },
+      },
+    ],
+  },
+  filters: [
+    {
+      condition: {
+        left: { field: "close", type: "price" },
+        op: ">",
+        right: { length: 20, name: "sma", source: "close", type: "indicator" },
+      },
+      series: "$iv",
+      type: "series",
+    },
+    { length: 252, max: 50, type: "ivRank" },
+  ],
+  name: "Futures momentum spreads",
+  options: {
+    dte: { min: 45, target: 60 },
+    exitDte: 21,
+    longDelta: 0.5,
+    maxLossPct: 2,
+    structure: "callDebitVertical",
+    widthSigma: 1,
+  },
+  portfolio: {
+    frame: "monthly",
+    legs: [
+      {
+        entry: {
+          all: [
+            {
+              left: { field: "close", type: "price" },
+              op: ">",
+              right: { type: "const", value: 0 },
+            },
+          ],
+        },
+        options: {
+          dte: { min: 30, target: 45 },
+          maxLossPct: 1,
+          shortDelta: 0.25,
+          structure: "putCreditVertical",
+          widthSigma: 1,
+        },
+      },
+    ],
+    policy: "roll",
+    select: {
+      score: {
+        length: 12,
+        of: { series: "$tr", type: "series" },
+        type: "returnStdev",
+      },
+      top: 3,
+    },
+    symbols: ["SPY", "QQQ", "GLD"],
+  },
+  sizing: { mode: "allIn" },
+  stopLoss: { kind: "none" },
+  takeProfit: { kind: "none" },
+  version: 1,
+};
+
+describe("strategy builder model: read-only expressions", () => {
+  it("tells editable leaves from the other expression types", () => {
+    expect(isEditableExpr(defaultExpr("price"))).toBe(true);
+    expect(isEditableExpr(defaultExpr("const"))).toBe(true);
+    expect(isEditableExpr(defaultExpr("indicator"))).toBe(true);
+    expect(isEditableExpr({ series: "VIX", type: "series" })).toBe(false);
+  });
+
+  it("describes every expression type compactly", () => {
+    const close = { field: "close", type: "price" } as const;
+    const vix = { series: "VIX", type: "series" } as const;
+    expect(describeExpr(close)).toBe("close");
+    expect(describeExpr({ ...close, offset: 0 })).toBe("close");
+    expect(describeExpr({ field: "high", offset: 2, type: "price" })).toBe(
+      "high[2]"
+    );
+    expect(describeExpr({ type: "const", value: -1.5 })).toBe("-1.5");
+    expect(
+      describeExpr({
+        length: 20,
+        name: "sma",
+        offset: 1,
+        source: "close",
+        type: "indicator",
+      })
+    ).toBe("sma(close, 20)[1]");
+    expect(
+      describeExpr({
+        length: 14,
+        name: "atr",
+        source: "close",
+        type: "indicator",
+      })
+    ).toBe("atr(14)");
+    expect(describeExpr(CHANGE_FUTURE)).toBe("change(series $future, 252)");
+    expect(describeExpr({ ...CHANGE_FUTURE, offset: 21 })).toBe(
+      "change(series $future, 252)[21]"
+    );
+    expect(describeExpr({ ...vix, offset: 3 })).toBe("series VIX[3]");
+    expect(
+      ["add", "sub", "mul", "div"].map((op) =>
+        describeExpr({
+          left: close,
+          op: op as "add",
+          right: vix,
+          type: "math",
+        })
+      )
+    ).toEqual([
+      "(close + series VIX)",
+      "(close - series VIX)",
+      "(close * series VIX)",
+      "(close / series VIX)",
+    ]);
+    expect(describeExpr({ length: 21, of: vix, type: "returnStdev" })).toBe(
+      "returnStdev(series VIX, 21)"
+    );
+    expect(
+      describeExpr({ lag: 1, length: 60, type: "regression", x: vix, y: close })
+    ).toBe("regression(close on series VIX, 60, lag 1)");
+    expect(
+      describeExpr({ minCount: 5, monthsAhead: 1, of: close, type: "seasonal" })
+    ).toBe("seasonal(close, 1 months ahead, min 5)");
+    expect(
+      describeCondition({
+        left: close,
+        op: "crossesAbove",
+        right: { type: "const", value: 0 },
+      })
+    ).toBe("close crossesAbove 0");
+  });
+
+  it("describes filters, series refs and the options and portfolio blocks", () => {
+    const parsed = StrategyDefinitionSchema.parse(OPTIONS_DEFINITION);
+    const [series, ivRank] = parsed.filters ?? [];
+    expect(describeFilter(series as NonNullable<typeof series>)).toBe(
+      "series $iv: close > sma(close, 20)"
+    );
+    expect(describeFilter(ivRank as NonNullable<typeof ivRank>)).toBe(
+      'ivRank {"length":252,"max":50}'
+    );
+    expect(
+      ["$tr", "$iv", "$future", "SPY:TR", "VIX"].map((ref) =>
+        seriesRefLabel(ref as "VIX")
+      )
+    ).toEqual([
+      "$tr (total return of the traded symbol)",
+      "$iv (IV index of the traded symbol)",
+      "$future (futures twin of the traded symbol)",
+      "SPY:TR (SPY total return)",
+      "VIX",
+    ]);
+    expect(
+      describeOptions(parsed.options as NonNullable<typeof parsed.options>)
+    ).toBe(
+      "callDebitVertical, DTE 45 to 60, max loss 2% of equity, width 1 sigma, exitDte 21, longDelta 0.5"
+    );
+    expect(
+      describePortfolio(
+        parsed.portfolio as NonNullable<typeof parsed.portfolio>
+      )
+    ).toEqual([
+      "Policy roll, frame monthly",
+      "Symbols SPY, QQQ, GLD",
+      "Each month-end, the top 3 by returnStdev(series $tr, 12)",
+      "Leg 2: enter when close > 0; putCreditVertical, DTE 30 to 45, max loss 1% of equity, width 1 sigma, shortDelta 0.25",
+    ]);
+    expect(
+      describePortfolio({
+        policy: "roll",
+        select: {
+          score: { series: "$tr", type: "series" },
+          tieBreak: { type: "const", value: 1 },
+          top: 1,
+        },
+        symbols: ["SPY"],
+      })[2]
+    ).toBe("Each month-end, the top 1 by series $tr, then 1");
+    expect(
+      describePortfolio({ cadence: "daily", policy: "flat", symbols: ["USO"] })
+    ).toEqual(["Policy flat, cadence daily", "Symbols USO"]);
+  });
+});
+
+describe("StrategyBuilderWorkspace: newer definitions", () => {
+  it("shows new expressions, filters and blocks read-only and keeps them on visual edits", async () => {
+    const gateway = gatewayOf();
+    await mount(<StrategyBuilderWorkspace gateway={gateway} />);
+    expect(document.querySelector("[data-filter-list]")?.textContent).toContain(
+      "No filters."
+    );
+    expect(document.querySelector("[data-options-summary]")).toBeNull();
+    await setNative(
+      field("Definition text"),
+      JSON.stringify(OPTIONS_DEFINITION, null, 2)
+    );
+    expect(document.body.textContent).toContain("The definition is valid.");
+    const stored = definitionText();
+
+    // Read-only expressions: a text summary, and the input select names the expression.
+    const entry = document.querySelector('[data-expr-readonly="change"]');
+    expect(entry?.querySelector("code")?.textContent).toBe(
+      "change(series $future, 252)"
+    );
+    expect(field("Entry 1 left input").value).toBe("change");
+    const disabled =
+      field("Entry 1 left input").querySelector("option:disabled");
+    expect(disabled?.textContent).toBe("Expression (edit as JSON)");
+    expect(
+      document.querySelector('[data-expr-readonly="math"] code')?.textContent
+    ).toBe("(close / series SPY:TR)");
+    expect(has("Entry 1 right value")).toBe(true);
+
+    // Filters: the series select offers ids, total-return ids and the relative refs.
+    const options = Array.from(
+      field("Filter 1 series").querySelectorAll("option"),
+      (option) => option.value
+    );
+    expect(options).toEqual(
+      expect.arrayContaining([
+        "SPY",
+        "VIX",
+        "SPY:TR",
+        "USO:TR",
+        "$tr",
+        "$iv",
+        "$future",
+      ])
+    );
+    expect(field("Filter 1 series").value).toBe("$iv");
+    expect(
+      document.querySelector('[data-filter-summary="series"]')?.textContent
+    ).toBe("close > sma(close, 20)");
+    expect(
+      document.querySelector('[data-filter-summary="ivRank"]')?.textContent
+    ).toBe('ivRank {"length":252,"max":50}');
+    expect(has("Filter 2 series")).toBe(false);
+
+    // Options and portfolio blocks.
+    const summary = document.querySelector("[data-options-summary]");
+    expect(summary?.textContent).toContain(
+      "Option vertical: callDebitVertical, DTE 45 to 60"
+    );
+    expect(
+      document.querySelectorAll("[data-portfolio-summary] li")
+    ).toHaveLength(4);
+
+    // Visual edits keep every expression and block the builder does not edit.
+    await setNative(field("Strategy name"), "Renamed");
+    await setNative(field("Filter 1 series"), "$future");
+    let text = definitionText();
+    expect(text.name).toBe("Renamed");
+    expect(text.filters[0].series).toBe("$future");
+    expect(text.entry).toEqual(stored.entry);
+    expect(text.exit).toEqual(stored.exit);
+    expect(text.filters[1]).toEqual(stored.filters[1]);
+    expect(text.options).toEqual(stored.options);
+    expect(text.portfolio).toEqual(stored.portfolio);
+
+    await settle(() => button("Run backtest").click());
+    expect(gateway.submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rule: {
+          definition: StrategyDefinitionSchema.parse(text),
+          kind: "dsl",
+        },
+      })
+    );
+
+    // Choosing an editable input replaces the read-only expression.
+    await setNative(field("Entry 1 left input"), "price");
+    text = definitionText();
+    expect(text.entry.all[0].left).toEqual({ field: "close", type: "price" });
+    expect(document.querySelector('[data-expr-readonly="change"]')).toBeNull();
+  });
+
+  it("shows an options block without a portfolio", async () => {
+    await mount(<StrategyBuilderWorkspace gateway={gatewayOf()} />);
+    const {
+      filters: _filters,
+      portfolio: _portfolio,
+      ...rest
+    } = OPTIONS_DEFINITION;
+    await setNative(field("Definition text"), JSON.stringify(rest));
+    expect(document.body.textContent).toContain("The definition is valid.");
+    expect(document.querySelector("[data-options-summary]")).not.toBeNull();
+    expect(document.querySelector("[data-portfolio-summary]")).toBeNull();
+    expect(document.querySelector("[data-filter-list]")?.textContent).toContain(
+      "No filters."
+    );
   });
 });

@@ -487,7 +487,8 @@ def run_metrics(outcome: RunOutcome, n_trials: int = 1, sharpe_variance: float |
 
 def run_spec_json(spec: Mapping, rows: Mapping[str, Mapping[str, Sequence]], nautilus: bool = True) -> dict:
     """One backtest-run spec (packages/api BacktestRunSpec, rule kind dsl with an options block) on store
-    rows: the ledger result, its trades and skips, and run_metrics, as JSON for the Nautilus worker."""
+    rows: the ledger result, its trades (each with its max loss per contract, so the API can recompute
+    maxOpenRisk) and skips, and run_metrics, as JSON for the Nautilus worker."""
     rule = spec["rule"]
     if rule.get("kind") != "dsl" or rule["definition"].get("options") is None:
         raise ValueError("The options runner runs dsl rules with an options block")
@@ -495,9 +496,11 @@ def run_spec_json(spec: Mapping, rows: Mapping[str, Mapping[str, Sequence]], nau
                              capital=float(spec.get("initialCapital") or DEFAULT_CAPITAL), symbol=spec["symbol"],
                              nautilus=nautilus)
     result = outcome.result
+    max_loss = {trade.trade_id: trade.max_loss for trade in outcome.priced}
     return {
         "kind": "options", "capital": result.capital, "dates": list(result.dates), "equity": list(result.equity),
-        "openPositions": list(result.open_positions), "trades": list(result.trades),
+        "openPositions": list(result.open_positions),
+        "trades": [{**record, "maxLoss": max_loss[record["id"]]} for record in result.trades],
         "skipped": list(result.skipped), "bookSkipped": outcome.book_skipped, "signals": dict(outcome.signals),
         "metrics": run_metrics(outcome), "nautilusGap": outcome.nautilus_gap,
     }

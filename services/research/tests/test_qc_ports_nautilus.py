@@ -145,6 +145,12 @@ def test_run_spec_json_books_the_options_run_in_both_ledgers():
     assert out["dates"] == rows["SPY"]["dates"] and len(out["equity"]) == len(out["dates"])
     assert out["trades"] and out["metrics"]["trades"] == len(out["trades"])
     assert out["nautilusGap"] is not None and out["nautilusGap"] <= REL_TOL
+    # Each trade carries its max loss per contract, so the API recomputes maxOpenRisk.
+    assert all(trade["maxLoss"] > 0 for trade in out["trades"])
+    spans = [(t["entryDate"], t["exitDate"], t["contracts"] * t["maxLoss"]) for t in out["trades"]]
+    risk = max((sum(a for e, x, a in spans if e <= day < x) / equity
+                for day, equity in zip(out["dates"], out["equity"])), default=0.0)
+    assert risk == pytest.approx(out["metrics"]["maxOpenRisk"], rel=1e-12)
     import json
 
     json.dumps(out, allow_nan=False)

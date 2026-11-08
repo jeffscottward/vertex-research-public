@@ -4,6 +4,7 @@ import type {
   AutopilotCandidateRecord,
   AutopilotRepository,
   MarketBarsRepository,
+  MarketDailySeriesRepository,
 } from "@darkfactory/db/server";
 import { z } from "zod";
 
@@ -44,6 +45,7 @@ import {
 import {
   SectorQuadrantDataError,
   type SectorQuadrantSeries,
+  type StrategySeriesInput,
 } from "../strategy-dsl-compile.ts";
 import {
   type GatedCandidate,
@@ -53,6 +55,7 @@ import {
   loadSectorQuadrants,
   type SectorQuadrantSource,
 } from "./sector-quadrant-series.ts";
+import { loadStrategySeries, strategySeriesInput } from "./strategy-series.ts";
 
 // Autopilot runner. One tick works on one running campaign for at most its tick time slice:
 // breed a generation from the fittest candidates (in-sample fitness only), evaluate and store the
@@ -62,6 +65,8 @@ import {
 // Research only: no broker client, order path, deployment or network call is reachable from here.
 
 const AUTOPILOT_LEDGER_SAMPLE = 500;
+/** Autopilot loads the daily series of campaign filters; it never runs options blocks. */
+export const AUTOPILOT_SUPPORT = { series: true } as const;
 const MINUTE_MS = 60_000;
 
 export type AutopilotRunnerDependencies = Readonly<{
@@ -72,6 +77,8 @@ export type AutopilotRunnerDependencies = Readonly<{
   generateId: () => string;
   /** Stored sector rotation points for campaigns with sector filters. */
   sectorRotation?: SectorQuadrantSource;
+  /** Daily series store for campaigns whose filters read series (ivRank, volRegime, ...). */
+  marketDailySeries?: MarketDailySeriesRepository;
   /** Engine comparison on: queue for the Nautilus shadow runs of the gate. */
   comparison?: ComparisonQueue;
 }>;
@@ -123,6 +130,8 @@ type Context = Readonly<{
   ledger: { value: AutopilotLedger | null };
   /** Series for the campaign's sector filters; undefined without filters. */
   sectorQuadrants: SectorQuadrantSeries | undefined;
+  /** Daily series of the campaign's series filters; undefined when they read none. */
+  series: StrategySeriesInput | undefined;
   /** Candidates gated in this tick (engine comparison shadows them). */
   gated: GatedCandidate[];
 }>;
@@ -151,7 +160,8 @@ const candidateRow = (
     context.bars,
     definition,
     context.config.costBps,
-    context.sectorQuadrants
+    context.sectorQuadrants,
+    context.series
   );
   const summary = inSample.summary;
   return {
@@ -251,7 +261,8 @@ const refine = async (
         context.bars,
         StrategyDefinitionSchema.parse(built.row.definition),
         context.config.costBps,
-        context.sectorQuadrants
+        context.sectorQuadrants,
+        context.series
       ),
     });
     if (!known) {
@@ -284,6 +295,7 @@ const gateCandidate = async (
       ledger: await ledgerFor(context, candidate.id),
       sectorQuadrants: context.sectorQuadrants,
       seed: candidate.id,
+      series: context.series,
     });
   let report = await run();
   let neighbours: Neighbour[] = [];
@@ -361,10 +373,11 @@ export const tickAutopilotCampaign = async (
       "The campaign configuration is invalid."
     );
   const config = parsed.data;
-  // A campaign stored before the create check: fail it rather than run without its series.
+  // A campaign stored before the create check (calendar filters on an intraday timeframe).
   const refusal = serverStrategyRefusal(
     { filters: config.filters },
-    campaign.timeframe
+    campaign.timeframe,
+    AUTOPILOT_SUPPORT
   );
   if (refusal !== undefined)
     return await failure(dependencies, campaign, refusal.message);
@@ -424,6 +437,23 @@ export const tickAutopilotCampaign = async (
   }
 };
 
+/** The daily series of the campaign filters for its symbol; undefined when they read none. */
+const campaignSeries = async (
+  dependencies: AutopilotRunnerDependencies,
+  campaign: AutopilotCampaignRecord,
+  config: AutopilotCampaignConfig
+): Promise<StrategySeriesInput | undefined> => {
+  const filters = { filters: config.filters };
+  const loaded = await loadStrategySeries(
+    dependencies.marketDailySeries,
+    filters,
+    campaign.symbol
+  );
+  return loaded === null
+    ? undefined
+    : strategySeriesInput(filters, campaign.symbol, loaded.rows);
+};
+
 const runSlice = async (
   dependencies: AutopilotRunnerDependencies,
   campaign: AutopilotCampaignRecord,
@@ -446,6 +476,7 @@ const runSlice = async (
       config,
       bars.t[0] as number
     ),
+    series: await campaignSeries(dependencies, campaign, config),
   };
   let generation = campaign.generation;
   let evaluated = 0;
@@ -506,6 +537,7 @@ const runSlice = async (
           costBps: config.costBps,
           queue: dependencies.comparison,
           sectorQuadrants: context.sectorQuadrants,
+          series: context.series,
         });
   const exhausted =
     stalled ||

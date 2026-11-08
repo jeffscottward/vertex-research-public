@@ -1,16 +1,24 @@
 import type {
   BacktestRunRecord,
   MarketBarColumns,
-  MarketBarSeries,
+  MarketDailyColumns,
 } from "@darkfactory/db/server";
+import { marketDailyBars } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
-import { buildBacktestRunReport } from "../backtest-run-report.ts";
+import {
+  type BacktestRunOptionsMetrics,
+  buildBacktestRunReport,
+  buildOptionsRunReport,
+} from "../backtest-run-report.ts";
 import { sliceColumnsByDate } from "../bar-slice.ts";
 import { appContract } from "../contract.ts";
 import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
+  BACKTEST_RUN_NAUTILUS_ENGINE,
   type BacktestRunEngineClaimOutput,
   type BacktestRunEngineCompleteItem,
+  type BacktestRunEngineOptionsResult,
+  type BacktestRunEngineResult,
 } from "../contracts/backtest-runs.ts";
 import {
   EngineComparisonSpecSchema,
@@ -24,23 +32,27 @@ import {
   type InstantStats,
   summarize,
 } from "../instant-backtest-engine.ts";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
 import {
-  assertServerRunnable,
-  type SectorQuadrantSeries,
-} from "../strategy-dsl-compile.ts";
+  type LedgerResult,
+  type PricedTrade,
+  summarizeOptionsRun,
+} from "../options-engine/index.ts";
+import { maxOpenRisk } from "../options-engine/portfolio.ts";
+import type { StrategyDefinition } from "../strategy-dsl.ts";
 import { costsForSpec } from "./backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
   type BacktestRunExecutionDependencies,
   dependenciesFor,
   type Failures,
-  loadRunBars,
+  loadRunData,
+  type RunData,
 } from "./backtest-runs.ts";
 import type { ApiContext } from "./context.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
 import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
+import type { LoadedStrategySeries } from "./strategy-series.ts";
 
 // Engine worker procedures (backtestRuns.engine.*), called by the Nautilus research worker on the
 // rig (scripts/backtest-worker/nautilus-worker.ts) with an operator agent write key. claim moves
@@ -50,7 +62,10 @@ import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
 // run. complete reloads the bars, checks the result against them and builds the report with the
 // same code as the API engine. With `max`, claim returns a batch (one comparison group, one bar
 // series) and completeMany stores the batch; a comparison run's report also gets the differences
-// to the TypeScript result it repeats. Research only; no order path.
+// to the TypeScript result it repeats. A definition that reads daily series gets the store rows
+// too (`series`, the seriesSha256 then covers bars and rows); an options definition is claimed
+// alone and returns the options runner result, whose metrics complete recomputes before it builds
+// the same report as the TypeScript options run. Research only; no order path.
 
 /** Runs one claim may fail while it loads inputs before it returns no run. */
 export const ENGINE_CLAIM_ATTEMPTS = 5;
@@ -102,13 +117,17 @@ const engineSpec = (
     Object.entries(spec).filter(([key]) => key !== "comparison")
   ) as Omit<BacktestRunRecord["spec"], "comparison">;
 
-type RunInputs = Readonly<{
-  run: BacktestRunRecord;
-  bars: MarketBarColumns;
-  series: MarketBarSeries;
-  costs: ClaimedRun["costs"];
-  sectorQuadrants: ClaimedRun["sectorQuadrants"];
-}>;
+type RunInputs = RunData &
+  Readonly<{
+    run: BacktestRunRecord;
+    costs: ClaimedRun["costs"];
+    sectorQuadrants: ClaimedRun["sectorQuadrants"];
+  }>;
+
+/** True for a stored dsl run whose definition has an options block. */
+const isOptionsRun = (run: BacktestRunRecord): boolean =>
+  run.spec.rule.kind === "dsl" &&
+  (run.spec.rule.definition as { options?: unknown }).options !== undefined;
 
 /** The engine inputs of a claimed run, or null after the run was failed. */
 const runInputs = async (
@@ -117,12 +136,13 @@ const runInputs = async (
 ): Promise<RunInputs | null> => {
   const { spec } = run;
   try {
-    const loaded = await loadRunBars(dependencies.marketBars, spec);
+    // Written past the submit check: refuse, never run it half.
+    const loaded = await loadRunData(dependencies, spec, true);
     if ("error" in loaded) {
       await dependencies.runs.fail(run.id, loaded.error);
       return null;
     }
-    const { bars, series } = loaded;
+    const { bars, definition } = loaded;
     if (bars.t.length > BACKTEST_RUN_ENGINE_BARS_MAX) {
       await dependencies.runs.fail(
         run.id,
@@ -130,25 +150,21 @@ const runInputs = async (
       );
       return null;
     }
-    let sectorQuadrants: SectorQuadrantSeries | undefined;
-    if (spec.rule.kind === "dsl") {
-      const definition = StrategyDefinitionSchema.parse(spec.rule.definition);
-      // The worker gets no series context and runs equity only: refuse, never run it half.
-      assertServerRunnable(definition, spec.timeframe);
-      sectorQuadrants = await loadSectorQuadrants(
-        dependencies.sectorRotation,
-        definition,
-        bars.t[0] as number
-      );
-    }
+    const sectorQuadrants =
+      definition === undefined
+        ? undefined
+        : await loadSectorQuadrants(
+            dependencies.sectorRotation,
+            definition,
+            bars.t[0] as number
+          );
     return {
-      bars,
+      ...loaded,
       costs: (costsForSpec(spec) ?? null) as ClaimedRun["costs"],
       run,
       // The worker reads the points only; readonly arrays are the same JSON.
       sectorQuadrants: (sectorQuadrants ??
         null) as ClaimedRun["sectorQuadrants"],
-      series,
     };
   } catch (error) {
     await dependencies.runs.fail(
@@ -173,17 +189,35 @@ const prepareRun = async (
     costs: inputs.costs,
     id: run.id,
     sectorQuadrants: inputs.sectorQuadrants,
-    seriesSha256: inputs.series.sourceSha256,
+    series:
+      inputs.daily === null ? null : Object.fromEntries(inputs.daily.rows),
+    seriesSha256: inputs.seriesSha256,
     spec: engineSpec(run.spec),
   } as ClaimedRun;
 };
 
 type ClaimedBatch = NonNullable<BacktestRunEngineClaimOutput["batch"]>;
 
+/** The rows of every run: each series as the longest load (the latest `to`) of any run. */
+const batchRows = (
+  ready: readonly RunInputs[]
+): Record<string, MarketDailyColumns> | null => {
+  const merged = new Map<string, MarketDailyColumns>();
+  for (const { daily } of ready)
+    for (const [id, columns] of daily?.rows ?? []) {
+      const known = merged.get(id);
+      if (known === undefined || columns.dates.length > known.dates.length)
+        merged.set(id, columns);
+    }
+  return merged.size === 0 ? null : Object.fromEntries(merged);
+};
+
 /**
  * The engine inputs of a claimed batch on one shared bar series: the bars from the earliest
- * `from` to the latest `to`, and each run's index range in them. Runs whose inputs cannot be
- * loaded, or that are on another series than the first one, fail; null when none is left.
+ * `from` to the latest `to`, each run's index range in them, and the daily series rows the runs
+ * read. Runs whose inputs cannot be loaded, that are on another series than the first one, or
+ * options runs in a batch of several runs (an options run runs alone), fail; null when none is
+ * left.
  */
 const prepareBatch = async (
   dependencies: BacktestRunExecutionDependencies,
@@ -192,6 +226,13 @@ const prepareBatch = async (
   const ready: RunInputs[] = [];
   for (const run of runs) {
     const first = ready[0];
+    if (runs.length > 1 && isOptionsRun(run)) {
+      await dependencies.runs.fail(
+        run.id,
+        "An options run runs alone, not in a comparison batch; submit the run again"
+      );
+      continue;
+    }
     if (
       first !== undefined &&
       (first.run.spec.symbol !== run.spec.symbol ||
@@ -213,11 +254,15 @@ const prepareBatch = async (
     .map((entry) => entry.run.spec.to)
     .sort()
     .at(-1) as string;
-  const shared = sliceColumnsByDate(
-    (await columnsFor(dependencies.marketBars, head.series)).columns,
-    from,
-    to
-  );
+  // An options run comes alone, on its own bars from the series store.
+  const shared =
+    head.series === null
+      ? head.bars
+      : sliceColumnsByDate(
+          (await columnsFor(dependencies.marketBars, head.series)).columns,
+          from,
+          to
+        );
   return {
     bars: jsonBars(shared),
     runs: ready.map((entry) => {
@@ -230,10 +275,14 @@ const prepareBatch = async (
         first,
         id: entry.run.id,
         sectorQuadrants: entry.sectorQuadrants,
+        ...(entry.daily === null || entry.series === null
+          ? {}
+          : { seriesSha256: entry.seriesSha256 }),
         spec: engineSpec(entry.run.spec),
       };
     }),
-    seriesSha256: head.series.sourceSha256,
+    series: batchRows(ready),
+    seriesSha256: head.series?.sourceSha256 ?? head.seriesSha256,
   } as ClaimedBatch;
 };
 
@@ -310,9 +359,143 @@ const differencesFor = (
   return compareEngineResults(parsed.data.typescript, nautilus);
 };
 
+/** The first options metric where the worker differs from the API beyond the tolerance, or null. */
+export const optionsMetricsMismatch = (
+  sent: BacktestRunOptionsMetrics,
+  computed: BacktestRunOptionsMetrics
+): string | null => {
+  for (const [key, expected] of Object.entries(computed)) {
+    const value = sent[key as keyof BacktestRunOptionsMetrics];
+    const equal =
+      typeof expected === "number" && typeof value === "number"
+        ? Math.abs(value - expected) <=
+          ENGINE_STATS_TOLERANCE *
+            Math.max(1, Math.abs(value), Math.abs(expected))
+        : expected === value;
+    if (!equal) return key;
+  }
+  return null;
+};
+
 /**
- * Checks a result against the stored bars, recomputes its stats and stores the report. A result
- * that does not fit the bars fails the run, so the user sees the reason.
+ * The options metrics of a worker result, recomputed from its ledger (metrics.summarize with one
+ * trial, plus the book skips, the largest open risk from each trade's max loss and the stale-IV
+ * exits).
+ */
+export const optionsResultMetrics = (
+  result: BacktestRunEngineOptionsResult
+): BacktestRunOptionsMetrics => {
+  const ledger: LedgerResult = {
+    capital: result.capital,
+    dates: result.dates,
+    engine: BACKTEST_RUN_NAUTILUS_ENGINE,
+    equity: result.equity,
+    openPositions: result.openPositions,
+    skipped: result.skipped,
+    trades: result.trades,
+  };
+  const stats = summarizeOptionsRun(ledger, { nTrials: 1 });
+  // maxOpenRisk reads the trade id and max loss of the priced trades only.
+  const priced = result.trades.map(
+    (trade) => ({ maxLoss: trade.maxLoss, tradeId: trade.id }) as PricedTrade
+  );
+  return {
+    ...stats,
+    maxOpenRisk: maxOpenRisk(ledger, priced),
+    skipped: stats.skipped + result.bookSkipped,
+    staleIvExits: result.trades.filter(
+      (trade) => trade.exitReason === "stale-iv"
+    ).length,
+  };
+};
+
+/** The SPY dates of the rows from `from` on: the ledger calendar of an options run. */
+const optionsCalendar = (
+  rows: LoadedStrategySeries["rows"],
+  from: string
+): string[] => {
+  // Every options run loads SPY (optionsDefinitionSeriesIds).
+  const spy = rows.get("SPY") as MarketDailyColumns;
+  return marketDailyBars(spy).dates.filter((date) => date >= from);
+};
+
+type CheckedReport = Readonly<{ report: Record<string, unknown> }>;
+
+/**
+ * The report of an options result, or the reason it does not fit the run: the result must be the
+ * run's ledger (its capital, the SPY calendar of the date range) and its metrics must be the ones
+ * its ledger gives.
+ */
+const optionsReport = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  bars: MarketBarColumns,
+  daily: LoadedStrategySeries,
+  result: BacktestRunEngineOptionsResult
+): CheckedReport | string => {
+  if (result.capital !== spec.initialCapital)
+    return `The options result capital ${result.capital} is not the run capital ${spec.initialCapital}`;
+  const calendar = optionsCalendar(daily.rows, spec.from);
+  if (
+    calendar.length !== result.dates.length ||
+    calendar.some((date, index) => date !== result.dates[index])
+  )
+    return "The options result dates are not the SPY calendar of the date range";
+  const metrics = optionsResultMetrics(result);
+  const mismatch = optionsMetricsMismatch(result.metrics, metrics);
+  if (mismatch !== null)
+    return `The options metrics do not match the ledger (${mismatch})`;
+  return {
+    report: buildOptionsRunReport({
+      bars,
+      ledger: {
+        ...result,
+        trades: result.trades.map(({ maxLoss: _maxLoss, ...trade }) => trade),
+      },
+      metrics,
+      nautilusGap: result.nautilusGap,
+      signals: result.signals,
+      symbols: definition.portfolio?.symbols ?? [spec.symbol],
+    }),
+  };
+};
+
+/** The report of an equity engine result, or the reason it does not fit the bars. */
+const equityReport = (
+  run: BacktestRunRecord,
+  bars: MarketBarColumns,
+  result: BacktestRunEngineResult
+): CheckedReport | string => {
+  const { spec } = run;
+  if (bars.t.length !== result.equity.length)
+    return `The engine result has ${result.equity.length} bars; the date range has ${bars.t.length}`;
+  // The stored stats are the API's own, computed from the worker's equity and trades.
+  const equity = Float64Array.from(result.equity);
+  // Same shape; the zod output marks optional fields `| undefined` (exactOptionalPropertyTypes).
+  const trades = result.trades as InstantRunResult["trades"];
+  const stats = summarize(bars, equity, trades, barsInPositionOf(trades));
+  const mismatch = engineStatsMismatch(result.stats, stats);
+  if (mismatch !== null)
+    return `The engine stats do not match its equity and trades (${mismatch})`;
+  const costs = costsForSpec(spec);
+  const differences = differencesFor(run, { stats, trades });
+  return {
+    report: {
+      ...buildBacktestRunReport(
+        bars,
+        { equity, stats, trades },
+        spec.initialCapital,
+        costs?.profile
+      ),
+      ...(differences === undefined ? {} : { differences }),
+    },
+  };
+};
+
+/**
+ * Checks a result against the stored bars and daily series, recomputes its stats (options: its
+ * metrics) and stores the report. A result that does not fit the run fails the run, so the user
+ * sees the reason.
  */
 const storeResult = async (
   dependencies: BacktestRunExecutionDependencies,
@@ -326,45 +509,45 @@ const storeResult = async (
     await dependencies.runs.fail(run.id, message);
     return { error: "BAD_REQUEST", message };
   };
-  const loaded = await loadRunBars(dependencies.marketBars, spec);
+  let loaded: Awaited<ReturnType<typeof loadRunData>>;
+  try {
+    loaded = await loadRunData(dependencies, spec, false);
+  } catch (error) {
+    if (!(error instanceof InstantBacktestInputError)) throw error;
+    return await reject(error.message);
+  }
   if ("error" in loaded) return await reject(loaded.error);
-  if (loaded.series.sourceSha256 !== item.seriesSha256)
+  const { daily, definition } = loaded;
+  const sha256 = loaded.seriesSha256;
+  if (sha256 !== item.seriesSha256)
     return await reject(
-      "The stored bars changed while the backtest was running"
+      daily === null
+        ? "The stored bars changed while the backtest was running"
+        : "The stored bars or daily series changed while the backtest was running"
     );
-  if (loaded.bars.t.length !== item.result.equity.length)
+  const options = definition?.options !== undefined;
+  if (options !== "kind" in item.result)
     return await reject(
-      `The engine result has ${item.result.equity.length} bars; the date range has ${loaded.bars.t.length}`
+      options
+        ? "An options run needs the options runner result"
+        : "The options runner result is for options definitions only"
     );
-  // The stored stats are the API's own, computed from the worker's equity and trades.
-  const equity = Float64Array.from(item.result.equity);
-  // Same shape; the zod output marks optional fields `| undefined` (exactOptionalPropertyTypes).
-  const trades = item.result.trades as InstantRunResult["trades"];
-  const stats = summarize(
-    loaded.bars,
-    equity,
-    trades,
-    barsInPositionOf(trades)
-  );
-  const mismatch = engineStatsMismatch(item.result.stats, stats);
-  if (mismatch !== null)
-    return await reject(
-      `The engine stats do not match its equity and trades (${mismatch})`
-    );
-  const costs = costsForSpec(spec);
-  const differences = differencesFor(run, { stats, trades });
-  const report = {
-    ...buildBacktestRunReport(
-      loaded.bars,
-      { equity, stats, trades },
-      spec.initialCapital,
-      costs?.profile
-    ),
-    seriesSha256: loaded.series.sourceSha256,
+  const checked =
+    "kind" in item.result
+      ? optionsReport(
+          spec,
+          definition as StrategyDefinition,
+          loaded.bars,
+          daily as LoadedStrategySeries,
+          item.result
+        )
+      : equityReport(run, loaded.bars, item.result);
+  if (typeof checked === "string") return await reject(checked);
+  const stored = await dependencies.runs.complete(run.id, {
+    ...checked.report,
+    seriesSha256: sha256,
     ...(item.engineRun === undefined ? {} : { engineRun: item.engineRun }),
-    ...(differences === undefined ? {} : { differences }),
-  };
-  const stored = await dependencies.runs.complete(run.id, report);
+  });
   return stored === null ? { error: "CONFLICT" } : { status: stored.status };
 };
 

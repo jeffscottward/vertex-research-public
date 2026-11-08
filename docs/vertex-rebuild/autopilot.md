@@ -44,6 +44,10 @@ A genome has 1 to 3 entry genes (all must hold), 0 to 2 exit genes (any one exit
 
 Sizing is all-in, long only, as in every DSL definition. Two genomes with the same genes in another order are the same candidate; a campaign stores each genome once.
 
+## Campaign filters
+
+`campaigns.create` takes optional entry filters that join every candidate definition. Autopilot loads sector rotation points and daily series (support `{series}` of `serverStrategyRefusal`): `ivRank`, `vixTermStructure`, `volRegime` and `series` filters are accepted. Each tick loads the series the filters read, resolved for the campaign symbol, from the series store (`packages/api/src/server/strategy-series.ts`), and every in-sample, gate, neighbour and engine-comparison run reads them; the Nautilus repeat loads the same series at claim. A missing series fails the campaign on its tick (`Tick failed: Series data is not available for <id>`). Options blocks are refused, and `calendarWindow` filters on an intraday timeframe too. The paper hand-off refuses definitions with series filters (`sendToPaper` returns `VALIDATION_ERROR`, the tearsheet shows no paper config). See [strategy-definitions.md](strategy-definitions.md#where-definitions-run).
+
 ## Breeding and fitness
 
 - Generation 0 is random. Each later generation breeds `populationSize` new genomes from the `populationSize` fittest bred candidates of the campaign: tournament selection (3 entrants), crossover (70%, then mutation 35%), otherwise mutation, and 10% random immigrants. Refine neighbours are never parents: they exist only because their parent passed out-of-sample checks.

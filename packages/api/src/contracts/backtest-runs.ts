@@ -1,7 +1,11 @@
 import { BAR_SYMBOL_PATTERN } from "@darkfactory/shared/universes";
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
+import {
+  STRATEGY_OPTION_STRUCTURES,
+  STRATEGY_OPTION_SYMBOLS,
+  StrategyDefinitionSchema,
+} from "../strategy-dsl.ts";
 import {
   BacktestRunCostsSchema,
   CostProfileInputSchema,
@@ -129,6 +133,76 @@ export const BacktestRunMetricsSchema = z.object({
   winRate: nullableNumber,
 });
 
+/** Exit reasons of an options book trade (qc_ports book.py). */
+export const OPTIONS_EXIT_REASONS = [
+  "expiry",
+  "stale-iv",
+  "exitDte",
+  "profitTake",
+  "signal",
+  "end",
+] as const;
+
+/** One option vertical of an options run, per the ledger (qc_ports ledger.trade_record). */
+export const BacktestRunOptionsTradeSchema = z.object({
+  contracts: z.number().int(),
+  entryDate: z.string(),
+  entryFee: z.number(),
+  entryPrice: z.number(),
+  exitDate: z.string(),
+  exitFee: z.number(),
+  exitPrice: z.number(),
+  exitReason: z.enum(OPTIONS_EXIT_REASONS),
+  expiry: z.string(),
+  id: z.number().int(),
+  longStrike: z.number(),
+  pnl: z.number(),
+  returnOnRisk: z.number(),
+  shortStrike: z.number(),
+  structure: z.string(),
+  symbol: z.string(),
+});
+
+/**
+ * Metrics of an options run (qc_ports metrics.summarize with one trial, plus the book skips, the
+ * largest open risk and the stale-IV exits): Sharpe is daily × √252, deflatedSharpe is the
+ * probabilistic Sharpe (one trial), years are calendar days / 365.25.
+ */
+export const BacktestRunOptionsMetricsSchema = z.object({
+  cagr: nullableNumber,
+  days: z.number().int(),
+  deflatedSharpe: nullableNumber,
+  end: z.string(),
+  expectedMaxSharpe: nullableNumber,
+  exposure: z.number(),
+  finalEquity: z.number(),
+  maxDrawdown: z.number(),
+  maxOpenRisk: z.number(),
+  nTrials: z.number().int(),
+  sharpe: nullableNumber,
+  sharpeVariance: nullableNumber,
+  skipped: z.number().int(),
+  staleIvExits: z.number().int(),
+  start: z.string(),
+  totalReturn: z.number(),
+  trades: z.number().int(),
+  winRate: nullableNumber,
+  worstMonth: z.string().nullable(),
+  worstMonthReturn: nullableNumber,
+});
+
+/** Options runs: the options book result (docs/vertex-rebuild/strategy-definitions.md, options runner). */
+export const BacktestRunOptionsReportSchema = z.object({
+  capital: z.number(),
+  metrics: BacktestRunOptionsMetricsSchema,
+  /** Nautilus runs: largest daily equity gap between the ledger and NautilusTrader (relative). */
+  nautilusGap: z.number().nullable(),
+  /** Entry signals per symbol (events handed to the book). */
+  signals: z.record(z.string(), z.number().int()),
+  symbols: z.array(z.string()),
+  trades: z.array(BacktestRunOptionsTradeSchema),
+});
+
 export const BacktestRunReportSchema = z.object({
   bars: z.number().int(),
   /** Present when the run had a cost profile: charges in money and the profit before them. */
@@ -143,6 +217,8 @@ export const BacktestRunReportSchema = z.object({
   firstT: z.number().int(),
   lastT: z.number().int(),
   metrics: BacktestRunMetricsSchema,
+  /** Options definitions: the options book result; `trades` then holds the same spreads. */
+  options: BacktestRunOptionsReportSchema.optional(),
   prices: z.array(
     z.object({
       c: z.number(),
@@ -160,7 +236,16 @@ export const BacktestRunReportSchema = z.object({
       entryPrice: z.number(),
       entryT: z.number(),
       exitPrice: z.number(),
-      exitReason: z.enum(["signal", "stop", "target", "end"]),
+      exitReason: z.enum([
+        "signal",
+        "stop",
+        "target",
+        "end",
+        "expiry",
+        "stale-iv",
+        "exitDte",
+        "profitTake",
+      ]),
       exitT: z.number(),
       grossPnl: z.number().optional(),
       n: z.number().int(),
@@ -378,14 +463,32 @@ const combine = backtestRuns
 // stats from the equity and trades (they must match the sent stats) and builds the report. fail
 // stores an error. complete and fail change only a running run of the same engine; any other run
 // returns CONFLICT. With `max`, claim returns a batch on one bar series (a comparison group) and
-// completeMany stores the whole batch in one request, with one outcome per run. Write keys only;
-// research only, no order path.
+// completeMany stores the whole batch in one request, with one outcome per run. A definition that
+// reads daily series gets the series store rows (`series`, cut at the run's `to`); its
+// seriesSha256 then covers the bars and the rows. An options definition is claimed alone and its
+// result is the options runner document (kind "options": the ledger, its trades and skips and the
+// metrics, which the API recomputes). Write keys only; research only, no order path.
 
 const engineName = z.literal(BACKTEST_RUN_NAUTILUS_ENGINE);
 const engineRunId = z.string().trim().min(1).max(128);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u);
 /** JSON has no NaN, so a missing value (NaN in the stored columns, such as an unknown volume) is null. */
 const values = z.array(z.number().nullable());
+
+/** One daily series of the store (market_daily_series) up to the run's `to`, in date order. */
+export const BacktestRunEngineSeriesColumnsSchema = z.object({
+  adjClose: values,
+  close: z.array(z.number()),
+  dates: z.array(z.string()),
+  high: values,
+  low: values,
+  open: values,
+});
+
+/** Series store rows by series id; null when the run reads no daily series. */
+const seriesRowsSchema = z
+  .record(z.string(), BacktestRunEngineSeriesColumnsSchema)
+  .nullable();
 
 export const BacktestRunEngineBarsSchema = z.object({
   c: values,
@@ -441,11 +544,22 @@ export const BacktestRunEngineClaimOutputSchema = z.object({
             first: z.number().int().nonnegative(),
             id: z.string(),
             sectorQuadrants: sectorQuadrantsSchema,
+            /**
+             * The run's own seriesSha256 when it reads daily series (its bars and its rows);
+             * absent when it is the batch's.
+             */
+            seriesSha256: sha256.optional(),
             spec: BacktestRunSpecSchema,
           })
         )
         .min(1)
         .max(BACKTEST_RUN_ENGINE_BATCH_MAX),
+      /**
+       * The rows every run of the batch reads: each series up to the latest `to` of the runs that
+       * read it (a run reads its rows up to its own `to`).
+       */
+      series: seriesRowsSchema.optional(),
+      /** The bar series hash (each run's seriesSha256 unless the run has its own). */
       seriesSha256: sha256,
     })
     .nullable()
@@ -458,6 +572,9 @@ export const BacktestRunEngineClaimOutputSchema = z.object({
       costs: costsSchema,
       id: z.string(),
       sectorQuadrants: sectorQuadrantsSchema,
+      /** The daily series rows the definition reads (options: everything the runner reads). */
+      series: seriesRowsSchema.optional(),
+      /** Hash of the bar series, and of the series rows when the run reads any. */
       seriesSha256: sha256,
       spec: BacktestRunSpecSchema,
     })
@@ -548,12 +665,116 @@ export const BacktestRunEngineResultSchema = z
     });
   });
 
+/** Most run days and most trades or skips of an options result. */
+export const BACKTEST_RUN_OPTIONS_DAYS_MAX = 20_000;
+export const BACKTEST_RUN_OPTIONS_TRADES_MAX = 20_000;
+
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
+const optionsSymbol = z.enum(STRATEGY_OPTION_SYMBOLS);
+
+/**
+ * The options runner result of a Nautilus run (strategies.qc_ports.portfolio.run_spec_json): the
+ * ledger in money (dates, equity, open positions, trades, size skips), the book skips, the entry
+ * signals per symbol, the metrics (portfolio.run_metrics) and the largest daily equity gap between
+ * the ledger and NautilusTrader.
+ */
+export const BacktestRunEngineOptionsResultSchema = z
+  .object({
+    bookSkipped: z.number().int().min(0),
+    capital: z.number().positive(),
+    dates: z.array(isoDate).min(2).max(BACKTEST_RUN_OPTIONS_DAYS_MAX),
+    equity: z.array(z.number()).min(2).max(BACKTEST_RUN_OPTIONS_DAYS_MAX),
+    kind: z.literal("options"),
+    metrics: BacktestRunOptionsMetricsSchema.extend({
+      end: isoDate,
+      start: isoDate,
+      worstMonth: z.string().max(7).nullable(),
+    }).strict(),
+    nautilusGap: z.number().min(0).nullable(),
+    openPositions: z
+      .array(z.number().int().min(0))
+      .max(BACKTEST_RUN_OPTIONS_DAYS_MAX),
+    signals: z
+      .record(z.string(), z.number().int().min(0))
+      .refine(
+        (signals) =>
+          Object.keys(signals).every((symbol) =>
+            (STRATEGY_OPTION_SYMBOLS as readonly string[]).includes(symbol)
+          ),
+        { message: "Signals are counted per options symbol" }
+      ),
+    skipped: z
+      .array(
+        z
+          .object({
+            entryDate: isoDate,
+            id: z.number().int().min(1),
+            reason: z.literal("size"),
+            symbol: optionsSymbol,
+          })
+          .strict()
+      )
+      .max(BACKTEST_RUN_OPTIONS_TRADES_MAX),
+    trades: z
+      .array(
+        BacktestRunOptionsTradeSchema.extend({
+          contracts: z.number().int().min(1),
+          entryDate: isoDate,
+          exitDate: isoDate,
+          expiry: isoDate,
+          id: z.number().int().min(1),
+          /** Max loss per contract (entry cost and worst exit cost included), for the open risk. */
+          maxLoss: z.number().positive(),
+          structure: z.enum(STRATEGY_OPTION_STRUCTURES),
+          symbol: optionsSymbol,
+        }).strict()
+      )
+      .max(BACKTEST_RUN_OPTIONS_TRADES_MAX),
+  })
+  .strict()
+  .superRefine((result, context) => {
+    const size = result.dates.length;
+    for (const key of ["equity", "openPositions"] as const)
+      if (result[key].length !== size)
+        context.addIssue({
+          code: "custom",
+          message: `${key} must have one value per date`,
+          path: [key],
+        });
+    if (
+      result.dates.some(
+        (date, index) =>
+          index > 0 && date <= (result.dates[index - 1] as string)
+      )
+    )
+      context.addIssue({
+        code: "custom",
+        message: "dates must be strictly increasing",
+        path: ["dates"],
+      });
+    const days = new Set(result.dates);
+    result.trades.forEach((trade, index) => {
+      if (!days.has(trade.exitDate) || trade.entryDate > trade.exitDate)
+        context.addIssue({
+          code: "custom",
+          message: "A trade must exit on a run date, on or after its entry",
+          path: ["trades", index, "exitDate"],
+        });
+    });
+  });
+
+/** A worker result: the equity engine result, or the options runner result (kind "options"). */
+export const BacktestRunEngineAnyResultSchema = z.union([
+  BacktestRunEngineResultSchema,
+  BacktestRunEngineOptionsResultSchema,
+]);
+
 export const BacktestRunEngineCompleteInputSchema = z
   .object({
     engine: engineName,
     engineRun: EngineRunSchema.optional(),
     id: engineRunId,
-    result: BacktestRunEngineResultSchema,
+    result: BacktestRunEngineAnyResultSchema,
     /** The seriesSha256 returned by claim; the API refuses a result for changed bars. */
     seriesSha256: sha256,
   })
@@ -565,7 +786,7 @@ export const BacktestRunEngineCompleteItemSchema = z.union([
     .object({
       engineRun: EngineRunSchema.optional(),
       id: engineRunId,
-      result: BacktestRunEngineResultSchema,
+      result: BacktestRunEngineAnyResultSchema,
       seriesSha256: sha256,
     })
     .strict(),
@@ -702,4 +923,7 @@ export type BacktestRunEngineCompleteItem = z.infer<
 >;
 export type BacktestRunEngineResult = z.infer<
   typeof BacktestRunEngineResultSchema
+>;
+export type BacktestRunEngineOptionsResult = z.infer<
+  typeof BacktestRunEngineOptionsResultSchema
 >;
