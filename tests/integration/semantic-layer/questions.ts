@@ -270,7 +270,8 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
     set: "held_out",
   },
   // Engine runs with no strategy (migration 0058): run_spec rows of backtest_sharpe and
-  // backtest_max_drawdown, latest succeeded run per symbol, rule and timeframe. Older runs and
+  // backtest_max_drawdown, latest succeeded run per run spec (symbol, timeframe, rule, stop loss, take
+  // profit, cost, date range). Older runs and
   // notebook records are wrong values.
   {
     forbidden: [...PAPER, /\b0\.64\b/],

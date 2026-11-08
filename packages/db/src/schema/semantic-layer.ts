@@ -69,7 +69,7 @@ export const semanticTerms = pgTable(
 /**
  * What one row of a SQL attribute stands for (migration 0058). A term has at most one attribute per
  * grain. The backtest terms have two: `strategy` (latest succeeded engine run per linked strategy) and
- * `run_spec` (latest succeeded engine run per symbol, rule and timeframe, for runs with no strategy).
+ * `run_spec` (latest succeeded engine run per run spec: symbol, timeframe, rule, stop loss, take profit, cost and date range, for runs with no strategy).
  * The other attributes have one grain each: gate candidate, deployment request, drift monitor.
  */
 export const SEMANTIC_ATTRIBUTE_GRAINS = [
