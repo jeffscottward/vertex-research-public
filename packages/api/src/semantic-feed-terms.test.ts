@@ -23,9 +23,10 @@ const snapshot = (
     netLiquidation?: number | null;
     pnl?: Partial<PortfolioMonitorOutput["pnl"]>;
     positions?: PortfolioMonitorPosition[];
+    account?: PortfolioMonitorOutput["account"];
   }> = {}
 ): PortfolioMonitorOutput => ({
-  account: { count: 1, mode: "live" },
+  account: over.account ?? { count: 1, mode: "live" },
   completed: [],
   executions: [],
   messages: [],
@@ -186,6 +187,17 @@ describe("feedProblem", () => {
     expect(
       feedProblem(snapshot({ status: { gateway: "starting" } }), NOW)
     ).toBe("The IB gateway is starting; live account values are unknown.");
+  });
+
+  it("refuses a paper or unknown account: only the live account answers", () => {
+    for (const mode of ["paper", "unknown"] as const) {
+      expect(feedProblem(snapshot({ account: { count: 1, mode } }), NOW)).toBe(
+        `The feed reports a ${mode} account, not the live account; live account values are unknown.`
+      );
+    }
+    expect(
+      feedProblem(snapshot({ account: { count: 2, mode: "live" } }), NOW)
+    ).toBeNull();
   });
 
   it("refuses a disconnected gateway", () => {

@@ -56,6 +56,10 @@ export const feedProblem = (
   if (gateway !== "live" || !connected) {
     return `The IB gateway is ${gateway}${connected ? "" : " and disconnected"}; live account values are unknown.`;
   }
+  // The feed can be logged in to a paper account: then it is not the owner's live account.
+  if (snapshot.account.mode !== "live") {
+    return `The feed reports a ${snapshot.account.mode} account, not the live account; live account values are unknown.`;
+  }
   if (dataAsOf === null)
     return "The feed has no data time; values are unknown.";
   const ageMs = now.getTime() - Date.parse(dataAsOf);
