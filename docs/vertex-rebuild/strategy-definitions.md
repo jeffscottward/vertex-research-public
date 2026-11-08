@@ -35,7 +35,7 @@ A strategy definition is a small declarative description of a long-only strategy
 
 A condition is `{ "left": <expr>, "op": <op>, "right": <expr>, "oncePerLevel": true (optional) }`. Operators: `>`, `>=`, `<`, `<=`, `crossesAbove`, `crossesBelow`, `breaksAbove`, `breaksBelow`. A cross is true on a bar where the relation holds and did not hold on the previous bar. A break compares the previous left value with the current right value: `breaksAbove` at bar i is `left[i] > right[i]` and `left[i − 1] <= right[i]` (`breaksBelow`: `left[i] < right[i]` and `left[i − 1] >= right[i]`). It differs from a cross when the level moves: when the level rises past a close that was above the old level, the next close above the new level is a break but not a cross; when the level falls below an unchanged close, that bar is a cross but not a break. Both are false on the first bar and when a value is not available.
 
-`oncePerLevel` (optional, no default) works only with `crossesAbove`, `crossesBelow`, `breaksAbove` and `breaksBelow`. When true, a bar where the condition holds is dropped if the same right value (an exact number) already made it hold on an earlier bar, so each level fires once. With a constant right value the condition fires at most once in the whole run.
+`oncePerLevel` (optional, no default) works only with `crossesAbove`, `crossesBelow`, `breaksAbove` and `breaksBelow`. When true, a bar where the condition holds is dropped if the same right value (an exact number) already made it hold on an earlier bar, so each level fires once. With a constant right value the condition fires at most once in the whole run. A level is used up on any bar where the condition holds, whether or not a trade follows (already in a position, another condition false, a filter closed), so the result depends on where the run starts: a walk-forward fold that starts later can fire on a level the full run already used.
 
 Expressions:
 
@@ -77,6 +77,7 @@ The daily values map back to the signal bars without look-ahead:
 - Every other indicator (`sma`, `ema`, `rsi`, `atr`, `adx`, `zscore`, `realizedVol`) reads day D − 1, the last completed day. On the first day the value is not available.
 - `length` counts days and must not exceed the number of daily bars in the run (an input error, even when there are enough signal bars). `realizedVol` keeps its √252 factor, which is right for daily bars.
 - `offset` still counts signal bars and applies after the mapping.
+- The first session day may be partial (the data starts in the middle of it); it still counts as a day in the windows.
 - `rvol` takes no `timeframe`: it already compares whole sessions.
 
 ### Stop management and leverage
@@ -90,6 +91,8 @@ The daily values map back to the signal bars without look-ahead:
 With both parts the higher stop wins. Without a stop loss nothing moves, which is why the schema needs one.
 
 `sizing.maxLeverage` (1 to 50, riskPct only) caps the position cost at cash × `maxLeverage` instead of the cash. The borrowed part makes the unused cash negative; equity is that cash plus the position marked at the close. The TypeScript engine and the Nautilus engine charge no financing; the LD34 study runner (`services/research/strategies/ld34/metrics.py`) charges it in research.
+
+Ruin rule (both engines, every definition): when equity marked at a bar's close is at or below 0, an open position exits at that close with reason `stop`, and the run takes no further entries; equity stays at the cash left (which can be negative). With leverage this usually follows a gap through the stop: riskPct 10 with a stop 1 below an entry at 100 and `maxLeverage` 20 buys 0.1 units with 9 borrowed; a gap to 50 fills the stop at 50 and leaves equity at −4, after which the strategy no longer trades. Entry costs at high leverage can also take the marked equity below 0 before the stop is reached; then the position exits at the close.
 
 ### LD34 example
 
