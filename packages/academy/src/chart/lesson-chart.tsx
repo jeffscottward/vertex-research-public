@@ -449,6 +449,25 @@ const PanelView = ({
     strokeLinejoin: "round",
     strokeWidth: 3,
   } as const;
+  const legend = panel.series.filter(
+    (series, position) =>
+      series.label !== "" &&
+      progressOf(revealed, series.element) > 0 &&
+      panel.series.findIndex((other) => other.label === series.label) ===
+        position
+  );
+  // The legend box (top left, at most 5 rows): vertical-line labels under it move below it.
+  const legendShown = legend.slice(0, 5);
+  const legendRight =
+    plot.x +
+    8 +
+    Math.max(
+      0,
+      ...legendShown.map(
+        (series) => font * 0.5 * series.label.length + font * 2
+      )
+    );
+  const legendBottom = plot.y + 8 + legendShown.length * font * 1.25;
   const markerView = (marker: Marker, key: number) => {
     const progress = progressOf(revealed, marker.element);
     if (progress <= 0) return null;
@@ -525,7 +544,12 @@ const PanelView = ({
               fill={color}
               fontSize={font * 0.8}
               x={x + 4}
-              y={plot.y + font * (1 + (key % 3) * 1.1)}
+              y={
+                (legendShown.length > 0 && x + 4 < legendRight
+                  ? legendBottom
+                  : plot.y) +
+                font * (1 + (key % 3) * 1.1)
+              }
             >
               {label}
             </text>
@@ -600,13 +624,6 @@ const PanelView = ({
     }
     return null;
   };
-  const legend = panel.series.filter(
-    (series, position) =>
-      series.label !== "" &&
-      progressOf(revealed, series.element) > 0 &&
-      panel.series.findIndex((other) => other.label === series.label) ===
-        position
-  );
   return (
     <g>
       <rect

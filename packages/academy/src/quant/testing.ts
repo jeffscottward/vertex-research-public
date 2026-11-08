@@ -130,10 +130,11 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
   const curve = grid(1, xMax, 60).map(
     (n) => [n, expectedMaxSharpe(n, model.sigma)] as const
   );
+  // The running-best dots crowd at small N on this linear axis: only the current one is labelled.
   const bestDots: Marker[] = counts.map((n) => ({
     element: "best",
     kind: "dot",
-    label: `best of ${n}`,
+    label: "",
     x: n,
     y: model.runningBest[n - 1] as number,
   }));
@@ -160,7 +161,8 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
       },
     ],
     title: "Best in-sample Sharpe vs rules tested (no true edge)",
-    xDomain: [1, xMax],
+    // From 0, so the dot at N = 1 is not cut by the plot edge.
+    xDomain: [0, xMax],
     xFormat: "count",
     xLabel: "Rules tested N",
     yDomain: span([0, ...curve.map((p) => p[1]), ...model.runningBest]),

@@ -253,6 +253,46 @@ describe("LessonChart edge cases", () => {
     expect(svg).toContain(LIGHT_PALETTE.tokens.red);
   });
 
+  it("draws labelled markers after unlabelled ones, with a halo, and keeps vline labels off the legend", () => {
+    const labelY = (svg: string, text: string): number =>
+      Number(new RegExp(`y="([0-9.]+)"[^>]*>${text}<`, "u").exec(svg)?.[1]);
+    const withLegend = (legend: boolean) =>
+      render(
+        scene([
+          panel({
+            elements: ["axes", "line", "m"],
+            markers: [
+              { element: "m", label: "Named", kind: "dot", x: 5, y: 1 },
+              { element: "m", label: "", kind: "dot", x: 5, y: 1 },
+              { element: "m", label: "Left shock", kind: "vline", x: 0.5 },
+              { element: "m", label: "Right shock", kind: "vline", x: 9.5 },
+            ],
+            series: [
+              {
+                element: "line",
+                label: legend ? "A fairly long legend entry" : "",
+                points: [
+                  [0, 0],
+                  [10, 1],
+                ],
+              },
+            ],
+          }),
+        ])
+      );
+    const svg = withLegend(true);
+    // The unlabelled dot comes first in the markup, so the named dot and its text paint on top.
+    expect(svg.indexOf(">Named<")).toBeGreaterThan(svg.lastIndexOf("<circle"));
+    expect(svg).toMatch(/paint-order="stroke"[^>]*>Named</u);
+    // A vertical-line label under the legend moves below it; one clear of it stays at the top.
+    expect(labelY(svg, "Left shock")).toBeGreaterThan(
+      labelY(withLegend(false), "Left shock")
+    );
+    expect(labelY(svg, "Right shock")).toBe(
+      labelY(withLegend(false), "Right shock")
+    );
+  });
+
   it("colors tone bars by their element and reveals each bar by its own element", () => {
     const svg = render(
       scene([
