@@ -24,6 +24,7 @@ import {
   exponentialMean,
   isNyseTradingDay,
   ivRankSeries,
+  NYSE_SPECIAL_CLOSURES,
   nyseHolidays,
   REALIZED_VOL_PERIODS_PER_YEAR,
   realizedVolatility,
@@ -1372,6 +1373,20 @@ describe("calendarWindow filter", () => {
     expect(isNyseTradingDay(Date.parse("2021-12-31") / DAY_MS)).toBe(true);
     expect(isNyseTradingDay(Date.parse("2021-07-05") / DAY_MS)).toBe(false);
     expect(isNyseTradingDay(Date.parse("2021-07-03") / DAY_MS)).toBe(false);
+    // Special closures: September 11, Sandy, days of mourning.
+    for (const date of NYSE_SPECIAL_CLOSURES)
+      expect(isNyseTradingDay(Date.parse(date) / DAY_MS)).toBe(false);
+    expect(iso(2012)).toEqual(
+      expect.arrayContaining(["2012-10-29", "2012-10-30"])
+    );
+    expect(iso(2001).filter((date) => date.startsWith("2001-09"))).toEqual([
+      "2001-09-03",
+      "2001-09-11",
+      "2001-09-12",
+      "2001-09-13",
+      "2001-09-14",
+    ]);
+    expect(isNyseTradingDay(Date.parse("2018-12-04") / DAY_MS)).toBe(true);
   });
 });
 
@@ -1543,6 +1558,18 @@ describe("filters with exits, runs and the options block", () => {
       series: "VIX",
       type: "series",
     });
+    // A known timeframe is checked too: daily bars run as 1d and are refused as 1m.
+    const calendar = filtered({
+      type: "calendarWindow",
+      window: "opexWeek",
+    });
+    expect(
+      runStrategyDefinition(bars, calendar, 0, undefined, undefined, "1d")
+        .equity
+    ).toHaveLength(bars.c.length);
+    expect(() =>
+      runStrategyDefinition(bars, calendar, 0, undefined, undefined, "1m")
+    ).toThrow(new StrategyUnsupportedError(STRATEGY_CALENDAR_INTRADAY_REFUSAL));
     expect(() => runStrategyDefinition(bars, series, 0)).toThrow(
       "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the series filters need daily series"
     );

@@ -1325,7 +1325,10 @@ const buildEngine = (
   return engine;
 };
 
-/** NYSE holidays 1998 to 2035 (YYYY-MM-DD), the calendar the calendarWindow filter uses. */
+/**
+ * NYSE holidays 1998 to 2035 (YYYY-MM-DD) with the special closures, the calendar the
+ * calendarWindow filter uses.
+ */
 const holidayDates = (): string[] => {
   const dates: string[] = [];
   for (let year = 1998; year <= 2035; year += 1)
@@ -1341,7 +1344,9 @@ const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
     ["qc:ivRank:min", "SPY"],
     ["qc:series:esTrend", "SPY"],
     ["qc:calendar:opexWeek", "intraday"],
-  ].map(([id, symbol]) => {
+    // Daily bars, but a known intraday timeframe: refused by the timeframe, not the spacing.
+    ["qc:calendar:opexWeek", "SPY", "1m"],
+  ].map(([id, symbol, timeframe]) => {
     const definition = qcDefinitions.find((entry) => entry.id === id)
       ?.definition as Json;
     try {
@@ -1350,12 +1355,20 @@ const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
         StrategyDefinitionSchema.parse(definition),
         10,
         undefined,
-        sectorQuadrants
+        sectorQuadrants,
+        timeframe
       );
       return { id, ran: true };
     } catch (error) {
       const { code, message } = error as StrategyUnsupportedError;
-      return { code, definition, id, message, symbol };
+      return {
+        code,
+        definition,
+        id,
+        message,
+        symbol,
+        ...(timeframe === undefined ? {} : { timeframe }),
+      };
     }
   });
 

@@ -1008,12 +1008,21 @@ def _easter_sunday(year: int) -> int:
     return _day(date(year, month, (h + l - 7 * m + 114) % 31 + 1))
 
 
+# Special NYSE full-day closures since 1998 (TS NYSE_SPECIAL_CLOSURES): September 11 attacks, the
+# days of mourning for Presidents Reagan, Ford, G. H. W. Bush and Carter, and Hurricane Sandy.
+NYSE_SPECIAL_CLOSURES = (
+    "2001-09-11", "2001-09-12", "2001-09-13", "2001-09-14", "2004-06-11", "2007-01-02",
+    "2012-10-29", "2012-10-30", "2018-12-05", "2025-01-09",
+)  # fmt: skip
+# Timeframes of one bar per trading day or longer (TS STRATEGY_DAILY_TIMEFRAMES).
+DAILY_TIMEFRAMES = ("1d", "1w")
+
 _HOLIDAYS: dict[int, frozenset[int]] = {}
 
 
 def nyse_holidays(year: int) -> frozenset[int]:
     """TS nyseHolidays: regular NYSE full-day holidays of a year as UTC days (rules since 1998,
-    the rules of strategies/qc_ports calendar.is_nyse_holiday); special closures are not modeled."""
+    the rules of strategies/qc_ports calendar.is_nyse_holiday) plus NYSE_SPECIAL_CLOSURES."""
     cached = _HOLIDAYS.get(year)
     if cached is not None:
         return cached
@@ -1032,6 +1041,9 @@ def nyse_holidays(year: int) -> frozenset[int]:
         days.add(_observed(new_year))
     if year >= 2022:
         days.add(_observed(_day(date(year, 6, 19))))
+    days.update(
+        _day(date.fromisoformat(item)) for item in NYSE_SPECIAL_CLOSURES if item.startswith(f"{year}-")
+    )
     _HOLIDAYS[year] = frozenset(days)
     return _HOLIDAYS[year]
 
@@ -1243,15 +1255,25 @@ def compile_strategy(
     )
 
 
-def server_refusal(definition: Mapping[str, Any]) -> StrategyUnsupportedError | None:
-    """TS serverStrategyRefusal (without a timeframe) of a normalized definition: an options
-    block, then the series filters by type in first-use order."""
+def server_refusal(
+    definition: Mapping[str, Any], timeframe: str | None = None
+) -> StrategyUnsupportedError | None:
+    """TS serverStrategyRefusal of a normalized definition: an options block, then the series
+    filters by type in first-use order, then calendar filters on a non-daily `timeframe`."""
     if definition["options"] is not None:
         return options_unsupported()
     types = list(dict.fromkeys(
         item["type"] for item in definition["filters"] if item["type"] in SERIES_FILTER_TYPES
     ))
-    return series_filters_unsupported(types) if types else None
+    if types:
+        return series_filters_unsupported(types)
+    if (
+        timeframe is not None
+        and timeframe not in DAILY_TIMEFRAMES
+        and any(item["type"] == "calendarWindow" for item in definition["filters"])
+    ):
+        return calendar_intraday_unsupported()
+    return None
 
 
 def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]:
@@ -1270,7 +1292,7 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
         definition = normalize_definition(rule["definition"])
         # The server equity engine (TS runStrategyDefinition): research runners call
         # compile_strategy with their series context instead.
-        refusal = server_refusal(definition)
+        refusal = server_refusal(definition, spec.get("timeframe"))
         if refusal is not None:
             raise refusal
         compiled = compile_strategy(bars, definition, spec.get("sectorQuadrants"))

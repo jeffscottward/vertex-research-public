@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
@@ -141,16 +142,39 @@ REFUSALS = golden()["engineRefusals"]
 @pytest.mark.parametrize("case", REFUSALS, ids=_ids(REFUSALS, "id", "symbol"))
 def test_plan_run_refuses_like_the_typescript_server_engine(case: dict[str, Any]) -> None:
     spec = {"rule": {"kind": "dsl", "definition": case["definition"]}, "costBps": 10, "costs": None,
-            "sectorQuadrants": golden()["sectorQuadrants"]}
+            "sectorQuadrants": golden()["sectorQuadrants"], "timeframe": case.get("timeframe")}
     with pytest.raises(StrategyUnsupportedError) as raised:
         sig.plan_run(bars_of(case["symbol"]), spec)
     assert raised.value.code == case["code"]
     assert str(raised.value) == case["message"]
 
 
-def test_nyse_holidays_match_typescript_and_the_research_calendar() -> None:
-    from strategies.qc_ports.calendar import is_nyse_holiday
+def _bar_dates(path: Path) -> list[str]:
+    with path.open() as handle:
+        return [line.split(",", 1)[0] for line in handle.read().splitlines()[1:] if line]
 
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+def _assert_calendar_matches_research(dates: list[str], last: date) -> None:
+    """The DSL trading days equal qc_ports TradingCalendar over the bar dates, and outside them
+    the qc_ports holiday rules plus the special closures, from 1998 to `last`."""
+    from strategies.qc_ports.calendar import TradingCalendar, is_nyse_holiday
+
+    calendar = TradingCalendar(dates)
+    closures = {date.fromisoformat(item) for item in sig.NYSE_SPECIAL_CLOSURES}
+    first = date(1998, 1, 1)
+    for offset in range((last - first).days + 1):
+        day = first + timedelta(days=offset)
+        if calendar.first <= day <= calendar.last:
+            expected = calendar.is_trading_day(day)
+        else:
+            expected = day.weekday() < 5 and not is_nyse_holiday(day) and day not in closures
+        assert sig.is_nyse_trading_day((day - sig.EPOCH_DAY).days) == expected, day
+
+
+def test_nyse_holidays_match_typescript_and_the_research_calendar() -> None:
     expected = golden()["nyseHolidays"]
     actual = [
         (sig.EPOCH_DAY + timedelta(days=day)).isoformat()
@@ -158,12 +182,23 @@ def test_nyse_holidays_match_typescript_and_the_research_calendar() -> None:
         for day in sorted(sig.nyse_holidays(year))
     ]
     assert actual == expected
-    # Same rules as the qc-ports research calendar, day by day.
-    first = date(1998, 1, 1)
-    for offset in range((date(2035, 12, 31) - first).days + 1):
-        day = first + timedelta(days=offset)
-        number = (day - sig.EPOCH_DAY).days
-        assert sig.is_nyse_trading_day(number) == (day.weekday() < 5 and not is_nyse_holiday(day)), day
+    assert set(sig.NYSE_SPECIAL_CLOSURES) <= set(expected)
+    # SPY bar dates 2015-2024 in the repo (2018-12-05 has no bar).
+    _assert_calendar_matches_research(
+        _bar_dates(REPO / "tests" / "fixtures" / "golden" / "SPY-1d.csv"), date(2035, 12, 31)
+    )
+
+
+def test_nyse_calendar_matches_the_real_spy_bar_dates() -> None:
+    """Over the local qc-ports data (SPY since 1993, when present), every SPY bar date trades and
+    every weekday without a bar is a holiday or special closure."""
+    from strategies.qc_ports.data import DATA_ENV, DEFAULT_ROOT
+
+    root = Path(os.environ.get(DATA_ENV, DEFAULT_ROOT))
+    if not (root / "SPY.csv").exists():
+        pytest.skip("qc-ports data not present")
+    dates = [item for item in _bar_dates(root / "SPY.csv") if item >= "1998-01-01"]
+    _assert_calendar_matches_research(dates, date.fromisoformat(dates[-1]))
 
 
 FIXED = golden()["fixedRules"]
@@ -574,3 +609,13 @@ def test_series_filter_carries_a_value_at_most_five_trading_days() -> None:
 def test_server_refusal_passes_equity_definitions() -> None:
     plain = sig.normalize_definition(_filtered({"type": "calendarWindow", "window": "opexWeek"}))
     assert sig.server_refusal(plain) is None
+
+
+def test_plan_run_checks_a_known_timeframe() -> None:
+    definition = _filtered({"type": "calendarWindow", "window": "opexWeek"})
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "costs": None}
+    compiled, _ = sig.plan_run(bars_of("SPY"), {**spec, "timeframe": "1d"})
+    assert len(compiled.signals) == len(bars_of("SPY").c)
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of("SPY"), {**spec, "timeframe": "5m"})
+    assert raised.value.code == STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED

@@ -148,7 +148,8 @@ const executeClaimed = async (
       definition,
       spec.costBps,
       costs,
-      sectorQuadrants
+      sectorQuadrants,
+      spec.timeframe
     );
   } else result = runInstantBacktest(bars, runParamsForSpec(spec));
   const report = {

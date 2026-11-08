@@ -774,13 +774,32 @@ const easterSunday = (year: number): number => {
   return utcDay(year, month - 1, ((h + l - 7 * m + 114) % 31) + 1);
 };
 
+/**
+ * Special NYSE full-day closures since 1998 (not set by the holiday rules): September 11 attacks,
+ * the national days of mourning for Presidents Reagan, Ford, G. H. W. Bush and Carter, and
+ * Hurricane Sandy. Python mirror: signals.NYSE_SPECIAL_CLOSURES.
+ */
+export const NYSE_SPECIAL_CLOSURES: readonly string[] = [
+  "2001-09-11",
+  "2001-09-12",
+  "2001-09-13",
+  "2001-09-14",
+  "2004-06-11",
+  "2007-01-02",
+  "2012-10-29",
+  "2012-10-30",
+  "2018-12-05",
+  "2025-01-09",
+];
+
 const holidayCache = new Map<number, ReadonlySet<number>>();
 
 /**
  * Regular NYSE full-day holidays of a year as UTC days, the rules since 1998 (the same rules as
  * the research calendar, qc_ports calendar.is_nyse_holiday): New Year (not observed on a Saturday),
  * Martin Luther King Jr. Day, Washington's Birthday, Good Friday, Memorial Day, Juneteenth (from
- * 2022), Independence Day, Labor Day, Thanksgiving and Christmas. Special closures are not modeled.
+ * 2022), Independence Day, Labor Day, Thanksgiving and Christmas, plus the special closures of
+ * NYSE_SPECIAL_CLOSURES in that year.
  */
 export const nyseHolidays = (year: number): ReadonlySet<number> => {
   const cached = holidayCache.get(year);
@@ -798,6 +817,8 @@ export const nyseHolidays = (year: number): ReadonlySet<number> => {
   const newYear = utcDay(year, 0, 1);
   if (weekday(newYear) !== 6) days.add(observed(newYear));
   if (year >= 2022) days.add(observed(utcDay(year, 5, 19)));
+  for (const date of NYSE_SPECIAL_CLOSURES)
+    if (date.startsWith(`${year}-`)) days.add(Date.parse(date) / DAY_MS);
   holidayCache.set(year, days);
   return days;
 };
@@ -1115,11 +1136,14 @@ export const runStrategyDefinition = (
   definition: StrategyDefinition,
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  timeframe?: string
 ): InstantRunResult => {
   // The equity engine of the server paths: it would trade the underlying of an options block, and
-  // it gets no series context. Research runners call compileStrategy with their context.
-  assertServerRunnable(definition);
+  // it gets no series context. Research runners call compileStrategy with their context. With a
+  // known timeframe it also refuses calendar filters on intraday timeframes; compile still checks
+  // the bar spacing when the timeframe is not given.
+  assertServerRunnable(definition, timeframe);
   const compiled = compileStrategy(bars, definition, sectorQuadrants);
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
