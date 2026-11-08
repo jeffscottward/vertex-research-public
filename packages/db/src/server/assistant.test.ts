@@ -122,6 +122,7 @@ describe("0022 assistant migration", () => {
       "0051_research_studies",
       "0052_flow_pipeline",
       "0053_flow_option_gaps",
+      "0054_agent_model_run_grants",
     ]);
   });
 
