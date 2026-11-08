@@ -89,7 +89,12 @@ export const rawResultFixture = {
   },
   periodEnd: "2026-10-16",
   periodStart: "2003-10-02",
-  runConfig: { fillModel: "bar", initialCapital: 1, timeframe: "1d" },
+  runConfig: {
+    engine: "nautilus-trader-1.227.0",
+    fillModel: "bar",
+    initialCapital: 1,
+    timeframe: "1d",
+  },
   specId: specFixture.id,
   specSha256: specFixture.spec_sha256,
   strategy: "SMA timing (walk-forward)",
