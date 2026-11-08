@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { lessonVtt, narrationTimingFor } from "@darkfactory/academy";
+import { courseOf, lessonVtt, narrationTimingFor } from "@darkfactory/academy";
 import { ACADEMY_LESSONS, lessonBySlug } from "@darkfactory/academy/lessons";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -201,9 +201,12 @@ describe("renderLessons", () => {
       fakes({ durationInFrames: 90, fps: 30 })
     );
     expect(code).toBe(0);
-    expect(stdout).toEqual([
-      `0 of ${ACADEMY_LESSONS.length} lessons need rendering\n`,
-    ]);
+    // --all selects narrated courses only (unnarrated QuantFinanceToGo lessons have no video).
+    const narrated = ACADEMY_LESSONS.filter(
+      (lesson) => courseOf(lesson).narrated
+    ).length;
+    expect(narrated).toBeLessThan(ACADEMY_LESSONS.length);
+    expect(stdout).toEqual([`0 of ${narrated} lessons need rendering\n`]);
     expect(calls["bundle"]).toEqual([]);
   });
 
