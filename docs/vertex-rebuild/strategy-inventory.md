@@ -1,6 +1,6 @@
 # Strategy inventory
 
-Updated: 2026-11-08 (card vertex-calendar-spread; earlier sections: card vertex-30dma-timing, 2026-11-01; card vertex-quantsmd, 2026-10-31; card vertex-ig-carousel-strategies, 2026-10-29; card vertex-strategies-buildout, 2026-10-26). Research and backtest use only. A listed or backtested strategy is not authorized for trading.
+Updated: 2026-11-08 (QuantConnect idea ports and card vertex-calendar-spread; earlier sections: card vertex-30dma-timing, 2026-11-01; card vertex-quantsmd, 2026-10-31; card vertex-ig-carousel-strategies, 2026-10-29; card vertex-strategies-buildout, 2026-10-26). Research and backtest use only. A listed or backtested strategy is not authorized for trading.
 
 "Built" means four parts exist: a definition (spec or library entry), an engine (code that produces signals), tests of the rules, and a recorded backtest result. Columns show each part.
 
@@ -64,6 +64,24 @@ Source: <https://quants.md> lists QuantJourney's 50 open-source (Apache-2.0) exa
 - Re-run: 46 of 50 (O15, O16, W07 and W08 need intraday bars Yahoo no longer serves for their windows). W22 runs on its own costs only: at 10 bp per side the QuantJourney cost accounting stops with "NAV became non-positive". With dividend-adjusted bars, 44 re-runs match the published figures within the stated tolerance (W01, O01 and O17 to 0.1 point); W19 and W23 differ.
 - Gates: 0 of 50 pass (none beats its benchmark in both halves; the highest deflated Sharpe probability with 50 trials is 0.49, W25, on futures data with unadjusted rolls). All rows are research only; none is promoted to paper.
 - The portal library filters by source (`Source` select, list input `tag`) and shows the dashboard and GitHub links named in each description.
+
+## QuantConnect idea ports (added 2026-11-08)
+
+Source: the QuantConnect Strategy Library (<https://www.quantconnect.com/learning/articles/investment-strategy-library>), ported at the owner's request on 2026-11-08 (full strategy DSL with defined-risk option legs and reusable entry gates, TypeScript and Python engines in parity). Each spec trades the idea as defined-risk option spreads on modeled option prices (Black-Scholes on the CBOE volatility index of each ETF, not real chains), with modeled costs per contract, 2% maximum-loss sizing from USD 100,000, signal at close i and trade at close i+1, from each ETF's IV index start to 2026-11-06. Pre-set test per spec: after costs, Sharpe above 0.5, deflated Sharpe probability above 0.9 with n_trials = 32 (all pre-registered runs of the 11 specs), maximum drawdown under 25%, and a higher Sharpe than the same structure always on monthly. Data fetch: `research/backtests/qc-ports/fetch_data.py`; planned engine: `services/research/strategies/qc_ports/`. Results go to Postgres `research_studies` under the spec's id, not to JSON files.
+
+|Strategy|QuantConnect page|Expression|Definition|Engine|Tests|Backtest result|State|
+|---|---|---|---|---|---|---|---|
+|[IV rank gate for put credit spreads](../specs/strategies/qc-iv-rank-gate.md)|none (practitioner rule; nearest: Volatility Risk Premium Effect)|Entry gate `ivRank` (L 252, min 50) on Core 7 put credit verticals; before/after on sma30 and donchianBreakout|spec|no|no|not run (`research_studies` id `qc-iv-rank-gate`)|Specified; engine, tests and run pending|
+|[Turn of the month](../specs/strategies/qc-turn-of-the-month.md)|Turn of the Month in Equity Indexes|Call debit verticals on SPY, QQQ, DIA, IWM over days −2..+3|spec|no|no|not run (`research_studies` id `qc-turn-of-the-month`)|Specified; engine, tests and run pending|
+|[Option-expiration week effect](../specs/strategies/qc-opex-week.md)|Option Expiration Week Effect|Call debit verticals on SPY, QQQ, DIA, IWM in the OpEx week|spec|no|no|not run (`research_studies` id `qc-opex-week`)|Specified; engine, tests and run pending|
+|[Regime-gated put volatility risk premium](../specs/strategies/qc-regime-put-vrp.md)|Volatility Risk Premium Effect|SPY 25-delta put credit vertical, 45 DTE, gated by `volRegime` (VIX 25, VIX/VIX3M 1.0, SMA 200); before/after on sma30 and donchianBreakout|spec|no|no|not run (`research_studies` id `qc-regime-put-vrp`)|Specified; engine, tests and run pending|
+|[Futures trend and carry on Core 7](../specs/strategies/qc-futures-trend-carry.md)|Commodities Futures Trend Following; Term Structure Effect in Commodities|12-month trend / volatility and carry proxy of each `=F` future, debit verticals on the ETF twin|spec|no|no|not run (`research_studies` id `qc-futures-trend-carry`)|Specified; engine, tests and run pending|
+|[VIX term-structure gate](../specs/strategies/qc-vix-term-gate.md)|Exploiting Term Structure of VIX Futures; VIX Predicts Stock Index Returns|Entry gate VIX/VIX3M < 1 on the SPY put credit vertical; before/after on sma30 and donchianBreakout; VIX quintile table|spec|no|no|not run (`research_studies` id `qc-vix-term-gate`)|Specified; engine, tests and run pending|
+|[Asset class trend, 10-month SMA](../specs/strategies/qc-asset-class-trend.md)|Asset Class Trend Following|Core 7 call debit verticals while above the 10-month SMA|spec|no|no|not run (`research_studies` id `qc-asset-class-trend`)|Specified; engine, tests and run pending|
+|[Momentum rotation, top 2](../specs/strategies/qc-momentum-rotation.md)|Asset Class Momentum|Top 2 of Core 7 by 12-1 month return, above 0|spec|no|no|not run (`research_studies` id `qc-momentum-rotation`)|Specified; engine, tests and run pending|
+|[Gold market timing, Fed model](../specs/strategies/qc-gold-fed-model.md)|Gold Market Timing|GLD call debit vertical when the Shiller earnings yield (3-month lag) > 2 × TNX|spec|no|no|not run (`research_studies` id `qc-gold-fed-model`)|Specified; engine, tests and run pending|
+|[Crude oil predicts equity returns](../specs/strategies/qc-oil-predicts-equity.md)|Can Crude Oil Predict Equity Returns?|60-month regression on the USO return; SPY and QQQ call debit verticals|spec|no|no|not run (`research_studies` id `qc-oil-predicts-equity`)|Specified; engine, tests and run pending|
+|[Same-calendar-month seasonality](../specs/strategies/qc-same-month-seasonality.md)|Seasonality Effect based on Same-Calendar Month Returns|Top 2 of Core 7 by mean same-month return, above 0|spec|no|no|not run (`research_studies` id `qc-same-month-seasonality`)|Specified; engine, tests and run pending|
 
 ## Other strategy specs
 

@@ -238,6 +238,10 @@ export const BACKTEST_RUN_ERRORS = {
   NOT_FOUND: { message: "Backtest run or strategy not found", status: 404 },
   STORAGE_ERROR: { message: "Backtest storage unavailable", status: 503 },
   UNAUTHORIZED: { message: "Authentication required", status: 401 },
+  VALIDATION_ERROR: {
+    message: "The backtest engines cannot run this strategy",
+    status: 422,
+  },
 } as const;
 
 const backtestRuns = oc.errors(BACKTEST_RUN_ERRORS);

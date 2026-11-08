@@ -37,7 +37,11 @@ import {
   relativeVolumeAtTime,
   rollingZScore,
   runStrategyDefinition,
+  type CompiledStrategy,
+  nyseHolidays,
   type SectorQuadrantSeries,
+  type StrategySeriesContext,
+  type StrategyUnsupportedError,
 } from "../../packages/api/src/strategy-dsl-compile.ts";
 import {
   STRATEGY_TEMPLATES,
@@ -453,6 +457,340 @@ const extraDefinitions: { id: string; definition: Json; symbol: string }[] = [
   },
 ];
 
+/** YYYY-MM-DD dates from `from` to `to` inclusive (UTC): weekdays, plus Sundays when asked. */
+const calendarDates = (
+  from: string,
+  to: string,
+  sundays = false,
+  holidays: readonly string[] = []
+): string[] => {
+  const dates: string[] = [];
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= end; t += 86_400_000) {
+    const day = new Date(t).getUTCDay();
+    const date = new Date(t).toISOString().slice(0, 10);
+    if (day === 6 || (day === 0 && !sundays) || holidays.includes(date))
+      continue;
+    dates.push(date);
+  }
+  return dates;
+};
+
+/**
+ * Daily bars over spring 2019, starting mid-March, with the Good Friday holiday on the April
+ * monthly expiration (19 April) and Memorial Day; the last bar is the day before a month end.
+ */
+const calendarBars = (): BarColumns => {
+  const random = randomFrom(19);
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  let price = 280;
+  for (const date of calendarDates("2019-03-06", "2019-05-30", false, [
+    "2019-04-19",
+    "2019-05-27",
+  ])) {
+    const open = price;
+    const close = open * (1 + (random() - 0.5) * 0.02);
+    columns.t.push(Date.parse(`${date}T00:00:00Z`));
+    columns.o.push(open);
+    columns.h.push(Math.max(open, close) * 1.002);
+    columns.l.push(Math.min(open, close) * 0.998);
+    columns.c.push(close);
+    columns.v.push(1_000_000);
+    price = close;
+  }
+  return toBars(columns);
+};
+
+type SeriesJson = Record<string, Record<string, number | null>>;
+
+/**
+ * Synthetic daily series for the series filters (random walks rounded to cents) over the daily,
+ * calendar and intraday bar dates. VIX and VIX3M miss different dates and VIX has one null, so
+ * the "on the bar date" filters skip bars; GC=F misses many dates and ES=F has Sundays, so the
+ * series filter carries the latest earlier value.
+ */
+const seriesContext = (): SeriesJson => {
+  const spans = (sundays: boolean) => [
+    ...calendarDates("2014-10-01", "2016-12-31", sundays),
+    ...calendarDates("2019-01-02", "2019-06-28", sundays),
+    ...calendarDates("2024-01-02", "2024-03-29", sundays),
+  ];
+  const weekdays = spans(false);
+  /** Random walk from `start`, pulled back toward it by `revert` per day, rounded to cents. */
+  const walk = (
+    dates: readonly string[],
+    seed: number,
+    start: number,
+    step: number,
+    revert: number
+  ): number[] => {
+    const random = randomFrom(seed);
+    let value = start;
+    return dates.map(() => {
+      value = Math.max(
+        start * 0.3,
+        value + (random() - 0.5) * 2 * step + revert * (start - value)
+      );
+      return Math.round(value * 100) / 100;
+    });
+  };
+  const record = (
+    dates: readonly string[],
+    values: readonly number[],
+    skip: (index: number) => boolean
+  ): Record<string, number | null> =>
+    Object.fromEntries(
+      dates.flatMap((date, index) =>
+        skip(index) ? [] : [[date, values[index] as number]]
+      )
+    );
+  const vix = walk(weekdays, 11, 16, 1.1, 0.04);
+  const spread = randomFrom(21);
+  const vix3m = vix.map(
+    (value) => Math.round(value * (0.9 + spread() * 0.25) * 100) / 100
+  );
+  const withSundays = spans(true);
+  return {
+    "ES=F": record(
+      withSundays,
+      walk(withSundays, 14, 2000, 18, 0),
+      () => false
+    ),
+    "GC=F": record(
+      weekdays,
+      walk(weekdays, 15, 1200, 9, 0),
+      (index) => index % 7 === 3
+    ),
+    SPY: record(weekdays, walk(weekdays, 13, 200, 1.6, 0), () => false),
+    VIX: {
+      ...record(weekdays, vix, (index) => index % 41 === 7),
+      [weekdays[100] as string]: null,
+    },
+    VIX3M: record(weekdays, vix3m, (index) => index % 53 === 11),
+    VXN: record(weekdays, walk(weekdays, 12, 20, 1.3, 0.04), () => false),
+    // Gaps of 12 and 4 weekdays: the series filter carries a value at most 5 trading days.
+    "CL=F": record(
+      weekdays,
+      walk(weekdays, 16, 60, 1.2, 0),
+      (index) => (index >= 60 && index < 72) || (index >= 200 && index < 204)
+    ),
+  };
+};
+
+const always = {
+  left: { field: "close", type: "price" },
+  op: ">",
+  right: { type: "const", value: 0 },
+};
+const emaTrend = (op: string) => ({
+  left: { field: "close", type: "price" },
+  op,
+  right: { length: 10, name: "ema", type: "indicator" },
+});
+const trendDefinition = (name: string, filters: Json[]): Json => ({
+  entry: { all: [emaTrend(">")] },
+  exit: { any: [emaTrend("<")] },
+  filters,
+  name,
+  version: 1,
+});
+const maskDefinition = (name: string, filters: Json[]): Json => ({
+  entry: { all: [always] },
+  filters,
+  name,
+  version: 1,
+});
+
+/** Definitions with each series and calendar filter (and an options block), by symbol. */
+const qcDefinitions: {
+  id: string;
+  definition: Json;
+  symbols: readonly string[];
+}[] = [
+  {
+    definition: trendDefinition("IV rank above 50", [
+      { length: 60, min: 50, type: "ivRank" },
+    ]),
+    id: "qc:ivRank:min",
+    symbols: ["SPY", "QQQ"],
+  },
+  {
+    definition: maskDefinition("IV rank band", [
+      { length: 20, max: 70, min: 10, type: "ivRank" },
+    ]),
+    id: "qc:ivRank:band",
+    symbols: ["SPY", "QQQ"],
+  },
+  {
+    definition: maskDefinition("IV rank default length", [
+      { max: 40, type: "ivRank" },
+    ]),
+    id: "qc:ivRank:default",
+    symbols: ["SPY"],
+  },
+  {
+    definition: maskDefinition("Contango", [
+      { maxRatio: 0.97, type: "vixTermStructure" },
+    ]),
+    id: "qc:vixTermStructure:max",
+    symbols: ["SPY", "intraday"],
+  },
+  {
+    definition: maskDefinition("Term band", [
+      { maxRatio: 1.05, minRatio: 0.95, type: "vixTermStructure" },
+    ]),
+    id: "qc:vixTermStructure:band",
+    symbols: ["QQQ"],
+  },
+  {
+    definition: trendDefinition("Calm regime", [
+      { maxTermRatio: 1, maxVix: 20, trendLength: 50, type: "volRegime" },
+    ]),
+    id: "qc:volRegime",
+    symbols: ["SPY", "QQQ"],
+  },
+  {
+    definition: maskDefinition("Calm regime default trend", [
+      { maxTermRatio: 1.02, maxVix: 22, type: "volRegime" },
+    ]),
+    id: "qc:volRegime:default",
+    symbols: ["SPY", "calendar"],
+  },
+  {
+    definition: maskDefinition("Turn of month", [
+      { fromDay: -2, toDay: 3, type: "calendarWindow", window: "turnOfMonth" },
+    ]),
+    id: "qc:calendar:turnOfMonth",
+    symbols: ["SPY", "calendar", "intraday"],
+  },
+  {
+    definition: maskDefinition("Opex week", [
+      { type: "calendarWindow", window: "opexWeek" },
+    ]),
+    id: "qc:calendar:opexWeek",
+    symbols: ["SPY", "calendar", "intraday"],
+  },
+  {
+    definition: maskDefinition("Months", [
+      { months: [1, 4, 11], type: "calendarWindow", window: "months" },
+    ]),
+    id: "qc:calendar:months",
+    symbols: ["SPY", "calendar"],
+  },
+  {
+    definition: maskDefinition("Futures trend", [
+      {
+        condition: {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { length: 20, name: "sma", type: "indicator" },
+        },
+        series: "ES=F",
+        type: "series",
+      },
+    ]),
+    id: "qc:series:esTrend",
+    symbols: ["SPY", "calendar", "intraday"],
+  },
+  {
+    definition: trendDefinition("Gold cross", [
+      {
+        condition: {
+          left: { length: 5, name: "ema", type: "indicator" },
+          op: "crossesAbove",
+          right: { length: 20, name: "sma", offset: 2, type: "indicator" },
+        },
+        series: "GC=F",
+        type: "series",
+      },
+    ]),
+    id: "qc:series:goldCross",
+    symbols: ["SPY", "QQQ"],
+  },
+  {
+    definition: maskDefinition("Low VIX", [
+      {
+        condition: {
+          left: { field: "close", type: "price" },
+          op: "<",
+          right: { type: "const", value: 17 },
+        },
+        series: "VIX",
+        type: "series",
+      },
+    ]),
+    id: "qc:series:lowVix",
+    symbols: ["QQQ", "intraday"],
+  },
+  {
+    definition: maskDefinition("Oil above 60, carried 5 days", [
+      {
+        condition: {
+          left: { field: "close", type: "price" },
+          op: ">",
+          right: { type: "const", value: 60 },
+        },
+        series: "CL=F",
+        type: "series",
+      },
+    ]),
+    id: "qc:series:oilGap",
+    symbols: ["SPY", "intraday"],
+  },
+  {
+    definition: trendDefinition("Opex trend", [
+      { type: "calendarWindow", window: "opexWeek" },
+    ]),
+    id: "qc:calendar:opexTrend",
+    symbols: ["SPY", "QQQ", "calendar"],
+  },
+  {
+    definition: {
+      ...(trendDefinition("Put credit vertical", [
+        { length: 60, min: 30, type: "ivRank" },
+        { type: "calendarWindow", window: "opexWeek" },
+        { maxRatio: 1, type: "vixTermStructure" },
+        {
+          quadrants: ["leading", "improving"],
+          sector: "XLK",
+          type: "sectorQuadrant",
+        },
+      ]) as object),
+      options: {
+        dte: { min: 21, target: 45 },
+        exitDte: 7,
+        maxLossPct: 2,
+        profitTakePct: 50,
+        shortDelta: 0.2,
+        structure: "putCreditVertical",
+        widthSigma: 0.5,
+      },
+    },
+    id: "qc:options:putCredit",
+    symbols: ["SPY"],
+  },
+  {
+    definition: {
+      ...(trendDefinition("Call debit vertical", [
+        {
+          fromDay: -1,
+          toDay: 2,
+          type: "calendarWindow",
+          window: "turnOfMonth",
+        },
+      ]) as object),
+      options: {
+        dte: { min: 20, target: 30 },
+        maxLossPct: 1,
+        structure: "callDebitVertical",
+        widthSigma: 1,
+      },
+    },
+    id: "qc:options:callDebit",
+    symbols: ["QQQ"],
+  },
+];
+
 // 3. Fixed rules.
 const RULES: { id: string; rule: InstantRule }[] = [
   { id: "smaCross-10-30", rule: SMA_CROSS },
@@ -645,11 +983,24 @@ const buildIndicators = (
 /** 2. Compiled DSL definitions. */
 const buildCompiled = (
   datasets: Record<string, BarColumns>,
-  libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[]
+  libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[],
+  series: SeriesJson
 ): Json[] => {
-  const compiledJson = (definition: Json, bars: BarColumns) => {
+  const compiledJson = (definition: Json, symbol: string) => {
     const parsed = StrategyDefinitionSchema.parse(definition);
-    const compiled = compileStrategy(bars, parsed, sectorQuadrants);
+    let compiled: CompiledStrategy;
+    try {
+      compiled = compileStrategy(
+        datasets[symbol] as BarColumns,
+        parsed,
+        sectorQuadrants,
+        { context: series as StrategySeriesContext, symbol }
+      );
+    } catch (error) {
+      // A refusal is part of the contract: Python must refuse with the same code and message.
+      const { code, message } = error as StrategyUnsupportedError;
+      return { refused: { code, message } };
+    }
     return {
       exits: Array.from(compiled.exits),
       signals: Array.from(compiled.signals),
@@ -661,6 +1012,7 @@ const buildCompiled = (
         compiled.targetDistance === undefined
           ? null
           : list(compiled.targetDistance),
+      ...(compiled.options === undefined ? {} : { options: compiled.options }),
     };
   };
 
@@ -678,7 +1030,7 @@ const buildCompiled = (
         definition,
         id,
         symbol,
-        ...compiledJson(definition, datasets[symbol] as BarColumns),
+        ...compiledJson(definition, symbol),
       });
     }
   }
@@ -687,8 +1039,18 @@ const buildCompiled = (
       definition,
       id,
       symbol,
-      ...compiledJson(definition, datasets[symbol] as BarColumns),
+      ...compiledJson(definition, symbol),
     });
+  }
+  for (const { id, definition, symbols } of qcDefinitions) {
+    for (const symbol of symbols) {
+      compiled.push({
+        definition,
+        id,
+        symbol,
+        ...compiledJson(definition, symbol),
+      });
+    }
   }
 
   return compiled;
@@ -875,6 +1237,21 @@ const buildEngine = (
     }),
     sectorQuadrants,
   });
+  // Calendar filters run on the server engine; series filters and options blocks are refused.
+  for (const [id, symbol] of [
+    ["qc:calendar:opexTrend", "SPY"],
+    ["qc:calendar:opexTrend", "QQQ"],
+    ["qc:calendar:opexTrend", "calendar"],
+    ["qc:calendar:turnOfMonth", "SPY"],
+  ] as const) {
+    dslCase(`${id}:${symbol}`, symbol, {
+      ...baseSpec({
+        definition: qcDefinitions.find((entry) => entry.id === id)?.definition,
+        kind: "dsl",
+      }),
+      sectorQuadrants,
+    });
+  }
   const alwaysIn = (stopPct: number, targetPct: number): Json => ({
     entry: {
       all: [
@@ -948,6 +1325,53 @@ const buildEngine = (
   return engine;
 };
 
+/**
+ * NYSE holidays 1998 to 2035 (YYYY-MM-DD) with the special closures, the calendar the
+ * calendarWindow filter uses.
+ */
+const holidayDates = (): string[] => {
+  const dates: string[] = [];
+  for (let year = 1998; year <= 2035; year += 1)
+    for (const day of [...nyseHolidays(year)].sort((a, b) => a - b))
+      dates.push(new Date(day * 86_400_000).toISOString().slice(0, 10));
+  return dates;
+};
+
+/** 6. Server engine refusals: runStrategyDefinition (TS) and plan_run (Python) refuse alike. */
+const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
+  [
+    ["qc:options:putCredit", "SPY"],
+    ["qc:ivRank:min", "SPY"],
+    ["qc:series:esTrend", "SPY"],
+    ["qc:calendar:opexWeek", "intraday"],
+    // Daily bars, but a known intraday timeframe: refused by the timeframe, not the spacing.
+    ["qc:calendar:opexWeek", "SPY", "1m"],
+  ].map(([id, symbol, timeframe]) => {
+    const definition = qcDefinitions.find((entry) => entry.id === id)
+      ?.definition as Json;
+    try {
+      runStrategyDefinition(
+        datasets[symbol as string] as BarColumns,
+        StrategyDefinitionSchema.parse(definition),
+        10,
+        undefined,
+        sectorQuadrants,
+        timeframe
+      );
+      return { id, ran: true };
+    } catch (error) {
+      const { code, message } = error as StrategyUnsupportedError;
+      return {
+        code,
+        definition,
+        id,
+        message,
+        symbol,
+        ...(timeframe === undefined ? {} : { timeframe }),
+      };
+    }
+  });
+
 const buildGolden = (io: GoldenIo): string => {
   const csv = (file: string) =>
     io.readText(join("tests/fixtures/golden", file));
@@ -958,6 +1382,7 @@ const buildGolden = (io: GoldenIo): string => {
     intraday,
     gap: gapBars(),
     bothHit: bothHitBars(),
+    calendar: calendarBars(),
   };
 
   // 2. Compiled DSL definitions.
@@ -973,12 +1398,14 @@ const buildGolden = (io: GoldenIo): string => {
       id: `library:${strategy.id}`,
     }));
 
+  const series = seriesContext();
   const indicators = buildIndicators(datasets, intraday);
-  const compiled = buildCompiled(datasets, libraryDefinitions);
+  const compiled = buildCompiled(datasets, libraryDefinitions, series);
   const fixedRules = buildFixedRules(datasets);
   const costs = buildCosts();
   // Runs last: the engine cases add the gap-case bars to `datasets`.
   const engine = buildEngine(datasets, libraryDefinitions);
+  const engineRefusals = buildEngineRefusals(datasets);
   const golden = {
     barCount: BAR_COUNT,
     bars: Object.fromEntries(
@@ -989,7 +1416,10 @@ const buildGolden = (io: GoldenIo): string => {
     engine,
     fixedRules,
     indicators,
+    engineRefusals,
+    nyseHolidays: holidayDates(),
     sectorQuadrants,
+    series,
   };
 
   return `${JSON.stringify(golden)}\n`;

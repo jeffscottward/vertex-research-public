@@ -2,7 +2,7 @@
 // Used by: packages/db/src/server/repositories.ts (createRepositories) for researchStudies.get, and
 // scripts/research-studies/import.ts (`bun run vertex:research-studies:import`) for writes.
 // See: packages/db/migrations/0051_research_studies.sql; docs/vertex-rebuild/research-studies.md.
-// The document is stored and returned as given; callers validate it with FilterStudySchema
+// The document is stored and returned as given; callers validate it with ResearchStudyDocumentSchema
 // (packages/api/src/contracts/research-studies.ts). Research records only.
 import { eq, sql } from "drizzle-orm";
 
@@ -44,6 +44,13 @@ export type ResearchStudyRepository = Readonly<{
   upsert: (
     input: ResearchStudyUpsertInput
   ) => Promise<ResearchStudyUpsertResult>;
+  /**
+   * Upserts every study, in order, in one transaction: when any write fails, none is stored.
+   * Results are in input order.
+   */
+  upsertMany: (
+    inputs: readonly ResearchStudyUpsertInput[]
+  ) => Promise<ResearchStudyUpsertResult[]>;
 }>;
 
 // check_violation, invalid_datetime_format, datetime_field_overflow: the input is wrong, not the
@@ -72,6 +79,33 @@ const mapError = (operation: string, error: unknown): never => {
   throw error;
 };
 
+const write = async (
+  executor: DatabaseExecutor,
+  { id, ranOn, specRef, summary }: ResearchStudyUpsertInput
+): Promise<ResearchStudyUpsertResult> => {
+  const [row] = await executor
+    .insert(researchStudies)
+    .values({ id, ranOn, specRef, summary })
+    .onConflictDoUpdate({
+      set: { ranOn, specRef, summary, updatedAt: sql`now()` },
+      target: researchStudies.id,
+    })
+    .returning({
+      createdAt: researchStudies.createdAt,
+      id: researchStudies.id,
+      updatedAt: researchStudies.updatedAt,
+    });
+  if (row === undefined)
+    throw new DatabasePersistenceError("research study write");
+  return {
+    // Insert sets both timestamps to the same now(); an update moves only updated_at. now() is the
+    // transaction start, so this also holds inside upsertMany, which refuses repeated ids.
+    created: row.createdAt.getTime() === row.updatedAt.getTime(),
+    id: row.id,
+    updatedAt: row.updatedAt,
+  };
+};
+
 export const createResearchStudyRepository = (
   database: DatabaseExecutor
 ): ResearchStudyRepository =>
@@ -88,28 +122,33 @@ export const createResearchStudyRepository = (
         return mapError("research study read", error);
       }
     },
-    upsert: async ({ id, ranOn, specRef, summary }) => {
+    upsert: async (input) => {
       try {
-        const [row] = await database
-          .insert(researchStudies)
-          .values({ id, ranOn, specRef, summary })
-          .onConflictDoUpdate({
-            set: { ranOn, specRef, summary, updatedAt: sql`now()` },
-            target: researchStudies.id,
-          })
-          .returning({
-            createdAt: researchStudies.createdAt,
-            id: researchStudies.id,
-            updatedAt: researchStudies.updatedAt,
-          });
-        if (row === undefined)
-          throw new DatabasePersistenceError("research study write");
-        return {
-          // Insert sets both timestamps to the same now(); an update moves only updated_at.
-          created: row.createdAt.getTime() === row.updatedAt.getTime(),
-          id: row.id,
-          updatedAt: row.updatedAt,
-        };
+        return await write(database, input);
+      } catch (error) {
+        return mapError("research study write", error);
+      }
+    },
+    upsertMany: async (inputs) => {
+      if (inputs.length === 0) return [];
+      // A repeated id would be inserted then updated at the same now(), so `created` would be wrong
+      // for both rows; refuse it before opening a transaction.
+      const ids = new Set<string>();
+      for (const { id } of inputs) {
+        if (ids.has(id))
+          throw new InvalidRepositoryInputError(
+            `research study ${id} appears more than once in one batch`
+          );
+        ids.add(id);
+      }
+      try {
+        return await database.transaction(async (transaction) => {
+          const results: ResearchStudyUpsertResult[] = [];
+          // Sequential: one connection per transaction, and results keep the input order.
+          for (const input of inputs)
+            results.push(await write(transaction, input));
+          return results;
+        });
       } catch (error) {
         return mapError("research study write", error);
       }

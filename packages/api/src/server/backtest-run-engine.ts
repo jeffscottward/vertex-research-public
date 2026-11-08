@@ -25,6 +25,10 @@ import {
   summarize,
 } from "../instant-backtest-engine.ts";
 import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
+import {
+  assertServerRunnable,
+  type SectorQuadrantSeries,
+} from "../strategy-dsl-compile.ts";
 import { costsForSpec } from "./backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
@@ -126,14 +130,17 @@ const runInputs = async (
       );
       return null;
     }
-    const sectorQuadrants =
-      spec.rule.kind === "dsl"
-        ? await loadSectorQuadrants(
-            dependencies.sectorRotation,
-            StrategyDefinitionSchema.parse(spec.rule.definition),
-            bars.t[0] as number
-          )
-        : undefined;
+    let sectorQuadrants: SectorQuadrantSeries | undefined;
+    if (spec.rule.kind === "dsl") {
+      const definition = StrategyDefinitionSchema.parse(spec.rule.definition);
+      // The worker gets no series context and runs equity only: refuse, never run it half.
+      assertServerRunnable(definition, spec.timeframe);
+      sectorQuadrants = await loadSectorQuadrants(
+        dependencies.sectorRotation,
+        definition,
+        bars.t[0] as number
+      );
+    }
     return {
       bars,
       costs: (costsForSpec(spec) ?? null) as ClaimedRun["costs"],

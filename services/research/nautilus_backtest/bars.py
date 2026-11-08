@@ -25,6 +25,54 @@ class SectorQuadrantDataError(InputError):
         )
 
 
+class SeriesDataError(InputError):
+    """A definition has a filter on a series that was not given (TS StrategySeriesDataError)."""
+
+    def __init__(self, series: str) -> None:
+        super().__init__(f"Series data is not available for {series}")
+
+
+STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED"
+STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
+STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+
+
+class StrategyUnsupportedError(InputError):
+    """The equity engine refuses the definition (TS StrategyUnsupportedError); `code` says why."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def options_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_OPTIONS_REFUSAL: the options block runs only in the options research runner."""
+    return StrategyUnsupportedError(
+        STRATEGY_OPTIONS_UNSUPPORTED,
+        f"{STRATEGY_OPTIONS_UNSUPPORTED}: the options block runs only in the options research"
+        ' runner; an equity backtest refuses it. Remove "options" to test the underlying signals.',
+    )
+
+
+def series_filters_unsupported(types: Sequence[str]) -> StrategyUnsupportedError:
+    """TS serverStrategyRefusal for series filters (types in first-use order, no repeats)."""
+    return StrategyUnsupportedError(
+        STRATEGY_SERIES_FILTERS_UNSUPPORTED,
+        f"{STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the {', '.join(types)} filters need daily series"
+        " that the server does not load; only the research runners pass them. sectorQuadrant and"
+        " calendarWindow filters work here.",
+    )
+
+
+def calendar_intraday_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_CALENDAR_INTRADAY_REFUSAL."""
+    return StrategyUnsupportedError(
+        STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
+        f"{STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED}: calendarWindow filters run on daily bars only;"
+        " on intraday bars the UTC date misplaces the exchange session.",
+    )
+
+
 def _column(values: Sequence[Any]) -> tuple[float, ...]:
     # JSON null means NaN (the golden fixtures write NaN as null).
     return tuple(math.nan if value is None else float(value) for value in values)
