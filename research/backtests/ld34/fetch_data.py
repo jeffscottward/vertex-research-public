@@ -27,10 +27,10 @@ LIST = [
 ]
 
 
-def fetch(inst: str, side: str, start: date, end: date) -> list[list[str]] | None:
+def fetch(inst: str, side: str, start: date, end: date, timeframe: str = "h1") -> list[list[str]] | None:
     with tempfile.TemporaryDirectory() as tmp:
-        cmd = ["npx", "-y", "dukascopy-node@1.51.1", "-i", inst, "-from", start.isoformat(), "-to", end.isoformat(), "-t", "h1",
-               "-p", side, "-v", "-f", "csv", "-dir", tmp, "-fn", "x", "-r", "3", "-bs", "10", "-bp", "300"]
+        cmd = ["npx", "-y", "dukascopy-node@1.51.1", "-i", inst, "-from", start.isoformat(), "-to", end.isoformat(),
+               "-t", timeframe, "-p", side, "-v", "-f", "csv", "-dir", tmp, "-fn", "x", "-r", "3", "-bs", "10", "-bp", "300"]
         proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=900)
         path = Path(tmp) / "x.csv"
         if proc.returncode != 0 or "wrong" in proc.stdout or not path.exists():
@@ -38,6 +38,21 @@ def fetch(inst: str, side: str, start: date, end: date) -> list[list[str]] | Non
         with path.open() as fh:
             rows = list(csv.reader(fh))
         return rows[1:]
+
+
+def hourly_from_minutes(rows: list[list[str]]) -> list[list[str]]:
+    """H1 candles from M1 rows (timestamp, open, high, low, close, volume): first open, max high, min low,
+    last close, summed volume per UTC hour; used where the datafeed has no H1 candles (e.g. 2013-02 indices)."""
+    hours: dict[int, list[float]] = {}
+    for r in rows:
+        t = int(r[0]) // 3_600_000 * 3_600_000
+        o, h, low, c, v = (float(x) for x in r[1:6])
+        cur = hours.get(t)
+        if cur is None:
+            hours[t] = [o, h, low, c, v]
+        else:
+            cur[1], cur[2], cur[3], cur[4] = max(cur[1], h), min(cur[2], low), c, cur[4] + v
+    return [[str(t), *(repr(x) for x in values)] for t, values in sorted(hours.items())]
 
 
 def months(start: date, end: date):
@@ -68,6 +83,9 @@ def main() -> None:
                 if got is None:
                     for ma, mb in months(a, b):
                         sub = fetch(inst, side, ma, mb)
+                        if sub is None:
+                            minutes = fetch(inst, side, ma, mb, "m1")
+                            sub = hourly_from_minutes(minutes) if minutes else None
                         if sub is None:
                             failed.append(ma.isoformat()[:7])
                         else:
