@@ -30,6 +30,7 @@ import { quantLabContract } from "./contracts/quant-lab.ts";
 import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { flowContract } from "./contracts/flow.ts";
+import { semanticTermsContract } from "./contracts/semantic-terms.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -304,6 +305,7 @@ export const appContract = {
   researchReports: researchReportsContract,
   researchStudies: researchStudiesContract,
   flow: flowContract,
+  semanticTerms: semanticTermsContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,

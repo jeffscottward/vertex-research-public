@@ -109,7 +109,8 @@ describe("agent viewer read-only gate", () => {
         expect(
           method === "GET" ||
             path === "agentModelRuns.list" ||
-            path === "agentModelRuns.search"
+            path === "agentModelRuns.search" ||
+            path === "semanticTerms.query"
         ).toBe(true);
       } else {
         expect(ran, path).toBe(false);
@@ -290,6 +291,9 @@ const REVIEWED_READS: readonly string[] = [
   "researchStudies.get",
   "riskAllocator.caps",
   "sectorRotation.snapshot",
+  "semanticTerms.catalog",
+  "semanticTerms.list",
+  "semanticTerms.query",
   "setupReplay.presets",
   "strategyLibrary.get",
   "strategyLibrary.list",

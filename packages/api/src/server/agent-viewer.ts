@@ -19,6 +19,7 @@ export const AGENT_VIEWER_READ_ONLY_MESSAGE =
 const READ_POST_PROCEDURES: ReadonlySet<string> = new Set([
   "agentModelRuns.list",
   "agentModelRuns.search",
+  "semanticTerms.query",
 ]);
 
 // Assistant procedures a viewer may call (owner decision 2026-11-05, card vertex-chat-entry-e2e):

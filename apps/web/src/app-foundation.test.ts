@@ -306,7 +306,13 @@ describe("application navigation manifest", () => {
       ],
       [
         "Agents & Automation",
-        ["/agents", "/agents/benchmark", "/deployments", "/engines"],
+        [
+          "/agents",
+          "/agents/benchmark",
+          "/deployments",
+          "/engines",
+          "/semantic-terms",
+        ],
       ],
       ["Data & Ops", ["/audit", "/modules", "/connections"]],
     ]);
@@ -833,6 +839,7 @@ describe("root metadata and theme contract", () => {
       "/flow",
       "/deployments",
       "/engines",
+      "/semantic-terms",
       "/forgot-password",
       "/reset-password",
       "/settings",

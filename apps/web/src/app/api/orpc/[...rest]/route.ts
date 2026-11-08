@@ -287,9 +287,6 @@ const vertexContextDependencies = (
     },
     // Engine of new backtest runs: typescript (in this server) or nautilus (research worker).
     backtestRunsEngine: env.VERTEX_BACKTEST_RUNS_ENGINE,
-    // Engine comparison (dual run) and the host label of TypeScript engine times.
-    engineComparison: env.VERTEX_ENGINE_COMPARISON,
-    hostLabel: env.VERTEX_HOST_LABEL,
     // Read-only QuantVPS status endpoint; the token stays server-side (agentOps.deployment.status).
     deployStatus: resolveDeployStatusConfig(
       env.VERTEX_DEPLOY_STATUS_URL,
@@ -299,9 +296,12 @@ const vertexContextDependencies = (
       env.VERTEX_DEPLOY_STATUS_V2_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN
     ),
+    // Engine comparison (dual run) and the host label of TypeScript engine times.
+    engineComparison: env.VERTEX_ENGINE_COMPARISON,
     // Engines and Market context views: rig status files pushed to QuantVPS, served on loopback
     // (engines.status, marketContext.get).
     engineStatus: env.ENGINE_STATUS_URL ?? null,
+    hostLabel: env.VERTEX_HOST_LABEL,
     // Portfolio tab: read-only proxy to ibkr-monitor on loopback (allow-listed GET endpoints only).
     ibkrMonitor: env.IBKR_MONITOR_URL ?? null,
     // Human IBKR 2FA recovery (ibkrRecovery.*); operator-only, never agent keys. Own token.
@@ -339,6 +339,8 @@ const vertexContextDependencies = (
       env.VERTEX_RESEARCH_LENSES_URL,
       env.VERTEX_DEPLOY_STATUS_TOKEN
     ),
+    // Certified semantic SQL runs as the read-only vertex_semantic_reader login (semanticTerms.*).
+    semanticDatabaseUrl: env.SEMANTIC_DATABASE_URL ?? null,
     // Academy rule overrides: Better Auth checks the signed-in user's own password (session-bound).
     verifyPassword: async (headers, password) =>
       await verifyOwnPassword(scope.auth.api, headers, password),

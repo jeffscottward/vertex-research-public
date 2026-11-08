@@ -9,6 +9,7 @@ import { DATA_SETTINGS_LAB_ENTRIES } from "./data-settings.tsx";
 import { LENSES_LAB_ENTRIES } from "./lenses.tsx";
 import { OVERVIEW_LAB_ENTRIES } from "./overview.tsx";
 import { RESEARCH_LAB_ENTRIES } from "./research.tsx";
+import { SEMANTIC_TERMS_LAB_ENTRIES } from "./semantic-terms.tsx";
 import { STRATEGIES_LAB_ENTRIES } from "./strategies.tsx";
 
 const ROUTE_ORDER: readonly string[] = PORTAL_NAVIGATION.map(
@@ -42,6 +43,7 @@ export const LAB_ENTRIES: readonly LabEntry[] = defineLabEntries(
     ...STRATEGIES_LAB_ENTRIES,
     ...BACKTEST_LAB_LAB_ENTRIES,
     ...AUTOMATION_LAB_ENTRIES,
+    ...SEMANTIC_TERMS_LAB_ENTRIES,
     ...DATA_SETTINGS_LAB_ENTRIES,
   ])
 );
