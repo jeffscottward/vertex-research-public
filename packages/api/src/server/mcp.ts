@@ -31,6 +31,10 @@ import {
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
 import { FlowSnapshotInputSchema } from "../contracts/flow.ts";
+import {
+  SemanticTermQueryInputSchema,
+  SemanticTermsListInputSchema,
+} from "../contracts/semantic-terms.ts";
 import { MarketBarsInputSchema } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
@@ -417,7 +421,7 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     name: "deployment_status",
     title: "Deployment status",
     description:
-      "Read-only QuantVPS trading-stack status: container services, plus session, positions, orders, fills, equity, risk (kill switch, limits, watchdog) and WARNING/ERROR logs when the tailnet snapshot is configured. Unavailable blocks carry a reason; snapshotError explains a v1 fallback.",
+      "Read-only QuantVPS trading-stack status: container services, plus session, positions, orders, fills, equity, risk (kill switch, limits, watchdog) and WARNING/ERROR logs when the tailnet snapshot is configured. Unavailable blocks carry a reason; snapshotError explains a v1 fallback. Its equity, positions and P&L belong to the exec-node account named in session.trading_mode (paper), not to the owner's IBKR account: for net liquidation, account P&L, positions or open risk use terms_query.",
     procedure: "agentOps/deployment/status",
     input: DeploymentStatusInputSchema,
     readOnly: true,
@@ -449,6 +453,24 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     input: OptionsGexContextToolInputSchema,
     readOnly: true,
     present: (value) => presentGexContext(value),
+  },
+  {
+    name: "terms_list",
+    title: "List certified terms",
+    description:
+      "The certified business terms of the semantic layer: id, definition, synonyms, source (postgres, feed or none), unit, parameters and certified flag. Call it before terms_query when you are not sure which term fits.",
+    procedure: "semanticTerms/list",
+    input: SemanticTermsListInputSchema,
+    readOnly: true,
+  },
+  {
+    name: "terms_query",
+    title: "Query a certified term",
+    description:
+      "Answer one certified term: { term, params }. Returns status (ok, unknown or not_available), answer, rows, the SQL or feed path that produced them (query), source, unit and asOf. Account terms (net_liquidation, pnl, position, open_risk) read the owner's live IBKR account (vertex-portfolio feed), never the paper exec node. status unknown or not_available means: give no value.",
+    procedure: "semanticTerms/query",
+    input: SemanticTermQueryInputSchema,
+    readOnly: true,
   },
   {
     name: "flow_snapshot",

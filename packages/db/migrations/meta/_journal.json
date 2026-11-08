@@ -393,6 +393,13 @@
       "when": 1794152875355,
       "tag": "0055_strategy_catalog_calendar_spread",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794159699827,
+      "tag": "0056_semantic_layer",
+      "breakpoints": true
     }
   ]
 }

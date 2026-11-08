@@ -1,6 +1,6 @@
 # Agent semantic layer: decision on NVIDIA Auto Ontology
 
-Updated: 2026-11-05. Card `vertex-agent-semantic-layer`. Research only. Nothing here gives an agent permission to place, approve or change a trade.
+Updated: 2026-11-08 (build). Cards `vertex-agent-semantic-layer` (decision) and `vertex-semantic-layer-build` (build). Research only. Nothing here gives an agent permission to place, approve or change a trade.
 
 ## Decision
 
@@ -149,3 +149,41 @@ Follow the feature workflow in `AGENTS.md` (contract first, failing test, 100% c
 5. **Interim fix in the same card:** change the `deployment_status` tool description to state that its equity, positions and P&L belong to the exec-node account named in `session.trading_mode`, and are not the owner's IBKR account summary.
 6. **Owner inputs for the build:** choose a Crown copy-book data source (or keep the term as "not available"). The `open_risk` definition is certified (2026-11-05).
 7. **Acceptance:** an automated test runs the 25 questions above against fixtures with a recorded model, and checks that each answer carries the certified source.
+
+## Built (2026-11-08, card `vertex-semantic-layer-build`)
+
+The build follows the recommendation above, with two changes the build task asked for: the catalog lives in Postgres (not in a TypeScript module), and certified SQL runs with read-only enforced by the database.
+
+|Part|What|Where|
+|---|---|---|
+|Catalog|Tables `semantic_terms` (name, definition, synonyms, mapped columns, unit, parameters, source, feed path), `semantic_sql_attributes` (one reviewed SQL text per Postgres term) and `semantic_relationships` (join paths). Each row has `certified`, `certified_at`, `certified_by`, `certification_note`, `updated_by`. Seeded with the 10 terms above and 6 joins (`certified_by` = `migration 0056`). Any edit removes the certification of the edited row, and a certification names the row version (`updatedAt`) the operator reviewed: a row edited after that is refused with a conflict.|`packages/db/src/schema/semantic-layer.ts`, migration `0056_semantic_layer`, rollback `packages/db/rollback/0056_semantic_layer.down.sql`|
+|Read-only SQL|An attribute runs on its own connection (`SEMANTIC_DATABASE_URL`), opened per run, that logs in as `vertex_semantic_reader`: a role with CONNECT, USAGE on schema `public` and SELECT on six tables only (`strategies`, `backtest_runs`, `autopilot_campaigns`, `autopilot_candidates`, `deployment_requests`, `forward_drift_monitors`), no write privilege and no membership in the app role. The run is a `READ ONLY` transaction; the stored text is wrapped as one subquery with bound parameters (one statement, extended protocol), with a 5 s statement timeout and a 100-row cap. There is no keyword filter. A Postgres test shows that a function that deletes rows, `SELECT ... FOR UPDATE`, a read of `"user"`, `query_to_xml` over `"user"`, `set_config('role', <app role>)`, a second statement and a long query all fail at the database, and that a missing reader login or the app login answers "unknown" instead of falling back to the app connection.|`packages/db/src/server/semantic-layer.ts`, `tests/integration/database/semantic-layer.test.ts`|
+|API|`semanticTerms.list`, `semanticTerms.query` (operator; read keys allowed), `semanticTerms.catalog`, `semanticTerms.update`, `semanticTerms.certify` (operator session only; API keys refused). Query output: `term`, `certified`, `source`, `query` (SQL or feed path), `rows`, `asOf`, `answer`, `status` (`ok`, `unknown`, `not_available`). An uncertified term or attribute answers `not_available`.|`packages/api/src/contracts/semantic-terms.ts`, `packages/api/src/server/semantic-terms.ts`|
+|Account terms|`net_liquidation`, `pnl`, `position` and `open_risk` read only the `vertex-portfolio` feed. A disconnected gateway, a snapshot older than 5 minutes or a missing value answers `unknown`, never 0. `open_risk` pairs option legs per underlying, expiry and right; a short leg without a long leg has no defined maximum loss, so the total is `unknown`. `crown_copy_leg` and measures without a term (for example buying power) answer `not_available`.|`packages/api/src/server/semantic-feed-terms.ts`|
+|Assistant|MCP tools `terms_list` and `terms_query` (read-only, so also in Plan mode). The system prompt tells the model to answer account and certified research questions from terms and to say "not available" otherwise. The `deployment_status` description now says its equity, positions and P&L belong to the paper exec node.|`packages/api/src/server/mcp.ts`, `packages/api/src/server/assistant-runtime.ts`|
+|Operator page|`/semantic-terms` (operator only): view terms, SQL and joins; edit; certify or remove a certification with a note.|`apps/web/src/app/(portal)/semantic-terms/`, `apps/web/src/components/portal/semantic-terms-workspace.tsx`|
+
+### Eval of the built layer
+
+Method: the 25 questions above (Q1-Q20 main, H1-H5 held out), 3 trials each, through the real Plan-mode assistant turn (`runAssistantTurn`, all Plan-mode tools), the real oRPC handler, a Postgres database with all migrations plus [fixture.sql](agent-semantic-layer/fixture.sql), and synthetic feeds (`tests/integration/semantic-layer/fixtures.ts`: live account NLV 248,350.12; paper exec node net_liq 100,412.55). The model is the OMP `completion()` default model (Claude subscription, no new provider), bridged by `tests/integration/semantic-layer/record.ts`. Grading is a fixed rubric (`tests/integration/semantic-layer/questions.ts`): required values must appear and paper exec-node values must not appear anywhere in the answer. An independent grader (OMP `judge_batch`, TypeSafe `jev-1.14` model, one call per answer with the question and the reference; synthetic data only) graded all 75 answers and agreed with the rubric on every trial. Its verdicts are stored in the recording with the grader name, the instructions and the date; they are an attestation from the recording run, not recomputed in CI.
+
+|Set|Correct|Wrong|Declined|
+|---|---|---|---|
+|Main (Q1-Q20), 60 trials|60|0|0|
+|Held out (H1-H5), 15 trials|15|0|0|
+|Account questions (Q1-Q8, H1-H3), 33 trials|33|0|0|
+
+Every account trial called `terms_query`; no trial called `deployment_status`. Mean tool calls per trial: about 1.9.
+
+What CI proves and what it does not: the 75 answers above are a one-time result of the recording. CI does not call a model. `tests/integration/semantic-layer/eval-replay.test.ts` replays the recording (`eval-recording.fixture.json`) against the built layer in the integration lane. It checks that everything the model was given (tool definitions, system prompt, question and every tool result) is unchanged (else the recording is stale and must be recorded again), regrades every answer with the rubric, and fails below 58/60 (rubric and recorded independent grade both "correct") or on any wrong account answer (by either grade). Re-record: `bun run eval:semantic:record -- 3 8` with a stdio model bridge (protocol in the script header).
+
+Rubric and harness changes made while recording (all before the final recording, listed for review):
+
+- A pilot found the fixture's `backtest_runs` rows did not match the API contract (spec and report fields), so `backtest_runs_list` failed. The fixture now fills those fields; the metrics are unchanged.
+- The `not available` pattern also accepts "none of the certified terms" and "can't give"; Q16 accepts "22.50%".
+- Strategy filters also match initials ("ORB"), and the prompt names approvals of paper deployment requests. In the first full recording, Q15 trial 1 was graded wrong because it quoted the notebook figure (-11%) while rejecting it, and Q18 trials 2-3 did not use the term; that recording scored 57/60.
+- Fixture timestamps that defaulted to the run time (drift monitors' `updated_at`, migration-seeded strategies) are now fixed, so the replay is deterministic.
+
+Deploy steps for the reader (QuantVPS, as a superuser in `vertex-postgres`): apply `0056_semantic_layer.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` (it creates the NOLOGIN role and its grants), then `ALTER ROLE vertex_semantic_reader LOGIN PASSWORD '<generated>'` and put `SEMANTIC_DATABASE_URL` (same host, port and database as `DATABASE_URL`, user `vertex_semantic_reader`) in the server-side `.prod.vars`. The password is never committed.
+
+Limits: same as the prototype (one model family, synthetic data, the same agent wrote terms, questions and references). The deployed assistant uses `VERTEX_ASSISTANT_MODEL` through OpenRouter; the live check after deploy covers that path.
