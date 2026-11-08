@@ -450,11 +450,10 @@ export const minArbitrageFreeSteps = (
   rate: number,
   vol: number
 ): number => {
-  // Start at the closed form, then settle on the exact test crr uses (floating point at the edge).
+  // floor(r²T/σ²) is never above the answer (valid needs steps > r²T/σ²); step up to the exact
+  // test crr uses, which also settles floating point at the edge.
   let steps = Math.max(Math.floor((rate * rate * years) / (vol * vol)), 1);
   while (!treeArbitrageFree(years, rate, vol, steps)) steps += 1;
-  while (steps > 1 && treeArbitrageFree(years, rate, vol, steps - 1))
-    steps -= 1;
   return steps;
 };
 
