@@ -66,8 +66,9 @@ export const spec: LessonSpecInput = {
     },
     {
       default: -25,
-      id: "jumpMean",
-      label: "Average jump",
+      help: "Median crash size as a simple return (-25% = a 25% drop). Jump sizes are lognormal, so their average is slightly above this median.",
+      id: "jumpMedian",
+      label: "Median jump",
       max: 20,
       min: -60,
       step: 1,

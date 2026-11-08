@@ -620,7 +620,14 @@ const clusterScene = (values: ParamValues, t: number): SceneData => {
         bars: [],
         elements: ["axes", "garch", "gjr", "shock"],
         id: "news-impact",
-        markers: [{ ...shock, label: "Shock size" }],
+        // This axis is today's move, so the shock sits at its size, not at its day.
+        markers: [
+          {
+            ...shock,
+            label: `Shock size ${shockPct > 0 ? "+" : ""}${pct(shockPct, 1)}`,
+            x: shockPct,
+          },
+        ],
         series: [
           {
             element: "garch",
@@ -958,6 +965,9 @@ const filterModel = (values: ParamValues, t: number) => {
   const fades: number[] = [];
   let price = 100;
   let estimate = 100;
+  // P₀ = R: the first guess (100) is treated as no better than one observation. The start price is
+  // in fact known here (P₀ = 0 would be exact), but a real filter rarely knows it; with P₀ = R the
+  // gain starts high and settles, as the lesson shows. The table states this choice.
   let uncertainty = r;
   for (let day = 0; day < days; day += 1) {
     price += processNoise * gaussian(random);
@@ -981,6 +991,7 @@ const filterModel = (values: ParamValues, t: number) => {
     fades,
     filtered,
     gain,
+    measurementVar: r,
     now: dayAt(days, t),
     observed,
     predicted,
@@ -1054,8 +1065,8 @@ const filterScene = (values: ParamValues, t: number): SceneData => {
             width: 3,
           },
           {
-            element: "fades",
             dashed: true,
+            element: "fades",
             label: `Fade line: prediction ± ${model.threshold.toFixed(1)}σ`,
             points: model.predicted.map(
               (value, day) =>
@@ -1065,8 +1076,8 @@ const filterScene = (values: ParamValues, t: number): SceneData => {
             width: 1,
           },
           {
-            element: "fades",
             dashed: true,
+            element: "fades",
             label: "",
             points: model.predicted.map(
               (value, day) =>
@@ -1160,6 +1171,10 @@ const filterTables = (values: ParamValues, t: number): DataTable[] => {
         [
           "Average next-day move back toward the estimate after a fade",
           reversions.length > 0 ? `$${meanOf(reversions).toFixed(2)}` : "n/a",
+        ],
+        [
+          "Starting uncertainty P₀ (an assumption)",
+          `R = ${model.measurementVar.toFixed(2)}: the first guess counts as one observation`,
         ],
       ],
       title: "Kalman filter accuracy and fade signals",

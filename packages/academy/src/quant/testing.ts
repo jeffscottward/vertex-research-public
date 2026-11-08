@@ -27,8 +27,17 @@ const clamp = (value: number, low: number, high: number): number =>
 /** Standard error of an annual Sharpe ratio estimated from `years` of data (true Sharpe near 0). */
 const sharpeError = (years: number): number => 1 / Math.sqrt(years);
 
-/** Expected best Sharpe among n zero-edge rules: σ_SR · √(2 ln n). */
+/**
+ * Expected best Sharpe among n zero-edge rules: σ_SR · Φ⁻¹((n − 0.375)/(n + 0.25)), Blom's
+ * approximation of the expected maximum of n standard normals (within about 0.03 of exact for
+ * every n; Φ⁻¹(1 − 1/n) would be 0.18 too low at n = 100). 0 for a single rule.
+ * Declared after normInv is defined below; arrow functions resolve it at call time.
+ */
 export const expectedMaxSharpe = (n: number, sigma: number): number =>
+  n <= 1 ? 0 : sigma * normInv((n - 0.375) / (n + 0.25));
+
+/** Large-N upper bound on the best of n zero-edge rules: σ_SR · √(2 ln n). */
+export const maxSharpeUpperBound = (n: number, sigma: number): number =>
   sigma * Math.sqrt(2 * Math.log(Math.max(n, 1)));
 
 /** Two-sided p-value of a t-statistic under a normal null. */
@@ -130,7 +139,7 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
   }));
   const growth: Panel = {
     bars: [],
-    elements: ["curve", "best", "marker"],
+    elements: ["axes", "curve", "best", "marker"],
     id: "best-vs-n",
     markers: [
       ...bestDots,
@@ -145,7 +154,7 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
     series: [
       {
         element: "curve",
-        label: "Expected best ≈ σ·√(2 ln N)",
+        label: "Expected best ≈ σ·Φ⁻¹((N − 0.375)/(N + 0.25))",
         points: curve,
         revealTo: tested,
       },
@@ -169,7 +178,7 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
   const domain = span([...all, 0]);
   const scatter: Panel = {
     bars: [],
-    elements: ["points", "zero", "marker"],
+    elements: ["axes", "points", "zero", "marker"],
     id: "in-vs-out",
     markers: [
       ...shown.map(
@@ -198,7 +207,7 @@ const snoopingScene = (ctx: SceneCtx): SceneData => {
     series: [],
     title: "In-sample vs out-of-sample Sharpe of every rule",
     xDomain: domain,
-    xFormat: "price",
+    xFormat: "num",
     xLabel: "In-sample Sharpe",
     yDomain: domain,
     yFormat: "num",
@@ -261,7 +270,7 @@ const significanceScene = (ctx: SceneCtx): SceneData => {
   );
   const tPanel: Panel = {
     bars: [],
-    elements: ["curve", "threshold", "marker"],
+    elements: ["axes", "curve", "threshold", "marker"],
     id: "t-vs-years",
     markers: [
       {
@@ -294,7 +303,7 @@ const significanceScene = (ctx: SceneCtx): SceneData => {
   const edge = Math.abs(inputs.sharpe);
   const nullPanel: Panel = {
     bars: [],
-    elements: ["pdf", "observed", "pvalue"],
+    elements: ["axes", "pdf", "observed", "pvalue"],
     id: "null-distribution",
     markers: [
       {
@@ -328,7 +337,7 @@ const significanceScene = (ctx: SceneCtx): SceneData => {
     ],
     title: "Sampling distribution of the Sharpe estimate under the null",
     xDomain: [-reach, reach],
-    xFormat: "price",
+    xFormat: "num",
     xLabel: "Estimated annual Sharpe",
     yDomain: [0, (normPdf(0) / model.se) * 1.1],
     yFormat: "num",
@@ -367,8 +376,12 @@ const snoopingTables = (values: ParamValues): DataTable[] => {
         ["Rules tested N", String(n)],
         ["Sharpe standard error σ_SR = 1/√years", fixed(model.sigma, 3)],
         [
-          "Expected best ≈ σ·√(2 ln N)",
+          "Expected best ≈ σ·Φ⁻¹((N − 0.375)/(N + 0.25))",
           fixed(expectedMaxSharpe(n, model.sigma)),
+        ],
+        [
+          "Upper bound (large N) σ·√(2 ln N)",
+          fixed(maxSharpeUpperBound(n, model.sigma)),
         ],
         ["Simulated best in-sample Sharpe", fixed(best.inSample)],
         ["That rule out of sample", fixed(best.outSample)],

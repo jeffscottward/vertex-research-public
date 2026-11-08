@@ -178,5 +178,6 @@ export const spec = {
     "The reel mixed 5,000 random portfolios (825 on the edge); this chart draws up to 300 and finds the edge on a fine grid of weights.",
     "Returns, volatilities and correlations are assumptions, not forecasts; for real assets they have to be estimated from data.",
     "Long-only weights: no borrowing and no short selling.",
+    "Not every three correlations can hold at once (e.g. all −0.9): such a set is flagged and scaled toward 0 until it is possible.",
   ],
 } satisfies LessonSpecInput;

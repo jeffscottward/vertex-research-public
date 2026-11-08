@@ -44,11 +44,6 @@ export const spec = {
   sourceId: "DdRP_zWCn6b",
   steps: [
     {
-      caption: "Axes: the chart frame for this lesson.",
-      color: "gray",
-      element: "axes",
-    },
-    {
       caption: "One price history, many chart rules with no real edge.",
       color: "gray",
       element: "axes",

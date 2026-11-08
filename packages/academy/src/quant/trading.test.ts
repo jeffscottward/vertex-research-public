@@ -18,6 +18,7 @@ import {
   LANDSCAPE_LOOKBACKS,
   LANDSCAPE_WINDOWS,
   landscape,
+  losingCells,
   orderBook,
   PAIR_HEDGE,
   pairsInputs,
@@ -235,11 +236,61 @@ describe("trading model helpers", () => {
     expect(zRule(1, -1, 2, 0.5)).toBe(1);
   });
 
-  it("computes a rolling z-score and an annualized Sharpe", () => {
+  it("computes a rolling z-score against the previous L values with a sample sd", () => {
+    // Previous 2 values only: [1, 2] → mean 1.5, sample sd √0.5, so 3 scores (3 - 1.5)/√0.5.
     const z = rollingZ([1, 2, 3, 4], 2);
     expect(Number.isNaN(z[0])).toBe(true);
-    expect(z.slice(1)).toEqual([1, 1, 1]);
-    expect(rollingZ([5, 5, 5], 2).slice(1)).toEqual([0, 0]);
+    expect(Number.isNaN(z[1])).toBe(true);
+    expect(z[2]).toBeCloseTo(1.5 / Math.sqrt(0.5), 12);
+    expect(z[3]).toBeCloseTo(1.5 / Math.sqrt(0.5), 12);
+    expect(rollingZ([5, 5, 5], 2).slice(2)).toEqual([0]);
+    expect(rollingZ([1, 2, 3, 4], 3)[3]).toBeCloseTo(2 / 1, 12);
+  });
+
+  it("counts only Sharpe below 0 as a losing cell", () => {
+    expect(losingCells([0, 0, -0.01, 0.4, -2])).toBe(2);
+    expect(losingCells([0, 0, 0])).toBe(0);
+    const model = landscape({});
+    for (const t of [0, 0.5, 1]) {
+      const index = Math.min(
+        Math.floor(t * LANDSCAPE_WINDOWS),
+        LANDSCAPE_WINDOWS - 1
+      );
+      const surface = model.windows[index]?.surface.flat() ?? [];
+      const sea = cell(
+        table(tradingTables("landscape", {}, t), "landscape"),
+        "Cells losing after costs (the sea)"
+      );
+      expect(sea).toBe(`${losingCells(surface)} of ${surface.length}`);
+    }
+  });
+
+  it("states the exit rule for both sides of the trade", () => {
+    const { mathml, text } = TRADING_FORMULAS.zScore;
+    expect(text).toContain("exit a short once z falls to z_out or below");
+    expect(text).toContain("exit a long once z rises to -z_out or above");
+    expect(text).toContain("previous L days, not counting today");
+    expect(mathml).toContain("<mtext>exit short at</mtext>");
+    expect(mathml).toContain("<mtext>exit long at</mtext>");
+    for (const formula of Object.values(TRADING_FORMULAS))
+      expect(formula.mathml).not.toMatch(/<mo>[\s\u2003]*<\/mo>/u);
+  });
+
+  it("keeps today out of its own window, so a big jump scores beyond √(L - 1)", () => {
+    const lookback = 10;
+    const quiet = Array.from({ length: 30 }, (_, day) =>
+      day % 2 === 0 ? 1 : -1
+    );
+    const z = rollingZ([...quiet, 50], lookback);
+    expect(Number.isNaN(z[lookback - 1])).toBe(true);
+    expect(Number.isFinite(z[lookback])).toBe(true);
+    const jump = Math.abs(z.at(-1) as number);
+    expect(jump).toBeGreaterThan(Math.sqrt(lookback - 1));
+    // Previous 10 values: mean 0, sample sd √(10/9).
+    expect(jump).toBeCloseTo(50 / Math.sqrt(10 / 9), 9);
+  });
+
+  it("annualizes Sharpe", () => {
     expect(sharpe([1])).toBe(0);
     expect(sharpe([2, 2, 2])).toBe(0);
     expect(sharpe([1, 3])).toBeCloseTo((2 / Math.SQRT2) * Math.sqrt(252));

@@ -34,27 +34,38 @@ export const zRule = (
   return z >= -exit ? 0 : 1;
 };
 
-/** Rolling z-score of each value against the trailing `lookback` values (NaN before the window fills). */
+/**
+ * Rolling z-score of each value against the `lookback` values before it: the mean and sample sd
+ * (n - 1) of the previous L days, excluding today, so a sudden jump is not diluted by itself
+ * (NaN before L earlier values exist).
+ */
 export const rollingZ = (
   values: readonly number[],
   lookback: number
 ): number[] => {
+  const size = Math.max(Math.round(lookback), 2);
   let sum = 0;
   let squares = 0;
   return values.map((value, index) => {
-    sum += value;
-    squares += value * value;
-    if (index >= lookback) {
-      const old = nth(values, index - lookback);
+    let score = Number.NaN;
+    if (index >= size) {
+      const mean = sum / size;
+      const variance = Math.max((squares - size * mean * mean) / (size - 1), 0);
+      const sd = Math.sqrt(variance);
+      score = sd > 1e-9 ? (value - mean) / sd : 0;
+      const old = nth(values, index - size);
       sum -= old;
       squares -= old * old;
     }
-    if (index < lookback - 1) return Number.NaN;
-    const mean = sum / lookback;
-    const sd = Math.sqrt(Math.max(squares / lookback - mean * mean, 0));
-    return sd > 1e-9 ? (value - mean) / sd : 0;
+    sum += value;
+    squares += value * value;
+    return score;
   });
 };
+
+/** Cells of a Sharpe surface that lose money: Sharpe strictly below 0 (0 means it never traded). */
+export const losingCells = (sharpes: readonly number[]): number =>
+  sharpes.filter((value) => value < 0).length;
 
 /** Annualized Sharpe ratio of daily returns (0 when they never vary). */
 export const sharpe = (returns: readonly number[]): number => {

@@ -183,6 +183,32 @@ describe("factor mode", () => {
   });
 });
 
+describe("input hygiene", () => {
+  it("clamps extreme params to the same results as the bounds", () => {
+    expect(scene("regression", { beta: 1e9, noise: 1e9 })).toEqual(
+      scene("regression", { beta: 5, noise: 50 })
+    );
+    expect(
+      scene("factor", { crashPct: 1e9, factorVol: -5, spread: 1e9 })
+    ).toEqual(scene("factor", { crashPct: 100, factorVol: 0, spread: 50 }));
+    for (const data of [
+      scene("regression", { alphaPct: 1e12, beta: Number.NaN }),
+      scene("factor", { bSpread: 1e12, bVol: 1e12 }),
+    ])
+      for (const panel of data.panels)
+        for (const d of [...panel.xDomain, ...panel.yDomain])
+          expect(Number.isFinite(d)).toBe(true);
+  });
+
+  it("factor time scrubber is in years, not percent", () => {
+    const data = scene("factor", { years: 30 }, 0.5);
+    expect(data.timeLabel).toBe("Years");
+    expect(data.timeUnit).not.toBe("pct");
+    expect(data.now).toBeCloseTo(15);
+    expect(data.horizon).toBe(30);
+  });
+});
+
 describe("solvers", () => {
   it("solves linear systems with pivoting and singular columns", () => {
     expect(

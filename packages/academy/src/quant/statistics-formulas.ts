@@ -1,6 +1,6 @@
 // What: Formulas of the statistics quant lessons: MathML for the formula panel and a plain-text form.
 import type { Formula } from "../formulas.ts";
-import { frac, math, mi, mo, row, sub, sup } from "../mathml.ts";
+import { accent, frac, math, mi, mo, row, sub, sup } from "../mathml.ts";
 import type { StatisticsFormulaId } from "./statistics-ids.ts";
 
 const excess = (asset: string): string =>
@@ -63,9 +63,9 @@ export const STATISTICS_FORMULAS: Readonly<
       row(
         sub(mi("F"), mi("t")),
         mo("="),
-        sub(mi("R̄"), mi("top")),
+        sub(accent(mi("R"), "¯"), mi("top")),
         mo("−"),
-        sub(mi("R̄"), mi("bottom"))
+        sub(accent(mi("R"), "¯"), mi("bottom"))
       )
     ),
     text: "F_t = mean return of the top bucket - mean return of the bottom bucket",

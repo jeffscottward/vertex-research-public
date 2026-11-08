@@ -1,6 +1,17 @@
 // What: Formulas of the growth quant lessons: MathML for the formula panel and a plain-text form.
 import type { Formula } from "../formulas.ts";
-import { frac, math, mi, mn, mo, paren, row, sub, sup } from "../mathml.ts";
+import {
+  frac,
+  math,
+  mi,
+  mn,
+  mo,
+  mtext,
+  paren,
+  row,
+  sub,
+  sup,
+} from "../mathml.ts";
 import type { GrowthFormulaId } from "./growth-ids.ts";
 
 const sigma = mi("σ");
@@ -28,9 +39,9 @@ export const GROWTH_FORMULAS: Readonly<Record<GrowthFormulaId, Formula>> = {
     id: "presentValue",
     mathml: math(
       row(
-        mi("PV"),
+        mtext("PV"),
         mo("="),
-        frac(mi("FV"), sup(paren(row(mn("1"), mo("+"), mi("r"))), mi("n")))
+        frac(mtext("FV"), sup(paren(row(mn("1"), mo("+"), mi("r"))), mi("n")))
       )
     ),
     text: "PV = FV / (1 + r)^n, the mirror of FV = PV × (1 + r)^n",

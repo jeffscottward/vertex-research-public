@@ -147,15 +147,15 @@ type RegressionSim = Readonly<{
 }>;
 
 const regressionSim = (values: ParamValues, t: number): RegressionSim => {
-  const beta = num(values, "beta", 1.2);
-  const alphaM = num(values, "alphaPct", 3) / 12;
-  const noise = Math.max(num(values, "noise", 4), 0);
+  const beta = clampTo(num(values, "beta", 1.2), -3, 5);
+  const alphaM = clampTo(num(values, "alphaPct", 3), -50, 50) / 12;
+  const noise = clampTo(num(values, "noise", 4), 0, 50);
   const months = Math.round(clampTo(num(values, "months", 60), 12, 600));
-  const outlierPct = num(values, "outlier", 15);
+  const outlierPct = clampTo(num(values, "outlier", 15), -100, 100);
   const exposures = [
-    num(values, "sizeBeta", 0.5),
-    num(values, "valueBeta", 0.4),
-    num(values, "momBeta", 0.3),
+    clampTo(num(values, "sizeBeta", 0.5), -3, 3),
+    clampTo(num(values, "valueBeta", 0.4), -3, 3),
+    clampTo(num(values, "momBeta", 0.3), -3, 3),
   ];
   const random = mulberry32(num(values, "seed", 7));
   const market: number[] = [];
@@ -393,21 +393,21 @@ const factorSim = (values: ParamValues): FactorSim => {
   const random = mulberry32(num(values, "seed", 11));
   const years = Math.round(clampTo(num(values, "years", 30), 2, 100));
   const count = Math.round(clampTo(num(values, "buckets", 5), 2, 20));
-  const spread = num(values, "spread", 6);
+  const spread = clampTo(num(values, "spread", 6), -50, 50);
   const bucketReturns = Array.from({ length: count }, (_, i) => {
     const target = 8 + spread * (i / (count - 1) - 0.5);
     return mean(
       Array.from({ length: years }, () => target + 4 * gaussian(random))
     );
   });
-  const volA = Math.max(num(values, "factorVol", 12), 0) / Math.sqrt(12);
-  const volB = Math.max(num(values, "bVol", 10), 0) / Math.sqrt(12);
+  const volA = clampTo(num(values, "factorVol", 12), 0, 100) / Math.sqrt(12);
+  const volB = clampTo(num(values, "bVol", 10), 0, 100) / Math.sqrt(12);
   const rho = clampTo(num(values, "rho", -0.4), -1, 1);
-  const crashPct = Math.max(num(values, "crashPct", 30), 0);
-  const crashYear = num(values, "crashYear", 15);
-  const pubYear = num(values, "pubYear", 20);
+  const crashPct = clampTo(num(values, "crashPct", 30), 0, 100);
+  const crashYear = clampTo(num(values, "crashYear", 15), 0, years);
+  const pubYear = clampTo(num(values, "pubYear", 20), 0, years);
   const keep = 1 - clamp01(num(values, "decayPct", 50) / 100);
-  const bMean = num(values, "bSpread", 4) / 12;
+  const bMean = clampTo(num(values, "bSpread", 4), -50, 50) / 12;
   const months = years * 12;
   const crashIndex = Math.round(crashYear * 12);
   const crashMonth =
@@ -523,7 +523,8 @@ const factorScene = (ctx: SceneCtx): SceneData => {
       },
     ],
     timeLabel: "Years",
-    timeUnit: "pct",
+    // Continuous count shown as "x of N"; the label supplies the unit (years, not percent).
+    timeUnit: "days",
   };
 };
 

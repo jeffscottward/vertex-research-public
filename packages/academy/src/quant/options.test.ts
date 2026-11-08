@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import { FORMULAS } from "../formulas.ts";
+import { spec as bisectionSpec } from "../lessons/specs/quantfinancetogo/implied-volatility-by-bisection.ts";
+import { spec as marketMakerSpec } from "../lessons/specs/quantfinancetogo/market-maker-theta-vs-gamma.ts";
+import { spec as smileSpec } from "../lessons/specs/quantfinancetogo/volatility-smile-and-skew.ts";
 import type { ParamValues } from "../position.ts";
 import type { Panel, SceneData } from "../scene-kit.ts";
 import { QUANT_MODE_ELEMENTS } from "../schema.ts";
 import { quantModel, quantScene, quantTables } from "./index.ts";
 import {
   binomialModel,
+  callBounds,
   callPrice,
   crr,
   DRAWN_LEVELS,
@@ -17,6 +21,7 @@ import {
   histogram,
   impliedVol,
   mertonCall,
+  minArbitrageFreeSteps,
   optionsScene,
   optionsTables,
   SHOWN_GUESSES,
@@ -125,21 +130,22 @@ describe("smile", () => {
     );
   });
 
-  it("widens the search above 100% and stops at 800% for an impossible price", () => {
+  it("widens the search above 100% and stops at 800% for a price just under the stock", () => {
     const widened = impliedVol(60, 100, 100, 1, 0.05);
     expect(widened.guesses[0]?.high).toBe(2);
     expect(widened.iv).toBeGreaterThan(1);
     expect(callPrice(100, 100, 1, 0.05, widened.iv)).toBeCloseTo(60, 6);
-    const impossible = impliedVol(150, 100, 100, 1, 0.05);
-    expect(impossible.guesses[0]?.high).toBe(8);
-    expect(impossible.iv).toBeCloseTo(8, 6);
+    const steep = impliedVol(99.999, 100, 100, 1, 0.05);
+    expect(steep.outside).toBeNull();
+    expect(steep.guesses[0]?.high).toBe(8);
+    expect(steep.iv).toBeCloseTo(8, 6);
   });
 
   it("prices a crash-prone market into a skew; without jumps it is flat (Part 38)", () => {
     const crashes = smileInputs({
       ...RUN,
       jumpIntensity: 0.1,
-      jumpMean: -25,
+      jumpMedian: -25,
       jumpVol: 5,
       marketVol: 15,
     });
@@ -190,6 +196,92 @@ describe("smile", () => {
   });
 });
 
+describe("no-arbitrage bounds of a quoted call", () => {
+  it("has no implied volatility below max(S - Ke^(-rT), 0) or at/above S", () => {
+    const bounds = callBounds(100, 100, 1, 0.05);
+    expect(bounds.lower).toBeCloseTo(100 - 100 * Math.exp(-0.05), 12);
+    expect(bounds.upper).toBe(100);
+    expect(callBounds(100, 500, 1, 0.05).lower).toBe(0);
+    const above = impliedVol(150, 100, 100, 1, 0.05);
+    expect(above.outside).toBe("above");
+    expect(above.iv).toBeNaN();
+    expect(above.guesses).toHaveLength(0);
+    expect(impliedVol(100, 100, 100, 1, 0.05).outside).toBe("above");
+    // Deep in the money: the call must be worth at least 100 - 10e^(-0.05) = 90.49.
+    const below = impliedVol(60, 100, 10, 1, 0.05);
+    expect(below.outside).toBe("below");
+    expect(below.iv).toBeNaN();
+    expect(impliedVol(4.8, 100, 100, 1, 0.05).outside).toBe("below");
+    expect(impliedVol(4.9, 100, 100, 1, 0.05).outside).toBeNull();
+  });
+
+  it("flags an out-of-bounds quote in the chart and tables instead of solving it", () => {
+    const values = { ...RUN, marketPrice: 60, strike: 10 };
+    const model = smileModel(values);
+    expect(model.solved.outside).toBe("below");
+    expect(model.anchor).toBe(0);
+    for (const iv of model.smile) expect(iv).toBeGreaterThanOrEqual(0);
+    const scene = optionsScene("smile", { azimuth: 0, t: 1, values });
+    const bisection = panel(scene, "bisection");
+    expect(bisection.title).toMatch(/outside no-arbitrage bounds/u);
+    expect(
+      bisection.markers.filter((marker) => marker.element === "guesses")
+    ).toHaveLength(0);
+    for (const view of scene.panels) {
+      for (const series of view.series)
+        for (const point of series.points)
+          expect(point.every(Number.isFinite)).toBe(true);
+      for (const marker of view.markers)
+        expect(marker.y === undefined || Number.isFinite(marker.y)).toBe(true);
+      expect([...view.xDomain, ...view.yDomain].every(Number.isFinite)).toBe(
+        true
+      );
+    }
+    expect(
+      panel(scene, "smile").series.find((series) => series.element === "flat")
+        ?.points
+    ).toHaveLength(0);
+    const [steps, strikes] = optionsTables("smile", values, 1);
+    expect(steps?.note).toMatch(/outside no-arbitrage bounds.*undefined/u);
+    expect(steps?.rows).toHaveLength(0);
+    expect(strikes?.note).toMatch(/not shifted/u);
+    for (const row of strikes?.rows ?? [])
+      expect(row.join(" ")).not.toMatch(/NaN|Infinity/u);
+    const rich = optionsTables("smile", { ...RUN, marketPrice: 120 }, 1)[0];
+    expect(rich?.note).toMatch(/at or above the stock/u);
+  });
+
+  it("floors the anchored smile at 0% when a low quote shifts it below zero", () => {
+    // A $5 quote is barely above the $4.88 lower bound: its implied volatility is tiny, and the
+    // jump-model skew shifted down to it would go negative in the wing.
+    const model = smileModel({ ...RUN, jumpMedian: -50, marketPrice: 4.9 });
+    expect(model.solved.outside).toBeNull();
+    expect(model.anchor).toBeLessThan(0);
+    expect(model.smile.some((iv) => iv === 0)).toBe(true);
+    for (const iv of model.smile) expect(iv).toBeGreaterThanOrEqual(0);
+    const [, strikes] = optionsTables(
+      "smile",
+      { ...RUN, jumpMedian: -50, marketPrice: 4.9 },
+      1
+    );
+    expect(strikes?.note).toMatch(/floored at 0%/u);
+    for (const row of strikes?.rows ?? []) expect(row[2]).not.toMatch(/^-/u);
+  });
+
+  it("labels the jump parameter as the median jump in both smile lessons", () => {
+    for (const lesson of [smileSpec, bisectionSpec]) {
+      const param = lesson.params?.find((item) => item.id === "jumpMedian");
+      expect(param?.label).toBe("Median jump");
+      expect(
+        lesson.params?.some((item) => /average jump/iu.test(item.label))
+      ).toBe(false);
+    }
+    // ln(1 + median) is the log mean: half the jumps are bigger crashes, half smaller.
+    const input = smileInputs({ jumpMedian: -25 });
+    expect(input.jumpMedian).toBe(-0.25);
+  });
+});
+
 describe("binomial", () => {
   it("reproduces the Part 37 tree prices and converges to Black-Scholes", () => {
     const prices = [1, 2, 3, 10].map((steps) =>
@@ -208,7 +300,7 @@ describe("binomial", () => {
     expect(model.convergence).toHaveLength(250);
   });
 
-  it("draws at most the first levels of a long tree and clamps the risk-neutral weight", () => {
+  it("draws at most the first levels of a long tree", () => {
     const scene = optionsScene("binomial", {
       azimuth: 0,
       t: 1,
@@ -229,7 +321,6 @@ describe("binomial", () => {
       "tree"
     );
     expect(short.title).toMatch(/^2-step tree/u);
-    expect(crr(100, 100, 1, 0.1, 0.01, 1).prob).toBe(1);
     const [, convergence] = optionsTables(
       "binomial",
       { ...RUN, iv: 20, steps: 7 },
@@ -245,6 +336,55 @@ describe("binomial", () => {
       "25",
       "50",
     ]);
+  });
+});
+
+describe("binomial no-arbitrage condition", () => {
+  it("does not clamp p: a tree with σ ≤ |r|√Δt is flagged as not arbitrage-free", () => {
+    const valid = crr(100, 100, 1, 0.05, 0.2, 1);
+    expect(valid.arbitrageFree).toBe(true);
+    // σ = 1% against r√Δt = 10%: the up move (1.01) does not beat cash growth (1.105).
+    const broken = crr(100, 100, 1, 0.1, 0.01, 1);
+    expect(broken.arbitrageFree).toBe(false);
+    expect(broken.prob).toBeGreaterThan(1);
+    expect(broken.up).toBeLessThan(Math.exp(0.1));
+    // σ = 1.2%, r = 10%: r²T/σ² = 69.4, so 70 steps are needed; σ = 20%, r = 5% is fine with one.
+    expect(minArbitrageFreeSteps(1, 0.1, 0.012)).toBe(70);
+    expect(crr(100, 100, 1, 0.1, 0.012, 69).arbitrageFree).toBe(false);
+    const enough = crr(100, 100, 1, 0.1, 0.012, 70);
+    expect(enough.arbitrageFree).toBe(true);
+    expect(enough.prob).toBeGreaterThan(0);
+    expect(enough.prob).toBeLessThan(1);
+    expect(minArbitrageFreeSteps(1, 0.05, 0.2)).toBe(1);
+  });
+
+  it("warns in the tree title and the tables instead of hiding the invalid tree", () => {
+    // σ = 2%, r = 10%: r²T/σ² = 25 sits on the edge, so 26 steps are needed.
+    const values = { ...RUN, iv: 2, rate: 10, steps: 3 };
+    const model = binomialModel(values);
+    expect(model.tree.arbitrageFree).toBe(false);
+    expect(model.minSteps).toBe(26);
+    const scene = optionsScene("binomial", { azimuth: 0, t: 1, values });
+    expect(panel(scene, "tree").title).toMatch(
+      /^Invalid 3-step tree: σ 2\.0% ≤ \|r\|√Δt .*not a probability; use at least 26 steps/u
+    );
+    expect(panel(scene, "convergence").title).toMatch(/under 26 steps/u);
+    const [tree, convergence] = optionsTables("binomial", values, 1);
+    expect(tree?.note).toMatch(/^Warning: this tree is not arbitrage-free/u);
+    expect(convergence?.note).toMatch(/fewer than 26 steps/u);
+    const fine = optionsTables("binomial", { ...RUN, iv: 20, steps: 3 }, 1);
+    expect(fine[0]?.note).toBeUndefined();
+    expect(fine[1]?.note).toBeUndefined();
+    expect(
+      panel(
+        optionsScene("binomial", {
+          azimuth: 0,
+          t: 1,
+          values: { ...RUN, steps: 3 },
+        }),
+        "tree"
+      ).title
+    ).toMatch(/^3-step tree/u);
   });
 });
 
@@ -284,6 +424,10 @@ describe("hedge", () => {
     });
     expect(calm.hedged.every((value) => value > 0)).toBe(true);
     expect(calm.ratioNow).toBeCloseTo(1.7, 1);
+    // The chart shows P&L at expiry; the creator's $1.59 / -$1.41 are today's (discounted) values.
+    const growth = Math.exp(0.05);
+    expect(calm.ratioNow.toFixed(2)).toBe("1.67");
+    expect((calm.ratioNow / growth).toFixed(2)).toBe("1.59");
     const wild = hedgeModel({
       ...RUN,
       iv: 20,
@@ -293,6 +437,8 @@ describe("hedge", () => {
     });
     expect(wild.hedged.filter((value) => value > 0).length).toBeLessThan(5);
     expect(wild.ratioNow).toBeLessThan(-1.2);
+    expect(wild.ratioNow.toFixed(2)).toBe("-1.48");
+    expect((wild.ratioNow / growth).toFixed(2)).toBe("-1.41");
     const even = hedgeInputs({ ...RUN, iv: 20, realizedVol: 20 });
     expect(expectedHedgePnl(even, 0.2)).toBeCloseTo(0, 12);
     const ys = calm.ratio.map((point) => point[1]);
@@ -331,5 +477,33 @@ describe("hedge", () => {
     expect(outline[0]).toEqual([0, (2 / 3) * 100]);
     expect(outline.at(-1)).toEqual([1, (1 / 3) * 100]);
     expect(histogram([5, 5], 5, 5)[0]?.[1]).toBe(100);
+  });
+});
+
+describe("lesson captions match the computed numbers", () => {
+  it("market maker: the step-4 caption quotes the expiry values and today's creator figures", () => {
+    const defaults = Object.fromEntries(
+      (marketMakerSpec.params ?? []).map((param) => [param.id, param.default])
+    ) as ParamValues;
+    const input = hedgeInputs(defaults);
+    const discount = Math.exp(-input.rate * input.years);
+    const money = (value: number): string =>
+      `${value < 0 ? "-" : ""}$${Math.abs(value).toFixed(2)}`;
+    const calm = expectedHedgePnl(input, 0.16);
+    const wild = expectedHedgePnl(input, 0.24);
+    const caption =
+      marketMakerSpec.steps?.find((step) => step.element === "marker")
+        ?.caption ?? "";
+    expect(caption).toContain(`${money(calm)} per call at expiry`);
+    expect(caption).toContain(`(${money(calm * discount)} today`);
+    expect(caption).toContain(`${money(Math.abs(wild))} at expiry`);
+    expect(caption).toContain(`(${money(wild * discount)} today)`);
+    expect(money(calm * discount)).toBe("$1.59");
+    expect(money(wild * discount)).toBe("-$1.41");
+    const marker = panel(
+      optionsScene("hedge", { azimuth: 0, t: 1, values: defaults }),
+      "ratio"
+    ).markers.find((item) => item.element === "marker");
+    expect(marker?.label).toContain(`${money(calm)} at expiry`);
   });
 });

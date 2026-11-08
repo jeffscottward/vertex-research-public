@@ -47,7 +47,9 @@ describe("growth contract", () => {
       expect(GROWTH_FORMULAS[id].id).toBe(id);
       expect(GROWTH_FORMULAS[id].mathml).toContain("<math");
       expect(GROWTH_FORMULAS[id].text).not.toBe("TODO");
+      expect(GROWTH_FORMULAS[id].mathml).not.toContain("<mo> </mo>");
     }
+    expect(GROWTH_FORMULAS.presentValue.mathml).toContain("<mtext>PV</mtext>");
   });
 });
 

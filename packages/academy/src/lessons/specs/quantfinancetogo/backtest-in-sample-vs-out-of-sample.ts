@@ -44,18 +44,13 @@ export const spec = {
   sourceId: "DeWlPe2id2c",
   steps: [
     {
-      caption: "Axes: the chart frame for this lesson.",
-      color: "gray",
-      element: "axes",
-    },
-    {
       caption: "Zero-edge market: every one of the rules is pure noise.",
       color: "gray",
       element: "axes",
     },
     {
       caption:
-        "Expected best Sharpe grows like √(2 ln N) as more rules are tried.",
+        "Expected best Sharpe grows with the number of rules tried N, about σ·Φ⁻¹((N − 0.375)/(N + 0.25)).",
       color: "gold",
       element: "curve",
     },

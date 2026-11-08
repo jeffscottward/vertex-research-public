@@ -45,11 +45,6 @@ export const spec = {
   sourceId: "Debex7eiZZu",
   steps: [
     {
-      caption: "Axes: the chart frame for this lesson.",
-      color: "gray",
-      element: "axes",
-    },
-    {
       caption:
         "t-statistic ≈ Sharpe × √years: more data makes the same Sharpe more convincing.",
       color: "gold",

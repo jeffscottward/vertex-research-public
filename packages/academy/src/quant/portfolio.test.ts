@@ -342,11 +342,54 @@ describe("diversify", () => {
     expect(inverse.floor).toBe(0);
     expect(inverse.floorRho).toBe(0);
     const negative = scene("diversify", { rho: -0.4 });
-    expect(panel(negative, "count").title).toContain("floored at 0");
+    // Equal correlation −0.4 exists for at most 1 + 1/0.4 = 3.5, so 3 assets.
+    expect(panel(negative, "count").title).toContain("only possible for N ≤ 3");
+    expect(panel(negative, "count").series[0]?.points).toHaveLength(3);
+    const negativeModel = diversifyModel({ rho: -0.4 });
+    // N = 2 on the count curve is the 50/50 mix: one ρ for both panels.
+    expect(negativeModel.countVol(2)).toBeCloseTo(
+      negativeModel.mixVol(-0.4),
+      9
+    );
+    expect(inverse.validCount).toBe(2);
+    expect(inverse.countVol(2)).toBe(0);
+    const [counts] = portfolioTables("diversify", { rho: -0.4 }, 1);
+    expect(counts?.rows.map((row) => row[0])).toEqual(["1", "2", "3"]);
+    expect(counts?.note).toContain("at most 3 assets");
     expect(diversifyModel({ assets: 1, vol: 0 })).toMatchObject({
       assets: 2,
       vol: 0.5,
     });
+  });
+
+  it("shrinks impossible correlation sets to a valid matrix and never shows a riskless Sharpe", () => {
+    const det = (c: Readonly<{ AB: number; AC: number; BC: number }>) =>
+      1 + 2 * c.AB * c.AC * c.BC - c.AB ** 2 - c.AC ** 2 - c.BC ** 2;
+    // All three pairs at −0.9 cannot hold together: det = 1 − 1.458 − 2.43 < 0.
+    const model = frontierModel({ rho: -0.9 });
+    expect(model.correlationsValid).toBe(false);
+    expect(model.entered).toEqual({ AB: -0.9, AC: -0.9, BC: -0.9 });
+    expect(det(model.correlations)).toBeGreaterThanOrEqual(0);
+    expect(det(model.correlations)).toBeLessThan(1e-9);
+    expect(model.correlationScale).toBeCloseTo(0.5 / 0.9, 6);
+    expect(model.correlations.AB).toBeCloseTo(-0.5, 6);
+    for (const point of [model.minVar, model.tangency, ...model.cloud])
+      expect(Number.isFinite(model.sharpe(point))).toBe(true);
+    expect(Math.abs(model.sharpe(model.tangency))).toBeLessThan(1e4);
+    const data = scene("frontier", { rho: -0.9 });
+    expect(panel(data, "frontier").title).toContain("Invalid correlations");
+    const [assets, portfolios] = portfolioTables("frontier", { rho: -0.9 }, 1);
+    expect(assets?.note).toContain("not positive semidefinite");
+    // The min-variance mix of the shrunk (singular) matrix is riskless: no Sharpe ratio for it.
+    expect(model.minVar.vol).toBeLessThan(0.25);
+    expect(portfolios?.rows[0]?.[4]).toBe("riskless");
+    expect(frontierModel({}).correlationsValid).toBe(true);
+    expect(
+      frontierModel({ rhoAB: 0.9, rhoAC: 0.9, rhoBC: -0.9 }).correlationsValid
+    ).toBe(false);
+    expect(
+      frontierModel({ rhoAB: 0.9, rhoAC: 0.9, rhoBC: 0.9 }).correlationsValid
+    ).toBe(true);
   });
 
   it("tabulates N and correlation rows without duplicates", () => {

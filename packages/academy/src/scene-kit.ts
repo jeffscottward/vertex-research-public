@@ -65,7 +65,7 @@ export type Panel = Readonly<{
   surface?: Surface;
   /** Elements this panel draws; the panel shows once any of them is revealed. */
   elements: readonly string[];
-  xFormat: "price" | "day" | "pct" | "count";
+  xFormat: "price" | "day" | "pct" | "count" | "num";
   yFormat: "usd" | "pct" | "price" | "num";
 }>;
 

@@ -61,7 +61,7 @@ export const PORTFOLIO_MODELS: Readonly<Record<PortfolioMode, string>> = {
   blend:
     "Black-Litterman, one absolute view on stocks: implied returns Π = δΣw from market weights; view variance Ω = τσ²(1 − c)/c, so the confidence c is the weight the posterior gives the view",
   diversify:
-    "One-factor model: each asset is a shared market push plus its own push, all with the same volatility and pairwise correlation ρ; equal weights; ρ below 0 is floored at 0 for many assets",
+    "One-factor model: each asset is a shared market push plus its own push, all with the same volatility and pairwise correlation ρ; equal weights; ρ below 0 is only possible for N ≤ 1 + 1/|ρ| assets",
   frontier:
     "Markowitz mean-variance: three assets with assumed returns, volatilities and correlations; long-only weights; frontier and optimal mixes from a fine weight grid; lend or borrow at the risk-free rate on the CML",
   riskparity:

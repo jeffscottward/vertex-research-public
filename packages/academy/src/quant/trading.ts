@@ -11,23 +11,24 @@ import {
   span,
   withZero,
 } from "../scene-kit.ts";
+import type { TradingMode } from "./trading-ids.ts";
 import {
   type Book,
   LANDSCAPE_ENTRIES,
   LANDSCAPE_LOOKBACKS,
   LANDSCAPE_WINDOWS,
   landscape,
+  losingCells,
   orderBook,
   PAIR_HEDGE,
   PAIR_UNITS,
   type PairsPath,
-  type RoundTrip,
   pairsPath,
+  type RoundTrip,
   sharpe,
   slippage,
   sweep,
 } from "./trading-models.ts";
-import type { TradingMode } from "./trading-ids.ts";
 
 const fixed = (value: number, digits = 2): string => value.toFixed(digits);
 const dollars = (value: number): string =>
@@ -373,7 +374,8 @@ const landscapeTables = (values: ParamValues, t: number): DataTable[] => {
   const index = windowOf(t);
   const current = nth(model.windows, index);
   const cells = current.surface.flat();
-  const sea = cells.filter((value) => value <= 0).length;
+  // A cell with Sharpe exactly 0 (a rule that never traded) did not lose money.
+  const sea = losingCells(cells);
   return [
     {
       columns: ["Measure", "Value"],

@@ -6,8 +6,10 @@ import {
   mi,
   mn,
   mo,
+  mtext,
   paren,
   row,
+  space,
   sqrt,
   sub,
   sup,
@@ -17,6 +19,7 @@ import type { ProcessFormulaId } from "./process-ids.ts";
 const sigma = mi("σ");
 const mu = mi("μ");
 const theta = mi("θ");
+const phi = mi("φ");
 const S0 = sub(mi("S"), mn("0"));
 const St = sub(mi("S"), mi("t"));
 const Xt = sub(mi("X"), mi("t"));
@@ -41,11 +44,25 @@ export const PROCESS_FORMULAS: Readonly<Record<ProcessFormulaId, Formula>> = {
           )
         ),
         mo(","),
-        mo(" "),
+        space(),
         E(St),
         mo("="),
         S0,
-        sup(mi("e"), row(mu, mi("t")))
+        sup(mi("e"), row(mu, mi("t"))),
+        mo(","),
+        space(),
+        mtext("median"),
+        space(),
+        St,
+        mo("="),
+        S0,
+        sup(
+          mi("e"),
+          row(
+            paren(row(mu, mo("−"), frac(sup(sigma, mn("2")), mn("2")))),
+            mi("t")
+          )
+        )
       )
     ),
     text: "S_t = S_0 · e^((μ - σ²/2)t + σW_t); mean S_0·e^(μt), median S_0·e^((μ - σ²/2)t)",
@@ -78,29 +95,37 @@ export const PROCESS_FORMULAS: Readonly<Record<ProcessFormulaId, Formula>> = {
     id: "ornsteinUhlenbeck",
     mathml: math(
       row(
-        mi("dX"),
+        sub(mi("X"), row(mi("t"), mo("+"), mn("1"))),
         mo("="),
-        mo("−"),
-        theta,
-        mi("X"),
-        mi("dt"),
+        phi,
+        Xt,
         mo("+"),
         sigma,
-        mi("dW"),
+        sub(mi("ε"), mi("t")),
         mo(","),
-        mo(" "),
+        space(),
+        phi,
+        mo("="),
+        sup(mi("e"), row(mo("−"), theta)),
+        mo(","),
+        space(),
+        sub(sigma, mtext("long-run")),
+        mo("="),
+        frac(sigma, sqrt(row(mn("1"), mo("−"), sup(phi, mn("2"))))),
+        mo(","),
+        space(),
         E(Xt),
         mo("="),
         sub(mi("X"), mn("0")),
         sup(mi("e"), row(mo("−"), theta, mi("t"))),
         mo(","),
-        mo(" "),
+        space(),
         sub(mi("t"), frac(mn("1"), mn("2"))),
         mo("="),
-        frac(row(mi("ln"), mn("2")), theta)
+        frac(row(mi("ln"), space("0.17em"), mn("2")), theta)
       )
     ),
-    text: "dX = -θ·X·dt + σ·dW (X = distance from the long-run mean); E[X_t] = X_0·e^(-θt); half-life = ln 2 / θ",
+    text: "X_(t+1) = φ·X_t + σ·ε_t, φ = e^(-θ) per day (X = distance from the long-run mean, ε_t a standard normal shock); long-run sd = σ / √(1 - φ²); E[X_t] = X_0·e^(-θt); half-life = ln 2 / θ",
     title: "Ornstein-Uhlenbeck mean reversion",
   },
   randomWalk: {
@@ -117,7 +142,7 @@ export const PROCESS_FORMULAS: Readonly<Record<ProcessFormulaId, Formula>> = {
         mo("+"),
         sub(mi("X"), mi("n")),
         mo(","),
-        mo(" "),
+        space(),
         E(sub(mi("S"), mi("n"))),
         mo("="),
         S0,
@@ -138,10 +163,10 @@ export const PROCESS_FORMULAS: Readonly<Record<ProcessFormulaId, Formula>> = {
         sigma,
         sqrt(mi("n")),
         mo(","),
-        mo(" "),
-        sub(sigma, mi("year")),
+        space(),
+        sub(sigma, mtext("year")),
         mo("="),
-        sub(sigma, mi("day")),
+        sub(sigma, mtext("day")),
         sqrt(mn("252"))
       )
     ),

@@ -1,13 +1,16 @@
 // What: Formulas of the volatility quant lessons: MathML for the formula panel and a plain-text form.
 import type { Formula } from "../formulas.ts";
 import {
+  accent,
   frac,
   math,
   mi,
   mn,
   mo,
+  mtext,
   paren,
   row,
+  space,
   sqrt,
   sub,
   sup,
@@ -20,10 +23,10 @@ const beta = mi("β");
 const gamma = mi("γ");
 const omega = mi("ω");
 const nu = mi("ν");
-const gap = mo("&#x2003;");
+const gap = space("1em");
 const sigmaToday = sup(sub(sigma, mi("t")), mn("2"));
 /** Hat accent (estimate) over a symbol. */
-const hat = (base: string): string => `<mover>${base}<mo>^</mo></mover>`;
+const hat = (base: string): string => accent(base, "^");
 const rSq = sup(sub(mi("r"), mi("t")), mn("2"));
 const sigmaNext = sup(sub(sigma, row(mi("t"), mo("+"), mn("1"))), mn("2"));
 const zAlpha = sub(mi("z"), alpha);
@@ -93,10 +96,23 @@ export const VOLATILITY_FORMULAS: Readonly<
         sub(mi("I"), mi("t")),
         mo("="),
         mn("1"),
-        mi("if"),
+        space(),
+        mtext("if"),
+        space(),
         sub(mi("r"), mi("t")),
         mo("<"),
-        mn("0")
+        mn("0"),
+        mo(","),
+        gap,
+        mtext("stable if"),
+        space(),
+        alpha,
+        mo("+"),
+        beta,
+        mo("+"),
+        frac(gamma, mn("2")),
+        mo("<"),
+        mn("1")
       )
     ),
     text: "σ²_(t+1) = ω + (α + γ I_t) r_t² + β σ_t², I_t = 1 after a down day and 0 otherwise; stable when α + β + γ/2 < 1",
@@ -131,6 +147,14 @@ export const VOLATILITY_FORMULAS: Readonly<
             mo("+"),
             mi("R")
           )
+        ),
+        mo(","),
+        gap,
+        sub(mi("P"), mi("t")),
+        mo("="),
+        paren(row(mn("1"), mo("−"), sub(mi("K"), mi("t")))),
+        paren(
+          row(sub(mi("P"), row(mi("t"), mo("−"), mn("1"))), mo("+"), mi("Q"))
         )
       )
     ),
@@ -156,7 +180,15 @@ export const VOLATILITY_FORMULAS: Readonly<
         gap,
         mi("Var"),
         mo("="),
-        frac(nu, row(nu, mo("−"), mn("2")))
+        frac(nu, row(nu, mo("−"), mn("2"))),
+        mo(","),
+        gap,
+        mi("r"),
+        mo("="),
+        sigma,
+        sqrt(frac(row(nu, mo("−"), mn("2")), nu)),
+        space(),
+        mi("x")
       )
     ),
     text: "f(x) = Γ((ν+1)/2) / (√(νπ) Γ(ν/2)) · (1 + x²/ν)^(−(ν+1)/2); variance ν / (ν − 2), so x is scaled by σ √((ν − 2)/ν) to match a daily vol σ",

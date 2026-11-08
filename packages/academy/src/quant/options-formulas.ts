@@ -6,8 +6,10 @@ import {
   mi,
   mn,
   mo,
+  mtext,
   paren,
   row,
+  space,
   sqrt,
   sub,
   sup,
@@ -16,7 +18,7 @@ import type { OptionsFormulaId } from "./options-ids.ts";
 
 const sigma = mi("σ");
 const dt = row(mi("Δ"), mi("t"));
-const gap = mo("&#x2003;");
+const gap = space("1em");
 
 export const OPTIONS_FORMULAS: Readonly<Record<OptionsFormulaId, Formula>> = {
   binomialTree: {
@@ -47,31 +49,31 @@ export const OPTIONS_FORMULAS: Readonly<Record<OptionsFormulaId, Formula>> = {
         paren(
           row(
             mi("p"),
-            sub(mi("V"), mi("up")),
+            sub(mi("V"), mtext("up")),
             mo("+"),
             paren(row(mn("1"), mo("−"), mi("p"))),
-            sub(mi("V"), mi("down"))
+            sub(mi("V"), mtext("down"))
           )
         )
       )
     ),
-    text: "u = e^(σ√Δt), d = 1/u, p = (e^(rΔt) - d) / (u - d); each node V = e^(-rΔt) [p V_up + (1 - p) V_down], walking back from the payoffs at expiry",
+    text: "u = e^(σ√Δt), d = 1/u, p = (e^(rΔt) - d) / (u - d); each node V = e^(-rΔt) [p V_up + (1 - p) V_down], walking back from the payoffs at expiry. Valid only while d < e^(rΔt) < u, i.e. σ > |r|√Δt: otherwise p falls outside 0-1 and the tree allows arbitrage",
     title: "Binomial tree (Cox-Ross-Rubinstein)",
   },
   gammaPnl: {
     id: "gammaPnl",
     mathml: math(
       row(
-        mi("P&amp;L"),
+        mtext("P&amp;L"),
         mo("≈"),
         frac(mn("1"), mn("2")),
         mi("Γ"),
         sup(mi("S"), mn("2")),
         paren(
           row(
-            sup(sub(sigma, mi("imp")), mn("2")),
+            sup(sub(sigma, mtext("imp")), mn("2")),
             mo("−"),
-            sup(sub(sigma, mi("real")), mn("2"))
+            sup(sub(sigma, mtext("real")), mn("2"))
           )
         ),
         dt
@@ -84,7 +86,7 @@ export const OPTIONS_FORMULAS: Readonly<Record<OptionsFormulaId, Formula>> = {
     id: "impliedVol",
     mathml: math(
       row(
-        sub(mi("C"), mi("BS")),
+        sub(mi("C"), mtext("BS")),
         paren(
           row(
             mi("S"),
@@ -95,22 +97,22 @@ export const OPTIONS_FORMULAS: Readonly<Record<OptionsFormulaId, Formula>> = {
             mo(","),
             mi("T"),
             mo(","),
-            sub(sigma, mi("imp"))
+            sub(sigma, mtext("imp"))
           )
         ),
         mo("="),
-        sub(mi("C"), mi("market")),
+        sub(mi("C"), mtext("market")),
         mo(","),
         gap,
         sigma,
         mo("="),
         frac(
-          row(sub(sigma, mi("low")), mo("+"), sub(sigma, mi("high"))),
+          row(sub(sigma, mtext("low")), mo("+"), sub(sigma, mtext("high"))),
           mn("2")
         )
       )
     ),
-    text: "Find σ_imp with C_BS(S, K, r, T, σ_imp) = C_market. Bisection: try σ = (σ_low + σ_high) / 2; if C_BS(σ) is below the market price the answer is higher (σ_low = σ), else lower (σ_high = σ)",
+    text: "Find σ_imp with C_BS(S, K, r, T, σ_imp) = C_market. Bisection: try σ = (σ_low + σ_high) / 2; if C_BS(σ) is below the market price the answer is higher (σ_low = σ), else lower (σ_high = σ). Defined only for prices inside the no-arbitrage bounds max(S - Ke^(-rT), 0) ≤ C_market < S",
     title: "Implied volatility (bisection)",
   },
 };

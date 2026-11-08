@@ -294,6 +294,19 @@ describe("volcluster", () => {
     expect(nthY(gjr, -1)).toBeLessThan(nthY(garch, -1));
   });
 
+  it("puts the news-impact shock marker at the shock size, inside the move axis", () => {
+    for (const shockPct of [-4, 6, -12]) {
+      const news = panel(scene("volcluster", { shockPct }), "news-impact");
+      const [low, high] = news.xDomain;
+      expect(news.markers).toHaveLength(1);
+      for (const marker of news.markers) {
+        expect(marker.x).toBe(shockPct);
+        expect(marker.x ?? Number.NaN).toBeGreaterThanOrEqual(low);
+        expect(marker.x ?? Number.NaN).toBeLessThanOrEqual(high);
+      }
+    }
+  });
+
   it("caps alpha + beta + gamma/2 below 1 and says so", () => {
     const data = tables("volcluster", { alpha: 0.3, beta: 0.9, gamma: 0.2 });
     const note = data.find((table) => table.id === "news-impact")?.note ?? "";

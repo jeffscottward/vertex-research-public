@@ -3,6 +3,14 @@
 export const mi = (value: string): string => `<mi>${value}</mi>`;
 export const mo = (value: string): string => `<mo>${value}</mo>`;
 export const mn = (value: string): string => `<mn>${value}</mn>`;
+/** Words inside a formula ("if", "otherwise"): upright text, not italic variables. */
+export const mtext = (value: string): string => `<mtext>${value}</mtext>`;
+/** Horizontal gap between formula parts (in place of an operator holding a blank). */
+export const space = (width = "0.25em"): string =>
+  `<mspace width="${width}"></mspace>`;
+/** Accent over a symbol (hat for an estimate, bar for a mean). */
+export const accent = (base: string, mark: string): string =>
+  `<mover accent="true">${base}<mo>${mark}</mo></mover>`;
 export const sub = (base: string, index: string): string =>
   `<msub>${base}${index}</msub>`;
 export const sup = (base: string, power: string): string =>

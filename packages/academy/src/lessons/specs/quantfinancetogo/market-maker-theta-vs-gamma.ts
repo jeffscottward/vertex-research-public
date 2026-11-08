@@ -130,7 +130,7 @@ export const spec: LessonSpecInput = {
     },
     {
       caption:
-        "At 16% realized it earns about $1.6 per call (creator: $1.59); at 24% it loses about $1.4 (creator: -$1.41).",
+        "At 16% realized it earns about $1.67 per call at expiry ($1.59 today, the creator's figure); at 24% it loses about $1.48 at expiry (-$1.41 today).",
       color: "amber",
       element: "marker",
     },
@@ -142,7 +142,7 @@ export const spec: LessonSpecInput = {
     },
   ],
   summary:
-    "Part 35. A market maker earns the bid-ask spread and, after delta hedging a call it sold, collects theta while paying gamma: buying high and selling low on every big move. If the stock moves as much as the implied volatility in the price, they cancel. Calmer than implied, it earns; wilder, it loses. Sold at the $10.55 ask with 20% implied: about +$1.59 at 16% realized, -$1.41 at 24%.",
+    "Part 35. A market maker earns the bid-ask spread and, after delta hedging a call it sold, collects theta while paying gamma: buying high and selling low on every big move. If the stock moves as much as the implied volatility, they cancel. Calmer than implied, it earns; wilder, it loses. Sold at the $10.55 ask with 20% implied: about +$1.59 today ($1.67 at expiry) at 16% realized, -$1.41 at 24%.",
   tags: {
     instruments: ["hedging", "volatility"],
     regime: ["any"],

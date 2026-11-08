@@ -67,18 +67,49 @@ export type Guess = Readonly<{
   price: number;
 }>;
 
-export type Bisection = Readonly<{ iv: number; guesses: readonly Guess[] }>;
+export type Bisection = Readonly<{
+  /** Implied volatility (fraction); NaN when the price is outside the no-arbitrage bounds. */
+  iv: number;
+  guesses: readonly Guess[];
+  /** Which no-arbitrage bound the price breaks, or null when an implied volatility exists. */
+  outside: "below" | "above" | null;
+}>;
+
+export type CallBounds = Readonly<{ lower: number; upper: number }>;
+
+/**
+ * No-arbitrage bounds of a European call: at least max(S - Ke^(-rT), 0) (what a forward plus
+ * the option to walk away is worth), and less than the stock itself. Only prices in between have
+ * an implied volatility: the Black-Scholes price runs from the lower bound (σ → 0) towards S (σ → ∞).
+ */
+export const callBounds = (
+  spot: number,
+  strike: number,
+  years: number,
+  rate: number
+): CallBounds => ({
+  lower: Math.max(spot - strike * Math.exp(-rate * years), 0),
+  upper: spot,
+});
+
+const BOUND_TOLERANCE = 1e-9;
+
+/** Which no-arbitrage bound a call price breaks, or null when it is inside them. */
+const outsideCallBounds = (
+  price: number,
+  bounds: CallBounds
+): "below" | "above" | null => {
+  if (price < bounds.lower - BOUND_TOLERANCE) return "below";
+  if (price >= bounds.upper) return "above";
+  return null;
+};
 
 /** Bisection steps the smile chart shows (the guesses element). */
 export const SHOWN_GUESSES = 10;
 const BISECTION_STEPS = 60;
 
-/**
- * Implied volatility of a call price by bisection. The search starts on [0%, 100%] (widened by
- * doubling up to 800% when the price needs more), tries the middle and keeps the half that still
- * brackets the price, because the call price always rises with volatility.
- */
-export const impliedVol = (
+/** Bisection on [0%, 100%] (widened by doubling up to 800%), no bounds check. */
+const bisect = (
   price: number,
   spot: number,
   strike: number,
@@ -97,7 +128,29 @@ export const impliedVol = (
     if (value < price) low = vol;
     else high = vol;
   }
-  return { guesses, iv: (low + high) / 2 };
+  return { guesses, iv: (low + high) / 2, outside: null };
+};
+
+/**
+ * Implied volatility of a call price by bisection. The search starts on [0%, 100%] (widened by
+ * doubling up to 800% when the price needs more), tries the middle and keeps the half that still
+ * brackets the price, because the call price always rises with volatility. A price outside the
+ * no-arbitrage bounds (below max(S - Ke^(-rT), 0) or at/above S) has no implied volatility: the
+ * result is NaN with no guesses, and `outside` names the broken bound.
+ */
+export const impliedVol = (
+  price: number,
+  spot: number,
+  strike: number,
+  years: number,
+  rate: number
+): Bisection => {
+  const outside = outsideCallBounds(
+    price,
+    callBounds(spot, strike, years, rate)
+  );
+  if (outside !== null) return { guesses: [], iv: Number.NaN, outside };
+  return bisect(price, spot, strike, years, rate);
 };
 
 export type SmileInputs = Readonly<{
@@ -109,8 +162,11 @@ export type SmileInputs = Readonly<{
   vol: number;
   /** Expected jumps per year. */
   lambda: number;
-  /** Average jump as a simple return (-0.25 = a 25% crash). */
-  jumpMean: number;
+  /**
+   * Median jump as a simple return (-0.25 = a 25% crash): the jump factor 1 + J is lognormal with
+   * log mean ln(1 + jumpMedian), so this is its median, not its mean (the mean is e^(δ²/2) larger).
+   */
+  jumpMedian: number;
   /** Standard deviation of the log jump size. */
   jumpVol: number;
   /** Quoted call price at the strike, or null to price the call in the jump model. */
@@ -120,7 +176,7 @@ export type SmileInputs = Readonly<{
 export const smileInputs = (values: ParamValues): SmileInputs => {
   const quoted = num(values, "marketPrice", Number.NaN);
   return {
-    jumpMean: clamp(num(values, "jumpMean", -25), -90, 100) / 100,
+    jumpMedian: clamp(num(values, "jumpMedian", -25), -90, 100) / 100,
     jumpVol: clamp(num(values, "jumpVol", 10), 0, 100) / 100,
     lambda: clamp(num(values, "jumpIntensity", 0.1), 0, 2),
     marketPrice: quoted > 0 ? quoted : null,
@@ -138,8 +194,8 @@ export const smileInputs = (values: ParamValues): SmileInputs => {
  * and the weights use the intensity λ(1 + k)T.
  */
 export const mertonCall = (input: SmileInputs, strike: number): number => {
-  const { jumpMean, jumpVol, lambda, rate, spot, vol, years } = input;
-  const muJ = Math.log(1 + jumpMean);
+  const { jumpMedian, jumpVol, lambda, rate, spot, vol, years } = input;
+  const muJ = Math.log(1 + jumpMedian);
   const k = Math.exp(muJ + 0.5 * jumpVol * jumpVol) - 1;
   const intensity = lambda * (1 + k) * years;
   const terms = Math.ceil(intensity + 12 * Math.sqrt(intensity) + 12);
@@ -160,32 +216,44 @@ export type SmileModel = Readonly<{
   /** Price the panel-1 bisection solves for (the quote, or the jump-model price). */
   market: number;
   solved: Bisection;
-  /** Shift that anchors the jump-model smile at the solved implied volatility. */
+  /** No-arbitrage bounds of a call at the chosen strike. */
+  bounds: CallBounds;
+  /** Shift that anchors the jump-model smile at the solved implied volatility (0 when none). */
   anchor: number;
   strikes: readonly number[];
-  /** Implied volatility (fraction) per strike: jump-model smile, anchored. */
+  /** Implied volatility (fraction, floored at 0) per strike: jump-model smile, anchored. */
   smile: readonly number[];
 }>;
 
 export const smileModel = (values: ParamValues): SmileModel => {
   const input = smileInputs(values);
   const { rate, spot, strike, years } = input;
+  // Jump-model prices are arbitrage-free by construction; bisect them without the bounds check
+  // so rounding at deep strikes cannot turn a valid price into a missing volatility.
   const ivOf = (price: number, at: number): number =>
-    impliedVol(price, spot, at, years, rate).iv;
+    bisect(price, spot, at, years, rate).iv;
   const model = mertonCall(input, strike);
   const market = input.marketPrice ?? model;
+  const bounds = callBounds(spot, strike, years, rate);
   const solved = impliedVol(market, spot, strike, years, rate);
-  const anchor = solved.iv - ivOf(model, strike);
+  const anchor = solved.outside === null ? solved.iv - ivOf(model, strike) : 0;
   const strikes = grid(0.6 * spot, 1.4 * spot, 33);
-  const smile = strikes.map((at) => ivOf(mertonCall(input, at), at) + anchor);
-  return { anchor, input, market, smile, solved, strikes };
+  // A downward shift can push the far wing below zero: volatility cannot be negative.
+  const smile = strikes.map((at) =>
+    Math.max(ivOf(mertonCall(input, at), at) + anchor, 0)
+  );
+  return { anchor, bounds, input, market, smile, solved, strikes };
 };
+
+const boundsText = (bounds: CallBounds): string =>
+  `${usd(bounds.lower)} to below ${usd(bounds.upper)}`;
 
 const smileScene = (ctx: SceneCtx): SceneData => {
   const model = smileModel(ctx.values);
   const { rate, spot, strike, years } = model.input;
+  const invalid = model.solved.outside !== null;
   const shown = Math.max(1, Math.ceil(clamp01(ctx.t) * SHOWN_GUESSES));
-  const xMax = nth(model.solved.guesses, 0).high * 100;
+  const xMax = invalid ? 100 : nth(model.solved.guesses, 0).high * 100;
   const curve: Point[] = grid(0.5, xMax, 80).map((vol) => [
     vol,
     callPrice(spot, strike, years, rate, vol / 100),
@@ -200,7 +268,9 @@ const smileScene = (ctx: SceneCtx): SceneData => {
       x: guess.vol * 100,
       y: guess.price,
     }));
-  const flat: Point[] = model.strikes.map((at) => [at, model.solved.iv * 100]);
+  const flat: Point[] = invalid
+    ? []
+    : model.strikes.map((at) => [at, model.solved.iv * 100]);
   const smile: Point[] = model.strikes.map((at, index) => [
     at,
     nth(model.smile, index) * 100,
@@ -218,9 +288,27 @@ const smileScene = (ctx: SceneCtx): SceneData => {
           {
             element: "market",
             kind: "hline",
-            label: `Market price ${usd(model.market)}`,
+            label: invalid
+              ? `Market price ${usd(model.market)} (outside no-arbitrage bounds)`
+              : `Market price ${usd(model.market)}`,
             y: model.market,
           },
+          ...(invalid
+            ? [
+                {
+                  element: "curve",
+                  kind: "hline" as const,
+                  label: `Lower bound ${usd(model.bounds.lower)}`,
+                  y: model.bounds.lower,
+                },
+                {
+                  element: "curve",
+                  kind: "hline" as const,
+                  label: `Upper bound ${usd(model.bounds.upper)} (the stock)`,
+                  y: model.bounds.upper,
+                },
+              ]
+            : []),
           ...guesses,
         ],
         series: [
@@ -231,12 +319,18 @@ const smileScene = (ctx: SceneCtx): SceneData => {
             width: 3,
           },
         ],
-        title: `Implied volatility ${pct(model.solved.iv)} by bisection`,
+        title: invalid
+          ? `${usd(model.market)} is outside no-arbitrage bounds (${boundsText(model.bounds)}): no implied volatility`
+          : `Implied volatility ${pct(model.solved.iv)} by bisection`,
         xDomain: [0, xMax],
         xFormat: "pct",
         xLabel: "Volatility (%)",
         yDomain: withZero(
-          span([...curve.map((point) => point[1]), model.market])
+          span([
+            ...curve.map((point) => point[1]),
+            model.market,
+            ...(invalid ? [model.bounds.lower, model.bounds.upper] : []),
+          ])
         ),
         yFormat: "usd",
         yLabel: "Call price ($)",
@@ -256,7 +350,9 @@ const smileScene = (ctx: SceneCtx): SceneData => {
           },
           {
             element: "smile",
-            label: "Implied by a market with crashes",
+            label: invalid
+              ? "Implied by a market with crashes (unshifted)"
+              : "Implied by a market with crashes",
             points: smile,
             width: 3,
           },
@@ -267,7 +363,7 @@ const smileScene = (ctx: SceneCtx): SceneData => {
         xLabel: "Strike",
         yDomain: span([
           ...smile.map((point) => point[1]),
-          model.solved.iv * 100,
+          ...(invalid ? [] : [model.solved.iv * 100]),
         ]),
         yFormat: "pct",
         yLabel: "Implied volatility (%)",
@@ -282,11 +378,14 @@ const smileTables = (values: ParamValues): DataTable[] => {
   const model = smileModel(values);
   const { input } = model;
   const pick = [0, 4, 8, 12, 16, 20, 24, 28, 32];
+  const invalid = model.solved.outside !== null;
   return [
     {
       columns: ["Step", "Range", "Guess", "Black-Scholes price", "Next"],
       id: "bisection",
-      note: `Market price ${usd(model.market)}: implied volatility ${pct(model.solved.iv, 2)} after ${BISECTION_STEPS} halvings.`,
+      note: invalid
+        ? `Market price ${usd(model.market)} is outside no-arbitrage bounds (${boundsText(model.bounds)}): ${model.solved.outside === "below" ? "below what the stock minus the discounted strike is worth" : "at or above the stock itself"}, so no volatility reproduces it and the implied volatility is undefined.`
+        : `Market price ${usd(model.market)}: implied volatility ${pct(model.solved.iv, 2)} after ${BISECTION_STEPS} halvings.`,
       rows: model.solved.guesses.map((guess, index) => [
         String(index + 1),
         `${pct(guess.low)} - ${pct(guess.high)}`,
@@ -304,17 +403,18 @@ const smileTables = (values: ParamValues): DataTable[] => {
         "Flat (Black-Scholes)",
       ],
       id: "smile",
-      note:
-        model.anchor === 0
+      note: invalid
+        ? "Calls priced in the jump model, each turned back into an implied volatility; not shifted, because the quoted price has no implied volatility."
+        : model.anchor === 0
           ? "Calls priced in the jump model, each turned back into an implied volatility."
-          : `Smile shape of the jump model, shifted by ${pct(model.anchor, 2)} to pass through the quoted price's implied volatility.`,
+          : `Smile shape of the jump model, shifted by ${pct(model.anchor, 2)} to pass through the quoted price's implied volatility.${model.smile.some((iv) => iv === 0) ? " Strikes the shift would push below zero are floored at 0%." : ""}`,
       rows: pick.map((index) => {
         const at = nth(model.strikes, index);
         return [
           at.toFixed(2),
           usd(mertonCall(input, at)),
           pct(nth(model.smile, index), 2),
-          pct(model.solved.iv, 2),
+          invalid ? "none" : pct(model.solved.iv, 2),
         ];
       }),
       title: "Implied volatility by strike",
@@ -332,14 +432,50 @@ export type Crr = Readonly<{
   dt: number;
   up: number;
   down: number;
-  /** Risk-neutral probability of an up move. */
+  /** Risk-neutral probability of an up move (outside 0..1 when the tree is not arbitrage-free). */
   prob: number;
+  /** d < e^(rΔt) < u, i.e. σ > |r|√Δt: without it p leaves 0..1 and the tree allows arbitrage. */
+  arbitrageFree: boolean;
   price: number;
   /** Call value at each node of levels 0..min(steps, keep): levels[i][j], j = up moves. */
   levels: readonly (readonly number[])[];
 }>;
 
-/** Cox-Ross-Rubinstein European call by backward induction. */
+/**
+ * Fewest steps whose Cox-Ross-Rubinstein tree is arbitrage-free: σ√Δt > |r|Δt needs
+ * Δt < σ²/r², so more than r²T/σ² steps.
+ */
+export const minArbitrageFreeSteps = (
+  years: number,
+  rate: number,
+  vol: number
+): number => {
+  // Start at the closed form, then settle on the exact test crr uses (floating point at the edge).
+  let steps = Math.max(Math.floor((rate * rate * years) / (vol * vol)), 1);
+  while (!treeArbitrageFree(years, rate, vol, steps)) steps += 1;
+  while (steps > 1 && treeArbitrageFree(years, rate, vol, steps - 1))
+    steps -= 1;
+  return steps;
+};
+
+/** d < e^(rΔt) < u for a CRR tree of `steps` steps (u = e^(σ√Δt), d = 1/u). */
+const treeArbitrageFree = (
+  years: number,
+  rate: number,
+  vol: number,
+  steps: number
+): boolean => {
+  const dt = years / steps;
+  const up = Math.exp(vol * Math.sqrt(dt));
+  const growth = Math.exp(rate * dt);
+  return 1 / up < growth && growth < up;
+};
+
+/**
+ * Cox-Ross-Rubinstein European call by backward induction. p is not clamped: when σ ≤ |r|√Δt the
+ * up move does not beat the risk-free growth (or the down move does), p leaves 0..1,
+ * `arbitrageFree` is false and the price is only the formal replication value.
+ */
 export const crr = (
   spot: number,
   strike: number,
@@ -353,7 +489,8 @@ export const crr = (
   const up = Math.exp(vol * Math.sqrt(dt));
   const down = 1 / up;
   const growth = Math.exp(rate * dt);
-  const prob = clamp((growth - down) / (up - down), 0, 1);
+  const prob = (growth - down) / (up - down);
+  const arbitrageFree = treeArbitrageFree(years, rate, vol, steps);
   const values = Array.from({ length: steps + 1 }, (_, j) =>
     Math.max(spot * up ** j * down ** (steps - j) - strike, 0)
   );
@@ -365,7 +502,7 @@ export const crr = (
         (prob * nth(values, j + 1) + (1 - prob) * nth(values, j)) / growth;
     if (level <= keep) levels[level] = values.slice(0, level + 1);
   }
-  return { down, dt, levels, price: nth(values, 0), prob, up };
+  return { arbitrageFree, down, dt, levels, price: nth(values, 0), prob, up };
 };
 
 type BinomialInputs = Readonly<{
@@ -392,6 +529,8 @@ export type BinomialModel = Readonly<{
   bs: number;
   /** Tree price for 1..maxSteps steps. */
   convergence: readonly Point[];
+  /** Fewest steps with an arbitrage-free tree (earlier convergence points are invalid trees). */
+  minSteps: number;
 }>;
 
 export const binomialModel = (values: ParamValues): BinomialModel => {
@@ -405,8 +544,15 @@ export const binomialModel = (values: ParamValues): BinomialModel => {
       crr(spot, strike, years, rate, vol, index + 1, -1).price,
     ]),
     input,
+    minSteps: minArbitrageFreeSteps(years, rate, vol),
     tree: crr(spot, strike, years, rate, vol, steps),
   };
+};
+
+/** Why a tree is invalid: σ does not exceed |r|√Δt, so p leaves 0..1. */
+const arbitrageText = (model: BinomialModel): string => {
+  const { rate, vol } = model.input;
+  return `σ ${pct(vol)} ≤ |r|√Δt ${pct(Math.abs(rate) * Math.sqrt(model.tree.dt), 2)}, so p = ${pct(model.tree.prob)} is not a probability; use at least ${model.minSteps} steps or more volatility`;
 };
 
 const binomialScene = (ctx: SceneCtx): SceneData => {
@@ -445,10 +591,11 @@ const binomialScene = (ctx: SceneCtx): SceneData => {
     }
   }
   const convergence = model.convergence;
-  const treeTitle =
-    steps <= DRAWN_LEVELS
+  const treeTitle = model.tree.arbitrageFree
+    ? steps <= DRAWN_LEVELS
       ? `${steps}-step tree: call worth ${usd(model.tree.price)}`
-      : `First ${DRAWN_LEVELS} of ${steps} steps: call worth ${usd(model.tree.price)}`;
+      : `First ${DRAWN_LEVELS} of ${steps} steps: call worth ${usd(model.tree.price)}`
+    : `Invalid ${steps}-step tree: ${arbitrageText(model)}`;
   return {
     horizon: steps,
     layout: "stack",
@@ -495,7 +642,10 @@ const binomialScene = (ctx: SceneCtx): SceneData => {
             width: 2,
           },
         ],
-        title: "Tree price vs number of steps",
+        title:
+          model.minSteps > 1
+            ? `Tree price vs number of steps (under ${model.minSteps} steps the tree allows arbitrage)`
+            : "Tree price vs number of steps",
         xDomain: [0, convergence.length + 1],
         xFormat: "count",
         xLabel: "Steps in the tree",
@@ -529,6 +679,11 @@ const binomialTables = (values: ParamValues): DataTable[] => {
         ["Tree price", usd(tree.price)],
         ["Black-Scholes price", usd(model.bs)],
       ],
+      ...(tree.arbitrageFree
+        ? {}
+        : {
+            note: `Warning: this tree is not arbitrage-free. ${arbitrageText(model)}. The tree price is a formal replication value, not a fair price.`,
+          }),
       title: "Cox-Ross-Rubinstein tree",
     },
     {
@@ -538,6 +693,11 @@ const binomialTables = (values: ParamValues): DataTable[] => {
         const price = nth(model.convergence, count - 1)[1];
         return [String(count), usd(price), usd(price - model.bs)];
       }),
+      ...(model.minSteps > 1
+        ? {
+            note: `Trees with fewer than ${model.minSteps} steps break no-arbitrage (σ ≤ |r|√Δt); their prices are not fair values.`,
+          }
+        : {}),
       title: "Convergence to Black-Scholes",
     },
   ];
@@ -842,7 +1002,7 @@ const hedgeScene = (ctx: SceneCtx): SceneData => {
           {
             element: "marker",
             kind: "dot",
-            label: `Realized ${pct(realized, 0)} vs implied ${pct(iv, 0)}: ${usd(model.ratioNow)}`,
+            label: `Realized ${pct(realized, 0)} vs implied ${pct(iv, 0)}: ${usd(model.ratioNow)} at expiry`,
             x: (realized / iv) * 100,
             y: model.ratioNow,
           },
@@ -865,7 +1025,7 @@ const hedgeScene = (ctx: SceneCtx): SceneData => {
           0,
         ]),
         yFormat: "usd",
-        yLabel: "Mean P&L per share ($)",
+        yLabel: "Mean P&L per share at expiry ($)",
       },
     ],
     timeLabel: "Rebalances",
@@ -913,7 +1073,7 @@ const hedgeTables = (values: ParamValues): DataTable[] => {
     {
       columns: ["Realized / implied", "Realized vol", "Expected hedged P&L"],
       id: "ratio",
-      note: `e^(rT) x (call at implied${spread > 0 ? " + spread" : ""} - call at realized volatility); the simulated paths above average ${usd(mean(model.hedged))} against ${usd(model.ratioNow)} expected.`,
+      note: `P&L at expiry: e^(rT) x (call at implied${spread > 0 ? " + spread" : ""} - call at realized volatility); the simulated paths above average ${usd(mean(model.hedged))} against ${usd(model.ratioNow)} expected (${usd(model.ratioNow * Math.exp(-rate * years))} in today's dollars).`,
       rows: model.ratio
         .filter((_, index) => index % 5 === 0)
         .map((point) => [

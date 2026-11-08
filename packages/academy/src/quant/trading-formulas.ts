@@ -1,19 +1,33 @@
 // What: Formulas of the trading quant lessons: MathML for the formula panel and a plain-text form.
 import type { Formula } from "../formulas.ts";
-import { frac, math, mi, mn, mo, paren, row, sqrt, sub } from "../mathml.ts";
+import {
+  frac,
+  math,
+  mi,
+  mn,
+  mo,
+  mtext,
+  paren,
+  row,
+  space,
+  sqrt,
+  sub,
+} from "../mathml.ts";
 import type { TradingFormulaId } from "./trading-ids.ts";
 
 const t = mi("t");
 const s = (index: string): string => sub(mi("s"), index);
 const theta = mi("θ");
-const sep = mo("&#x2003;");
+const sep = space("1em");
+const zIn = sub(mi("z"), mtext("in"));
+const zOut = sub(mi("z"), mtext("out"));
 
 export const TRADING_FORMULAS: Readonly<Record<TradingFormulaId, Formula>> = {
   slippage: {
     id: "slippage",
     mathml: math(
       row(
-        mi("VWAP"),
+        mtext("VWAP"),
         paren(mi("Q")),
         mo("="),
         frac(
@@ -22,10 +36,10 @@ export const TRADING_FORMULAS: Readonly<Record<TradingFormulaId, Formula>> = {
         ),
         mo(","),
         sep,
-        mi("slippage"),
+        mtext("slippage"),
         paren(mi("Q")),
         mo("="),
-        mi("VWAP"),
+        mtext("VWAP"),
         paren(mi("Q")),
         mo("−"),
         sub(mi("a"), mn("0"))
@@ -38,23 +52,24 @@ export const TRADING_FORMULAS: Readonly<Record<TradingFormulaId, Formula>> = {
     id: "walkForward",
     mathml: math(
       row(
-        sub(mi("θ*"), mi("k")),
+        sub(row(mi("θ"), mo("*")), mi("k")),
         mo("="),
-        sub(mi("argmax"), theta),
-        sub(mi("SR"), mi("k")),
+        sub(mtext("argmax"), theta),
+        sub(mtext("SR"), mi("k")),
         paren(theta),
         mo(","),
         sep,
-        mi("SR"),
+        mtext("SR"),
         mo("="),
         sqrt(mn("252")),
-        frac(mi("mean(r)"), mi("sd(r)")),
+        frac(mtext("mean(r)"), mtext("sd(r)")),
         mo(","),
         sep,
-        mi("model in window "),
+        mtext("model in window"),
+        space(),
         mi("k"),
         mo(":"),
-        sub(mi("θ*"), row(mi("k"), mo("−"), mn("1")))
+        sub(row(mi("θ"), mo("*")), row(mi("k"), mo("−"), mn("1")))
       )
     ),
     text: "θ*_k = argmax over θ = (lookback, entry |z|) of SR_k(θ), the annualized Sharpe √252 · mean(r) / sd(r) of daily returns after costs on window k; the model trades θ*_(k-1) in window k, one refit behind the optimum",
@@ -77,22 +92,37 @@ export const TRADING_FORMULAS: Readonly<Record<TradingFormulaId, Formula>> = {
         frac(row(s(t), mo("−"), sub(mi("μ"), t)), sub(mi("σ"), t)),
         mo(","),
         sep,
-        mi("enter at "),
-        mo("|"),
-        mi("z"),
-        mo("|"),
+        mtext("short at"),
+        space(),
+        sub(mi("z"), t),
         mo("≥"),
-        sub(mi("z"), mi("in")),
+        zIn,
         mo(","),
-        mi(" exit at "),
-        mo("|"),
-        mi("z"),
-        mo("|"),
+        space(),
+        mtext("long at"),
+        space(),
+        sub(mi("z"), t),
         mo("≤"),
-        sub(mi("z"), mi("out"))
+        mo("−"),
+        zIn,
+        mo(","),
+        sep,
+        mtext("exit short at"),
+        space(),
+        sub(mi("z"), t),
+        mo("≤"),
+        zOut,
+        mo(","),
+        space(),
+        mtext("exit long at"),
+        space(),
+        sub(mi("z"), t),
+        mo("≥"),
+        mo("−"),
+        zOut
       )
     ),
-    text: "s_t = b_t - β·a_t; z_t = (s_t - μ_t) / σ_t with μ_t and σ_t the mean and sd of the spread over the last L days; short the spread at z ≥ z_in, buy it at z ≤ -z_in, close when it returns inside ±z_out",
+    text: "s_t = b_t - β·a_t; z_t = (s_t - μ_t) / σ_t with μ_t and σ_t the mean and sample sd (n - 1) of the spread over the previous L days, not counting today; short the spread at z ≥ z_in, buy it at z ≤ -z_in; exit a short once z falls to z_out or below, exit a long once z rises to -z_out or above (z crosses back through the exit band on its own side)",
     title: "Spread z-score and the pairs rule",
   },
 };

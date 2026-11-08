@@ -60,6 +60,41 @@ const GRID = 200;
 /** Most random mixes the cloud can draw, and the default (modest, so the frontier stays visible). */
 export const CLOUD_SIZE = 300;
 const CLOUD_DEFAULT = 150;
+/** Below this volatility (% a year; the lowest asset volatility is 0.5) a mix counts as riskless: no Sharpe ratio is shown. */
+const RISKLESS_VOL = 0.25;
+
+/** Determinant of a 3 × 3 correlation matrix with off-diagonals ab, ac, bc. */
+const correlationDet = (ab: number, ac: number, bc: number): number =>
+  1 + 2 * ab * ac * bc - ab * ab - ac * ac - bc * bc;
+
+/**
+ * Three correlations are only possible together when the matrix is positive semidefinite
+ * (determinant ≥ 0, since each pair is in [−1, 1]). An impossible set is shrunk toward zero by the
+ * largest factor that makes it valid: the nearest valid set with the same signs and proportions.
+ */
+const validCorrelations = (
+  entered: Readonly<{ AB: number; AC: number; BC: number }>
+): Readonly<{
+  AB: number;
+  AC: number;
+  BC: number;
+  scale: number;
+  valid: boolean;
+}> => {
+  const { AB, AC, BC } = entered;
+  if (correlationDet(AB, AC, BC) >= -1e-12)
+    return { AB, AC, BC, scale: 1, valid: true };
+  // det(0) = 1 > 0 and det(1) < 0: bisect for the largest valid factor, keeping the valid side.
+  let low = 0;
+  let high = 1;
+  for (let step = 0; step < 60; step += 1) {
+    const middle = (low + high) / 2;
+    if (correlationDet(middle * AB, middle * AC, middle * BC) >= 0)
+      low = middle;
+    else high = middle;
+  }
+  return { AB: low * AB, AC: low * AC, BC: low * BC, scale: low, valid: false };
+};
 
 /** Three-asset mean-variance model: assets, correlations, risk-free rate, grid and random mixes. */
 export const frontierModel = (values: ParamValues, t = 1) => {
@@ -76,7 +111,9 @@ export const frontierModel = (values: ParamValues, t = 1) => {
       -1,
       1
     );
-  const correlations = { AB: pair("AB"), AC: pair("AC"), BC: pair("BC") };
+  const entered = { AB: pair("AB"), AC: pair("AC"), BC: pair("BC") };
+  const checked = validCorrelations(entered);
+  const correlations = { AB: checked.AB, AC: checked.AC, BC: checked.BC };
   const rho = [
     [1, correlations.AB, correlations.AC],
     [correlations.AB, 1, correlations.BC],
@@ -99,7 +136,10 @@ export const frontierModel = (values: ParamValues, t = 1) => {
     return { ret, vol: Math.sqrt(Math.max(variance, 0)), weights };
   };
   const sharpe = (point: Readonly<{ ret: number; vol: number }>): number =>
-    (point.ret - rf) / Math.max(point.vol, 1e-9);
+    (point.ret - rf) / Math.max(point.vol, RISKLESS_VOL);
+  /** Sharpe ratio as text: a riskless mix has none (its return over the safe rate has no risk). */
+  const sharpeText = (point: Readonly<{ ret: number; vol: number }>): string =>
+    point.vol < RISKLESS_VOL ? "riskless" : sharpe(point).toFixed(2);
   const mixes: Mix[] = [];
   for (let a = 0; a <= GRID; a += 1)
     for (let b = 0; a + b <= GRID; b += 1)
@@ -130,18 +170,22 @@ export const frontierModel = (values: ParamValues, t = 1) => {
   return {
     assets,
     cloud: cloud.slice(0, shown),
+    correlationScale: checked.scale,
     correlations,
+    correlationsValid: checked.valid,
+    entered,
     frontier,
     minVar,
     rf,
     sharpe,
+    sharpeText,
     tangency,
   };
 };
 
 const frontierScene = (ctx: SceneCtx): SceneData => {
   const model = frontierModel(ctx.values, ctx.t);
-  const { assets, rf, sharpe, tangency, minVar } = model;
+  const { assets, rf, sharpe, sharpeText, tangency, minVar } = model;
   const xMax = span([0, ...assets.map((asset) => asset.vol)], 0.15)[1];
   const ray = (slope: number): Point[] => [
     [0, rf],
@@ -175,7 +219,7 @@ const frontierScene = (ctx: SceneCtx): SceneData => {
       dot("minVar", `Min variance ${pct(minVar.vol)}`, minVar.vol, minVar.ret),
       dot(
         "tangency",
-        `Tangency, Sharpe ${sharpe(tangency).toFixed(2)}`,
+        `Tangency, Sharpe ${sharpeText(tangency)}`,
         tangency.vol,
         tangency.ret
       ),
@@ -184,7 +228,7 @@ const frontierScene = (ctx: SceneCtx): SceneData => {
       ...assets.map((asset) => ({
         dashed: true,
         element: "lines",
-        label: `${asset.name}: Sharpe ${sharpe(asset).toFixed(2)}`,
+        label: `${asset.name}: Sharpe ${sharpeText(asset)}`,
         points: ray(sharpe(asset)),
       })),
       {
@@ -195,12 +239,14 @@ const frontierScene = (ctx: SceneCtx): SceneData => {
       },
       {
         element: "cml",
-        label: `Capital market line, Sharpe ${sharpe(tangency).toFixed(2)}`,
+        label: `Capital market line, Sharpe ${sharpeText(tangency)}`,
         points: ray(sharpe(tangency)),
         width: 2.5,
       },
     ],
-    title: `Risk and return of ${model.cloud.length} random mixes of A, B and C`,
+    title: model.correlationsValid
+      ? `Risk and return of ${model.cloud.length} random mixes of A, B and C`
+      : `Invalid correlations: scaled ×${model.correlationScale.toFixed(2)} to a possible set`,
     // A sliver left of 0 keeps the risk-free dot and its label inside the plot.
     xDomain: [-xMax * 0.04, xMax],
     xFormat: "pct",
@@ -225,25 +271,29 @@ const weightsText = (weights: readonly number[]): string =>
 
 const frontierTables = (values: ParamValues, t: number): DataTable[] => {
   const model = frontierModel(values, t);
-  const { sharpe } = model;
+  const { sharpeText } = model;
   const row = (name: string, point: Mix): string[] => [
     name,
     weightsText(point.weights),
     pct(point.ret, 2),
     pct(point.vol, 2),
-    sharpe(point).toFixed(2),
+    sharpeText(point),
   ];
   const { AB, AC, BC } = model.correlations;
+  const entered = model.entered;
+  const invalid = model.correlationsValid
+    ? ""
+    : `Invalid correlations: A-B ${entered.AB.toFixed(2)}, A-C ${entered.AC.toFixed(2)}, B-C ${entered.BC.toFixed(2)} cannot all hold at once (the matrix is not positive semidefinite); scaled ×${model.correlationScale.toFixed(2)} toward 0. Used: `;
   return [
     {
       columns: ["Asset", "Expected return", "Volatility", "Sharpe ratio"],
       id: "frontier-assets",
-      note: `Correlations: A-B ${AB.toFixed(2)}, A-C ${AC.toFixed(2)}, B-C ${BC.toFixed(2)}. Risk-free rate ${pct(model.rf)}.`,
+      note: `${invalid}${model.correlationsValid ? "Correlations: " : ""}A-B ${AB.toFixed(2)}, A-C ${AC.toFixed(2)}, B-C ${BC.toFixed(2)}. Risk-free rate ${pct(model.rf)}.`,
       rows: model.assets.map((asset) => [
         asset.name,
         pct(asset.ret),
         pct(asset.vol),
-        sharpe(asset).toFixed(2),
+        sharpeText(asset),
       ]),
       title: "Assets",
     },
@@ -292,18 +342,26 @@ export const diversifyModel = (values: ParamValues, t = 1) => {
     sxx += (x - mx) ** 2;
     syy += (y - my) ** 2;
   }
-  // Many equal assets cannot all be negatively correlated: the count curve floors ρ at 0.
+  // N assets can share one correlation ρ < 0 only while N ≤ 1 + 1/|ρ| (there the variance of the
+  // equal mix reaches 0); beyond that such a set of assets cannot exist. ρ ≥ 0 allows any N.
+  const maxValidN =
+    rho < 0
+      ? Math.floor(1 + 1 / Math.abs(rho) + 1e-9)
+      : Number.POSITIVE_INFINITY;
   const floorRho = Math.max(rho, 0);
   return {
     assets,
+    /** Equal-weight volatility of N assets; the same ρ as the 50/50 mix (N = 2). */
     countVol: (n: number): number =>
-      vol * Math.sqrt(floorRho + (1 - floorRho) / n),
+      vol * Math.sqrt(Math.max(rho + (1 - rho) / n, 0)),
     floor: vol * Math.sqrt(floorRho),
     floorRho,
+    maxValidN,
     mixVol: (r: number): number => vol * Math.sqrt((1 + r) / 2),
     rho,
     sample: sxy / Math.sqrt(sxx * syy),
     shown,
+    validCount: Math.min(assets, maxValidN),
     vol,
   };
 };
@@ -314,7 +372,10 @@ const diversifyScene = (ctx: SceneCtx): SceneData => {
   const reach =
     Math.max(...model.shown.flatMap((point) => point.map(Math.abs))) * 1.1;
   const volDomain: [number, number] = [0, vol * 1.1];
-  const counts = Array.from({ length: model.assets }, (_, index) => index + 1);
+  const counts = Array.from(
+    { length: model.validCount },
+    (_, index) => index + 1
+  );
   return {
     layout: "grid",
     panels: [
@@ -390,8 +451,8 @@ const diversifyScene = (ctx: SceneCtx): SceneData => {
           },
         ],
         title:
-          rho < 0
-            ? `Risk of N equal assets (ρ ${rho.toFixed(2)} floored at 0 for many assets)`
+          model.validCount < model.assets
+            ? `Risk of N equal assets: ρ ${rho.toFixed(2)} is only possible for N ≤ ${model.maxValidN}`
             : `Risk of N equal assets: ${pct(model.countVol(model.assets))} at N = ${model.assets}`,
         xDomain: [1, model.assets],
         xFormat: "count",
@@ -408,8 +469,8 @@ const diversifyScene = (ctx: SceneCtx): SceneData => {
 const diversifyTables = (values: ParamValues, t: number): DataTable[] => {
   const model = diversifyModel(values, t);
   const counts = [
-    ...new Set([1, 2, 5, 10, 20, 50, 100, 500, model.assets]),
-  ].filter((n) => n <= model.assets);
+    ...new Set([1, 2, 5, 10, 20, 50, 100, 500, model.validCount]),
+  ].filter((n) => n <= model.validCount);
   const rhos = [...new Set([-0.5, 0, 0.3, 0.8, model.rho])].sort(
     (a, b) => a - b
   );
@@ -417,7 +478,10 @@ const diversifyTables = (values: ParamValues, t: number): DataTable[] => {
     {
       columns: ["Assets N", "Portfolio volatility", "Diversified away"],
       id: "diversify-count",
-      note: `Floor σ√ρ = ${pct(model.floor, 2)} with ρ ${model.floorRho.toFixed(2)}: the market push hits every asset the same way.`,
+      note:
+        model.validCount < model.assets
+          ? `With ρ ${model.rho.toFixed(2)} at most ${model.maxValidN} assets can all share it; the mix volatility falls toward 0 there.`
+          : `Floor σ√ρ = ${pct(model.floor, 2)} with ρ ${model.floorRho.toFixed(2)}: the market push hits every asset the same way.`,
       rows: counts.map((n) => [
         String(n),
         pct(model.countVol(n), 2),

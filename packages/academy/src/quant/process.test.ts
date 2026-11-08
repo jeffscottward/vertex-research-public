@@ -62,7 +62,10 @@ describe("process contract", () => {
       expect(PROCESS_FORMULAS[id].id).toBe(id);
       expect(PROCESS_FORMULAS[id].mathml).toMatch(/^<math display="block">/u);
       expect(PROCESS_FORMULAS[id].text).not.toContain("TODO");
+      expect(PROCESS_FORMULAS[id].mathml).not.toContain("<mo> </mo>");
     }
+    expect(PROCESS_FORMULAS.gbm.mathml).toContain("<mtext>median</mtext>");
+    expect(PROCESS_FORMULAS.gbm.text).toContain("median S_0·e^((μ - σ²/2)t)");
     for (const mode of Object.keys(PROCESS_ELEMENTS) as ProcessMode[]) {
       expect(PROCESS_MODELS[mode]).not.toContain("TODO");
       const drawn = new Set(
@@ -270,6 +273,38 @@ describe("meanrev", () => {
     expect(cell(test, "Verdict at the -2.9 limit")).toBe(
       "No reliable pull back"
     );
+  });
+
+  it("simulates the AR(1) the formula shows, with long-run sd σ/√(1 - φ²)", () => {
+    const values = {
+      days: 2000,
+      halfLife: 5,
+      paths: 1,
+      seed: 11,
+      start: 0,
+      vol: 2,
+    };
+    const run = meanrevRun(values);
+    expect(run.phi).toBeCloseTo(Math.exp(-run.theta), 12);
+    const expected = 2 / Math.sqrt(1 - run.phi ** 2);
+    expect(run.stationary).toBeCloseTo(expected, 12);
+    const settled = run.first.slice(100);
+    const mean = settled.reduce((sum, x) => sum + x, 0) / settled.length;
+    const sd = Math.sqrt(
+      settled.reduce((sum, x) => sum + (x - mean) ** 2, 0) /
+        (settled.length - 1)
+    );
+    expect(sd / expected).toBeGreaterThan(0.85);
+    expect(sd / expected).toBeLessThan(1.15);
+    const model = table(processTables("meanrev", values, 1), "meanrev-model");
+    expect(cell(model, "Long-run sd = σ / √(1 - φ²)")).toBe(
+      expected.toFixed(3)
+    );
+    const formula = PROCESS_FORMULAS.ornsteinUhlenbeck;
+    expect(formula.text).toContain("X_(t+1) = φ·X_t + σ·ε_t");
+    expect(formula.text).toContain("σ / √(1 - φ²)");
+    expect(formula.mathml).toContain("<mi>φ</mi>");
+    expect(formula.mathml).not.toContain("<mo> </mo>");
   });
 
   it("estimates the slope, t statistic and half-life of a path", () => {

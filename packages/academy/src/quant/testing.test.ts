@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { buildScene, buildTables } from "../index.ts";
 import type { SceneData } from "../scene-kit.ts";
+import {
+  expectedMaxSharpe,
+  maxSharpeUpperBound,
+  normInv,
+  pValue,
+  significanceModel,
+  snoopingModel,
+  testingScene,
+  testingTables,
+} from "./testing.ts";
 import { TESTING_FORMULAS } from "./testing-formulas.ts";
 import {
   TESTING_COLORS,
@@ -9,15 +19,6 @@ import {
   TESTING_MODELS,
   type TestingMode,
 } from "./testing-ids.ts";
-import {
-  expectedMaxSharpe,
-  normInv,
-  pValue,
-  significanceModel,
-  snoopingModel,
-  testingScene,
-  testingTables,
-} from "./testing.ts";
 
 const MODES = Object.keys(TESTING_ELEMENTS) as TestingMode[];
 
@@ -58,10 +59,10 @@ describe("testing contract", () => {
 
   it.each(MODES)("%s stays finite on extreme and invalid inputs", (mode) => {
     const inputs = [
-      { alpha: -1, rules: 1e9, sharpe: 1e9, years: 1e9, seed: 1e12 },
-      { alpha: 0, rules: -5, sharpe: -1e9, years: -3, seed: -1 },
-      { alpha: "abc", rules: "abc", sharpe: "abc", years: "abc", seed: "abc" },
-      { alpha: 0, rules: 0, sharpe: 0, years: 0, seed: 0 },
+      { alpha: -1, rules: 1e9, seed: 1e12, sharpe: 1e9, years: 1e9 },
+      { alpha: 0, rules: -5, seed: -1, sharpe: -1e9, years: -3 },
+      { alpha: "abc", rules: "abc", seed: "abc", sharpe: "abc", years: "abc" },
+      { alpha: 0, rules: 0, seed: 0, sharpe: 0, years: 0 },
     ];
     for (const values of inputs)
       for (const t of [-1, 0, 0.5, 1, 2]) {
@@ -89,9 +90,27 @@ describe("testing contract", () => {
 });
 
 describe("snooping", () => {
-  it("expected max follows σ√(2 ln N)", () => {
+  it("expected max follows Blom σ·Φ⁻¹((N − 0.375)/(N + 0.25)), below the √(2 ln N) bound", () => {
     expect(expectedMaxSharpe(1, 0.5)).toBe(0);
-    expect(expectedMaxSharpe(100, 1)).toBeCloseTo(Math.sqrt(2 * Math.log(100)));
+    // Exact expected maxima of N standard normals: 0.5642 (N = 2), 2.5076 (100), 3.2414 (1000).
+    expect(expectedMaxSharpe(2, 1)).toBeCloseTo(0.5642, 1);
+    expect(expectedMaxSharpe(100, 1)).toBeCloseTo(2.5076, 1);
+    expect(Math.abs(expectedMaxSharpe(100, 1) - 2.5076)).toBeLessThan(0.03);
+    expect(expectedMaxSharpe(1000, 0.5)).toBeCloseTo(0.5 * 3.2414, 1);
+    expect(maxSharpeUpperBound(100, 1)).toBeCloseTo(
+      Math.sqrt(2 * Math.log(100))
+    );
+    expect(expectedMaxSharpe(100, 1)).toBeLessThan(maxSharpeUpperBound(100, 1));
+  });
+
+  it("charts Sharpe axes as plain numbers and highlights the axes", () => {
+    for (const mode of ["snooping", "significance"] as const) {
+      const data = scene(mode);
+      for (const panel of data.panels) {
+        expect(panel.elements).toContain("axes");
+      }
+      expect(data.panels[1]?.xFormat).toBe("num");
+    }
   });
 
   it("is seeded, best grows with N and out of sample is unrelated", () => {
@@ -133,7 +152,7 @@ describe("snooping", () => {
 
   it("handles a single rule", () => {
     expect(scene("snooping", { rules: 1 }, 1).now).toBe(1);
-    expect(testingTables("snooping", { rules: 1 }, 0)[0]?.rows[6]?.[1]).toBe(
+    expect(testingTables("snooping", { rules: 1 }, 0)[0]?.rows[7]?.[1]).toBe(
       "0.00"
     );
   });

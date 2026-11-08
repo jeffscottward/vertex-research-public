@@ -984,10 +984,10 @@ const meanrevTables = (values: ParamValues): DataTable[] => {
       rows: [
         ["Half-life", `${fixed(halfLife, 1)} days`],
         ["Pull θ = ln 2 / half-life", `${fixed(run.theta, 4)} per day`],
-        ["Share of the distance kept per day", pct(run.phi, 2)],
+        ["Share of the distance kept per day φ = e^(-θ)", pct(run.phi, 2)],
         ["Share of the distance removed per day", pct(1 - run.phi, 2)],
         ["Daily shock σ", fixed(vol, 3)],
-        ["Stationary σ = σ / √(1 - φ²)", fixed(run.stationary, 3)],
+        ["Long-run sd = σ / √(1 - φ²)", fixed(run.stationary, 3)],
       ],
       title: "Pull-back model",
     },

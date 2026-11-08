@@ -8,6 +8,7 @@ import {
   mo,
   paren,
   row,
+  space,
   sqrt,
   sub,
   sup,
@@ -23,7 +24,7 @@ const Ri = sub(mi("R"), mi("i"));
 const Sigma = mi("Σ");
 const w = mi("w");
 const wT = sup(w, mi("T"));
-const space = mo("&#x2003;");
+const gap = space("1em");
 
 export const PORTFOLIO_FORMULAS: Readonly<Record<PortfolioFormulaId, Formula>> =
   {
@@ -53,7 +54,7 @@ export const PORTFOLIO_FORMULAS: Readonly<Record<PortfolioFormulaId, Formula>> =
           Sigma,
           w,
           mo(","),
-          space,
+          gap,
           mi("μ"),
           mo("="),
           mi("Π"),
@@ -118,7 +119,7 @@ export const PORTFOLIO_FORMULAS: Readonly<Record<PortfolioFormulaId, Formula>> =
           mo("="),
           sigma,
           sqrt(row(rho, mo("+"), frac(row(mn("1"), mo("−"), rho), mi("N")))),
-          space,
+          gap,
           mo("≥"),
           sigma,
           sqrt(rho)
@@ -160,7 +161,7 @@ export const PORTFOLIO_FORMULAS: Readonly<Record<PortfolioFormulaId, Formula>> =
             sup(sub(sigma, mi("p")), mn("2"))
           ),
           mo(","),
-          space,
+          gap,
           sub(w, mi("i")),
           mo("="),
           frac(
