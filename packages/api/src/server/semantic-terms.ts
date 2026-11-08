@@ -335,18 +335,17 @@ const answerFeedTerm = async (
  * `-- grain <grain> (attribute <id>[, not certified])` line. Null when the term has none.
  */
 const sqlText = (
-  attributes: readonly SemanticSqlAttributeRow[],
-  sqlOf: (attribute: SemanticSqlAttributeRow) => string,
-  headed = attributes.length > 1
+  entries: readonly Readonly<{
+    attribute: SemanticSqlAttributeRow;
+    sql: string;
+  }>[],
+  headed = entries.length > 1
 ): string | null => {
-  if (!headed) {
-    const [only] = attributes;
-    return only === undefined ? null : sqlOf(only);
-  }
-  return attributes
+  if (!headed) return entries[0]?.sql ?? null;
+  return entries
     .map(
-      (attribute) =>
-        `-- grain ${attribute.grain} (attribute ${attribute.id}${attribute.certified ? "" : ", not certified"})\n${sqlOf(attribute)}`
+      ({ attribute, sql }) =>
+        `-- grain ${attribute.grain} (attribute ${attribute.id}${attribute.certified ? "" : ", not certified"})\n${sql}`
     )
     .join("\n\n");
 };
@@ -410,19 +409,16 @@ const answerSqlTerm = async (
     });
   }
   // One row cap for the whole answer: earlier groupings fill it first.
-  let room = SEMANTIC_QUERY_MAX_ROWS;
+  const shown: SemanticRow[] = [];
   const shownBy = new Map<string, { rows: SemanticRow[]; cut: boolean }>();
   for (const entry of answered) {
-    const rows = entry.rows.slice(0, room);
-    room -= rows.length;
+    const rows = entry.rows.slice(0, SEMANTIC_QUERY_MAX_ROWS - shown.length);
+    shown.push(...rows);
     shownBy.set(entry.attribute.id, {
       cut: entry.truncated || rows.length < entry.rows.length,
       rows,
     });
   }
-  const shown = answered.flatMap(
-    (entry) => shownBy.get(entry.attribute.id)?.rows ?? []
-  );
   const truncated = [...shownBy.values()].some((entry) => entry.cut);
   const groupings = described.groupings.map((grouping) => {
     const entry = shownBy.get(grouping.attribute);
@@ -465,10 +461,10 @@ const answerSqlTerm = async (
     asOf: now.toISOString(),
     groupings,
     query: sqlText(
-      answered.map((entry) => entry.attribute),
-      (attribute) =>
-        answered.find((entry) => entry.attribute.id === attribute.id)?.query ??
-        attribute.sql,
+      answered.map((entry) => ({
+        attribute: entry.attribute,
+        sql: entry.query,
+      })),
       several
     ),
     rowCount: shown.length,
@@ -522,7 +518,9 @@ export const answerTerm = async (
     label: term.label,
     query:
       term.source === "postgres"
-        ? sqlText(attributes, (attribute) => attribute.sql)
+        ? sqlText(
+            attributes.map((attribute) => ({ attribute, sql: attribute.sql }))
+          )
         : term.feedPath,
     source: term.source,
     unit: term.unit,

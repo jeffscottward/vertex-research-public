@@ -79,6 +79,7 @@ const catalog = (): SemanticCatalog => ({
       sql: "select sum(pnl) from trades",
       termId: "realized_pnl",
       ...uncertified,
+      certificationNote: "Needs owner certification (fake)",
     },
   ],
   canWrite: true,
@@ -302,7 +303,9 @@ describe("SemanticTermsWorkspace", () => {
     );
     expect(
       attribute?.querySelector('[data-uncertified="true"]')?.textContent
-    ).toBe(ATTRIBUTE_NOT_CERTIFIED_TEXT);
+    ).toBe(
+      `${ATTRIBUTE_NOT_CERTIFIED_TEXT}Note: Needs owner certification (fake)`
+    );
     expect(
       attribute?.querySelector('[data-grain="run_spec"]')?.textContent
     ).toBe(
