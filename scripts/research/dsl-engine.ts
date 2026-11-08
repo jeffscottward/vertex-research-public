@@ -67,6 +67,16 @@ export type NautilusIo = Readonly<{
 const NAUTILUS_HINT =
   "pass --python <venv python with services/research/requirements-nautilus-linux-py312.lock> (or set VERTEX_NAUTILUS_PYTHON), or --engine typescript";
 
+/** A Nautilus batch that failed or answered badly; `setupHint` when the Python setup is the likely cause. */
+export class NautilusBatchError extends Error {
+  readonly setupHint: boolean;
+  constructor(message: string, setupHint: boolean) {
+    super(message);
+    this.name = "NautilusBatchError";
+    this.setupHint = setupHint;
+  }
+}
+
 const jobKey = (definition: StrategyDefinition, costBps: number): string =>
   JSON.stringify([definition, costBps]);
 
@@ -102,7 +112,7 @@ export const nautilusRunner = (
   return (bars, definition, costBps) => {
     const equity = results.get(bars)?.get(jobKey(definition, costBps));
     if (equity === undefined)
-      throw new Error("nautilus runner: this job was not run up front");
+      throw new Error("internal: dsl-engine job was not run up front");
     return equity;
   };
 };
@@ -141,27 +151,50 @@ const runBatch = (
     ["-m", "nautilus_backtest", "batch", input, output],
     join(io.root, "services/research")
   );
-  if (run.status !== 0)
-    throw new Error(
-      `nautilus batch failed (${run.error?.message ?? run.stderr ?? `status ${run.status}`})`
+  if (run.status !== 0) {
+    // The last stderr line names the cause (a Python traceback ends with the exception).
+    const detail =
+      run.error?.message ??
+      run.stderr?.trim().split("\n").filter(Boolean).at(-1) ??
+      "";
+    throw new NautilusBatchError(
+      `nautilus batch failed (${detail || `status ${run.status}`})`,
+      true
     );
-  const batch = JSON.parse(io.readText(output)) as Batch;
+  }
+  let batch: Batch;
+  try {
+    batch = JSON.parse(io.readText(output)) as Batch;
+  } catch (error) {
+    throw new NautilusBatchError(
+      `nautilus batch output unreadable (${(error as Error).message})`,
+      false
+    );
+  }
   if (batch.engine !== NAUTILUS_ENGINE_ID)
-    throw new Error(
-      `nautilus batch engine ${batch.engine}, expected ${NAUTILUS_ENGINE_ID}`
+    throw new NautilusBatchError(
+      `nautilus batch engine ${batch.engine}, expected ${NAUTILUS_ENGINE_ID}`,
+      true
     );
   const equity = new Map<string, readonly number[]>();
-  for (const entry of batch.results) {
+  for (const entry of Array.isArray(batch.results) ? batch.results : []) {
     const key = keys.get(entry.id);
     if (key === undefined || equity.has(key))
-      throw new Error(`unknown or repeated batch case ${entry.id}`);
+      throw new NautilusBatchError(
+        `nautilus batch returned an unknown or repeated case ${entry.id}`,
+        false
+      );
     if (entry.result === undefined)
-      throw new Error(`nautilus input error: ${entry.error ?? "no result"}`);
+      throw new NautilusBatchError(
+        `nautilus input error: ${entry.error ?? "no result"}`,
+        false
+      );
     equity.set(key, entry.result.equity);
   }
   if (equity.size !== keys.size)
-    throw new Error(
-      `nautilus batch returned ${equity.size} of ${keys.size} cases`
+    throw new NautilusBatchError(
+      `nautilus batch returned ${equity.size} of ${keys.size} cases`,
+      false
     );
   return equity;
 };
@@ -235,8 +268,8 @@ export const prepareEngine =
     name === "typescript" ? typescriptEngine() : nautilusEngine(jobs, io);
 
 /**
- * Runs `build`. A Nautilus batch error (wrong Python, failed process, input error) is printed as
- * one line with NAUTILUS_HINT and gives null; any other error is thrown as before.
+ * Runs `build`. A NautilusBatchError is printed as one line (with NAUTILUS_HINT when the Python
+ * setup is the likely cause) and gives null; any other error is thrown as before.
  */
 export const catchNautilusErrors = <T>(
   build: () => T,
@@ -245,9 +278,10 @@ export const catchNautilusErrors = <T>(
   try {
     return build();
   } catch (error) {
-    if (!(error instanceof Error && error.message.startsWith("nautilus ")))
-      throw error;
-    stderr.write(`${error.message}; ${NAUTILUS_HINT}\n`);
+    if (!(error instanceof NautilusBatchError)) throw error;
+    stderr.write(
+      `${error.message}${error.setupHint ? `; ${NAUTILUS_HINT}` : ""}\n`
+    );
     return null;
   }
 };

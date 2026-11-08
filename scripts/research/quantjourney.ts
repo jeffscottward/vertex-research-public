@@ -737,11 +737,22 @@ export const runQuantJourneyCli = async (
     (arg, i) => !(known.includes(arg) || valued.includes(args[i - 1] ?? ""))
   );
   const options = engineOptions(args, io.defaultPython);
+  const repeated = known.filter(
+    (flag) => args.indexOf(flag) !== args.lastIndexOf(flag)
+  );
   const engineFlags = args.includes("--engine") || args.includes("--python");
-  if (options === null || (engineFlags && !args.includes("--rerun"))) {
+  if (options === null) {
     io.stderr.write(
-      "--engine (nautilus or typescript) and --python (a path) go with --rerun only\n"
+      "--engine takes nautilus or typescript; --python takes a path\n"
     );
+    return 2;
+  }
+  if (engineFlags && !args.includes("--rerun")) {
+    io.stderr.write("--engine and --python go with --rerun only\n");
+    return 2;
+  }
+  if (repeated.length > 0) {
+    io.stderr.write(`repeated argument: ${repeated.join(" ")}\n`);
     return 2;
   }
   if (unknown.length > 0) {

@@ -9,6 +9,7 @@ import { fakeNautilus } from "./dsl-engine.test-support.ts";
 import {
   catchNautilusErrors,
   type DslJob,
+  NautilusBatchError,
   engineOptions,
   engineParity,
   NAUTILUS_ENGINE_ID,
@@ -83,6 +84,29 @@ describe("nautilusRunner", () => {
       })
     ).toThrow("nautilus batch failed (status 9)");
     expect(() =>
+      nautilusRunner(jobs, {
+        ...io(),
+        spawn: () => ({ status: 9, stderr: "" }),
+      })
+    ).toThrow("nautilus batch failed (status 9)");
+    // A traceback: only its last line (the exception) goes into the one-line message.
+    const traceback =
+      "Traceback (most recent call last):\n  File x\nModuleNotFoundError: No module named 'nautilus_trader'\n";
+    expect(() =>
+      nautilusRunner(jobs, {
+        ...io(),
+        spawn: () => ({ status: 1, stderr: traceback }),
+      })
+    ).toThrow(
+      /^nautilus batch failed \(ModuleNotFoundError: No module named 'nautilus_trader'\)$/u
+    );
+    expect(() =>
+      nautilusRunner(jobs, {
+        ...io(),
+        spawn: () => ({ status: 0, stderr: "" }),
+      })
+    ).toThrow("nautilus batch output unreadable (no file ");
+    expect(() =>
       nautilusRunner(
         jobs,
         io(fakeNautilus({ engine: "nautilus-trader-1.0.0" }))
@@ -127,15 +151,19 @@ describe("nautilusRunner", () => {
           { id: "0", result },
         ])
       )
-    ).toThrow("unknown or repeated batch case 0");
+    ).toThrow("nautilus batch returned an unknown or repeated case 0");
     expect(() =>
       nautilusRunner(jobs.slice(0, 1), answering([{ id: " ", result }]))
-    ).toThrow("unknown or repeated batch case  ");
+    ).toThrow("nautilus batch returned an unknown or repeated case  ");
     expect(() => nautilusRunner(jobs, answering([]))).toThrow(
       "nautilus batch returned 0 of 1 cases"
     );
+    // No results list at all counts as no cases.
+    expect(() =>
+      nautilusRunner(jobs, answering(undefined as unknown as object[]))
+    ).toThrow("nautilus batch returned 0 of 1 cases");
     return expect(() => nautilusRunner(jobs, answering([{ id: "9" }]))).toThrow(
-      "unknown or repeated batch case 9"
+      "nautilus batch returned an unknown or repeated case 9"
     );
   });
 });
@@ -204,21 +232,27 @@ describe("catchNautilusErrors", () => {
     expect(catchNautilusErrors(() => 7, stderr)).toBe(7);
     expect(
       catchNautilusErrors(() => {
-        throw new Error("nautilus batch failed (ENOENT)");
+        throw new NautilusBatchError("nautilus batch failed (ENOENT)", true);
       }, stderr)
     ).toBeNull();
-    expect(out.join("")).toContain(
-      "nautilus batch failed (ENOENT); pass --python"
-    );
+    expect(
+      catchNautilusErrors(() => {
+        throw new NautilusBatchError("nautilus input error: too short", false);
+      }, stderr)
+    ).toBeNull();
+    expect(out).toEqual([
+      expect.stringMatching(
+        /^nautilus batch failed \(ENOENT\); pass --python .*\n$/u
+      ),
+      "nautilus input error: too short\n",
+    ]);
     expect(() =>
       catchNautilusErrors(() => {
-        throw new Error("missing data for SPY");
+        throw new Error("nautilus look-alike");
       }, stderr)
-    ).toThrow("missing data for SPY");
+    ).toThrow("nautilus look-alike");
     return expect(() =>
-      catchNautilusErrors(() => {
-        throw "nautilus text";
-      }, stderr)
-    ).toThrow();
+      nautilusRunner(jobs, io())(bars(10, 1), definition, 10)
+    ).toThrow("internal: dsl-engine job was not run up front");
   });
 });

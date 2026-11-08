@@ -630,6 +630,10 @@ describe("CLI and rendering", () => {
       await runQuantJourneyCli([...rerun, "--engine", "qj"], io(root, out))
     ).toBe(2);
     expect(
+      await runQuantJourneyCli([...rerun, "--runs", runs], io(root, out))
+    ).toBe(2);
+    expect(out.join("")).toContain("repeated argument: --runs");
+    expect(
       await runQuantJourneyCli(["--engine", "typescript"], io(root, out))
     ).toBe(2);
     expect(
