@@ -243,3 +243,51 @@ def test_management_and_leverage_input_errors(management, options, message):
     with pytest.raises(InputError) as raised:
         _managed_run(TRAIL_ROWS, management, **options)
     assert str(raised.value) == message
+
+
+# Entry 100, stop 95 (R = 5). Bar 1 reaches 106, so breakeven raises the stop to 100 at its close;
+# bar 2 meets the raised stop (TS "raised stop" cases).
+@needs_nautilus
+@pytest.mark.parametrize(("bar", "price"), [
+    ((98, 99, 97, 98), 98.0),  # opens below the raised stop: fills at the open
+    ((100, 101, 99, 100), 100.0),  # opens exactly at the raised stop
+    ((102, 103, 100, 101), 100.0),  # touches the raised stop inside the bar
+])
+def test_gap_and_touch_of_a_raised_stop(bar, price):
+    rows = [(100, 100, 100, 100), (100, 106, 99, 104), bar, (100, 101, 99, 100)]
+    assert _exit(_managed_run(rows, {"breakevenR": 1.0})) == (2, "stop", price)
+
+
+@needs_nautilus
+def test_raised_stop_above_the_raising_close_exits_at_the_next_open():
+    rows = [(100, 100, 100, 100), (100, 106, 98, 99), (99.5, 100.5, 99, 100), (100, 101, 99, 100)]
+    assert _exit(_managed_run(rows, {"breakevenR": 1.0})) == (2, "stop", 99.5)
+
+
+def _ruin_run(rows, signals, **options):
+    compiled = Compiled(signals=tuple(signals), exits=None, stop_distance=(1.0,) * len(rows),
+                        target_distance=None)
+    return engine.run_signal_backtest(_rows_bars(rows), compiled, RunOptions(
+        stop_loss_pct=0, take_profit_pct=0, costs=None, max_leverage=20.0, **options))
+
+
+@needs_nautilus
+def test_ruin_after_a_gap_through_the_stop_stops_trading():
+    # riskPct 10, stop 1 below, 20x cap: 0.1 units cost 10 (cash -9); the gap to 50 fills the stop
+    # at the open: -9 + 0.1 x 50 = -4. The signal at bar 3 does not enter.
+    rows = [(100, 100, 100, 100), (100, 100, 100, 100), (50, 50, 50, 50), (50, 51, 49, 50), (50, 50, 50, 50)]
+    result = _ruin_run(rows, (1, 0, 0, 1, 0), cost_bps=0, risk_pct=10.0)
+    assert [(t["exitIndex"], t["exitReason"], t["exitPrice"]) for t in result.trades] == [(2, "stop", 50.0)]
+    assert [round(value, 6) for value in result.equity] == [1.0, 1.0, -4.0, -4.0, -4.0]
+
+
+@needs_nautilus
+def test_ruin_closes_the_position_at_the_close():
+    # costBps 500, riskPct 50, 20x cap: spent 20, 0.19 units, cash -19. Close 99.5 (stop 99 not
+    # reached) marks -19 + 0.19 x 99.5 < 0: exit at that close; the signal at bar 2 does not enter.
+    rows = [(100, 100, 100, 100), (100, 100, 99.5, 99.5), (100, 101, 99.5, 100), (100, 101, 99.5, 100)]
+    result = _ruin_run(rows, (1, 0, 1, 0), cost_bps=500, risk_pct=50.0)
+    assert [(t["entryIndex"], t["exitIndex"], t["exitReason"]) for t in result.trades] == [(1, 1, "stop")]
+    assert math.isclose(result.trades[0]["exitPrice"], 99.5, rel_tol=PRICE_REL_TOL)
+    cash = -19 + 0.19 * 99.5 * 0.95
+    assert all(math.isclose(value, cash, rel_tol=EQUITY_REL_TOL) for value in result.equity[1:])

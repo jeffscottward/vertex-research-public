@@ -518,7 +518,8 @@ export type SignalRunOptions = Readonly<{
   maxHoldBars?: number;
   /**
    * With riskPct: the position cost is capped at cash × maxLeverage instead of the cash (1 to 50).
-   * The borrowed part makes the unused cash negative; no financing is charged.
+   * The borrowed part makes the unused cash negative; no financing is charged. A gap can then
+   * take equity to 0 or below: see the ruin rule of runSignalBacktest.
    */
   maxLeverage?: number;
   /** Stop management of the open position (see PositionManagement). */
@@ -601,7 +602,9 @@ const distanceAt = (series: Float64Array | undefined, index: number) => {
 
 /**
  * Runs the fill and accounting model over precomputed signals: 1 enters while flat, -1 exits while
- * in a position, 0 does nothing. Signals act at the open of the next bar.
+ * in a position, 0 does nothing. Signals act at the open of the next bar. Ruin rule: when equity
+ * marked at a bar's close (cash, or unused cash + units × close in a position) is at or below 0,
+ * an open position exits at that close (reason "stop") and the run takes no further entries.
  */
 export const runSignalBacktest = (
   bars: BarColumns,
@@ -620,6 +623,8 @@ export const runSignalBacktest = (
   let cash = 1;
   let position: PositionState | null = null;
   let pending: 1 | -1 | 0 = 0;
+  /** Set once equity marked at a close falls to 0 or below (see the ruin rule below). */
+  let ruined = false;
   let pendingStop = Number.NaN;
   let pendingTarget = Number.NaN;
   let barsInPosition = 0;
@@ -783,8 +788,11 @@ export const runSignalBacktest = (
     const held = position;
     if (held === null || management === undefined) return;
     const { breakevenR, trail } = management;
-    held.maxHigh = Math.max(held.maxHigh, bars.h[index] as number);
-    held.maxClose = Math.max(held.maxClose, bars.c[index] as number);
+    // A NaN price is skipped, here and in the Python engine.
+    const high = bars.h[index] as number;
+    const close = bars.c[index] as number;
+    if (!Number.isNaN(high)) held.maxHigh = Math.max(held.maxHigh, high);
+    if (!Number.isNaN(close)) held.maxClose = Math.max(held.maxClose, close);
     const risk = held.entryPrice - held.initialStop;
     if (!(risk > 0)) return;
     if (
@@ -823,9 +831,22 @@ export const runSignalBacktest = (
       }
     }
     manage(index);
+    // Ruin: equity marked at the close at or below 0 (possible with maxLeverage, usually after a
+    // gap through the stop) ends trading: an open position exits at that close as a stop, and
+    // the run takes no further entries.
+    const close = bars.c[index] as number;
+    const marked =
+      position === null
+        ? cash
+        : (position as PositionState).rest +
+          (position as PositionState).units * close;
+    if (marked <= 0) {
+      if (position !== null) exitPosition(index, close, "stop");
+      ruined = true;
+    }
     const signal = signals[index] as number;
     if (index < size - 1) {
-      if (signal === 1 && position === null) {
+      if (signal === 1 && position === null && !ruined) {
         pending = 1;
         pendingStop = distanceAt(options.stopDistance, index);
         pendingTarget = distanceAt(options.targetDistance, index);

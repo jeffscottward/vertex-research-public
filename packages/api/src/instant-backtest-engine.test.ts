@@ -865,6 +865,49 @@ describe("runSignalBacktest stop management", () => {
     expect(trades[0]).toMatchObject({ exitIndex: 5, exitPrice: 105 });
   });
 
+  // Entry 100, stop 95 (R = 5). Bar 1 reaches 106, so breakeven raises the stop to 100 at its
+  // close; bar 2 meets the raised stop in four ways.
+  it.each([
+    ["opens below the raised stop: fills at the open", [98, 99, 97, 98], 98],
+    ["opens exactly at the raised stop", [100, 101, 99, 100], 100],
+    ["touches the raised stop inside the bar", [102, 103, 100, 101], 100],
+  ] as const)("raised stop: bar %s", (_, bar, price) => {
+    const { trades } = run(
+      [[100, 100, 100, 100], [100, 106, 99, 104], bar, [100, 101, 99, 100]],
+      { management: { breakevenR: 1 } }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: price,
+      exitReason: "stop",
+    });
+  });
+
+  it("exits at the next open when the raised stop is above the raising bar's close", () => {
+    // Bar 1 reaches 106 but closes at 99, below the new stop (100); bar 2 opens at 99.5.
+    const { trades } = run(
+      [
+        [100, 100, 100, 100],
+        [100, 106, 98, 99],
+        [99.5, 100.5, 99, 100],
+        [100, 101, 99, 100],
+      ],
+      { management: { breakevenR: 1 } }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 99.5,
+      exitReason: "stop",
+    });
+  });
+
+  it("skips NaN highs and closes in the management", () => {
+    const rows: Row[] = breakevenRows.map((row) => [...row]);
+    rows[1] = [100, Number.NaN, 99, Number.NaN];
+    const { trades } = run(rows, { management: { breakevenR: 1 } });
+    expect(trades[0]).toMatchObject({ exitIndex: 3, exitReason: "stop" });
+  });
+
   it.each([
     [{ maxLeverage: 2 }, "maxLeverage needs riskPct"],
     [{ maxLeverage: 0.5, riskPct: 1 }, "maxLeverage must be from 1 to 50"],
@@ -947,5 +990,68 @@ describe("runSignalBacktest maxLeverage", () => {
     expect(trades[0]?.units).toBeCloseTo(0.1, 12);
     // rest = 1 - 10 = -9; equity = -9 + 0.1 × 102.
     expect(equity[1]).toBeCloseTo(1.2, 12);
+  });
+
+  it("stops trading after a gap through the stop takes equity below 0", () => {
+    // riskPct 10, stop 1 below, 20× cap: 0.1 units cost 10 (rest -9); a gap to 50 fills the stop
+    // at the open: cash -9 + 0.1 × 50 = -4. The signal at bar 3 does not enter.
+    const { equity, trades } = runSignalBacktest(
+      columns([
+        [100, 100, 100, 100],
+        [100, 100, 100, 100],
+        [50, 50, 50, 50],
+        [50, 51, 49, 50],
+        [50, 50, 50, 50],
+      ]),
+      Int8Array.from([1, 0, 0, 1, 0]),
+      {
+        costBps: 0,
+        maxLeverage: 20,
+        riskPct: 10,
+        stopDistance: new Float64Array(5).fill(1),
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 50,
+      exitReason: "stop",
+    });
+    expect(
+      Array.from(equity, (value) => Math.round(value * 1e9) / 1e9)
+    ).toEqual([1, 1, -4, -4, -4]);
+  });
+
+  it("closes a position at the close when its marked equity reaches 0 (ruin)", () => {
+    // costBps 500, riskPct 50, stop 1 below, 20× cap: spent 20, units 20 × 0.95 / 100 = 0.19,
+    // rest -19. Close 99.5 (stop 99 not reached) marks -19 + 0.19 × 99.5 < 0: exit at that close.
+    const { equity, trades } = runSignalBacktest(
+      columns([
+        [100, 100, 100, 100],
+        [100, 100, 99.5, 99.5],
+        [100, 101, 99.5, 100],
+        [100, 101, 99.5, 100],
+      ]),
+      Int8Array.from([1, 0, 1, 0]),
+      {
+        costBps: 500,
+        maxLeverage: 20,
+        riskPct: 50,
+        stopDistance: new Float64Array(4).fill(1),
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      entryIndex: 1,
+      exitIndex: 1,
+      exitPrice: 99.5,
+      exitReason: "stop",
+    });
+    const cash = -19 + 0.19 * 99.5 * 0.95;
+    for (const value of equity.slice(1)) expect(value).toBeCloseTo(cash, 12);
   });
 });

@@ -30,6 +30,9 @@ Model (the same rules as the TypeScript engine):
   the level and a level gapped through at the open. When one fills, the other
   is cancelled.
 - An open position closes with a market order at the last close (reason "end").
+- Ruin (TS runSignalBacktest): when unit equity marked at a close is at or below 0
+  (possible with maxLeverage), a market order closes an open position at that
+  close (reason "stop") and the run takes no further entries.
 - Costs: Nautilus fills at the reference price. The fee model charges the flat
   `costBps` leg plus, with a cost profile, half the spread, the slippage, the
   commission and the fees (backtest-costs.ts) as commission in USD. The trade
@@ -54,7 +57,7 @@ __all__ = ["ENGINE_ID", "NautilusUnavailable", "RunResult", "require", "run_sign
 
 ENGINE_ID = f"nautilus-trader-{NAUTILUS_VERSION}"
 # Bump when the order or fill model of this module changes.
-MODEL_VERSION = 1
+MODEL_VERSION = 2
 DEFAULT_CAPITAL = 1_000_000.0
 PRECISION = 9
 YEAR_MS = 365.25 * 24 * 60 * 60 * 1000
@@ -212,6 +215,9 @@ class _State:
     # management block, applied at the next open print (see _apply_stop_update); NaN when none.
     stop_order: object | None = None
     stop_update: float = math.nan
+    # Ruin (TS runSignalBacktest): equity marked at a close at or below 0 closed the position as
+    # a stop at that close; no entries after it.
+    ruined: bool = False
     position: _Open | None = None
     exit_reason: str = ""
     trades: list = field(default_factory=list)
@@ -382,7 +388,7 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             elif part == CLOSE:
                 self._manage(index)
                 self._close(index, float(nbar.close))
-                if index + 1 < size and state.pending != -1:
+                if index + 1 < size and state.pending != -1 and not state.ruined:
                     self._plan_target(index + 1)
 
         def _manage(self, index: int):
@@ -391,8 +397,11 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             management = compiled.management
             if position is None or management is None:
                 return
-            position.max_high = max(position.max_high, bars.h[index])
-            position.max_close = max(position.max_close, bars.c[index])
+            # A NaN price is skipped, as in TS (max(x, nan) would also keep x; the guard says so).
+            if not math.isnan(bars.h[index]):
+                position.max_high = max(position.max_high, bars.h[index])
+            if not math.isnan(bars.c[index]):
+                position.max_close = max(position.max_close, bars.c[index])
             risk = position.entry_price - position.initial_stop
             if not risk > 0:
                 return
@@ -503,9 +512,16 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
 
         def _close(self, index: int, close: float):
             position = state.position
+            if self._cash() + self._net() * close / capital <= 0:
+                # Ruin: an open position exits with a market sell at this close (Nautilus fills it
+                # at the close print); no entries after it.
+                state.ruined = True
+                if position is not None:
+                    self._exit("stop")
+                    position = None
             if index < size - 1:
                 signal = compiled.signals[index]
-                if signal == 1 and position is None:
+                if signal == 1 and position is None and not state.ruined:
                     state.pending = 1
                     state.pending_stop = _distance_at(compiled.stop_distance, index)
                     state.pending_target = _distance_at(compiled.target_distance, index)
@@ -580,6 +596,10 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                 trade["grossPnl"] = trade["pnl"] + total
             state.trades.append(trade)
             state.position = None
+            if len(state.equity) == state.index + 1:
+                # A sell at the close print (ruin or end) fills after that bar was marked: its
+                # equity is the cash, as in TS.
+                state.equity[-1] = cash
 
     engine = nt["BacktestEngine"](nt["BacktestEngineConfig"](
         logging=nt["LoggingConfig"](log_level="ERROR", bypass_logging=True)))
