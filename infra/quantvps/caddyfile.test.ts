@@ -23,9 +23,9 @@ describe("vertex-web-tailnet Caddyfile", () => {
     return expect(proxyBlock()).toMatch(/^\s*header_up -X-Forwarded-Host$/mu);
   });
 
-  it("sends the same Content-Security-Policy as the app", () => {
+  it("falls back to the app's base CSP without replacing the app's nonce CSP", () => {
     return expect(caddyfile).toContain(
-      `Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"`
+      `?Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"`
     );
   });
 
