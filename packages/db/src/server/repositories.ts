@@ -244,6 +244,7 @@ import {
   createSectorRotationRepository,
   type SectorRotationRepository,
 } from "./sector-rotation.ts";
+import { createFlowRepository, type FlowRepository } from "./flow.ts";
 import { required } from "./required.ts";
 import {
   DatabaseConflictError,
@@ -4274,6 +4275,7 @@ export type Repositories = Readonly<{
   optimizationRuns?: OptimizationRunsRepository;
   quantLab?: QuantLabReadRepository;
   researchStudies?: ResearchStudyRepository;
+  flow?: FlowRepository;
   deploymentRequests?: DeploymentRequestsRepository;
   assistant?: AssistantRepository;
   strategyLibrary?: StrategyLibraryRepository;
@@ -4316,6 +4318,7 @@ export const createRepositories = (
   optimizationRuns: createOptimizationRunsRepository(database, dependencies),
   quantLab: createQuantLabReadRepository(database),
   researchStudies: createResearchStudyRepository(database),
+  flow: createFlowRepository(database),
   strategyLibrary: createStrategyLibraryRepository(database, dependencies),
   deploymentRequests: createDeploymentRequestsRepository(
     database,

@@ -15,6 +15,34 @@ import {
 // Flow pipeline (docs/vertex-rebuild/flow-pipeline.md): flow.collect writes, flow.snapshot reads.
 // Rows older than 14 days are pruned by the collector.
 
+export type FlowSymbolValue = "SPY" | "ES";
+export type FlowSourceValue = "ticks" | "depth" | "options" | "gex";
+export type FlowSampleStatusValue = "ok" | "empty" | "unavailable" | "skipped";
+export type FlowOptionTickerValue = "SPY" | "SPX";
+export type FlowDirectionValue = "bullish" | "bearish" | "neutral";
+export type FlowEventKindValue =
+  | "large_print"
+  | "off_exchange_print"
+  | "absorption"
+  | "stacked_imbalance"
+  | "option_sweep"
+  | "option_block"
+  | "option_golden_sweep"
+  | "option_print";
+export type FlowEventSourceValue = "ibkr" | "quantdata";
+export type FlowOptionSideValue =
+  | "above_ask"
+  | "ask"
+  | "mid"
+  | "bid"
+  | "below_bid"
+  | "unknown";
+export type FlowMoneynessValue = "itm" | "atm" | "otm" | "unknown";
+export type FlowConsolidationValue = "sweep" | "block" | "split" | "other";
+export type FlowAbsorptionValue = "buy" | "sell";
+export type FlowGexRegimeValue = "positive" | "negative" | "unknown";
+export type FlowIvRegimeValue = "inverted" | "flat" | "contango" | "unknown";
+
 const utc = (name: string) =>
   timestamp(name, { mode: "date", withTimezone: true });
 const num = (name: string) => doublePrecision(name);
@@ -26,9 +54,9 @@ export const flowSamples = pgTable(
     at: utc("at").notNull(),
     items: integer("items").notNull(),
     message: text("message"),
-    source: text("source").notNull(),
-    status: text("status").notNull(),
-    symbol: text("symbol").notNull(),
+    source: text("source").$type<FlowSourceValue>().notNull(),
+    status: text("status").$type<FlowSampleStatusValue>().notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.source, table.at] }),
@@ -42,7 +70,7 @@ export const flowSamples = pgTable(
 export const flowMinutes = pgTable(
   "flow_minutes",
   {
-    absorption: text("absorption"),
+    absorption: text("absorption").$type<FlowAbsorptionValue>(),
     buyVolume: num("buy_volume").notNull(),
     close: num("close").notNull(),
     coveredSeconds: integer("covered_seconds").notNull(),
@@ -57,7 +85,7 @@ export const flowMinutes = pgTable(
     sellVolume: num("sell_volume").notNull(),
     stackedBuy: integer("stacked_buy").notNull(),
     stackedSell: integer("stacked_sell").notNull(),
-    symbol: text("symbol").notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
     trades: integer("trades").notNull(),
     volume: num("volume").notNull(),
     vwap: num("vwap").notNull(),
@@ -81,7 +109,7 @@ export const flowBook = pgTable(
     bidSize: num("bid_size").notNull(),
     levels: integer("levels").notNull(),
     pressure: num("pressure"),
-    symbol: text("symbol").notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.at] }),
@@ -94,25 +122,27 @@ export const flowOptionPrints = pgTable(
   {
     ask: num("ask"),
     bid: num("bid"),
-    consolidation: text("consolidation").notNull(),
+    consolidation: text("consolidation")
+      .$type<FlowConsolidationValue>()
+      .notNull(),
     dte: num("dte"),
     expiry: date("expiry", { mode: "string" }).notNull(),
     goldenSweep: boolean("golden_sweep").notNull(),
     id: text("id").primaryKey(),
     iv: num("iv"),
-    moneyness: text("moneyness").notNull(),
+    moneyness: text("moneyness").$type<FlowMoneynessValue>().notNull(),
     moneynessPct: num("moneyness_pct"),
     openInterest: num("open_interest"),
     opening: boolean("opening").notNull(),
     premium: num("premium").notNull(),
     price: num("price"),
-    right: text("right").notNull(),
-    sentiment: text("sentiment").notNull(),
-    side: text("side").notNull(),
+    right: text("right").$type<"call" | "put">().notNull(),
+    sentiment: text("sentiment").$type<FlowDirectionValue>().notNull(),
+    side: text("side").$type<FlowOptionSideValue>().notNull(),
     size: integer("size").notNull(),
     strike: num("strike").notNull(),
-    symbol: text("symbol").notNull(),
-    ticker: text("ticker").notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    ticker: text("ticker").$type<FlowOptionTickerValue>().notNull(),
     tradedAt: utc("traded_at").notNull(),
     underlyingPrice: num("underlying_price"),
     unusual: boolean("unusual").notNull(),
@@ -136,14 +166,14 @@ export const flowEvents = pgTable(
   {
     at: utc("at").notNull(),
     detail: text("detail").notNull(),
-    direction: text("direction").notNull(),
+    direction: text("direction").$type<FlowDirectionValue>().notNull(),
     key: text("key").notNull(),
-    kind: text("kind").notNull(),
+    kind: text("kind").$type<FlowEventKindValue>().notNull(),
     premium: num("premium"),
     price: num("price"),
     size: num("size"),
-    source: text("source").notNull(),
-    symbol: text("symbol").notNull(),
+    source: text("source").$type<FlowEventSourceValue>().notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.symbol, table.key] }),
@@ -162,14 +192,14 @@ export const flowGex = pgTable(
     basis: num("basis"),
     callWall: num("call_wall"),
     flip: num("flip"),
-    ivRegime: text("iv_regime").notNull(),
+    ivRegime: text("iv_regime").$type<FlowIvRegimeValue>().notNull(),
     maxPain: num("max_pain"),
     netDex: num("net_dex"),
     putWall: num("put_wall"),
-    regime: text("regime").notNull(),
+    regime: text("regime").$type<FlowGexRegimeValue>().notNull(),
     spot: num("spot"),
-    symbol: text("symbol").notNull(),
-    ticker: text("ticker").notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+    ticker: text("ticker").$type<FlowOptionTickerValue>().notNull(),
     totalGex: num("total_gex"),
     zeroDteShare: num("zero_dte_share"),
   },
