@@ -106,8 +106,8 @@ describe("runFlowTick", () => {
 
   it.each([
     [
-      new Response("nope", { status: 503 }),
-      "flow.collect returned HTTP 503: nope",
+      new Response("nope", { status: 401 }),
+      "flow.collect returned HTTP 401: nope",
     ],
     [
       new Response("<html>", { status: 200 }),
@@ -134,10 +134,39 @@ describe("runFlowTick", () => {
     ]);
   });
 
-  it("reports a non-Error throw", async () => {
-    const harness = harnessFor(env);
-    harness.post.mockRejectedValueOnce("socket closed");
+  it.each([
+    ["socket closed", "flow.collect unreachable: socket closed"],
+    [new Error("ECONNREFUSED"), "flow.collect unreachable: ECONNREFUSED"],
+  ])(
+    "skips without failing when the server is unreachable %#",
+    async (failure, message) => {
+      const harness = harnessFor(env);
+      harness.post.mockRejectedValueOnce(failure);
+      await expect(runFlowTick(harness.io)).resolves.toBe(0);
+      expect(harness.err).toEqual([
+        `flow tick skipped (retries next run): ${message}\n`,
+      ]);
+    }
+  );
+
+  it("skips without failing on a gateway error while the web app restarts", async () => {
+    const harness = harnessFor(
+      env,
+      new Response("bad gateway", { status: 502 })
+    );
+    await expect(runFlowTick(harness.io)).resolves.toBe(0);
+    expect(harness.err).toEqual([
+      "flow tick skipped (retries next run): flow.collect returned HTTP 502: bad gateway\n",
+    ]);
+  });
+
+  it("reports a non-Error failure", async () => {
+    const harness = harnessFor(env, {
+      ok: true,
+      status: 200,
+      text: () => Promise.reject("body lost"),
+    } as unknown as Response);
     await expect(runFlowTick(harness.io)).resolves.toBe(1);
-    expect(harness.err).toEqual(["flow tick failed: socket closed\n"]);
+    expect(harness.err).toEqual(["flow tick failed: body lost\n"]);
   });
 });

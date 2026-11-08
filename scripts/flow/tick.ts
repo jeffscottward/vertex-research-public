@@ -36,6 +36,13 @@ const CollectSchema = z.object({
   }),
 });
 
+/**
+ * The web app restarting (restart-when-idle deploys) or a gateway hiccup: the next minute's run
+ * retries, so the unit should not be marked failed (each failed QuantVPS unit opens a card).
+ */
+class TransientError extends Error {}
+const TRANSIENT_STATUSES = new Set([502, 503, 504]);
+
 const required = (
   env: FlowTickIo["env"],
   name: "VERTEX_ORIGIN" | "VERTEX_AGENT_API_KEY"
@@ -54,21 +61,31 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
     throw new Error(`unknown argument: ${unknown.join(" ")}`);
   const apiKey = required(io.env, "VERTEX_AGENT_API_KEY");
   const origin = new URL(required(io.env, "VERTEX_ORIGIN")).origin;
-  const response = await io.post(`${origin}/api/orpc/flow/collect`, {
-    body: JSON.stringify({
-      json: {
-        dryRun: io.argv.includes("--dry-run"),
-        seed: io.argv.includes("--seed"),
+  const response = await io
+    .post(`${origin}/api/orpc/flow/collect`, {
+      body: JSON.stringify({
+        json: {
+          dryRun: io.argv.includes("--dry-run"),
+          seed: io.argv.includes("--seed"),
+        },
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin,
+        "x-api-key": apiKey,
       },
-    }),
-    headers: {
-      "content-type": "application/json",
-      origin,
-      "x-api-key": apiKey,
-    },
-    method: "POST",
-  });
+      method: "POST",
+    })
+    .catch((error: unknown) => {
+      throw new TransientError(
+        `flow.collect unreachable: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
   const text = await response.text();
+  if (TRANSIENT_STATUSES.has(response.status))
+    throw new TransientError(
+      `flow.collect returned HTTP ${response.status}: ${text.slice(0, 300)}`
+    );
   if (!response.ok)
     throw new Error(
       `flow.collect returned HTTP ${response.status}: ${text.slice(0, 300)}`
@@ -110,6 +127,12 @@ export const runFlowTick = async (io: FlowTickIo): Promise<number> => {
     for (const line of await tick(io)) io.stdout.write(`${line}\n`);
     return 0;
   } catch (error) {
+    if (error instanceof TransientError) {
+      io.stderr.write(
+        `flow tick skipped (retries next run): ${error.message}\n`
+      );
+      return 0;
+    }
     io.stderr.write(
       `flow tick failed: ${error instanceof Error ? error.message : String(error)}\n`
     );

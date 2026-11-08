@@ -119,8 +119,10 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
 ## Deploy
 
 1. Merge, then deploy the app as in `infra/quantvps/README.md` (build on the rig, rsync `dist`,
-   `infra/quantvps/restart-when-idle.sh`), and run `bun run db:migrate` against the QuantVPS database
-   for migration 0052.
+   `infra/quantvps/restart-when-idle.sh`). Do not run `db:migrate` against the QuantVPS database (its
+   Drizzle ledger is incomplete): apply `packages/db/migrations/0052_flow_pipeline.sql` alone with
+   `psql -v ON_ERROR_STOP=1 --single-transaction` in the `vertex-postgres` container, then check
+   that the six `flow_*` tables exist and `vertex_research` has SELECT, INSERT, UPDATE and DELETE.
 2. Install the timer from a clean checkout of the deployed commit:
    `infra/flow/quantvps/install.sh` (needs `/etc/vertex-autopilot/autopilot.env` with an operator write
    key). `journalctl -u vertex-flow.service` shows each run.
