@@ -342,7 +342,7 @@ const fetchOptions = async (
     parseOptionPrints(page.data, instrument.symbol, instrument.optionsTicker)
   );
   const times = fetched.pages
-    .map((page) => oldestRowTime(page.data))
+    .map((page) => oldestRowTime(page.data, start, end))
     .filter((time) => time !== null)
     .map((time) => time.getTime());
   return {
@@ -660,10 +660,12 @@ const collectOptions = async (
     window,
     stored
   );
+  // After the close only gaps run: one that stopped without a print is a failed sample, so a gap
+  // that cannot be read shows on the freshness strip.
   if (
     !open &&
     resumed !== null &&
-    resumed.pages === 0 &&
+    resumed.prints === 0 &&
     resumed.error !== null
   )
     return failed(new Error(`gaps: ${resumed.error}`));

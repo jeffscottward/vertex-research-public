@@ -115,10 +115,13 @@ the window's prints, so no failure can move the newest stored print past an unre
 The same run then reads gaps, newest end first, with the rest of its 8 requests (none after a
 failed window page); a gap's prints are stored before its row changes, and one start is read once
 even when a quiet window queues it again. A gap read to its end is deleted. A capped one keeps its
-start and moves its end back to 1 ms after the oldest row fetched (rows that fail the print schema
-count, so a schema change cannot stall it): rows sharing that millisecond are read again whether
-QuantData treats `endTime` as inclusive or exclusive (stored print ids are skipped), and each resume
-moves at least 1 ms. A gap whose capped rows carry no trade time at all stays as it is. After
+start and moves its end back to 1 ms after the oldest trade time fetched inside the gap (rows that
+fail the print schema count; times outside the gap, such as a bad 0, are ignored): rows sharing that
+millisecond are read again whether QuantData treats `endTime` as inclusive or exclusive (stored
+print ids are skipped), and each resume moves at least 1 ms. A gap whose capped rows carry no
+usable trade time stays as it is and holds the gap budget (newest end first) until it can be read;
+after the close such a run records an `unavailable` options sample, so it shows on the freshness
+strip. After
 the options close (16:15 New York) the collector keeps reading gaps every ~2 minutes with all 8
 requests per symbol (about 12,000 prints per hour) until none are left; without gaps it answers
 "market closed" with no request. Gaps whose end is older than the 14-day retention are pruned. The

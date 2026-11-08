@@ -103,23 +103,28 @@ const toTime = (value: number | string): Date | null => {
 };
 
 /**
- * Oldest tradeTime among a page's rows, rows that fail the print schema included (the collector
- * resumes a capped range there even when its rows do not parse). Null: no row has a trade time.
+ * Oldest tradeTime among a page's rows that falls inside the queried range [start, end], rows that
+ * fail the print schema included (the collector resumes a capped range there even when its rows
+ * do not parse). Times outside the range (a bad 0, seconds instead of milliseconds, an invalid
+ * date) are ignored, so one bad row cannot move a resume point past unread rows. Null: no row has
+ * a usable trade time.
  */
-export const oldestRowTime = (data: unknown): Date | null => {
+export const oldestRowTime = (
+  data: unknown,
+  start: Date,
+  end: Date
+): Date | null => {
   let oldest: Date | null = null;
   for (const row of Array.isArray(data) ? data : []) {
     const value: unknown =
       typeof row === "object" && row !== null
         ? (row as Record<string, unknown>)["tradeTime"]
         : null;
-    if (
-      typeof value !== "number" &&
-      (typeof value !== "string" || value === "")
-    )
-      continue;
-    const time = toTime(value);
-    if (time !== null && (oldest === null || time < oldest)) oldest = time;
+    if (typeof value !== "number" && typeof value !== "string") continue;
+    const time = toTime(value)?.getTime() ?? Number.NaN;
+    // NaN (invalid dates) fails both comparisons.
+    if (!(time >= start.getTime() && time <= end.getTime())) continue;
+    if (oldest === null || time < oldest.getTime()) oldest = new Date(time);
   }
   return oldest;
 };

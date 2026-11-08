@@ -1222,6 +1222,66 @@ describe("runFlowCollect options gaps (page-cap resume)", () => {
     ]);
   });
 
+  it("ignores a bad trade time outside the gap when it resumes", async () => {
+    const stored = {
+      createdAt: OPEN,
+      endTime: new Date(OPEN.getTime() - 3_600_000),
+      startTime: new Date(OPEN.getTime() - 7_200_000),
+      symbol: "SPY" as const,
+    };
+    const at = new Date(OPEN.getTime() - 5_400_000);
+    const gaps = gapStore([stored]);
+    await collect(
+      depsWith({
+        quantData: fakeQuantData([
+          page([]),
+          ...Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page(
+              [
+                optionRow({ id: `b${i}`, tradeTime: at.getTime() }),
+                { broken: true, tradeTime: 0 },
+              ],
+              [i]
+            )
+          ),
+        ]),
+        repository: fakeRepository([], undefined, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(gaps.rows()).toStrictEqual([
+      { ...stored, endTime: new Date(at.getTime() + 1) },
+    ]);
+  });
+
+  it("records a gap that cannot be read after the close as unavailable", async () => {
+    const gaps = gapStore([
+      {
+        createdAt: OPEN,
+        endTime: new Date(CLOSE.getTime() - 60_000),
+        startTime: new Date(CLOSE.getTime() - 120_000),
+        symbol: "SPY",
+      },
+    ]);
+    const { run } = await collect(
+      depsWith({
+        now: CLOSE,
+        quantData: fakeQuantData(
+          Array.from({ length: FLOW_OPTION_RUN_PAGES_MAX }, (_, i) =>
+            page([{ broken: true }], [i])
+          )
+        ),
+        repository: fakeRepository([], undefined, gaps),
+      }),
+      { symbols: ["SPY"] }
+    );
+    expect(run("SPY", "options")).toMatchObject({
+      message: "gaps: capped pages held no trade time",
+      status: "unavailable",
+    });
+    expect(gaps.rows()).toHaveLength(1);
+  });
+
   it("closes a single-millisecond gap whose capped pages leave nothing older", async () => {
     const at = new Date(OPEN.getTime() - 60_000);
     const gaps = gapStore([
