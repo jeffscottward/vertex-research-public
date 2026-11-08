@@ -28,14 +28,7 @@ import type {
   ReadNativeModelPrivacyReviewRequestOutputSchema,
 } from "../contracts/vertex-model-privacy-rendezvous.ts";
 import { VertexResearchChatErrors } from "../contracts/vertex-research-chat.ts";
-import {
-  VERTEX_WORKER_SERVICE_ERRORS,
-  type VertexWorkerMethod,
-  type VertexWorkerOutput,
-  type VertexWorkerServiceErrorCode,
-} from "../contracts/vertex-worker-rpc.ts";
 import { generatedFeatureRouters } from "../generated/router-registry.ts";
-import { academyRouter } from "./academy.ts";
 import {
   AccountServiceError,
   type AccountServiceErrorCode,
@@ -46,21 +39,22 @@ import {
   type AdminUsersServiceErrorCode,
   createAdminUsersService,
 } from "./admin-users-service.ts";
-import { agentApiKeysRouter } from "./agent-api-keys.ts";
-import { agentModelRunsRouter } from "./agent-model-runs.ts";
-import { agentOpsRouter, papersRouter } from "./agent-ops.ts";
-import { assistantRouter } from "./assistant.ts";
-import { autopilotRouter } from "./autopilot.ts";
-import { backtestRunEngineRouter } from "./backtest-run-engine.ts";
-import { backtestRunsRouter } from "./backtest-runs.ts";
-import { basketsRouter } from "./baskets.ts";
-import { clickLogRouter } from "./click-log.ts";
-import { congressTradesRouter } from "./congress-trades.ts";
 import {
   ContactServiceError,
   type ContactServiceErrorCode,
   createContactService,
 } from "./contact-service.ts";
+import { agentApiKeysRouter } from "./agent-api-keys.ts";
+import { agentOpsRouter, papersRouter } from "./agent-ops.ts";
+import { agentModelRunsRouter } from "./agent-model-runs.ts";
+import { assistantRouter } from "./assistant.ts";
+import { portfolioMonitorRouter } from "./portfolio-monitor.ts";
+import { enginesRouter } from "./engines.ts";
+import { marketContextRouter } from "./market-context.ts";
+import { ibkrMonitorRouter } from "./ibkr-monitor.ts";
+import { ibkrRecoveryRouter } from "./ibkr-recovery.ts";
+import { nautilusArmRouter } from "./nautilus-arm.ts";
+import { vertexOrdersRouter } from "./vertex-orders.ts";
 import type { ApiContext } from "./context.ts";
 import {
   createDashboardService,
@@ -68,31 +62,29 @@ import {
   type DashboardServiceErrorCode,
 } from "./dashboard-service.ts";
 import { deploymentRequestsRouter } from "./deployment-requests.ts";
+import { backtestRunEngineRouter } from "./backtest-run-engine.ts";
+import { backtestRunsRouter } from "./backtest-runs.ts";
 import { engineComparisonsRouter } from "./engine-comparison.ts";
-import { enginesRouter } from "./engines.ts";
-import { flowRouter } from "./flow.ts";
 import { forwardDriftRouter } from "./forward-drift.ts";
-import { ibkrMonitorRouter } from "./ibkr-monitor.ts";
-import { ibkrRecoveryRouter } from "./ibkr-recovery.ts";
+import { strategyDefinitionsRouter } from "./strategy-definitions.ts";
+import { autopilotRouter } from "./autopilot.ts";
+import { academyRouter } from "./academy.ts";
 import { instantBacktestRouter } from "./instant-backtest.ts";
-import { jevVerdictRouter } from "./jev-verdict.ts";
-import { marketContextRouter } from "./market-context.ts";
-import { marketDataRouter } from "./market-data.ts";
-import { marketNewsRouter } from "./market-news.ts";
-import { nautilusArmRouter } from "./nautilus-arm.ts";
-import { optimizationsRouter } from "./optimizations.ts";
-import { optionsAnalyticsRouter } from "./options-analytics.ts";
-import { optionsChainRouter } from "./options-chain.ts";
-import { pickListsRouter } from "./pick-lists.ts";
 import { playsRouter } from "./plays.ts";
-import { portfolioMonitorRouter } from "./portfolio-monitor.ts";
-import { priceAlertsRouter } from "./price-alerts.ts";
-import { quantLabRouter } from "./quant-lab.ts";
+import { setupReplayRouter } from "./setup-replay.ts";
 import { researchLensesRouter } from "./research-lenses.ts";
+import { congressTradesRouter } from "./congress-trades.ts";
+import { riskAllocatorRouter } from "./risk-allocator.ts";
+import { marketDataRouter } from "./market-data.ts";
+import { optionsAnalyticsRouter } from "./options-analytics.ts";
+import { jevVerdictRouter } from "./jev-verdict.ts";
+import { optionsChainRouter } from "./options-chain.ts";
+import { optimizationsRouter } from "./optimizations.ts";
+import { quantLabRouter } from "./quant-lab.ts";
 import { researchReportsRouter } from "./research-reports.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
-import { riskAllocatorRouter } from "./risk-allocator.ts";
-import { sectorRotationRouter } from "./sector-rotation.ts";
+import { flowRouter } from "./flow.ts";
+import { clickLogRouter } from "./click-log.ts";
 import {
   createFeatureItemService,
   createThemePreferenceService,
@@ -101,18 +93,14 @@ import {
   ThemePreferenceServiceError,
   type ThemePreferenceServiceErrorCode,
 } from "./service.ts";
-import { setupReplayRouter } from "./setup-replay.ts";
-import { strategyDefinitionsRouter } from "./strategy-definitions.ts";
 import { strategyLibraryRouter } from "./strategy-library.ts";
-import { todosRouter } from "./todos.ts";
 import { createVertexChartReadService } from "./vertex-chart-service.ts";
+import { createVertexExperienceService } from "./vertex-experience-service.ts";
 import {
   type VertexExperienceErrorCode,
   VertexExperienceServiceError,
 } from "./vertex-experience-core.ts";
-import { createVertexExperienceService } from "./vertex-experience-service.ts";
 import { VertexLocalSetupError } from "./vertex-local-setup.ts";
-import { vertexOrdersRouter } from "./vertex-orders.ts";
 import {
   appendResearchChatResponse,
   approveAndRequestResearchChatDebateStep,
@@ -140,9 +128,21 @@ import {
   VertexReadServiceError,
   type VertexReadServiceErrorCode,
 } from "./vertex-service.ts";
-import { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
 import { createVertexWorkerService } from "./vertex-worker-service.ts";
+import {
+  VERTEX_WORKER_SERVICE_ERRORS,
+  type VertexWorkerMethod,
+  type VertexWorkerOutput,
+  type VertexWorkerServiceErrorCode,
+} from "../contracts/vertex-worker-rpc.ts";
+import { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
+import { todosRouter } from "./todos.ts";
 import { watchlistRouter } from "./watchlist.ts";
+import { priceAlertsRouter } from "./price-alerts.ts";
+import { sectorRotationRouter } from "./sector-rotation.ts";
+import { marketNewsRouter } from "./market-news.ts";
+import { basketsRouter } from "./baskets.ts";
+import { pickListsRouter } from "./pick-lists.ts";
 
 const api = implement(appContract).$context<ApiContext>();
 
@@ -224,25 +224,25 @@ const emitContactSubmittedEvent = async (
   if (context.semanticEvents === undefined) return;
   try {
     const event: SemanticEvent = {
-      action: "submit",
-      attributes: {
-        delivered: result.status === "sent",
-        honeypot: Boolean(input.website?.trim()),
-        previewed: result.status === "previewed",
-        sent: result.status === "sent",
-      },
-      correlation: {
-        ...(context.span?.correlation ?? {}),
-        procedure: "contact.submit",
-        requestId: context.requestId,
-        route: "/api/orpc/contact/submit",
-      },
-      entityType: "contact-request",
       eventId: crypto.randomUUID(),
       name: "contact.submitted",
       occurredAt: new Date().toISOString(),
+      correlation: {
+        ...(context.span?.correlation ?? {}),
+        requestId: context.requestId,
+        route: "/api/orpc/contact/submit",
+        procedure: "contact.submit",
+      },
+      action: "submit",
+      entityType: "contact-request",
       outcome: result.status === "not-delivered" ? "failure" : "success",
       source: "api",
+      attributes: {
+        sent: result.status === "sent",
+        previewed: result.status === "previewed",
+        delivered: result.status === "sent",
+        honeypot: Boolean(input.website?.trim()),
+      },
     };
     await context.semanticEvents.emit(event, {
       ...(context.span === undefined ? {} : { span: context.span }),
@@ -256,16 +256,16 @@ const emitContactSubmittedEvent = async (
 };
 
 const toContractAddress = (address: Address) => ({
-  city: address.city,
-  country: address.country,
-  createdAt: address.createdAt,
   id: address.id,
-  isPrimary: address.isPrimary,
+  type: address.type,
   line1: address.line1,
   line2: address.line2,
-  postalCode: address.postalCode,
+  city: address.city,
   region: address.region,
-  type: address.type,
+  postalCode: address.postalCode,
+  country: address.country,
+  isPrimary: address.isPrimary,
+  createdAt: address.createdAt,
   updatedAt: address.updatedAt,
 });
 
@@ -297,22 +297,22 @@ const emitAccountMutationEvent = async (
   if (context.semanticEvents === undefined) return;
   try {
     const event: SemanticEvent = {
-      action: spec.action,
-      correlation: {
-        ...(context.span?.correlation ?? {}),
-        actorId: principal.userId,
-        procedure: spec.procedure,
-        requestId: context.requestId,
-        route: `/api/orpc/${spec.procedure.replaceAll(".", "/")}`,
-      },
-      entityType: spec.entityType,
       eventId: crypto.randomUUID(),
       name: spec.name,
       occurredAt: new Date().toISOString(),
+      correlation: {
+        ...(context.span?.correlation ?? {}),
+        requestId: context.requestId,
+        actorId: principal.userId,
+        route: `/api/orpc/${spec.procedure.replaceAll(".", "/")}`,
+        procedure: spec.procedure,
+      },
+      action: spec.action,
+      entityType: spec.entityType,
       ...(spec.entityId === undefined ? {} : { entityId: spec.entityId }),
-      attributes: { actorRole: principal.role },
       outcome: "success",
       source: "api",
+      attributes: { actorRole: principal.role },
     };
     await context.semanticEvents.emit(event, {
       ...(context.span === undefined ? {} : { span: context.span }),
@@ -360,17 +360,17 @@ const emitMutationEvent = async (
   try {
     if (context.semanticEvents === undefined) return;
     const event: SemanticEvent = {
-      action: spec.action,
-      correlation: {
-        ...(context.span?.correlation ?? {}),
-        actorId: principal.userId,
-        procedure: spec.procedure,
-        requestId: context.requestId,
-        route: spec.route,
-      },
       eventId: crypto.randomUUID(),
       name: spec.name,
       occurredAt: new Date().toISOString(),
+      correlation: {
+        ...(context.span?.correlation ?? {}),
+        requestId: context.requestId,
+        actorId: principal.userId,
+        route: spec.route,
+        procedure: spec.procedure,
+      },
+      action: spec.action,
       ...(entityId === undefined ? {} : { entityId }),
       entityType: "feature-item",
       outcome,
@@ -423,18 +423,18 @@ const emitThemeUpdateEvent = async (
   try {
     if (context.semanticEvents === undefined) return;
     const event: SemanticEvent = {
-      action: "update",
-      correlation: {
-        ...(context.span?.correlation ?? {}),
-        actorId: principal.userId,
-        procedure: "preferences.theme.update",
-        requestId: context.requestId,
-        route: "/api/orpc/preferences/theme/update",
-      },
-      entityType: "user-preferences",
       eventId: crypto.randomUUID(),
       name: "user-preferences.theme-updated",
       occurredAt: new Date().toISOString(),
+      correlation: {
+        ...(context.span?.correlation ?? {}),
+        requestId: context.requestId,
+        actorId: principal.userId,
+        route: "/api/orpc/preferences/theme/update",
+        procedure: "preferences.theme.update",
+      },
+      action: "update",
+      entityType: "user-preferences",
       outcome,
       source: "api",
       ...(error === undefined
@@ -489,8 +489,8 @@ const requireAuthenticated = api.middleware(
       const session = await context.requireSession();
       return next({
         context: {
-          authSession: session,
           principal: session.principal,
+          authSession: session,
         },
       });
     } catch (error) {
@@ -563,10 +563,10 @@ const create = api.featureItems.create
           context,
           context.principal,
           {
-            action: "create",
             name: "feature-item.created",
             procedure: "featureItems.create",
             route: "/api/orpc/featureItems/create",
+            action: "create",
           },
           () => service.create(context.principal, input, context.requestId)
         )
@@ -588,11 +588,11 @@ const update = api.featureItems.update
           context,
           context.principal,
           {
-            action: "update",
-            entityId: input.id,
             name: "feature-item.updated",
             procedure: "featureItems.update",
             route: "/api/orpc/featureItems/update",
+            action: "update",
+            entityId: input.id,
           },
           () => service.update(context.principal, input, context.requestId)
         )
@@ -614,11 +614,11 @@ const changeStatus = api.featureItems.changeStatus
           context,
           context.principal,
           {
-            action: "change-status",
-            entityId: input.id,
             name: "feature-item.updated",
             procedure: "featureItems.changeStatus",
             route: "/api/orpc/featureItems/changeStatus",
+            action: "change-status",
+            entityId: input.id,
           },
           () =>
             service.changeStatus(context.principal, input, context.requestId)
@@ -641,11 +641,11 @@ const archive = api.featureItems.archive
           context,
           context.principal,
           {
-            action: "archive",
-            entityId: input.id,
             name: "feature-item.archived",
             procedure: "featureItems.archive",
             route: "/api/orpc/featureItems/archive",
+            action: "archive",
+            entityId: input.id,
           },
           () => service.archive(context.principal, input, context.requestId)
         )
@@ -718,10 +718,10 @@ const accountProfileUpdate = api.account.profile.update
         context.repositories
       ).updateProfile(context.authSession, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "update",
-        entityType: "profile",
         name: "account.profile.updated",
         procedure: "account.profile.update",
+        action: "update",
+        entityType: "profile",
       });
       return result;
     } catch (error) {
@@ -750,11 +750,11 @@ const accountAddressesCreate = api.account.addresses.create
         context.repositories
       ).createAddress(context.principal, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "create",
-        entityId: address.id,
-        entityType: "address",
         name: "account.address.created",
         procedure: "account.addresses.create",
+        action: "create",
+        entityType: "address",
+        entityId: address.id,
       });
       return toContractAddress(address);
     } catch (error) {
@@ -770,11 +770,11 @@ const accountAddressesUpdate = api.account.addresses.update
         context.repositories
       ).updateAddress(context.principal, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "update",
-        entityId: address.id,
-        entityType: "address",
         name: "account.address.updated",
         procedure: "account.addresses.update",
+        action: "update",
+        entityType: "address",
+        entityId: address.id,
       });
       return toContractAddress(address);
     } catch (error) {
@@ -790,11 +790,11 @@ const accountAddressesRemove = api.account.addresses.remove
         context.repositories
       ).removeAddress(context.principal, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "remove",
-        entityId: input.id,
-        entityType: "address",
         name: "account.address.removed",
         procedure: "account.addresses.remove",
+        action: "remove",
+        entityType: "address",
+        entityId: input.id,
       });
       return result;
     } catch (error) {
@@ -810,11 +810,11 @@ const accountAddressesSetPrimary = api.account.addresses.setPrimary
         context.repositories
       ).setPrimaryAddress(context.principal, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "set-primary",
-        entityId: address.id,
-        entityType: "address",
         name: "account.address.primary-set",
         procedure: "account.addresses.setPrimary",
+        action: "set-primary",
+        entityType: "address",
+        entityId: address.id,
       });
       return toContractAddress(address);
     } catch (error) {
@@ -842,10 +842,10 @@ const preferencesUpdate = api.preferences.update
         context.repositories
       ).updatePreferences(context.principal, input);
       await emitAccountMutationEvent(context, context.principal, {
-        action: "update",
-        entityType: "user-preferences",
         name: "user-preferences.updated",
         procedure: "preferences.update",
+        action: "update",
+        entityType: "user-preferences",
       });
       return result;
     } catch (error) {
@@ -898,16 +898,16 @@ const dashboardSummary = api.dashboard.summary
       ).summary(context.principal);
       return {
         ...summary,
-        featureItems: {
-          ...summary.featureItems,
-          recent: toContractItems(summary.featureItems.recent),
-        },
         session: {
-          expiresAt: context.authSession.session.expiresAt,
+          userId: context.authSession.principal.userId,
           name: context.authSession.user.name,
           role: context.authSession.principal.role,
           status: "active",
-          userId: context.authSession.principal.userId,
+          expiresAt: context.authSession.session.expiresAt,
+        },
+        featureItems: {
+          ...summary.featureItems,
+          recent: toContractItems(summary.featureItems.recent),
         },
       };
     } catch (error) {
@@ -1547,52 +1547,121 @@ const invokeVertexWorker = async <M extends VertexWorkerMethod>(
 
 const worker = api.vertexWorker;
 const vertexWorkerRouter = {
-  acceptedEvidence: worker.acceptedEvidence.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "acceptedEvidence", input, errors)
+  claim: worker.claim.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "claim", input, errors)
   ),
-  acceptedEvidenceObservation: worker.acceptedEvidenceObservation.handler(
+  renew: worker.renew.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "renew", input, errors)
+  ),
+  complete: worker.complete.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "complete", input, errors)
+  ),
+  cancel: worker.cancel.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "cancel", input, errors)
+  ),
+  status: worker.status.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "status", input, errors)
+  ),
+  admitRun: worker.admitRun.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "admitRun", input, errors)
+  ),
+  readArtifact: worker.readArtifact.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readArtifact", input, errors)
+  ),
+  readExperiment: worker.readExperiment.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readExperiment", input, errors)
+  ),
+  readBacktestRun: worker.readBacktestRun.handler(
     ({ context, input, errors }) =>
-      invokeVertexWorker(context, "acceptedEvidenceObservation", input, errors)
+      invokeVertexWorker(context, "readBacktestRun", input, errors)
+  ),
+  readDataset: worker.readDataset.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readDataset", input, errors)
+  ),
+  stageArtifact: worker.stageArtifact.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "stageArtifact", input, errors)
+  ),
+  publishArtifact: worker.publishArtifact.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishArtifact", input, errors)
+  ),
+  publishAgent: worker.publishAgent.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "publishAgent", input, errors)
+  ),
+  publishExperiment: worker.publishExperiment.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishExperiment", input, errors)
+  ),
+  publishCollection: worker.publishCollection.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishCollection", input, errors)
   ),
   activateCollection: worker.activateCollection.handler(
     ({ context, input, errors }) =>
       invokeVertexWorker(context, "activateCollection", input, errors)
   ),
-  admitRun: worker.admitRun.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "admitRun", input, errors)
-  ),
-  cancel: worker.cancel.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "cancel", input, errors)
-  ),
-  claim: worker.claim.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "claim", input, errors)
-  ),
-  complete: worker.complete.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "complete", input, errors)
-  ),
-  currentModelUse: worker.currentModelUse.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "currentModelUse", input, errors)
-  ),
-  currentPaperAdmission: worker.currentPaperAdmission.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "currentPaperAdmission", input, errors)
+  readCollection: worker.readCollection.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readCollection", input, errors)
   ),
   currentRights: worker.currentRights.handler(({ context, input, errors }) =>
     invokeVertexWorker(context, "currentRights", input, errors)
+  ),
+  acceptedEvidence: worker.acceptedEvidence.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "acceptedEvidence", input, errors)
   ),
   currentRightsObservation: worker.currentRightsObservation.handler(
     ({ context, input, errors }) =>
       invokeVertexWorker(context, "currentRightsObservation", input, errors)
   ),
+  acceptedEvidenceObservation: worker.acceptedEvidenceObservation.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "acceptedEvidenceObservation", input, errors)
+  ),
+  publishGenesis: worker.publishGenesis.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "publishGenesis", input, errors)
+  ),
+  publishOrderProjection: worker.publishOrderProjection.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishOrderProjection", input, errors)
+  ),
+  publishNativeFacts: worker.publishNativeFacts.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishNativeFacts", input, errors)
+  ),
+  readContinuity: worker.readContinuity.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readContinuity", input, errors)
+  ),
+  readiness: worker.readiness.handler(({ context, input, errors }) =>
+    invokeVertexWorker(context, "readiness", input, errors)
+  ),
   policySelection: worker.policySelection.handler(
     ({ context, input, errors }) =>
       invokeVertexWorker(context, "policySelection", input, errors)
   ),
+  currentPaperAdmission: worker.currentPaperAdmission.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "currentPaperAdmission", input, errors)
+  ),
+  publishPortfolioSnapshot: worker.publishPortfolioSnapshot.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishPortfolioSnapshot", input, errors)
+  ),
+  currentModelUse: worker.currentModelUse.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "currentModelUse", input, errors)
+  ),
+  publishEpochTransition: worker.publishEpochTransition.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "publishEpochTransition", input, errors)
+  ),
   prepareModelPrivacyReview: worker.prepareModelPrivacyReview.handler(
     ({ context, input, errors }) =>
       invokeVertexWorker(context, "prepareModelPrivacyReview", input, errors)
+  ),
+  readModelPrivacyReview: worker.readModelPrivacyReview.handler(
+    ({ context, input, errors }) =>
+      invokeVertexWorker(context, "readModelPrivacyReview", input, errors)
   ),
   prepareNativeEvidencePhaseTwo: worker.prepareNativeEvidencePhaseTwo.handler(
     ({ context, input, errors }) =>
@@ -1603,78 +1672,9 @@ const vertexWorkerRouter = {
         errors
       )
   ),
-  publishAgent: worker.publishAgent.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "publishAgent", input, errors)
-  ),
-  publishArtifact: worker.publishArtifact.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishArtifact", input, errors)
-  ),
-  publishCollection: worker.publishCollection.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishCollection", input, errors)
-  ),
-  publishEpochTransition: worker.publishEpochTransition.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishEpochTransition", input, errors)
-  ),
-  publishExperiment: worker.publishExperiment.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishExperiment", input, errors)
-  ),
-  publishGenesis: worker.publishGenesis.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "publishGenesis", input, errors)
-  ),
-  publishNativeFacts: worker.publishNativeFacts.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishNativeFacts", input, errors)
-  ),
-  publishOrderProjection: worker.publishOrderProjection.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishOrderProjection", input, errors)
-  ),
-  publishPortfolioSnapshot: worker.publishPortfolioSnapshot.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "publishPortfolioSnapshot", input, errors)
-  ),
-  readArtifact: worker.readArtifact.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readArtifact", input, errors)
-  ),
-  readBacktestRun: worker.readBacktestRun.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "readBacktestRun", input, errors)
-  ),
-  readCollection: worker.readCollection.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readCollection", input, errors)
-  ),
-  readContinuity: worker.readContinuity.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readContinuity", input, errors)
-  ),
-  readDataset: worker.readDataset.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readDataset", input, errors)
-  ),
-  readExperiment: worker.readExperiment.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readExperiment", input, errors)
-  ),
-  readiness: worker.readiness.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "readiness", input, errors)
-  ),
-  readModelPrivacyReview: worker.readModelPrivacyReview.handler(
-    ({ context, input, errors }) =>
-      invokeVertexWorker(context, "readModelPrivacyReview", input, errors)
-  ),
-  renew: worker.renew.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "renew", input, errors)
-  ),
   replayNativeOutbox: worker.replayNativeOutbox.handler(
     ({ context, input, errors }) =>
       invokeVertexWorker(context, "replayNativeOutbox", input, errors)
-  ),
-  stageArtifact: worker.stageArtifact.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "stageArtifact", input, errors)
-  ),
-  status: worker.status.handler(({ context, input, errors }) =>
-    invokeVertexWorker(context, "status", input, errors)
   ),
 };
 
@@ -1691,126 +1691,126 @@ const localSetupInitialize = api.vertex.localSetup.initialize
   });
 
 export const appRouter = api.router({
-  featureItems: { archive, changeStatus, create, get, list, update },
+  featureItems: { list, get, create, update, changeStatus, archive },
   ...generatedFeatureRouters,
-  academy: academyRouter,
+  contact: { submit: contactSubmit },
   account: {
+    profile: { get: accountProfileGet, update: accountProfileUpdate },
     addresses: {
-      create: accountAddressesCreate,
       list: accountAddressesList,
+      create: accountAddressesCreate,
+      update: accountAddressesUpdate,
       remove: accountAddressesRemove,
       setPrimary: accountAddressesSetPrimary,
-      update: accountAddressesUpdate,
     },
-    profile: { get: accountProfileGet, update: accountProfileUpdate },
   },
   admin: {
     featureItems: { list: adminList },
     users: { list: adminUsersList },
   },
-  agentApiKeys: agentApiKeysRouter,
-  agentModelRuns: agentModelRunsRouter,
-  agentOps: { ...agentOpsRouter, optimizations: optimizationsRouter },
-  assistant: assistantRouter,
-  autopilot: autopilotRouter,
-  backtestRuns: {
-    ...backtestRunsRouter,
-    comparisons: engineComparisonsRouter,
-    definitions: strategyDefinitionsRouter,
-    drift: forwardDriftRouter,
-    engine: backtestRunEngineRouter,
-  },
-  baskets: basketsRouter,
-  clickLog: clickLogRouter,
-  congressTrades: congressTradesRouter,
-  contact: { submit: contactSubmit },
-  dashboard: { summary: dashboardSummary },
-  deploymentRequests: deploymentRequestsRouter,
-  engines: enginesRouter,
-  flow: flowRouter,
-  ibkrMonitor: ibkrMonitorRouter,
-  ibkrRecovery: ibkrRecoveryRouter,
-  instantBacktest: instantBacktestRouter,
-  jevVerdict: jevVerdictRouter,
-  marketContext: marketContextRouter,
-  marketData: marketDataRouter,
-  marketNews: marketNewsRouter,
-  nautilusArm: nautilusArmRouter,
-  optionsAnalytics: optionsAnalyticsRouter,
-  optionsChain: optionsChainRouter,
-  papers: papersRouter,
-  pickLists: pickListsRouter,
-  plays: playsRouter,
-  portfolioMonitor: portfolioMonitorRouter,
   preferences: {
     get: preferencesGet,
-    theme: { get: themeGet, update: themeUpdate },
     update: preferencesUpdate,
+    theme: { get: themeGet, update: themeUpdate },
   },
+  dashboard: { summary: dashboardSummary },
+  watchlist: watchlistRouter,
   priceAlerts: priceAlertsRouter,
+  sectorRotation: sectorRotationRouter,
+  marketNews: marketNewsRouter,
+  baskets: basketsRouter,
+  pickLists: pickListsRouter,
+  todos: todosRouter,
+  agentOps: { ...agentOpsRouter, optimizations: optimizationsRouter },
   quantLab: quantLabRouter,
-  researchLenses: researchLensesRouter,
   researchReports: researchReportsRouter,
   researchStudies: researchStudiesRouter,
-  riskAllocator: riskAllocatorRouter,
-  sectorRotation: sectorRotationRouter,
-  setupReplay: setupReplayRouter,
+  flow: flowRouter,
+  clickLog: clickLogRouter,
+  papers: papersRouter,
+  agentModelRuns: agentModelRunsRouter,
+  agentApiKeys: agentApiKeysRouter,
   strategyLibrary: strategyLibraryRouter,
-  todos: todosRouter,
+  deploymentRequests: deploymentRequestsRouter,
+  marketData: marketDataRouter,
+  optionsAnalytics: optionsAnalyticsRouter,
+  jevVerdict: jevVerdictRouter,
+  optionsChain: optionsChainRouter,
+  instantBacktest: instantBacktestRouter,
+  setupReplay: setupReplayRouter,
+  plays: playsRouter,
+  academy: academyRouter,
+  backtestRuns: {
+    ...backtestRunsRouter,
+    definitions: strategyDefinitionsRouter,
+    drift: forwardDriftRouter,
+    comparisons: engineComparisonsRouter,
+    engine: backtestRunEngineRouter,
+  },
+  autopilot: autopilotRouter,
+  researchLenses: researchLensesRouter,
+  congressTrades: congressTradesRouter,
+  riskAllocator: riskAllocatorRouter,
+  portfolioMonitor: portfolioMonitorRouter,
+  ibkrMonitor: ibkrMonitorRouter,
+  engines: enginesRouter,
+  marketContext: marketContextRouter,
+  ibkrRecovery: ibkrRecoveryRouter,
+  nautilusArm: nautilusArmRouter,
+  vertexOrders: vertexOrdersRouter,
+  assistant: assistantRouter,
+  vertexWorker: vertexWorkerRouter,
   vertex: {
-    experience: {
-      agent: experienceAgent,
-      agents: experienceAgents,
-      audit: experienceAudit,
-      continuity: experienceContinuity,
-      decideReview: experienceDecideReview,
-      dossier: experienceDossier,
-      gateway: experienceGateway,
-      gateways: experienceGateways,
-      inbox: experienceInbox,
-      portfolio: experiencePortfolio,
-      proposeResearch: experienceProposeResearch,
-      proposeSimulation: experienceProposeSimulation,
-      scopes: experienceScopes,
-      strategies: experienceStrategies,
-    },
-    localSetup: { initialize: localSetupInitialize },
     modules: { list: vertexModulesList },
+    scoped: { modules: scopedModules },
     notifications: { delivery: notificationDelivery },
+    localSetup: { initialize: localSetupInitialize },
     researchChat: {
-      appendResponse: researchChatAppendResponse,
-      approveAndRequestDebateStep: researchChatApproveAndRequestDebateStep,
+      roster: researchChatRoster,
+      listThreads: researchChatListThreads,
+      createThread: researchChatCreateThread,
+      readThread: researchChatReadThread,
+      listMessages: researchChatListMessages,
+      sendMessage: researchChatSendMessage,
+      readTranscriptPage: researchChatReadTranscriptPage,
+      requestResponse: researchChatRequestResponse,
+      readResponse: researchChatReadResponse,
+      prepareResponse: researchChatPrepareResponse,
+      approveAndRequestResponse: researchChatApproveAndRequestResponse,
+      prepareNativeEvidence: researchChatPrepareNativeEvidence,
       approveAndRequestNativeEvidence:
         researchChatApproveAndRequestNativeEvidence,
-      approveAndRequestResponse: researchChatApproveAndRequestResponse,
-      createThread: researchChatCreateThread,
-      listMessages: researchChatListMessages,
-      listThreads: researchChatListThreads,
       prepareDebateStep: researchChatPrepareDebateStep,
-      prepareNativeEvidence: researchChatPrepareNativeEvidence,
-      prepareResponse: researchChatPrepareResponse,
-      readCopyCleanup: researchChatReadCopyCleanup,
+      approveAndRequestDebateStep: researchChatApproveAndRequestDebateStep,
       readDebateRun: researchChatReadDebateRun,
+      appendResponse: researchChatAppendResponse,
+      readResponseContent: researchChatReadResponseContent,
       readModelPrivacyReviewRequest: researchChatReadModelPrivacyReviewRequest,
+      recordModelPrivacyReview: researchChatRecordModelPrivacyReview,
       readNativeModelPrivacyReviewRequest:
         researchChatReadNativeModelPrivacyReviewRequest,
-      readResponse: researchChatReadResponse,
-      readResponseContent: researchChatReadResponseContent,
-      readThread: researchChatReadThread,
-      readTranscriptPage: researchChatReadTranscriptPage,
-      recordModelPrivacyReview: researchChatRecordModelPrivacyReview,
       recordNativeModelPrivacyReview:
         researchChatRecordNativeModelPrivacyReview,
       requestCopyCleanup: researchChatRequestCopyCleanup,
-      requestResponse: researchChatRequestResponse,
-      roster: researchChatRoster,
-      sendMessage: researchChatSendMessage,
+      readCopyCleanup: researchChatReadCopyCleanup,
     },
-    scoped: { modules: scopedModules },
+    experience: {
+      scopes: experienceScopes,
+      portfolio: experiencePortfolio,
+      continuity: experienceContinuity,
+      inbox: experienceInbox,
+      strategies: experienceStrategies,
+      dossier: experienceDossier,
+      agents: experienceAgents,
+      agent: experienceAgent,
+      audit: experienceAudit,
+      gateways: experienceGateways,
+      gateway: experienceGateway,
+      decideReview: experienceDecideReview,
+      proposeResearch: experienceProposeResearch,
+      proposeSimulation: experienceProposeSimulation,
+    },
   },
-  vertexOrders: vertexOrdersRouter,
-  vertexWorker: vertexWorkerRouter,
-  watchlist: watchlistRouter,
 });
 
 export type AuthenticatedApiContext = ApiContext &

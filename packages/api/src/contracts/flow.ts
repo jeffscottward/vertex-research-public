@@ -129,6 +129,8 @@ export const FlowCollectRunSchema = z
 export const FlowCollectOutputSchema = z
   .object({
     at: timestamp,
+    /** true: another collect run was still active in this server, so this one did nothing. */
+    busy: z.boolean(),
     dryRun: z.boolean(),
     runs: z.array(FlowCollectRunSchema),
     /** Rows removed by the retention rule (14 days). */
@@ -290,7 +292,7 @@ export const FlowGexSchema = z
   })
   .strict();
 
-export const FlowEventSchema = z
+export const FlowSnapshotEventSchema = z
   .object({
     at: timestamp,
     kind: z.enum(FLOW_EVENT_KINDS),
@@ -337,7 +339,7 @@ export const FlowSnapshotSchema = z
     orderFlow: FlowOrderFlowSummarySchema,
     optionsFlow: FlowOptionsSummarySchema,
     gex: FlowGexSchema.nullable(),
-    events: z.array(FlowEventSchema).max(FLOW_SNAPSHOT_MAX_EVENTS),
+    events: z.array(FlowSnapshotEventSchema).max(FLOW_SNAPSHOT_MAX_EVENTS),
     confluence: FlowConfluenceSchema,
     notes: z.array(text(300)),
   })
@@ -393,6 +395,6 @@ export type FlowOrderFlowSummary = z.infer<typeof FlowOrderFlowSummarySchema>;
 export type FlowOptionsSummary = z.infer<typeof FlowOptionsSummarySchema>;
 export type FlowOptionPrintView = z.infer<typeof FlowOptionPrintViewSchema>;
 export type FlowGex = z.infer<typeof FlowGexSchema>;
-export type FlowEvent = z.infer<typeof FlowEventSchema>;
+export type FlowSnapshotEvent = z.infer<typeof FlowSnapshotEventSchema>;
 export type FlowFactor = z.infer<typeof FlowFactorSchema>;
 export type FlowConfluence = z.infer<typeof FlowConfluenceSchema>;

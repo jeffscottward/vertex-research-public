@@ -16,7 +16,9 @@ per-minute features and events in Postgres. The `/flow` page and the agent read 
 | GEX | QuantData chain + open interest, same estimate as `/charts` | `flow_gex` (regime, flip, walls, max pain, DEX, 0DTE share, IV regime, basis) | about every 14 minutes |
 
 Every attempt writes one `flow_samples` row (status `ok`, `empty`, `unavailable` or `skipped`, with
-a message), which drives the freshness strip. Rows older than 14 days are pruned once an hour.
+a message), which drives the freshness strip. Rows older than 14 days are pruned at most once an
+hour. The server runs one collect at a time; an overlapping call (a manual or seed run during a timer
+run) answers `busy: true` and does nothing, so the IBKR budget is never spent twice.
 
 Code:
 
@@ -111,7 +113,10 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
 2. Install the timer from a clean checkout of the deployed commit:
    `infra/flow/quantvps/install.sh` (needs `/etc/vertex-autopilot/autopilot.env` with an operator write
    key). `journalctl -u vertex-flow.service` shows each run.
-3. Rollback: disable `vertex-flow.timer`; the tables can stay (`flow.snapshot` then shows stale data).
+3. Optional on a weekend or after an outage: one operator backfill so the page shows the last
+   session, `bun run vertex:flow:tick --seed` with the operator write key (no session or due checks,
+   options look-back 72 h; the IBKR budget check still applies).
+4. Rollback: disable `vertex-flow.timer`; the tables can stay (`flow.snapshot` then shows stale data).
 
 ## Agent semantic layer
 

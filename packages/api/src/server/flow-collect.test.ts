@@ -12,7 +12,6 @@ import {
   FLOW_OPTION_LOOKBACK_MS,
   FLOW_SEED_OPTION_LOOKBACK_MS,
   FLOW_OPTION_PAGES_MAX,
-  FLOW_PRUNE_MINUTE,
   FLOW_RETENTION_DAYS,
   type FlowCollectDeps,
   runFlowCollect,
@@ -239,6 +238,7 @@ const depsWith = (overrides: Partial<Deps> = {}): Deps => ({
   depth: vi.fn(async () => depthOutput()),
   now: OPEN,
   pacing: vi.fn(async () => ({ backoffSeconds: 0, recentRequests: 0 })),
+  pruneDue: false,
   quantData: fakeQuantData(),
   repository: fakeRepository(),
   ticks: vi.fn(async () => ticksOutput()),
@@ -804,11 +804,10 @@ describe("runFlowCollect GEX", () => {
 
 describe("runFlowCollect storage", () => {
   it("dry run writes nothing but counts rows", async () => {
-    const deps = depsWith({
-      now: new Date(OPEN.getTime() + FLOW_PRUNE_MINUTE * 60_000),
-    });
+    const deps = depsWith({ pruneDue: true });
     const { output, run } = await collect(deps, { dryRun: true });
-    expect(output).toMatchObject({ dryRun: true, pruned: 0 });
+    expect(output).toMatchObject({ busy: false, dryRun: true, pruned: 0 });
+    expect(deps.repository.prune).not.toHaveBeenCalled();
     expect(run("ES", "depth").items).toBe(1);
     expect(run("SPY", "ticks").items).toBeGreaterThan(0);
     expect(run("SPY", "options").items).toBe(1);
@@ -842,15 +841,14 @@ describe("runFlowCollect storage", () => {
     expect(output.at).toBe(OPEN.toISOString());
   });
 
-  it("prunes only in the prune minute with the retention cutoff", async () => {
+  it("prunes only when due, with the retention cutoff", async () => {
     const off = depsWith();
     expect((await collect(off)).output.pruned).toBe(0);
     expect(off.repository.prune).not.toHaveBeenCalled();
-    const now = new Date(OPEN.getTime() + FLOW_PRUNE_MINUTE * 60_000);
-    const due = depsWith({ now });
+    const due = depsWith({ pruneDue: true });
     expect((await collect(due)).output.pruned).toBe(42);
     expect(due.repository.prune).toHaveBeenCalledWith(
-      new Date(now.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
+      new Date(OPEN.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
     );
   });
 

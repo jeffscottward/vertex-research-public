@@ -13,6 +13,7 @@ import type { FlowInstrument } from "../flow-features.ts";
 import type { ApiContext } from "./context.ts";
 import {
   FLOW_DEPTH_ROWS,
+  FLOW_PRUNE_INTERVAL_MS,
   FLOW_TICKS_COUNT,
   runFlowCollect,
 } from "./flow-collect.ts";
@@ -37,8 +38,14 @@ type Failures = Readonly<{
 
 const systemClock = (): Date => new Date();
 let clock: () => Date = systemClock;
+// One collect run at a time per server process (QuantVPS runs one), so a manual or seed run can
+// never overlap the timer and spend the shared IBKR budget twice.
+let collecting = false;
+let lastPruneAt = Number.NEGATIVE_INFINITY;
 export const setFlowClockForTesting = (now?: () => Date): void => {
   clock = now ?? systemClock;
+  collecting = false;
+  lastPruneAt = Number.NEGATIVE_INFINITY;
 };
 
 const repositoryFor = (
@@ -73,32 +80,49 @@ const collect = api.flow.collect
     const quantData = context.quantData ?? null;
     const client = quantData === null ? null : quantDataClientFor(quantData);
     const now = clock();
-    return await runFlowCollect(input, {
-      analytics:
-        client === null
-          ? null
-          : (ticker) =>
-              buildOptionsAnalytics(
-                { flowHours: 1, symbol: ticker },
-                { client, now: () => now }
-              ),
-      depth: (instrument) =>
-        fetchMarketDepth(history, {
-          ...instrumentInput(instrument),
-          rows: FLOW_DEPTH_ROWS,
-        }),
-      now,
-      pacing: () => fetchMarketHistoryPacing(history),
-      quantData: client,
-      repository,
-      ticks: (instrument) =>
-        fetchMarketTicks(history, {
-          ...instrumentInput(instrument),
-          count: FLOW_TICKS_COUNT,
-          quotes: true,
-          useRTH: false,
-        }),
-    });
+    if (collecting)
+      return {
+        at: now.toISOString(),
+        busy: true,
+        dryRun: input.dryRun,
+        pruned: 0,
+        runs: [],
+      };
+    const pruneDue =
+      !input.dryRun && now.getTime() - lastPruneAt >= FLOW_PRUNE_INTERVAL_MS;
+    if (pruneDue) lastPruneAt = now.getTime();
+    collecting = true;
+    try {
+      return await runFlowCollect(input, {
+        analytics:
+          client === null
+            ? null
+            : (ticker) =>
+                buildOptionsAnalytics(
+                  { flowHours: 1, symbol: ticker },
+                  { client, now: () => now }
+                ),
+        depth: (instrument) =>
+          fetchMarketDepth(history, {
+            ...instrumentInput(instrument),
+            rows: FLOW_DEPTH_ROWS,
+          }),
+        now,
+        pacing: () => fetchMarketHistoryPacing(history),
+        pruneDue,
+        quantData: client,
+        repository,
+        ticks: (instrument) =>
+          fetchMarketTicks(history, {
+            ...instrumentInput(instrument),
+            count: FLOW_TICKS_COUNT,
+            quotes: true,
+            useRTH: false,
+          }),
+      });
+    } finally {
+      collecting = false;
+    }
   });
 
 /** Reads one symbol's window; the window ends at the newest stored data, not now. */

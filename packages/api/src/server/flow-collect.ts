@@ -42,17 +42,17 @@ export const FLOW_DUE_SECONDS: Readonly<Record<FlowSource, number>> = {
   ticks: 230,
 };
 /** No tick fetch (any symbol) within this many seconds of another one. */
-export const FLOW_TICKS_STAGGER_SECONDS = 110;
+const FLOW_TICKS_STAGGER_SECONDS = 110;
 /** Fetch ticks only while the IBKR 120 s window holds at most this many requests (of 6). */
-export const FLOW_IBKR_MAX_RECENT = 2;
+const FLOW_IBKR_MAX_RECENT = 2;
 export const FLOW_TICKS_COUNT = 1000;
 export const FLOW_DEPTH_ROWS = 10;
 export const FLOW_OPTION_PAGES_MAX = 6;
 export const FLOW_OPTION_LOOKBACK_MS = 15 * 60_000;
 export const FLOW_SEED_OPTION_LOOKBACK_MS = 72 * 3_600_000;
 export const FLOW_RETENTION_DAYS = 14;
-/** Pruning runs once an hour, in the run that lands in this UTC minute. */
-export const FLOW_PRUNE_MINUTE = 7;
+/** The caller prunes at most once per this interval (deps.pruneDue). */
+export const FLOW_PRUNE_INTERVAL_MS = 3_600_000;
 
 const DEFAULT_MIN_TICK: Readonly<Record<FlowSymbol, number>> = {
   ES: 0.25,
@@ -65,6 +65,8 @@ export type FlowCollectDeps = Readonly<{
   ticks: (instrument: FlowInstrument) => Promise<MarketTicksOutput>;
   depth: (instrument: FlowInstrument) => Promise<MarketDepthOutput>;
   pacing: () => Promise<MarketHistoryPacing>;
+  /** Delete rows older than the retention cutoff in this run. */
+  pruneDue: boolean;
   quantData: QuantDataClient | null;
   analytics:
     | ((ticker: FlowOptionTicker) => Promise<OptionsAnalyticsOutput>)
@@ -457,7 +459,7 @@ const recordSample = async (
 
 const pruneIfDue = async (state: RunState): Promise<number> => {
   const { now, repository } = state.deps;
-  if (state.dryRun || now.getUTCMinutes() !== FLOW_PRUNE_MINUTE) return 0;
+  if (state.dryRun || !state.deps.pruneDue) return 0;
   return await repository.prune(
     new Date(now.getTime() - FLOW_RETENTION_DAYS * 86_400_000)
   );
@@ -492,6 +494,7 @@ export const runFlowCollect = async (
     }
   return {
     at: deps.now.toISOString(),
+    busy: false,
     dryRun: input.dryRun,
     pruned: await pruneIfDue(state),
     runs,

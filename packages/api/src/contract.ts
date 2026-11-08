@@ -3,59 +3,59 @@
 // See: packages/api/src/contracts/account.ts; docs/getting-started.md#add-your-first-feature.
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { academyContract } from "./contracts/academy.ts";
 import { accountContract, preferencesContract } from "./contracts/account.ts";
-import { adminUsersContract } from "./contracts/admin-users.ts";
-import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
-import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
-import { agentOpsContract, papersContract } from "./contracts/agent-ops.ts";
 import { AppearanceFieldsSchema } from "./contracts/appearance.ts";
-import { assistantContract } from "./contracts/assistant.ts";
-import { autopilotContract } from "./contracts/autopilot.ts";
-import { backtestRunsContract } from "./contracts/backtest-runs.ts";
-import { basketsContract } from "./contracts/baskets.ts";
-import { clickLogContract } from "./contracts/click-log.ts";
-import { congressTradesContract } from "./contracts/congress-trades.ts";
+import { adminUsersContract } from "./contracts/admin-users.ts";
 import { contactContract } from "./contracts/contact.ts";
 import { createDashboardContract } from "./contracts/dashboard.ts";
-import { deploymentRequestsContract } from "./contracts/deployment-requests.ts";
-import { enginesContract } from "./contracts/engines.ts";
-import { flowContract } from "./contracts/flow.ts";
-import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
-import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
-import { instantBacktestContract } from "./contracts/instant-backtest.ts";
-import { jevVerdictContract } from "./contracts/jev-verdict.ts";
-import { marketContextContract } from "./contracts/market-context.ts";
-import { marketDataContract } from "./contracts/market-data.ts";
-import { marketNewsContract } from "./contracts/market-news.ts";
-import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
-import { optimizationsContract } from "./contracts/optimizations.ts";
-import { optionsAnalyticsContract } from "./contracts/options-analytics.ts";
-import { optionsChainContract } from "./contracts/options-chain.ts";
-import { pickListsContract } from "./contracts/pick-lists.ts";
-import { playsContract } from "./contracts/plays.ts";
-import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
+import { vertexReadContract } from "./contracts/vertex-read.ts";
+import { vertexExperienceContract } from "./contracts/vertex-experience.ts";
+import { vertexChartReadContract } from "./contracts/vertex-chart-read.ts";
+import { vertexWorkerContract } from "./contracts/vertex-worker-rpc.ts";
+import { vertexNotificationReadContract } from "./contracts/vertex-notification-read.ts";
+import { vertexLocalSetupContract } from "./contracts/vertex-local-setup.ts";
+import { vertexResearchChatContract } from "./contracts/vertex-research-chat.ts";
+import { vertexResearchChatResponseContract } from "./contracts/vertex-research-chat-response-rpc.ts";
+import { vertexResearchChatCopyCleanupContract } from "./contracts/vertex-research-chat-copy-cleanup-rpc.ts";
+import { todosContract } from "./contracts/todos.ts";
+import { watchlistContract } from "./contracts/watchlist.ts";
 import { priceAlertsContract } from "./contracts/price-alerts.ts";
+import { marketNewsContract } from "./contracts/market-news.ts";
+import { basketsContract } from "./contracts/baskets.ts";
+import { pickListsContract } from "./contracts/pick-lists.ts";
+import { agentOpsContract, papersContract } from "./contracts/agent-ops.ts";
+import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
+import { optimizationsContract } from "./contracts/optimizations.ts";
 import { quantLabContract } from "./contracts/quant-lab.ts";
-import { researchLensesContract } from "./contracts/research-lenses.ts";
 import { researchReportsContract } from "./contracts/research-reports.ts";
 import { researchStudiesContract } from "./contracts/research-studies.ts";
-import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
-import { sectorRotationContract } from "./contracts/sector-rotation.ts";
-import { setupReplayContract } from "./contracts/setup-replay.ts";
+import { flowContract } from "./contracts/flow.ts";
+import { clickLogContract } from "./contracts/click-log.ts";
+import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
-import { todosContract } from "./contracts/todos.ts";
-import { vertexChartReadContract } from "./contracts/vertex-chart-read.ts";
-import { vertexExperienceContract } from "./contracts/vertex-experience.ts";
-import { vertexLocalSetupContract } from "./contracts/vertex-local-setup.ts";
-import { vertexNotificationReadContract } from "./contracts/vertex-notification-read.ts";
+import { deploymentRequestsContract } from "./contracts/deployment-requests.ts";
+import { backtestRunsContract } from "./contracts/backtest-runs.ts";
+import { autopilotContract } from "./contracts/autopilot.ts";
+import { academyContract } from "./contracts/academy.ts";
+import { instantBacktestContract } from "./contracts/instant-backtest.ts";
+import { playsContract } from "./contracts/plays.ts";
+import { setupReplayContract } from "./contracts/setup-replay.ts";
+import { researchLensesContract } from "./contracts/research-lenses.ts";
+import { sectorRotationContract } from "./contracts/sector-rotation.ts";
+import { congressTradesContract } from "./contracts/congress-trades.ts";
+import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
+import { marketDataContract } from "./contracts/market-data.ts";
+import { optionsAnalyticsContract } from "./contracts/options-analytics.ts";
+import { jevVerdictContract } from "./contracts/jev-verdict.ts";
+import { optionsChainContract } from "./contracts/options-chain.ts";
+import { portfolioMonitorContract } from "./contracts/portfolio-monitor.ts";
+import { enginesContract } from "./contracts/engines.ts";
+import { ibkrMonitorContract } from "./contracts/ibkr-monitor.ts";
+import { marketContextContract } from "./contracts/market-context.ts";
+import { ibkrRecoveryContract } from "./contracts/ibkr-recovery.ts";
+import { nautilusArmContract } from "./contracts/nautilus-arm.ts";
 import { vertexOrdersContract } from "./contracts/vertex-orders.ts";
-import { vertexReadContract } from "./contracts/vertex-read.ts";
-import { vertexResearchChatContract } from "./contracts/vertex-research-chat.ts";
-import { vertexResearchChatCopyCleanupContract } from "./contracts/vertex-research-chat-copy-cleanup-rpc.ts";
-import { vertexResearchChatResponseContract } from "./contracts/vertex-research-chat-response-rpc.ts";
-import { vertexWorkerContract } from "./contracts/vertex-worker-rpc.ts";
-import { watchlistContract } from "./contracts/watchlist.ts";
+import { assistantContract } from "./contracts/assistant.ts";
 import { generatedFeatureContracts } from "./generated/contract-registry.ts";
 
 export const FEATURE_ITEM_STATUSES = ["draft", "active", "archived"] as const;
@@ -88,13 +88,13 @@ export const FeatureItemMetadataSchema = z
   .transform((value): FeatureItemMetadata => value);
 
 export const FeatureItemSchema = z.object({
-  createdAt: z.date(),
-  description: z.string(),
   id: z.string().min(1),
-  metadata: FeatureItemMetadataSchema,
   name: z.string(),
-  ownerId: z.string().min(1),
+  description: z.string(),
   status: FeatureItemStatusSchema,
+  metadata: FeatureItemMetadataSchema,
+  ownerId: z.string().min(1),
+  createdAt: z.date(),
   updatedAt: z.date(),
 });
 
@@ -107,34 +107,34 @@ const ItemScopeSchema = OwnerScopeSchema.extend({
 });
 
 const MutationFieldsSchema = z.object({
+  name: z.string().trim().min(1).max(200),
   description: z.string().max(10_000),
   metadata: FeatureItemMetadataSchema.optional(),
-  name: z.string().trim().min(1).max(200),
 });
 
 export const EXPECTED_API_ERRORS = {
-  BAD_REQUEST: { message: "Invalid request", status: 400 },
-  CONFLICT: { message: "Feature item conflict", status: 409 },
-  FORBIDDEN: { message: "Forbidden", status: 403 },
-  NOT_FOUND: { message: "Feature item not found", status: 404 },
-  STORAGE_ERROR: { message: "Feature item storage unavailable", status: 503 },
-  UNAUTHORIZED: { message: "Authentication required", status: 401 },
-  VALIDATION_ERROR: { message: "Feature item validation failed", status: 422 },
+  BAD_REQUEST: { status: 400, message: "Invalid request" },
+  UNAUTHORIZED: { status: 401, message: "Authentication required" },
+  FORBIDDEN: { status: 403, message: "Forbidden" },
+  NOT_FOUND: { status: 404, message: "Feature item not found" },
+  CONFLICT: { status: 409, message: "Feature item conflict" },
+  VALIDATION_ERROR: { status: 422, message: "Feature item validation failed" },
+  STORAGE_ERROR: { status: 503, message: "Feature item storage unavailable" },
 } as const;
 
 const featureItem = oc.errors(EXPECTED_API_ERRORS);
 
 export const FeatureItemListInputSchema = OwnerScopeSchema.extend({
-  limit: z.number().int().min(1).max(100).default(50),
   query: z.string().trim().min(1).max(200).optional(),
   status: FeatureItemStatusSchema.optional(),
+  limit: z.number().int().min(1).max(100).default(50),
 }).strict();
 
 const list = featureItem
   .route({
     method: "GET",
-    operationId: "featureItems.list",
     path: "/feature-items",
+    operationId: "featureItems.list",
     summary: "List feature items",
     tags: ["Feature items"],
   })
@@ -144,8 +144,8 @@ const list = featureItem
 const get = featureItem
   .route({
     method: "GET",
-    operationId: "featureItems.get",
     path: "/feature-items/{id}",
+    operationId: "featureItems.get",
     summary: "Get a feature item",
     tags: ["Feature items"],
   })
@@ -155,8 +155,8 @@ const get = featureItem
 const create = featureItem
   .route({
     method: "POST",
-    operationId: "featureItems.create",
     path: "/feature-items",
+    operationId: "featureItems.create",
     summary: "Create a feature item",
     tags: ["Feature items"],
   })
@@ -166,16 +166,16 @@ const create = featureItem
 const update = featureItem
   .route({
     method: "PATCH",
-    operationId: "featureItems.update",
     path: "/feature-items/{id}",
+    operationId: "featureItems.update",
     summary: "Update a feature item",
     tags: ["Feature items"],
   })
   .input(
     ItemScopeSchema.extend({
+      name: z.string().trim().min(1).max(200).optional(),
       description: z.string().max(10_000).optional(),
       metadata: FeatureItemMetadataSchema.optional(),
-      name: z.string().trim().min(1).max(200).optional(),
     }).refine(
       (input) =>
         input.name !== undefined ||
@@ -189,8 +189,8 @@ const update = featureItem
 const changeStatus = featureItem
   .route({
     method: "PATCH",
-    operationId: "featureItems.changeStatus",
     path: "/feature-items/{id}/status",
+    operationId: "featureItems.changeStatus",
     summary: "Change a feature item status",
     tags: ["Feature items"],
   })
@@ -200,8 +200,8 @@ const changeStatus = featureItem
 const archive = featureItem
   .route({
     method: "DELETE",
-    operationId: "featureItems.archive",
     path: "/feature-items/{id}",
+    operationId: "featureItems.archive",
     summary: "Archive a feature item",
     tags: ["Feature items"],
   })
@@ -216,8 +216,8 @@ export const AdminFeatureItemListInputSchema =
 const adminList = featureItem
   .route({
     method: "GET",
-    operationId: "admin.featureItems.list",
     path: "/admin/feature-items",
+    operationId: "admin.featureItems.list",
     summary: "List feature items for an owner",
     tags: ["Admin"],
   })
@@ -225,17 +225,17 @@ const adminList = featureItem
   .output(z.array(FeatureItemSchema));
 
 export const THEME_PREFERENCE_ERRORS = {
-  BAD_REQUEST: { message: "Invalid request", status: 400 },
-  CONFLICT: { message: "Theme preference conflict", status: 409 },
-  FORBIDDEN: { message: "Forbidden", status: 403 },
-  STORAGE_ERROR: {
-    message: "Theme preference storage unavailable",
-    status: 503,
-  },
-  UNAUTHORIZED: { message: "Authentication required", status: 401 },
+  BAD_REQUEST: { status: 400, message: "Invalid request" },
+  UNAUTHORIZED: { status: 401, message: "Authentication required" },
+  FORBIDDEN: { status: 403, message: "Forbidden" },
+  CONFLICT: { status: 409, message: "Theme preference conflict" },
   VALIDATION_ERROR: {
-    message: "Theme preference validation failed",
     status: 422,
+    message: "Theme preference validation failed",
+  },
+  STORAGE_ERROR: {
+    status: 503,
+    message: "Theme preference storage unavailable",
   },
 } as const;
 
@@ -244,8 +244,8 @@ const themePreference = oc.errors(THEME_PREFERENCE_ERRORS);
 const getThemePreference = themePreference
   .route({
     method: "GET",
-    operationId: "preferences.theme.get",
     path: "/preferences/theme",
+    operationId: "preferences.theme.get",
     summary: "Get the authenticated user's theme preference",
     tags: ["Preferences"],
   })
@@ -255,8 +255,8 @@ const getThemePreference = themePreference
 const updateThemePreference = themePreference
   .route({
     method: "PATCH",
-    operationId: "preferences.theme.update",
     path: "/preferences/theme",
+    operationId: "preferences.theme.update",
     summary: "Update the authenticated user's theme preference",
     tags: ["Preferences"],
   })
@@ -266,72 +266,72 @@ const updateThemePreference = themePreference
 const dashboardDefinitions = createDashboardContract(FeatureItemSchema);
 
 export const appContract = {
-  featureItems: { archive, changeStatus, create, get, list, update },
+  featureItems: { list, get, create, update, changeStatus, archive },
   ...generatedFeatureContracts,
-  academy: academyContract,
+  contact: contactContract,
   account: accountContract,
   admin: {
     featureItems: { list: adminList },
     users: adminUsersContract,
   },
-  agentApiKeys: agentApiKeysContract,
-  agentModelRuns: agentModelRunsContract,
-  agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
-  assistant: assistantContract,
-  autopilot: autopilotContract,
-  backtestRuns: backtestRunsContract,
-  baskets: basketsContract,
-  clickLog: clickLogContract,
-  congressTrades: congressTradesContract,
-  contact: contactContract,
-  dashboard: dashboardDefinitions.contract,
-  deploymentRequests: deploymentRequestsContract,
-  engines: enginesContract,
-  flow: flowContract,
-  ibkrMonitor: ibkrMonitorContract,
-  ibkrRecovery: ibkrRecoveryContract,
-  instantBacktest: instantBacktestContract,
-  jevVerdict: jevVerdictContract,
-  marketContext: marketContextContract,
-  marketData: marketDataContract,
-  marketNews: marketNewsContract,
-  nautilusArm: nautilusArmContract,
-  optionsAnalytics: optionsAnalyticsContract,
-  optionsChain: optionsChainContract,
-  papers: papersContract,
-  pickLists: pickListsContract,
-  plays: playsContract,
-  portfolioMonitor: portfolioMonitorContract,
   preferences: {
     get: preferencesContract.get,
-    theme: { get: getThemePreference, update: updateThemePreference },
     update: preferencesContract.update,
+    theme: { get: getThemePreference, update: updateThemePreference },
   },
-  priceAlerts: priceAlertsContract,
-  quantLab: quantLabContract,
-  researchLenses: researchLensesContract,
-  researchReports: researchReportsContract,
-  researchStudies: researchStudiesContract,
-  riskAllocator: riskAllocatorContract,
-  sectorRotation: sectorRotationContract,
-  setupReplay: setupReplayContract,
-  strategyLibrary: strategyLibraryContract,
-  todos: todosContract,
+  dashboard: dashboardDefinitions.contract,
   vertex: {
     ...vertexReadContract,
     experience: vertexExperienceContract,
-    localSetup: vertexLocalSetupContract,
+    scoped: vertexChartReadContract,
     notifications: vertexNotificationReadContract,
+    localSetup: vertexLocalSetupContract,
     researchChat: {
       ...vertexResearchChatContract,
       ...vertexResearchChatResponseContract,
       ...vertexResearchChatCopyCleanupContract,
     },
-    scoped: vertexChartReadContract,
   },
-  vertexOrders: vertexOrdersContract,
   vertexWorker: vertexWorkerContract,
   watchlist: watchlistContract,
+  priceAlerts: priceAlertsContract,
+  marketNews: marketNewsContract,
+  baskets: basketsContract,
+  pickLists: pickListsContract,
+  todos: todosContract,
+  agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
+  quantLab: quantLabContract,
+  researchReports: researchReportsContract,
+  researchStudies: researchStudiesContract,
+  flow: flowContract,
+  clickLog: clickLogContract,
+  papers: papersContract,
+  agentModelRuns: agentModelRunsContract,
+  agentApiKeys: agentApiKeysContract,
+  strategyLibrary: strategyLibraryContract,
+  deploymentRequests: deploymentRequestsContract,
+  marketData: marketDataContract,
+  optionsAnalytics: optionsAnalyticsContract,
+  jevVerdict: jevVerdictContract,
+  optionsChain: optionsChainContract,
+  instantBacktest: instantBacktestContract,
+  setupReplay: setupReplayContract,
+  plays: playsContract,
+  academy: academyContract,
+  backtestRuns: backtestRunsContract,
+  autopilot: autopilotContract,
+  researchLenses: researchLensesContract,
+  sectorRotation: sectorRotationContract,
+  congressTrades: congressTradesContract,
+  riskAllocator: riskAllocatorContract,
+  portfolioMonitor: portfolioMonitorContract,
+  ibkrMonitor: ibkrMonitorContract,
+  engines: enginesContract,
+  marketContext: marketContextContract,
+  ibkrRecovery: ibkrRecoveryContract,
+  nautilusArm: nautilusArmContract,
+  vertexOrders: vertexOrdersContract,
+  assistant: assistantContract,
 };
 
 export type FeatureItemInput = z.input<typeof FeatureItemSchema>;
@@ -385,6 +385,15 @@ export {
   AdminUsersListOutputSchema,
 } from "./contracts/admin-users.ts";
 export type {
+  ContactSubmitInput,
+  ContactSubmitOutput,
+} from "./contracts/contact.ts";
+export {
+  CONTACT_ERRORS,
+  ContactSubmitInputSchema,
+  ContactSubmitOutputSchema,
+} from "./contracts/contact.ts";
+export type {
   Density,
   FontSize,
   Radius,
@@ -401,20 +410,11 @@ export {
   THEME_NAMES,
   ThemeNameSchema,
 } from "./contracts/appearance.ts";
-export type {
-  ContactSubmitInput,
-  ContactSubmitOutput,
-} from "./contracts/contact.ts";
-export {
-  CONTACT_ERRORS,
-  ContactSubmitInputSchema,
-  ContactSubmitOutputSchema,
-} from "./contracts/contact.ts";
 export type { CapabilityProjection } from "./contracts/dashboard.ts";
 export { CapabilityProjectionSchema } from "./contracts/dashboard.ts";
-export type { VertexModulesListInput } from "./contracts/vertex-read.ts";
 export {
   VERTEX_READ_ERRORS,
   VertexModulesListInputSchema,
   VertexModulesListOutputSchema,
 } from "./contracts/vertex-read.ts";
+export type { VertexModulesListInput } from "./contracts/vertex-read.ts";

@@ -144,6 +144,55 @@ describe("flow.collect", () => {
     expect(statuses["SPY:gex"]?.message).toBe("QuantData not configured");
   });
 
+  it("prunes at most once an hour and never on a dry run", async () => {
+    let now = OPEN;
+    setFlowClockForTesting(() => now);
+    const repository = fakeRepository();
+    const client = clientFor(repository, {
+      marketHistory: null,
+      quantData: null,
+    });
+    await client.collect({ dryRun: true });
+    expect(repository.prune).not.toHaveBeenCalled();
+    await client.collect({});
+    await client.collect({});
+    expect(repository.prune).toHaveBeenCalledTimes(1);
+    now = new Date(OPEN.getTime() + 3_600_000);
+    await client.collect({});
+    expect(repository.prune).toHaveBeenCalledTimes(2);
+  });
+
+  it("answers busy while another collect run is active", async () => {
+    setFlowClockForTesting(() => OPEN);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const repository = fakeRepository({
+      latestSamples: vi.fn(async () => {
+        await gate;
+        return { latest: [], latestOk: [] };
+      }),
+    });
+    const client = clientFor(repository, {
+      marketHistory: null,
+      quantData: null,
+    });
+    const first = client.collect({ dryRun: true });
+    await expect(client.collect({ dryRun: true })).resolves.toEqual({
+      at: OPEN.toISOString(),
+      busy: true,
+      dryRun: true,
+      pruned: 0,
+      runs: [],
+    });
+    release();
+    await expect(first).resolves.toMatchObject({ busy: false });
+    await expect(client.collect({ dryRun: true })).resolves.toMatchObject({
+      busy: false,
+    });
+  });
+
   it("wires history and QuantData into the collector", async () => {
     setFlowClockForTesting(() => OPEN);
     const urls: string[] = [];

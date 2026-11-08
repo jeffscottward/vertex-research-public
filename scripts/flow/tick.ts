@@ -21,6 +21,7 @@ export type FlowTickIo = Readonly<{
 const CollectSchema = z.object({
   json: z.object({
     at: z.string(),
+    busy: z.boolean(),
     pruned: z.number(),
     runs: z.array(
       z.object({
@@ -88,7 +89,8 @@ const tick = async (io: FlowTickIo): Promise<string[]> => {
         .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
         .join("; ")}`
     );
-  const { at, pruned, runs } = parsed.data.json;
+  const { at, busy, pruned, runs } = parsed.data.json;
+  if (busy) return [`flow collect ${at}: another run is still active; skipped`];
   return [
     `flow collect ${at}: ${runs.length} run(s), pruned ${pruned}`,
     ...runs

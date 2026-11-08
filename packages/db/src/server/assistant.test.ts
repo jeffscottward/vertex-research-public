@@ -120,6 +120,7 @@ describe("0022 assistant migration", () => {
       "0049_signal_alerts",
       "0050_plays",
       "0051_research_studies",
+      "0052_flow_pipeline",
     ]);
   });
 

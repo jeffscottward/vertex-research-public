@@ -4,6 +4,7 @@ import { type FlowTickIo, runFlowTick } from "./tick.ts";
 
 const RESULT = {
   at: "2026-11-09T15:00:00.000Z",
+  busy: false,
   dryRun: false,
   pruned: 3,
   runs: [
@@ -114,12 +115,23 @@ describe("runFlowTick", () => {
     ],
     [
       Response.json({ json: { at: "x", pruned: 0 } }),
-      "flow.collect returned an unexpected shape: json.runs:",
+      "flow.collect returned an unexpected shape: json.busy:",
     ],
   ])("reports a failed or malformed response %#", async (response, message) => {
     const harness = harnessFor(env, response);
     await expect(runFlowTick(harness.io)).resolves.toBe(1);
     expect(harness.err[0]).toContain(`flow tick failed: ${message}`);
+  });
+
+  it("reports a busy server without failing", async () => {
+    const harness = harnessFor(
+      env,
+      Response.json({ json: { ...RESULT, busy: true, runs: [] } })
+    );
+    await expect(runFlowTick(harness.io)).resolves.toBe(0);
+    expect(harness.out).toEqual([
+      "flow collect 2026-11-09T15:00:00.000Z: another run is still active; skipped\n",
+    ]);
   });
 
   it("reports a non-Error throw", async () => {
