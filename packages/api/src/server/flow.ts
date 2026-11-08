@@ -40,11 +40,14 @@ const systemClock = (): Date => new Date();
 let clock: () => Date = systemClock;
 // One collect run at a time per server process (QuantVPS runs one), so a manual or seed run can
 // never overlap the timer and spend the shared IBKR budget twice.
-let collecting = false;
+// A run older than the scheduler's 170 s timeout counts as abandoned (a cancelled request may
+// never reach its finally), so a stuck flag cannot stop sampling for good.
+const COLLECT_STALE_MS = 180_000;
+let collectingSince: number | null = null;
 let lastPruneAt = Number.NEGATIVE_INFINITY;
 export const setFlowClockForTesting = (now?: () => Date): void => {
   clock = now ?? systemClock;
-  collecting = false;
+  collectingSince = null;
   lastPruneAt = Number.NEGATIVE_INFINITY;
 };
 
@@ -80,7 +83,10 @@ const collect = api.flow.collect
     const quantData = context.quantData ?? null;
     const client = quantData === null ? null : quantDataClientFor(quantData);
     const now = clock();
-    if (collecting)
+    if (
+      collectingSince !== null &&
+      now.getTime() - collectingSince < COLLECT_STALE_MS
+    )
       return {
         at: now.toISOString(),
         busy: true,
@@ -90,10 +96,10 @@ const collect = api.flow.collect
       };
     const pruneDue =
       !input.dryRun && now.getTime() - lastPruneAt >= FLOW_PRUNE_INTERVAL_MS;
-    if (pruneDue) lastPruneAt = now.getTime();
-    collecting = true;
+    const started = now.getTime();
+    collectingSince = started;
     try {
-      return await runFlowCollect(input, {
+      const output = await runFlowCollect(input, {
         analytics:
           client === null
             ? null
@@ -120,8 +126,10 @@ const collect = api.flow.collect
             useRTH: false,
           }),
       });
+      if (pruneDue) lastPruneAt = started;
+      return output;
     } finally {
-      collecting = false;
+      if (collectingSince === started) collectingSince = null;
     }
   });
 

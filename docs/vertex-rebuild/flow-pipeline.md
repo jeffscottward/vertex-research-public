@@ -18,7 +18,9 @@ per-minute features and events in Postgres. The `/flow` page and the agent read 
 Every attempt writes one `flow_samples` row (status `ok`, `empty`, `unavailable` or `skipped`, with
 a message), which drives the freshness strip. Rows older than 14 days are pruned at most once an
 hour. The server runs one collect at a time; an overlapping call (a manual or seed run during a timer
-run) answers `busy: true` and does nothing, so the IBKR budget is never spent twice.
+run) answers `busy: true` and does nothing, so the IBKR budget is never spent twice. A run older
+than 180 s (past the timer's 170 s limit) counts as abandoned, so a cancelled request cannot stop
+sampling.
 
 Code:
 
@@ -117,6 +119,8 @@ shared with `/charts` and the market-watch bot; the shared client keeps its own 
    session, `bun run vertex:flow:tick --seed` with the operator write key (no session or due checks,
    options look-back 72 h; the IBKR budget check still applies).
 4. Rollback: disable `vertex-flow.timer`; the tables can stay (`flow.snapshot` then shows stale data).
+   Dropping them uses `packages/db/rollback/0052_flow_pipeline.down.sql`; to re-apply later, delete
+   the 0052 row from `drizzle.__drizzle_migrations` first.
 
 ## Agent semantic layer
 

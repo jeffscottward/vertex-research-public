@@ -193,6 +193,55 @@ describe("flow.collect", () => {
     });
   });
 
+  it("lets a run through once the active one is older than 180 s", async () => {
+    let now = OPEN;
+    setFlowClockForTesting(() => now);
+    let release: () => void = () => undefined;
+    const latestSamples = vi
+      .fn<FlowRepository["latestSamples"]>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve({ latest: [], latestOk: [] });
+          })
+      )
+      .mockResolvedValue({ latest: [], latestOk: [] });
+    const client = clientFor(fakeRepository({ latestSamples }), {
+      marketHistory: null,
+      quantData: null,
+    });
+    const first = client.collect({ dryRun: true });
+    await vi.waitFor(() => expect(latestSamples).toHaveBeenCalledTimes(1));
+    now = new Date(OPEN.getTime() + 179_999);
+    await expect(client.collect({ dryRun: true })).resolves.toMatchObject({
+      busy: true,
+    });
+    now = new Date(OPEN.getTime() + 180_000);
+    await expect(client.collect({ dryRun: true })).resolves.toMatchObject({
+      busy: false,
+    });
+    release();
+    await expect(first).resolves.toMatchObject({ busy: false });
+    await expect(client.collect({ dryRun: true })).resolves.toMatchObject({
+      busy: false,
+    });
+  });
+
+  it("keeps pruning due after a failed run", async () => {
+    setFlowClockForTesting(() => OPEN);
+    const prune = vi
+      .fn<FlowRepository["prune"]>()
+      .mockRejectedValueOnce(new Error("db down"))
+      .mockResolvedValue(3);
+    const client = clientFor(fakeRepository({ prune }), {
+      marketHistory: null,
+      quantData: null,
+    });
+    await expect(client.collect({})).rejects.toBeDefined();
+    await expect(client.collect({})).resolves.toMatchObject({ pruned: 3 });
+    expect(prune).toHaveBeenCalledTimes(2);
+  });
+
   it("wires history and QuantData into the collector", async () => {
     setFlowClockForTesting(() => OPEN);
     const urls: string[] = [];
