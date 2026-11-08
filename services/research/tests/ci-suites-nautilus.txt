@@ -3,6 +3,7 @@
 # One path per line, relative to services/research. Remove a line only when its file is removed.
 tests/test_quantlab_nautilus.py
 tests/test_nautilus_backtest_engine.py
+tests/test_qc_ports_nautilus.py
 # pandas reference suites: pandas comes from the same lock. The base run skips them.
 tests/test_golden_pandas_reference.py
 tests/test_rvol_at_time.py
