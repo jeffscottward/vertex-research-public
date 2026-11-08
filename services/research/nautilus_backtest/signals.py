@@ -824,7 +824,9 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
 
     "dsl" rules work like runStrategyDefinition: percent stop and target, ATR distances, riskPct
     sizing and the exit mask come from the definition (spec stopLossPct/takeProfitPct are
-    ignored). Fixed rules work like runInstantBacktest with the spec stop and target.
+    ignored); optional "maxHoldBars" closes a position at the next open after that many bars, as
+    the runStrategyDefinition option of the same name (setup replay uses it). Fixed rules work like
+    runInstantBacktest with the spec stop and target.
     """
     rule = spec["rule"]
     cost_bps = spec.get("costBps", 0)
@@ -841,6 +843,7 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
             take_profit_pct=target["pct"] if target["kind"] == "pct" else 0,
             costs=costs,
             risk_pct=sizing["riskPct"] if sizing["mode"] == "riskPct" else None,
+            max_hold_bars=spec.get("maxHoldBars"),
         )
         size = assert_columns(bars)
     else:

@@ -139,7 +139,8 @@ const executeClaimed = async (
       definition,
       spec.costBps,
       costs,
-      sectorQuadrants
+      sectorQuadrants,
+      spec.maxHoldBars
     );
   } else result = runInstantBacktest(bars, runParamsForSpec(spec));
   const report = {

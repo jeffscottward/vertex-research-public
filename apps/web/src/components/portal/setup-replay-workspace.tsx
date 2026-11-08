@@ -47,7 +47,11 @@ import {
   DEFAULT_UNIVERSE_CHOICE,
   visibleSeries,
 } from "./backtest-universe.tsx";
-
+import {
+  createBrowserEngineComparisonGateway,
+  type EngineComparisonGateway,
+  NautilusCard,
+} from "./engine-comparison.tsx";
 import {
   createBrowserSetupReplayGateway,
   describeSetupReplayFailure,
@@ -432,13 +436,19 @@ const Notice = ({ children }: { readonly children: ReactNode }) => (
 
 export interface SetupReplayWorkspaceProps {
   readonly gateway?: SetupReplayGateway;
+  /** Engine comparison: where the Nautilus status of a replay is read. */
+  readonly comparisonGateway?: EngineComparisonGateway;
 }
 
 export const SetupReplayWorkspace = ({
   gateway: suppliedGateway,
+  comparisonGateway: suppliedComparisons,
 }: SetupReplayWorkspaceProps) => {
   const [gateway] = useState(
     () => suppliedGateway ?? createBrowserSetupReplayGateway()
+  );
+  const [comparisonGateway] = useState(
+    () => suppliedComparisons ?? createBrowserEngineComparisonGateway()
   );
   const [load, setLoad] = useState<LoadState>({ type: "loading" });
   const [cache] = useState(() => createResultCache<SetupReplayRunOutput>(20));
@@ -658,6 +668,17 @@ export const SetupReplayWorkspace = ({
           </p>
         ) : null}
         {shown === null ? null : <Results ran={shown} />}
+        {shown?.output.comparison === undefined ? null : (
+          // Engine comparison on: the same engine run repeats on Nautilus (owner decision
+          // 2026-11-08); the replay above stays the TypeScript one.
+          <div data-engine-comparison="on">
+            <NautilusCard
+              gateway={comparisonGateway}
+              key={shown.output.comparison.groupId ?? "none"}
+              timing={shown.output.comparison}
+            />
+          </div>
+        )}
       </section>
     </div>
   );

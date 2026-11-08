@@ -21,6 +21,7 @@ import {
 } from "../forward-drift.ts";
 import { describeRun } from "./backtest-runs.ts";
 import type { ApiContext } from "./context.ts";
+import { comparisonQueueFor } from "./engine-comparison.ts";
 import { appendObservations, baselineOf } from "./forward-drift-append.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
@@ -300,8 +301,13 @@ const paperTick = api.backtestRuns.drift.paperTick
     const results: PaperForwardTickResult[] = [];
     const tick =
       input.id === undefined ? tickPaperForwardInBatch : tickPaperForward;
+    // Engine comparison on: each tick that caught up also queues its run on Nautilus.
+    const comparison = comparisonQueueFor(context, context.principal.userId);
     for (const id of ids) {
-      const ticked = await tick({ ...dependencies, marketBars }, id);
+      const ticked = await tick(
+        { ...dependencies, comparison, marketBars },
+        id
+      );
       if (ticked === null && input.id !== undefined)
         throw failures.NOT_FOUND({ message: "Drift monitor not found" });
       if (ticked !== null) results.push(ticked);

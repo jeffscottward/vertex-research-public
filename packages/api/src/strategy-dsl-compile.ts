@@ -676,12 +676,14 @@ export const runStrategyDefinition = (
   definition: StrategyDefinition,
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
-  sectorQuadrants?: SectorQuadrantSeries
+  sectorQuadrants?: SectorQuadrantSeries,
+  maxHoldBars?: number
 ): InstantRunResult => {
   const compiled = compileStrategy(bars, definition, sectorQuadrants);
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),
+    ...(maxHoldBars === undefined ? {} : { maxHoldBars }),
     exits: compiled.exits,
     stopLossPct:
       definition.stopLoss.kind === "pct" ? definition.stopLoss.pct : 0,

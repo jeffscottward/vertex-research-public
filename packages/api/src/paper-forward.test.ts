@@ -125,6 +125,7 @@ describe("paperForwardStep", () => {
     };
     expect(paperForwardStep(prefix(bars, 1), params, cursor)).toEqual({
       points: [],
+      run: null,
       settledIndex: -1,
       trades: [],
     });
@@ -132,6 +133,8 @@ describe("paperForwardStep", () => {
     expect(early.points).toEqual([]);
     expect(early.trades).toEqual([]);
     expect(early.settledIndex).toBe(98);
+    // The whole engine run is returned for the engine comparison (dual run).
+    expect(early.run).toEqual(runInstantBacktest(prefix(bars, 100), params));
   });
 
   it("skips results at or before the cursor", () => {

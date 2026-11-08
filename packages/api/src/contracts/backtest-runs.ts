@@ -179,6 +179,11 @@ export const BacktestRunSpecSchema = z.object({
   costProfile: CostProfileSchema.optional(),
   from: z.string(),
   initialCapital: z.number(),
+  /**
+   * DSL rules only: close a position at the next open after this many bars (the
+   * runStrategyDefinition time exit). Setup replay comparison runs set it.
+   */
+  maxHoldBars: z.number().int().min(1).optional(),
   rule: z.discriminatedUnion("kind", [
     z.object({
       fast: z.number(),
