@@ -186,4 +186,13 @@ Rubric and harness changes made while recording (all before the final recording,
 
 Deploy steps for the reader (QuantVPS, as a superuser in `vertex-postgres`): apply `0056_semantic_layer.sql` alone with `psql -v ON_ERROR_STOP=1 --single-transaction` (it creates the NOLOGIN role and its grants), then `ALTER ROLE vertex_semantic_reader LOGIN PASSWORD '<generated>'` and put `SEMANTIC_DATABASE_URL` (same host, port and database as `DATABASE_URL`, user `vertex_semantic_reader`) in the server-side `.prod.vars`. The password is never committed.
 
+### Deployed (2026-11-08)
+
+- PR #113, deployed commit `92580c26` (full CI on that exact commit: run 42513726013). Migration `0056_semantic_layer` was applied alone in `vertex-postgres`; `vertex_semantic_reader` has a login (owner approval in the job channel) and `SEMANTIC_DATABASE_URL` is in the server-side `.prod.vars`. `log_statement` is `none`, so the password is not in the server log.
+- Live check through the API as the agent viewer (no model): all 10 terms are listed as certified. `net_liquidation`, `open_risk` and `position` answer from `vertex-portfolio` (status ok); `pnl` with window `unrealized` answers `unknown` because the feed has no value for it; the backtest terms run as the reader login (status ok).
+- Feed terms now also require `account.mode = live` in the snapshot; a feed logged in to a paper or unknown account answers `unknown` (follow-up PR).
+- Live data gap: all succeeded `backtest_runs` in production have no `strategy_id`, so `backtest_sharpe` and `backtest_max_drawdown` (latest run per strategy) return no rows. The owner decides whether to add a run-level term or link runs to strategies.
+- The live assistant check (3 account + 2 backtest questions) waits on the model provider: OpenRouter answers 402 "credits exhausted" for every message.
+- Operator page checked in headless Chrome as the agent viewer (dark theme, 1440 px and 375 px, no horizontal overflow): 10 terms, all certified, read-only note, no Edit or Certify buttons.
+
 Limits: same as the prototype (one model family, synthetic data, the same agent wrote terms, questions and references). The deployed assistant uses `VERTEX_ASSISTANT_MODEL` through OpenRouter; the live check after deploy covers that path.
