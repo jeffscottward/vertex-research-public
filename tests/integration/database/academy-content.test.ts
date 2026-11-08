@@ -100,7 +100,9 @@ describe("academy content repository (Postgres)", () => {
       SOURCES.filter((source) => source["duplicateOf"] === undefined).length
     );
     expect(await repository.countSources("dyr")).toBe(0);
-  });
+    // Two full imports, each checking that all 48 lessons draw: well over 5 s on a CI runner. A timed-out
+    // import keeps writing on the pool and deadlocks the rollback test below.
+  }, 60_000);
 
   it("lists a course newest first and reads one lesson with its source", async () => {
     const repository = createAcademyContentRepository(database());
