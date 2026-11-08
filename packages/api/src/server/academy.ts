@@ -44,6 +44,7 @@ import {
 } from "../contracts/academy.ts";
 import { downsampleIndexes } from "../instant-backtest-engine.ts";
 import { OWNER_RISK_CAPS } from "../risk-allocator.ts";
+import { academyContentRouter } from "./academy-content.ts";
 import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 import {
@@ -881,6 +882,7 @@ const deployRequest = api.academy.deployRequest
   );
 
 export const academyRouter = {
+  ...academyContentRouter,
   backtest,
   deployPreview,
   deployRequest,

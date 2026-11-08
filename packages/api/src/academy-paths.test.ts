@@ -528,7 +528,7 @@ describe("academy.deployRequest storage paths", () => {
         name: expect.stringMatching(/^QFTG: /u),
         section: "QuantFinanceToGo Academy",
         slug: `qftg-${QFTG_SLUG}`,
-        sourceRef: `packages/academy/src/lessons/specs/quantfinancetogo/${QFTG_SLUG}.ts`,
+        sourceRef: `scripts/academy/lessons/quantfinancetogo/specs/${QFTG_SLUG}.ts`,
         tags: expect.arrayContaining(["quantfinancetogo"]),
       })
     );

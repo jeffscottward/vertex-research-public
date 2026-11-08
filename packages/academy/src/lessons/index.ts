@@ -106,7 +106,10 @@ export const neighboursIn = (
   return { previous: at(-1), next: at(1) };
 };
 
-export const toLessonSummary = (lesson: Lesson): LessonSummary => ({
+/** A lesson's gallery card; needs only the source's publish date. */
+export const toLessonSummary = (
+  lesson: LessonSpec & Readonly<{ source: Pick<LessonSource, "publishedAt"> }>
+): LessonSummary => ({
   course: lesson.course,
   slug: lesson.slug,
   title: lesson.title,
