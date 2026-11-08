@@ -217,8 +217,9 @@ interface PushDependencies {
 const runPrePushScripts: BunScriptRunner = (scripts) =>
   runBunScripts(scripts, [], withoutGitRepositoryEnvironment(process.env));
 
-// A copied node_modules from another pnpm layout needs a purge; hooks have no
-// terminal to confirm it.
+// The lockfile stays as committed. --prefer-offline uses the store first but
+// still fetches packages it lacks. A copied node_modules from another pnpm
+// layout needs a purge, and hooks have no terminal to confirm it.
 const DEPENDENCY_INSTALL: readonly string[] = Object.freeze([
   "install",
   "--frozen-lockfile",

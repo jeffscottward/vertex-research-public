@@ -271,6 +271,12 @@ describe("source-bound pre-push", () => {
           : gitSuccess(executable, arguments_)
       );
       expect(run()).toBe(1);
+      mocks.spawnSync.mockImplementation((executable, arguments_) =>
+        arguments_.includes(`${OTHER}^{commit}`)
+          ? result(0, OTHER)
+          : gitSuccess(executable, arguments_)
+      );
+      expect(run(update(OTHER))).toBe(1);
       return expect(installCalls()).toEqual([]);
     });
   });
