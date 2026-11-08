@@ -57,6 +57,7 @@ import {
   ShoppingBasket,
   SlidersHorizontal,
   Sparkles,
+  SpellCheck,
   Timer,
   UserPlus,
   UserRound,
@@ -199,6 +200,7 @@ export const PORTAL_AUTOMATION_NAVIGATION: readonly NavigationItem[] =
     },
     { href: "/deployments", icon: Server, label: "Deployments" },
     { href: "/engines", icon: Timer, label: "Engines" },
+    { href: "/semantic-terms", icon: SpellCheck, label: "Semantic terms" },
   ]);
 
 /** Data & Ops: scoped readers of governed records. */
@@ -317,6 +319,7 @@ const VERTEX_PORTAL_ROUTE_PATHS = Object.freeze([
   "/flow",
   "/deployments",
   "/engines",
+  "/semantic-terms",
   "/watchlist",
   "/price-alerts",
   "/news",
@@ -393,6 +396,7 @@ export const OPERATOR_PORTAL_ROUTE_PATHS = Object.freeze([
   "/pick-lists",
   "/plays",
   "/engines",
+  "/semantic-terms",
   "/journal",
   "/calendar",
 ] as const);

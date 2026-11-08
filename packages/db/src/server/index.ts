@@ -274,6 +274,37 @@ export {
   CLICK_LOG_RETENTION_DAYS,
   createClickLogRepository,
 } from "./click-log.ts";
+export type {
+  SemanticAttributePatch,
+  SemanticAttributeResult,
+  SemanticAttributeRunOptions,
+  SemanticCatalog,
+  SemanticCatalogKind,
+  SemanticCertification,
+  SemanticJsonValue,
+  SemanticLayerRepository,
+  SemanticParamValue,
+  SemanticRelationshipPatch,
+  SemanticRelationshipRow,
+  SemanticRow,
+  SemanticRunFailure,
+  SemanticSqlAttributeRow,
+  SemanticTermPatch,
+  SemanticTermRow,
+} from "./semantic-layer.ts";
+export type {
+  CertifiedStatement,
+  SemanticReader,
+  SemanticReaderClient,
+  SemanticReaderConnection,
+} from "./semantic-layer.ts";
+export {
+  certifiedStatement,
+  createSemanticLayerRepository,
+  createSemanticReader,
+  SEMANTIC_READER_ROLE,
+  SemanticSqlParameterError,
+} from "./semantic-layer.ts";
 export {
   createResearchReportsRepository,
   ResearchReportsInputError,

@@ -56,8 +56,28 @@ insert into deployment_requests(id, strategy_id, params, symbol, timeframe, mode
   ('d4', 's_vix', '{}', 'VIXY', '1d', 'paper', '{"maxOrderSize":5,"maxPosition":20,"maxOrdersPerMinute":2,"dailyLossLimit":300}', 'draft', 'u_owner', null, null, null, null);
 
 -- Paper forward drift monitors. level: ok, warn, alert, insufficient.
-insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level, created_by, paper_status) values
-  ('m_orb', 'ORB paper forward',             'br_orb_2', '{}', 'alert', 'u_owner', 'running'),
-  ('m_mom', 'Sector momentum paper forward', 'br_mom_1', '{}', 'warn',  'u_owner', 'running'),
-  ('m_mr',  'RSI MR paper forward',          'br_mr_1',  '{}', 'ok',    'u_owner', 'off');
+insert into forward_drift_monitors(id, label, baseline_run_id, thresholds, level, created_by, paper_status, created_at, updated_at) values
+  ('m_orb', 'ORB paper forward',             'br_orb_2', '{}', 'alert', 'u_owner', 'running', '2026-10-21T14:00Z', '2026-11-05T14:00Z'),
+  ('m_mom', 'Sector momentum paper forward', 'br_mom_1', '{}', 'warn',  'u_owner', 'running', '2026-10-29T14:00Z', '2026-11-05T14:00Z'),
+  ('m_mr',  'RSI MR paper forward',          'br_mr_1',  '{}', 'ok',    'u_owner', 'off',     '2026-10-16T14:00Z', '2026-11-05T14:00Z');
+
+-- Give the engine rows the full spec and report shape the API validates (contracts/backtest-runs.ts), so
+-- backtest_runs_list and backtest_runs_get work on this fixture. The metrics above win over these defaults.
+update backtest_runs set spec = jsonb_build_object(
+  'costBps', 1, 'from', '2021-01-01', 'to', '2026-09-30', 'initialCapital', 100000,
+  'rule', jsonb_build_object('kind', 'smaCross', 'fast', 20, 'slow', 50),
+  'stopLossPct', 0, 'takeProfitPct', 0, 'symbol', spec->>'symbol',
+  'timeframe', case when spec->>'timeframe' = '1d' then '1d' else '1m' end);
+update backtest_runs set report = jsonb_build_object(
+  'bars', 1000, 'equity', '[]'::jsonb, 'firstT', 1609459200, 'lastT', 1759190400, 'prices', '[]'::jsonb,
+  'seriesSha256', 'synthetic', 'trades', '[]'::jsonb, 'tradesTruncated', false,
+  'metrics', jsonb_build_object(
+    'absoluteDrawdown', 0, 'averageLossTrade', null, 'averageProfitTrade', null, 'buyHoldReturn', 0,
+    'cagr', null, 'expectedPayoff', null, 'exposure', 0.5, 'finalEquity', 100000, 'grossLoss', 0,
+    'grossProfit', 0, 'initialDeposit', 100000, 'largestLossTrade', null, 'largestProfitTrade', null,
+    'lossTrades', 0, 'maxConsecutiveLosses', 0, 'maxConsecutiveLossesMoney', 0, 'maxConsecutiveWins', 0,
+    'maxDrawdownAbs', 0, 'maximalConsecutiveLoss', 0, 'maximalConsecutiveLossCount', 0, 'netProfit', 0,
+    'profitFactor', null, 'profitTrades', 0, 'recoveryFactor', null, 'sortino', null
+  ) || (report->'metrics'))
+where report is not null;
 commit;

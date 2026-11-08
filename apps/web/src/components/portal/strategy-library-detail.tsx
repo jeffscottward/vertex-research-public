@@ -33,6 +33,9 @@ import {
   reportedSharpe,
 } from "./backtests-workspace.tsx";
 import { newRequestHref } from "./deployment-requests-model.ts";
+import type { ResearchStudyGateway } from "./filter-studies-section.tsx";
+import { StrategyBacktestStudy } from "./strategy-backtest-study.tsx";
+import { QC_IDEA_TAG } from "./strategy-backtest-study-model.ts";
 import {
   descriptionLinks,
   formatParamValue,
@@ -95,6 +98,8 @@ export interface StrategyDetailProps {
   readonly onChanged: () => Promise<void>;
   readonly onClose: () => void;
   readonly onTab: (tab: StrategyTab) => void;
+  // researchStudies.get for the Backtest study section (QuantConnect idea ports); the browser API by default.
+  readonly researchStudies?: ResearchStudyGateway;
   readonly tab: StrategyTab;
 }
 
@@ -740,11 +745,25 @@ const ParametersTab = ({
   );
 };
 
-const BacktestsTab = ({ detail }: { readonly detail: Detail }) => {
+const BacktestsTab = ({
+  detail,
+  researchStudies,
+}: {
+  readonly detail: Detail;
+  readonly researchStudies: ResearchStudyGateway | undefined;
+}) => {
   const { strategy, backtests } = detail;
   const latest = strategy.latestBacktest;
   return (
     <div className="space-y-3">
+      {/* QuantConnect idea ports keep their backtest study in research_studies under the slug. */}
+      {strategy.tags.includes(QC_IDEA_TAG) ? (
+        <StrategyBacktestStudy
+          gateway={researchStudies}
+          key={strategy.slug}
+          slug={strategy.slug}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs" data-latest-summary="">
           <span className="text-muted-foreground">Latest</span>
@@ -920,6 +939,7 @@ export const StrategyDetail = ({
   onClose,
   onChanged,
   describeFailure,
+  researchStudies,
 }: StrategyDetailProps) => {
   const { strategy } = detail;
   // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
@@ -959,8 +979,16 @@ export const StrategyDetail = ({
           <StrategyLinks description={strategy.description} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit). */}
-          {academyLesson === null ? (
+          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit).
+              Strategies tagged research-only offer no deployment or order action at all. */}
+          {strategy.tags.includes("research-only") ? (
+            <span
+              className="text-muted-foreground text-sm"
+              data-strategy-research-only={strategy.id}
+            >
+              Research only: no deployment
+            </span>
+          ) : academyLesson === null ? (
             <a
               className={linkButton}
               data-strategy-request-deployment={strategy.id}
@@ -1032,7 +1060,7 @@ export const StrategyDetail = ({
             onChanged={onChanged}
           />
         ) : (
-          <BacktestsTab detail={detail} />
+          <BacktestsTab detail={detail} researchStudies={researchStudies} />
         )}
       </div>
     </section>

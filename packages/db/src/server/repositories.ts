@@ -154,6 +154,10 @@ import {
   createClickLogRepository,
 } from "./click-log.ts";
 import {
+  createSemanticLayerRepository,
+  type SemanticLayerRepository,
+} from "./semantic-layer.ts";
+import {
   createResearchReportsRepository,
   type ResearchReportsRepository,
 } from "./research-reports.ts";
@@ -4294,6 +4298,7 @@ export type Repositories = Readonly<{
   researchReports?: ResearchReportsRepository;
   sectorRotation?: SectorRotationRepository;
   clickLog?: ClickLogRepository;
+  semanticLayer?: SemanticLayerRepository;
 }>;
 
 export const createRepositories = (
@@ -4379,4 +4384,8 @@ export const createRepositories = (
     ...resolveDependencies(dependencies),
     retentionDays: CLICK_LOG_RETENTION_DAYS,
   }),
+  semanticLayer: createSemanticLayerRepository(
+    database,
+    resolveDependencies(dependencies).now
+  ),
 });

@@ -64,6 +64,8 @@ describe("MCP tool registry", () => {
       "deployment_status",
       "market_bars",
       "options_gex_context",
+      "terms_list",
+      "terms_query",
       "flow_snapshot",
       "strategies_list",
       "strategies_get",

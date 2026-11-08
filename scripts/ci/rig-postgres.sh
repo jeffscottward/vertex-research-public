@@ -146,6 +146,9 @@ CREATE DATABASE darkfactory_test_maintenance;
 \connect darkfactory_test_maintenance
 CREATE ROLE darkfactory_test_runner LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOINHERIT NOREPLICATION PASSWORD 'darkfactory-test-only';
 CREATE ROLE darkfactory_app LOGIN NOCREATEDB NOSUPERUSER NOCREATEROLE NOINHERIT NOREPLICATION PASSWORD 'darkfactory-app-local-only';
+-- Read-only login for certified semantic-layer SQL (migration 0056_semantic_layer grants it CONNECT and
+-- SELECT). No membership in any other role.
+CREATE ROLE vertex_semantic_reader LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION PASSWORD 'semantic-reader-test-only';
 CREATE DATABASE darkfactory_dev OWNER darkfactory_app;
 REVOKE CONNECT ON DATABASE darkfactory_dev FROM PUBLIC;
 GRANT CONNECT ON DATABASE darkfactory_dev TO darkfactory_app;

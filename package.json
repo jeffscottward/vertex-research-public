@@ -93,6 +93,7 @@
     "graph:check": "bun scripts/graph.ts check",
     "graph:verify": "bun scripts/graph.ts verify",
     "generate:feature": "bun scripts/generate-feature.ts",
+    "eval:semantic:record": "bun scripts/with-test-env.ts bun tests/integration/semantic-layer/record.ts",
     "deploy:web:validate": "bun scripts/deployment.ts --environment production --destination-receipt private/deployment/production.json",
     "deploy:web": "bun scripts/deployment.ts --environment production --mode deploy --destination-receipt private/deployment/production.json",
     "deploy:web:check": "bun scripts/deployment.ts --environment production --mode check --destination-receipt private/deployment/production.json",
