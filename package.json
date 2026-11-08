@@ -30,7 +30,7 @@
     "operator:bindings": "bun scripts/dev-bindings.ts operator",
     "certs:install": "mkcert -install",
     "certs:generate": "mkdir -p .certs && mkcert -cert-file .certs/localhost.pem -key-file .certs/localhost-key.pem localhost '*.localhost' 127.0.0.1 ::1",
-    "build": "bunx --no-install turbo run build",
+    "build": "bun scripts/with-build-sha.ts bunx --no-install turbo run build",
     "typecheck": "bunx --no-install turbo run typecheck && tsc --noEmit -p tsconfig.json && tsc --noEmit -p scripts/tsconfig.json && tsc --noEmit -p tests/tsconfig.json && tsc --noEmit -p infra/tsconfig.json",
     "lint": "bunx --bun --no-install biome lint . && bun run lint:markdown && bun run lint:knip",
     "lint:knip": "bunx --no-install knip",

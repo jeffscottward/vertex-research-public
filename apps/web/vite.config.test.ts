@@ -255,6 +255,27 @@ describe("Vite application plugin contract", () => {
     expect(JSON.parse(String(value))).toMatch(/^(?:[0-9a-f]{7,40}|unknown)$/u);
   });
 
+  // A turbo cache hit replays dist/ with the SHA baked in at that build. The web
+  // build hash must therefore include VERTEX_BUILD_SHA, and the root build script
+  // must set it to HEAD (card vertex-build-sha-turbo-cache, 2026-11-07).
+  it("keys the turbo web build cache on the build commit", async () => {
+    const turbo = JSON.parse(
+      await readFile(new URL("../../turbo.json", import.meta.url), "utf8")
+    ) as {
+      tasks: Record<string, { env?: string[]; outputs?: string[] }>;
+    };
+    const webBuild = turbo.tasks["@darkfactory/web#build"];
+    expect(webBuild?.env).toContain("VERTEX_BUILD_SHA");
+    expect(webBuild?.outputs).toEqual(turbo.tasks["build"]?.outputs);
+
+    const manifest = JSON.parse(
+      await readFile(new URL("../../package.json", import.meta.url), "utf8")
+    ) as { scripts: Record<string, string> };
+    expect(manifest.scripts["build"]).toBe(
+      "bun scripts/with-build-sha.ts bunx --no-install turbo run build"
+    );
+  });
+
   it("keeps Worker dev-var files out of source control", async () => {
     const rootGitignore = await readFile(
       new URL("../../.gitignore", import.meta.url),

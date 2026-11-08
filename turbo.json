@@ -17,6 +17,11 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".wrangler/deploy/**"]
     },
+    "@darkfactory/web#build": {
+      "dependsOn": ["^build"],
+      "env": ["VERTEX_BUILD_SHA"],
+      "outputs": ["dist/**"]
+    },
     "typecheck": {
       "dependsOn": ["^typecheck"],
       "outputs": []
