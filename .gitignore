@@ -118,6 +118,10 @@ token*.json
 *.webm
 *.mkv
 
-# Temporary bundle folder of packages/email/src/server/server-bundle.test.ts. A format check that
-# runs while the test is in progress must not see it (it broke pre-push, card vertex-public-audit).
-.server-production-bundle-*/
+# Temporary folders of the Vite build tests (server-bundle, groq-bundle, posthog-bundle,
+# inline-bundle and the observability boundary test). A test that times out leaves its folder
+# behind, and a format check that runs while a test is in progress must not see it (it broke
+# pre-push, cards vertex-public-audit and prepush-bundle-leftover-dirs). Biome reads this file
+# (vcs.useIgnoreFile).
+.*-bundle-*/
+.vite-browser-boundary-*/
