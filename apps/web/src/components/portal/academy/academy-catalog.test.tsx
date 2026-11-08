@@ -26,14 +26,14 @@ afterEach(async () => {
 });
 
 const dyr = lessonSummaries().filter((lesson) => lesson.course === "dyr");
-// QuantFinanceToGo has no shipped lessons yet: two Define Your Risk summaries stand in for them.
-const qftg: LessonSummary[] = dyr.slice(0, 2).map((lesson, index) => ({
-  ...lesson,
-  course: "quantfinancetogo",
-  kind: "concept",
-  slug: `qftg-fixture-${index}`,
-  title: `QFTG fixture ${index}`,
-}));
+// Two shipped QuantFinanceToGo concept lessons.
+const qftg: LessonSummary[] = lessonSummaries()
+  .filter(
+    (lesson) =>
+      lesson.course === "quantfinancetogo" && lesson.kind === "concept"
+  )
+  .slice(0, 2);
+const firstQftg = qftg[0]?.slug ?? "";
 
 const mount = async (node: React.ReactNode) => {
   const container = document.createElement("div");
@@ -120,9 +120,9 @@ describe("AcademyCatalog", () => {
     expect(qftgSection?.querySelectorAll("[data-lesson-card]")).toHaveLength(2);
     expect(
       qftgSection
-        ?.querySelector('[data-lesson-card="qftg-fixture-0"]')
+        ?.querySelector(`[data-lesson-card="${firstQftg}"]`)
         ?.getAttribute("href")
-    ).toBe("/academy/qftg-fixture-0");
+    ).toBe(`/academy/${firstQftg}`);
     const kind = qftgSection?.querySelector(
       "#academy-quantfinancetogo-kind"
     ) as HTMLSelectElement;

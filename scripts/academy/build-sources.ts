@@ -1,6 +1,6 @@
-// Builds one course's sources file (packages/academy/src/lessons/<sourcesFile>, courses.ts) from its
+// Builds one course's sources file (packages/academy/src/lessons/<file>, course-files.ts) from its
 // knowledge base. Usage: bun scripts/academy/build-sources.ts [--course <id>] [<kb transcripts dir>]
-// The course defaults to dyr (sources.json). Research data only.
+// The course defaults to dyr (sources.json); other courses get a generated TS module. Research data only.
 // - dyr: transcripts/D*.md notes. Each transcript becomes sentences with start times ESTIMATED from
 //   word position over the audio duration (the notes store plain text without segment timestamps).
 // - quantfinancetogo: raw/ig-<post id>.md notes with YAML frontmatter (post_id, url, published,
@@ -17,6 +17,7 @@ import {
   DEFAULT_COURSE_ID,
   isCourseId,
 } from "../../packages/academy/src/courses.ts";
+import { SOURCES_OUTPUT, sourcesModule } from "./course-files.ts";
 
 const field = (text: string, label: string): string => {
   const match = new RegExp(`\\*\\*${label}:\\*\\* (.+)`, "u").exec(text);
@@ -137,7 +138,7 @@ const READERS: Readonly<Record<CourseId, Reader>> = {
 };
 
 export type BuildSourcesOptions = Readonly<{
-  /** Repository root receiving packages/academy/src/lessons/<sourcesFile>. */
+  /** Repository root receiving packages/academy/src/lessons/<sources file> (course-files.ts). */
   root: string;
   /** Home directory holding the default knowledge-base checkout. */
   home: string;
@@ -164,18 +165,20 @@ export const buildSources = (
   const kb =
     positional[0] ??
     join(home, "Github/knowledge-bases", COURSES[course].kbPath, reader.dir);
-  const out = join(
-    root,
-    "packages/academy/src/lessons",
-    COURSES[course].sourcesFile
-  );
+  const output = SOURCES_OUTPUT[course];
+  const out = join(root, "packages/academy/src/lessons", output.file);
 
   const sources = readdirSync(kb)
     .filter((name) => reader.file.test(name))
     .sort()
     .map((name) => reader.parse(name, readFileSync(join(kb, name), "utf8")));
 
-  writeFileSync(out, `${JSON.stringify(sources, null, 2)}\n`);
+  writeFileSync(
+    out,
+    output.format === "ts"
+      ? sourcesModule(course, sources)
+      : `${JSON.stringify(sources, null, 2)}\n`
+  );
   stdout.write(`wrote ${sources.length} sources to ${out}\n`);
 };
 

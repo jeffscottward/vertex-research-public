@@ -38,8 +38,12 @@ export type Course = Readonly<{
   strategyTag: string;
   /** Spec folder below packages/academy/src/lessons/specs ("" = the specs folder itself). */
   specDir: string;
-  /** Sources file in packages/academy/src/lessons (scripts/academy/build-sources.ts). */
-  sourcesFile: string;
+  /**
+   * Spec file format. Define Your Risk specs are JSON files awaiting their move to Postgres (AGENTS.md
+   * rule 13 forbids new JSON data files); newer courses author each spec as a TypeScript module that
+   * exports `spec`. The sources file (transcripts) follows the same format: a generated TS module.
+   */
+  specFormat: "json" | "ts";
 }>;
 
 export const COURSES: Readonly<Record<CourseId, Course>> = {
@@ -61,7 +65,7 @@ export const COURSES: Readonly<Record<CourseId, Course>> = {
     librarySection: "Define Your Risk Academy",
     strategyTag: "define-your-risk",
     specDir: "",
-    sourcesFile: "sources.json",
+    specFormat: "json",
   },
   quantfinancetogo: {
     id: "quantfinancetogo",
@@ -81,7 +85,7 @@ export const COURSES: Readonly<Record<CourseId, Course>> = {
     librarySection: "QuantFinanceToGo Academy",
     strategyTag: "quantfinancetogo",
     specDir: "quantfinancetogo",
-    sourcesFile: "sources.quantfinancetogo.json",
+    specFormat: "ts",
   },
 };
 
@@ -120,6 +124,6 @@ export const lessonSlugOfStrategy = (slug: string): string | null => {
 export const lessonSpecPath = (
   lesson: Readonly<{ slug: string; course?: CourseId | undefined }>
 ): string => {
-  const { specDir } = courseOf(lesson);
-  return `packages/academy/src/lessons/specs/${specDir === "" ? "" : `${specDir}/`}${lesson.slug}.json`;
+  const { specDir, specFormat } = courseOf(lesson);
+  return `packages/academy/src/lessons/specs/${specDir === "" ? "" : `${specDir}/`}${lesson.slug}.${specFormat}`;
 };

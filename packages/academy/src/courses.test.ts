@@ -22,8 +22,8 @@ describe("course registry", () => {
       librarySection: "Define Your Risk Academy",
       narrated: true,
       shortTitle: "DYR",
-      sourcesFile: "sources.json",
       specDir: "",
+      specFormat: "json",
       strategyPrefix: "dyr-",
       strategyTag: "define-your-risk",
       tagline:
@@ -41,8 +41,8 @@ describe("course registry", () => {
       kbPath: "trading/quantfinancetogo",
       narrated: false,
       profileUrl: "https://www.instagram.com/quantfinancetogo/",
-      sourcesFile: "sources.quantfinancetogo.json",
       specDir: "quantfinancetogo",
+      specFormat: "ts",
       strategyPrefix: "qftg-",
       timestamps: "segments",
       title: "QuantFinanceToGo",
@@ -59,12 +59,7 @@ describe("course registry", () => {
   });
 
   it("gives every course distinct folders, files, sections and non-overlapping prefixes", () => {
-    for (const key of [
-      "specDir",
-      "sourcesFile",
-      "librarySection",
-      "strategyTag",
-    ] as const)
+    for (const key of ["specDir", "librarySection", "strategyTag"] as const)
       expect(new Set(COURSE_LIST.map((course) => course[key])).size).toBe(
         COURSE_LIST.length
       );
@@ -107,6 +102,6 @@ describe("course registry", () => {
     );
     expect(
       lessonSpecPath({ slug: "binomial", course: "quantfinancetogo" })
-    ).toBe("packages/academy/src/lessons/specs/quantfinancetogo/binomial.json");
+    ).toBe("packages/academy/src/lessons/specs/quantfinancetogo/binomial.ts");
   });
 });

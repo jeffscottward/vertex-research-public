@@ -20,11 +20,12 @@ tradeable strategies, a modeled backtest and a gated paper deployment request.
 | Part | Location |
 | --- | --- |
 | Course registry | `packages/academy/src/courses.ts` |
-| Lesson specs (one JSON per transcript) | `packages/academy/src/lessons/specs/<slug>.json`, other courses `specs/<course>/<slug>.json` |
-| Transcripts | `packages/academy/src/lessons/sources.json`, `sources.<course>.json` (`scripts/academy/build-sources.ts [--course <id>]`) |
+| Lesson specs (one per transcript) | `packages/academy/src/lessons/specs/<slug>.json` (dyr), other courses `specs/<course>/<slug>.ts` |
+| Transcripts | `packages/academy/src/lessons/sources.json` (dyr), `sources.<course>.generated.ts` (`scripts/academy/build-sources.ts [--course <id>]`, file names in `scripts/academy/course-files.ts`) |
 | Classification pass 1 (judge model) | `packages/academy/src/lessons/classification.json` |
 | Spec contract | `packages/academy/src/schema.ts` |
-| Scenes, tables, formulas, timeline/VTT | `packages/academy/src/{scenes,tables,formulas,timeline}.ts` |
+| Scenes, tables, formulas, timeline/VTT | `packages/academy/src/{scene-kit,scenes,tables,formulas,mathml,timeline}.ts` |
+| Quant scenes (`type: "quant"`) | `packages/academy/src/quant/` (one group per file: `<group>.ts` builders, `<group>-ids.ts` modes/elements/formula ids, `<group>-formulas.ts`; `index.ts` routes a mode to its group) |
 | Shared chart (web and video) | `packages/academy/src/chart/lesson-chart.tsx` |
 | Modeled backtest | `packages/academy/src/backtest.ts`, `structures.ts` |
 | Deploy gates | `packages/academy/src/gates.ts` |
@@ -37,14 +38,20 @@ tradeable strategies, a modeled backtest and a gated paper deployment request.
 A course is one creator's lesson series. The registry is `packages/academy/src/courses.ts`
 (`@darkfactory/academy/courses`): id, title, short title, creator, platform, profile URL,
 knowledge-base folder, tagline, disclaimer, `narrated`, transcript `timestamps`, strategy prefix,
-library section and tag, spec folder and sources file. Gallery copy, lesson disclaimers, Academy
+library section and tag, spec folder and spec format. Gallery copy, lesson disclaimers, Academy
 strategy slugs (`<prefix><lesson slug>`), library section/tag/name and the deployment-request
 refusal all read it; nothing else hard-codes a course.
 
 | Course | Specs | Sources | Narrated | Strategy prefix |
 | --- | --- | --- | --- | --- |
 | `dyr` (Define Your Risk, default) | `specs/<slug>.json` (no `course` field) | `sources.json` | yes | `dyr-` |
-| `quantfinancetogo` | `specs/quantfinancetogo/<slug>.json` with `"course": "quantfinancetogo"` | `sources.quantfinancetogo.json` | no | `qftg-` |
+| `quantfinancetogo` | `specs/quantfinancetogo/<slug>.ts` exporting `spec` with `course: "quantfinancetogo"` | `sources.quantfinancetogo.generated.ts` | no | `qftg-` |
+
+Spec format (`specFormat` in the registry): AGENTS.md rule 13 forbids new JSON data files, so a new
+course authors each spec as a TypeScript module (`export const spec = { ... } satisfies
+LessonSpecInput;`) and gets its transcripts as a generated TypeScript module. The Define Your Risk
+JSON specs and `sources.json` stay on the rule's pending list until the Academy content moves to
+Postgres.
 
 - Pages: `/academy` shows a course picker and one group per course (the default course keeps the
   URL filters, so old `/academy?q=...` links still work); `/academy/c/<course>` is one course's
@@ -60,9 +67,10 @@ To add a course:
 1. Add its id to `COURSE_IDS` and an entry to `COURSES` (pick a strategy prefix that is not a prefix
    of another course's; `courses.test.ts` checks this).
 2. Add a reader to `READERS` in `scripts/academy/build-sources.ts` for the knowledge-base note
-   format, run `bun scripts/academy/build-sources.ts --course <id>` and commit the sources file.
-3. Import the sources file in `packages/academy/src/lessons/index.ts` (`SOURCE_FILES`).
-4. Write specs in `specs/<specDir>/<slug>.json` with `"course": "<id>"`, then run
+   format and the output file to `SOURCES_OUTPUT` in `scripts/academy/course-files.ts` (format `ts`),
+   run `bun scripts/academy/build-sources.ts --course <id>` and commit the generated module.
+3. Import the sources module in `packages/academy/src/lessons/index.ts` (`SOURCE_FILES`).
+4. Write specs in `specs/<specDir>/<slug>.ts` with `course: "<id>"`, then run
    `bun scripts/academy/build-lesson-index.ts` (it checks the folder, the course of each source,
    and that slugs and sourceIds are unique across courses).
 
@@ -138,6 +146,14 @@ Rules:
 | `portfolio` mode `recovery` | loss and the gain needed to recover | axes, curve, marker | lossPct |
 | `portfolio` mode `allocation` | core holdings + options sleeve + cash | axes, core, options, cash, maxLoss, marker | corePct, optionsPct, leverage |
 | `pricepath` (legs, events) | a position managed along a price path (rolls, adjustments, behavior) | axes, price, strikes, events, pnl, spot | spot, iv, realizedVol, drift, seed, rate, leg refs |
+| `quant` mode `walk` / `gbm` / `meanrev` | random walk and bets, GBM price fan, Ornstein-Uhlenbeck mean reversion | walk: axes, paths, mean, band, bars, pdf; gbm: + median; meanrev: axes, paths, mean, band, halfLife, decay | see `quant/process-ids.ts` |
+| `quant` mode `compound` / `logreturns` / `drag` | present value, % vs log returns, volatility drag | `quant/growth-ids.ts` | `quant/growth-ids.ts` |
+| `quant` mode `frontier` / `diversify` / `sml` / `riskparity` / `blend` | Sharpe and efficient frontier, correlation and diversification, CAPM/APT, risk parity, Black-Litterman | `quant/portfolio-ids.ts` | listed in `quant/portfolio-ids.ts` |
+| `quant` mode `regression` / `factor` | beta, alpha, R², Fama-French/Carhart; factor sorts, crash, publication decay | `quant/statistics-ids.ts` | `quant/statistics-ids.ts` |
+| `quant` mode `snooping` / `significance` | data snooping, t-stat of a Sharpe ratio | `quant/testing-ids.ts` | rules, years, seed; sharpe, years, alpha |
+| `quant` mode `tail` / `volcluster` / `voltarget` / `filter` | fat tails, VaR/ES, GARCH/GJR, vol targeting, Kalman filter | `quant/volatility-ids.ts` | `quant/volatility-ids.ts` |
+| `quant` mode `pairs` / `landscape` / `orderbook` | pairs trading, walk-forward Sharpe landscape, order book and slippage | `quant/trading-ids.ts` | listed in `quant/trading-ids.ts` |
+| `quant` mode `smile` / `binomial` / `hedge` | implied vol by bisection and smile, CRR tree, delta hedging P&L | `quant/options-ids.ts` | `quant/options-ids.ts` |
 
 - Rule 6: `params`: every number the viewer may change. Use ids `spot`, `iv` (percent), `rate` (percent),
    `dte`, strike ids (`strike`, `longStrike`, `shortStrike`, `putShort`...), `contracts`. Give
@@ -153,7 +169,8 @@ Rules:
    transcript where it gives them. `time: [from, to]` animates the scrubber (0 = entry, 1 = horizon).
 - Rule 8: `formulas` (1-6): blackScholes, delta, gamma, theta, vega, putCallParity, breakevenCall,
    breakevenPut, verticalMaxProfit, expectedMove, probabilityOfProfit, expectedValue, realizedVol,
-   vrp, gex, kelly, recovery, positionSize, extrinsic, annualizedYield.
+   vrp, gex, kelly, recovery, positionSize, extrinsic, annualizedYield, plus the quant formulas of each
+   group (`FORMULA_IDS` in `quant/<group>-ids.ts`, rendered from `quant/<group>-formulas.ts`).
 - Rule 9: `takeaways` (2-5) are faithful to the transcript. `caveats` mark promotional or unverified claims
    (for example the speaker's VAY score or product), events, and owner-rule conflicts.
 - Rule 10: `backtest` (strategy only): `structure` from the list below, 1-5 `tickers` from the stored

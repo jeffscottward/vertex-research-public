@@ -11,12 +11,10 @@ import {
 } from "../schema.ts";
 import mediaManifest from "./media-manifest.json" with { type: "json" };
 import dyrSources from "./sources.json" with { type: "json" };
-import quantfinancetogoSources from "./sources.quantfinancetogo.json" with {
-  type: "json",
-};
+import { SOURCES as quantfinancetogoSources } from "./sources.quantfinancetogo.generated.ts";
 import { LESSON_SPECS } from "./specs.generated.ts";
 
-/** Contents of each course's sources file (courses.ts `sourcesFile`). */
+/** Contents of each course's sources file (scripts/academy/course-files.ts). */
 export type SourceFiles = Readonly<Record<CourseId, readonly unknown[]>>;
 
 const SOURCE_FILES: SourceFiles = {
@@ -33,7 +31,7 @@ export const loadSources = (files: SourceFiles): LessonSource[] => {
     (files[course] as RawSource[]).map((raw): LessonSource => {
       if (raw.course !== undefined && raw.course !== course)
         throw new Error(
-          `source ${raw.sourceId} in ${COURSES[course].sourcesFile} names course ${raw.course}`
+          `source ${raw.sourceId} in the ${COURSES[course].title} sources names course ${raw.course}`
         );
       if (seen.has(raw.sourceId))
         throw new Error(`sourceId ${raw.sourceId} appears in two sources`);

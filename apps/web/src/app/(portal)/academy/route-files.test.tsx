@@ -29,11 +29,12 @@ const render = async (searchParams: Record<string, string> = {}) =>
   ).replaceAll("<!-- -->", "");
 
 describe("academy route files", () => {
-  it("shows the gallery to operators, dark by default, with the first page of cards", async () => {
+  it("shows the gallery to operators, dark by default, with the first page of cards of each course", async () => {
     const html = await render();
     expect(metadata).toEqual({ title: "Academy" });
     expect(html).toContain('data-theme="default-dark"');
-    expect(html.match(/data-lesson-card=/gu)?.length ?? 0).toBe(12);
+    // Twelve cards per course group (Define Your Risk, QuantFinanceToGo).
+    expect(html.match(/data-lesson-card=/gu)?.length ?? 0).toBe(24);
     expect(html).toContain("Page 1 of");
   });
 

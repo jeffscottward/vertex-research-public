@@ -5,7 +5,7 @@ import { ACADEMY_LESSONS } from "../lessons/index.ts";
 import { defaultValues } from "../position.ts";
 import { buildScene, elementColors } from "../scenes.ts";
 import { buildTables } from "../tables.ts";
-import type { Panel, SceneData } from "../scenes.ts";
+import type { Panel, SceneData } from "../scene-kit.ts";
 import { lessonTimeline, stateAt } from "../timeline.ts";
 import { LessonChart } from "./lesson-chart.tsx";
 import { DARK_PALETTE, LIGHT_PALETTE, paletteFor } from "./palette.ts";
@@ -251,6 +251,47 @@ describe("LessonChart edge cases", () => {
     expect(svg).not.toContain(">Off<");
     expect(svg).not.toContain("No y");
     expect(svg).toContain(LIGHT_PALETTE.tokens.red);
+  });
+
+  it("colors tone bars by their element and reveals each bar by its own element", () => {
+    const svg = render(
+      scene([
+        panel({
+          elements: ["axes", "capital", "risk"],
+          bars: [
+            { element: "capital", x: 1, y: 2, width: 0.5, tone: true },
+            { element: "risk", x: 2, y: -1, width: 0.5, tone: true },
+          ],
+        }),
+      ]),
+      new Map([["capital", 1]])
+    );
+    expect(svg.match(/opacity="0.85"/gu)).toHaveLength(1);
+  });
+
+  it("writes a surface's own legend instead of the P&L reading", () => {
+    const svg = render(
+      scene([
+        panel({
+          elements: ["surface"],
+          surface: {
+            element: "surface",
+            legend: "Sharpe: higher is better",
+            xs: [1, 2],
+            ys: [1, 2],
+            z: [
+              [0, 1],
+              [1, 0],
+            ],
+            xLabel: "lookback",
+            yLabel: "threshold",
+            zLabel: "Sharpe",
+          },
+        }),
+      ])
+    );
+    expect(svg).toContain("Sharpe: higher is better");
+    expect(svg).not.toContain("green = profit");
   });
 
   it("skips bars that are not revealed yet", () => {

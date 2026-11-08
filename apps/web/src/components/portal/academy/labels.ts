@@ -41,6 +41,7 @@ const NAMES: Readonly<Record<string, string>> = {
   ivrv: "IV vs RV",
   gex: "Gamma exposure",
   pricepath: "Price path",
+  quant: "Quant model",
 };
 
 export const labelOf = (value: string): string => NAMES[value] ?? value;

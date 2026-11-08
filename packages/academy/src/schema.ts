@@ -4,6 +4,23 @@
 import { z } from "zod";
 
 import { COURSE_IDS, type CourseId, DEFAULT_COURSE_ID } from "./courses.ts";
+import { OPTIONS_ELEMENTS, OPTIONS_FORMULA_IDS } from "./quant/options-ids.ts";
+import {
+  PORTFOLIO_ELEMENTS,
+  PORTFOLIO_FORMULA_IDS,
+} from "./quant/portfolio-ids.ts";
+import { GROWTH_ELEMENTS, GROWTH_FORMULA_IDS } from "./quant/growth-ids.ts";
+import { PROCESS_ELEMENTS, PROCESS_FORMULA_IDS } from "./quant/process-ids.ts";
+import {
+  STATISTICS_ELEMENTS,
+  STATISTICS_FORMULA_IDS,
+} from "./quant/statistics-ids.ts";
+import { TESTING_ELEMENTS, TESTING_FORMULA_IDS } from "./quant/testing-ids.ts";
+import { TRADING_ELEMENTS, TRADING_FORMULA_IDS } from "./quant/trading-ids.ts";
+import {
+  VOLATILITY_ELEMENTS,
+  VOLATILITY_FORMULA_IDS,
+} from "./quant/volatility-ids.ts";
 
 export const COLOR_TOKENS = [
   "green",
@@ -97,6 +114,26 @@ export type Leg = z.infer<typeof LegSchema>;
 
 const legs = z.array(LegSchema).min(1).max(6);
 
+/**
+ * Element ids per quant mode (seeded models that are not option positions: random processes,
+ * portfolios, factors, volatility models, trading rules). Each group file in quant/ owns its modes.
+ */
+export const QUANT_MODE_ELEMENTS = {
+  ...PROCESS_ELEMENTS,
+  ...GROWTH_ELEMENTS,
+  ...PORTFOLIO_ELEMENTS,
+  ...STATISTICS_ELEMENTS,
+  ...TESTING_ELEMENTS,
+  ...VOLATILITY_ELEMENTS,
+  ...TRADING_ELEMENTS,
+  ...OPTIONS_ELEMENTS,
+} as const;
+export type QuantMode = keyof typeof QUANT_MODE_ELEMENTS;
+export const QUANT_MODES = Object.keys(QUANT_MODE_ELEMENTS) as [
+  QuantMode,
+  ...QuantMode[],
+];
+
 export const SceneSchema = z.discriminatedUnion("type", [
   z
     .object({
@@ -171,6 +208,12 @@ export const SceneSchema = z.discriminatedUnion("type", [
         .default([]),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal("quant"),
+      mode: z.enum(QUANT_MODES),
+    })
+    .strict(),
 ]);
 export type Scene = z.infer<typeof SceneSchema>;
 export type SceneType = Scene["type"];
@@ -217,7 +260,14 @@ export const SCENE_ELEMENTS: Readonly<Record<SceneType, readonly string[]>> = {
     "maxLoss",
   ],
   pricepath: ["axes", "price", "strikes", "events", "pnl", "spot"],
+  quant: [...new Set(Object.values(QUANT_MODE_ELEMENTS).flat())],
 };
+
+/** Element ids a lesson's scene draws (a quant scene: its mode's elements). */
+export const sceneElements = (scene: Scene): readonly string[] =>
+  scene.type === "quant"
+    ? QUANT_MODE_ELEMENTS[scene.mode]
+    : SCENE_ELEMENTS[scene.type];
 
 export const StepSchema = z
   .object({
@@ -233,7 +283,7 @@ export const StepSchema = z
   .strict();
 export type LessonStep = z.infer<typeof StepSchema>;
 
-export const FORMULA_IDS = [
+const BASE_FORMULA_IDS = [
   "blackScholes",
   "delta",
   "gamma",
@@ -254,6 +304,19 @@ export const FORMULA_IDS = [
   "positionSize",
   "extrinsic",
   "annualizedYield",
+] as const;
+export type BaseFormulaId = (typeof BASE_FORMULA_IDS)[number];
+
+export const FORMULA_IDS = [
+  ...BASE_FORMULA_IDS,
+  ...PROCESS_FORMULA_IDS,
+  ...GROWTH_FORMULA_IDS,
+  ...PORTFOLIO_FORMULA_IDS,
+  ...STATISTICS_FORMULA_IDS,
+  ...TESTING_FORMULA_IDS,
+  ...VOLATILITY_FORMULA_IDS,
+  ...TRADING_FORMULA_IDS,
+  ...OPTIONS_FORMULA_IDS,
 ] as const;
 export type FormulaId = (typeof FORMULA_IDS)[number];
 
@@ -335,13 +398,17 @@ export const LessonSpecSchema = z
     const ids = new Set(lesson.params.map((param) => param.id));
     if (ids.size !== lesson.params.length)
       context.addIssue({ code: "custom", message: "param ids must be unique" });
-    const elements = SCENE_ELEMENTS[lesson.scene.type];
+    const elements = sceneElements(lesson.scene);
+    const drawer =
+      lesson.scene.type === "quant"
+        ? `quant mode ${lesson.scene.mode}`
+        : `scene ${lesson.scene.type}`;
     for (const [index, step] of lesson.steps.entries()) {
       if (!elements.includes(step.element))
         context.addIssue({
           code: "custom",
           path: ["steps", index, "element"],
-          message: `element ${step.element} is not drawn by scene ${lesson.scene.type}`,
+          message: `element ${step.element} is not drawn by ${drawer}`,
         });
     }
     if (lesson.kind === "strategy" && lesson.backtest === undefined)
@@ -379,6 +446,8 @@ export const LessonSpecSchema = z
     }
   });
 export type LessonSpec = z.infer<typeof LessonSpecSchema>;
+/** A spec as authored (TypeScript spec modules: defaults may be omitted). */
+export type LessonSpecInput = z.input<typeof LessonSpecSchema>;
 
 /** Transcript and source data attached at build time from the knowledge base (not authored). */
 export type LessonSource = Readonly<{

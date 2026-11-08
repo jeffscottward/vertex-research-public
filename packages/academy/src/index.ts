@@ -5,6 +5,7 @@ export * from "./formulas.ts";
 export * from "./gates.ts";
 export * from "./math.ts";
 export * from "./position.ts";
+export * from "./scene-kit.ts";
 export * from "./scenes.ts";
 export * from "./schema.ts";
 export * from "./structures.ts";

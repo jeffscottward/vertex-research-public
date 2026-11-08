@@ -2,7 +2,13 @@
 // renderer renders it frame by frame, so both show the same drawing in the same colors.
 import type { ReactElement } from "react";
 
-import type { Marker, Panel, SceneData, Series, Surface } from "../scenes.ts";
+import type {
+  Marker,
+  Panel,
+  SceneData,
+  Series,
+  Surface,
+} from "../scene-kit.ts";
 import type { ColorToken } from "../schema.ts";
 import type { Palette } from "./palette.ts";
 
@@ -287,7 +293,8 @@ const SurfaceView = ({
         x={box.x + 12}
         y={box.y + box.h - 10}
       >
-        {`${surface.zLabel}: green = profit, red = loss, blue = current day`}
+        {surface.legend ??
+          `${surface.zLabel}: green = profit, red = loss, blue = current day`}
       </text>
     </g>
   );
@@ -583,7 +590,6 @@ const PanelView = ({
     }
     return null;
   };
-  const barProgress = progressOf(revealed, "bars");
   const legend = panel.series.filter(
     (series, position) =>
       series.label !== "" &&
@@ -678,6 +684,7 @@ const PanelView = ({
           .filter((marker) => marker.kind === "band")
           .map(markerView)}
         {panel.bars.map((bar, key) => {
+          const barProgress = progressOf(revealed, bar.element);
           if (barProgress <= 0) return null;
           const x = sx(bar.x - bar.width / 2);
           const w = Math.max(sx(bar.x + bar.width / 2) - x, 1);
@@ -685,7 +692,13 @@ const PanelView = ({
           const bottom = sy(Math.min(bar.y * barProgress, 0));
           return (
             <rect
-              fill={bar.y >= 0 ? palette.tokens.green : palette.tokens.red}
+              fill={
+                bar.tone === true
+                  ? tone(bar.element)
+                  : bar.y >= 0
+                    ? palette.tokens.green
+                    : palette.tokens.red
+              }
               height={Math.max(bottom - top, 0.5)}
               key={key}
               opacity={0.85}
