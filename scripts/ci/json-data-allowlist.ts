@@ -5,7 +5,6 @@
 
 /** JSON data files still to move into Postgres (or delete). Remove each entry with its migration. */
 export const PENDING_JSON_DATA: readonly string[] = [
-  "apps/web/src/features/research-studies/adx-filter-study.json",
   "packages/academy/src/lessons/classification.json",
   "packages/academy/src/lessons/media-manifest.json",
   "packages/academy/src/lessons/narration-timing.json",
@@ -164,7 +163,6 @@ export const PENDING_JSON_DATA: readonly string[] = [
   "packages/academy/src/lessons/specs/would-you-buy-it-today.json",
   "research/baskets/owner-baskets.json",
   "research/macro/crown-desk-checklist-2026-10-16.json",
-  "services/research/adapters/ProviderAdaptersBuild-v1.private.json",
 ];
 
 /** JSON files that are not app data, with the reason. Keep each reason specific. */
@@ -277,6 +275,8 @@ export const KEPT_JSON_DATA: Readonly<Record<string, string>> = {
     "docs: Provenance/handoff record; not read at runtime",
   "services/kernel-bridge/provenance.json":
     "docs: Provenance/handoff record; not read at runtime",
+  "services/research/adapters/ProviderAdaptersBuild-v1.private.json":
+    "docs: Provenance/handoff record; not read at runtime (AGENTS.md: retain originals and corpus provenance)",
   "services/research/provenance/dependency-lock.json":
     "config: Research dependency lock config",
   "services/research/provenance/fixtures.json":
@@ -300,9 +300,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "apps/desktop/src/electron-ports.ts": ["settings.json"],
     "apps/web/src/components/portal/deployments-snapshot.tsx": ["health.json"],
-    "apps/web/src/components/portal/filter-studies-panel.tsx": [
-      "../../features/research-studies/adx-filter-study.json",
-    ],
     "apps/web/src/lab/entries/automation.tsx": [
       "../fixtures/automation.ts",
       "../fixtures/core.ts",
@@ -705,7 +702,4 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
     ],
     "services/research/quantlab/data.py": [".manifest.json"],
     "services/research/strategies/adx_filter_run.py": ["manifest.json"],
-    "services/research/strategies/filter_study_summary.py": [
-      "../../apps/web/src/features/research-studies/adx-filter-study.json",
-    ],
   };

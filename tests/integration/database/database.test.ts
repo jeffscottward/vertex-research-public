@@ -101,6 +101,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   research_report_datasets: "report_id,data_revision,dataset",
   research_report_revisions: "report_id,data_revision",
   research_reports: "id",
+  research_studies: "id",
   sector_rotation_alerts: "symbol,quadrant,entered_on",
   sector_rotation_points: "timeframe,symbol,date",
   signal_alert_events: "id",

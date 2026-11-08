@@ -391,6 +391,13 @@ export {
   QUANT_LAB_CAPTURES_MAX_LISTED,
   QUANT_LAB_STUDIES_MAX_LISTED,
 } from "./quant-lab-read.ts";
+export {
+  createResearchStudyRepository,
+  type ResearchStudyRecord,
+  type ResearchStudyRepository,
+  type ResearchStudyUpsertInput,
+  type ResearchStudyUpsertResult,
+} from "./research-studies.ts";
 export type {
   QuantLabBacktestRow,
   QuantLabCaptureRow,

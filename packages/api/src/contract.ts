@@ -28,6 +28,7 @@ import { agentModelRunsContract } from "./contracts/agent-model-runs.ts";
 import { optimizationsContract } from "./contracts/optimizations.ts";
 import { quantLabContract } from "./contracts/quant-lab.ts";
 import { researchReportsContract } from "./contracts/research-reports.ts";
+import { researchStudiesContract } from "./contracts/research-studies.ts";
 import { clickLogContract } from "./contracts/click-log.ts";
 import { agentApiKeysContract } from "./contracts/agent-api-keys.ts";
 import { strategyLibraryContract } from "./contracts/strategy-library.ts";
@@ -300,6 +301,7 @@ export const appContract = {
   agentOps: { ...agentOpsContract, optimizations: optimizationsContract },
   quantLab: quantLabContract,
   researchReports: researchReportsContract,
+  researchStudies: researchStudiesContract,
   clickLog: clickLogContract,
   papers: papersContract,
   agentModelRuns: agentModelRunsContract,
