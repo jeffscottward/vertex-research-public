@@ -8,36 +8,15 @@ import type { PricedTrade } from "./book.ts";
 import { DEFAULT_CAPITAL, type LedgerResult, runLedger } from "./ledger.ts";
 import { type RunStats, summarize } from "./metrics.ts";
 
-export type {
-  Book,
-  EventInput,
-  ExitReason,
-  Market,
-  OptionsInput,
-  PricedTrade,
-  SignalEvent,
-  Skip,
-  Structure,
-} from "./book.ts";
+export type { Market, PricedTrade } from "./book.ts";
 /** buildOptionsBook(events, options, markets): prices every signal event into a vertical spread or a skip. */
 // biome-ignore lint/performance/noBarrelFile: the options engine entrypoint the server engine and the worker result check import.
-export {
-  buildBook as buildOptionsBook,
-  OptionsSpec,
-  parseOptions,
-} from "./book.ts";
-export type { LedgerResult, LedgerSkip, TradeRecord } from "./ledger.ts";
+export { buildBook as buildOptionsBook } from "./book.ts";
+export type { LedgerResult } from "./ledger.ts";
 export type { RunStats } from "./metrics.ts";
 export {
-  type OptionsBars,
-  type OptionsDataset,
   type OptionsDatasetRows,
-  type OptionsRunMetrics,
-  type OptionsRunOptions,
-  type OptionsRunOutcome,
-  optionsContextFromRows,
   optionsDatasetFromRows,
-  optionsDefinitionSeriesIds,
   optionsRunMetrics,
   runOptionsDefinition,
 } from "./portfolio.ts";

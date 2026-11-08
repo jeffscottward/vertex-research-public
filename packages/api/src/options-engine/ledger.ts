@@ -78,7 +78,7 @@ export const timeline = (
   return days;
 };
 
-export const tradeRecord = (
+const tradeRecord = (
   trade: PricedTrade,
   contracts: number,
   entryPrice: number,

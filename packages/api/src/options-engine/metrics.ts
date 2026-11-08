@@ -20,7 +20,7 @@ import { parseDay } from "./calendar.ts";
 import type { LedgerResult } from "./ledger.ts";
 import { erf, log, pySum } from "./libm.ts";
 
-export const TRADING_DAYS = 252;
+const TRADING_DAYS = 252;
 const DAYS_PER_YEAR = 365.25;
 const EULER_GAMMA = 0.577_215_664_901_532_9;
 
@@ -147,7 +147,7 @@ export const deflatedSharpeRatio = (
   };
 };
 
-export const maxDrawdown = (equity: readonly number[]): number => {
+const maxDrawdown = (equity: readonly number[]): number => {
   let peak = equity[0] as number;
   let worst = 0;
   for (const value of equity) {

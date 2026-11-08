@@ -435,7 +435,7 @@ const differencesFor = (
 };
 
 /** The first options metric where the worker differs from the API beyond the tolerance, or null. */
-export const optionsMetricsMismatch = (
+const optionsMetricsMismatch = (
   sent: BacktestRunOptionsMetrics,
   computed: BacktestRunOptionsMetrics
 ): string | null => {
@@ -481,7 +481,7 @@ const OPTIONS_TRADE_FIELDS = [
  * the run days must be equal, the daily equity within ENGINE_STATS_TOLERANCE, the trades and skips
  * equal (returnOnRisk and maxLoss within the tolerance) and the metrics within the tolerance.
  */
-export const optionsResultMismatch = (
+const optionsResultMismatch = (
   result: BacktestRunEngineOptionsResult,
   own: OptionsRun
 ): string | null => {

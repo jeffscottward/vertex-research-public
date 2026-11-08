@@ -47,14 +47,14 @@ export type ExitReason =
   | "signal"
   | "end";
 
-export const STRUCTURES: Readonly<Record<Structure, readonly [Right, Kind]>> = {
+const STRUCTURES: Readonly<Record<Structure, readonly [Right, Kind]>> = {
   callDebitVertical: ["call", "debit"],
   putDebitVertical: ["put", "debit"],
   putCreditVertical: ["put", "credit"],
   callCreditVertical: ["call", "credit"],
 };
 /** IV index per traded symbol (data.IV_INDEX). */
-export const IV_INDEX: ReadonlyMap<string, string> = new Map([
+const IV_INDEX: ReadonlyMap<string, string> = new Map([
   ["SPY", "VIX"],
   ["QQQ", "VXN"],
   ["DIA", "VXD"],
@@ -63,7 +63,7 @@ export const IV_INDEX: ReadonlyMap<string, string> = new Map([
   ["SLV", "VXSLV"],
   ["USO", "OVX"],
 ]);
-export const MAX_LOSS_PCT_CAP = 2;
+const MAX_LOSS_PCT_CAP = 2;
 const DEFAULT_LONG_DELTA = 0.5;
 const DEFAULT_SHORT_DELTA = 0.25;
 const EXPIRY_SCAN_MONTHS = 15;

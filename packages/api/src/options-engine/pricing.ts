@@ -19,9 +19,9 @@ import { erfc, exp, log } from "./libm.ts";
 export type Right = "call" | "put";
 
 export const MULTIPLIER = 100;
-export const COMMISSION = 0.65;
+const COMMISSION = 0.65;
 const MIN_HALF_SPREAD = 0.01;
-export const ATM_FACTOR: ReadonlyMap<string, number> = new Map([
+const ATM_FACTOR: ReadonlyMap<string, number> = new Map([
   ["VIX", 0.9],
   ["VXN", 0.9],
   ["VXD", 0.9],
@@ -30,7 +30,7 @@ export const ATM_FACTOR: ReadonlyMap<string, number> = new Map([
   ["OVX", 0.95],
   ["VXSLV", 0.95],
 ]);
-export const HALF_SPREAD_PCT: ReadonlyMap<string, number> = new Map([
+const HALF_SPREAD_PCT: ReadonlyMap<string, number> = new Map([
   ["SPY", 0.01],
   ["QQQ", 0.015],
   ["IWM", 0.02],
@@ -55,7 +55,7 @@ export const SKEW: ReadonlyMap<string, number> = new Map([
   ["SLV", 0.05],
   ["USO", -0.1],
 ]);
-export const SKEW_FLOOR = 0.5;
+const SKEW_FLOOR = 0.5;
 const SKEW_CLAMP = 3;
 
 export const normCdf = (x: number): number => 0.5 * erfc(-x / Math.sqrt(2));

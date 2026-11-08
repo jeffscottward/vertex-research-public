@@ -123,14 +123,14 @@ export type BacktestRunExecutionDependencies = Readonly<{
 }>;
 
 /** What backtest runs load: the options runner and the daily series. */
-export const BACKTEST_RUN_SUPPORT = { options: true, series: true } as const;
+const BACKTEST_RUN_SUPPORT = { options: true, series: true } as const;
 
 /**
  * Why a backtest run spec cannot run an options definition, or undefined: the options book has its
  * own costs and exits, so the run-level costs, stop and target must be off, and the run symbol
  * must be one the book trades (a portfolio member, else a symbol with an IV index).
  */
-export const optionsSpecProblem = (
+const optionsSpecProblem = (
   spec: Readonly<{
     costBps: number;
     costProfile?: unknown;
@@ -156,7 +156,7 @@ export const optionsSpecProblem = (
  * Throws StrategyUnsupportedError or InstantBacktestInputError when a stored run cannot run its
  * definition (queued before the submit check, or written past it): refuse rather than run it half.
  */
-export const assertRunnableDefinition = (
+const assertRunnableDefinition = (
   spec: BacktestRunRecord["spec"],
   definition: StrategyDefinition
 ): void => {
@@ -239,7 +239,7 @@ export type LoadedRunBars =
   | Readonly<{ error: string }>;
 
 /** The stored bars of the run's date range, or the error message for the run. */
-export const loadRunBars = async (
+const loadRunBars = async (
   marketBars: MarketBarsRepository,
   spec: BacktestRunRecord["spec"]
 ): Promise<LoadedRunBars> => {
