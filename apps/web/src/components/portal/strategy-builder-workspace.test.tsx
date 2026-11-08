@@ -506,11 +506,12 @@ describe("StrategyBuilderWorkspace", () => {
     expect(document.body.textContent).toContain("The definition is valid.");
 
     await settle(() => button("Add entry condition").click());
+    await setNative(field("Risk per trade (%)"), "2");
     const text = definitionText();
     expect(text.entry.all).toHaveLength(1);
     expect(text.entry.any).toEqual([breakout]);
     expect(text.management).toEqual(definition.management);
-    expect(text.sizing).toEqual(definition.sizing);
+    expect(text.sizing).toEqual({ ...definition.sizing, riskPct: 2 });
   });
 
   it("runs a backtest of the definition and follows it to the result", async () => {

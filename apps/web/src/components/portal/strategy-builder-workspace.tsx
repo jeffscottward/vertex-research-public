@@ -772,7 +772,10 @@ export const StrategyBuilderWorkspace = ({
                   <NumberField
                     label="Risk per trade (%)"
                     onChange={(riskPct) =>
-                      edit({ ...draft, sizing: { mode: "riskPct", riskPct } })
+                      edit({
+                        ...draft,
+                        sizing: { ...draft.sizing, mode: "riskPct", riskPct },
+                      })
                     }
                     value={draft.sizing.riskPct}
                   />
