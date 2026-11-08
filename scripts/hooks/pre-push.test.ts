@@ -188,6 +188,93 @@ describe("source-bound pre-push", () => {
     return expect(invokedLanes()).toEqual(["verify:prepush"]);
   });
 
+  describe("dependency refresh", () => {
+    const INSTALL = [
+      "install",
+      "--frozen-lockfile",
+      "--prefer-offline",
+      "--config.confirm-modules-purge=false",
+    ];
+    const installCalls = () =>
+      mocks.spawnSync.mock.calls.filter(
+        ([executable]) => executable === "pnpm"
+      );
+
+    it("installs once, before the first lane, outside Git's hook repository", () => {
+      const events: string[] = [];
+      mocks.spawnSync.mockImplementation((executable, arguments_) => {
+        if (executable === "pnpm") {
+          events.push("install");
+        }
+        return gitSuccess(executable, arguments_);
+      });
+      const runScripts = vi.fn((scripts: readonly string[]) => {
+        events.push(...scripts);
+        return 0;
+      });
+      vi.stubEnv("GIT_DIR", "/outer/.git");
+      vi.stubEnv("GIT_INDEX_FILE", "/outer/.git/index");
+      try {
+        expect(run(update(), { runScripts })).toBe(0);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+      expect(events).toEqual(["install", ...lanes]);
+      expect(installCalls()).toEqual([
+        [
+          "pnpm",
+          INSTALL,
+          expect.objectContaining({
+            shell: false,
+            stdio: ["ignore", "inherit", "inherit"],
+          }),
+        ],
+      ]);
+      const environment = installCalls()[0]?.[2].env as NodeJS.ProcessEnv;
+      expect(environment).not.toHaveProperty("GIT_DIR");
+      return expect(environment).not.toHaveProperty("GIT_INDEX_FILE");
+    });
+
+    it("blocks the push with the install's exit code and runs no lane when the install fails", () => {
+      mocks.spawnSync.mockImplementation((executable, arguments_) =>
+        executable === "pnpm" ? result(7) : gitSuccess(executable, arguments_)
+      );
+      expect(run()).toBe(7);
+      expect(invokedLanes()).toEqual([]);
+      expect(console.error).toHaveBeenCalledWith(
+        `[hook] failed (7): ${["pnpm", ...INSTALL].map((word) => JSON.stringify(word)).join(" ")}`
+      );
+      return expect(console.error).toHaveBeenCalledWith(
+        expect.stringContaining("dependency install failed")
+      );
+    });
+
+    it.each([
+      ["cannot start", { error: new Error("spawnSync pnpm ENOENT") }],
+      ["is killed", { signal: "SIGTERM" }],
+    ])("blocks the push when pnpm %s", (_case, failure) => {
+      mocks.spawnSync.mockImplementation((executable, arguments_) =>
+        executable === "pnpm"
+          ? result(null, "", failure)
+          : gitSuccess(executable, arguments_)
+      );
+      expect(run()).toBe(1);
+      return expect(invokedLanes()).toEqual([]);
+    });
+
+    it("installs nothing for pushes that verify no source", () => {
+      expect(run("")).toBe(0);
+      expect(run(deletion)).toBe(0);
+      mocks.spawnSync.mockImplementation((executable, arguments_) =>
+        arguments_.includes("status")
+          ? result(0, " M src/index.ts\0")
+          : gitSuccess(executable, arguments_)
+      );
+      expect(run()).toBe(1);
+      return expect(installCalls()).toEqual([]);
+    });
+  });
+
   it("does not let consumers mutate the mandatory lanes", () => {
     expect(() => (PRE_PUSH_SCRIPTS as string[]).push("skip")).toThrow();
     expect(run()).toBe(0);
