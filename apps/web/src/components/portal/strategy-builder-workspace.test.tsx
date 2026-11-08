@@ -477,6 +477,42 @@ describe("StrategyBuilderWorkspace", () => {
     expect(field("Entry 1 right value").value).toBe("30");
   });
 
+  it("keeps entry.any, daily levels, management and maxLeverage through visual edits", async () => {
+    await mount(<StrategyBuilderWorkspace gateway={gatewayOf()} />);
+    const breakout = {
+      left: { field: "close", type: "price" },
+      oncePerLevel: true,
+      op: "breaksAbove",
+      right: {
+        length: 20,
+        name: "highest",
+        source: "high",
+        timeframe: "1d",
+        type: "indicator",
+      },
+    };
+    const definition = {
+      entry: { all: [], any: [breakout] },
+      management: {
+        breakevenR: 2,
+        trail: { activateR: 1, length: 14, multiple: 2 },
+      },
+      name: "Daily breakout",
+      sizing: { maxLeverage: 20, mode: "riskPct", riskPct: 1 },
+      stopLoss: { kind: "atr", length: 14, multiple: 2 },
+      version: 1,
+    };
+    await setNative(field("Definition text"), JSON.stringify(definition));
+    expect(document.body.textContent).toContain("The definition is valid.");
+
+    await settle(() => button("Add entry condition").click());
+    const text = definitionText();
+    expect(text.entry.all).toHaveLength(1);
+    expect(text.entry.any).toEqual([breakout]);
+    expect(text.management).toEqual(definition.management);
+    expect(text.sizing).toEqual(definition.sizing);
+  });
+
   it("runs a backtest of the definition and follows it to the result", async () => {
     vi.useFakeTimers();
     const gateway = gatewayOf({

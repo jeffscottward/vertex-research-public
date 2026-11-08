@@ -730,7 +730,9 @@ export const StrategyBuilderWorkspace = ({
             </Labeled>
             <ConditionList
               conditions={draft.entry.all}
-              onChange={(all) => edit({ ...draft, entry: { all } })}
+              onChange={(all) =>
+                edit({ ...draft, entry: { ...draft.entry, all } })
+              }
               prefix="Entry"
               title="Enter long when ALL of these are true"
             />
