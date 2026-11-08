@@ -105,17 +105,20 @@ Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 QuantData serves `order-flow/consolidated` newest first, 50 rows per page. Per symbol and run the
 collector reads the new window (from the newest stored print to now) with at most 6 requests (300
 prints). Ranges it leaves unread become rows in `flow_option_gaps` (migration 0053), stored before
-any further request so a later failure cannot lose them:
+the window's prints, so no failure can move the newest stored print past an unread range:
 
-- a capped window's older part, [window start, 1 ms after the oldest fetched print] (the sample
-  message says "page cap 6 reached, older prints of this window queued as a gap");
+- a capped window's older part, [window start, 1 ms after the oldest fetched row] (the whole
+  window when no row carries a trade time; the sample message says "page cap 6 reached, older
+  prints of this window queued as a gap");
 - after an outage longer than the 15-minute look-back, [newest stored print, look-back floor].
 
 The same run then reads gaps, newest end first, with the rest of its 8 requests (none after a
-failed window page). A gap read to its end is deleted. A capped one keeps its start and moves its
-end back to 1 ms after the oldest print fetched: prints sharing that millisecond are read again
-whether QuantData treats `endTime` as inclusive or exclusive (stored print ids are skipped), and
-each resume moves at least 1 ms. A gap whose capped pages held no valid row stays as it is. After
+failed window page); a gap's prints are stored before its row changes, and one start is read once
+even when a quiet window queues it again. A gap read to its end is deleted. A capped one keeps its
+start and moves its end back to 1 ms after the oldest row fetched (rows that fail the print schema
+count, so a schema change cannot stall it): rows sharing that millisecond are read again whether
+QuantData treats `endTime` as inclusive or exclusive (stored print ids are skipped), and each resume
+moves at least 1 ms. A gap whose capped rows carry no trade time at all stays as it is. After
 the options close (16:15 New York) the collector keeps reading gaps every ~2 minutes with all 8
 requests per symbol (about 12,000 prints per hour) until none are left; without gaps it answers
 "market closed" with no request. Gaps whose end is older than the 14-day retention are pruned. The
@@ -124,16 +127,17 @@ sample message shows the gaps left and the oldest gap start.
 Budget: at most 8 QuantData requests per symbol per ~2 minutes, failed ones included (16 for both
 symbols), inside the vertex-web client limit of 30 per minute that `/charts` shares, and the account
 limit of 240 per 60 s. A refused request stops the run's paging; the gap stays for the next run.
-Without the `flow_option_gaps` table the window is still read and the message says "gaps
-unavailable".
+If the gap list cannot be read (for example before 0053 is applied), the options sample is
+`unavailable` while the session is open; after the close the run is skipped ("gaps unavailable").
 
 ## Known gaps
 
 - Options totals cover the stored prints. A busy window that is still in `flow_option_gaps` (see
   "Options paging and gaps") is complete only after later runs read the gap; in a long busy session
   the older gaps wait for the close. Prints QuantData publishes late, with a trade time before the
-  newest stored print, are not fetched. If more prints than one run's requests cover (at least 100)
-  share the last millisecond of a gap, the 1 ms step skips the rest of that millisecond.
+  newest stored print, are not fetched. If more prints than one run's requests cover (at least 100
+  during the session, 400 after the close) share the last millisecond of a gap, the 1 ms step skips
+  the rest of that millisecond.
 - The GEX snapshot shown is the newest one up to now, even when the order-flow window ended at a
   closed market's last print (GEX uses previous-session open interest).
 

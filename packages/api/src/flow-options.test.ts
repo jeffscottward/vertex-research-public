@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type FlowOptionPrintRow,
+  oldestRowTime,
   optionEvents,
   parseOptionPrints,
 } from "./flow-options.ts";
@@ -249,5 +250,30 @@ describe("optionEvents", () => {
     });
     expect(plain?.detail).toBe("SPY 2026-11-09 605P 12x @ ? (ask, otm)");
     expect(plain?.direction).toBe("bearish");
+  });
+});
+
+describe("oldestRowTime", () => {
+  it("reads epoch ms and ISO trade times, rows that fail the print schema included", () => {
+    expect(
+      oldestRowTime([
+        { tradeTime: MS },
+        { broken: true, tradeTime: new Date(MS - 5000).toISOString() },
+        { tradeTime: String(MS - 1000) },
+      ])
+    ).toStrictEqual(new Date(MS - 5000));
+  });
+
+  it("ignores rows without a usable trade time and non-array data", () => {
+    expect(
+      oldestRowTime([
+        null,
+        7,
+        { tradeTime: "" },
+        { tradeTime: "not a time" },
+        { tradeTime: { at: MS } },
+      ])
+    ).toBeNull();
+    expect(oldestRowTime({ rows: [{ tradeTime: MS }] })).toBeNull();
   });
 });

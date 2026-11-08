@@ -102,6 +102,28 @@ const toTime = (value: number | string): Date | null => {
   return Number.isFinite(ms) ? new Date(ms) : null;
 };
 
+/**
+ * Oldest tradeTime among a page's rows, rows that fail the print schema included (the collector
+ * resumes a capped range there even when its rows do not parse). Null: no row has a trade time.
+ */
+export const oldestRowTime = (data: unknown): Date | null => {
+  let oldest: Date | null = null;
+  for (const row of Array.isArray(data) ? data : []) {
+    const value: unknown =
+      typeof row === "object" && row !== null
+        ? (row as Record<string, unknown>)["tradeTime"]
+        : null;
+    if (
+      typeof value !== "number" &&
+      (typeof value !== "string" || value === "")
+    )
+      continue;
+    const time = toTime(value);
+    if (time !== null && (oldest === null || time < oldest)) oldest = time;
+  }
+  return oldest;
+};
+
 const optionKind = (print: FlowOptionPrintRow): FlowEventRow["kind"] => {
   if (print.goldenSweep) return "option_golden_sweep";
   if (print.consolidation === "sweep") return "option_sweep";
