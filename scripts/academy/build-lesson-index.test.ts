@@ -230,6 +230,72 @@ describe("buildLessonIndex", () => {
   });
 });
 
+describe("buildLessonIndex with a second course", () => {
+  const QFTG_SOURCES =
+    "packages/academy/src/lessons/sources.quantfinancetogo.json";
+  const qftgSpec = (slug: string, sourceId = "QftgReel01") => ({
+    ...readSpec(SLUG_B),
+    course: "quantfinancetogo",
+    slug,
+    sourceId,
+  });
+  const addCourse = (specsByName: Record<string, unknown>) => {
+    writeFileSync(
+      join(root, QFTG_SOURCES),
+      JSON.stringify([{ sourceId: "QftgReel01" }, { sourceId: "QftgReel02" }])
+    );
+    mkdirSync(join(specs, "quantfinancetogo"));
+    for (const [name, spec] of Object.entries(specsByName))
+      writeFileSync(
+        join(specs, "quantfinancetogo", name),
+        JSON.stringify(spec)
+      );
+  };
+
+  it("indexes course folders after the default course", () => {
+    addCourse({ "binomial-tree.json": qftgSpec("binomial-tree") });
+    expect(buildLessonIndex([], options())).toBe(0);
+    expect(readFileSync(out, "utf8")).toBe(
+      generated([
+        `${SLUG_A}.json`,
+        `${SLUG_B}.json`,
+        "quantfinancetogo/binomial-tree.json",
+      ])
+    );
+    expect(stdout).toEqual(["3 lesson specs valid\n"]);
+    // --only finds a spec in a course folder by its slug.
+    stdout = [];
+    expect(buildLessonIndex(["--only", "binomial-tree"], options())).toBe(0);
+    expect(stdout).toEqual(["1 lesson specs valid\n"]);
+  });
+
+  it("refuses a wrong course, another course's source, a reused slug or a source listed twice", () => {
+    addCourse({
+      "no-course.json": { ...qftgSpec("no-course"), course: undefined },
+      "dyr-source.json": qftgSpec("dyr-source", readSpec(SLUG_A).sourceId),
+      [`${SLUG_B}.json`]: qftgSpec(SLUG_B, "QftgReel02"),
+    });
+    writeFileSync(
+      join(root, QFTG_SOURCES),
+      JSON.stringify([
+        { sourceId: "QftgReel01" },
+        { sourceId: "QftgReel02" },
+        { sourceId: readSpec(SLUG_B).sourceId },
+      ])
+    );
+    expect(buildLessonIndex([], options())).toBe(1);
+    expect(errorLines()).toEqual([
+      `sources.quantfinancetogo.json: sourceId ${readSpec(SLUG_B).sourceId} already listed by sources.json`,
+      `${SLUG_B}.json: slug ${SLUG_B} also used by quantfinancetogo/${SLUG_B}.json`,
+      `quantfinancetogo/dyr-source.json: sourceId ${readSpec(SLUG_A).sourceId} is a dyr source, not quantfinancetogo`,
+      `quantfinancetogo/dyr-source.json: sourceId ${readSpec(SLUG_A).sourceId} already used by ${SLUG_A}.json`,
+      `quantfinancetogo/${SLUG_B}.json: slug ${SLUG_B} also used by ${SLUG_B}.json`,
+      "quantfinancetogo/no-course.json: course dyr does not match its folder (course quantfinancetogo)",
+      "quantfinancetogo/no-course.json: sourceId QftgReel01 is a quantfinancetogo source, not dyr",
+    ]);
+  });
+});
+
 describe("runLessonIndexEntrypoint", () => {
   it("does nothing when imported", () => {
     const exitState: { exitCode?: number } = {};

@@ -1,7 +1,9 @@
-// What: The lesson spec contract. One JSON file per Define Your Risk transcript is validated against
-// LessonSpecSchema. The same spec drives the interactive chart, the data tables, the rendered video,
-// the WebVTT captions, the backtest preset and the deploy gate inputs.
+// What: The lesson spec contract. One JSON file per knowledge-base transcript (any Academy course) is
+// validated against LessonSpecSchema. The same spec drives the interactive chart, the data tables,
+// the rendered video, the WebVTT captions, the backtest preset and the deploy gate inputs.
 import { z } from "zod";
+
+import { COURSE_IDS, type CourseId, DEFAULT_COURSE_ID } from "./courses.ts";
 
 export const COLOR_TOKENS = [
   "green",
@@ -301,6 +303,8 @@ export type BacktestPreset = z.infer<typeof BacktestPresetSchema>;
 
 export const LessonSpecSchema = z
   .object({
+    /** Course of the lesson (courses.ts); Define Your Risk specs omit it. */
+    course: z.enum(COURSE_IDS).default(DEFAULT_COURSE_ID),
     slug: z
       .string()
       .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/u)
@@ -378,12 +382,17 @@ export type LessonSpec = z.infer<typeof LessonSpecSchema>;
 
 /** Transcript and source data attached at build time from the knowledge base (not authored). */
 export type LessonSource = Readonly<{
+  /** Course whose knowledge base holds the source (sources.json entries omit it: dyr). */
+  course: CourseId;
   sourceId: string;
   url: string;
   caption: string;
   publishedAt: string;
   durationSeconds: number;
-  /** Sentences with start times estimated from word position over the audio duration. */
+  /**
+   * Sentences with start times estimated from word position over the audio duration (dyr), or
+   * speech-to-text segments with their own start times (courses with `timestamps: "segments"`).
+   */
   transcript: readonly Readonly<{ start: number; text: string }>[];
   duplicateOf?: string;
 }>;
@@ -391,6 +400,7 @@ export type LessonSource = Readonly<{
 export type Lesson = LessonSpec & Readonly<{ source: LessonSource }>;
 
 export type LessonSummary = Readonly<{
+  course: CourseId;
   slug: string;
   title: string;
   summary: string;

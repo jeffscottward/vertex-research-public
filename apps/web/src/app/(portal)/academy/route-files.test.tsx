@@ -44,6 +44,16 @@ describe("academy route files", () => {
     expect(html).not.toContain('data-lesson-card="vega-exposure-basics"');
   });
 
+  it("lists every registered course in the picker and as its own group", async () => {
+    const html = await render();
+    expect(html).toContain('data-course-card="dyr"');
+    expect(html).toContain('data-course-card="quantfinancetogo"');
+    expect(html).toContain('href="/academy/c/quantfinancetogo"');
+    expect(html).toContain('data-academy-course="dyr"');
+    expect(html).toContain('data-academy-course="quantfinancetogo"');
+    expect(html).toContain("QuantFinanceToGo videos");
+  });
+
   it("refuses non-operators (private transcripts)", async () => {
     sessionMock.isOperator = false;
     const html = await render();

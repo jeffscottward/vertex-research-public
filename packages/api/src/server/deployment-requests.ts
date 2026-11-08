@@ -1,3 +1,4 @@
+import { isAcademyStrategySlug } from "@darkfactory/academy/courses";
 import {
   DatabaseConflictError,
   DatabasePersistenceError,
@@ -170,14 +171,12 @@ const deploymentRequestsGet = api.deploymentRequests.get
     );
   });
 
-/** Slug prefix of strategy records created by the Academy (academy.ts imports it from here). */
-export const ACADEMY_STRATEGY_PREFIX = "dyr-";
-
 const ACADEMY_REQUEST_PATH_MESSAGE =
   "Academy strategies are requested from their Academy lesson page, where the rule gates, the password step-up and the audit apply";
 
-// Academy (dyr-*) strategies must go through academy.deployRequest: this generic path has no rule
-// gates, no password step-up and no audit, so create, edit and submit refuse them.
+// Academy strategies (every course prefix in the course registry: dyr-*, qftg-*, ...) must go
+// through academy.deployRequest: this generic path has no rule gates, no password step-up and no
+// audit, so create, edit and submit refuse them.
 const refuseAcademyStrategy = async (
   context: ApiContext,
   strategyId: string,
@@ -190,7 +189,7 @@ const refuseAcademyStrategy = async (
       message: "Strategy library unavailable",
     });
   const record = await procedure(() => library.get(strategyId), errors);
-  if (record?.strategy.slug.startsWith(ACADEMY_STRATEGY_PREFIX) === true)
+  if (record !== null && isAcademyStrategySlug(record.strategy.slug))
     throw factories(errors).FORBIDDEN({
       message: ACADEMY_REQUEST_PATH_MESSAGE,
     });
@@ -205,7 +204,7 @@ const refuseAcademyRequest = async (
     () => requestsFor(context, errors).get(id),
     errors
   );
-  if (row?.strategySlug.startsWith(ACADEMY_STRATEGY_PREFIX) === true)
+  if (row !== null && isAcademyStrategySlug(row.strategySlug))
     throw factories(errors).FORBIDDEN({
       message: ACADEMY_REQUEST_PATH_MESSAGE,
     });

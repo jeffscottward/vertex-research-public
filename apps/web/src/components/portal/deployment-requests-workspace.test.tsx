@@ -688,6 +688,29 @@ describe("DeploymentsView", () => {
     return expect(link.getAttribute("href")).toBe("/academy/wheel#deploy");
   });
 
+  it("sends a strategy of any Academy course to its lesson deploy gate", async () => {
+    const container = await mount(
+      <StrategyDetail
+        describeFailure={() => ""}
+        detail={strategyDetail(summary({ slug: "qftg-binomial-tree" }))}
+        gateway={strategiesGateway()}
+        onChanged={async () => undefined}
+        onClose={() => undefined}
+        onTab={() => undefined}
+        tab="overview"
+      />
+    );
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    const link = container.querySelector<HTMLAnchorElement>(
+      '[data-strategy-academy-lesson="qftg-binomial-tree"]'
+    )!;
+    return expect(link.getAttribute("href")).toBe(
+      "/academy/binomial-tree#deploy"
+    );
+  });
+
   return it("links a strategy library detail to a prefilled paper deployment request", async () => {
     const container = await mount(
       <StrategyDetail

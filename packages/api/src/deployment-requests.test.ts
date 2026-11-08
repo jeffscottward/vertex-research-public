@@ -623,6 +623,8 @@ describe("deploymentRequests modules have no network path", () => {
         "../contracts/deployment-requests.ts",
         "./context.ts",
         "./operator-access.ts",
+        // Course registry (pure data, no imports): the Academy strategy prefixes refused here.
+        "@darkfactory/academy/courses",
         "@darkfactory/db/server",
         "@orpc/server",
       ]

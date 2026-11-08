@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { COURSES } from "@darkfactory/academy";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -8,7 +9,7 @@ import {
   AcademyThemeToggle,
   useAcademyTheme,
 } from "./academy-theme.tsx";
-import { LABELS, labelOf } from "./labels.ts";
+import { labelOf } from "./labels.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
@@ -161,6 +162,6 @@ describe("labels", () => {
   it("names known tags and passes unknown values through", () => {
     expect(labelOf("high-vol")).toBe("High volatility");
     expect(labelOf("mystery-tag")).toBe("mystery-tag");
-    expect(LABELS.disclaimer).toContain("not historical option fills");
+    expect(COURSES.dyr.disclaimer).toContain("not historical option fills");
   });
 });

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { COURSES } from "@darkfactory/academy";
 import { lessonBySlug } from "@darkfactory/academy/lessons";
 import type {
   AcademyDeployRequestOutput,
@@ -123,6 +124,76 @@ const setValue = async (
 };
 
 describe("AcademyLesson", () => {
+  it("shows an unnarrated course's lesson as a live animation with its source reel", async () => {
+    const base = lessonBySlug("vega-exposure-basics");
+    if (base === null) throw new Error("fixture lesson missing");
+    const lesson = {
+      ...base,
+      course: "quantfinancetogo" as const,
+      source: {
+        ...base.source,
+        course: "quantfinancetogo" as const,
+        url: "https://www.instagram.com/reel/DfK1oP4IkLF/",
+      },
+    };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <AcademyLesson
+          lesson={lesson}
+          media={{
+            captions: "/c.vtt",
+            durationSeconds: 30,
+            thumbnail: "/t.jpg",
+            video: "/v.mp4",
+          }}
+          next={null}
+          previous={null}
+        />
+      )
+    );
+    const reel = container.querySelector("[data-source-reel]");
+    expect(reel?.getAttribute("href")).toBe(
+      "https://www.instagram.com/reel/DfK1oP4IkLF/"
+    );
+    expect(reel?.textContent).toContain("Source reel by QuantFinanceToGo");
+    // No MP4 for an unnarrated course, and no "not rendered yet" notice either.
+    expect(container.querySelector("video")).toBeNull();
+    expect(container.textContent).not.toContain("not rendered yet");
+    expect(container.textContent).toContain("Live animation");
+    expect(container.querySelector("#video-title")?.textContent).toBe(
+      "Chart animation"
+    );
+    expect(
+      container.querySelector('nav[aria-label="Lesson sections"] a')
+        ?.textContent
+    ).toBe("Animation");
+    const crumbs = [
+      ...container.querySelectorAll('nav[aria-label="Breadcrumb"] a'),
+    ].map((link) => link.getAttribute("href"));
+    expect(crumbs).toEqual(["/academy", "/academy/c/quantfinancetogo"]);
+    expect(container.textContent).toContain(
+      COURSES.quantfinancetogo.disclaimer
+    );
+    expect(container.textContent).not.toContain(COURSES.dyr.disclaimer);
+    expect(container.textContent).toContain(
+      "Timestamps are the speech-to-text segment start times."
+    );
+  });
+
+  it("keeps the Define Your Risk lesson narrated, with estimated timestamps and no reel link", async () => {
+    const container = await mount(gateway());
+    expect(container.querySelector("[data-source-reel]")).toBeNull();
+    expect(container.textContent).toContain("not rendered yet");
+    expect(container.textContent).toContain(COURSES.dyr.disclaimer);
+    expect(container.textContent).toContain(
+      "Timestamps are estimated from word position"
+    );
+  });
+
   it("renders a concept lesson with the browser gateway and both neighbour links", async () => {
     const lesson = lessonBySlug("vega-exposure-basics");
     if (lesson === null) throw new Error("fixture lesson missing");

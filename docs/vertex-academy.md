@@ -19,8 +19,9 @@ tradeable strategies, a modeled backtest and a gated paper deployment request.
 
 | Part | Location |
 | --- | --- |
-| Lesson specs (one JSON per transcript) | `packages/academy/src/lessons/specs/<slug>.json` |
-| Transcripts with estimated timestamps | `packages/academy/src/lessons/sources.json` (`scripts/academy/build-sources.ts`) |
+| Course registry | `packages/academy/src/courses.ts` |
+| Lesson specs (one JSON per transcript) | `packages/academy/src/lessons/specs/<slug>.json`, other courses `specs/<course>/<slug>.json` |
+| Transcripts | `packages/academy/src/lessons/sources.json`, `sources.<course>.json` (`scripts/academy/build-sources.ts [--course <id>]`) |
 | Classification pass 1 (judge model) | `packages/academy/src/lessons/classification.json` |
 | Spec contract | `packages/academy/src/schema.ts` |
 | Scenes, tables, formulas, timeline/VTT | `packages/academy/src/{scenes,tables,formulas,timeline}.ts` |
@@ -30,6 +31,44 @@ tradeable strategies, a modeled backtest and a gated paper deployment request.
 | API | `packages/api/src/contracts/academy.ts`, `packages/api/src/server/academy.ts` |
 | Pages | `apps/web/src/app/(portal)/academy/`, `apps/web/src/components/portal/academy/` |
 | Video renderer | `apps/academy-video` (Remotion) |
+
+## Courses
+
+A course is one creator's lesson series. The registry is `packages/academy/src/courses.ts`
+(`@darkfactory/academy/courses`): id, title, short title, creator, platform, profile URL,
+knowledge-base folder, tagline, disclaimer, `narrated`, transcript `timestamps`, strategy prefix,
+library section and tag, spec folder and sources file. Gallery copy, lesson disclaimers, Academy
+strategy slugs (`<prefix><lesson slug>`), library section/tag/name and the deployment-request
+refusal all read it; nothing else hard-codes a course.
+
+| Course | Specs | Sources | Narrated | Strategy prefix |
+| --- | --- | --- | --- | --- |
+| `dyr` (Define Your Risk, default) | `specs/<slug>.json` (no `course` field) | `sources.json` | yes | `dyr-` |
+| `quantfinancetogo` | `specs/quantfinancetogo/<slug>.json` with `"course": "quantfinancetogo"` | `sources.quantfinancetogo.json` | no | `qftg-` |
+
+- Pages: `/academy` shows a course picker and one group per course (the default course keeps the
+  URL filters, so old `/academy?q=...` links still work); `/academy/c/<course>` is one course's
+  gallery; every lesson stays at `/academy/<slug>` (slugs are unique across courses). Previous and
+  next links stay inside the lesson's course.
+- Unnarrated courses have no MP4 and no narration timing: the lesson page plays the live chart
+  animation and links the source reel. `apps/academy-video` `--all` renders narrated courses only.
+- Every course's strategies (`dyr-*`, `qftg-*`) deploy only from the lesson page; the generic
+  deployment-request path refuses all of them, and the Academy allocation total counts all courses.
+
+To add a course:
+
+1. Add its id to `COURSE_IDS` and an entry to `COURSES` (pick a strategy prefix that is not a prefix
+   of another course's; `courses.test.ts` checks this).
+2. Add a reader to `READERS` in `scripts/academy/build-sources.ts` for the knowledge-base note
+   format, run `bun scripts/academy/build-sources.ts --course <id>` and commit the sources file.
+3. Import the sources file in `packages/academy/src/lessons/index.ts` (`SOURCE_FILES`).
+4. Write specs in `specs/<specDir>/<slug>.json` with `"course": "<id>"`, then run
+   `bun scripts/academy/build-lesson-index.ts` (it checks the folder, the course of each source,
+   and that slugs and sourceIds are unique across courses).
+
+QuantFinanceToGo sources come from `trading/quantfinancetogo/raw/ig-<post id>.md`: frontmatter
+(`post_id`, `url`, `published`, `duration`, `title`), the `## Caption` text block (becomes
+`caption`) and `## Transcript` segments `- [mm:ss] text` with real start times.
 
 ## Media
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { COURSES, courseOf } from "./courses.ts";
 import { ACADEMY_LESSONS } from "./lessons/index.ts";
 import narration from "./lessons/narration-timing.json" with { type: "json" };
 import {
@@ -10,14 +11,35 @@ import {
   parseLessonVtt,
 } from "./timeline.ts";
 
+// Only narrated courses (courses.ts) record narration; the others play the live animation.
+const NARRATED = ACADEMY_LESSONS.filter((lesson) => courseOf(lesson).narrated);
+
 describe("narration timing", () => {
-  it("covers every lesson with one duration per step", () => {
-    for (const lesson of ACADEMY_LESSONS) {
+  it("covers every lesson of a narrated course with one duration per step", () => {
+    expect(NARRATED.length).toBeGreaterThan(0);
+    for (const lesson of NARRATED) {
       expect(narrationTimingFor(lesson), lesson.slug).not.toBeNull();
     }
     expect(Object.keys(narration).sort()).toEqual(
-      ACADEMY_LESSONS.map((lesson) => lesson.slug).sort()
+      NARRATED.map((lesson) => lesson.slug).sort()
     );
+  });
+
+  it("needs no narration for a lesson of a course that is not narrated", () => {
+    expect(COURSES.quantfinancetogo.narrated).toBe(false);
+    const unnarrated = ACADEMY_LESSONS.filter(
+      (lesson) => !courseOf(lesson).narrated
+    );
+    for (const lesson of unnarrated)
+      expect(Object.keys(narration)).not.toContain(lesson.slug);
+    // A lesson without narration still gets a full timeline from its spec seconds.
+    const steps = [
+      { seconds: 4, caption: "c", element: "axes" },
+      { seconds: 5, caption: "d", element: "price" },
+    ] as never;
+    const timeline = lessonTimeline({ slug: "qftg-only-lesson", steps });
+    expect(narrationTimingFor({ slug: "qftg-only-lesson", steps })).toBeNull();
+    expect(timeline.steps.at(-1)?.end).toBe(INTRO_SECONDS + 9);
   });
 
   it("drives the timeline and captions from the narration durations", () => {

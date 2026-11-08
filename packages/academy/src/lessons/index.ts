@@ -1,5 +1,7 @@
-// What: The lesson catalog: validated specs joined with their knowledge-base source (transcript).
-// Server-side only in the web app (pages pass one lesson or the summaries to client components).
+// What: The lesson catalog: validated specs joined with their knowledge-base source (transcript),
+// for every course in the registry (courses.ts). Server-side only in the web app (pages pass one
+// lesson or the summaries to client components).
+import { COURSE_IDS, COURSES, type CourseId } from "../courses.ts";
 import {
   type Lesson,
   type LessonSource,
@@ -8,23 +10,76 @@ import {
   type LessonSummary,
 } from "../schema.ts";
 import mediaManifest from "./media-manifest.json" with { type: "json" };
-import sources from "./sources.json" with { type: "json" };
+import dyrSources from "./sources.json" with { type: "json" };
+import quantfinancetogoSources from "./sources.quantfinancetogo.json" with {
+  type: "json",
+};
 import { LESSON_SPECS } from "./specs.generated.ts";
 
-const SOURCES: ReadonlyMap<string, LessonSource> = new Map(
-  (sources as LessonSource[]).map((source) => [source.sourceId, source])
+/** Contents of each course's sources file (courses.ts `sourcesFile`). */
+export type SourceFiles = Readonly<Record<CourseId, readonly unknown[]>>;
+
+const SOURCE_FILES: SourceFiles = {
+  dyr: dyrSources,
+  quantfinancetogo: quantfinancetogoSources,
+};
+
+type RawSource = Omit<LessonSource, "course"> & { course?: string };
+
+/** Tags every source with the course of its file; refuses a mismatched course or a reused sourceId. */
+export const loadSources = (files: SourceFiles): LessonSource[] => {
+  const seen = new Set<string>();
+  return COURSE_IDS.flatMap((course) =>
+    (files[course] as RawSource[]).map((raw): LessonSource => {
+      if (raw.course !== undefined && raw.course !== course)
+        throw new Error(
+          `source ${raw.sourceId} in ${COURSES[course].sourcesFile} names course ${raw.course}`
+        );
+      if (seen.has(raw.sourceId))
+        throw new Error(`sourceId ${raw.sourceId} appears in two sources`);
+      seen.add(raw.sourceId);
+      return { ...raw, course };
+    })
+  );
+};
+
+/** Validates the specs and joins each with its source; course order first, newest first inside. */
+export const buildCatalog = (
+  specs: readonly unknown[],
+  sources: readonly LessonSource[]
+): Lesson[] => {
+  const byId = new Map(sources.map((source) => [source.sourceId, source]));
+  const slugs = new Set<string>();
+  return specs
+    .map((raw) => {
+      const spec: LessonSpec = LessonSpecSchema.parse(raw);
+      if (slugs.has(spec.slug))
+        throw new Error(`lesson slug ${spec.slug} is used twice`);
+      slugs.add(spec.slug);
+      const source = byId.get(spec.sourceId);
+      if (source === undefined)
+        throw new Error(`lesson ${spec.slug} has no source ${spec.sourceId}`);
+      if (source.course !== spec.course)
+        throw new Error(
+          `lesson ${spec.slug} (${spec.course}) uses source ${spec.sourceId} of course ${source.course}`
+        );
+      return { ...spec, source };
+    })
+    .sort(
+      (a, b) =>
+        COURSE_IDS.indexOf(a.course) - COURSE_IDS.indexOf(b.course) ||
+        b.source.publishedAt.localeCompare(a.source.publishedAt)
+    );
+};
+
+/** Every knowledge-base source of every course, including those without a lesson yet. */
+export const ACADEMY_SOURCES: readonly LessonSource[] = Object.freeze(
+  loadSources(SOURCE_FILES)
 );
 
-const load = (): Lesson[] =>
-  LESSON_SPECS.map((raw) => {
-    const spec: LessonSpec = LessonSpecSchema.parse(raw);
-    const source = SOURCES.get(spec.sourceId);
-    if (source === undefined)
-      throw new Error(`lesson ${spec.slug} has no source ${spec.sourceId}`);
-    return { ...spec, source };
-  }).sort((a, b) => b.source.publishedAt.localeCompare(a.source.publishedAt));
-
-export const ACADEMY_LESSONS: readonly Lesson[] = Object.freeze(load());
+export const ACADEMY_LESSONS: readonly Lesson[] = Object.freeze(
+  buildCatalog(LESSON_SPECS, ACADEMY_SOURCES)
+);
 
 const BY_SLUG: ReadonlyMap<string, Lesson> = new Map(
   ACADEMY_LESSONS.map((lesson) => [lesson.slug, lesson])
@@ -33,7 +88,27 @@ const BY_SLUG: ReadonlyMap<string, Lesson> = new Map(
 export const lessonBySlug = (slug: string): Lesson | null =>
   BY_SLUG.get(slug) ?? null;
 
+export type LessonLink = Readonly<{ slug: string; title: string }>;
+
+/** Previous and next lesson of the same course in catalog order (null past either end). */
+export const neighboursIn = (
+  lessons: readonly Pick<Lesson, "course" | "slug" | "title">[],
+  slug: string
+): Readonly<{ previous: LessonLink | null; next: LessonLink | null }> => {
+  const lesson = lessons.find((entry) => entry.slug === slug);
+  const course = lessons.filter((entry) => entry.course === lesson?.course);
+  const index = course.findIndex((entry) => entry.slug === slug);
+  const at = (offset: number): LessonLink | null => {
+    const entry = index < 0 ? undefined : course[index + offset];
+    return entry === undefined
+      ? null
+      : { slug: entry.slug, title: entry.title };
+  };
+  return { previous: at(-1), next: at(1) };
+};
+
 export const toLessonSummary = (lesson: Lesson): LessonSummary => ({
+  course: lesson.course,
   slug: lesson.slug,
   title: lesson.title,
   summary: lesson.summary,
@@ -47,9 +122,18 @@ export const toLessonSummary = (lesson: Lesson): LessonSummary => ({
 export const lessonSummaries = (): LessonSummary[] =>
   ACADEMY_LESSONS.map(toLessonSummary);
 
-/** Every knowledge-base source, including those without a lesson yet (progress reporting). */
-export const ACADEMY_SOURCES: readonly LessonSource[] =
-  sources as LessonSource[];
+/** Knowledge-base videos per course, not counting recorded exact duplicates. */
+export const sourceCounts = (
+  sources: readonly LessonSource[] = ACADEMY_SOURCES
+): Record<CourseId, number> =>
+  Object.fromEntries(
+    COURSE_IDS.map((course) => [
+      course,
+      sources.filter(
+        (source) => source.course === course && source.duplicateOf === undefined
+      ).length,
+    ])
+  ) as Record<CourseId, number>;
 
 export type AcademyMedia = Readonly<{
   video: string;

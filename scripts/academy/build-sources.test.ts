@@ -136,6 +136,134 @@ describe("buildSources", () => {
   });
 });
 
+const QFTG_KB = "Github/knowledge-bases/trading/quantfinancetogo/raw";
+const qftgOut = () =>
+  join(root, "packages/academy/src/lessons/sources.quantfinancetogo.json");
+const readQftg = () => JSON.parse(readFileSync(qftgOut(), "utf8")) as unknown;
+
+describe("buildSources --course quantfinancetogo", () => {
+  it("reads reel notes: frontmatter, caption block and timestamped segments", () => {
+    const kb = join(home, QFTG_KB);
+    mkdirSync(kb, { recursive: true });
+    writeFileSync(
+      join(kb, "ig-Df_Ab-12345.md"),
+      note([
+        "---",
+        "type: raw-transcript",
+        'title: "Part 37: \\"Binomial\\" pricing"',
+        "platform: instagram",
+        'post_id: "Df_Ab-12345"',
+        "url: https://www.instagram.com/reel/Df_Ab-12345/",
+        "published: 2026-10-31",
+        "duration: 118.0",
+        'transcript_status: "ok"',
+        "topics: [options-pricing]",
+        "  indented: ignored",
+        "---",
+        "",
+        "# Part 37",
+        "",
+        "## Caption",
+        "",
+        "```text",
+        "Part 37: Binomial model option pricing",
+        "",
+        "Education only, not financial advice.",
+        "```",
+        "",
+        "## Transcript",
+        "",
+        "- [00:00] In 1979, three researchers",
+        "- [01:03] the real chance   ",
+        "- [1:02:05] an hour in",
+        "not a segment",
+      ])
+    );
+    // A no-speech reel: no caption, no url, no post id, invalid quoted title.
+    writeFileSync(
+      join(kb, "ig-Dq9.md"),
+      note([
+        "---",
+        'title: "broken \\q escape"',
+        "duration: none",
+        "---",
+        "",
+        "## Transcript",
+        "",
+        "No speech transcript (no-speech).",
+      ])
+    );
+    // Neither caption nor title.
+    writeFileSync(join(kb, "ig-Dzz.md"), note(["# Only a heading"]));
+    writeFileSync(join(kb, "index.md"), "---\ntype: index\n---\n");
+
+    buildSources(["--course", "quantfinancetogo"], options());
+
+    expect(
+      readFileSync(qftgOut(), "utf8").startsWith('[\n  {\n    "course"')
+    ).toBe(true);
+    expect(readQftg()).toEqual([
+      {
+        course: "quantfinancetogo",
+        sourceId: "Df_Ab-12345",
+        url: "https://www.instagram.com/reel/Df_Ab-12345/",
+        caption:
+          "Part 37: Binomial model option pricing\n\nEducation only, not financial advice.",
+        publishedAt: "2026-10-31",
+        durationSeconds: 118,
+        transcript: [
+          { start: 0, text: "In 1979, three researchers" },
+          { start: 63, text: "the real chance" },
+          { start: 3725, text: "an hour in" },
+        ],
+      },
+      {
+        course: "quantfinancetogo",
+        sourceId: "Dq9",
+        url: "",
+        caption: "broken \\q escape",
+        publishedAt: "",
+        durationSeconds: 0,
+        transcript: [],
+      },
+      {
+        course: "quantfinancetogo",
+        sourceId: "Dzz",
+        url: "",
+        caption: "",
+        publishedAt: "",
+        durationSeconds: 0,
+        transcript: [],
+      },
+    ]);
+    expect(stdout).toEqual([`wrote 3 sources to ${qftgOut()}\n`]);
+    // The Define Your Risk sources file is untouched.
+    expect(existsSync(outPath())).toBe(false);
+  });
+
+  it("keeps the frontmatter title when it is valid JSON and takes a directory after the course", () => {
+    const kb = join(root, "..", "reels");
+    mkdirSync(kb);
+    writeFileSync(
+      join(kb, "ig-Dt1.md"),
+      note(["---", 'title: "Quoted \\"title\\""', "---"])
+    );
+    buildSources([kb, "--course", "quantfinancetogo"], options());
+    expect(readQftg()).toEqual([
+      expect.objectContaining({ sourceId: "Dt1", caption: 'Quoted "title"' }),
+    ]);
+  });
+
+  it("refuses an unknown or missing course", () => {
+    expect(() => buildSources(["--course", "nope"], options())).toThrow(
+      'unknown course "nope"; expected one of dyr, quantfinancetogo'
+    );
+    expect(() => buildSources(["--course"], options())).toThrow(
+      'unknown course ""'
+    );
+  });
+});
+
 describe("runBuildSourcesEntrypoint", () => {
   it("does nothing when imported", () => {
     runBuildSourcesEntrypoint({

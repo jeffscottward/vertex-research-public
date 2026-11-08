@@ -1,5 +1,6 @@
 "use client";
 
+import { lessonSlugOfStrategy } from "@darkfactory/academy/courses";
 import {
   STRATEGY_STATUS_VALUES,
   type StrategyGetOutput,
@@ -921,6 +922,8 @@ export const StrategyDetail = ({
   describeFailure,
 }: StrategyDetailProps) => {
   const { strategy } = detail;
+  // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
+  const academyLesson = lessonSlugOfStrategy(strategy.slug);
   const onTabKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const next = tabKeyTarget(event.key, tab);
     if (next === null) return;
@@ -957,21 +960,21 @@ export const StrategyDetail = ({
         </div>
         <div className="flex flex-wrap gap-2">
           {/* Academy strategies deploy only from their lesson page (rule gates, password, audit). */}
-          {strategy.slug.startsWith("dyr-") ? (
-            <a
-              className={linkButton}
-              data-strategy-academy-lesson={strategy.slug}
-              href={`/academy/${strategy.slug.slice(4)}#deploy`}
-            >
-              Deploy from the Academy lesson
-            </a>
-          ) : (
+          {academyLesson === null ? (
             <a
               className={linkButton}
               data-strategy-request-deployment={strategy.id}
               href={newRequestHref(strategy.id)}
             >
               Request paper deployment
+            </a>
+          ) : (
+            <a
+              className={linkButton}
+              data-strategy-academy-lesson={strategy.slug}
+              href={`/academy/${academyLesson}#deploy`}
+            >
+              Deploy from the Academy lesson
             </a>
           )}
           <Button onClick={onClose} type="button" variant="secondary">

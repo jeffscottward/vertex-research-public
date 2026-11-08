@@ -1,18 +1,14 @@
-import {
-  ACADEMY_MEDIA,
-  ACADEMY_SOURCES,
-  lessonSummaries,
-  withAcademyMediaBaseUrl,
-} from "@darkfactory/academy/lessons";
-import { parseAcademyMediaBaseUrl } from "@darkfactory/config/server";
+import { COURSE_LIST } from "@darkfactory/academy";
+import { lessonSummaries, sourceCounts } from "@darkfactory/academy/lessons";
 import { PageHeader } from "@darkfactory/ui";
 import { headers } from "next/headers";
-import { AcademyGallery } from "../../../components/portal/academy/academy-gallery.tsx";
+import { AcademyCatalog } from "../../../components/portal/academy/academy-gallery.tsx";
 import {
   type AcademySearchParams,
   readAcademyGalleryQuery,
 } from "../../../components/portal/academy/academy-gallery-query.ts";
 import { OperatorAccessRequired } from "../../../components/portal/agent-ops-client.tsx";
+import { academyMedia } from "../../../lib/academy-media.ts";
 import { getRequestPortalSession } from "../../../lib/request-portal-session.ts";
 
 export const metadata = { title: "Academy" };
@@ -33,22 +29,17 @@ export default async function AcademyPage({
         <OperatorAccessRequired feature="academy" />
       </div>
     );
-  const mediaBaseUrl = parseAcademyMediaBaseUrl(process.env) ?? undefined;
-  const media = Object.fromEntries(
-    Object.entries(ACADEMY_MEDIA).map(([slug, entry]) => [
-      slug,
-      withAcademyMediaBaseUrl(entry, mediaBaseUrl),
-    ])
-  );
+  const lessons = lessonSummaries();
+  const counts = sourceCounts();
   return (
-    <AcademyGallery
+    <AcademyCatalog
+      courses={COURSE_LIST.map((course) => ({
+        course: course.id,
+        lessons: lessons.filter((lesson) => lesson.course === course.id),
+        sourceCount: counts[course.id],
+      }))}
       initialQuery={readAcademyGalleryQuery(await searchParams)}
-      lessons={lessonSummaries()}
-      media={media}
-      sourceCount={
-        ACADEMY_SOURCES.filter((source) => source.duplicateOf === undefined)
-          .length
-      }
+      media={academyMedia()}
     />
   );
 }

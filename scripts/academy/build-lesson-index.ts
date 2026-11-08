@@ -1,7 +1,17 @@
-// Regenerates packages/academy/src/lessons/specs.generated.ts (static JSON imports of every lesson spec)
-// and validates every spec. Usage: bun scripts/academy/build-lesson-index.ts [--check]
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+// Regenerates packages/academy/src/lessons/specs.generated.ts (static JSON imports of every lesson spec
+// of every course) and validates every spec. Usage:
+// bun scripts/academy/build-lesson-index.ts [--check | --only <slug>[,<slug>]]
+// Specs of the default course (dyr) live in specs/<slug>.json; every other course in
+// specs/<course specDir>/<slug>.json with a matching `course` field. Slugs and sourceIds are unique
+// across all courses.
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+
+import {
+  COURSE_LIST,
+  COURSES,
+  type CourseId,
+} from "../../packages/academy/src/courses.ts";
 
 import {
   buildScene,
@@ -45,20 +55,44 @@ const sceneErrors = (file: string, lesson: LessonSpec): string[] => {
   return errors;
 };
 
+type SpecFile = Readonly<{
+  course: CourseId;
+  /** Path below the specs folder (`<slug>.json` or `<course specDir>/<slug>.json`). */
+  file: string;
+  /** File name without the folder. */
+  name: string;
+}>;
+
+/** Spec files of every course: the default course first, then each course folder (courses.ts). */
+const specFiles = (dir: string): SpecFile[] =>
+  COURSE_LIST.flatMap((course) => {
+    const folder = join(dir, course.specDir);
+    if (!existsSync(folder)) return [];
+    return readdirSync(folder)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .map((name) => ({
+        course: course.id,
+        file: course.specDir === "" ? name : `${course.specDir}/${name}`,
+        name,
+      }));
+  });
+
 type SpecContext = Readonly<{
   dir: string;
-  sourceIds: ReadonlySet<string>;
+  /** sourceId → course of the sources file that lists it. */
+  sourceCourses: ReadonlyMap<string, CourseId>;
   /** sourceId → first file that used it; updated as specs are checked. */
   seen: Map<string, string>;
   /** Files selected with --only, or null when every spec is checked. */
   only: ReadonlySet<string> | null;
-  allFiles: readonly string[];
+  allFiles: readonly SpecFile[];
 }>;
 
 /** Validates one spec file; returns one message per problem. */
 const specErrors = (
-  file: string,
-  { dir, sourceIds, seen, only, allFiles }: SpecContext
+  { course, file, name }: SpecFile,
+  { dir, sourceCourses, seen, only, allFiles }: SpecContext
 ): string[] => {
   const raw = JSON.parse(readFileSync(join(dir, file), "utf8")) as unknown;
   const parsed = LessonSpecSchema.safeParse(raw);
@@ -68,29 +102,66 @@ const specErrors = (
     ];
   const errors: string[] = [];
   const lesson = parsed.data;
-  if (`${lesson.slug}.json` !== file)
+  if (`${lesson.slug}.json` !== name)
     errors.push(`${file}: slug ${lesson.slug} must match the file name`);
-  if (!sourceIds.has(lesson.sourceId))
+  const twin = allFiles.find(
+    (other) => other.file !== file && other.name === name
+  );
+  if (twin !== undefined)
+    errors.push(`${file}: slug ${name.slice(0, -5)} also used by ${twin.file}`);
+  if (lesson.course !== course)
+    errors.push(
+      `${file}: course ${lesson.course} does not match its folder (course ${course})`
+    );
+  const sourceCourse = sourceCourses.get(lesson.sourceId);
+  if (sourceCourse === undefined)
     errors.push(`${file}: unknown sourceId ${lesson.sourceId}`);
+  else if (sourceCourse !== lesson.course)
+    errors.push(
+      `${file}: sourceId ${lesson.sourceId} is a ${sourceCourse} source, not ${lesson.course}`
+    );
   const previous =
     seen.get(lesson.sourceId) ??
     (only === null
       ? undefined
       : allFiles.find(
           (other) =>
-            other !== file &&
+            other.file !== file &&
             (
-              JSON.parse(readFileSync(join(dir, other), "utf8")) as {
+              JSON.parse(readFileSync(join(dir, other.file), "utf8")) as {
                 sourceId?: string;
               }
             ).sourceId === lesson.sourceId
-        ));
+        )?.file);
   if (previous !== undefined)
     errors.push(
       `${file}: sourceId ${lesson.sourceId} already used by ${previous}`
     );
   seen.set(lesson.sourceId, file);
   return [...errors, ...sceneErrors(file, lesson)];
+};
+
+/** sourceId → course of every sources file present; a sourceId listed twice is an error. */
+const readSourceCourses = (
+  lessons: string,
+  errors: string[]
+): Map<string, CourseId> => {
+  const sourceCourses = new Map<string, CourseId>();
+  for (const course of COURSE_LIST) {
+    const path = join(lessons, course.sourcesFile);
+    const sources = existsSync(path)
+      ? (JSON.parse(readFileSync(path, "utf8")) as { sourceId: string }[])
+      : [];
+    for (const { sourceId } of sources) {
+      const other = sourceCourses.get(sourceId);
+      if (other === undefined) sourceCourses.set(sourceId, course.id);
+      else
+        errors.push(
+          `${course.sourcesFile}: sourceId ${sourceId} already listed by ${COURSES[other].sourcesFile}`
+        );
+    }
+  }
+  return sourceCourses;
 };
 
 export type LessonIndexOptions = Readonly<{
@@ -105,15 +176,11 @@ export const buildLessonIndex = (
   args: readonly string[],
   { root, stdout, stderr }: LessonIndexOptions
 ): number => {
-  const dir = join(root, "packages/academy/src/lessons/specs");
-  const out = join(root, "packages/academy/src/lessons/specs.generated.ts");
-  const sources = JSON.parse(
-    readFileSync(
-      join(root, "packages/academy/src/lessons/sources.json"),
-      "utf8"
-    )
-  ) as { sourceId: string }[];
-  const sourceIds = new Set(sources.map((source) => source.sourceId));
+  const lessons = join(root, "packages/academy/src/lessons");
+  const dir = join(lessons, "specs");
+  const out = join(lessons, "specs.generated.ts");
+  const errors: string[] = [];
+  const sourceCourses = readSourceCourses(lessons, errors);
 
   // --only a.json,b.json validates just those files and writes nothing (safe for parallel authors).
   const onlyIndex = args.indexOf("--only");
@@ -125,21 +192,20 @@ export const buildLessonIndex = (
             .map((name) => (name.endsWith(".json") ? name : `${name}.json`))
         )
       : null;
-  const allFiles = readdirSync(dir)
-    .filter((name) => name.endsWith(".json"))
-    .sort();
+  const allFiles = specFiles(dir);
   const files =
-    only === null ? allFiles : allFiles.filter((name) => only.has(name));
-  const errors: string[] = [];
+    only === null ? allFiles : allFiles.filter((spec) => only.has(spec.name));
   const seen = new Map<string, string>();
-  for (const file of files)
-    errors.push(...specErrors(file, { dir, sourceIds, seen, only, allFiles }));
+  for (const spec of files)
+    errors.push(
+      ...specErrors(spec, { dir, sourceCourses, seen, only, allFiles })
+    );
 
   const body = [
     "// Generated by scripts/academy/build-lesson-index.ts. Do not edit by hand.",
     ...files.map(
-      (file, index) =>
-        `import spec${index} from "./specs/${file}" with { type: "json" };`
+      (spec, index) =>
+        `import spec${index} from "./specs/${spec.file}" with { type: "json" };`
     ),
     "",
     `export const LESSON_SPECS: readonly unknown[] = [${files.map((_, index) => `spec${index}`).join(", ")}];`,
@@ -147,10 +213,11 @@ export const buildLessonIndex = (
   ].join("\n");
 
   if (only !== null) {
-    if (files.length !== only.size)
-      errors.push(
-        `missing spec files: ${[...only].filter((name) => !files.includes(name)).join(", ")}`
-      );
+    const missing = [...only].filter(
+      (name) => !files.some((spec) => spec.name === name)
+    );
+    if (missing.length > 0)
+      errors.push(`missing spec files: ${missing.join(", ")}`);
   } else if (args.includes("--check")) {
     const current = readFileSync(out, "utf8");
     if (current !== body)

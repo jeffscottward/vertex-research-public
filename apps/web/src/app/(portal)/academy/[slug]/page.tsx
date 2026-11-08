@@ -2,6 +2,7 @@ import {
   ACADEMY_LESSONS,
   ACADEMY_MEDIA,
   lessonBySlug,
+  neighboursIn,
   withAcademyMediaBaseUrl,
 } from "@darkfactory/academy/lessons";
 import { parseAcademyMediaBaseUrl } from "@darkfactory/config/server";
@@ -46,15 +47,8 @@ export default async function AcademyLessonPage({
     return <OperatorAccessRequired feature="academy" />;
   const lesson = lessonBySlug((await params).slug);
   if (lesson === null) notFound();
-  const index = ACADEMY_LESSONS.findIndex(
-    (entry) => entry.slug === lesson.slug
-  );
-  const neighbour = (offset: number) => {
-    const entry = ACADEMY_LESSONS[index + offset];
-    return entry === undefined
-      ? null
-      : { slug: entry.slug, title: entry.title };
-  };
+  // Previous and next stay inside the lesson's course.
+  const { previous, next } = neighboursIn(ACADEMY_LESSONS, lesson.slug);
   const media = ACADEMY_MEDIA[lesson.slug];
   return (
     <AcademyLesson
@@ -67,8 +61,8 @@ export default async function AcademyLessonPage({
               parseAcademyMediaBaseUrl(process.env) ?? undefined
             )
       }
-      next={neighbour(1)}
-      previous={neighbour(-1)}
+      next={next}
+      previous={previous}
     />
   );
 }
