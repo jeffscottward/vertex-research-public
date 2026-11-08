@@ -841,3 +841,57 @@ def test_dsl_extension_input_errors(definition: dict[str, Any], message: str) ->
     with pytest.raises(InputError) as raised:
         sig.normalize_definition(definition)
     assert str(raised.value) == message
+
+
+SERIES_CONDITION = {"left": CLOSE, "op": "crossesAbove", "right": {"type": "indicator", "name": "sma", "length": 5}}
+
+
+@pytest.mark.parametrize(
+    ("definition", "message"),
+    [
+        ({**_entry(_one(_above(0))), "extra": 1}, "Unknown key in definition: extra"),
+        (_entry({"all": [_above(0)], "none": []}), "Unknown key in entry: none"),
+        ({**_entry(_one(_above(0))), "exit": {"any": [], "all": []}}, "Unknown key in exit: all"),
+        (_entry(_one({**_above(0), "note": "x"})), "Unknown key in condition: note"),
+        (_entry(_one({**_above(0), "left": {**CLOSE, "timeframe": "1d"}})), "Unknown key in price expression: timeframe"),
+        (_entry(_one({**_above(0), "right": {"type": "const", "value": 0, "offset": 1}})),
+         "Unknown key in const expression: offset"),
+        (_entry(_one({**_above(0), "left": {**SPY_SMA, "period": 3}})), "Unknown key in indicator expression: period"),
+        (_entry(_one({**BREAKOUT, "oncePerLevel": None})), "oncePerLevel must be true or false"),
+        (_entry(_one(_above(0)), management={"breakevenR": 1, "lock": 1}, **WITH_STOP),
+         "Unknown key in management: lock"),
+        (_entry(_one(_above(0)), management={"breakevenR": None}, **WITH_STOP),
+         "management breakevenR must be above 0 and at most 100"),
+        (_entry(_one(_above(0)), management={"trail": None}, **WITH_STOP), "management trail must be an object"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": 14, "multiple": 2, "x": 1}},
+                **WITH_STOP), "Unknown key in management trail: x"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": 14.5, "multiple": 2}},
+                **WITH_STOP), "management trail length must be a whole number from 1 to 1000"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": True, "multiple": 2}},
+                **WITH_STOP), "management trail length must be a whole number from 1 to 1000"),
+        (_entry(_one(_above(0)), sizing={"mode": "allIn", "maxLeverage": 2}), "maxLeverage needs riskPct sizing"),
+        (_entry(_one(_above(0)), sizing={"mode": "allIn", "riskPct": 1}), "Unknown key in sizing: riskPct"),
+        (_entry(_one(_above(0)), sizing={"mode": "riskPct", "riskPct": 1, "cap": 2}, **WITH_STOP),
+         "Unknown key in sizing: cap"),
+        (_entry(_one(_above(0)), filters=[{"type": "series", "series": "VIX", "condition": {
+            **SERIES_CONDITION, "oncePerLevel": True}}]),
+         "A series condition takes no oncePerLevel or timeframe: the series has one value per date"),
+        (_entry(_one(_above(0)), filters=[{"type": "series", "series": "VIX", "condition": {
+            **SERIES_CONDITION, "right": {**SERIES_CONDITION["right"], "timeframe": "1d"}}}]),
+         "A series condition takes no oncePerLevel or timeframe: the series has one value per date"),
+    ],
+)
+def test_definition_keys_are_strict_like_the_typescript_schema(definition: dict[str, Any], message: str) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
+
+
+def test_trail_length_accepts_a_whole_float_and_normalizing_is_idempotent() -> None:
+    definition = _entry({"all": [], "any": [BREAKOUT]}, stopLoss={"kind": "atr", "length": 14, "multiple": 2},
+                        sizing={"mode": "riskPct", "riskPct": 1, "maxLeverage": 20},
+                        management={"breakevenR": 2, "trail": {"activateR": 1, "length": 14.0, "multiple": 2}},
+                        description="LD34")
+    normalized = sig.normalize_definition(definition)
+    assert normalized["management"]["trail"]["length"] == 14
+    assert sig.normalize_definition(normalized) == normalized

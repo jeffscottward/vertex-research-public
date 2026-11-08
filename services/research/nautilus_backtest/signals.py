@@ -554,8 +554,35 @@ def compile_rule(bars: Bars, rule: Mapping[str, Any]) -> tuple[int, ...]:
 # Strategy DSL.
 
 
+# Keys of each object the TS schema declares .strict() (unknown keys are an input error).
+_DEFINITION_KEYS = frozenset({"version", "name", "description", "entry", "exit", "filters", "management",
+                              "options", "session", "sizing", "stopLoss", "takeProfit"})
+_EXPR_KEYS = {
+    "price": frozenset({"type", "field", "offset"}),
+    "const": frozenset({"type", "value"}),
+    "indicator": frozenset({"type", "name", "length", "source", "offset", "timeframe"}),
+}
+_CONDITION_KEYS = frozenset({"left", "op", "right", "oncePerLevel"})
+
+
+def _strict(value: Mapping[str, Any], keys: frozenset[str], where: str) -> None:
+    """TS .strict(): rejects keys the schema does not declare."""
+    unknown = sorted(set(value) - keys)
+    if unknown:
+        raise InputError(f"Unknown key in {where}: {unknown[0]}")
+
+
+def _whole(value: Any, low: int, high: int) -> bool:
+    """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value).is_integer() and low <= value <= high
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     kind = expr.get("type")
+    if kind in _EXPR_KEYS:
+        _strict(expr, _EXPR_KEYS[kind], f"{kind} expression")
     if kind == "price":
         if expr.get("field") not in PRICE_FIELDS:
             raise InputError(f"Unknown price field: {expr.get('field')}")
@@ -595,6 +622,7 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
+    _strict(condition, _CONDITION_KEYS, "condition")
     op = condition.get("op")
     if op not in OPERATORS:
         raise InputError(f"Unknown operator: {op}")
@@ -604,7 +632,7 @@ def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
         "right": _normalize_expr(condition["right"]),
     }
     once = condition.get("oncePerLevel")
-    if once is not None and not isinstance(once, bool):
+    if "oncePerLevel" in condition and not isinstance(once, bool):
         raise InputError("oncePerLevel must be true or false")
     if once:
         if op not in EVENT_OPERATORS:
@@ -692,7 +720,14 @@ def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
         series = item.get("series")
         if series not in SERIES_IDS:
             raise InputError(f"Unknown series: {series}")
-        condition = _normalize_condition(item["condition"])
+        raw = item["condition"]
+        if "oncePerLevel" in raw or any(
+            isinstance(side, Mapping) and "timeframe" in side for side in (raw.get("left"), raw.get("right"))
+        ):
+            raise InputError(
+                "A series condition takes no oncePerLevel or timeframe: the series has one value per date"
+            )
+        condition = _normalize_condition(raw)
         if not (_close_only(condition["left"]) and _close_only(condition["right"])):
             raise InputError(SERIES_CLOSE_ONLY)
         return {"type": "series", "series": series, "condition": condition}
@@ -711,17 +746,21 @@ def _normalize_management(
     """TS StrategyManagementSchema and its definition refinements; None without a block."""
     if management is None:
         return None
+    _strict(management, frozenset({"breakevenR", "trail"}), "management")
     normalized: dict[str, Any] = {}
-    if management.get("breakevenR") is not None:
+    if "breakevenR" in management:
         normalized["breakevenR"] = _management_level(management["breakevenR"], "breakevenR")
-    trail = management.get("trail")
-    if trail is not None:
+    if "trail" in management:
+        trail = management["trail"]
+        if not isinstance(trail, Mapping):
+            raise InputError("management trail must be an object")
+        _strict(trail, frozenset({"activateR", "length", "multiple"}), "management trail")
         length = trail.get("length")
-        if not (isinstance(length, int) and not isinstance(length, bool) and 1 <= length <= 1000):
+        if not _whole(length, 1, 1000):
             raise InputError("management trail length must be a whole number from 1 to 1000")
         normalized["trail"] = {
             "activateR": _management_level(trail.get("activateR"), "trail activateR"),
-            "length": length,
+            "length": int(length),
             "multiple": _management_level(trail.get("multiple"), "trail multiple"),
         }
     if not normalized:
@@ -736,15 +775,21 @@ def _normalize_management(
 
 
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
-    """Applies the StrategyDefinitionSchema defaults and rejects unknown names and operators."""
+    """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
+    (the TS schema objects are strict; filter and options blocks keep their own checks)."""
+    _strict(definition, _DEFINITION_KEYS, "definition")
     entry = definition.get("entry") or {}
+    _strict(entry, frozenset({"all", "any"}), "entry")
     entry_all = entry.get("all") or []
     entry_any = entry.get("any") or []
     if len(entry_all) + len(entry_any) == 0:
         raise InputError("Entry needs at least one condition in entry.all or entry.any")
-    exit_any = (definition.get("exit") or {}).get("any") or []
+    exit_ = definition.get("exit") or {}
+    _strict(exit_, frozenset({"any"}), "exit")
+    exit_any = exit_.get("any") or []
     sizing = definition.get("sizing") or {"mode": "allIn"}
     if sizing.get("mode") == "riskPct":
+        _strict(sizing, frozenset({"mode", "riskPct", "maxLeverage"}), "sizing")
         max_leverage = sizing.get("maxLeverage")
         sizing = {"mode": "riskPct", "riskPct": float(sizing["riskPct"])}
         if max_leverage is not None:
@@ -752,6 +797,9 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
                 raise InputError(f"maxLeverage must be from 1 to {MAX_LEVERAGE}")
             sizing["maxLeverage"] = float(max_leverage)
     elif sizing.get("mode") == "allIn":
+        if "maxLeverage" in sizing:
+            raise InputError("maxLeverage needs riskPct sizing")
+        _strict(sizing, frozenset({"mode"}), "sizing")
         sizing = {"mode": "allIn"}
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
