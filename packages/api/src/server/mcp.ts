@@ -30,6 +30,7 @@ import {
   OptimizationListInputSchema,
   OptimizationRecordInputSchema,
 } from "../contracts/optimizations.ts";
+import { FlowSnapshotInputSchema } from "../contracts/flow.ts";
 import { MarketBarsInputSchema } from "../contracts/market-data.ts";
 import type { OptionsAnalyticsOutput } from "../contracts/options-analytics.ts";
 import {
@@ -448,6 +449,15 @@ export const MCP_TOOLS: readonly McpTool[] = Object.freeze([
     input: OptionsGexContextToolInputSchema,
     readOnly: true,
     present: (value) => presentGexContext(value),
+  },
+  {
+    name: "flow_snapshot",
+    title: "Order flow + options flow snapshot",
+    description:
+      "Read-only flow pipeline view for SPY or ES (minutes 15-390, default 120): per-minute sampled order flow (delta, CVD, VWAP, covered seconds), book pressure, QuantData options flow (call/put, bullish/bearish, ask/bid-side, sweep/block, OTM, 0DTE, opening, vol > OI premium and the largest prints), the newest GEX snapshot (ES uses SPX levels shifted by the ES - SPX basis), derived events (large and off-exchange prints, absorption, stacked imbalances, option sweeps/blocks), a confluence reading (agree/disagree) and per-source freshness. Ticks are sampled, not streamed. Research only; not a trade signal.",
+    procedure: "flow/snapshot",
+    input: FlowSnapshotInputSchema,
+    readOnly: true,
   },
   {
     name: "strategies_list",

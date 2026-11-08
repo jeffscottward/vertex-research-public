@@ -7,6 +7,7 @@ import type {
 } from "../contracts/options-analytics.ts";
 import type { ApiContext } from "./context.ts";
 import { buildGexContext, newYorkDate } from "./gex-context.ts";
+import { requireOperator } from "./operator-access.ts";
 import {
   exposure,
   ivSurface,
@@ -17,7 +18,6 @@ import {
   summarizeFlow,
   termStructure,
 } from "./options-analytics-engine.ts";
-import { requireOperator } from "./operator-access.ts";
 import {
   createQuantDataClient,
   type QuantDataClient,
@@ -199,7 +199,10 @@ export const setOptionsAnalyticsForTesting = (
   clock = now ?? systemClock;
 };
 
-const clientFor = (config: QuantDataConfig): QuantDataClient => {
+/** One shared client per configuration (rate limit, cooldown and cache), also used by flow.collect. */
+export const quantDataClientFor = (
+  config: QuantDataConfig
+): QuantDataClient => {
   if (
     cachedClient === null ||
     cachedClient.config.apiKey !== config.apiKey ||
@@ -220,7 +223,7 @@ const snapshot = api.optionsAnalytics.snapshot
     const config = context.quantData ?? null;
     if (config === null) throw errors.NOT_CONFIGURED();
     return await buildOptionsAnalytics(input, {
-      client: clientFor(config),
+      client: quantDataClientFor(config),
       now: clock,
     });
   });

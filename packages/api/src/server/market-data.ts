@@ -491,6 +491,39 @@ export const fetchMarketDepth = async (
   return { ...document, receivedAt: receivedNow(options).toISOString() };
 };
 
+const HistoryHealthSchema = z.object({
+  pacing: z.object({
+    backoff_seconds: z.number().int().nonnegative(),
+    recent_requests: z.number().int().nonnegative(),
+  }),
+});
+
+export const MARKET_HISTORY_HEALTH_TIMEOUT_MS = 5000;
+
+/** Historical requests IBKR saw in the last 120 s (shared by /charts and the flow collector). */
+export type MarketHistoryPacing = Readonly<{
+  recentRequests: number;
+  backoffSeconds: number;
+}>;
+
+export const fetchMarketHistoryPacing = async (
+  config: DeployStatusConfig | null,
+  options: FetchMarketBarsOptions = {}
+): Promise<MarketHistoryPacing> => {
+  const raw = await fetchHistoryDocument(
+    config,
+    (base) => `${base.replace(/\/+$/, "")}/health`,
+    MARKET_HISTORY_HEALTH_TIMEOUT_MS,
+    options
+  );
+  const parsed = HistoryHealthSchema.safeParse(raw);
+  if (!parsed.success) throw schemaFailure();
+  return {
+    backoffSeconds: parsed.data.pacing.backoff_seconds,
+    recentRequests: parsed.data.pacing.recent_requests,
+  };
+};
+
 const api = implement(appContract).$context<ApiContext>();
 
 type MarketDataErrorFactories = Readonly<

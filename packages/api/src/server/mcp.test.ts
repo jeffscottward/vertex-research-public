@@ -64,6 +64,7 @@ describe("MCP tool registry", () => {
       "deployment_status",
       "market_bars",
       "options_gex_context",
+      "flow_snapshot",
       "strategies_list",
       "strategies_get",
       "optimizations_list",
@@ -140,6 +141,16 @@ describe("callMcpTool", () => {
     const result = await callMcpTool("deployment_status", {}, call);
     expect(call).toHaveBeenCalledWith("agentOps/deployment/status", {});
     return expect(result["structuredContent"]).toEqual(value);
+  });
+
+  it("forwards flow_snapshot to flow/snapshot", async () => {
+    const call = okCall({ schemaVersion: "flow-snapshot.v1", symbol: "ES" });
+    const result = await callMcpTool("flow_snapshot", { symbol: "ES" }, call);
+    expect(call).toHaveBeenCalledWith("flow/snapshot", { symbol: "ES" });
+    expect(result["structuredContent"]).toEqual({
+      schemaVersion: "flow-snapshot.v1",
+      symbol: "ES",
+    });
   });
 
   it("returns the GEX headline and its context from options_gex_context", async () => {

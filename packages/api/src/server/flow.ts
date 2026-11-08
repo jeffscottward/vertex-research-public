@@ -1,0 +1,142 @@
+// What: the flow.* procedures. flow.collect (scheduler, agent API key) runs one sampled collection;
+// flow.snapshot reads one symbol's window for the /flow page and the agent. Research only.
+// Doc: docs/vertex-rebuild/flow-pipeline.md.
+import type { FlowRepository } from "@darkfactory/db/server";
+import { implement } from "@orpc/server";
+
+import { appContract } from "../contract.ts";
+import type {
+  FlowSnapshot,
+  FlowSnapshotParsedInput,
+} from "../contracts/flow.ts";
+import type { FlowInstrument } from "../flow-features.ts";
+import type { ApiContext } from "./context.ts";
+import {
+  FLOW_DEPTH_ROWS,
+  FLOW_TICKS_COUNT,
+  runFlowCollect,
+} from "./flow-collect.ts";
+import { buildFlowSnapshot } from "./flow-snapshot.ts";
+import {
+  fetchMarketDepth,
+  fetchMarketHistoryPacing,
+  fetchMarketTicks,
+} from "./market-data.ts";
+import { requireOperator } from "./operator-access.ts";
+import {
+  buildOptionsAnalytics,
+  quantDataClientFor,
+} from "./options-analytics.ts";
+
+const api = implement(appContract).$context<ApiContext>();
+
+type Failures = Readonly<{
+  FORBIDDEN: (options?: { message?: string }) => Error;
+  STORAGE_ERROR: (options?: { message?: string }) => Error;
+}>;
+
+const systemClock = (): Date => new Date();
+let clock: () => Date = systemClock;
+export const setFlowClockForTesting = (now?: () => Date): void => {
+  clock = now ?? systemClock;
+};
+
+const repositoryFor = (
+  context: ApiContext,
+  failures: Failures
+): FlowRepository => {
+  const repository = context.repositories.flow;
+  if (repository === undefined) throw failures.STORAGE_ERROR();
+  return repository;
+};
+
+const instrumentInput = (instrument: FlowInstrument) => ({
+  currency: "USD",
+  secType: instrument.secType,
+  symbol: instrument.symbol,
+  ...(instrument.exchange === undefined
+    ? {}
+    : { exchange: instrument.exchange }),
+});
+
+const collect = api.flow.collect
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    // Scheduler only: one timer drives the whole deployment's sampling.
+    if (context.agentApiKeyPresented !== true)
+      throw failures.FORBIDDEN({
+        message: "flow.collect needs an agent API key",
+      });
+    const repository = repositoryFor(context, failures);
+    const history = context.marketHistory ?? null;
+    const quantData = context.quantData ?? null;
+    const client = quantData === null ? null : quantDataClientFor(quantData);
+    const now = clock();
+    return await runFlowCollect(input, {
+      analytics:
+        client === null
+          ? null
+          : (ticker) =>
+              buildOptionsAnalytics(
+                { flowHours: 1, symbol: ticker },
+                { client, now: () => now }
+              ),
+      depth: (instrument) =>
+        fetchMarketDepth(history, {
+          ...instrumentInput(instrument),
+          rows: FLOW_DEPTH_ROWS,
+        }),
+      now,
+      pacing: () => fetchMarketHistoryPacing(history),
+      quantData: client,
+      repository,
+      ticks: (instrument) =>
+        fetchMarketTicks(history, {
+          ...instrumentInput(instrument),
+          count: FLOW_TICKS_COUNT,
+          quotes: true,
+          useRTH: false,
+        }),
+    });
+  });
+
+/** Reads one symbol's window; the window ends at the newest stored data, not now. */
+export const readFlowSnapshot = async (
+  repository: FlowRepository,
+  input: FlowSnapshotParsedInput,
+  now: Date
+): Promise<FlowSnapshot> => {
+  const newest = await repository.newestDataAt(input.symbol);
+  const windowEnd =
+    newest === null || newest.getTime() > now.getTime() ? now : newest;
+  const windowStart = new Date(windowEnd.getTime() - input.minutes * 60_000);
+  const rows = await repository.readWindow({
+    from: windowStart,
+    symbol: input.symbol,
+    to: windowEnd,
+  });
+  const samples = await repository.latestSamples(input.symbol);
+  return buildFlowSnapshot({
+    ...rows,
+    ...samples,
+    now,
+    symbol: input.symbol,
+    windowEnd,
+    windowStart,
+  });
+};
+
+const snapshot = api.flow.snapshot
+  .use(requireOperator)
+  .handler(async ({ context, input, errors }) => {
+    const failures = errors as unknown as Failures;
+    const repository = repositoryFor(context, failures);
+    try {
+      return await readFlowSnapshot(repository, input, clock());
+    } catch {
+      throw failures.STORAGE_ERROR();
+    }
+  });
+
+export const flowRouter = { collect, snapshot };
