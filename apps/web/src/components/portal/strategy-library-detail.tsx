@@ -956,8 +956,16 @@ export const StrategyDetail = ({
           <StrategyLinks description={strategy.description} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit). */}
-          {strategy.slug.startsWith("dyr-") ? (
+          {/* Academy strategies deploy only from their lesson page (rule gates, password, audit).
+              Strategies tagged research-only offer no deployment or order action at all. */}
+          {strategy.tags.includes("research-only") ? (
+            <span
+              className="text-muted-foreground text-sm"
+              data-strategy-research-only={strategy.id}
+            >
+              Research only: no deployment
+            </span>
+          ) : strategy.slug.startsWith("dyr-") ? (
             <a
               className={linkButton}
               data-strategy-academy-lesson={strategy.slug}
