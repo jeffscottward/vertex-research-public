@@ -230,16 +230,7 @@ describe("semantic layer (Postgres)", () => {
       ],
       ["IWM", "1d", "smaCross fast 10 slow 30", 0, 0.71, "br_free_iwm_2", 2, 0],
       // Same rule as the GLD row below with a 2% stop: a different backtest (sweep cell), its own row.
-      [
-        "GLD",
-        "1d",
-        "smaCross fast 5 slow 20",
-        0.02,
-        0.33,
-        "br_free_gld_2",
-        1,
-        0,
-      ],
+      ["GLD", "1d", "smaCross fast 5 slow 20", 2, 0.33, "br_free_gld_2", 1, 0],
       ["GLD", "1d", "smaCross fast 5 slow 20", 0, -0.12, "br_free_gld_1", 1, 0],
     ]);
     expect(rows[0]).toMatchObject({

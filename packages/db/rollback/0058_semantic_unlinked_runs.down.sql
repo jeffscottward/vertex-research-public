@@ -9,7 +9,7 @@ SET LOCAL row_security = off;
 LOCK TABLE "public"."semantic_sql_attributes" IN ACCESS EXCLUSIVE MODE;
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM "public"."semantic_sql_attributes" WHERE "grain" = 'run_spec' AND ("updated_by" IS NOT NULL OR "certified" OR "certified_by" IS NOT NULL OR "certification_note" IS DISTINCT FROM 'Needs owner certification: written by the agent in migration 0058 (card vertex-semantic-unlinked-runs); not certified by the agent.'))
+  IF EXISTS (SELECT 1 FROM "public"."semantic_sql_attributes" WHERE "grain" = 'run_spec' AND ("updated_by" IS NOT NULL OR "certified" OR "certified_at" IS NOT NULL OR "certified_by" IS NOT NULL OR "certification_note" IS DISTINCT FROM 'Needs owner certification: written by the agent in migration 0058 (card vertex-semantic-unlinked-runs); not certified by the agent.'))
     OR EXISTS (SELECT 1 FROM "public"."semantic_sql_attributes" WHERE "grain" = 'run_spec' AND "id" NOT IN ('backtest_sharpe_run_spec', 'backtest_max_drawdown_run_spec')) THEN
     RAISE EXCEPTION 'run-spec SQL attributes have operator work or unknown rows; refusing rollback';
   END IF;

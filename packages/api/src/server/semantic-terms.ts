@@ -437,19 +437,28 @@ const answerSqlTerm = async (
     shown.length === 0
       ? "No rows match."
       : `${shown.length}${truncated ? "+" : ""} row(s).`;
-  const parts = groupings.map((grouping) => {
-    const label = SEMANTIC_GRAIN_LABELS[grouping.grain];
-    if (grouping.status === "not_certified") {
-      return `${label}: not answered, this SQL waits for owner certification on /semantic-terms`;
-    }
-    const more = shownBy.get(grouping.attribute)?.cut
-      ? " (more not shown)"
-      : "";
-    return `${label}: ${grouping.rowCount === 0 ? "no rows match" : `${grouping.rowCount} row(s)`}${more}`;
-  });
-  const answer = several
-    ? `${partial ? "Partial: " : ""}${count} ${parts.join("; ")}. The grain cell of each row names its grouping. ${term.description}`
-    : `${count} ${term.description}`;
+  const checked = groupings
+    .filter((grouping) => grouping.status === "ok")
+    .map((grouping) => {
+      const label = SEMANTIC_GRAIN_LABELS[grouping.grain];
+      const cut = shownBy.get(grouping.attribute)?.cut === true;
+      if (grouping.rowCount === 0) {
+        return `${label}: ${cut ? "not shown (row cap reached)" : "no rows match"}`;
+      }
+      return `${label}: ${grouping.rowCount} row(s)${cut ? " (more not shown)" : ""}`;
+    });
+  const waiting = groupings
+    .filter((grouping) => grouping.status === "not_certified")
+    .map((grouping) => SEMANTIC_GRAIN_LABELS[grouping.grain]);
+  const grainNote =
+    shown.length > 0 ? " The grain cell of each row names its grouping." : "";
+  // A grouping that waits for certification was not checked: the answer must not read as "none exist".
+  let answer = `${count} ${term.description}`;
+  if (several && partial) {
+    answer = `Partial, not a complete answer. Checked: ${checked.join("; ")}. NOT checked: ${waiting.join("; ")}: that SQL waits for owner certification on /semantic-terms, so rows of that grouping may exist and are not shown. Do not report that there are none.${grainNote} ${term.description}`;
+  } else if (several) {
+    answer = `${count} ${checked.join("; ")}.${grainNote} ${term.description}`;
+  }
   return {
     ...described,
     answer: answer.slice(0, ANSWER_MAX),

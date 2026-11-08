@@ -1081,7 +1081,7 @@ describe("answerTerm", () => {
       );
       expect(output).toMatchObject({
         answer:
-          "Partial: No rows match. per strategy (engine runs linked to a strategy): no rows match; per run spec (symbol, rule, timeframe) for engine runs with no strategy: not answered, this SQL waits for owner certification on /semantic-terms. The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
+          "Partial, not a complete answer. Checked: per strategy (engine runs linked to a strategy): no rows match. NOT checked: per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy: that SQL waits for owner certification on /semantic-terms, so rows of that grouping may exist and are not shown. Do not report that there are none. Sharpe of the latest succeeded engine run per strategy.",
         certified: true,
         groupings: [
           {
@@ -1134,7 +1134,7 @@ describe("answerTerm", () => {
       ).toEqual(["ORB"]);
       expect(output).toMatchObject({
         answer:
-          "3 row(s). per strategy (engine runs linked to a strategy): 1 row(s); per run spec (symbol, rule, timeframe) for engine runs with no strategy: 2 row(s). The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
+          "3 row(s). per strategy (engine runs linked to a strategy): 1 row(s); per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy: 2 row(s). The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
         query:
           "-- grain strategy (attribute backtest_sharpe)\nran strategy sql\n\n-- grain run_spec (attribute backtest_sharpe_run_spec)\nran run-spec sql",
         rowCount: 3,
@@ -1168,7 +1168,7 @@ describe("answerTerm", () => {
         answer({ term: "backtest_sharpe" }, repository)
       ).resolves.toMatchObject({
         answer:
-          "Unknown (per run spec (symbol, rule, timeframe) for engine runs with no strategy): The query ran past 5 s. No value is given.",
+          "Unknown (per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy): The query ran past 5 s. No value is given.",
         // The strategy rows ran, but an unknown answer gives no count either.
         groupings: [
           { grain: "strategy", rowCount: 0, status: "not_run" },
@@ -1211,6 +1211,34 @@ describe("answerTerm", () => {
       expect(
         output.answer.startsWith(`${SEMANTIC_QUERY_MAX_ROWS}+ row(s).`)
       ).toBe(true);
+    });
+
+    it("says a grouping was not shown, not that it has no rows, when the row cap is used up", async () => {
+      const repository = sharpeRepository(true);
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ n: index }));
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "a",
+          rows: many(SEMANTIC_QUERY_MAX_ROWS),
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "b",
+          rows: many(5),
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(output.groupings.map((grouping) => grouping.rowCount)).toEqual([
+        SEMANTIC_QUERY_MAX_ROWS,
+        0,
+      ]);
+      expect(output.answer).toContain(
+        "for engine runs with no strategy: not shown (row cap reached)"
+      );
+      expect(output.answer).not.toContain("no rows match");
     });
 
     it("keeps the grain cell first even when the SQL returns its own grain column", async () => {

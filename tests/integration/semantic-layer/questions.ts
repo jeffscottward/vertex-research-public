@@ -328,6 +328,7 @@ export const EVAL_QUESTIONS: readonly EvalQuestion[] = [
       /\b0\.82\b/,
       /\b1\.21\b/,
       /\b0\.71\b/,
+      /\b0\.33\b/,
       /-\s?0\.12\b|−0\.12\b/,
       /per strategy|by strategy|strategy grouping|(?<!un|not )linked to a strategy/i,
       /run spec|no strategy|without a strategy|unlinked|not linked/i,

@@ -306,7 +306,7 @@ describe("SemanticTermsWorkspace", () => {
     expect(
       attribute?.querySelector('[data-grain="run_spec"]')?.textContent
     ).toBe(
-      "Rows: per run spec (symbol, rule, timeframe) for engine runs with no strategy"
+      "Rows: per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy"
     );
 
     const liq = term(container, "net_liq");

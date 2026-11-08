@@ -33,7 +33,7 @@ export const SEMANTIC_GRAIN_LABELS: Readonly<
   monitor: "per drift monitor",
   request: "per deployment request",
   run_spec:
-    "per run spec (symbol, rule, timeframe) for engine runs with no strategy",
+    "per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy",
   strategy: "per strategy (engine runs linked to a strategy)",
 };
 // not_run: certified but not run (the term is not certified, or another attribute failed).
