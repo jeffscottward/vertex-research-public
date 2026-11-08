@@ -191,14 +191,37 @@ export const BacktestRunOptionsMetricsSchema = z.object({
   worstMonthReturn: nullableNumber,
 });
 
+/**
+ * Largest relative daily equity gap between the options ledger and NautilusTrader that a Nautilus
+ * options run may have; the same value as PARITY_REL_TOL in
+ * services/research/strategies/qc_ports/portfolio.py (a test pins both).
+ */
+export const OPTIONS_NAUTILUS_PARITY_TOLERANCE = 1e-6;
+
+const nautilusGapSchema = z
+  .number()
+  .min(0)
+  .max(OPTIONS_NAUTILUS_PARITY_TOLERANCE);
+
+/** Entry signals per options symbol. */
+const optionsSignalsSchema = z
+  .record(z.string(), z.number().int().min(0))
+  .refine(
+    (signals) =>
+      Object.keys(signals).every((symbol) =>
+        (STRATEGY_OPTION_SYMBOLS as readonly string[]).includes(symbol)
+      ),
+    { message: "Signals are counted per options symbol" }
+  );
+
 /** Options runs: the options book result (docs/vertex-rebuild/strategy-definitions.md, options runner). */
 export const BacktestRunOptionsReportSchema = z.object({
   capital: z.number(),
   metrics: BacktestRunOptionsMetricsSchema,
   /** Nautilus runs: largest daily equity gap between the ledger and NautilusTrader (relative). */
-  nautilusGap: z.number().nullable(),
+  nautilusGap: nautilusGapSchema.nullable(),
   /** Entry signals per symbol (events handed to the book). */
-  signals: z.record(z.string(), z.number().int()),
+  signals: optionsSignalsSchema,
   symbols: z.array(z.string()),
   trades: z.array(BacktestRunOptionsTradeSchema),
 });
@@ -668,6 +691,13 @@ export const BacktestRunEngineResultSchema = z
 /** Most run days and most trades or skips of an options result. */
 export const BACKTEST_RUN_OPTIONS_DAYS_MAX = 20_000;
 export const BACKTEST_RUN_OPTIONS_TRADES_MAX = 20_000;
+/** Most run days × trades of an options result (the work of recomputing its open risk). */
+export const BACKTEST_RUN_OPTIONS_WORK_MAX = 20_000_000;
+/**
+ * Most bytes of daily series rows one claim sends (JSON): a run (or batch) whose rows are larger
+ * fails at claim. The 32 store series over 35 years are about 13 MB.
+ */
+export const BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES = 40_000_000;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const optionsSymbol = z.enum(STRATEGY_OPTION_SYMBOLS);
@@ -690,19 +720,12 @@ export const BacktestRunEngineOptionsResultSchema = z
       start: isoDate,
       worstMonth: z.string().max(7).nullable(),
     }).strict(),
-    nautilusGap: z.number().min(0).nullable(),
+    /** Required: the worker books every options run again in NautilusTrader. */
+    nautilusGap: nautilusGapSchema,
     openPositions: z
       .array(z.number().int().min(0))
       .max(BACKTEST_RUN_OPTIONS_DAYS_MAX),
-    signals: z
-      .record(z.string(), z.number().int().min(0))
-      .refine(
-        (signals) =>
-          Object.keys(signals).every((symbol) =>
-            (STRATEGY_OPTION_SYMBOLS as readonly string[]).includes(symbol)
-          ),
-        { message: "Signals are counted per options symbol" }
-      ),
+    signals: optionsSignalsSchema,
     skipped: z
       .array(
         z
@@ -752,14 +775,32 @@ export const BacktestRunEngineOptionsResultSchema = z
         message: "dates must be strictly increasing",
         path: ["dates"],
       });
+    if (size * result.trades.length > BACKTEST_RUN_OPTIONS_WORK_MAX)
+      context.addIssue({
+        code: "custom",
+        message: `Run days × trades must be at most ${BACKTEST_RUN_OPTIONS_WORK_MAX}`,
+        path: ["trades"],
+      });
     const days = new Set(result.dates);
+    const ids = new Set<number>();
     result.trades.forEach((trade, index) => {
-      if (!days.has(trade.exitDate) || trade.entryDate > trade.exitDate)
+      if (
+        !(days.has(trade.entryDate) && days.has(trade.exitDate)) ||
+        trade.entryDate > trade.exitDate
+      )
         context.addIssue({
           code: "custom",
-          message: "A trade must exit on a run date, on or after its entry",
+          message:
+            "A trade must enter and exit on run dates, the exit on or after the entry",
           path: ["trades", index, "exitDate"],
         });
+      if (ids.has(trade.id))
+        context.addIssue({
+          code: "custom",
+          message: "Trade ids must be unique",
+          path: ["trades", index, "id"],
+        });
+      ids.add(trade.id);
     });
   });
 

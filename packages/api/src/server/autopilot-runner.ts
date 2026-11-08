@@ -45,6 +45,7 @@ import {
 import {
   SectorQuadrantDataError,
   type SectorQuadrantSeries,
+  StrategySeriesDataError,
   type StrategySeriesInput,
 } from "../strategy-dsl-compile.ts";
 import {
@@ -55,7 +56,12 @@ import {
   loadSectorQuadrants,
   type SectorQuadrantSource,
 } from "./sector-quadrant-series.ts";
-import { loadStrategySeries, strategySeriesInput } from "./strategy-series.ts";
+import {
+  loadStrategySeriesRows,
+  StrategySeriesStoreError,
+  strategySeriesInput,
+  strategySeriesStoreIds,
+} from "./strategy-series.ts";
 
 // Autopilot runner. One tick works on one running campaign for at most its tick time slice:
 // breed a generation from the fittest candidates (in-sample fitness only), evaluate and store the
@@ -401,21 +407,22 @@ export const tickAutopilotCampaign = async (
     // Bad stored data fails the campaign for good (that message is written for users). Any other error (for example a short database
     // outage) only records a note and the tick time, so the campaign retries next tick and never
     // blocks the campaigns behind it.
-    if (
-      error instanceof InstantBacktestInputError &&
-      !(error instanceof SectorQuadrantDataError)
-    )
+    const waits =
+      error instanceof SectorQuadrantDataError ||
+      error instanceof StrategySeriesDataError ||
+      error instanceof StrategySeriesStoreError;
+    if (error instanceof InstantBacktestInputError && !waits)
       return await failure(
         dependencies,
         campaign,
         `Tick failed: ${message}`.slice(0, 500)
       );
-    // Sector data may arrive with the next collection, so the campaign waits for it. The raw
-    // message of other errors can hold SQL and parameters: their stored note stays generic.
-    const note =
-      error instanceof SectorQuadrantDataError
-        ? `${message}; the next tick retries.`
-        : "Tick error; the next tick retries.";
+    // Sector points and daily series may arrive with the next collection or import (or the store
+    // gets wired), so the campaign waits for them. The raw message of other errors can hold SQL
+    // and parameters: their stored note stays generic.
+    const note = waits
+      ? `${message}; the next tick retries.`
+      : "Tick error; the next tick retries.";
     const saved = await dependencies.autopilot.recordProgress({
       cpuMs: 0,
       generation: campaign.generation,
@@ -437,21 +444,23 @@ export const tickAutopilotCampaign = async (
   }
 };
 
-/** The daily series of the campaign filters for its symbol; undefined when they read none. */
+/**
+ * The daily series of the campaign filters for its symbol, loaded once per tick; undefined when
+ * they read none.
+ */
 const campaignSeries = async (
   dependencies: AutopilotRunnerDependencies,
   campaign: AutopilotCampaignRecord,
   config: AutopilotCampaignConfig
 ): Promise<StrategySeriesInput | undefined> => {
   const filters = { filters: config.filters };
-  const loaded = await loadStrategySeries(
+  const ids = strategySeriesStoreIds(filters, campaign.symbol);
+  if (ids.length === 0) return undefined;
+  const rows = await loadStrategySeriesRows(
     dependencies.marketDailySeries,
-    filters,
-    campaign.symbol
+    ids
   );
-  return loaded === null
-    ? undefined
-    : strategySeriesInput(filters, campaign.symbol, loaded.rows);
+  return strategySeriesInput(filters, campaign.symbol, rows);
 };
 
 const runSlice = async (

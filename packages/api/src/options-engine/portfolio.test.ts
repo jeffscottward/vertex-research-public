@@ -4,6 +4,7 @@ import { formatDay, parseDay } from "./calendar.ts";
 import type { PricedTrade } from "./book.ts";
 import { runOptionsLedger, summarizeOptionsRun } from "./index.ts";
 import type { LedgerResult } from "./ledger.ts";
+import { pySum } from "./libm.ts";
 import {
   alignSeries,
   marketOf,
@@ -328,5 +329,57 @@ describe("maxOpenRisk", () => {
 
   it("never returns NaN: a NaN ratio keeps the worst so far, like Python max", () => {
     expect(maxOpenRisk(ledger([1000, 500, 400]), priced(Number.NaN))).toBe(0);
+  });
+
+  it("sweeps the run days with the same sums as every span on every day", () => {
+    // Deterministic pseudo-random spans: overlapping, same-day entries, an exit before entry.
+    let seed = 7;
+    const random = () => {
+      seed = (seed * 16_807) % 2_147_483_647;
+      return seed / 2_147_483_647;
+    };
+    const dates = Array.from({ length: 300 }, (_, index) =>
+      formatDay(parseDay("2024-01-01") + index)
+    );
+    const trades = Array.from({ length: 120 }, (_, index) => {
+      const entry = Math.floor(random() * 300);
+      const exit = index === 5 ? entry - 3 : entry + Math.floor(random() * 40);
+      return {
+        contracts: 1 + Math.floor(random() * 9),
+        entryDate: dates[Math.max(0, entry)],
+        exitDate: dates[Math.min(299, Math.max(0, exit))],
+        id: 120 - index,
+      };
+    });
+    const result = {
+      capital: 1000,
+      dates,
+      engine: "test",
+      equity: dates.map(() => 900 + random() * 200),
+      openPositions: dates.map(() => 0),
+      skipped: [],
+      trades,
+    } as unknown as LedgerResult;
+    const losses = trades.map((trade) => ({
+      maxLoss: 0.1 + random() * 3.7,
+      tradeId: trade.id,
+    })) as unknown as PricedTrade[];
+    const loss = new Map(losses.map((trade) => [trade.tradeId, trade.maxLoss]));
+    let brute = 0;
+    dates.forEach((day, index) => {
+      const risk = pySum(
+        trades
+          .filter(
+            (trade) =>
+              (trade.entryDate as string) <= day &&
+              day < (trade.exitDate as string)
+          )
+          .map((trade) => trade.contracts * (loss.get(trade.id) as number))
+      );
+      const ratio = risk / (result.equity[index] as number);
+      if (risk !== 0 && ratio > brute) brute = ratio;
+    });
+    expect(brute).toBeGreaterThan(0);
+    expect(maxOpenRisk(result, losses)).toBe(brute);
   });
 });

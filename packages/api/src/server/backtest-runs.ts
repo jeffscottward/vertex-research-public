@@ -56,6 +56,7 @@ import {
 import {
   optionsDatasetFromRows,
   optionsRunMetrics,
+  type OptionsRunOutcome,
   runOptionsDefinition,
 } from "../options-engine/portfolio.ts";
 import { ComboInputError, combinePortfolio } from "../portfolio-combination.ts";
@@ -82,6 +83,7 @@ import {
   type LoadedStrategySeries,
   loadStrategySeries,
   runInputsSha256,
+  type StrategySeriesLoader,
   strategySeriesInput,
 } from "./strategy-series.ts";
 
@@ -166,26 +168,23 @@ export const assertRunnableDefinition = (
   if (problem !== undefined) throw new InstantBacktestInputError(problem);
 };
 
-/** The symbols an options definition trades in a run on `symbol`. */
-const optionsSymbols = (
-  definition: StrategyDefinition,
-  symbol: string
-): readonly string[] => definition.portfolio?.symbols ?? [symbol];
+export type OptionsRun = Readonly<{
+  outcome: OptionsRunOutcome;
+  metrics: ReturnType<typeof optionsRunMetrics>;
+}>;
 
 /**
- * Runs an options definition on its loaded store rows and builds the report (TypeScript options
- * runner; `nautilusGap` null). An error of the runner (missing data) becomes the run's error.
+ * Runs an options definition on its loaded store rows (TypeScript options runner: from `from` to
+ * `to` with the run capital and symbol). An error of the runner (missing data, a ledger it cannot
+ * book) becomes an input error with the runner's message, so the run fails with it.
  */
-export const runOptionsBacktest = (
+export const runOptionsOnRows = (
   spec: BacktestRunRecord["spec"],
   definition: StrategyDefinition,
-  bars: MarketBarColumns,
   loaded: LoadedStrategySeries
-): BacktestRunReport => {
-  let outcome: ReturnType<typeof runOptionsDefinition>;
-  let metrics: ReturnType<typeof optionsRunMetrics>;
+): OptionsRun => {
   try {
-    outcome = runOptionsDefinition(
+    const outcome = runOptionsDefinition(
       definition,
       optionsDatasetFromRows(Object.fromEntries(loaded.rows)),
       {
@@ -195,21 +194,45 @@ export const runOptionsBacktest = (
         symbol: spec.symbol,
       }
     );
-    metrics = optionsRunMetrics(outcome);
+    return { metrics: optionsRunMetrics(outcome), outcome };
   } catch (error) {
     throw new InstantBacktestInputError(
       `Options run failed: ${(error as Error).message}`
     );
   }
-  return buildOptionsRunReport({
-    bars,
-    ledger: outcome.result,
-    metrics,
-    nautilusGap: null,
-    signals: outcome.signals,
-    symbols: optionsSymbols(definition, spec.symbol),
-  });
 };
+
+/** The report of an options run; `nautilusGap` is null for the TypeScript engine. */
+export const optionsRunReport = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  bars: MarketBarColumns,
+  run: OptionsRun,
+  nautilusGap: number | null
+): BacktestRunReport =>
+  buildOptionsRunReport({
+    bars,
+    ledger: run.outcome.result,
+    metrics: run.metrics,
+    nautilusGap,
+    signals: run.outcome.signals,
+    symbols: definition.portfolio?.symbols ?? [spec.symbol],
+  });
+
+/** Runs an options definition on its loaded store rows and builds the report (TypeScript engine). */
+export const runOptionsBacktest = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  bars: MarketBarColumns,
+  loaded: LoadedStrategySeries
+): BacktestRunReport =>
+  optionsRunReport(
+    spec,
+    definition,
+    bars,
+    runOptionsOnRows(spec, definition, loaded),
+    null
+  );
 
 export type LoadedRunBars =
   | Readonly<{ bars: MarketBarColumns; series: MarketBarSeries }>
@@ -270,12 +293,14 @@ export type RunData = Readonly<{
  * Loads what a run reads, or the error message for the run. Equity runs read market_bars; an
  * options run reads the series store only (its bars are the run symbol's store row). With
  * `check`, a definition the run cannot run throws (StrategyUnsupportedError or an input error);
- * a missing series throws StrategySeriesDataError.
+ * a missing series throws StrategySeriesDataError. `loadSeries` replaces the run's own series load
+ * (a batch claim loads the store once for all its runs).
  */
 export const loadRunData = async (
   dependencies: BacktestRunExecutionDependencies,
   spec: BacktestRunRecord["spec"],
-  check: boolean
+  check: boolean,
+  loadSeries?: StrategySeriesLoader
 ): Promise<RunData | Readonly<{ error: string }>> => {
   const definition =
     spec.rule.kind === "dsl"
@@ -286,12 +311,14 @@ export const loadRunData = async (
   const loadDaily = async () =>
     definition === undefined
       ? null
-      : await loadStrategySeries(
-          dependencies.marketDailySeries,
-          definition,
-          spec.symbol,
-          spec.to
-        );
+      : loadSeries === undefined
+        ? await loadStrategySeries(
+            dependencies.marketDailySeries,
+            definition,
+            spec.symbol,
+            spec.to
+          )
+        : await loadSeries(definition, spec.symbol, spec.to);
   if (definition?.options !== undefined) {
     // An options definition always reads store rows, the run symbol's row among them.
     const daily = (await loadDaily()) as LoadedStrategySeries;

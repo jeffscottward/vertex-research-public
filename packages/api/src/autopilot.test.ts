@@ -1778,6 +1778,8 @@ describe("autopilot gate engine comparison", () => {
       const [result] = (await client.autopilot.campaigns.tick({})).results;
       expect(result?.status).not.toBe("failed");
       expect(result?.gated).toBeGreaterThan(0);
+      // One load per tick, for in-sample, gate, neighbour and comparison runs alike.
+      expect(loadSeries).toHaveBeenCalledTimes(1);
       expect(loadSeries).toHaveBeenCalledWith(["VIX", "VIX3M"], {});
       // Every gate run read the series; the refined neighbours ran (they would refuse without).
       expect(control.gateSeries.length).toBeGreaterThan(0);
@@ -1803,6 +1805,49 @@ describe("autopilot gate engine comparison", () => {
     } finally {
       control.forcePass = false;
     }
+  });
+
+  it("retries a tick while the series store is not wired or a series is missing", async () => {
+    clearInstantBacktestCacheForTesting();
+    const memory = memoryAutopilot();
+    const filter = { maxRatio: 1, type: "vixTermStructure" as const };
+    const campaign = await clientFor({
+      autopilot: memory.repository,
+    }).autopilot.campaigns.create({
+      budget,
+      filters: [filter],
+      name: "Term",
+      seed: 7,
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const unwired = (
+      await clientFor({
+        autopilot: memory.repository,
+      }).autopilot.campaigns.tick({ id: campaign.id })
+    ).results[0];
+    expect(unwired).toMatchObject({
+      evaluated: 0,
+      note: "The daily series store is not available on this server (needed for VIX, VIX3M); the next tick retries.",
+      status: "running",
+    });
+    const loadSeries = vi.fn(async () => new Map());
+    const missing = (
+      await clientFor({
+        autopilot: memory.repository,
+        dailySeries: {
+          listSeries: vi.fn(),
+          loadSeries,
+          replaceSeries: vi.fn(),
+        } as unknown as NonNullable<Repositories["marketDailySeries"]>,
+      }).autopilot.campaigns.tick({ id: campaign.id })
+    ).results[0];
+    expect(missing).toMatchObject({
+      note: "Series data is not available for VIX; the next tick retries.",
+      status: "running",
+    });
+    expect(loadSeries).toHaveBeenCalledTimes(1);
+    expect(memory.campaigns.get(campaign.id)?.status).toBe("running");
   });
 
   it("keeps the tick when the comparison queue fails", async () => {

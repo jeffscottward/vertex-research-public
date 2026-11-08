@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import {
   AUTHORIZATION_ERROR_CODES,
   type AgentApiKeyService,
@@ -30,9 +32,12 @@ import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
   BACKTEST_RUN_ENGINE_VERSION,
   BACKTEST_RUN_NAUTILUS_ENGINE,
+  BACKTEST_RUN_OPTIONS_WORK_MAX,
   BacktestRunEngineOptionsResultSchema,
   BacktestRunEngineResultSchema,
+  BacktestRunOptionsReportSchema,
   BacktestRunReportSchema,
+  OPTIONS_NAUTILUS_PARITY_TOLERANCE,
   type BacktestRunSubmitInput,
   BacktestRunSubmitInputSchema,
 } from "./contracts/backtest-runs.ts";
@@ -1427,7 +1432,7 @@ describe("executeBacktestRun", () => {
       "Options definitions charge the options book costs; set costBps to 0 and leave out costProfile."
     );
     expect(runs.rows.get(series.id)?.error).toBe(
-      "Series data is not available for GC=F"
+      "The daily series store is not available on this server (needed for GC=F)"
     );
   });
 });
@@ -2551,7 +2556,7 @@ describe("backtest runs on the Nautilus engine", () => {
       "Options definitions charge the options book costs"
     );
     expect(runs.rows.get(term.id)?.error).toBe(
-      "Series data is not available for VIX, VIX3M"
+      "The daily series store is not available on this server (needed for VIX, VIX3M)"
     );
   });
 
@@ -2595,7 +2600,7 @@ describe("backtest runs on the Nautilus engine", () => {
       "Options definitions charge the options book costs"
     );
     expect(runs.rows.get(rank.id)?.error).toBe(
-      "Series data is not available for VIX"
+      "The daily series store is not available on this server (needed for VIX)"
     );
   });
 
@@ -4150,11 +4155,8 @@ describe("daily series and options runs", () => {
 
   it("sends a batch the rows of its series runs, each run with its own hash, and runs an options run alone", async () => {
     const runs = memoryRuns();
-    const client = clientFor({
-      bars: fakeBars(),
-      dailySeries: dailySeries(),
-      runs,
-    });
+    const store = dailySeries();
+    const client = clientFor({ bars: fakeBars(), dailySeries: store, runs });
     const typescript = {
       host: "test",
       stats: {
@@ -4220,6 +4222,11 @@ describe("daily series and options runs", () => {
     expect(runs.rows.get(options.id)?.error).toBe(
       "An options run runs alone, not in a comparison batch; submit the run again"
     );
+    // One store load for the batch: every id its runs read, up to the latest `to`.
+    expect(store.loadSeries).toHaveBeenCalledTimes(1);
+    expect(store.loadSeries).toHaveBeenCalledWith(["VIX", "VIX3M"], {
+      to: "1972-06-30",
+    });
     // VIX as the longest load (the latest `to` of its runs), VIX3M from the second run.
     expect(batch?.series).toEqual({
       VIX: cut(ROWS["VIX"] as MarketDailyColumns, "1972-06-30"),
@@ -4265,6 +4272,121 @@ describe("daily series and options runs", () => {
       )
     );
     expect(alone.batch?.runs[0]).not.toHaveProperty("seriesSha256");
+  });
+
+  it("fails runs whose daily series rows are over the claim limit", {
+    timeout: 30_000,
+  }, async () => {
+    const runs = memoryRuns();
+    // About 26 MB of JSON per series (one padded date): one run alone fits, two series of one
+    // batch do not.
+    const big = (base: number, size = 26_000_000): MarketDailyColumns => ({
+      adjClose: [null],
+      close: [base],
+      dates: [`1970-01-02${" ".repeat(size)}`],
+      high: [null],
+      low: [null],
+      open: [null],
+    });
+    // The store answers as is, so the rows keep their size.
+    const asIs = (rows: Record<string, MarketDailyColumns>) => ({
+      listSeries: vi.fn(),
+      loadSeries: vi.fn(
+        async (ids: readonly string[]) =>
+          new Map(ids.map((id) => [id, rows[id] as MarketDailyColumns]))
+      ),
+      replaceSeries: vi.fn(),
+    });
+    const client = clientFor({
+      bars: fakeBars(),
+      dailySeries: asIs({ IRX: big(200), VIX: big(100) }),
+      runs,
+    });
+    const typescript = {
+      host: "test",
+      stats: {
+        bars: 2,
+        buyHoldMaxDrawdown: 0,
+        buyHoldReturn: 0,
+        cagr: null,
+        exposure: 0,
+        maxDrawdown: 0,
+        profitFactor: null,
+        sharpe: null,
+        sortino: null,
+        totalReturn: 0,
+        trades: 0,
+        winRate: null,
+      },
+      tradeCount: 0,
+      trades: [],
+      wallMs: 1,
+    };
+    const comparison = {
+      feature: "sweep" as const,
+      groupId: "g-big",
+      label: "x",
+      typescript,
+    };
+    const irx = StrategyDefinitionSchema.parse({
+      ...STRATEGY_TEMPLATES.smaCross,
+      filters: [
+        {
+          condition: {
+            left: { field: "close", type: "price" },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+          series: "IRX",
+          type: "series",
+        },
+      ],
+    });
+    const rank = await queueRun(runs, { ...rankSpec, comparison });
+    const rate = await queueRun(runs, {
+      ...rankSpec,
+      comparison,
+      rule: { definition: irx, kind: "dsl" },
+    });
+    const plain = await queueRun(runs, {
+      ...(BacktestRunSubmitInputSchema.parse(
+        submitInput
+      ) as BacktestRunRecord["spec"]),
+      comparison,
+    });
+    const { batch } = await client.backtestRuns.engine.claim({
+      engine,
+      max: 10,
+    });
+    expect(batch?.runs.map((entry) => entry.id)).toEqual([plain.id]);
+    expect(batch?.series).toBeNull();
+    const tooLarge = expect.stringMatching(
+      /^The daily series rows are \d+\.\d MB; the Nautilus worker takes at most 40 MB$/u
+    );
+    expect(runs.rows.get(rank.id)?.error).toEqual(tooLarge);
+    expect(runs.rows.get(rate.id)?.error).toEqual(tooLarge);
+    // A batch of only oversized runs claims nothing.
+    const onlyBig = await queueRun(runs, {
+      ...rankSpec,
+      comparison: { ...comparison, groupId: "g-big-2" },
+    });
+    await queueRun(runs, {
+      ...rankSpec,
+      comparison: { ...comparison, groupId: "g-big-2" },
+      rule: { definition: irx, kind: "dsl" },
+    });
+    expect(
+      (await client.backtestRuns.engine.claim({ engine, max: 10 })).batch
+    ).toBeNull();
+    expect(runs.rows.get(onlyBig.id)?.status).toBe("failed");
+    // A single run over the limit fails at claim.
+    const huge = await queueRun(runs, rankSpec);
+    const store = asIs({
+      VIX: big(100, 52_000_000),
+    });
+    const single = clientFor({ bars: fakeBars(), dailySeries: store, runs });
+    expect((await single.backtestRuns.engine.claim({ engine })).run).toBeNull();
+    expect(runs.rows.get(huge.id)?.error).toEqual(tooLarge);
   });
 
   it("completes an options run from the worker's options result and recomputes its metrics", async () => {
@@ -4319,7 +4441,7 @@ describe("daily series and options runs", () => {
     }).toEqual(own);
   });
 
-  it("refuses an options result that does not fit the run or whose metrics differ from its ledger", async () => {
+  it("refuses an options result that is not the options run of the stored series", async () => {
     const runs = memoryRuns();
     const client = clientFor({
       bars: fakeBars(),
@@ -4329,6 +4451,8 @@ describe("daily series and options runs", () => {
     const sha = await strategySeriesRowsSha256(
       rowsOf(["SPY", "VIX", "IRX"], optionsSpec.to)
     );
+    const differs =
+      "The options result does not match the options run of the stored series: ";
     const rejected = async (
       result: Record<string, unknown>,
       message: string,
@@ -4348,50 +4472,104 @@ describe("daily series and options runs", () => {
       });
     };
     const good = optionsResult();
+    const [first, second] = good.trades;
+    if (first === undefined || second === undefined)
+      throw new Error("expected two trades");
+    const metric = (key: string, value: unknown) => ({
+      ...good,
+      metrics: { ...good.metrics, [key]: value },
+    });
     await rejected(
-      {
-        ...good,
-        metrics: {
-          ...good.metrics,
-          sharpe: (good.metrics.sharpe as number) * (1 + 1e-6),
-        },
-      },
-      "The options metrics do not match the ledger (sharpe)"
+      metric("sharpe", (good.metrics.sharpe as number) * (1 + 1e-6)),
+      `${differs}metrics (sharpe)`
     );
     await rejected(
-      { ...good, metrics: { ...good.metrics, worstMonth: "1970-06" } },
-      "The options metrics do not match the ledger (worstMonth)"
+      metric("worstMonth", "1970-06"),
+      `${differs}metrics (worstMonth)`
     );
-    // Within the tolerance the worker's metrics stand.
-    const close = await queueRun(runs, optionsSpec);
+    await rejected(
+      metric("maxOpenRisk", good.metrics.maxOpenRisk * 1.001),
+      `${differs}metrics (maxOpenRisk)`
+    );
+    // Within the tolerance the worker's numbers stand; the report is the API's own run.
+    const near = await queueRun(runs, optionsSpec);
     await client.backtestRuns.engine.claim({ engine });
     await expect(
       client.backtestRuns.engine.complete({
         engine,
-        id: close.id,
+        id: near.id,
         result: {
-          ...good,
-          metrics: {
-            ...good.metrics,
-            cagr: (good.metrics.cagr as number) * (1 + 1e-12),
-          },
+          ...metric("cagr", (good.metrics.cagr as number) * (1 + 1e-12)),
+          equity: good.equity.map((value) => value * (1 + 1e-13)),
         },
         seriesSha256: sha,
       })
     ).resolves.toMatchObject({ status: "succeeded" });
+    expect(
+      BacktestRunReportSchema.parse(runs.rows.get(near.id)?.report).options
+        ?.metrics
+    ).toEqual(optionsRunMetrics(optionsOutcome()));
+    // A tampered max loss, with or without metrics that agree with it.
+    const tampered = good.trades.map((trade, index) =>
+      index === 0 ? { ...trade, maxLoss: trade.maxLoss * 2 } : trade
+    );
+    await rejected({ ...good, trades: tampered }, `${differs}trade 1 maxLoss`);
+    await rejected(
+      {
+        ...metric("maxOpenRisk", good.metrics.maxOpenRisk * 2),
+        trades: tampered,
+      },
+      `${differs}trade 1 maxLoss`
+    );
+    // Ledgers that do not add up: equity against the trades, trades, skips, signals.
+    const lastDay = good.dates.at(-1);
     await rejected(
       {
         ...good,
-        metrics: {
-          ...good.metrics,
-          maxOpenRisk: good.metrics.maxOpenRisk * 1.001,
-        },
+        equity: [
+          ...good.equity.slice(0, -1),
+          (good.equity.at(-1) as number) + 5,
+        ],
       },
-      "The options metrics do not match the ledger (maxOpenRisk)"
+      `${differs}equity on ${lastDay}`
     );
     await rejected(
+      {
+        ...good,
+        trades: [
+          first,
+          { ...second, pnl: second.pnl + 1 },
+          ...good.trades.slice(2),
+        ],
+      },
+      `${differs}trade 2 pnl`
+    );
+    await rejected(
+      {
+        ...good,
+        trades: [
+          { ...first, returnOnRisk: first.returnOnRisk + 1e-6 },
+          ...good.trades.slice(1),
+        ],
+      },
+      `${differs}trade 1 returnOnRisk`
+    );
+    await rejected(
+      { ...good, trades: good.trades.slice(0, -1) },
+      `${differs}${good.trades.length - 1} trades; the run has ${good.trades.length}`
+    );
+    await rejected(
+      {
+        ...good,
+        openPositions: good.openPositions.map((count) => count + 1),
+      },
+      `${differs}open positions`
+    );
+    await rejected({ ...good, bookSkipped: 1 }, `${differs}skipped trades`);
+    await rejected({ ...good, signals: { SPY: 999 } }, `${differs}signals`);
+    await rejected(
       { ...good, capital: 60_000 },
-      "The options result capital 60000 is not the run capital 50000"
+      `${differs}capital 60000 is not the run capital 50000`
     );
     await rejected(
       {
@@ -4399,13 +4577,19 @@ describe("daily series and options runs", () => {
         dates: good.dates.slice(1),
         equity: good.equity.slice(1),
         openPositions: good.openPositions.slice(1),
-        trades: good.trades.filter((trade) => trade.exitDate !== good.dates[0]),
       },
-      "The options result dates are not the SPY calendar of the date range"
+      `${differs}the run days are not the SPY calendar of the date range`
     );
     await rejected(
       { ...good, dates: ["1970-02-27", ...good.dates.slice(1)] },
-      "The options result dates are not the SPY calendar of the date range"
+      `${differs}the run days are not the SPY calendar of the date range`
+    );
+    // A result for other rows (the hash differs) is refused before any recomputation.
+    await rejected(
+      good,
+      "The stored bars or daily series changed while the backtest was running",
+      optionsSpec,
+      "f".repeat(64)
     );
     const equity = {
       equity: [1, 1],
@@ -4437,6 +4621,49 @@ describe("daily series and options runs", () => {
     );
   });
 
+  it("fails the run when the API's own options run cannot book the stored rows", async () => {
+    const runs = memoryRuns();
+    // SPY (the ledger calendar) ends before the run starts; QQQ has the run's bars.
+    const spy = ROWS["SPY"] as MarketDailyColumns;
+    const end = spy.dates.indexOf("1972-01-03");
+    const shortSpy = {
+      adjClose: spy.adjClose.slice(0, end),
+      close: spy.close.slice(0, end),
+      dates: spy.dates.slice(0, end),
+      high: spy.high.slice(0, end),
+      low: spy.low.slice(0, end),
+      open: spy.open.slice(0, end),
+    };
+    const client = clientFor({
+      bars: fakeBars(),
+      dailySeries: dailySeries({
+        ...ROWS,
+        SPY: shortSpy,
+        VXN: ROWS["VIX"] as MarketDailyColumns,
+      }),
+      runs,
+    });
+    const spec = { ...optionsSpec, from: "1972-02-01", symbol: "QQQ" };
+    const run = await queueRun(runs, spec);
+    const claimed = (await client.backtestRuns.engine.claim({ engine })).run;
+    expect(claimed?.id).toBe(run.id);
+    const many = await client.backtestRuns.engine.completeMany({
+      engine,
+      items: [
+        {
+          id: run.id,
+          result: optionsResult(),
+          seriesSha256: claimed?.seriesSha256 as string,
+        },
+      ],
+    });
+    expect(many.outcomes[0]).toMatchObject({
+      error: "BAD_REQUEST",
+      message: expect.stringMatching(/^Options run failed: /u),
+    });
+    expect(runs.rows.get(run.id)?.status).toBe("failed");
+  });
+
   it("validates the options result shape strictly", () => {
     const good = optionsResult();
     expect(BacktestRunEngineOptionsResultSchema.safeParse(good).success).toBe(
@@ -4461,16 +4688,86 @@ describe("daily series and options runs", () => {
       issues({ dates: [good.dates[1], good.dates[0], ...good.dates.slice(2)] })
     ).toContain("dates must be strictly increasing");
     const [trade] = good.trades;
+    if (trade === undefined) throw new Error("expected a trade");
+    const onDates =
+      "A trade must enter and exit on run dates, the exit on or after the entry";
     expect(issues({ trades: [{ ...trade, exitDate: "1999-01-01" }] })).toEqual([
-      "A trade must exit on a run date, on or after its entry",
+      onDates,
     ]);
     expect(issues({ trades: [{ ...trade, entryDate: "1972-06-14" }] })).toEqual(
-      ["A trade must exit on a run date, on or after its entry"]
+      [onDates]
     );
+    // An entry on a day that is not a run day (a Saturday).
+    expect(issues({ trades: [{ ...trade, entryDate: "1970-03-07" }] })).toEqual(
+      [onDates]
+    );
+    expect(issues({ trades: [trade, trade] })).toEqual([
+      "Trade ids must be unique",
+    ]);
     expect(issues({ signals: { AAPL: 1 } })).toEqual([
       "Signals are counted per options symbol",
     ]);
+    expect(issues({ nautilusGap: null })).toHaveLength(1);
+    expect(issues({ nautilusGap: -1e-12 })).toHaveLength(1);
+    expect(
+      issues({ nautilusGap: OPTIONS_NAUTILUS_PARITY_TOLERANCE * 1.5 })
+    ).toHaveLength(1);
+    expect(issues({ nautilusGap: OPTIONS_NAUTILUS_PARITY_TOLERANCE })).toEqual(
+      []
+    );
+    expect(issues({ trades: [{ ...trade, maxLoss: 0 }] })).toHaveLength(1);
     expect(issues({ extra: 1 })).toHaveLength(1);
     expect(issues({ metrics: { ...good.metrics, extra: 1 } })).toHaveLength(1);
+    // Run days × trades is bounded (the open-risk recomputation).
+    const days = Array.from({ length: 20_000 }, (_, index) =>
+      new Date(Date.UTC(1970, 0, 1) + index * DAY_MS).toISOString().slice(0, 10)
+    );
+    const many = Array.from({ length: 1001 }, (_, index) => ({
+      ...trade,
+      entryDate: days[0],
+      exitDate: days[1],
+      id: index + 1,
+    }));
+    expect(
+      issues({
+        dates: days,
+        equity: days.map(() => 1),
+        openPositions: days.map(() => 0),
+        trades: many,
+      })
+    ).toEqual([
+      `Run days × trades must be at most ${BACKTEST_RUN_OPTIONS_WORK_MAX}`,
+    ]);
+  });
+
+  it("bounds the stored options report like the worker result", () => {
+    const report = {
+      capital: 1,
+      metrics: optionsResult().metrics,
+      nautilusGap: null,
+      signals: { SPY: 1 },
+      symbols: ["SPY"],
+      trades: [],
+    };
+    const ok = (value: Record<string, unknown>) =>
+      BacktestRunOptionsReportSchema.safeParse({ ...report, ...value }).success;
+    expect(ok({})).toBe(true);
+    expect(ok({ nautilusGap: 0 })).toBe(true);
+    expect(ok({ nautilusGap: -1 })).toBe(false);
+    expect(ok({ nautilusGap: 1e-3 })).toBe(false);
+    expect(ok({ signals: { AAPL: 1 } })).toBe(false);
+  });
+
+  it("uses the Python Nautilus parity tolerance", () => {
+    const python = readFileSync(
+      new URL(
+        "../../../services/research/strategies/qc_ports/portfolio.py",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    expect(python).toContain(
+      `PARITY_REL_TOL = ${OPTIONS_NAUTILUS_PARITY_TOLERANCE.toExponential()}`
+    );
   });
 });

@@ -163,6 +163,7 @@ Review round 1 (2026-11-08) found these bugs after the first run of the 32 runs;
 - Inputs are validated: the option model refuses NaN, infinite or negative time, rate, dividend yield, spot or volatility; market columns must be finite (closes and IV above 0, rates not negative); instrument value and sizing refuse NaN instead of treating it as 0; the deflated Sharpe is left empty when its standard-error radicand is not positive (never a square root of a negative number).
 - Data rows with a missing open, high, low or adj_close are dropped instead of filled with the close (no row of the current files is affected).
 - Reported, not changing a run: the largest concurrent open risk per run.
+- Card vertex-qc-ports-opt3 (pure DSL runs): run B is the same put credit definition with the filter `ivRank` min 0 (a rank exists) instead of a per-member start date. Its trades, daily equity and every metric are unchanged; `skipped` is 262 instead of 301, because the 39 month-ends where the IV index has no value on the date are no longer entry signals (they were counted as skipped entries before). Run A is unchanged.
 
 ## Limits
 

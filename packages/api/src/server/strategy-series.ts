@@ -6,6 +6,7 @@ import {
 } from "@darkfactory/db/server";
 
 import { canonicalJson, sha256Hex } from "../canonical-json.ts";
+import { InstantBacktestInputError } from "../instant-backtest-engine.ts";
 import { optionsDefinitionSeriesIds } from "../options-engine/portfolio.ts";
 import {
   resolveStrategySeries,
@@ -22,9 +23,29 @@ import {
 // get the StrategySeriesInput of the refs their definition reads, resolved for the run symbol
 // (`<ETF>:TR` is the adjusted close of the ETF row). Options runs get the store rows the options
 // runner reads (optionsDefinitionSeriesIds). Rows are cut at the run's `to` (later values are
-// never read) and keep the whole history before `from` (indicator warm-up). A missing series
-// fails the run (StrategySeriesDataError). The SHA-256 of the loaded rows lets a later step check
-// that the store did not change. Research only.
+// never read) and keep the whole history before `from` (indicator warm-up). A series the store
+// does not have throws StrategySeriesDataError (the data may still arrive), a ref the symbol has
+// no series for throws StrategySeriesSymbolError and a missing store StrategySeriesStoreError.
+// The SHA-256 of the loaded rows lets a later step check that the store did not change. Research
+// only.
+
+/** The definition reads a relative series (`$iv`, `$tr`, `$future`) the run symbol does not have. */
+export class StrategySeriesSymbolError extends InstantBacktestInputError {
+  constructor(ref: string, symbol: string) {
+    super(`Series data is not available for ${ref} of ${symbol}`);
+    this.name = "StrategySeriesSymbolError";
+  }
+}
+
+/** The definition reads daily series, but no series store is wired on this server. */
+export class StrategySeriesStoreError extends InstantBacktestInputError {
+  constructor(ids: readonly string[]) {
+    super(
+      `The daily series store is not available on this server (needed for ${ids.join(", ")})`
+    );
+    this.name = "StrategySeriesStoreError";
+  }
+}
 
 /** Store rows by series id, in load order. */
 export type StrategySeriesRows = ReadonlyMap<string, MarketDailyColumns>;
@@ -44,8 +65,7 @@ const resolvedSeriesIds = (
 ): string[] =>
   strategySeriesRefs(definition).map((ref) => {
     const id = resolveStrategySeries(ref, symbol);
-    if (id === undefined)
-      throw new StrategySeriesDataError(`${ref} of ${symbol}`);
+    if (id === undefined) throw new StrategySeriesSymbolError(ref, symbol);
     return id;
   });
 
@@ -75,30 +95,76 @@ export const strategySeriesRowsSha256 = async (
   rows: StrategySeriesRows
 ): Promise<string> => await sha256Hex(canonicalJson(Object.fromEntries(rows)));
 
+/** The columns of one series up to `to` (inclusive); the same object when nothing is later. */
+const cutColumns = (
+  columns: MarketDailyColumns,
+  to: string | undefined
+): MarketDailyColumns => {
+  if (to === undefined || (columns.dates.at(-1) ?? "") <= to) return columns;
+  let end = 0;
+  while (end < columns.dates.length && (columns.dates[end] as string) <= to)
+    end += 1;
+  return {
+    adjClose: columns.adjClose.slice(0, end),
+    close: columns.close.slice(0, end),
+    dates: columns.dates.slice(0, end),
+    high: columns.high.slice(0, end),
+    low: columns.low.slice(0, end),
+    open: columns.open.slice(0, end),
+  };
+};
+
+/**
+ * The rows of `ids` from loaded store rows, each cut at `to` (inclusive), in `ids` order. Throws
+ * StrategySeriesDataError for the first id that is not loaded.
+ */
+export const cutStrategySeriesRows = (
+  loaded: ReadonlyMap<string, MarketDailyColumns>,
+  ids: readonly string[],
+  to?: string
+): StrategySeriesRows => {
+  const rows = new Map<string, MarketDailyColumns>();
+  for (const id of ids) {
+    const columns = loaded.get(id);
+    if (columns === undefined) throw new StrategySeriesDataError(id);
+    rows.set(id, cutColumns(columns, to));
+  }
+  return rows;
+};
+
 /**
  * Loads the store rows of `ids` up to `to` (inclusive). Throws StrategySeriesDataError for the
- * first id the store does not have, or when no store is wired.
+ * first id the store does not have, StrategySeriesStoreError when no store is wired.
  */
 export const loadStrategySeriesRows = async (
   repository: MarketDailySeriesRepository | undefined,
   ids: readonly string[],
   to?: string
 ): Promise<StrategySeriesRows> => {
-  if (repository === undefined) {
-    throw new StrategySeriesDataError(ids.join(", "));
-  }
+  if (repository === undefined) throw new StrategySeriesStoreError(ids);
   const loaded = await repository.loadSeries(
     ids,
     to === undefined ? {} : { to }
   );
-  const rows = new Map<string, MarketDailyColumns>();
-  for (const id of ids) {
-    const columns = loaded.get(id);
-    if (columns === undefined) throw new StrategySeriesDataError(id);
-    rows.set(id, columns);
-  }
-  return rows;
+  return cutStrategySeriesRows(loaded, ids);
 };
+
+/** Loads the series one run of `definition` on `symbol` reads, up to `to`; null when none. */
+export type StrategySeriesLoader = (
+  definition: StrategySeriesReader,
+  symbol: string,
+  to: string
+) => Promise<LoadedStrategySeries | null>;
+
+/** The rows with their SHA-256. */
+const withSha = async (
+  ids: readonly string[],
+  rows: StrategySeriesRows
+): Promise<LoadedStrategySeries> => ({
+  ids,
+  rows,
+  sha256: await strategySeriesRowsSha256(rows),
+});
 
 /**
  * The rows a run of `definition` on `symbol` reads, up to `to`, with their SHA-256; null when the
@@ -112,8 +178,30 @@ export const loadStrategySeries = async (
 ): Promise<LoadedStrategySeries | null> => {
   const ids = strategySeriesStoreIds(definition, symbol);
   if (ids.length === 0) return null;
-  const rows = await loadStrategySeriesRows(repository, ids, to);
-  return { ids, rows, sha256: await strategySeriesRowsSha256(rows) };
+  return await withSha(ids, await loadStrategySeriesRows(repository, ids, to));
+};
+
+/**
+ * A loader for several runs that loads the store once: every id of `ids` up to `to` (the latest
+ * `to` of the runs), on the first run that reads series. Each run gets its own ids cut at its own
+ * `to`, which equals loading them alone (loadStrategySeries) from the same store state.
+ */
+export const sharedStrategySeriesLoader = (
+  repository: MarketDailySeriesRepository | undefined,
+  ids: readonly string[],
+  to: string
+): StrategySeriesLoader => {
+  let shared: Promise<ReadonlyMap<string, MarketDailyColumns>> | undefined;
+  return async (definition, symbol, runTo) => {
+    const runIds = strategySeriesStoreIds(definition, symbol);
+    if (runIds.length === 0) return null;
+    if (repository === undefined) throw new StrategySeriesStoreError(runIds);
+    shared ??= repository.loadSeries(ids, { to });
+    return await withSha(
+      runIds,
+      cutStrategySeriesRows(await shared, runIds, runTo)
+    );
+  };
 };
 
 /**

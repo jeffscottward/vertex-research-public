@@ -173,7 +173,7 @@ def test_batch_cli_routes_options_cases_to_the_options_runner(tmp_path):
     ]}
     research = Path(__file__).resolve().parents[1]
     done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=research,
-                          input=json.dumps(request), capture_output=True, text=True, timeout=600)
+                          input=json.dumps(request), capture_output=True, text=True, timeout=600, check=False)
     assert done.returncode == 0, done.stderr
     results = {item["id"]: item for item in json.loads(done.stdout)["results"]}
     assert results["opt"]["result"]["kind"] == "options"
@@ -215,3 +215,94 @@ def test_batch_cli_passes_series_rows_to_equity_definitions_that_read_series():
 
     assert len(batch(rows)["result"]["equity"]) == len(dates)
     assert "STRATEGY_SERIES_FILTERS_UNSUPPORTED" in batch(None)["error"]
+
+
+def _gated_batch(rows):
+    from datetime import date
+
+    dates = rows["SPY"]["dates"]
+    closes = rows["SPY"]["close"]
+    epoch = date(1970, 1, 1)
+    t = [float((date.fromisoformat(day) - epoch).days * 86_400_000) for day in dates]
+    bars = {"t": t, "o": closes, "h": closes, "l": closes, "c": closes}
+    gated = {"name": "vix gate", "version": 1,
+             "entry": {"all": [{"left": {"type": "price", "field": "close"}, "op": ">",
+                                "right": {"type": "const", "value": 0}}]},
+             "filters": [{"type": "series", "series": "$iv", "condition": {
+                 "left": {"type": "price", "field": "close"}, "op": "<", "right": {"type": "const", "value": 30}}}]}
+
+    def spec(first, end):
+        return {"symbol": "SPY", "timeframe": "1d", "from": dates[first], "to": dates[end - 1],
+                "initialCapital": 10000, "costBps": 0, "stopLossPct": 0, "takeProfitPct": 0,
+                "rule": {"kind": "dsl", "definition": gated}}
+
+    cases = [{"id": "early", "slice": [0, 50], "spec": spec(0, 50)},
+             {"id": "late", "slice": [20, 90], "spec": spec(20, 90)}]
+    return bars, cases
+
+
+def _cut(rows, last):
+    keep = {series_id: sum(1 for day in row["dates"] if day <= last) for series_id, row in rows.items()}
+    return {series_id: {key: list(values)[:keep[series_id]] for key, values in row.items()}
+            for series_id, row in rows.items()}
+
+
+def test_batch_cases_read_the_series_rows_up_to_their_own_last_bar(monkeypatch):
+    """A case of a multi-case batch gets the context of the rows cut at its last bar: the same as
+    the run alone with its claim rows (cut at its `to`), whatever later rows the batch holds."""
+    import nautilus_backtest.__main__ as cli
+    from nautilus_backtest.bars import Bars
+
+    seen = {}
+
+    class Result:
+        def __init__(self, value):
+            self.value = value
+
+        def to_json(self):
+            return self.value
+
+    def fake_run_spec(bars, spec):
+        context = spec["context"]
+        return Result({"bars": len(bars.c), "last": {key: max(values) for key, values in context.items()},
+                       "size": {key: len(values) for key, values in context.items()}})
+
+    monkeypatch.setattr(cli, "run_spec", fake_run_spec)
+    rows = _worker_rows()
+    bars, cases = _gated_batch(rows)
+    shared = Bars.from_columns(bars)
+    batched = {case["id"]: cli._batch_case(shared, case, rows)["result"] for case in cases}
+    for case in cases:
+        first, end = case["slice"]
+        alone_bars = Bars.from_columns({key: values[first:end] for key, values in bars.items()})
+        alone = cli._batch_case(alone_bars, {"id": case["id"], "spec": case["spec"]},
+                                _cut(rows, case["spec"]["to"]))["result"]
+        seen[case["id"]] = alone
+        assert batched[case["id"]] == alone
+    assert seen["early"]["last"]["VIX"] == cases[0]["spec"]["to"] < rows["VIX"]["dates"][-1]
+    assert seen["late"]["last"]["VIX"] == cases[1]["spec"]["to"]
+
+
+@needs_nautilus
+def test_batch_cli_multi_case_with_series_equals_each_run_alone():
+    import json
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    rows = _worker_rows()
+    bars, cases = _gated_batch(rows)
+    research = Path(__file__).resolve().parents[1]
+
+    def batch(request):
+        done = subprocess.run([sys.executable, "-m", "nautilus_backtest", "batch", "-", "-"], cwd=research,
+                              input=json.dumps(request), capture_output=True, text=True, timeout=600, check=False)
+        assert done.returncode == 0, done.stderr
+        return {entry["id"]: entry["result"] for entry in json.loads(done.stdout)["results"]}
+
+    together = batch({"bars": bars, "series": rows, "cases": cases})
+    for case in cases:
+        first, end = case["slice"]
+        alone = batch({"bars": {key: values[first:end] for key, values in bars.items()},
+                       "series": _cut(rows, case["spec"]["to"]), "cases": [{"id": case["id"], "spec": case["spec"]}]})
+        assert together[case["id"]] == alone[case["id"]]

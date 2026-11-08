@@ -11,8 +11,12 @@ import {
 } from "../strategy-dsl.ts";
 import { StrategySeriesDataError } from "../strategy-dsl-compile.ts";
 import {
+  cutStrategySeriesRows,
   loadStrategySeries,
   loadStrategySeriesRows,
+  sharedStrategySeriesLoader,
+  StrategySeriesStoreError,
+  StrategySeriesSymbolError,
   runInputsSha256,
   strategySeriesInput,
   strategySeriesRowsSha256,
@@ -71,7 +75,7 @@ describe("strategy series loader", () => {
     expect(strategySeriesStoreIds(reads, "SPY")).toEqual(["VIX", "SPY", "QQQ"]);
     expect(strategySeriesStoreIds(definition({}), "SPY")).toEqual([]);
     expect(() => strategySeriesStoreIds(reads, "AAPL")).toThrow(
-      new StrategySeriesDataError("$iv of AAPL")
+      new StrategySeriesSymbolError("$iv", "AAPL")
     );
     const options = definition({
       options: {
@@ -107,7 +111,7 @@ describe("strategy series loader", () => {
     ).rejects.toThrow(new StrategySeriesDataError("VIX3M"));
     await expect(
       loadStrategySeriesRows(undefined, ["VIX", "VIX3M"])
-    ).rejects.toThrow(new StrategySeriesDataError("VIX, VIX3M"));
+    ).rejects.toThrow(new StrategySeriesStoreError(["VIX", "VIX3M"]));
   });
 
   it("loads a definition's series with a stable hash, or nothing when it reads none", async () => {
@@ -159,5 +163,80 @@ describe("strategy series loader", () => {
     expect(() => strategySeriesInput(reads, "SPY", rows)).toThrow(
       new StrategySeriesDataError("VIX")
     );
+  });
+
+  it("cuts loaded rows at `to` and keeps rows that end before it", () => {
+    const loaded = new Map(Object.entries(ROWS));
+    const cut = cutStrategySeriesRows(loaded, ["VIX", "SPY"], "2024-01-03");
+    expect(cut.get("VIX")).toEqual({
+      adjClose: [null, null],
+      close: [15, 16],
+      dates: ["2024-01-02", "2024-01-03"],
+      high: [null, null],
+      low: [null, null],
+      open: [null, null],
+    });
+    expect(
+      cutStrategySeriesRows(loaded, ["VIX"], "2030-01-01").get("VIX")
+    ).toBe(ROWS["VIX"]);
+    expect(cutStrategySeriesRows(loaded, ["VIX"]).get("VIX")).toBe(ROWS["VIX"]);
+    const empty = { ...level([]), dates: [] };
+    expect(
+      cutStrategySeriesRows(new Map([["E", empty]]), ["E"], "2024-01-01").get(
+        "E"
+      )
+    ).toBe(empty);
+    expect(
+      cutStrategySeriesRows(loaded, ["VIX"], "2000-01-01").get("VIX")?.dates
+    ).toEqual([]);
+    expect(() => cutStrategySeriesRows(loaded, ["IRX"])).toThrow(
+      new StrategySeriesDataError("IRX")
+    );
+  });
+
+  it("loads the store once for several runs and gives each its own cut and hash", async () => {
+    const repository = store();
+    const load = sharedStrategySeriesLoader(
+      repository,
+      ["VIX", "SPY"],
+      "2024-01-04"
+    );
+    const rank = definition({ filters: [{ max: 50, type: "ivRank" }] });
+    const total = definition({ entry: { all: [expr("$tr")] } });
+    const early = await load(rank, "SPY", "2024-01-03");
+    const late = await load(total, "SPY", "2024-01-04");
+    expect(await load(definition({}), "SPY", "2024-01-04")).toBeNull();
+    expect(repository.loadSeries).toHaveBeenCalledTimes(1);
+    expect(repository.loadSeries).toHaveBeenCalledWith(["VIX", "SPY"], {
+      to: "2024-01-04",
+    });
+    // Each equals loading that run alone at its own `to`.
+    const direct = await loadStrategySeries(
+      {
+        ...repository,
+        loadSeries: vi.fn(
+          async (ids: readonly string[], range?: { to?: string }) =>
+            new Map(
+              cutStrategySeriesRows(
+                new Map(Object.entries(ROWS)),
+                ids,
+                range?.to
+              )
+            )
+        ),
+      },
+      rank,
+      "SPY",
+      "2024-01-03"
+    );
+    expect(early).toEqual(direct);
+    expect(late?.ids).toEqual(["SPY"]);
+    await expect(
+      sharedStrategySeriesLoader(undefined, ["VIX"], "2024-01-04")(
+        rank,
+        "SPY",
+        "2024-01-04"
+      )
+    ).rejects.toThrow(new StrategySeriesStoreError(["VIX"]));
   });
 });

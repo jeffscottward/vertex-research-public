@@ -744,7 +744,9 @@ export const runOptionsDefinition = (
 
 /**
  * Largest share of equity at risk in open spreads at a day's close: sum of contracts * max loss per
- * contract of the trades open after that day's exits and entries, over that day's equity.
+ * contract of the trades open after that day's exits and entries, over that day's equity. One
+ * sweep over the run days (ascending): spans join on their entry day and leave on their exit day;
+ * each day sums its open spans in trade order, the order of the Python sum over all spans.
  */
 export const maxOpenRisk = (
   result: LedgerResult,
@@ -763,13 +765,32 @@ export const maxOpenRisk = (
       record.contracts * loss,
     ] as const;
   });
+  const byEntry = spans
+    .map((_, index) => index)
+    .sort((left, right) => {
+      const a = (spans[left] as (typeof spans)[number])[0];
+      const b = (spans[right] as (typeof spans)[number])[0];
+      return a === b ? left - right : a < b ? -1 : 1;
+    });
+  let next = 0;
+  let open: number[] = [];
   let worst = 0;
   result.dates.forEach((day, index) => {
+    const before = open.length;
+    while (
+      next < byEntry.length &&
+      (spans[byEntry[next] as number] as (typeof spans)[number])[0] <= day
+    ) {
+      open.push(byEntry[next] as number);
+      next += 1;
+    }
+    if (open.length > before) open.sort((left, right) => left - right);
+    open = open.filter(
+      (span) => day < (spans[span] as (typeof spans)[number])[1]
+    );
     const equity = result.equity[index] as number;
     const risk = pySum(
-      spans
-        .filter(([entry, exit]) => entry <= day && day < exit)
-        .map(([, , amount]) => amount)
+      open.map((span) => (spans[span] as (typeof spans)[number])[2])
     );
     // Python max(worst, ratio) keeps worst unless ratio > worst, so a NaN never gets through.
     if (risk !== 0 && equity > 0) {

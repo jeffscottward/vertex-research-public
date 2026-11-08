@@ -3,18 +3,17 @@ import type {
   MarketBarColumns,
   MarketDailyColumns,
 } from "@darkfactory/db/server";
-import { marketDailyBars } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 import {
   type BacktestRunOptionsMetrics,
   buildBacktestRunReport,
-  buildOptionsRunReport,
 } from "../backtest-run-report.ts";
 import { sliceColumnsByDate } from "../bar-slice.ts";
+import { canonicalJson } from "../canonical-json.ts";
 import { appContract } from "../contract.ts";
 import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
-  BACKTEST_RUN_NAUTILUS_ENGINE,
+  BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES,
   type BacktestRunEngineClaimOutput,
   type BacktestRunEngineCompleteItem,
   type BacktestRunEngineOptionsResult,
@@ -33,12 +32,9 @@ import {
   summarize,
 } from "../instant-backtest-engine.ts";
 import {
-  type LedgerResult,
-  type PricedTrade,
-  summarizeOptionsRun,
-} from "../options-engine/index.ts";
-import { maxOpenRisk } from "../options-engine/portfolio.ts";
-import type { StrategyDefinition } from "../strategy-dsl.ts";
+  type StrategyDefinition,
+  StrategyDefinitionSchema,
+} from "../strategy-dsl.ts";
 import { costsForSpec } from "./backtest-run-params.ts";
 import {
   BACKTEST_RUN_STORAGE_ERROR,
@@ -46,13 +42,21 @@ import {
   dependenciesFor,
   type Failures,
   loadRunData,
+  type OptionsRun,
+  optionsRunReport,
   type RunData,
+  runOptionsOnRows,
 } from "./backtest-runs.ts";
 import type { ApiContext } from "./context.ts";
 import { columnsFor } from "./instant-backtest.ts";
 import { requireOperator } from "./operator-access.ts";
 import { loadSectorQuadrants } from "./sector-quadrant-series.ts";
-import type { LoadedStrategySeries } from "./strategy-series.ts";
+import {
+  type LoadedStrategySeries,
+  type StrategySeriesLoader,
+  sharedStrategySeriesLoader,
+  strategySeriesStoreIds,
+} from "./strategy-series.ts";
 
 // Engine worker procedures (backtestRuns.engine.*), called by the Nautilus research worker on the
 // rig (scripts/backtest-worker/nautilus-worker.ts) with an operator agent write key. claim moves
@@ -63,9 +67,11 @@ import type { LoadedStrategySeries } from "./strategy-series.ts";
 // same code as the API engine. With `max`, claim returns a batch (one comparison group, one bar
 // series) and completeMany stores the batch; a comparison run's report also gets the differences
 // to the TypeScript result it repeats. A definition that reads daily series gets the store rows
-// too (`series`, the seriesSha256 then covers bars and rows); an options definition is claimed
-// alone and returns the options runner result, whose metrics complete recomputes before it builds
-// the same report as the TypeScript options run. Research only; no order path.
+// too (`series`, at most BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES; the seriesSha256 then covers bars
+// and rows); a batch loads the store once for all its runs. An options definition is claimed
+// alone and returns the options runner result; complete runs the options runner on the same rows
+// and stores the API's run only when the worker's ledger is that run. Research only; no order
+// path.
 
 /** Runs one claim may fail while it loads inputs before it returns no run. */
 export const ENGINE_CLAIM_ATTEMPTS = 5;
@@ -132,22 +138,29 @@ const isOptionsRun = (run: BacktestRunRecord): boolean =>
 /** The engine inputs of a claimed run, or null after the run was failed. */
 const runInputs = async (
   dependencies: BacktestRunExecutionDependencies,
-  run: BacktestRunRecord
+  run: BacktestRunRecord,
+  loadSeries?: StrategySeriesLoader
 ): Promise<RunInputs | null> => {
   const { spec } = run;
   try {
     // Written past the submit check: refuse, never run it half.
-    const loaded = await loadRunData(dependencies, spec, true);
+    const loaded = await loadRunData(dependencies, spec, true, loadSeries);
     if ("error" in loaded) {
       await dependencies.runs.fail(run.id, loaded.error);
       return null;
     }
-    const { bars, definition } = loaded;
+    const { bars, daily, definition } = loaded;
     if (bars.t.length > BACKTEST_RUN_ENGINE_BARS_MAX) {
       await dependencies.runs.fail(
         run.id,
         `The date range has ${bars.t.length} bars; the Nautilus worker takes at most ${BACKTEST_RUN_ENGINE_BARS_MAX}`
       );
+      return null;
+    }
+    const rowsBytes =
+      daily === null ? 0 : rowsByteLength(Object.fromEntries(daily.rows));
+    if (rowsBytes > BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES) {
+      await dependencies.runs.fail(run.id, rowsTooLarge(rowsBytes));
       return null;
     }
     const sectorQuadrants =
@@ -177,6 +190,13 @@ const runInputs = async (
   }
 };
 
+/** Bytes of store rows as claim JSON (ASCII: one byte per character). */
+const rowsByteLength = (rows: Record<string, MarketDailyColumns>): number =>
+  JSON.stringify(rows).length;
+
+const rowsTooLarge = (bytes: number): string =>
+  `The daily series rows are ${(bytes / 1e6).toFixed(1)} MB; the Nautilus worker takes at most ${BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES / 1e6} MB`;
+
 /** The engine inputs of a claimed run, or null after the run was failed. */
 const prepareRun = async (
   dependencies: BacktestRunExecutionDependencies,
@@ -197,6 +217,39 @@ const prepareRun = async (
 };
 
 type ClaimedBatch = NonNullable<BacktestRunEngineClaimOutput["batch"]>;
+
+/**
+ * One series load for the runs of a batch: every store id any of its definitions reads, up to the
+ * latest `to`. A definition that cannot be read here fails later in runInputs with its message.
+ */
+const batchSeriesLoader = (
+  dependencies: BacktestRunExecutionDependencies,
+  runs: readonly BacktestRunRecord[]
+): StrategySeriesLoader => {
+  const ids = new Set<string>();
+  for (const run of runs) {
+    const { spec } = run;
+    // A comparison batch never runs an options run (prepareBatch fails it).
+    if (spec.rule.kind !== "dsl" || (runs.length > 1 && isOptionsRun(run)))
+      continue;
+    try {
+      const definition = StrategyDefinitionSchema.parse(spec.rule.definition);
+      for (const id of strategySeriesStoreIds(definition, spec.symbol))
+        ids.add(id);
+    } catch {
+      // runInputs fails the run with the reason.
+    }
+  }
+  const to = runs
+    .map((run) => run.spec.to)
+    .sort()
+    .at(-1) as string;
+  return sharedStrategySeriesLoader(
+    dependencies.marketDailySeries,
+    [...ids],
+    to
+  );
+};
 
 /** The rows of every run: each series as the longest load (the latest `to`) of any run. */
 const batchRows = (
@@ -223,6 +276,7 @@ const prepareBatch = async (
   dependencies: BacktestRunExecutionDependencies,
   runs: readonly BacktestRunRecord[]
 ): Promise<ClaimedBatch | null> => {
+  const loadSeries = batchSeriesLoader(dependencies, runs);
   const ready: RunInputs[] = [];
   for (const run of runs) {
     const first = ready[0];
@@ -244,9 +298,30 @@ const prepareBatch = async (
       );
       continue;
     }
-    const inputs = await runInputs(dependencies, run);
+    const inputs = await runInputs(dependencies, run, loadSeries);
     if (inputs !== null) ready.push(inputs);
   }
+  const rows = batchRows(ready);
+  const rowsBytes = rows === null ? 0 : rowsByteLength(rows);
+  if (rowsBytes > BACKTEST_RUN_ENGINE_SERIES_MAX_BYTES) {
+    for (const entry of ready)
+      if (entry.daily !== null)
+        await dependencies.runs.fail(entry.run.id, rowsTooLarge(rowsBytes));
+    return await finishBatch(
+      dependencies,
+      ready.filter((entry) => entry.daily === null),
+      null
+    );
+  }
+  return await finishBatch(dependencies, ready, rows);
+};
+
+/** The batch of the ready runs on their shared bars, or null when none is ready. */
+const finishBatch = async (
+  dependencies: BacktestRunExecutionDependencies,
+  ready: readonly RunInputs[],
+  rows: Record<string, MarketDailyColumns> | null
+): Promise<ClaimedBatch | null> => {
   const [head] = ready;
   if (head === undefined) return null;
   const from = ready.map((entry) => entry.run.spec.from).sort()[0] as string;
@@ -281,7 +356,7 @@ const prepareBatch = async (
         spec: engineSpec(entry.run.spec),
       };
     }),
-    series: batchRows(ready),
+    series: rows,
     seriesSha256: head.series?.sourceSha256 ?? head.seriesSha256,
   } as ClaimedBatch;
 };
@@ -368,63 +443,97 @@ export const optionsMetricsMismatch = (
     const value = sent[key as keyof BacktestRunOptionsMetrics];
     const equal =
       typeof expected === "number" && typeof value === "number"
-        ? Math.abs(value - expected) <=
-          ENGINE_STATS_TOLERANCE *
-            Math.max(1, Math.abs(value), Math.abs(expected))
+        ? close(value, expected)
         : expected === value;
     if (!equal) return key;
   }
   return null;
 };
 
-/**
- * The options metrics of a worker result, recomputed from its ledger (metrics.summarize with one
- * trial, plus the book skips, the largest open risk from each trade's max loss and the stale-IV
- * exits).
- */
-export const optionsResultMetrics = (
-  result: BacktestRunEngineOptionsResult
-): BacktestRunOptionsMetrics => {
-  const ledger: LedgerResult = {
-    capital: result.capital,
-    dates: result.dates,
-    engine: BACKTEST_RUN_NAUTILUS_ENGINE,
-    equity: result.equity,
-    openPositions: result.openPositions,
-    skipped: result.skipped,
-    trades: result.trades,
-  };
-  const stats = summarizeOptionsRun(ledger, { nTrials: 1 });
-  // maxOpenRisk reads the trade id and max loss of the priced trades only.
-  const priced = result.trades.map(
-    (trade) => ({ maxLoss: trade.maxLoss, tradeId: trade.id }) as PricedTrade
-  );
-  return {
-    ...stats,
-    maxOpenRisk: maxOpenRisk(ledger, priced),
-    skipped: stats.skipped + result.bookSkipped,
-    staleIvExits: result.trades.filter(
-      (trade) => trade.exitReason === "stale-iv"
-    ).length,
-  };
-};
-
-/** The SPY dates of the rows from `from` on: the ledger calendar of an options run. */
-const optionsCalendar = (
-  rows: LoadedStrategySeries["rows"],
-  from: string
-): string[] => {
-  // Every options run loads SPY (optionsDefinitionSeriesIds).
-  const spy = rows.get("SPY") as MarketDailyColumns;
-  return marketDailyBars(spy).dates.filter((date) => date >= from);
-};
-
 type CheckedReport = Readonly<{ report: Record<string, unknown> }>;
 
+/** True when two numbers agree within ENGINE_STATS_TOLERANCE (relative, at least 1 absolute). */
+const close = (value: number, expected: number): boolean =>
+  Math.abs(value - expected) <=
+  ENGINE_STATS_TOLERANCE * Math.max(1, Math.abs(value), Math.abs(expected));
+
+/** Trade fields that must equal the API's own run exactly. */
+const OPTIONS_TRADE_FIELDS = [
+  "id",
+  "symbol",
+  "structure",
+  "expiry",
+  "longStrike",
+  "shortStrike",
+  "entryDate",
+  "exitDate",
+  "contracts",
+  "entryPrice",
+  "exitPrice",
+  "entryFee",
+  "exitFee",
+  "pnl",
+  "exitReason",
+] as const;
+
 /**
- * The report of an options result, or the reason it does not fit the run: the result must be the
- * run's ledger (its capital, the SPY calendar of the date range) and its metrics must be the ones
- * its ledger gives.
+ * Where the worker's options result differs from the API's own run of the same rows, or null:
+ * the run days must be equal, the daily equity within ENGINE_STATS_TOLERANCE, the trades and skips
+ * equal (returnOnRisk and maxLoss within the tolerance) and the metrics within the tolerance.
+ */
+export const optionsResultMismatch = (
+  result: BacktestRunEngineOptionsResult,
+  own: OptionsRun
+): string | null => {
+  const ledger = own.outcome.result;
+  if (result.capital !== ledger.capital)
+    return `capital ${result.capital} is not the run capital ${ledger.capital}`;
+  if (
+    result.dates.length !== ledger.dates.length ||
+    result.dates.some((date, index) => date !== ledger.dates[index])
+  )
+    return "the run days are not the SPY calendar of the date range";
+  const day = result.equity.findIndex(
+    (value, index) => !close(value, ledger.equity[index] as number)
+  );
+  if (day >= 0) return `equity on ${result.dates[day]}`;
+  if (
+    result.openPositions.some(
+      (count, index) => count !== ledger.openPositions[index]
+    )
+  )
+    return "open positions";
+  if (result.trades.length !== ledger.trades.length)
+    return `${result.trades.length} trades; the run has ${ledger.trades.length}`;
+  const maxLoss = new Map(
+    own.outcome.priced.map((trade) => [trade.tradeId, trade.maxLoss])
+  );
+  for (const [index, trade] of result.trades.entries()) {
+    const expected = ledger.trades[index] as (typeof ledger.trades)[number];
+    const field = OPTIONS_TRADE_FIELDS.find(
+      (key) => trade[key] !== expected[key]
+    );
+    if (field !== undefined) return `trade ${index + 1} ${field}`;
+    if (!close(trade.returnOnRisk, expected.returnOnRisk))
+      return `trade ${index + 1} returnOnRisk`;
+    if (!close(trade.maxLoss, maxLoss.get(expected.id) as number))
+      return `trade ${index + 1} maxLoss`;
+  }
+  if (
+    canonicalJson(result.skipped) !== canonicalJson(ledger.skipped) ||
+    result.bookSkipped !== own.outcome.bookSkipped
+  )
+    return "skipped trades";
+  if (canonicalJson(result.signals) !== canonicalJson(own.outcome.signals))
+    return "signals";
+  const metric = optionsMetricsMismatch(result.metrics, own.metrics);
+  return metric === null ? null : `metrics (${metric})`;
+};
+
+/**
+ * The report of an options result, or the reason it does not fit the run: the API runs the
+ * options runner on the same rows and the worker's ledger must be that run (optionsResultMismatch).
+ * The report is the API's run with the worker's Nautilus gap.
  */
 const optionsReport = (
   spec: BacktestRunRecord["spec"],
@@ -433,30 +542,18 @@ const optionsReport = (
   daily: LoadedStrategySeries,
   result: BacktestRunEngineOptionsResult
 ): CheckedReport | string => {
-  if (result.capital !== spec.initialCapital)
-    return `The options result capital ${result.capital} is not the run capital ${spec.initialCapital}`;
-  const calendar = optionsCalendar(daily.rows, spec.from);
-  if (
-    calendar.length !== result.dates.length ||
-    calendar.some((date, index) => date !== result.dates[index])
-  )
-    return "The options result dates are not the SPY calendar of the date range";
-  const metrics = optionsResultMetrics(result);
-  const mismatch = optionsMetricsMismatch(result.metrics, metrics);
+  let own: OptionsRun;
+  try {
+    own = runOptionsOnRows(spec, definition, daily);
+  } catch (error) {
+    // The API's own run cannot book the stored rows (runOptionsOnRows: an input error).
+    return (error as Error).message;
+  }
+  const mismatch = optionsResultMismatch(result, own);
   if (mismatch !== null)
-    return `The options metrics do not match the ledger (${mismatch})`;
+    return `The options result does not match the options run of the stored series: ${mismatch}`;
   return {
-    report: buildOptionsRunReport({
-      bars,
-      ledger: {
-        ...result,
-        trades: result.trades.map(({ maxLoss: _maxLoss, ...trade }) => trade),
-      },
-      metrics,
-      nautilusGap: result.nautilusGap,
-      signals: result.signals,
-      symbols: definition.portfolio?.symbols ?? [spec.symbol],
-    }),
+    report: optionsRunReport(spec, definition, bars, own, result.nautilusGap),
   };
 };
 
