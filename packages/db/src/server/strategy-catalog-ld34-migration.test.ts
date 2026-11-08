@@ -10,11 +10,11 @@ import {
   normalizeStrategyTags,
 } from "./strategy-library.ts";
 
-// Data migration 0061: the LD34 reel strategy (card vertex-reel-backtest-dffcosd). Research only.
+// Data migration 0058: the LD34 reel strategy (card vertex-reel-backtest-dffcosd). Research only.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
-const migration = read("../../migrations/0061_strategy_catalog_ld34.sql");
-const rollback = read("../../rollback/0061_strategy_catalog_ld34.down.sql");
+const migration = read("../../migrations/0058_strategy_catalog_ld34.sql");
+const rollback = read("../../rollback/0058_strategy_catalog_ld34.down.sql");
 const repoFile = (path: string) =>
   existsSync(new URL(`../../../../${path}`, import.meta.url));
 
@@ -22,7 +22,7 @@ const ROW =
   /\('(strategy-seed-[a-z0-9-]+)', '([a-z0-9-]+)', '((?:[^']|'')+)', '((?:[^']|'')+)', '(python)', '([a-z_]+)', '([^']+)', '(\[[^\]]*\])'::jsonb, '([^']+)', '\[\]'::jsonb\)/g;
 const rows = [...migration.matchAll(ROW)];
 
-describe("0061_strategy_catalog_ld34", () => {
+describe("0058_strategy_catalog_ld34", () => {
   it("inserts one research-only row that passes the repository field rules", () => {
     expect(rows).toHaveLength(1);
     const [

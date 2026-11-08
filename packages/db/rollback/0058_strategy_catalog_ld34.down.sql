@@ -1,4 +1,4 @@
--- Guarded reversal of 0061_strategy_catalog_ld34 only.
+-- Guarded reversal of 0058_strategy_catalog_ld34 only.
 -- Deletes the catalog row only while it was not edited and no preset, spec, backtest, backtest run,
 -- optimization run, deployment request or Autopilot candidate references it (no silent SET NULL).
 -- The backtest study in research_studies (id ld34-nested-donchian-breakout) is kept; it has no link to the row.

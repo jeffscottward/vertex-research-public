@@ -126,7 +126,7 @@ describe("0022 assistant migration", () => {
       "0055_strategy_catalog_calendar_spread",
       "0056_semantic_layer",
       "0057_strategy_catalog_qc_ports",
-      "0061_strategy_catalog_ld34",
+      "0058_strategy_catalog_ld34",
     ]);
   });
 

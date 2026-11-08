@@ -409,10 +409,10 @@
       "breakpoints": true
     },
     {
-      "idx": 61,
+      "idx": 58,
       "version": "7",
-      "when": 1794175898814,
-      "tag": "0061_strategy_catalog_ld34",
+      "when": 1794179193201,
+      "tag": "0058_strategy_catalog_ld34",
       "breakpoints": true
     }
   ]
