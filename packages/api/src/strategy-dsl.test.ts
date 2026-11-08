@@ -759,3 +759,159 @@ describe("options bounds", () => {
     expect(ok({ ...base, ...change })).toBe(valid);
   });
 });
+
+describe("DSL extensions: timeframe, breaks, oncePerLevel, entry.any, management, maxLeverage", () => {
+  const close = { field: "close", type: "price" } as const;
+  const dailyHigh = {
+    length: 20,
+    name: "highest",
+    source: "high",
+    timeframe: "1d",
+    type: "indicator",
+  } as const;
+  const breakout = {
+    left: close,
+    oncePerLevel: true,
+    op: "breaksAbove",
+    right: dailyHigh,
+  } as const;
+  const withStop = { ...minimal, stopLoss: { kind: "pct", pct: 2 } } as const;
+
+  it("accepts a daily indicator, breaks with oncePerLevel and entry.any alone", () => {
+    const definition = {
+      ...withStop,
+      entry: {
+        all: [],
+        any: [breakout, { ...breakout, op: "breaksBelow" }],
+      },
+      management: {
+        breakevenR: 2,
+        trail: { activateR: 1, length: 14, multiple: 2 },
+      },
+      sizing: { maxLeverage: 20, mode: "riskPct", riskPct: 1 },
+    };
+    expect(issuesOf(definition)).toEqual([]);
+    expect(StrategyDefinitionSchema.parse(definition).entry.any?.[0]).toEqual(
+      breakout
+    );
+  });
+
+  it("adds no timeframe, oncePerLevel, any, management or maxLeverage by default", () => {
+    const parsed = StrategyDefinitionSchema.parse({
+      ...minimal,
+      sizing: { mode: "riskPct", riskPct: 1 },
+      stopLoss: { kind: "pct", pct: 2 },
+    });
+    expect(parsed.entry).toEqual(minimal.entry);
+    expect("management" in parsed).toBe(false);
+    expect(parsed.sizing).toEqual({ mode: "riskPct", riskPct: 1 });
+  });
+
+  it.each([
+    [
+      "rvol on daily bars",
+      {
+        ...minimal,
+        entry: {
+          all: [
+            {
+              left: {
+                length: 5,
+                name: "rvol",
+                timeframe: "1d",
+                type: "indicator",
+              },
+              op: ">",
+              right: { type: "const", value: 2 },
+            },
+          ],
+        },
+      },
+      "entry.all.0.left.timeframe: rvol has no timeframe; it already compares whole sessions",
+    ],
+    [
+      "an unknown timeframe",
+      {
+        ...minimal,
+        entry: {
+          all: [{ ...breakout, right: { ...dailyHigh, timeframe: "1h" } }],
+        },
+      },
+      'entry.all.0.right.timeframe: Invalid input: expected "1d"',
+    ],
+    [
+      "oncePerLevel on a comparison",
+      {
+        ...minimal,
+        entry: { all: [{ ...breakout, op: ">=" }] },
+      },
+      "entry.all.0.oncePerLevel: oncePerLevel works only with crossesAbove, crossesBelow, breaksAbove and breaksBelow",
+    ],
+    [
+      "no condition in entry.all or entry.any",
+      { ...minimal, entry: { all: [], any: [] } },
+      "entry: Entry needs at least one condition in entry.all or entry.any",
+    ],
+    [
+      "management without a stop",
+      { ...minimal, management: { breakevenR: 1 } },
+      "management: management moves the stop loss; add a stop loss",
+    ],
+    [
+      "an empty management block",
+      { ...withStop, management: {} },
+      "management: management needs trail, breakevenR or both",
+    ],
+    [
+      "a breakeven level of 0",
+      { ...withStop, management: { breakevenR: 0 } },
+      "management.breakevenR: Too small: expected number to be >0",
+    ],
+    [
+      "a trail without its ATR length",
+      { ...withStop, management: { trail: { activateR: 1, multiple: 2 } } },
+      "management.trail.length: Invalid input: expected number, received undefined",
+    ],
+    [
+      "maxLeverage below 1",
+      {
+        ...withStop,
+        sizing: { maxLeverage: 0.5, mode: "riskPct", riskPct: 1 },
+      },
+      "sizing.maxLeverage: Too small: expected number to be >=1",
+    ],
+    [
+      "maxLeverage above 50",
+      { ...withStop, sizing: { maxLeverage: 51, mode: "riskPct", riskPct: 1 } },
+      "sizing.maxLeverage: Too big: expected number to be <=50",
+    ],
+  ])("rejects %s", (_, value, issue) => {
+    expect(issuesOf(value)).toEqual([issue]);
+  });
+
+  it("rejects maxLeverage with allIn sizing", () => {
+    expect(
+      issuesOf({ ...withStop, sizing: { maxLeverage: 2, mode: "allIn" } })
+    ).not.toEqual([]);
+  });
+
+  it("rejects management on an options strategy", () => {
+    expect(
+      issuesOf({
+        ...minimal,
+        management: { breakevenR: 1 },
+        options: {
+          dte: { min: 21, target: 45 },
+          exitDte: 7,
+          maxLossPct: 2,
+          profitTakePct: 50,
+          shortDelta: 0.2,
+          structure: "putCreditVertical",
+          widthSigma: 0.5,
+        },
+      })
+    ).toContain(
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+    );
+  });
+});
