@@ -313,7 +313,12 @@ describe("CLI", () => {
       2
     );
     const data = ["--data", tempDir()];
-    for (const extra of [["--engine", "ts"], ["--python"], ["--engine"]])
+    for (const extra of [
+      ["--engine", "ts"],
+      ["--python"],
+      ["--engine"],
+      ["--data", "again"],
+    ])
       expect(
         await runCore7RerunCli([...data, ...extra], io(tempDir(), out))
       ).toBe(2);
@@ -388,6 +393,21 @@ describe("CLI", () => {
       engine: TYPESCRIPT_ENGINE_ID,
       engineParity: null,
     });
+  });
+
+  it("prints one line with a hint when the Nautilus batch cannot run", async () => {
+    const { data, root } = setup();
+    const out: string[] = [];
+    expect(
+      await runCore7RerunCli(
+        ["--data", data, "--python", "missing"],
+        io(root, out)
+      )
+    ).toBe(1);
+    expect(out.join("")).toContain(
+      "nautilus batch failed (spawnSync missing ENOENT); pass --python"
+    );
+    return expect(readFile(join(root, RESULTS_PATH), "utf8")).rejects.toThrow();
   });
 
   it("writes nothing when Nautilus is outside the parity tolerance", async () => {

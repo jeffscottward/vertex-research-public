@@ -28,6 +28,7 @@ import {
 } from "../../packages/api/src/quant-multiple-testing.ts";
 import { StrategyDefinitionSchema } from "../../packages/api/src/strategy-dsl.ts";
 import {
+  catchNautilusErrors,
   type DslJob,
   type DslRunner,
   engineOptions,
@@ -736,9 +737,10 @@ export const runQuantJourneyCli = async (
     (arg, i) => !(known.includes(arg) || valued.includes(args[i - 1] ?? ""))
   );
   const options = engineOptions(args, io.defaultPython);
-  if (options === null) {
+  const engineFlags = args.includes("--engine") || args.includes("--python");
+  if (options === null || (engineFlags && !args.includes("--rerun"))) {
     io.stderr.write(
-      "--engine takes nautilus or typescript; --python takes a path\n"
+      "--engine (nautilus or typescript) and --python (a path) go with --rerun only\n"
     );
     return 2;
   }
@@ -755,21 +757,27 @@ export const runQuantJourneyCli = async (
       return 2;
     }
     const manifest = await readFile(join(data, "manifest.json"), "utf8");
-    const results = buildResults(
-      library,
-      await fileInputs(library, data, runs),
-      {
-        generated: io.now().toISOString().slice(0, 10),
-        manifestSha256: io.sha256(manifest),
-        source:
-          "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)",
-      },
-      prepareEngine(options.engine, {
-        ...io.nautilus,
-        python: options.python,
-        root: io.root,
-      })
+    const inputs = await fileInputs(library, data, runs);
+    const results = catchNautilusErrors(
+      () =>
+        buildResults(
+          library,
+          inputs,
+          {
+            generated: io.now().toISOString().slice(0, 10),
+            manifestSha256: io.sha256(manifest),
+            source:
+              "Yahoo Finance via yfinance 0.2.66 (research/backtests/quantjourney/fetch_data.py)",
+          },
+          prepareEngine(options.engine, {
+            ...io.nautilus,
+            python: options.python,
+            root: io.root,
+          })
+        ),
+      io.stderr
     );
+    if (results === null) return 1;
     const failure = parityFailure(results.engineParity ?? null);
     if (failure !== null) {
       io.stderr.write(failure);

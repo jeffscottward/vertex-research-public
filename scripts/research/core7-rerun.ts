@@ -24,6 +24,7 @@ import {
   type BacktestUniverseId,
 } from "../../packages/shared/src/universes/index.ts";
 import {
+  catchNautilusErrors,
   type DslJob,
   type DslRunner,
   type EngineParity,
@@ -365,7 +366,11 @@ export const runCore7RerunCli = async (
   const options = engineOptions(args, io.defaultPython);
   const pairs =
     args.length % 2 === 0 &&
-    args.every((arg, i) => i % 2 === 1 || FLAGS.includes(arg));
+    args.every(
+      (arg, i) =>
+        i % 2 === 1 ||
+        (FLAGS.includes(arg) && args.indexOf(arg) === args.lastIndexOf(arg))
+    );
   const dataIndex = args.indexOf("--data");
   if (options === null || !pairs || dataIndex === -1) {
     io.stderr.write(USAGE);
@@ -389,16 +394,21 @@ export const runCore7RerunCli = async (
       manifestSha256: io.sha256(manifest),
     });
   }
-  const results = buildCore7Results(
-    library,
-    texts,
-    { files, generated: io.now().toISOString() },
-    prepareEngine(options.engine, {
-      ...io.nautilus,
-      python: options.python,
-      root: io.root,
-    })
+  const results = catchNautilusErrors(
+    () =>
+      buildCore7Results(
+        library,
+        texts,
+        { files, generated: io.now().toISOString() },
+        prepareEngine(options.engine, {
+          ...io.nautilus,
+          python: options.python,
+          root: io.root,
+        })
+      ),
+    io.stderr
   );
+  if (results === null) return 1;
   const failure = parityFailure(results.engineParity);
   if (failure !== null) {
     io.stderr.write(failure);

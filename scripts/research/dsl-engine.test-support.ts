@@ -19,6 +19,8 @@ type BatchFile = Readonly<{
 export type FakeNautilus = Omit<NautilusIo, "python" | "root"> &
   Readonly<{
     calls: { python: string; args: readonly string[]; cwd: string }[];
+    /** Folders passed to removeDir. */
+    removed: string[];
   }>;
 
 export const fakeNautilus = (
@@ -26,6 +28,7 @@ export const fakeNautilus = (
 ): FakeNautilus => {
   const files = new Map<string, string>();
   const calls: FakeNautilus["calls"] = [];
+  const removed: string[] = [];
   let dirs = 0;
   return {
     calls,
@@ -34,10 +37,20 @@ export const fakeNautilus = (
       if (text === undefined) throw new Error(`no file ${path}`);
       return text;
     },
+    removeDir: (path) => {
+      removed.push(path);
+    },
+    removed,
     spawn: (python, args, cwd) => {
       calls.push({ args, cwd, python });
       if (options.status !== undefined)
         return { status: options.status, stderr: "boom" };
+      if (python === "missing")
+        return {
+          error: new Error("spawnSync missing ENOENT"),
+          status: null,
+          stderr: null,
+        };
       const [input, output] = args.slice(-2) as [string, string];
       const batch = JSON.parse(files.get(input) as string) as BatchFile;
       const column = (values: readonly number[]) => Float64Array.from(values);

@@ -28,5 +28,7 @@ describe("nautilusProcessIo", () => {
       stderr: "err\n",
       stdout: `${dir}\n`,
     });
+    io.removeDir(dir);
+    expect(existsSync(dir)).toBe(false);
   });
 });

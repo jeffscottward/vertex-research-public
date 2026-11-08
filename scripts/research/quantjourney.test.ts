@@ -629,6 +629,15 @@ describe("CLI and rendering", () => {
     expect(
       await runQuantJourneyCli([...rerun, "--engine", "qj"], io(root, out))
     ).toBe(2);
+    expect(
+      await runQuantJourneyCli(["--engine", "typescript"], io(root, out))
+    ).toBe(2);
+    expect(
+      await runQuantJourneyCli([...rerun, "--python", "missing"], io(root, out))
+    ).toBe(1);
+    expect(out.join("")).toContain(
+      "nautilus batch failed (spawnSync missing ENOENT)"
+    );
     nautilus = fakeNautilus({ scale: 1.01 });
     expect(await runQuantJourneyCli(rerun, io(root, out))).toBe(1);
     expect(out.join("")).toContain(

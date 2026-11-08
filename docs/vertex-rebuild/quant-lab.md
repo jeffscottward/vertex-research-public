@@ -9,7 +9,7 @@ Status: research only. Nothing in this pipeline places orders, reads broker acco
 | 1. Topic search and capture | `services/research/quantlab/ssrn.py`, topics in `quantlab/topics.json` | `private/quantlab/captures/*.json`, retained PDFs in `private/quantlab/papers/` |
 | 2. Strategy spec | `quantlab/spec.py`; agent drafts in `quantlab/drafts/` | `private/quantlab/specs/<id>-<sha12>.json` |
 | 3. Frozen data | `quantlab/data.py` | `private/quantlab/data/*.csv` + `.manifest.json` (SHA-256) |
-| 4. Backtest | `quantlab/engine.py`, `quantlab/backtest.py` | `private/quantlab/results/<id>-<sha12>.json` |
+| 4. Backtest | `quantlab/nautilus_engine.py` (default) or `quantlab/engine.py` (`--engine stdlib`), `quantlab/backtest.py` | `private/quantlab/results/<id>-<sha12>-nautilus.json` (default) or `<id>-<sha12>.json` (`--engine stdlib`) |
 | 5. Record | `scripts/quant-lab/record.ts` (row mapping in `scripts/quant-lab/record-rows.ts`) → Drizzle store `packages/db/src/server/quant-lab-store.ts` | `research_papers`, `paper_captures`, `strategies`, `strategy_specs`, `agent_tasks`, `backtest_results` |
 
 `private/` is git-ignored. Vendor price data is not committed.

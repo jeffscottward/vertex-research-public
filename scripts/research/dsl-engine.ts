@@ -3,7 +3,7 @@
 // keep the TypeScript engine behind `--engine typescript`. A Nautilus run also runs every job on
 // the TypeScript engine and fails when the unit equity differs by more than the parity tolerance,
 // so a default run proves "equal to the parity figures". Research only: no orders.
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { BACKTEST_RUN_ENGINE_VERSION } from "../../packages/api/src/contracts/backtest-runs.ts";
 import type { BarColumns } from "../../packages/api/src/instant-backtest-engine.ts";
 import type { StrategyDefinition } from "../../packages/api/src/strategy-dsl.ts";
@@ -11,6 +11,7 @@ import { runStrategyDefinition } from "../../packages/api/src/strategy-dsl-compi
 import {
   type Batch,
   batchInput,
+  DEFAULT_CAPITAL,
   relDiff,
   TOLERANCES,
 } from "./nautilus-parity.ts";
@@ -20,8 +21,6 @@ export type EngineName = (typeof ENGINE_NAMES)[number];
 const DEFAULT_ENGINE: EngineName = "nautilus";
 export const NAUTILUS_ENGINE_ID = "nautilus-trader-1.227.0";
 export const TYPESCRIPT_ENGINE_ID = BACKTEST_RUN_ENGINE_VERSION;
-/** Run capital of the Nautilus batches (USD); the same as DEFAULT_CAPITAL in nautilus-parity.ts. */
-const NAUTILUS_CAPITAL = 1_000_000;
 
 /** Unit equity (1 at the start) of one DSL definition on one bar series. */
 export type DslRunner = (
@@ -47,13 +46,26 @@ export type NautilusIo = Readonly<{
   writeText: (path: string, text: string) => void;
   /** A new empty folder for the batch files. */
   tempDir: () => string;
-  /** Runs `python args` in `cwd`; a status other than 0 is a failure. */
+  /** Deletes that folder and its files. */
+  removeDir: (path: string) => void;
+  /**
+   * Runs `python args` in `cwd`; a status other than 0 is a failure. `error` is set when the
+   * process did not start (for example a wrong Python path).
+   */
   spawn: (
     python: string,
     args: readonly string[],
     cwd: string
-  ) => Readonly<{ status: number | null; stderr: string }>;
+  ) => Readonly<{
+    status: number | null;
+    stderr: string | null;
+    error?: Error;
+  }>;
 }>;
+
+/** One-line hint for a Nautilus batch that could not run, printed by the research CLIs. */
+const NAUTILUS_HINT =
+  "pass --python <venv python with services/research/requirements-nautilus-linux-py312.lock> (or set VERTEX_NAUTILUS_PYTHON), or --engine typescript";
 
 const jobKey = (definition: StrategyDefinition, costBps: number): string =>
   JSON.stringify([definition, costBps]);
@@ -75,51 +87,17 @@ export const nautilusRunner = (
   }
   const results = new Map<BarColumns, Map<string, readonly number[]>>();
   const work = io.tempDir();
-  let batchIndex = 0;
-  for (const [bars, series] of bySeries) {
-    const keys = [...series.keys()];
-    const cases = keys.map((key, index) => {
-      const job = series.get(key) as DslJob;
-      return {
-        id: String(index),
-        spec: {
-          costBps: job.costBps,
-          costs: null,
-          // Nautilus trades whole cents and quantity steps; the TS engine has no capital. The
-          // parity suite's capital keeps that rounding far below the tolerance.
-          initialCapital: NAUTILUS_CAPITAL,
-          rule: { definition: job.definition, kind: "dsl" as const },
-          stopLossPct: 0,
-          takeProfitPct: 0,
-        },
-        strategy: String(index),
-      };
-    });
-    const input = join(work, `batch-${batchIndex}.json`);
-    batchIndex += 1;
-    const output = `${input}.out`;
-    io.writeText(input, batchInput(bars, cases));
-    const run = io.spawn(
-      io.python,
-      ["-m", "nautilus_backtest", "batch", input, output],
-      join(io.root, "services/research")
-    );
-    if (run.status !== 0)
-      throw new Error(`nautilus batch failed for ${input}: ${run.stderr}`);
-    const batch = JSON.parse(io.readText(output)) as Batch;
-    if (batch.engine !== NAUTILUS_ENGINE_ID)
-      throw new Error(
-        `nautilus batch engine ${batch.engine}, expected ${NAUTILUS_ENGINE_ID}`
+  try {
+    let batchIndex = 0;
+    for (const [bars, series] of bySeries) {
+      results.set(
+        bars,
+        runBatch(io, join(work, `batch-${batchIndex}.json`), bars, series)
       );
-    const equity = new Map<string, readonly number[]>();
-    for (const entry of batch.results) {
-      const key = keys[Number(entry.id)];
-      if (key === undefined) throw new Error(`unknown batch case ${entry.id}`);
-      if (entry.result === undefined)
-        throw new Error(`nautilus input error: ${entry.error ?? "no result"}`);
-      equity.set(key, entry.result.equity);
+      batchIndex += 1;
     }
-    results.set(bars, equity);
+  } finally {
+    io.removeDir(work);
   }
   return (bars, definition, costBps) => {
     const equity = results.get(bars)?.get(jobKey(definition, costBps));
@@ -127,6 +105,65 @@ export const nautilusRunner = (
       throw new Error("nautilus runner: this job was not run up front");
     return equity;
   };
+};
+
+/** One Python batch: every job of one bar series. Returns unit equity by job key. */
+const runBatch = (
+  io: NautilusIo,
+  input: string,
+  bars: BarColumns,
+  series: ReadonlyMap<string, DslJob>
+): Map<string, readonly number[]> => {
+  const keys = new Map(
+    [...series.keys()].map((key, index) => [String(index), key])
+  );
+  const cases = [...keys].map(([id, key]) => {
+    const job = series.get(key) as DslJob;
+    return {
+      id,
+      spec: {
+        costBps: job.costBps,
+        costs: null,
+        // Nautilus trades whole cents and quantity steps; the TS engine has no capital. The
+        // parity suite's capital keeps that rounding far below the tolerance.
+        initialCapital: DEFAULT_CAPITAL,
+        rule: { definition: job.definition, kind: "dsl" as const },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      },
+      strategy: id,
+    };
+  });
+  const output = `${input}.out`;
+  io.writeText(input, batchInput(bars, cases));
+  const run = io.spawn(
+    io.python,
+    ["-m", "nautilus_backtest", "batch", input, output],
+    join(io.root, "services/research")
+  );
+  if (run.status !== 0)
+    throw new Error(
+      `nautilus batch failed (${run.error?.message ?? run.stderr ?? `status ${run.status}`})`
+    );
+  const batch = JSON.parse(io.readText(output)) as Batch;
+  if (batch.engine !== NAUTILUS_ENGINE_ID)
+    throw new Error(
+      `nautilus batch engine ${batch.engine}, expected ${NAUTILUS_ENGINE_ID}`
+    );
+  const equity = new Map<string, readonly number[]>();
+  for (const entry of batch.results) {
+    const key = keys.get(entry.id);
+    if (key === undefined || equity.has(key))
+      throw new Error(`unknown or repeated batch case ${entry.id}`);
+    if (entry.result === undefined)
+      throw new Error(`nautilus input error: ${entry.error ?? "no result"}`);
+    equity.set(key, entry.result.equity);
+  }
+  if (equity.size !== keys.size)
+    throw new Error(
+      `nautilus batch returned ${equity.size} of ${keys.size} cases`
+    );
+  return equity;
 };
 
 export type EngineParity = Readonly<{
@@ -197,6 +234,24 @@ export const prepareEngine =
   (jobs: readonly DslJob[]): PreparedEngine =>
     name === "typescript" ? typescriptEngine() : nautilusEngine(jobs, io);
 
+/**
+ * Runs `build`. A Nautilus batch error (wrong Python, failed process, input error) is printed as
+ * one line with NAUTILUS_HINT and gives null; any other error is thrown as before.
+ */
+export const catchNautilusErrors = <T>(
+  build: () => T,
+  stderr: Readonly<{ write: (text: string) => unknown }>
+): T | null => {
+  try {
+    return build();
+  } catch (error) {
+    if (!(error instanceof Error && error.message.startsWith("nautilus ")))
+      throw error;
+    stderr.write(`${error.message}; ${NAUTILUS_HINT}\n`);
+    return null;
+  }
+};
+
 /** Error text when a Nautilus run is outside the parity tolerance, else null. */
 export const parityFailure = (parity: EngineParity | null): string | null =>
   parity === null || parity.pass === parity.jobs
@@ -205,7 +260,7 @@ export const parityFailure = (parity: EngineParity | null): string | null =>
 
 /**
  * `--engine nautilus|typescript` (default nautilus) and `--python <path>` (default `defaultPython`,
- * else python3); null on a bad value.
+ * else python3; a relative path is resolved from the current folder); null on a bad value.
  */
 export const engineOptions = (
   args: readonly string[],
@@ -220,5 +275,10 @@ export const engineOptions = (
   if (!(ENGINE_NAMES as readonly string[]).includes(engine)) return null;
   const python = value("--python", defaultPython ?? "python3");
   if (python === "" || python.startsWith("--")) return null;
-  return { engine: engine as EngineName, python };
+  // The batch runs in services/research, so a path is made absolute from the caller's folder;
+  // a bare command name (python3) is looked up on PATH as before.
+  return {
+    engine: engine as EngineName,
+    python: python.includes("/") ? resolve(python) : python,
+  };
 };

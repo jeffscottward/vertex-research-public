@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { BarColumns } from "../../packages/api/src/instant-backtest-engine.ts";
 import {
@@ -6,6 +7,7 @@ import {
 } from "../../packages/api/src/strategy-dsl.ts";
 import { fakeNautilus } from "./dsl-engine.test-support.ts";
 import {
+  catchNautilusErrors,
   type DslJob,
   engineOptions,
   engineParity,
@@ -55,6 +57,7 @@ describe("nautilusRunner", () => {
     const nautilus = fakeNautilus();
     const runner = nautilusRunner(jobs, io(nautilus));
     expect(nautilus.calls).toHaveLength(2);
+    expect(nautilus.removed).toEqual(["/fake/nautilus-1"]);
     expect(runner(b, definition, 10)).toEqual(
       typescriptRunner(b, definition, 10)
     );
@@ -65,9 +68,20 @@ describe("nautilusRunner", () => {
   });
 
   it("fails on a failed process, another engine, or an input error", () => {
-    expect(() => nautilusRunner(jobs, io(fakeNautilus({ status: 3 })))).toThrow(
-      "nautilus batch failed"
+    const failed = fakeNautilus({ status: 3 });
+    expect(() => nautilusRunner(jobs, io(failed))).toThrow(
+      "nautilus batch failed (boom)"
     );
+    expect(failed.removed).toEqual(["/fake/nautilus-1"]); // also after a failure
+    expect(() => nautilusRunner(jobs, { ...io(), python: "missing" })).toThrow(
+      "nautilus batch failed (spawnSync missing ENOENT)"
+    );
+    expect(() =>
+      nautilusRunner(jobs, {
+        ...io(),
+        spawn: () => ({ status: 9, stderr: null }),
+      })
+    ).toThrow("nautilus batch failed (status 9)");
     expect(() =>
       nautilusRunner(
         jobs,
@@ -104,8 +118,24 @@ describe("nautilusRunner", () => {
     expect(() => nautilusRunner(jobs, answering([{ id: "0" }]))).toThrow(
       "nautilus input error: no result"
     );
+    const result = { equity: [1], stats: {}, trades: [] };
+    expect(() =>
+      nautilusRunner(
+        jobs,
+        answering([
+          { id: "0", result },
+          { id: "0", result },
+        ])
+      )
+    ).toThrow("unknown or repeated batch case 0");
+    expect(() =>
+      nautilusRunner(jobs.slice(0, 1), answering([{ id: " ", result }]))
+    ).toThrow("unknown or repeated batch case  ");
+    expect(() => nautilusRunner(jobs, answering([]))).toThrow(
+      "nautilus batch returned 0 of 1 cases"
+    );
     return expect(() => nautilusRunner(jobs, answering([{ id: "9" }]))).toThrow(
-      "unknown batch case 9"
+      "unknown or repeated batch case 9"
     );
   });
 });
@@ -157,8 +187,38 @@ describe("engineOptions", () => {
       engine: "nautilus",
       python: "python3",
     });
+    expect(engineOptions(["--python", "venv/bin/python"], undefined)).toEqual({
+      engine: "nautilus",
+      python: resolve("venv/bin/python"),
+    });
     expect(engineOptions(["--engine", "stdlib"], "py")).toBeNull();
     expect(engineOptions(["--python", "--engine"], "py")).toBeNull();
     return expect(engineOptions(["--python"], "py")).toBeNull();
+  });
+});
+
+describe("catchNautilusErrors", () => {
+  it("prints a Nautilus error with the hint and throws any other error", () => {
+    const out: string[] = [];
+    const stderr = { write: (text: string) => out.push(text) };
+    expect(catchNautilusErrors(() => 7, stderr)).toBe(7);
+    expect(
+      catchNautilusErrors(() => {
+        throw new Error("nautilus batch failed (ENOENT)");
+      }, stderr)
+    ).toBeNull();
+    expect(out.join("")).toContain(
+      "nautilus batch failed (ENOENT); pass --python"
+    );
+    expect(() =>
+      catchNautilusErrors(() => {
+        throw new Error("missing data for SPY");
+      }, stderr)
+    ).toThrow("missing data for SPY");
+    return expect(() =>
+      catchNautilusErrors(() => {
+        throw "nautilus text";
+      }, stderr)
+    ).toThrow();
   });
 });
