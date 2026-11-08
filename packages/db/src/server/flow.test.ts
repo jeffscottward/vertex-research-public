@@ -399,6 +399,22 @@ describe("createFlowRepository.readWindow", () => {
     expect(double.operations[4]?.limit).toBe(1);
   });
 
+  it("reads the gex row up to gexAt when given", async () => {
+    const double = createDouble([[], [], [], [], []]);
+    const repository = createFlowRepository(double.database);
+    const later = new Date(TO.getTime() + 86_400_000);
+    await repository.readWindow({
+      from: FROM,
+      gexAt: later,
+      symbol: "SPY",
+      to: TO,
+    });
+    expect(whereOf(double.operations[4]).params).toEqual([
+      "SPY",
+      later.toISOString(),
+    ]);
+  });
+
   it("returns the newest gex row when present", async () => {
     const gex = { at: TO };
     const double = createDouble([[], [], [], [], [gex]]);

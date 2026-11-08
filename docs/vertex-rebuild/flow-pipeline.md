@@ -100,6 +100,15 @@ Per source: `fresh`, `stale` (older than 10 min for ticks, 3 min for depth, 5 mi
 Sessions: options and GEX 9:30-16:15 New York; SPY extended hours; ES Globex (Sunday 18:00 to
 Friday 17:00, daily break 17:00-18:00). Holidays are not modelled.
 
+## Known gaps
+
+- Options flow is paged newest first with a cap of 6 pages (300 prints) per run. In busy regular
+  hours a window can hold more prints than that, and the older part of the window is not fetched
+  (the sample message says "page cap 6 reached"). Until the collector filters at the source or
+  resumes the unfetched range, options totals cover the fetched prints only.
+- The GEX snapshot shown is the newest one up to now, even when the order-flow window ended at a
+  closed market's last print (GEX uses previous-session open interest).
+
 ## Terms
 
 QuantData terms (quantdata.us/legal/terms): personal use, no redistribution. `/flow` is operator-only
