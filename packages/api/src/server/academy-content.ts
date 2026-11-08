@@ -36,7 +36,7 @@ import type { ApiContext } from "./context.ts";
 import { requireOperator } from "./operator-access.ts";
 
 /** A stored row that no longer passes LessonSpecSchema or LessonSourceSchema. */
-export class AcademyContentShapeError extends Error {
+class AcademyContentShapeError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AcademyContentShapeError";
@@ -66,7 +66,7 @@ const specOf = (row: Readonly<{ slug: string; spec: unknown }>): LessonSpec =>
   parsed(`lesson ${row.slug}`, LessonSpecSchema.safeParse(row.spec));
 
 /** The stored source as LessonSource (a null duplicate is an absent one). */
-export const toLessonSource = ({
+const toLessonSource = ({
   duplicateOf,
   updatedAt: _updatedAt,
   ...source
@@ -79,7 +79,7 @@ export const toLessonSource = ({
   );
 
 /** Gallery cards of stored lessons, in the repository's order (newest source first). */
-export const toLessonSummaries = (
+const toLessonSummaries = (
   rows: readonly AcademyLessonListEntry[]
 ): LessonSummary[] =>
   rows.map((row) =>

@@ -42,16 +42,16 @@ library section and tag, spec folder and spec format. Gallery copy, lesson discl
 strategy slugs (`<prefix><lesson slug>`), library section/tag/name and the deployment-request
 refusal all read it; nothing else hard-codes a course.
 
-| Course | Specs | Sources | Narrated | Strategy prefix |
-| --- | --- | --- | --- | --- |
-| `dyr` (Define Your Risk, default) | `specs/<slug>.json` (no `course` field) | `sources.json` | yes | `dyr-` |
-| `quantfinancetogo` | `specs/quantfinancetogo/<slug>.ts` exporting `spec` with `course: "quantfinancetogo"` | `sources.quantfinancetogo.generated.ts` | no | `qftg-` |
+| Course | Store | Specs | Sources | Narrated | Strategy prefix |
+| --- | --- | --- | --- | --- | --- |
+| `dyr` (Define Your Risk, default) | `package` | `specs/<slug>.json` (no `course` field) | `sources.json` | yes | `dyr-` |
+| `quantfinancetogo` | `database` | `scripts/academy/lessons/quantfinancetogo/specs/<slug>.ts` exporting `spec` with `course: "quantfinancetogo"` | `scripts/academy/lessons/quantfinancetogo/sources.generated.ts` | no | `qftg-` |
 
 Spec format (`specFormat` in the registry): AGENTS.md rule 13 forbids new JSON data files, so a new
 course authors each spec as a TypeScript module (`export const spec = { ... } satisfies
 LessonSpecInput;`) and gets its transcripts as a generated TypeScript module. The Define Your Risk
-JSON specs and `sources.json` stay on the rule's pending list until the Academy content moves to
-Postgres.
+JSON specs and `sources.json` stay on the rule's pending list until that course moves to Postgres
+too.
 
 - Pages: `/academy` shows a course picker and one group per course (the default course keeps the
   URL filters, so old `/academy?q=...` links still work); `/academy/c/<course>` is one course's
@@ -77,6 +77,42 @@ To add a course:
 QuantFinanceToGo sources come from `trading/quantfinancetogo/raw/ig-<post id>.md`: frontmatter
 (`post_id`, `url`, `published`, `duration`, `title`), the `## Caption` text block (becomes
 `caption`) and `## Transcript` segments `- [mm:ss] text` with real start times.
+
+## Database storage
+
+A course's `store` in the registry says where the app reads its lessons:
+
+- `package`: shipped in `@darkfactory/academy` (Define Your Risk).
+- `database`: Postgres (QuantFinanceToGo). Migration `0058_academy_content` adds
+  `academy_lesson_sources` (one row per reel: transcript, caption, URL, keyed by `source_id`) and
+  `academy_lesson_specs` (one row per lesson: slug, course, spec JSON and its hash, one spec per
+  source). Rollback: `packages/db/rollback/0058_academy_content.down.sql`. The repository is
+  `createAcademyContentRepository` in `@darkfactory/db/server`.
+
+The web app reads both stores through the same operator-only contracts, `academy.lessons` and
+`academy.lesson` (`packages/api/src/contracts/academy.ts`); the transcripts are private, so there is
+no public read. The app never writes these tables: the TypeScript files under
+`scripts/academy/lessons/` stay the authored source, and the importer copies them into Postgres.
+
+Import (validates every spec with the repository parser and checks that each lesson draws, then
+upserts; a re-import of unchanged content changes nothing):
+
+```sh
+DATABASE_URL=postgres://... bun run vertex:academy:import            # every database course
+bun run vertex:academy:import -- --course quantfinancetogo --dry-run  # validate only, no database
+bun run vertex:academy:import -- --course quantfinancetogo --kb default  # sources from the KB notes
+bun run vertex:academy:import -- --prune                              # also delete rows no longer authored
+```
+
+The E2E global setup (`tests/e2e/global-setup.ts`) runs the same import into the test database
+after migrating it, so browser tests see the QuantFinanceToGo lessons.
+
+Deploy order (the QuantFinanceToGo lessons are missing until both have run):
+
+1. `bun run db:migrate` (applies 0058).
+2. `bun run vertex:academy:import` with the deployment's `DATABASE_URL`.
+
+Run the import again after any change to a database course's specs or sources.
 
 ## Media
 
