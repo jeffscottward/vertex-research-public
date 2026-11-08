@@ -371,17 +371,21 @@ def _checks(primary: dict, dsr: dict, mc: dict, neighbour_share: float, stress: 
 
 
 def _verdict(primary: dict, dsr: dict, checks: list[dict], options: dict, trades: int) -> tuple[str, str]:
-    gates = [c for c in checks[:5]]
+    """The pre-registered rule (spec 'Pass/fail rule'); the reason names the failed gates and the options form."""
+    gates = checks[:5]
     passed = sum(1 for c in gates if c["pass"])
+    failed = "; ".join(f"{c['check']}: {c['result']}" for c in gates if not c["pass"]) or "none"
     oos = primary["outOfSample"]["sharpe"]
-    if all(c["pass"] for c in gates) and options["outOfSample"]["sharpe"] > 0:
-        return "edge", f"All 5 gates pass on the reel-sheet portfolio and the options form is positive out of sample ({passed}/5)."
+    opt = options["outOfSample"]["sharpe"]
+    tail = (f"{passed}/5 gates pass on the reel-sheet portfolio (OOS Sharpe {oos:.2f}, deflated Sharpe probability "
+            f"{dsr['probability']:.2f}). Failed: {failed}. Options form OOS Sharpe {opt:.2f}.")
+    if all(c["pass"] for c in gates) and opt > 0:
+        return "edge", tail
     if oos <= 0 or dsr["probability"] < 0.5:
-        return "no-edge", (f"Out-of-sample Sharpe {oos:.2f} and deflated Sharpe probability {dsr['probability']:.2f}: "
-                           f"{passed}/5 gates pass.")
+        return "no-edge", tail
     if trades < 100:
-        return "needs-more-data", f"Only {trades} trades on the reel-sheet markets; {passed}/5 gates pass."
-    return "no-edge" if passed <= 2 else "needs-more-data", f"{passed}/5 gates pass; OOS Sharpe {oos:.2f}."
+        return "needs-more-data", f"Only {trades} trades on the reel-sheet markets. " + tail
+    return ("no-edge" if passed <= 2 else "needs-more-data"), tail
 
 
 def _document(ran, rows, opt_rows, detail, primary, sens_rows, repo, results, verdict, reason, checks,
@@ -416,7 +420,7 @@ def _document(ran, rows, opt_rows, detail, primary, sens_rows, repo, results, ve
         "spec": SPEC_PATH,
         "source": {"url": REEL_URL, "label": "Instagram reel DffCOSDBMoC, hooper.algo.fxx, 2026-11-08"},
         "verdict": verdict,
-        "verdictReason": reason,
+        "verdictReason": reason[:1000],
         "rules": RULES,
         "gaps": GAPS,
         "forms": [

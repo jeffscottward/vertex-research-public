@@ -149,6 +149,35 @@ class MetricsTest(unittest.TestCase):
         self.assertAlmostEqual(out[1]["value"], 0.2)
 
 
+class VerdictTest(unittest.TestCase):
+    @staticmethod
+    def _summary(oos: float) -> dict:
+        part = {"sharpe": oos, "cagr": 0.01, "maxDrawdown": -0.1}
+        return {"full": part, "inSample": part, "outOfSample": part}
+
+    def _checks(self, passes: list[bool]) -> list[dict]:
+        return [{"check": f"g{i}", "result": f"r{i}", "pass": p} for i, p in enumerate(passes)]
+
+    def test_pre_registered_rule(self) -> None:
+        from strategies.ld34.study import _verdict
+
+        dsr = {"probability": 0.97}
+        self.assertEqual(_verdict(self._summary(0.8), dsr, self._checks([True] * 5), self._summary(0.2), 500)[0], "edge")
+        self.assertEqual(_verdict(self._summary(0.8), dsr, self._checks([True] * 5), self._summary(-0.2), 500)[0],
+                         "needs-more-data")
+        oos_fail = self._checks([False, True, True, True, True])
+        self.assertEqual(_verdict(self._summary(-0.1), dsr, oos_fail, self._summary(0.2), 500)[0], "no-edge")
+        dsr_fail = self._checks([True, False, True, True, True])
+        self.assertEqual(_verdict(self._summary(0.8), {"probability": 0.4}, dsr_fail, self._summary(0.2), 500)[0], "no-edge")
+        three = self._checks([True, False, True, True, False])
+        verdict, reason = _verdict(self._summary(0.6), {"probability": 0.8}, three, self._summary(-1), 500)
+        self.assertEqual(verdict, "needs-more-data")
+        self.assertIn("g1: r1; g4: r4", reason)
+        self.assertEqual(_verdict(self._summary(0.6), {"probability": 0.8}, three, self._summary(-1), 50)[0], "needs-more-data")
+        two = self._checks([True, False, True, False, False])
+        self.assertEqual(_verdict(self._summary(0.6), {"probability": 0.8}, two, self._summary(-1), 500)[0], "no-edge")
+
+
 class RulesTest(unittest.TestCase):
     def test_lengths_fit_the_study_schema(self) -> None:
         self.assertLessEqual(len(rules.RULES), 30)
