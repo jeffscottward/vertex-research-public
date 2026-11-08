@@ -56,7 +56,8 @@ def _run_case(bars: Bars, spec: dict, rows: dict | None) -> dict:
     if rule.get("kind") == "dsl" and rows and strategy_series_refs(normalize_definition(rule["definition"])):
         from strategies.qc_ports.portfolio import context_from_rows
 
-        spec = {**spec, "context": context_from_rows(_rows_until(rows, _bar_date(bars.t[-1])))}
+        last = spec.get("to") or _bar_date(bars.t[-1])
+        spec = {**spec, "context": context_from_rows(_rows_until(rows, last))}
     return run_spec(bars, spec).to_json()
 
 
@@ -66,8 +67,8 @@ def _bar_date(t: float) -> str:
 
 
 def _rows_until(rows: dict, last: str) -> dict:
-    """Store rows cut at `last` (inclusive): a case of a batch reads only rows up to its own last
-    bar, as the run alone does (the batch holds the rows up to the latest run end)."""
+    """Store rows cut at `last` (inclusive): a case of a batch reads only rows up to its own `to`,
+    as the run alone does with its claim rows (the batch holds the rows up to the latest run end)."""
     cut = {}
     for series_id, row in rows.items():
         keep = sum(1 for day in row["dates"] if day <= last)

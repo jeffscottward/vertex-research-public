@@ -10,7 +10,7 @@ are correctly rounded, older ones are not); every cent-rounded value still match
 import json
 import math
 
-from strategies.qc_ports import golden
+from tests import qc_ports_golden as golden
 
 REL_TOL = 1e-12
 

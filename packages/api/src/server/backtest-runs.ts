@@ -196,6 +196,8 @@ export const runOptionsOnRows = (
     );
     return { metrics: optionsRunMetrics(outcome), outcome };
   } catch (error) {
+    // A code error is not the data's: it keeps its type (the run gets the generic message).
+    if (error instanceof TypeError || error instanceof RangeError) throw error;
     throw new InstantBacktestInputError(
       `Options run failed: ${(error as Error).message}`
     );

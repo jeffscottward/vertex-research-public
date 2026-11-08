@@ -14,7 +14,7 @@ the run days and on the mark days, at two capitals; summaries with 1 and 32 tria
 without a trial variance.
 
 Regenerate (then format the JSON with biome, as the other fixtures):
-    cd services/research && python -m strategies.qc_ports.golden
+    cd services/research && python -m tests.qc_ports_golden
     bunx --bun --no-install biome format --write services/research/tests/fixtures/qc_ports/options_golden.json
 """
 from __future__ import annotations
@@ -25,15 +25,15 @@ from dataclasses import asdict
 from datetime import date, timedelta
 from pathlib import Path
 
-from .book import PricedTrade, build_book
-from .calendar import is_nyse_holiday
-from .data import Market
-from .ledger import LedgerResult, run_ledger
-from .metrics import summarize
+from strategies.qc_ports.book import PricedTrade, build_book
+from strategies.qc_ports.calendar import is_nyse_holiday
+from strategies.qc_ports.data import Market
+from strategies.qc_ports.ledger import LedgerResult, run_ledger
+from strategies.qc_ports.metrics import summarize
 
 __all__ = ["FIXTURE", "PORTFOLIO_DEFINITIONS", "PORTFOLIO_FIXTURE", "build", "main", "portfolio_build", "store_rows"]
 
-FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "qc_ports" / "options_golden.json"
+FIXTURE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "qc_ports" / "options_golden.json"
 START = "2023-11-01"
 BARS = 290
 # (capital, run days): "run" = every bar date of the market set, "marks" = the trades' mark dates only.
@@ -200,7 +200,7 @@ def build() -> dict:
             "ledgers": ledgers,
         })
     return {
-        "about": "qc-ports options runner golden fixture; regenerate with python -m strategies.qc_ports.golden",
+        "about": "qc-ports options runner golden fixture; regenerate with python -m tests.qc_ports_golden",
         "marketSets": {name: {symbol: _market_json(market) for symbol, market in markets.items()}
                        for name, markets in market_sets.items()},
         "runDays": run_days,
@@ -293,7 +293,7 @@ def _table(items) -> dict:
 
 def portfolio_build() -> dict:
     """Runs every definition of portfolio_definitions.json with portfolio.run_definition on store_rows()."""
-    from .portfolio import dataset_from_rows, run_definition, run_metrics
+    from strategies.qc_ports.portfolio import dataset_from_rows, run_definition, run_metrics
 
     rows = store_rows()
     data = dataset_from_rows(rows)
@@ -320,7 +320,7 @@ def portfolio_build() -> dict:
                            for key, values in row.items()}
                for series_id, row in rows.items()}
     return {
-        "about": "qc-ports portfolio runner golden fixture; regenerate with python -m strategies.qc_ports.golden",
+        "about": "qc-ports portfolio runner golden fixture; regenerate with python -m tests.qc_ports_golden",
         "calendar": calendar,
         "rows": compact,
         "cases": cases,

@@ -1,5 +1,5 @@
 {
-  "about": "qc-ports portfolio runner golden fixture; regenerate with python -m strategies.qc_ports.golden",
+  "about": "qc-ports portfolio runner golden fixture; regenerate with python -m tests.qc_ports_golden",
   "calendar": [
     "2019-07-01",
     "2019-07-02",

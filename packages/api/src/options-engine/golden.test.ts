@@ -11,7 +11,7 @@ import {
 
 /**
  * Parity with the Python reference: services/research/tests/fixtures/qc_ports/options_golden.json
- * (strategies/qc_ports/golden.py) holds synthetic markets, signal events and options blocks with
+ * (services/research/tests/qc_ports_golden.py) holds synthetic markets, signal events and options blocks with
  * the Python book, ledger and summaries. Trades, skips and ledger records must be identical;
  * unrounded floats (premium, equity, statistics) may differ by the last-bit libm differences
  * described in libm.ts, bounded here at 1e-9 relative (the largest gap is reported).

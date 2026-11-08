@@ -10,7 +10,7 @@ import {
 
 /**
  * Whole-definition parity with portfolio.run_definition: portfolio_golden.json
- * (strategies/qc_ports/golden.py) runs the definitions of portfolio_definitions.json on synthetic
+ * (services/research/tests/qc_ports_golden.py) runs the definitions of portfolio_definitions.json on synthetic
  * store rows. Trades, skips and signal counts must be identical; equity and metrics within 1e-9
  * relative (the largest gap is reported).
  */

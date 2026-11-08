@@ -32,7 +32,6 @@ import {
   BACKTEST_RUN_ENGINE_BARS_MAX,
   BACKTEST_RUN_ENGINE_VERSION,
   BACKTEST_RUN_NAUTILUS_ENGINE,
-  BACKTEST_RUN_OPTIONS_WORK_MAX,
   BacktestRunEngineOptionsResultSchema,
   BacktestRunEngineResultSchema,
   BacktestRunOptionsReportSchema,
@@ -4509,6 +4508,62 @@ describe("daily series and options runs", () => {
       BacktestRunReportSchema.parse(runs.rows.get(near.id)?.report).options
         ?.metrics
     ).toEqual(optionsRunMetrics(optionsOutcome()));
+    // A price one ulp off and a cent-rounding difference stand too.
+    const ulp = await queueRun(runs, optionsSpec);
+    await client.backtestRuns.engine.claim({ engine });
+    const nextUp = (value: number) => {
+      const view = new DataView(new ArrayBuffer(8));
+      view.setFloat64(0, value);
+      view.setBigUint64(0, view.getBigUint64(0) + 1n);
+      return view.getFloat64(0);
+    };
+    expect(nextUp(first.entryPrice)).not.toBe(first.entryPrice);
+    await expect(
+      client.backtestRuns.engine.complete({
+        engine,
+        id: ulp.id,
+        result: {
+          ...good,
+          trades: [
+            {
+              ...first,
+              entryPrice: nextUp(first.entryPrice),
+              entryFee: first.entryFee + 0.01,
+              pnl: first.pnl - 0.01,
+            },
+            ...good.trades.slice(1),
+          ],
+        },
+        seriesSha256: sha,
+      })
+    ).resolves.toMatchObject({ status: "succeeded" });
+    await rejected(
+      {
+        ...good,
+        trades: [
+          { ...first, exitPrice: first.exitPrice * (1 + 1e-6) },
+          ...good.trades.slice(1),
+        ],
+      },
+      `${differs}trade 1 exitPrice`
+    );
+    await rejected(
+      {
+        ...good,
+        trades: [
+          { ...first, exitFee: first.exitFee + 0.02 },
+          ...good.trades.slice(1),
+        ],
+      },
+      `${differs}trade 1 exitFee`
+    );
+    await rejected(
+      {
+        ...good,
+        trades: [{ ...first, expiry: "1999-01-15" }, ...good.trades.slice(1)],
+      },
+      `${differs}trade 1 expiry`
+    );
     // A tampered max loss, with or without metrics that agree with it.
     const tampered = good.trades.map((trade, index) =>
       index === 0 ? { ...trade, maxLoss: trade.maxLoss * 2 } : trade
@@ -4664,6 +4719,59 @@ describe("daily series and options runs", () => {
     expect(runs.rows.get(run.id)?.status).toBe("failed");
   });
 
+  it("keeps a code error of the options runner a server error, on both engines", async () => {
+    // An IRX row without closes makes the runner fail with a TypeError (a code path, not data).
+    const broken = () => {
+      const store = dailySeries();
+      return {
+        ...store,
+        loadSeries: vi.fn(
+          async (ids: readonly string[], range?: { to?: string }) => {
+            const loaded = await store.loadSeries(ids, range);
+            const { close: _close, ...noClose } = loaded.get(
+              "IRX"
+            ) as MarketDailyColumns;
+            loaded.set("IRX", noClose as unknown as MarketDailyColumns);
+            return loaded;
+          }
+        ),
+      };
+    };
+    const runs = memoryRuns();
+    const typescript = await clientFor({
+      bars: fakeBars(),
+      dailySeries: broken(),
+      runs,
+    }).backtestRuns.submit(optionsInput);
+    expect(typescript).toMatchObject({
+      error: BACKTEST_RUN_STORAGE_ERROR,
+      status: "failed",
+    });
+    // The claim sends whole rows; the rows break before complete, which hashes what it reloads.
+    const run = await queueRun(runs, optionsSpec);
+    await clientFor({
+      bars: fakeBars(),
+      dailySeries: dailySeries(),
+      runs,
+    }).backtestRuns.engine.claim({ engine });
+    const store = broken();
+    const reloaded = await store.loadSeries(["SPY", "VIX", "IRX"], {
+      to: optionsSpec.to,
+    });
+    const client = clientFor({ bars: fakeBars(), dailySeries: store, runs });
+    await expectCode(
+      client.backtestRuns.engine.complete({
+        engine,
+        id: run.id,
+        result: optionsResult(),
+        seriesSha256: await strategySeriesRowsSha256(reloaded),
+      }),
+      "INTERNAL_SERVER_ERROR",
+      500
+    );
+    expect(runs.rows.get(run.id)?.status).toBe("running");
+  });
+
   it("validates the options result shape strictly", () => {
     const good = optionsResult();
     expect(BacktestRunEngineOptionsResultSchema.safeParse(good).success).toBe(
@@ -4718,26 +4826,6 @@ describe("daily series and options runs", () => {
     expect(issues({ trades: [{ ...trade, maxLoss: 0 }] })).toHaveLength(1);
     expect(issues({ extra: 1 })).toHaveLength(1);
     expect(issues({ metrics: { ...good.metrics, extra: 1 } })).toHaveLength(1);
-    // Run days × trades is bounded (the open-risk recomputation).
-    const days = Array.from({ length: 20_000 }, (_, index) =>
-      new Date(Date.UTC(1970, 0, 1) + index * DAY_MS).toISOString().slice(0, 10)
-    );
-    const many = Array.from({ length: 1001 }, (_, index) => ({
-      ...trade,
-      entryDate: days[0],
-      exitDate: days[1],
-      id: index + 1,
-    }));
-    expect(
-      issues({
-        dates: days,
-        equity: days.map(() => 1),
-        openPositions: days.map(() => 0),
-        trades: many,
-      })
-    ).toEqual([
-      `Run days × trades must be at most ${BACKTEST_RUN_OPTIONS_WORK_MAX}`,
-    ]);
   });
 
   it("bounds the stored options report like the worker result", () => {

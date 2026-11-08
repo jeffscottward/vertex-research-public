@@ -468,18 +468,24 @@ const OPTIONS_TRADE_FIELDS = [
   "entryDate",
   "exitDate",
   "contracts",
-  "entryPrice",
-  "exitPrice",
-  "entryFee",
-  "exitFee",
-  "pnl",
   "exitReason",
 ] as const;
+/** Trade prices compared within ENGINE_STATS_TOLERANCE (relative). */
+const OPTIONS_TRADE_PRICES = [
+  "entryPrice",
+  "exitPrice",
+  "returnOnRisk",
+] as const;
+/** Trade money amounts (rounded to cents by both ledgers) compared within one cent. */
+const OPTIONS_TRADE_CENTS = ["entryFee", "exitFee", "pnl"] as const;
+/** One cent, with room for the binary representation of cent amounts. */
+const CENT = 0.01 + 1e-9;
 
 /**
  * Where the worker's options result differs from the API's own run of the same rows, or null:
  * the run days must be equal, the daily equity within ENGINE_STATS_TOLERANCE, the trades and skips
- * equal (returnOnRisk and maxLoss within the tolerance) and the metrics within the tolerance.
+ * equal (prices, returnOnRisk and maxLoss within the tolerance, fees and pnl within one cent) and
+ * the metrics within the tolerance.
  */
 const optionsResultMismatch = (
   result: BacktestRunEngineOptionsResult,
@@ -513,9 +519,14 @@ const optionsResultMismatch = (
     const field = OPTIONS_TRADE_FIELDS.find(
       (key) => trade[key] !== expected[key]
     );
-    if (field !== undefined) return `trade ${index + 1} ${field}`;
-    if (!close(trade.returnOnRisk, expected.returnOnRisk))
-      return `trade ${index + 1} returnOnRisk`;
+    const price = OPTIONS_TRADE_PRICES.find(
+      (key) => !close(trade[key], expected[key])
+    );
+    const cents = OPTIONS_TRADE_CENTS.find(
+      (key) => !(Math.abs(trade[key] - expected[key]) <= CENT)
+    );
+    const differs = field ?? price ?? cents;
+    if (differs !== undefined) return `trade ${index + 1} ${differs}`;
     if (!close(trade.maxLoss, maxLoss.get(expected.id) as number))
       return `trade ${index + 1} maxLoss`;
   }
@@ -546,8 +557,9 @@ const optionsReport = (
   try {
     own = runOptionsOnRows(spec, definition, daily);
   } catch (error) {
-    // The API's own run cannot book the stored rows (runOptionsOnRows: an input error).
-    return (error as Error).message;
+    // The API's own run cannot book the stored rows; a code error (TypeError, RangeError) stays one.
+    if (!(error instanceof InstantBacktestInputError)) throw error;
+    return error.message;
   }
   const mismatch = optionsResultMismatch(result, own);
   if (mismatch !== null)

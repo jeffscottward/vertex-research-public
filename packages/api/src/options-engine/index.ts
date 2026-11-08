@@ -2,7 +2,7 @@
  * Options engine: the TypeScript port of the qc-ports options runner
  * (services/research/strategies/qc_ports: options.py, book.py, ledger.py, metrics.py), research
  * only. services/research/tests/fixtures/qc_ports/options_golden.json (written by
- * strategies/qc_ports/golden.py) pins the port to the Python reference.
+ * services/research/tests/qc_ports_golden.py) pins the port to the Python reference.
  */
 import type { PricedTrade } from "./book.ts";
 import { DEFAULT_CAPITAL, type LedgerResult, runLedger } from "./ledger.ts";

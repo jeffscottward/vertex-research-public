@@ -71,7 +71,6 @@
     "vertex:owner-caps:check": "bun --no-env-file scripts/vertex-owner-caps-check.ts",
     "vertex:bars:import": "bun --no-env-file scripts/vertex-market-bars-import.ts",
     "vertex:series:import": "bun --no-env-file scripts/vertex-market-series-import.ts",
-    "vertex:series:parity": "bun --no-env-file scripts/vertex-market-series-parity.ts",
     "vertex:baskets:seed": "bun --no-env-file scripts/vertex-baskets-seed.ts",
     "vertex:quantlab:record": "bun --no-env-file scripts/vertex-quant-lab-record.ts",
     "vertex:research-reports:import": "bun --no-env-file scripts/vertex-research-reports-import.ts",

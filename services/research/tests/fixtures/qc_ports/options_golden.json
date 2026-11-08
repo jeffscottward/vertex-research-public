@@ -1,5 +1,5 @@
 {
-  "about": "qc-ports options runner golden fixture; regenerate with python -m strategies.qc_ports.golden",
+  "about": "qc-ports options runner golden fixture; regenerate with python -m tests.qc_ports_golden",
   "marketSets": {
     "main": {
       "SPY": {

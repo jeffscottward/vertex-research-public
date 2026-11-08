@@ -282,6 +282,17 @@ def test_batch_cases_read_the_series_rows_up_to_their_own_last_bar(monkeypatch):
     assert seen["early"]["last"]["VIX"] == cases[0]["spec"]["to"] < rows["VIX"]["dates"][-1]
     assert seen["late"]["last"]["VIX"] == cases[1]["spec"]["to"]
 
+    # `to` after the last bar (a holiday at the end of the range): a series row between the last
+    # bar and `to` is read, as the claim rows (cut at `to`) hold it; nothing after `to` is.
+    dates = rows["SPY"]["dates"]
+    after = {**cases[0], "spec": {**cases[0]["spec"], "to": dates[51]}}
+    result = cli._batch_case(shared, after, rows)["result"]
+    assert result["last"]["VIX"] == dates[51] and result["size"]["VIX"] == 52
+    assert result == cli._batch_case(shared, after, _cut(rows, dates[51]))["result"]
+    # A spec without `to` reads up to its last bar.
+    bare = {**cases[0], "spec": {key: value for key, value in cases[0]["spec"].items() if key != "to"}}
+    assert cli._batch_case(shared, bare, rows)["result"]["last"]["VIX"] == dates[49]
+
 
 @needs_nautilus
 def test_batch_cli_multi_case_with_series_equals_each_run_alone():

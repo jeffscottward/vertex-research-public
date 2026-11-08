@@ -691,8 +691,6 @@ export const BacktestRunEngineResultSchema = z
 /** Most run days and most trades or skips of an options result. */
 export const BACKTEST_RUN_OPTIONS_DAYS_MAX = 20_000;
 export const BACKTEST_RUN_OPTIONS_TRADES_MAX = 20_000;
-/** Most run days × trades of an options result (the work of recomputing its open risk). */
-export const BACKTEST_RUN_OPTIONS_WORK_MAX = 20_000_000;
 /**
  * Most bytes of daily series rows one claim sends (JSON): a run (or batch) whose rows are larger
  * fails at claim. The 32 store series over 35 years are about 13 MB.
@@ -774,12 +772,6 @@ export const BacktestRunEngineOptionsResultSchema = z
         code: "custom",
         message: "dates must be strictly increasing",
         path: ["dates"],
-      });
-    if (size * result.trades.length > BACKTEST_RUN_OPTIONS_WORK_MAX)
-      context.addIssue({
-        code: "custom",
-        message: `Run days × trades must be at most ${BACKTEST_RUN_OPTIONS_WORK_MAX}`,
-        path: ["trades"],
       });
     const days = new Set(result.dates);
     const ids = new Set<number>();
