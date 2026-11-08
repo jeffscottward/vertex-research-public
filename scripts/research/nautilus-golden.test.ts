@@ -50,8 +50,8 @@ describe("buildGolden", () => {
         createHash("sha256").update(committed).digest("hex")
       );
       expect(read).toEqual([
-        "tests/fixtures/golden/SPY-1d.csv",
         "tests/fixtures/golden/QQQ-1d.csv",
+        "tests/fixtures/golden/SPY-1d.csv",
         "research/backtests/quantjourney/library.json",
       ]);
     },
