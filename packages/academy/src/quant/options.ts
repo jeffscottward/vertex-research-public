@@ -43,7 +43,7 @@ export const callPrice = (
   blackScholes({ kind: "call", rate, spot, strike, vol, years }).price;
 
 /** Black-Scholes call delta N(d1) (years > 0). */
-export const callDelta = (
+const callDelta = (
   spot: number,
   strike: number,
   years: number,
@@ -546,7 +546,7 @@ const binomialTables = (values: ParamValues): DataTable[] => {
 // ---------------------------------------------------------------- hedge
 
 /** Rebalance counts of the std curve (each divides 252, the fine grid of that simulation). */
-export const STD_COUNTS = [1, 2, 4, 7, 14, 28, 63, 126, 252] as const;
+const STD_COUNTS = [1, 2, 4, 7, 14, 28, 63, 126, 252] as const;
 const FINE = 252;
 const MAX_REBALANCES = 252;
 /** Black-Scholes evaluations each simulation may spend (about 60k in total). */
@@ -602,7 +602,7 @@ type Outcome = Readonly<{ hedged: number; unhedged: number }>;
  * implied vol at `count` evenly spaced times along a GBM path (drift = rate, realized volatility)
  * sampled from the Brownian values `path` on `fine` steps. Cash earns the risk-free rate.
  */
-export const hedgeOutcome = (
+const hedgeOutcome = (
   input: HedgeInputs,
   path: readonly number[],
   fine: number,

@@ -25,7 +25,7 @@ const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high);
 
 /** Standard error of an annual Sharpe ratio estimated from `years` of data (true Sharpe near 0). */
-export const sharpeError = (years: number): number => 1 / Math.sqrt(years);
+const sharpeError = (years: number): number => 1 / Math.sqrt(years);
 
 /** Expected best Sharpe among n zero-edge rules: σ_SR · √(2 ln n). */
 export const expectedMaxSharpe = (n: number, sigma: number): number =>
