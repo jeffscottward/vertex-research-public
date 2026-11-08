@@ -1634,3 +1634,330 @@ describe("engine refusals", () => {
     );
   });
 });
+
+describe("indicator timeframe 1d", () => {
+  // Five session days (17:00 New York, 22:00 UTC in January) of three bars each: 22:00 UTC the
+  // evening before, 10:00 UTC and 21:00 UTC.
+  const dayHigh = [12, 15, 11, 14, 13];
+  const dayLow = [8, 9, 7, 10, 6];
+  const dayClose = [10, 14, 8, 12, 9];
+  const dailyBars = (volume = false): BarColumns => {
+    const t: number[] = [];
+    const o: number[] = [];
+    const h: number[] = [];
+    const l: number[] = [];
+    const c: number[] = [];
+    for (let day = 0; day < 5; day += 1) {
+      const date = Date.UTC(2024, 0, 2 + day);
+      const high = dayHigh[day] as number;
+      const low = dayLow[day] as number;
+      const close = dayClose[day] as number;
+      t.push(date - 2 * HOUR_MS, date + 10 * HOUR_MS, date + 21 * HOUR_MS);
+      o.push(close, close, close);
+      h.push(high - 1, high, high - 1);
+      l.push(low + 1, low + 1, low);
+      c.push(low + 1, high - 1, close);
+    }
+    return {
+      c: Float64Array.from(c),
+      h: Float64Array.from(h),
+      l: Float64Array.from(l),
+      o: Float64Array.from(o),
+      t: Float64Array.from(t),
+      ...(volume ? { v: new Float64Array(t.length).fill(100) } : {}),
+    };
+  };
+  const perBar = (perDay: readonly number[]) =>
+    perDay.flatMap((value) => [value, value, value]);
+
+  /**
+   * Bars where `expr` equals `expected` (NaN: not available). The open column carries the expected
+   * values; the daily indicators below do not read the open.
+   */
+  const equalBars = (
+    bars: BarColumns,
+    expr: Record<string, unknown>,
+    expected: readonly number[]
+  ) => {
+    const probe = {
+      ...bars,
+      o: Float64Array.from(expected, (value) =>
+        Number.isNaN(value) ? -1 : value
+      ),
+    };
+    const open = { field: "open", type: "price" } as const;
+    const { signals } = compileStrategy(
+      probe,
+      define({
+        entry: {
+          all: [
+            { left: expr, op: ">=", right: open },
+            { left: expr, op: "<=", right: open },
+          ],
+        },
+        name: "probe",
+        version: 1,
+      } as StrategyDefinitionInput)
+    );
+    return Array.from(signals);
+  };
+  const availableAt = (expected: readonly number[]) =>
+    expected.map((value) => (Number.isNaN(value) ? 0 : 1));
+  const daily = (name: string, length: number, extra: object = {}) => ({
+    length,
+    name,
+    timeframe: "1d",
+    type: "indicator",
+    ...extra,
+  });
+
+  it("reads highest and lowest at day D over the days before D", () => {
+    const highest = perBar([Number.NaN, Number.NaN, 15, 15, 14]);
+    const lowest = perBar([Number.NaN, Number.NaN, 8, 7, 7]);
+    expect(
+      equalBars(dailyBars(), daily("highest", 2, { source: "high" }), highest)
+    ).toEqual(availableAt(highest));
+    expect(
+      equalBars(dailyBars(true), daily("lowest", 2, { source: "low" }), lowest)
+    ).toEqual(availableAt(lowest));
+  });
+
+  it("reads every other indicator at day D - 1, NaN on the first day", () => {
+    const previousClose = perBar([Number.NaN, 10, 14, 8, 12]);
+    const mean = perBar([Number.NaN, Number.NaN, 12, 11, 10]);
+    expect(equalBars(dailyBars(), daily("sma", 1), previousClose)).toEqual(
+      availableAt(previousClose)
+    );
+    expect(equalBars(dailyBars(), daily("sma", 2), mean)).toEqual(
+      availableAt(mean)
+    );
+  });
+
+  it("applies the offset in signal bars after the daily mapping", () => {
+    const shifted = [Number.NaN, ...perBar([Number.NaN, 10, 14, 8, 12])].slice(
+      0,
+      15
+    );
+    expect(
+      equalBars(dailyBars(), daily("sma", 1, { offset: 1 }), shifted)
+    ).toEqual(availableAt(shifted));
+  });
+
+  it("reuses the daily bars and one series per indicator across conditions", () => {
+    const bars = dailyBars();
+    const expr = daily("sma", 1);
+    const { signals } = compileStrategy(
+      bars,
+      define({
+        entry: {
+          all: [
+            { left: expr, op: ">", right: { type: "const", value: 9 } },
+            { left: expr, op: "<", right: { type: "const", value: 13 } },
+            {
+              left: daily("highest", 1, { source: "high" }),
+              op: ">",
+              right: { type: "const", value: 0 },
+            },
+          ],
+        },
+        name: "twice",
+        version: 1,
+      } as StrategyDefinitionInput)
+    );
+    expect(Array.from(signals)).toEqual(perBar([0, 1, 0, 0, 1]));
+  });
+
+  it("starts a session day at 17:00 New York in summer and winter", () => {
+    const pair = (date: number): BarColumns => ({
+      c: Float64Array.from([5, 6]),
+      h: Float64Array.from([5, 6]),
+      l: Float64Array.from([5, 6]),
+      o: Float64Array.from([5, 6]),
+      t: Float64Array.from([date + 20 * HOUR_MS, date + 21 * HOUR_MS]),
+    });
+    // 21:00 UTC is 17:00 New York in July (a new day) and 16:00 in January (the same day).
+    expect(
+      equalBars(pair(Date.UTC(2024, 6, 1)), daily("sma", 1), [Number.NaN, 5])
+    ).toEqual([0, 1]);
+    expect(
+      equalBars(pair(Date.UTC(2024, 0, 2)), daily("sma", 1), [
+        Number.NaN,
+        Number.NaN,
+      ])
+    ).toEqual([0, 0]);
+  });
+
+  it("checks the length against the daily bars, not the signal bars", () => {
+    expect(() => equalBars(dailyBars(), daily("sma", 6), [])).toThrow(
+      new InstantBacktestInputError(
+        "sma length 6 is longer than the 5 daily bars"
+      )
+    );
+  });
+});
+
+describe("breaks, oncePerLevel and entry.any", () => {
+  const columnsOf = (open: readonly number[], close: readonly number[]) => ({
+    c: Float64Array.from(close),
+    h: Float64Array.from(close, (value, index) =>
+      Math.max(value, open[index] as number)
+    ),
+    l: Float64Array.from(close, (value, index) =>
+      Math.min(value, open[index] as number)
+    ),
+    o: Float64Array.from(open),
+    t: Float64Array.from(close, (_, index) => index * DAY_MS),
+  });
+  const close = { field: "close", type: "price" } as const;
+  const open = { field: "open", type: "price" } as const;
+  const signalsOf = (bars: BarColumns, entry: object) =>
+    Array.from(
+      compileStrategy(
+        bars,
+        define({ entry, name: "events", version: 1 } as StrategyDefinitionInput)
+      ).signals
+    );
+  const one = (condition: object) => ({ all: [condition] });
+
+  // Close against open: the previous close is compared with the current open for breaks and with
+  // the previous open for crosses.
+  const levels = columnsOf([11, 9, 11, 13, 10, 9], [10, 10, 12, 12, 9, 8]);
+
+  it("breaksAbove compares the previous left with the current right", () => {
+    expect(
+      signalsOf(levels, one({ left: close, op: "breaksAbove", right: open }))
+    ).toEqual([0, 0, 1, 0, 0, 0]);
+    expect(
+      signalsOf(levels, one({ left: close, op: "crossesAbove", right: open }))
+    ).toEqual([0, 1, 0, 0, 0, 0]);
+  });
+
+  it("breaksBelow mirrors it and never holds at bar 0", () => {
+    expect(
+      signalsOf(levels, one({ left: close, op: "breaksBelow", right: open }))
+    ).toEqual([0, 0, 0, 0, 1, 1]);
+  });
+
+  it("never breaks on a NaN value", () => {
+    const rising = columnsOf([1, 2, 3, 4], [1, 2, 3, 4]);
+    const zero = { type: "const", value: 0 };
+    // sma(2) is NaN at bar 0, so bar 1 has no previous value; the right side NaN blocks bar 1.
+    expect(
+      signalsOf(rising, one({ left: sma(2), op: "breaksAbove", right: zero }))
+    ).toEqual([0, 0, 0, 0]);
+    expect(
+      signalsOf(rising, one({ left: close, op: "breaksBelow", right: sma(3) }))
+    ).toEqual([0, 0, 0, 0]);
+    expect(
+      signalsOf(rising, one({ left: zero, op: "breaksBelow", right: sma(2) }))
+    ).toEqual([0, 0, 0, 0]);
+  });
+
+  it("oncePerLevel drops a repeat at the same right value", () => {
+    const bars = columnsOf(
+      [10, 10, 10, 10, 12, 12, 12, 12],
+      [9, 11, 9, 11, 9, 13, 9, 13]
+    );
+    const cross = { left: close, op: "crossesAbove", right: open };
+    expect(signalsOf(bars, one(cross))).toEqual([0, 1, 0, 1, 0, 1, 0, 1]);
+    expect(signalsOf(bars, one({ ...cross, oncePerLevel: true }))).toEqual([
+      0, 1, 0, 0, 0, 1, 0, 0,
+    ]);
+    expect(
+      signalsOf(bars, one({ ...cross, oncePerLevel: false, op: "breaksAbove" }))
+    ).toEqual([0, 1, 0, 1, 0, 1, 0, 1]);
+  });
+
+  const ramp = columnsOf([1, 2, 3, 4, 5], [1, 2, 3, 4, 5]);
+  const above = (value: number) => ({
+    left: close,
+    op: ">",
+    right: { type: "const", value },
+  });
+  const below = (value: number) => ({
+    left: close,
+    op: "<",
+    right: { type: "const", value },
+  });
+
+  it("entry.any holds when one of its conditions holds", () => {
+    expect(signalsOf(ramp, { all: [], any: [above(3.5), below(1.5)] })).toEqual(
+      [1, 0, 0, 1, 1]
+    );
+  });
+
+  it("entry.any combines with entry.all", () => {
+    expect(
+      signalsOf(ramp, { all: [above(1.5)], any: [above(3.5), below(1.5)] })
+    ).toEqual([0, 0, 0, 1, 1]);
+    expect(signalsOf(ramp, { all: [above(1.5)], any: [] })).toEqual([
+      0, 1, 1, 1, 1,
+    ]);
+  });
+});
+
+describe("management and maxLeverage", () => {
+  const bars = wave(400);
+  const base = {
+    ...smaCross(5, 20),
+    sizing: { mode: "riskPct", riskPct: 5 },
+    stopLoss: { kind: "pct", pct: 2 },
+  } as const;
+
+  it("compiles breakevenR alone without a trail", () => {
+    const compiled = compileStrategy(
+      bars,
+      define({ ...base, management: { breakevenR: 1.5 } })
+    );
+    expect(compiled.management).toStrictEqual({ breakevenR: 1.5 });
+  });
+
+  it("compiles a trail with the DSL ATR of the bars", () => {
+    const compiled = compileStrategy(
+      bars,
+      define({
+        ...base,
+        management: { trail: { activateR: 1, length: 3, multiple: 2 } },
+      })
+    );
+    expect(compiled.management).toStrictEqual({
+      trail: { activateR: 1, atr: averageTrueRange(bars, 3), multiple: 2 },
+    });
+  });
+
+  it("leaves management out without a management block", () => {
+    expect("management" in compileStrategy(bars, define(base))).toBe(false);
+  });
+
+  it("runs the management and maxLeverage of the definition", () => {
+    const definition = define({
+      ...base,
+      management: {
+        breakevenR: 1,
+        trail: { activateR: 0.5, length: 14, multiple: 1 },
+      },
+      sizing: { maxLeverage: 10, mode: "riskPct", riskPct: 5 },
+    });
+    const compiled = compileStrategy(bars, definition);
+    const expected = runSignalBacktest(bars, compiled.signals, {
+      costBps: 3,
+      exits: compiled.exits,
+      management: compiled.management as NonNullable<
+        typeof compiled.management
+      >,
+      maxLeverage: 10,
+      riskPct: 5,
+      stopLossPct: 2,
+      takeProfitPct: 0,
+    });
+    const result = runStrategyDefinition(bars, definition, 3);
+    expect(result).toEqual(expected);
+    expect(result.trades.length).toBeGreaterThan(0);
+    const unmanaged = runStrategyDefinition(
+      bars,
+      define({ ...base, sizing: { mode: "riskPct", riskPct: 5 } }),
+      3
+    );
+    expect(unmanaged.trades).not.toEqual(result.trades);
+  });
+});
