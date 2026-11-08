@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildDeltaSeries } from "./delta.ts";
-import type { SignedTrade, TradeSide } from "./trade-signing.ts";
+import type { SignedTrade, TradeSide } from "@darkfactory/api";
 
 const signed = (t: number, size: number, side: TradeSide): SignedTrade => ({
   ask: null,

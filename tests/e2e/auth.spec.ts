@@ -224,6 +224,7 @@ const OPERATOR_ONLY_SIDEBAR_HREFS = [
   "/optimizations",
   "/autopilot",
   "/charts",
+  "/flow",
   "/deployments",
   "/engines",
   "/plays",

@@ -273,6 +273,7 @@ describe("portal route manifests", () =>
       "/optimizations",
       "/autopilot",
       "/charts",
+      "/flow",
       "/deployments",
       "/engines",
       "/watchlist",

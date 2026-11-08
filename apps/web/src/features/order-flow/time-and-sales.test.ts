@@ -7,7 +7,7 @@ import {
   timeAndSalesRows,
   timeZoneLabel,
 } from "./time-and-sales.ts";
-import type { SignedTrade } from "./trade-signing.ts";
+import type { SignedTrade } from "@darkfactory/api";
 
 const at = (iso: string) => Date.parse(iso) / 1000;
 const trade = (iso: string, price: number): SignedTrade => ({

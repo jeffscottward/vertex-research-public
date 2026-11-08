@@ -26,6 +26,7 @@ export * from "./vertex-research-chat-debate.ts";
 export * from "./vertex-research-chat-native-evidence.ts";
 export * from "./research-reports.ts";
 export * from "./research-studies.ts";
+export * from "./flow.ts";
 
 import { sql } from "drizzle-orm";
 import {

@@ -12,7 +12,7 @@ import {
   levelCount,
   MAX_BUCKETS,
 } from "./price-grid.ts";
-import type { SignedTrade } from "./trade-signing.ts";
+import type { SignedTrade } from "@darkfactory/api";
 import { defined } from "./defined.ts";
 
 /** Auto price step keeps the footprint to at most this many rows. */

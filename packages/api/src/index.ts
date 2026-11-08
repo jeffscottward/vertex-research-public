@@ -93,6 +93,7 @@ export * from "./contracts/assistant.ts";
 export * from "./contracts/deployment-requests.ts";
 export * from "./contracts/market-data.ts";
 export * from "./contracts/options-analytics.ts";
+export * from "./contracts/flow.ts";
 export * from "./contracts/jev-verdict.ts";
 export * from "./contracts/options-chain.ts";
 export {
@@ -119,6 +120,7 @@ export * from "./contracts/academy.ts";
 export * from "./strategy-dsl.ts";
 export * from "./contracts/research-lenses.ts";
 export * from "./contracts/sector-rotation.ts";
+export * from "./flow-trade-signing.ts";
 export * from "./contracts/congress-trades.ts";
 export * from "./contracts/risk-allocator.ts";
 export { OWNER_RISK_CAPS, suggestAllocation } from "./risk-allocator.ts";

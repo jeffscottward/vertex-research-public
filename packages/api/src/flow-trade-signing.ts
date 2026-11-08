@@ -2,8 +2,12 @@
 // bid/ask at or before the print: price >= ask is a buy, price <= bid is a sell); prints inside
 // the spread, or with no usable quote, fall back to the tick rule (compare with the previous
 // different trade price). Each print keeps the method used so the UI can say which rule applied.
-// Used by: footprint.ts, delta.ts, time-and-sales.ts, components/portal/order-flow-panel.tsx.
-import type { MarketQuoteTick, MarketTradeTick } from "@darkfactory/api";
+// Used by: the flow pipeline (server/flow-collect.ts) and the web order-flow panel (apps/web
+// features/order-flow footprint, delta, time & sales).
+import type {
+  MarketQuoteTick,
+  MarketTradeTick,
+} from "./contracts/market-data.ts";
 
 export type TradeSide = "buy" | "sell" | "unknown";
 /** quote: quote rule; tick: tick rule; none: no quote and no earlier different price. */

@@ -221,7 +221,7 @@ const NEW_YORK = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
 });
 
-const newYorkParts = (now: Date): Record<string, string> =>
+export const newYorkParts = (now: Date): Record<string, string> =>
   Object.fromEntries(
     NEW_YORK.formatToParts(now).map((part) => [part.type, part.value])
   );

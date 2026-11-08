@@ -43,7 +43,7 @@ import {
   SIGNING_METHOD_LABELS,
   type SigningCounts,
   type TradeSide,
-} from "../../features/order-flow/trade-signing.ts";
+} from "@darkfactory/api";
 
 const DASH = "—";
 const headCell = "py-1 pr-3 font-normal text-muted-foreground";

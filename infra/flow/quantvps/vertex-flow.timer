@@ -1,0 +1,13 @@
+# Starts the flow pipeline tick every minute. The server decides which sources are due, so most
+# ticks do nothing; a run still active means systemd skips the next start, and closed markets cost
+# nothing (no source is due). No catch-up after sleep (Persistent=false) and no random delay.
+[Unit]
+Description=Vertex flow pipeline collection timer (research only)
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

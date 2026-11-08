@@ -83,6 +83,7 @@ import { optimizationsRouter } from "./optimizations.ts";
 import { quantLabRouter } from "./quant-lab.ts";
 import { researchReportsRouter } from "./research-reports.ts";
 import { researchStudiesRouter } from "./research-studies.ts";
+import { flowRouter } from "./flow.ts";
 import { clickLogRouter } from "./click-log.ts";
 import {
   createFeatureItemService,
@@ -1724,6 +1725,7 @@ export const appRouter = api.router({
   quantLab: quantLabRouter,
   researchReports: researchReportsRouter,
   researchStudies: researchStudiesRouter,
+  flow: flowRouter,
   clickLog: clickLogRouter,
   papers: papersRouter,
   agentModelRuns: agentModelRunsRouter,

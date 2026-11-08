@@ -26,8 +26,10 @@ import {
   buildMarketTicksUrl,
   fetchMarketBars,
   fetchMarketDepth,
+  fetchMarketHistoryPacing,
   fetchMarketTicks,
   MARKET_DEPTH_TIMEOUT_MS,
+  MARKET_HISTORY_HEALTH_TIMEOUT_MS,
   MARKET_HISTORY_MAX_BYTES,
   MARKET_HISTORY_TIMEOUT_MS,
   MARKET_TICKS_TIMEOUT_MS,
@@ -1076,5 +1078,45 @@ describe("marketData.ticks and marketData.depth procedures", () => {
     return expect(AGENT_API_KEY_READ_PROCEDURES.has("marketData.depth")).toBe(
       false
     );
+  });
+});
+
+describe("marketData history pacing", () => {
+  const health = { pacing: { backoff_seconds: 7, recent_requests: 3 } };
+
+  it("reads the pacing block from /health", async () => {
+    const doFetch = vi.fn(async () => jsonResponse({ ...health, ok: true }));
+    const pacing = await fetchMarketHistoryPacing(
+      { token: TOKEN, url: `${BASE}//` },
+      { fetch: doFetch }
+    );
+    expect(pacing).toEqual({ backoffSeconds: 7, recentRequests: 3 });
+    const [url, init] = doFetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(`${BASE}/health`);
+    expect((init.headers as Record<string, string>)["authorization"]).toBe(
+      `Bearer ${TOKEN}`
+    );
+    return expect(MARKET_HISTORY_HEALTH_TIMEOUT_MS).toBe(5000);
+  });
+
+  it("rejects a health document without a valid pacing block", async () => {
+    const failure = (await fetchMarketHistoryPacing(config, {
+      fetch: async () =>
+        jsonResponse({ pacing: { backoff_seconds: -1, recent_requests: 0 } }),
+    }).catch((error: unknown) => error)) as MarketDataError;
+    return expect([failure.code, failure.message]).toEqual([
+      "UPSTREAM_ERROR",
+      "History response failed schema validation",
+    ]);
+  });
+
+  it("fails as NOT_CONFIGURED without a history config", async () => {
+    const failure = (await fetchMarketHistoryPacing(null).catch(
+      (error: unknown) => error
+    )) as MarketDataError;
+    return expect(failure.code).toBe("NOT_CONFIGURED");
   });
 });
