@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import coverageBaseline from "./scripts/ci/coverage-baseline.json" with {
@@ -43,6 +44,16 @@ export const coverageThresholds = {
   ),
 };
 
+// Vitest keeps transformed modules on disk (fsModuleCache, on by default) in
+// one cache under the workspace root. `turbo run test:unit` starts one Vitest
+// per package at the same time. When the lockfile hash stored in the cache
+// differs from the current lockfile (after a lockfile change, or when a new
+// worktree starts with a cache copied from another checkout), every process
+// clears the same directory and the runs fail with ENOTEMPTY (card
+// vitest-cache-copy-race, 2026-11-08). A cache per working directory gives
+// each turbo task its own.
+const fsModuleCachePath = join(process.cwd(), "node_modules", ".vitest-cache");
+
 export default defineConfig({
   // Verification never reads local dotenv files; tests receive explicit env only.
   envDir: false,
@@ -60,6 +71,7 @@ export default defineConfig({
     environment: "node",
     testTimeout: Math.round(5000 * timeouts.scale),
     hookTimeout: Math.round(10_000 * timeouts.scale),
+    fsModuleCachePath,
     coverage: {
       provider: "v8",
       reportsDirectory: "coverage",
