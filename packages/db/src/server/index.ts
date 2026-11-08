@@ -322,6 +322,7 @@ export type {
 export {
   createPlaysRepository,
   PLAY_MAX_LEGS,
+  normalizePlayInput,
   validatePlayLegs,
 } from "./plays-repository.ts";
 export {

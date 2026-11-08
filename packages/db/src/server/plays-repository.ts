@@ -86,13 +86,43 @@ const isValidDate = (value: string): boolean => {
   );
 };
 
+/**
+ * Defined risk: every short option is covered by long options of the same right that expire no
+ * earlier. For each right and each short expiry, the long contracts expiring on or after it must be
+ * at least the short contracts expiring on or after it. A naked short, or a short covered only by an
+ * earlier long, has no defined maximum loss.
+ */
+const requireCoveredShorts = (legs: readonly PlayLeg[]): void => {
+  const contracts = (
+    side: PlayLeg["side"],
+    right: PlayLeg["right"],
+    expiry: string
+  ) =>
+    legs
+      .filter(
+        (leg) =>
+          leg.side === side && leg.right === right && leg.expiry >= expiry
+      )
+      .reduce((total, leg) => total + leg.quantity, 0);
+  for (const short of legs.filter((leg) => leg.side === "sell")) {
+    if (
+      contracts("buy", short.right, short.expiry) <
+      contracts("sell", short.right, short.expiry)
+    ) {
+      throw new InvalidRepositoryInputError(
+        `short ${short.right} legs must be covered by long ${short.right} legs expiring no earlier (defined risk)`
+      );
+    }
+  }
+};
+
 export const validatePlayLegs = (legs: readonly PlayLeg[]): PlayLeg[] => {
   if (legs.length === 0 || legs.length > PLAY_MAX_LEGS) {
     throw new InvalidRepositoryInputError(
       `legs must have 1-${PLAY_MAX_LEGS} entries`
     );
   }
-  return legs.map((leg, index) => {
+  const checked = legs.map((leg, index) => {
     const at = `legs[${index}]`;
     if (leg.side !== "buy" && leg.side !== "sell") {
       throw new InvalidRepositoryInputError(`${at}.side must be buy or sell`);
@@ -121,6 +151,8 @@ export const validatePlayLegs = (legs: readonly PlayLeg[]): PlayLeg[] => {
       quantity: leg.quantity,
     };
   });
+  requireCoveredShorts(checked);
+  return checked;
 };
 
 const requireMaxLoss = (value: number | string): string => {
@@ -187,6 +219,36 @@ const toRecord = (row: Play): PlayRecord => ({
   updatedAt: row.updatedAt,
 });
 
+/**
+ * Checks and normalizes a play for storage (the rules of `upsert`, without a database): text
+ * lengths, ticker, status, legs with covered shorts (defined risk), max loss > 0 and an https source.
+ */
+export const normalizePlayInput = (input: UpsertPlayInput) => {
+  requireNonBlank(input.id, "id");
+  const ticker = input.ticker.trim().toUpperCase();
+  if (!TICKER_PATTERN.test(ticker)) {
+    throw new InvalidRepositoryInputError("ticker must be a symbol");
+  }
+  if (!(PLAY_STATUSES as readonly string[]).includes(input.status)) {
+    throw new InvalidRepositoryInputError(
+      "status must be idea, armed, taken or dropped"
+    );
+  }
+  return {
+    ticker,
+    structure: requireText(input.structure, "structure", 80),
+    legs: validatePlayLegs(input.legs),
+    maxLossUsd: requireMaxLoss(input.maxLossUsd),
+    definedRisk: true,
+    thesis: requireText(input.thesis, "thesis", 2000),
+    trigger: requireText(input.trigger, "trigger", 500),
+    exitRule: requireText(input.exitRule, "exitRule", 500),
+    status: input.status,
+    notes: requireOptional(input.notes, "notes", 2000),
+    sourceUrl: requireSourceUrl(input.sourceUrl),
+  };
+};
+
 export const createPlaysRepository = (
   database: DatabaseExecutor,
   repositoryDependencies: Readonly<{ now?: () => Date }> = {}
@@ -207,29 +269,7 @@ export const createPlaysRepository = (
     },
 
     upsert: async (input) => {
-      requireNonBlank(input.id, "id");
-      const ticker = input.ticker.trim().toUpperCase();
-      if (!TICKER_PATTERN.test(ticker)) {
-        throw new InvalidRepositoryInputError("ticker must be a symbol");
-      }
-      if (!(PLAY_STATUSES as readonly string[]).includes(input.status)) {
-        throw new InvalidRepositoryInputError(
-          "status must be idea, armed, taken or dropped"
-        );
-      }
-      const values = {
-        ticker,
-        structure: requireText(input.structure, "structure", 80),
-        legs: validatePlayLegs(input.legs),
-        maxLossUsd: requireMaxLoss(input.maxLossUsd),
-        definedRisk: true,
-        thesis: requireText(input.thesis, "thesis", 2000),
-        trigger: requireText(input.trigger, "trigger", 500),
-        exitRule: requireText(input.exitRule, "exitRule", 500),
-        status: input.status,
-        notes: requireOptional(input.notes, "notes", 2000),
-        sourceUrl: requireSourceUrl(input.sourceUrl),
-      };
+      const values = normalizePlayInput(input);
       try {
         const timestamp = now();
         const [row] = await database
