@@ -17,7 +17,7 @@ One row per event in `ui_click_events` (migration `0046_click_log`):
 |`route`, `target_route`|Path of the page; for a link, the path it opens (other sites: origin only). The browser and the server both drop query strings and hashes.|
 |`important`, `request_ids`|See "Important actions".|
 |`record_request_id`|Correlation id of the `clickLog.record` request that stored the row.|
-|`build_sha`|The commit the browser bundle was built from (Vite define `__VERTEX_BUILD_SHA__`: `VERTEX_BUILD_SHA`, else git `HEAD`, else `unknown`). The root `bun run build` sets `VERTEX_BUILD_SHA` to `HEAD`, and `turbo.json` keys the web build cache on it, so a cache hit never carries an older SHA.|
+|`build_sha`|The commit the browser bundle was built from (Vite define `__VERTEX_BUILD_SHA__`: `VERTEX_BUILD_SHA`, else git `HEAD`, else `unknown`). The root `bun run build` sets `VERTEX_BUILD_SHA` to `HEAD`, and `turbo.json` keys the web build cache on it, so a cache hit through `bun run build` never carries an older SHA (a bare `turbo run build` does not set it).|
 
 ## Privacy rules
 
