@@ -194,6 +194,10 @@ class _Open:
     legs: dict | None
     stop: float
     target: float
+    # Stop set at entry, highest high and close since entry (stop management, TS PositionState).
+    initial_stop: float = math.nan
+    max_high: float = -math.inf
+    max_close: float = -math.inf
 
 
 @dataclass
@@ -204,6 +208,10 @@ class _State:
     pending_target: float = math.nan
     # Client order id of the resting target order (see _plan_target)
     target_order: object | None = None
+    # Client order id of the resting stop order, and a stop raised at the last close by the
+    # management block, applied at the next open print (see _apply_stop_update); NaN when none.
+    stop_order: object | None = None
+    stop_update: float = math.nan
     position: _Open | None = None
     exit_reason: str = ""
     trades: list = field(default_factory=list)
@@ -239,8 +247,32 @@ def _check_options(bars: Bars, compiled: Compiled, options: RunOptions) -> None:
         raise InputError("riskPct must be above 0 and at most 100")
     if options.max_hold_bars is not None and not (isinstance(options.max_hold_bars, int) and options.max_hold_bars >= 1):
         raise InputError("maxHoldBars must be a whole number of at least 1")
+    _check_management(len(bars), compiled, options)
     if bars.t[0] < 0:
         raise InputError("the Nautilus engine needs bars after 1970 (UNIX nanoseconds)")
+
+
+def _check_management(size: int, compiled: Compiled, options: RunOptions) -> None:
+    """TS assertManagementOptions: maxLeverage needs riskPct (1 to 50); management levels above 0."""
+    if options.max_leverage is not None:
+        if options.risk_pct is None:
+            raise InputError("maxLeverage needs riskPct")
+        if not 1 <= options.max_leverage <= 50:
+            raise InputError("maxLeverage must be from 1 to 50")
+    management = compiled.management or {}
+
+    def positive(name: str, value: float | None) -> None:
+        if value is not None and not (math.isfinite(value) and value > 0):
+            raise InputError(f"{name} must be above 0")
+
+    positive("breakevenR", management.get("breakevenR"))
+    trail = management.get("trail")
+    if trail is None:
+        return
+    positive("trail activateR", trail["activateR"])
+    positive("trail multiple", trail["multiple"])
+    if len(trail["atr"]) != size:
+        raise InputError("trail ATR must match the bar count")
 
 
 def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
@@ -343,11 +375,54 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                     self._enter(index, float(nbar.open))
                 elif state.pending == -1:
                     self._exit("signal")
+                elif not math.isnan(state.stop_update):
+                    self._apply_stop_update(index)
                 state.pending = 0
+                state.stop_update = math.nan
             elif part == CLOSE:
+                self._manage(index)
                 self._close(index, float(nbar.close))
                 if index + 1 < size and state.pending != -1:
                     self._plan_target(index + 1)
+
+        def _manage(self, index: int):
+            """TS manage: raises the stop at the close of bar `index` (see PositionManagement)."""
+            position = state.position
+            management = compiled.management
+            if position is None or management is None:
+                return
+            position.max_high = max(position.max_high, bars.h[index])
+            position.max_close = max(position.max_close, bars.c[index])
+            risk = position.entry_price - position.initial_stop
+            if not risk > 0:
+                return
+            stop = position.stop
+            breakeven = management.get("breakevenR")
+            if breakeven is not None and position.max_high >= position.entry_price + breakeven * risk:
+                stop = max(stop, position.entry_price)
+            trail = management.get("trail")
+            if trail is not None and position.max_high >= position.entry_price + trail["activateR"] * risk:
+                atr = trail["atr"][index]
+                if not math.isnan(atr):
+                    stop = max(stop, position.max_close - trail["multiple"] * atr)
+            if stop > position.stop:
+                position.stop = stop
+                state.stop_update = stop
+
+        def _apply_stop_update(self, index: int):
+            """Moves the resting stop to the stop raised at the last close, at the open print of bar
+            `index`, before any other price of that bar. Nothing trades between that close and this
+            open, so this equals a change at the close; a stop at or above the close could not rest
+            there. The old stop already filled when the bar opened at or below it. A bar that opens
+            at or below the new stop exits at the open, as the TS engine fills min(open, stop)."""
+            if state.position is None:
+                return
+            stop = state.stop_update
+            if bars.o[index] <= stop:
+                self._exit("stop")
+                return
+            self.modify_order(self.cache.order(state.stop_order),
+                              trigger_price=Price(round(stop, PRECISION), PRECISION))
 
         def _plan_target(self, index: int):
             """Lets the target rest during bar `index` only when that bar does not reach the stop.
@@ -389,7 +464,8 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             if not per_unit > 0:
                 return 0.0
             risk_units = cash * options.risk_pct / PERCENT / per_unit
-            return min(cash, risk_units * open_price / (1 - cost))
+            cap = cash if options.max_leverage is None else cash * options.max_leverage
+            return min(cap, risk_units * open_price / (1 - cost))
 
         def _enter(self, index: int, open_price: float):
             if ((compiled.stop_distance is not None and math.isnan(state.pending_stop))
@@ -460,11 +536,13 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                     "spread": charges["spread"] / capital}
                 state.position = _Open(entry_cash=plan["cash"], entry_index=plan["index"],
                                        entry_price=charges["price"], spent=plan["spent"], units=units, qty=qty,
-                                       legs=legs, stop=stop, target=target)
+                                       legs=legs, stop=stop, target=target, initial_stop=stop)
                 if not math.isnan(stop):
-                    self.submit_order(self.order_factory.stop_market(
+                    order = self.order_factory.stop_market(
                         instrument_id, OrderSide.SELL, event.last_qty, Price(round(stop, PRECISION), PRECISION),
-                        reduce_only=True, tags=["stop"]))
+                        reduce_only=True, tags=["stop"])
+                    state.stop_order = order.client_order_id
+                    self.submit_order(order)
                 self._plan_target(plan["index"])
                 return
             self._record_exit(event, charges, qty)
