@@ -177,7 +177,8 @@ def _ledger_points(result) -> list:
 
 
 def _library_rows(repo: Path) -> list[dict]:
-    path = repo / "research" / "backtests" / "core7" / "rerun-results.json"
+    """Buy-and-hold and library strategy rows of the committed Core 7 re-run (research artifact)."""
+    path = repo / "research" / "backtests" / "core7" / "rerun-results.json"  # json-data-ignore: committed research artifact, read for a comparison table; the app never reads it
     data = json.loads(path.read_text())
     rows = []
     for universe in data["buyAndHold"]:
@@ -409,6 +410,7 @@ def _document(ran, rows, opt_rows, detail, primary, sens_rows, repo, results, ve
     from .rules import GAPS, RULES
     return {
         "kind": "strategy-backtest",
+        "id": SLUG,
         "title": "LD34 nested Donchian long-only breakout (Instagram reel)",
         "ran": ran,
         "spec": SPEC_PATH,
@@ -461,14 +463,15 @@ def _write_artifacts(out_dir: Path, detail: dict, portfolios: dict, bh_portfolio
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {"detail": detail, "portfolios": portfolios, "bhPortfolios": bh_portfolios, "options": opt_points,
                "markets": net, "walkForward": wf_curve}
-    (out_dir / "ld34-study-detail.json").write_text(json.dumps(payload, default=str))
+    artifact = out_dir / "ld34-study-detail.json"  # json-data-ignore: report artifact under ~/Documents, outside the repo; the app never reads it
+    artifact.write_text(json.dumps(payload, default=str))
 
 
 def main_study(ran: str, workers: int, out_dir: str | None) -> int:
     date.fromisoformat(ran)
     root = os.environ.get("VERTEX_LD34_DATA")
     doc = run_study(ran, root=root, workers=workers, out_dir=Path(out_dir) if out_dir else None)
-    print(json.dumps({"id": SLUG, "summary": doc}, allow_nan=False))
+    print(json.dumps(doc, allow_nan=False))
     return 0
 
 
