@@ -5,7 +5,7 @@ import { join, matchesGlob, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import ts from "typescript-api";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import vitestConfig, { coverageThresholds } from "../../vitest.config.ts";
 import coverageBaseline from "./coverage-baseline.json" with { type: "json" };
@@ -587,5 +587,29 @@ describe("verify mirrors the CI lanes and builds once", () => {
     );
     expect(script).toContain("ip link set lo up");
     return expect(script).toContain("bun run verify:browser");
+  });
+});
+
+describe("Vitest fs module cache", () => {
+  // turbo runs one Vitest per package at the same time. With one shared cache
+  // they all cleared the same directory after a lockfile change and failed
+  // with ENOTEMPTY (card vitest-cache-copy-race, 2026-11-08).
+  return it("gives the Vitest run of each package its own cache directory", async () => {
+    const caches: unknown[] = [];
+    try {
+      for (const directory of ["packages/core", "packages/ui"]) {
+        vi.spyOn(process, "cwd").mockReturnValue(join(root, directory));
+        vi.resetModules();
+        // The config reads the working directory when it loads.
+        const { default: config } = await import("../../vitest.config.ts");
+        caches.push(config.test?.fsModuleCachePath);
+      }
+    } finally {
+      vi.restoreAllMocks();
+    }
+    return expect(caches).toEqual([
+      join(root, "packages/core/node_modules/.vitest-cache"),
+      join(root, "packages/ui/node_modules/.vitest-cache"),
+    ]);
   });
 });
