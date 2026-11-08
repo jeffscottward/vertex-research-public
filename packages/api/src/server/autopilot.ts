@@ -34,7 +34,10 @@ import {
   AutopilotGateSchema,
   type AutopilotTickResult,
 } from "../contracts/autopilot.ts";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
+import {
+  StrategyDefinitionSchema,
+  serverStrategyRefusal,
+} from "../strategy-dsl.ts";
 import {
   type AutopilotRunnerDependencies,
   seriesKey,
@@ -107,6 +110,10 @@ const create = api.autopilot.campaigns.create
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
+    // Campaign filters join every candidate; the runner loads sector points only.
+    const refusal = serverStrategyRefusal({ filters: input.filters });
+    if (refusal !== undefined)
+      throw failures.VALIDATION_ERROR({ message: refusal.message });
     const repository = repositoryFor(context, failures);
     const marketBars = context.repositories.marketBars;
     if (marketBars === undefined) throw failures.STORAGE_ERROR();
@@ -331,6 +338,10 @@ const sendToPaper = api.autopilot.candidates.sendToPaper
       throw failures.VALIDATION_ERROR({ message: (error as Error).message });
     }
     const definition = StrategyDefinitionSchema.parse(row.definition);
+    // The paper path runs equity definitions only; refuse before any write.
+    const refusal = serverStrategyRefusal(definition);
+    if (refusal !== undefined)
+      throw failures.VALIDATION_ERROR({ message: refusal.message });
     const sha256 = await strategyDefinitionSha256(definition);
     const definitionId = autopilotDefinitionId(row.id);
     await strategyDefinitions.insert({

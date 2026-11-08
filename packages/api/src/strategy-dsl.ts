@@ -544,6 +544,61 @@ export type StrategyValidationResult =
   | Readonly<{ ok: true; definition: StrategyDefinition }>
   | Readonly<{ ok: false; issues: readonly StrategyValidationIssue[] }>;
 
+/** Refusal code: the options block runs only in the options research runner. */
+export const STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED";
+/** Refusal code: the filter reads daily series that the server does not load. */
+export const STRATEGY_SERIES_FILTERS_UNSUPPORTED =
+  "STRATEGY_SERIES_FILTERS_UNSUPPORTED";
+
+export type StrategyRefusal = Readonly<{
+  code:
+    | typeof STRATEGY_OPTIONS_UNSUPPORTED
+    | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED;
+  message: string;
+}>;
+
+export const STRATEGY_OPTIONS_REFUSAL: StrategyRefusal = {
+  code: STRATEGY_OPTIONS_UNSUPPORTED,
+  message: `${STRATEGY_OPTIONS_UNSUPPORTED}: the options block runs only in the options research runner; an equity backtest refuses it. Remove "options" to test the underlying signals.`,
+};
+
+/** Filter types that read external daily series (no server loader yet). */
+const READS_SERIES: Readonly<Record<StrategyFilter["type"], boolean>> = {
+  calendarWindow: false,
+  ivRank: true,
+  sectorQuadrant: false,
+  series: true,
+  vixTermStructure: true,
+  volRegime: true,
+};
+
+/**
+ * Why the server engines (instant backtest, run queue and Nautilus worker, Autopilot, paper
+ * hand-off) cannot run a definition or a campaign filter list, or undefined when they can. They
+ * run equity strategies and load sector points only, so they refuse an options block and the
+ * ivRank, vixTermStructure, volRegime and series filters; sectorQuadrant and calendarWindow work.
+ */
+export const serverStrategyRefusal = (
+  definition: Readonly<{
+    filters?: readonly StrategyFilter[] | undefined;
+    options?: StrategyOptions | undefined;
+  }>
+): StrategyRefusal | undefined => {
+  if (definition.options !== undefined) return STRATEGY_OPTIONS_REFUSAL;
+  const types = [
+    ...new Set(
+      (definition.filters ?? [])
+        .map((filter) => filter.type)
+        .filter((type) => READS_SERIES[type])
+    ),
+  ];
+  if (types.length === 0) return undefined;
+  return {
+    code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
+    message: `${STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the ${types.join(", ")} filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.`,
+  };
+};
+
 /** Validates an unknown value. Issue paths use dots, for example "entry.all.0.left.length". */
 export const validateStrategyDefinition = (
   value: unknown

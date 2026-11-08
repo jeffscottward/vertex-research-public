@@ -5,10 +5,14 @@ import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import {
   parseStrategyDefinitionText,
   STRATEGY_IV_INDEX,
+  STRATEGY_OPTIONS_REFUSAL,
+  STRATEGY_OPTIONS_UNSUPPORTED,
   STRATEGY_OPTION_IS_DEBIT,
+  STRATEGY_SERIES_FILTERS_UNSUPPORTED,
   STRATEGY_SERIES_IDS,
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
+  serverStrategyRefusal,
   validateStrategyDefinition,
 } from "./strategy-dsl.ts";
 
@@ -626,5 +630,56 @@ describe("canonical JSON of existing definitions", () => {
       hashes[id] = await sha256Hex(canonicalJson(parsed));
     }
     expect(hashes).toEqual(PINNED);
+  });
+});
+
+describe("serverStrategyRefusal", () => {
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+  const parsed = (extra: Record<string, unknown>) =>
+    StrategyDefinitionSchema.parse({ ...minimal, ...extra });
+
+  it("lets equity definitions with sector and calendar filters through", () => {
+    expect(serverStrategyRefusal(parsed({}))).toBeUndefined();
+    expect(serverStrategyRefusal({})).toBeUndefined();
+    expect(
+      serverStrategyRefusal(
+        parsed({
+          filters: [
+            { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+            { type: "calendarWindow", window: "opexWeek" },
+          ],
+        })
+      )
+    ).toBeUndefined();
+  });
+
+  it("refuses an options block first, then the series filters by type", () => {
+    expect(
+      serverStrategyRefusal(
+        parsed({ filters: [{ max: 30, type: "ivRank" }], options })
+      )
+    ).toBe(STRATEGY_OPTIONS_REFUSAL);
+    expect(STRATEGY_OPTIONS_REFUSAL.code).toBe(STRATEGY_OPTIONS_UNSUPPORTED);
+    expect(
+      serverStrategyRefusal(
+        parsed({
+          filters: [
+            { max: 30, type: "ivRank" },
+            { min: 10, type: "ivRank" },
+            { maxRatio: 1, type: "vixTermStructure" },
+            { type: "calendarWindow", window: "opexWeek" },
+          ],
+        })
+      )
+    ).toEqual({
+      code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
+      message:
+        "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ivRank, vixTermStructure filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.",
+    });
   });
 });

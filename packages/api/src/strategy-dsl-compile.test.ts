@@ -9,12 +9,14 @@ import {
   runSignalBacktest,
 } from "./instant-backtest-engine.ts";
 import {
+  STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_TEMPLATES,
   type StrategyDefinition,
   type StrategyDefinitionInput,
   StrategyDefinitionSchema,
 } from "./strategy-dsl.ts";
 import {
+  assertServerRunnable,
   averageDirectionalIndex,
   averageTrueRange,
   compileStrategy,
@@ -30,6 +32,7 @@ import {
   type SectorQuadrantPoint,
   type StrategySeriesContext,
   StrategySeriesDataError,
+  StrategyUnsupportedError,
 } from "./strategy-dsl-compile.ts";
 
 const DAY_MS = 86_400_000;
@@ -1486,5 +1489,51 @@ describe("filters with exits, runs and the options block", () => {
       }
     );
     expect(run.trades.length).toBe(1);
+  });
+});
+
+describe("engine refusals", () => {
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+
+  it("never runs an options block as an equity strategy, but still compiles it", () => {
+    const definition = define({ ...STRATEGY_TEMPLATES.smaCross, options });
+    expect(() => runStrategyDefinition(wave(60), definition, 0)).toThrow(
+      new StrategyUnsupportedError(STRATEGY_OPTIONS_REFUSAL)
+    );
+    try {
+      runStrategyDefinition(wave(60), definition, 0);
+    } catch (error) {
+      expect(error).toBeInstanceOf(InstantBacktestInputError);
+      expect((error as StrategyUnsupportedError).code).toBe(
+        "STRATEGY_OPTIONS_UNSUPPORTED"
+      );
+      expect((error as Error).name).toBe("StrategyUnsupportedError");
+    }
+    expect(compileStrategy(wave(60), definition).options).toEqual(options);
+  });
+
+  it("asserts that the server engines can run a definition", () => {
+    expect(() =>
+      assertServerRunnable({
+        filters: [{ type: "calendarWindow", window: "opexWeek" }],
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertServerRunnable({
+        filters: [
+          { maxTermRatio: 1, maxVix: 20, trendLength: 200, type: "volRegime" },
+        ],
+      })
+    ).toThrow(
+      "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the volRegime filters need daily series"
+    );
+    expect(() => assertServerRunnable({ options })).toThrow(
+      STRATEGY_OPTIONS_REFUSAL.message
+    );
   });
 });

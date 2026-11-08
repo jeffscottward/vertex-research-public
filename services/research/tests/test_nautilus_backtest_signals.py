@@ -18,7 +18,14 @@ import pytest
 
 from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
-from nautilus_backtest.bars import Bars, InputError, SectorQuadrantDataError, SeriesDataError
+from nautilus_backtest.bars import (
+    STRATEGY_OPTIONS_UNSUPPORTED,
+    Bars,
+    InputError,
+    SectorQuadrantDataError,
+    SeriesDataError,
+    StrategyUnsupportedError,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "nautilus_backtest" / "golden.json"
 
@@ -473,3 +480,18 @@ def test_series_filter_has_no_value_before_the_first_series_date() -> None:
         {"GC=F": {dates[2]: 101}},
     )
     assert compiled.signals == (0, 0, 1, 1, 1, 1)
+
+
+def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
+    options = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 2}
+    spec = {"rule": {"kind": "dsl", "definition": _filtered(options=options)}, "costBps": 0, "costs": None}
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.plan_run(bars_of("SPY"), spec)
+    assert raised.value.code == STRATEGY_OPTIONS_UNSUPPORTED
+    assert str(raised.value) == (
+        "STRATEGY_OPTIONS_UNSUPPORTED: the options block runs only in the options research runner;"
+        ' an equity backtest refuses it. Remove "options" to test the underlying signals.'
+    )
+    assert isinstance(raised.value, InputError)
+    # The options research runner compiles it: signals plus the block, unchanged.
+    assert sig.compile_strategy(bars_of("SPY"), _filtered(options=options)).options == options

@@ -1213,7 +1213,7 @@ const buildEngine = (
     ["qc:volRegime", "SPY"],
     ["qc:ivRank:min", "QQQ"],
     ["qc:series:goldCross", "SPY"],
-    ["qc:options:putCredit", "SPY"],
+    ["qc:volRegime", "QQQ"],
   ] as const) {
     dslCase(`${id}:${symbol}`, symbol, {
       ...baseSpec({

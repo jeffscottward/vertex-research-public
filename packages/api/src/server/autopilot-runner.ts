@@ -37,7 +37,10 @@ import {
   type BarColumns,
   InstantBacktestInputError,
 } from "../instant-backtest-engine.ts";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
+import {
+  StrategyDefinitionSchema,
+  serverStrategyRefusal,
+} from "../strategy-dsl.ts";
 import {
   SectorQuadrantDataError,
   type SectorQuadrantSeries,
@@ -358,6 +361,10 @@ export const tickAutopilotCampaign = async (
       "The campaign configuration is invalid."
     );
   const config = parsed.data;
+  // A campaign stored before the create check: fail it rather than run without its series.
+  const refusal = serverStrategyRefusal({ filters: config.filters });
+  if (refusal !== undefined)
+    return await failure(dependencies, campaign, refusal.message);
   const bars = await loadBars(dependencies, campaign);
   if (bars === null)
     return await failure(

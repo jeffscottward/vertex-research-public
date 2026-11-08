@@ -84,7 +84,7 @@ Series ids: Core 7 ETFs `SPY QQQ DIA IWM GLD SLV USO`, futures `ES=F NQ=F YM=F R
 
 A series is one value per date (the close), so a `series` condition may use only the close price, constants and close-sourced indicators other than `atr`, `adx` and `rvol`. Its indicators and offsets run over the series' own dates; then each side takes the latest series value dated on or before the bar date (a series date missing in the bars, such as a futures Sunday, carries forward), and the operator compares the aligned sides bar by bar, so a cross is relative to the previous bar.
 
-Series data reaches the compiler like the sector points: `compileStrategy(bars, definition, sectorQuadrants?, seriesInput?)` and `runStrategyDefinition(..., sectorQuadrants?, seriesInput?)`, where `seriesInput` is `{ context: { [seriesId]: { "YYYY-MM-DD": value } }, symbol }`; `symbol` is the traded symbol for `ivRank`. Values that are not finite count as missing. A filter whose series is not in the context throws `StrategySeriesDataError` ("Series data is not available for VIX"); `ivRank` without a known traded symbol throws an input error. The Python port takes the same mapping: `compile_strategy(bars, definition, sector_quadrants, context, symbol)`, and `plan_run` reads the spec keys `series` and `symbol`. The server backtest and Autopilot paths do not load series or pass a symbol yet, so a definition with an `ivRank`, `vixTermStructure`, `volRegime` or `series` filter fails there with an input error (`calendarWindow` needs only the bars and works everywhere); the research runners pass the context.
+Series data reaches the compiler like the sector points: `compileStrategy(bars, definition, sectorQuadrants?, seriesInput?)` and `runStrategyDefinition(..., sectorQuadrants?, seriesInput?)`, where `seriesInput` is `{ context: { [seriesId]: { "YYYY-MM-DD": value } }, symbol }`; `symbol` is the traded symbol for `ivRank`. Values that are not finite count as missing. A filter whose series is not in the context throws `StrategySeriesDataError` ("Series data is not available for VIX"); `ivRank` without a known traded symbol throws an input error. The Python port takes the same mapping: `compile_strategy(bars, definition, sector_quadrants, context, symbol)`, and `plan_run` reads the spec keys `series` and `symbol`. The server paths do not load series or pass a symbol yet; they refuse these filters up front (see [Where definitions run](#where-definitions-run)). The research runners pass the context.
 
 Look-ahead: a daily value is known after its close. Daily bars (signal at the close) use values dated on the bar date; intraday bars use only values dated before the bar date. `ivRank`, `vixTermStructure` and `volRegime` need the value on the bar date itself (the latest earlier date for intraday bars); `series` carries the latest earlier value.
 
@@ -113,6 +113,25 @@ Look-ahead: a daily value is known after its close. Daily bars (signal at the cl
 | `maxLossPct` | Above 0 and at most 2: contracts = floor(`maxLossPct`% of equity / max loss per contract). Above 2 is refused. |
 
 With `options`, `sizing` must be `allIn` (or omitted) and `stopLoss` and `takeProfit` must be `none`: the options block sizes and exits the spread. The compiler still produces the entry and exit signal arrays, and `CompiledStrategy.options` (Python `Compiled.options`) is the block unchanged for the options runner, which turns signal bars into spreads. The equity engine run of such a definition is the underlying signal run, not the option P&L.
+
+## Where definitions run
+
+The server engines run equity strategies and load sector points only. `serverStrategyRefusal` (`strategy-dsl.ts`) names what they cannot run, and every server path refuses it rather than ignoring it:
+
+| Code | Refused |
+| --- | --- |
+| `STRATEGY_OPTIONS_UNSUPPORTED` | A definition with an `options` block. The block runs only in the options research runner. |
+| `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter (no series loader on the server). `sectorQuadrant` and `calendarWindow` filters are allowed. |
+
+| Path | Refusal |
+| --- | --- |
+| `backtestRuns.submit` (portal, assistant and MCP `backtest_runs_submit`) | `VALIDATION_ERROR` (422) with the code in the message; nothing is queued. |
+| Queued run on the server engine, Nautilus worker claim | The run fails with the refusal message (a row written past the submit check). |
+| `autopilot.campaigns.create` filters | `VALIDATION_ERROR`; no campaign is stored. A stored campaign with such filters fails on its next tick before breeding. |
+| `autopilot.candidates.sendToPaper` | `VALIDATION_ERROR` before any write. |
+| `runStrategyDefinition` (TypeScript) and `plan_run` (Python Nautilus engine) | `StrategyUnsupportedError` with `code` `STRATEGY_OPTIONS_UNSUPPORTED` for an options block. `compileStrategy` / `compile_strategy` still compile it (signals plus the block) for the options runner. Series filters without a context raise `StrategySeriesDataError` / `SeriesDataError`. |
+
+`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing. Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
 
 ## Execution model
 

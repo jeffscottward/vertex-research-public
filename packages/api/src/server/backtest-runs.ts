@@ -48,8 +48,14 @@ import {
   runInstantBacktest,
 } from "../instant-backtest-engine.ts";
 import { ComboInputError, combinePortfolio } from "../portfolio-combination.ts";
-import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
-import { runStrategyDefinition } from "../strategy-dsl-compile.ts";
+import {
+  StrategyDefinitionSchema,
+  serverStrategyRefusal,
+} from "../strategy-dsl.ts";
+import {
+  assertServerRunnable,
+  runStrategyDefinition,
+} from "../strategy-dsl-compile.ts";
 import { costsForSpec, runParamsForSpec } from "./backtest-run-params.ts";
 import type { ApiContext } from "./context.ts";
 import { comparisonQueueFor } from "./engine-comparison.ts";
@@ -81,6 +87,7 @@ export type Failures = Readonly<{
   NOT_FOUND: (options?: { message?: string }) => Error;
   BAD_REQUEST: (options?: { message?: string }) => Error;
   STORAGE_ERROR: () => Error;
+  VALIDATION_ERROR: (options?: { message?: string }) => Error;
 }>;
 
 export type BacktestRunExecutionDependencies = Readonly<{
@@ -129,6 +136,8 @@ const executeClaimed = async (
   let result: InstantRunResult;
   if (rule.kind === "dsl") {
     const definition = StrategyDefinitionSchema.parse(rule.definition);
+    // Queued before the submit check, or written past it: refuse rather than run it half.
+    assertServerRunnable(definition);
     const sectorQuadrants = await loadSectorQuadrants(
       dependencies.sectorRotation,
       definition,
@@ -228,6 +237,12 @@ const submit = api.backtestRuns.submit
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
+    // The server engines cannot run an options block or series filters: refuse before queueing.
+    if (input.rule.kind === "dsl") {
+      const refusal = serverStrategyRefusal(input.rule.definition);
+      if (refusal !== undefined)
+        throw failures.VALIDATION_ERROR({ message: refusal.message });
+    }
     const dependencies = dependenciesFor(context, failures);
     const { costProfile, strategyId, ...rest } = input;
     // Store the resolved profile, so a later preset change does not alter what the run tested.

@@ -27,6 +27,7 @@ from .bars import (
     assert_signal_options,
     assert_window,
     is_finite_number,
+    options_unsupported,
 )
 from .costs import _js_max
 
@@ -1177,6 +1178,9 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
     costs = spec.get("costs")
     if rule.get("kind") == "dsl":
         definition = normalize_definition(rule["definition"])
+        # The equity engine would trade the underlying, not the spread: options run elsewhere.
+        if definition["options"] is not None:
+            raise options_unsupported()
         compiled = compile_strategy(
             bars,
             definition,

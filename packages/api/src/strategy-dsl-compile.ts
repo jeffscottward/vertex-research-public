@@ -13,10 +13,14 @@ import {
   type SectorQuadrantFilter,
   type SeriesFilter,
   STRATEGY_IV_INDEX,
+  STRATEGY_OPTIONS_REFUSAL,
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
+  type StrategyFilter,
   type StrategyOptions,
+  type StrategyRefusal,
+  serverStrategyRefusal,
   type VolRegimeFilter,
 } from "./strategy-dsl.ts";
 
@@ -583,6 +587,27 @@ export class StrategySeriesDataError extends InstantBacktestInputError {
   }
 }
 
+/** An engine refuses the definition: `code` is STRATEGY_OPTIONS_UNSUPPORTED or STRATEGY_SERIES_FILTERS_UNSUPPORTED. */
+export class StrategyUnsupportedError extends InstantBacktestInputError {
+  readonly code: StrategyRefusal["code"];
+  constructor(refusal: StrategyRefusal) {
+    super(refusal.message);
+    this.name = "StrategyUnsupportedError";
+    this.code = refusal.code;
+  }
+}
+
+/** Throws StrategyUnsupportedError when the server engines cannot run the definition or filters. */
+export const assertServerRunnable = (
+  definition: Readonly<{
+    filters?: readonly StrategyFilter[] | undefined;
+    options?: StrategyOptions | undefined;
+  }>
+): void => {
+  const refusal = serverStrategyRefusal(definition);
+  if (refusal !== undefined) throw new StrategyUnsupportedError(refusal);
+};
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 
 type DailySeries = Readonly<{ dates: readonly string[]; values: Float64Array }>;
@@ -999,6 +1024,9 @@ export const runStrategyDefinition = (
   sectorQuadrants?: SectorQuadrantSeries,
   seriesInput?: StrategySeriesInput
 ): InstantRunResult => {
+  // The equity engine would trade the underlying, not the spread: options run elsewhere.
+  if (definition.options !== undefined)
+    throw new StrategyUnsupportedError(STRATEGY_OPTIONS_REFUSAL);
   const compiled = compileStrategy(
     bars,
     definition,
