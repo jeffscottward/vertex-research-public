@@ -763,7 +763,10 @@ def _extras(idea: qi.Idea, outcomes: Mapping[str, Outcome], data: StudyData) -> 
         table = data.tables["goldRatio"]
         lines.append(f"- EY_TNX_RATIO at {table['monthEnds']} month-ends with input: share in (> 2) "
                      f"{table['shareIn']:.1%}, min {table['min']:.2f}, max {table['max']:.2f}, last "
-                     f"{table['last'][1]:.2f} ({table['last'][0]}); no input after {data.facts.gold_last_input}.")
+                     f"{table['last'][1]:.2f} ({table['last'][0]}); "
+                     + ("every month-end of the sample has an input (6-month lag)."
+                        if data.facts.gold_last_input == data.spy_dates[qi.month_end_indices(data.spy_dates)[-1]]
+                        else f"no input after {data.facts.gold_last_input}."))
         months = table["inMonths"]
         lines.append(f"- Months in: {len(months)}" + (f", {months[0]} to {months[-1]}" if months else "") + ".")
     elif idea.id == "qc-iv-rank-gate":

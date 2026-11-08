@@ -43,3 +43,32 @@ def test_flat_smile_spread_is_bounded_and_monotone(monkeypatch):
     flat_model(monkeypatch)
     bounded, violation = audit.monotone_violation(_trade(), 100.0, 30 / 365, 0.0, 0.2)
     assert bounded and violation == 0.0
+
+
+@pytest.mark.parametrize("structure, long_strike, short_strike, spot, expected", [
+    ("callDebitVertical", 100, 105, 103, 300.0),
+    ("callDebitVertical", 100, 105, 110, 500.0),
+    ("putDebitVertical", 105, 100, 102, 300.0),
+    ("putCreditVertical", 95, 100, 97, 200.0),  # short put 3 in the money: (5 - 3) * 100
+    ("putCreditVertical", 95, 100, 90, 0.0),
+    ("putCreditVertical", 95, 100, 101, 500.0),
+    ("callCreditVertical", 105, 100, 103, 200.0),
+])
+def test_expiry_value_from_leg_payoffs(structure, long_strike, short_strike, spot, expected):
+    assert audit.expiry_value(structure, long_strike, short_strike, 5.0, spot) == expected
+
+
+def test_credit_spread_held_to_expiry_settles_at_the_payoff_value():
+    from strategies.qc_ports.ideas import PUT_CREDIT
+
+    options = {key: value for key, value in PUT_CREDIT.items() if key not in ("profitTakePct", "exitDte")}
+    closes = [100.0] * 5 + [93.5] * 60  # short put 95, long put 92: ends between them
+    spy = market(closes)
+    (trade,) = build_book([SignalEvent("SPY", 0, None)], options, {"SPY": spy}).trades
+    assert trade.exit_reason == "expiry"
+    spot = spy.close[trade.exit_index]
+    value = audit.expiry_value(trade.structure, trade.long_strike, trade.short_strike, trade.width, spot)
+    assert trade.short_strike > trade.long_strike
+    assert trade.exit_price == value
+    assert (trade.long_strike, trade.short_strike) == (92.0, 95.0)
+    assert value == 150.0  # (3 - (95 - 93.5)) * 100

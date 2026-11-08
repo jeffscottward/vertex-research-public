@@ -26,7 +26,9 @@ Rules:
   worst-case exit cost (worst_exit_cost: commissions + the half-spread of a
   leg worth the width, per leg); every closing cost is capped at that worst
   case (the vertical closes as a package), so a trade never loses more than
-  its max loss.
+  its max loss and, with sizing at maxLossPct <= 2, never more than 2% of the
+  equity at entry. The bound holds under this package-close cost model only:
+  legging out of a spread in a wide market could cost more than modeled.
 - Costs per contract and side = sum over legs of $0.65 + 100 * half-spread
   (options.leg_cost), rounded to cents; held to expiration the spread settles
   at intrinsic value without costs.
@@ -274,8 +276,9 @@ def _fee(symbol: str, long_mid: float, short_mid: float) -> float:
 
 
 def worst_exit_cost(symbol: str, width: float) -> float:
-    """Most a closing trade costs per contract: both legs at commission + the half-spread of a leg worth the
-    spread width (the vertical closes as a package, so a deep in-the-money exit costs no more)."""
+    """Most a closing trade costs per contract under the package-close model: both legs at commission + the
+    half-spread of a leg worth the spread width (the vertical closes as a package, so a deep in-the-money exit
+    is charged no more). The 2% loss bound of sizing relies on this cap."""
     return round(2 * om.leg_cost(symbol, width), 2)
 
 

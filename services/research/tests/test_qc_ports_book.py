@@ -259,3 +259,24 @@ def test_trade_ids_follow_accepted_events():
     book = run([100.0] * 45, DEBIT, events=events)
     assert [(t.trade_id, t.entry_index) for t in book.trades] == [(1, 1), (2, 7)]
     assert all(math.isclose(t.max_loss_pct, 2) for t in book.trades)
+
+
+def test_stale_iv_counts_trading_days_across_weekend_and_holiday():
+    from strategies.qc_ports.data import Market, align
+
+    dates = trading_days("2024-12-19", 60)  # Thu 19, Fri 20, Mon 23, Tue 24, Thu 26 (25th closed), ...
+    assert dates[:9] == ("2024-12-19", "2024-12-20", "2024-12-23", "2024-12-24", "2024-12-26", "2024-12-27",
+                         "2024-12-30", "2024-12-31", "2025-01-02")
+
+    def book_for(last_gap_day: str):
+        source = {day: 200 / 9 for day in dates if not "2024-12-23" <= day <= last_gap_day}
+        ivs = align(source, dates)  # carries a value for at most 5 trading days
+        spy = Market("SPY", dates, (100.0,) * len(dates), tuple(ivs), (0.0,) * len(dates))
+        (trade,) = bk.build_book([("SPY", 0, None)], {**DEBIT, "exitDte": 7}, {"SPY": spy}).trades
+        return trade
+
+    # 23rd to 30th missing: 5 trading days over 8 calendar days (a weekend and Christmas) -> still carried.
+    assert book_for("2024-12-30").exit_reason == "exitDte"
+    # One more trading day (the 31st) makes it 6 -> the trade closes that close as stale-iv.
+    trade = book_for("2024-12-31")
+    assert (trade.exit_reason, trade.exit_date) == ("stale-iv", "2024-12-31")

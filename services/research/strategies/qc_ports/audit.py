@@ -1,21 +1,21 @@
 """Sanity audit of the qc-port study (research only; reported, never deciding a verdict).
 
-    python -m strategies.qc_ports audit --ran 2026-11-08
+    python -m strategies.qc_ports audit
 
 Prints markdown: per idea a "Sanity checks" block (gross vs net Sharpe of run A,
 mean cost per trade, the failing pass-rule clauses, whether costs decide the
 verdict, and the IV-scale-1.0 / zero-skew sensitivity), then the known-edge
 cases (SPY call debit verticals opened monthly in strong up years) and a
-priced-trade check of SPY spreads (value bounds, monotone in spot, settlement
-at intrinsic). Ledger only: the study run already checked Nautilus parity, and
+priced-trade check of SPY debit and credit spreads (value bounds, monotone in
+spot, settlement at intrinsic). Ledger only: the study run already checked Nautilus parity, and
 the audit changes nothing in the pre-registered runs.
 
 - Gross: the same priced trades with entry and exit costs set to 0 (max loss per
   contract kept, so sizing is unchanged); scored like the net runs (n_trials
   32, the net across-trial variance).
-- Sensitivity: ATM IV = 1.0 x the CBOE index for every symbol and no skew, all
-  runs A and B repriced (n_trials 32, variance of those 22 runs' net variance
-  kept from the study).
+- Sensitivity: ATM IV = 1.0 x the CBOE index for every symbol and no skew; every
+  run A and B is repriced and scored with n_trials 32 and the across-trial
+  Sharpe variance of the study (the net runs), not a variance of the repriced runs.
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from .calendar import parse
 from .ledger import run_ledger
 from .metrics import summarize
 
-__all__ = ["cost_share", "gross_trades", "known_edge", "model_override", "monotone_violation", "priced_trade_checks"]
+__all__ = ["cost_share", "expiry_value", "gross_trades", "known_edge", "model_override", "monotone_violation", "priced_trade_checks"]
 
 STRONG_YEARS = (("2013", "2012-12-31", "2013-11-29"), ("2023-2024", "2022-12-30", "2024-11-29"))
 SAMPLE_TRADES = 5
@@ -125,23 +125,34 @@ def known_edge(data: study.StudyData) -> list[dict]:
     return rows
 
 
-def priced_trade_checks(data: study.StudyData, trades: Sequence[PricedTrade]) -> list[dict]:
-    """SAMPLE_TRADES random SPY trades: entry value, the value held to expiry vs intrinsic, model checks."""
+def expiry_value(structure: str, long_strike: float, short_strike: float, width: float, spot: float) -> float:
+    """Instrument value per contract at expiration, from the leg payoffs (independent of the pricer):
+    debit = (long payoff - short payoff) * 100, credit = (width - (short payoff - long payoff)) * 100."""
+    right = "call" if structure.startswith("call") else "put"
+
+    def payoff(strike: float) -> float:
+        return max(0.0, spot - strike) if right == "call" else max(0.0, strike - spot)
+
+    if "Debit" in structure:
+        return round((payoff(long_strike) - payoff(short_strike)) * om.MULTIPLIER, 2)
+    return round((width - (payoff(short_strike) - payoff(long_strike))) * om.MULTIPLIER, 2)
+
+
+def priced_trade_checks(data: study.StudyData, trades: Sequence[PricedTrade], template: Mapping,
+                        count: int = SAMPLE_TRADES) -> list[dict]:
+    """`count` random SPY trades: entry value, the same spread held to expiry (repriced with `template`, the
+    options block that made the trades, at the trade's expiry) against the leg-payoff value, model checks."""
     market = data.markets["SPY"]
     pool = [trade for trade in trades if trade.symbol == "SPY"]
     rows = []
-    for trade in random.Random(SAMPLE_SEED).sample(pool, min(SAMPLE_TRADES, len(pool))):
+    for trade in random.Random(SAMPLE_SEED).sample(pool, min(count, len(pool))):
         entry = trade.entry_index
-        options = {"structure": trade.structure, "dte": {"target": (parse(trade.expiry) - parse(trade.entry_date)).days,
-                                                         "min": 1}, "widthSigma": 1.0, "maxLossPct": 2}
+        days = (parse(trade.expiry) - parse(trade.entry_date)).days
+        options = {key: value for key, value in template.items() if key not in ("profitTakePct", "exitDte")}
+        options["dte"] = {"target": days, "min": 1}
         held = build_book([SignalEvent("SPY", entry - 1)], options, {"SPY": market}).trades[0]
-        settle = market.dates.index(held.exit_date)
-        spot_end = market.close[settle]
-        if trade.structure.startswith("call"):
-            intrinsic = max(0.0, min(spot_end, trade.short_strike) - trade.long_strike)
-        else:
-            intrinsic = max(0.0, trade.long_strike - max(spot_end, trade.short_strike))
-        value_end = intrinsic * om.MULTIPLIER if "Debit" in trade.structure else (trade.width - intrinsic) * om.MULTIPLIER
+        spot_end = market.close[held.exit_index]
+        value_end = expiry_value(held.structure, held.long_strike, held.short_strike, held.width, spot_end)
         t = (parse(trade.expiry) - parse(trade.entry_date)).days / 365
         atm = om.atm_iv("VIX", market.iv_index[entry])
         bounded, violation = monotone_violation(trade, market.close[entry], t, market.rate[entry], atm)
@@ -150,7 +161,8 @@ def priced_trade_checks(data: study.StudyData, trades: Sequence[PricedTrade]) ->
             "spot": market.close[entry], "strikes": (trade.long_strike, trade.short_strike),
             "entryValue": trade.entry_price, "width": trade.width * om.MULTIPLIER,
             "expirySpot": spot_end, "heldExit": held.exit_date, "heldValue": held.exit_price,
-            "intrinsicValue": round(value_end, 2), "settlesAtIntrinsic": abs(held.exit_price - round(value_end, 2)) < 0.011,
+            "intrinsicValue": value_end,
+            "settlesAtIntrinsic": held.exit_reason == "expiry" and abs(held.exit_price - value_end) < 0.011,
             "marksInBounds": all(0 <= v <= trade.width * om.MULTIPLIER for _, v in trade.marks),
             "sameStrikes": (held.long_strike, held.short_strike) == (trade.long_strike, trade.short_strike),
             "bounded": bounded, "monotoneViolation": violation,
@@ -170,7 +182,7 @@ def audit(data: study.StudyData) -> dict:
     runs = {key: outcome.run for key, outcome in outcomes.items()}
     per_idea = {}
     sensitivity_keys = {key for idea in qi.IDEAS for label, key in idea.runs if label in ("A", "B")}
-    priced = {key: study.run_trades(runs[key], data)[0] for key in sensitivity_keys | {"opex-week/B"}}
+    priced = {key: study.run_trades(runs[key], data)[0] for key in sensitivity_keys | {"opex-week/B", "put-credit/B"}}
     gross = {key: _scored(gross_trades(priced[key]), runs[key], data, variance_)[1] for key in sensitivity_keys}
     with model_override(atm_factor=1.0, skew=0.0):
         flat = {key: _scored(study.run_trades(runs[key], data)[0], runs[key], data, variance_)[1]
@@ -187,7 +199,9 @@ def audit(data: study.StudyData) -> dict:
             "flat": flat[a], "flatB": flat[b], "flatVerdict": study.verdict(flat[a], flat[b])[0],
         }
     return {"ideas": per_idea, "knownEdge": known_edge(data),
-            "trades": priced_trade_checks(data, priced["opex-week/B"]), "variance": variance_}
+            "trades": [*priced_trade_checks(data, priced["opex-week/B"], qi.CALENDAR_CALL),
+                       *priced_trade_checks(data, priced["put-credit/B"], qi.PUT_CREDIT, 3)],
+            "variance": variance_}
 
 
 def _f(value, digits=2, pct=False) -> str:
@@ -202,13 +216,16 @@ def markdown(report: Mapping) -> dict[str, str]:
     for row in report["knownEdge"]:
         edge.append(f"|{row['years']}|{row['expression']}|{row['trades']}|{row['wins']}|{row['pnl']:,.0f}|"
                     f"{_f(row['return'], 2, True)}|{_f(row['spyReturn'], 2, True)}|")
-    trades = ["", (f"Priced-trade check ({SAMPLE_TRADES} random SPY trades of the 30 DTE monthly roll, seed "
-              f"{SAMPLE_SEED}; values per contract; held = the same spread priced to expiration):"), "",
-              ("|Entry|Expiry|Spot|Strikes|Entry value|Width|Spot at expiry|Held value|Intrinsic|Settles at intrinsic|"
-              "Marks in [0, width]|Values in [0, width], spot 0.7x-1.3x|Largest move against spot (USD)|"),
-              "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    trades = ["", (f"Priced-trade check ({SAMPLE_TRADES} random SPY call debit verticals of the 30 DTE monthly "
+              f"roll and 3 random SPY put credit verticals of the unfiltered put credit run, seed {SAMPLE_SEED}; values "
+              "per contract (credit: width - spread value, collateralised); held = the same spread priced to "
+              "expiration; intrinsic = from the leg payoffs at the expiry close):"), "",
+              ("|Structure|Entry|Expiry|Spot|Long/short strike|Entry value|Width|Spot at expiry|Held value|Intrinsic|"
+               "Settles at intrinsic|Marks in [0, width]|Values in [0, width], spot 0.7x-1.3x|"
+               "Largest move against spot (USD)|"),
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for row in report["trades"]:
-        trades.append(f"|{row['entry']}|{row['expiry']}|{row['spot']:.2f}|{row['strikes'][0]:g}/{row['strikes'][1]:g}|"
+        trades.append(f"|{row['structure']}|{row['entry']}|{row['expiry']}|{row['spot']:.2f}|{row['strikes'][0]:g}/{row['strikes'][1]:g}|"
                       f"{row['entryValue']:.2f}|{row['width']:.0f}|{row['expirySpot']:.2f}|{row['heldValue']:.2f}|"
                       f"{row['intrinsicValue']:.2f}|{'yes' if row['settlesAtIntrinsic'] else 'NO'}|"
                       f"{'yes' if row['marksInBounds'] else 'NO'}|{'yes' if row['bounded'] else 'NO'}|"
