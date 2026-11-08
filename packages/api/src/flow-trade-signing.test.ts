@@ -1,4 +1,7 @@
-import type { MarketQuoteTick, MarketTradeTick } from "@darkfactory/api";
+import type {
+  MarketQuoteTick,
+  MarketTradeTick,
+} from "./contracts/market-data.ts";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -6,7 +9,7 @@ import {
   describeSigning,
   type SignedTrade,
   signTrades,
-} from "./trade-signing.ts";
+} from "./flow-trade-signing.ts";
 
 const trade = (t: number, p: number, s = 100): MarketTradeTick => ({
   c: null,

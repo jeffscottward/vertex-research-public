@@ -53,10 +53,7 @@ import {
   timeAndSalesRows,
 } from "../../features/order-flow/time-and-sales.ts";
 import { buildTpoProfile } from "../../features/order-flow/tpo.ts";
-import {
-  countSigning,
-  signTrades,
-} from "../../features/order-flow/trade-signing.ts";
+import { countSigning, signTrades } from "@darkfactory/api";
 import type { MarketDataGateway } from "./market-data-client.ts";
 import {
   DeltaChart,
