@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { StrategyDefinitionSchema } from "../strategy-dsl.ts";
 import { formatDay, parseDay } from "./calendar.ts";
+import type { PricedTrade } from "./book.ts";
 import { runOptionsLedger, summarizeOptionsRun } from "./index.ts";
+import type { LedgerResult } from "./ledger.ts";
 import {
   alignSeries,
   marketOf,
+  maxOpenRisk,
   monthEndIndices,
   type OptionsDatasetRows,
   optionsContextFromRows,
@@ -289,5 +292,41 @@ describe("runOptionsDefinition", () => {
     expect(() =>
       runOptionsDefinition(plain, data, { start: "2024-01-02", symbol: "SPY" })
     ).toThrow("The options runner needs an options block");
+  });
+});
+
+describe("maxOpenRisk", () => {
+  const ledger = (equity: number[]): LedgerResult =>
+    ({
+      dates: ["2024-01-02", "2024-01-03", "2024-01-04"],
+      equity,
+      openPositions: [1, 1, 0],
+      trades: [
+        {
+          id: 1,
+          entryDate: "2024-01-02",
+          exitDate: "2024-01-04",
+          contracts: 2,
+        },
+      ],
+      skipped: [],
+      capital: 1000,
+      engine: "test",
+    }) as unknown as LedgerResult;
+  const priced = (maxLoss: number): PricedTrade[] =>
+    [{ tradeId: 1, maxLoss }] as unknown as PricedTrade[];
+
+  it("takes the largest open risk over equity", () => {
+    expect(maxOpenRisk(ledger([1000, 500, 400]), priced(50))).toBe(0.2);
+  });
+
+  it("throws on a trade id without a priced trade, like the Python KeyError", () => {
+    expect(() => maxOpenRisk(ledger([1000, 500, 400]), [])).toThrow(
+      /trade id 1/
+    );
+  });
+
+  it("never returns NaN: a NaN ratio keeps the worst so far, like Python max", () => {
+    expect(maxOpenRisk(ledger([1000, 500, 400]), priced(Number.NaN))).toBe(0);
   });
 });

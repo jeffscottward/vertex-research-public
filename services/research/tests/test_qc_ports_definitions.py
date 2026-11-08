@@ -64,3 +64,13 @@ def test_notes_name_the_research_run_start():
     for idea_id, row in _stored().items():
         idea = next(item for item in qi.IDEAS if item.id == idea_id)
         assert row["note"].group(2) == runs[idea.key("A")].start, idea_id
+
+
+def test_library_links_require_the_stored_revision():
+    text = MIGRATION.read_text(encoding="utf-8")
+    assert "SET LOCAL standard_conforming_strings = on;" in text.split("INSERT INTO")[0]
+    for idea, row in _stored().items():
+        guard = (f"WHERE \"id\" = 'strategy-seed-{idea}' AND \"params\" = '[]'::jsonb AND EXISTS "
+                 f"(SELECT 1 FROM \"strategy_definition_revisions\" r WHERE r.\"id\" = 'qc-def-{idea}-r1' "
+                 f"AND r.\"sha256\" = '{row['sha256']}' AND r.\"created_by\" = 'migration:0059');")
+        assert guard in text, idea

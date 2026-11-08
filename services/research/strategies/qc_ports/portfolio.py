@@ -315,9 +315,10 @@ def _selection(legs: Sequence[RunLeg], data: Dataset, select: Mapping,
                entries: Mapping[int, list[bool]]) -> dict[int, set[str]]:
     """Per run leg order: the month-end dates where the member is selected.
 
-    On each month-end date, among the members of the same leg whose entry holds and whose score (and
-    tie-break, when given) is available: highest score first, then highest tie-break, then the
-    portfolio symbol order; the first `top` are selected.
+    Each calendar month, among the members of the same leg whose entry holds on their month-end bar and
+    whose score (and tie-break, when given) is available there: highest score first, then highest
+    tie-break, then the portfolio symbol order; the first `top` are selected. Members are grouped by
+    month, so a member whose last bar of the month falls a day early still competes with the others.
     """
     top = int(select["top"])
     chosen: dict[int, set[str]] = {leg.order: set() for leg in legs}
@@ -325,7 +326,7 @@ def _selection(legs: Sequence[RunLeg], data: Dataset, select: Mapping,
     for leg in legs:
         groups.setdefault(id(leg.definition), []).append(leg)
     for members in groups.values():
-        ranked: dict[str, list[tuple[tuple, int]]] = {}
+        ranked: dict[str, list[tuple[tuple, int, str]]] = {}
         for rank, leg in enumerate(members):
             dates = data.bars[leg.symbol].dates
             scores = leg_values(leg, data, select["score"])
@@ -335,9 +336,9 @@ def _selection(legs: Sequence[RunLeg], data: Dataset, select: Mapping,
                 tie = 0.0 if ties is None else ties[index]
                 if not entries[leg.order][index] or math.isnan(score) or math.isnan(tie):
                     continue
-                ranked.setdefault(dates[index], []).append(((-score, -tie, rank), leg.order))
-        for day, items in ranked.items():
-            for _, order in sorted(items)[:top]:
+                ranked.setdefault(dates[index][:7], []).append(((-score, -tie, rank), leg.order, dates[index]))
+        for items in ranked.values():
+            for _, order, day in sorted(items)[:top]:
                 chosen[order].add(day)
     return chosen
 

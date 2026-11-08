@@ -209,13 +209,17 @@ export const eyTnxRatio = (
 /** `<sha256>  <file>` lines (sha256sum text or binary mode) -> file -> digest. */
 export const parseSha256Sums = (text: string): Map<string, string> => {
   const sums = new Map<string, string>();
-  for (const [index, line] of text.split("\n").entries()) {
+  for (const [index, line] of text.split(/\r?\n/u).entries()) {
     if (line.trim() === "") continue;
     const match = /^([0-9a-f]{64}) [ *](.+)$/u.exec(line);
     if (match === null) {
       throw new Error(`SHA256SUMS line ${index + 1} is not "<sha256>  <file>"`);
     }
-    sums.set(match[2] as string, match[1] as string);
+    const file = match[2] as string;
+    if (sums.has(file)) {
+      throw new Error(`SHA256SUMS line ${index + 1} repeats ${file}`);
+    }
+    sums.set(file, match[1] as string);
   }
   return sums;
 };

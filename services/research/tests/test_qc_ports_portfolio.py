@@ -192,6 +192,23 @@ def test_select_keeps_the_top_scores_then_tie_break_then_symbol_order():
     assert _run(missing, data).priced == ()
 
 
+def test_select_ranks_members_by_calendar_month_when_a_month_end_bar_is_missing():
+    # QQQ has no bar on 2024-02-29: its February month-end (2024-02-28) still competes with SPY's.
+    rows = _rows({"SPY": [100.0] * 70, "QQQ": [100.0 + k for k in range(70)]})
+    drop = rows["QQQ"]["dates"].index("2024-02-29")
+    rows["QQQ"] = {key: values[:drop] + values[drop + 1:] for key, values in rows["QQQ"].items()}
+    data = pf.dataset_from_rows(rows)
+    score = qi.change(qi.CLOSE, 1)
+    top1 = qi.definition("top 1", qi.MONTHLY_CALL, entry=[qi.condition(score, ">", qi.const(-1))],
+                         book=qi.portfolio(["SPY", "QQQ"], "roll", frame="monthly",
+                                           select={"score": score, "top": 1}))
+    legs, _, selected = pf._signals(top1, data, None)
+    chosen = {leg.symbol: selected[leg.order] for leg in legs}
+    assert "2024-02-28" in chosen["QQQ"]
+    assert not any(day.startswith("2024-02") for day in chosen["SPY"])
+    assert {t.symbol for t in _run(top1, data).priced} == {"QQQ"}
+
+
 def test_trade_ids_follow_entry_date_then_leg_order():
     data = pf.dataset_from_rows(_rows({"SPY": [100.0] * 70, "QQQ": [100.0] * 70}))
     made = qi.definition("two legs", qi.MONTHLY_CALL, book=qi.portfolio(

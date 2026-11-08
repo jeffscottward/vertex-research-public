@@ -134,6 +134,34 @@ describe("0059 qc-port definitions (Postgres)", () => {
     expect(await revisions()).toBe(11);
   });
 
+  it("links library params only when the matching 0059 revision is present", async () => {
+    const [original] = await postgres().query<{ sha256: string }>(
+      `select sha256 from strategy_definition_revisions where id = 'qc-def-${IDEA}-r1'`
+    );
+    await postgres().query(
+      `update strategy_definition_revisions set sha256 = '${"b".repeat(64)}' where id = 'qc-def-${IDEA}-r1'`
+    );
+    await postgres().query(
+      `update strategies set params = '[]'::jsonb where id = 'strategy-seed-${IDEA}'`
+    );
+    await postgres().query(migrationSql);
+    expect(await linked()).toBe(10);
+    await postgres().query(
+      `update strategy_definition_revisions set sha256 = '${original?.sha256}' where id = 'qc-def-${IDEA}-r1'`
+    );
+    await postgres().query(migrationSql);
+    expect(await linked()).toBe(11);
+  });
+
+  it("refuses the rollback while a seed strategy is referenced", async () => {
+    await postgres().query(
+      `insert into strategy_presets (id, strategy_id, name) values ('qc-ref', 'strategy-seed-${IDEA}', 'Ref')`
+    );
+    await expectRefused(/referenced by runs, results or specs/u);
+    await postgres().query("delete from strategy_presets where id = 'qc-ref'");
+    expect(await revisions()).toBe(11);
+  });
+
   return it("rolls back to the 0057 state, which can itself roll back", async () => {
     await postgres().query(rollbackSql);
     expect(await revisions()).toBe(0);

@@ -1,5 +1,5 @@
 {
-  "about": "Whole-definition inputs of the qc-ports portfolio golden fixture (strategies/qc_ports/golden.py): the 11 run-A definitions with shorter lookbacks for 4.5 years of synthetic data, plus flat daily runs with exits.",
+  "about": "Whole-definition inputs of the qc-ports portfolio golden fixture (strategies/qc_ports/golden.py): the 11 run-A definitions with shorter lookbacks for 4.5 years of synthetic data, plus flat daily runs with exits, plus a select case where GLD misses the last bar of 2022-08.",
   "cases": [
     {
       "name": "qc-asset-class-trend",
@@ -841,6 +841,82 @@
           "cadence": "daily"
         }
       }
+    },
+    {
+      "name": "select-member-early-month-end",
+      "definition": {
+        "name": "Momentum top 1, GLD misses 2022-08-31",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "series",
+            "series": "$iv",
+            "condition": {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "GLD"],
+          "policy": "roll",
+          "frame": "monthly",
+          "select": {
+            "score": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 3,
+              "offset": 1
+            },
+            "tieBreak": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 12
+            },
+            "top": 1
+          }
+        }
+      },
+      "start": "2021-01-04",
+      "end": "2023-06-30"
     }
   ]
 }

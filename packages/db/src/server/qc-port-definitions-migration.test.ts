@@ -18,7 +18,7 @@ const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
 const ROW =
   /\('(qc-def-(qc-[a-z0-9-]+)-r1)', '(qc-[a-z0-9-]+)', 1, '((?:[^']|'')+)', '((?:[^']|'')+)'::jsonb, '([0-9a-f]{64})', '((?:[^']|'')+)', 'migration:0059'\)/gu;
 const UPDATE =
-  /UPDATE "strategies" SET "params" = '((?:[^']|'')+)'::jsonb WHERE "id" = '(strategy-seed-qc-[a-z0-9-]+)' AND "params" = '\[\]'::jsonb;/gu;
+  /UPDATE "strategies" SET "params" = '((?:[^']|'')+)'::jsonb WHERE "id" = '(strategy-seed-qc-[a-z0-9-]+)' AND "params" = '\[\]'::jsonb AND EXISTS \(SELECT 1 FROM "strategy_definition_revisions" r WHERE r."id" = '(qc-def-qc-[a-z0-9-]+-r1)' AND r."sha256" = '([0-9a-f]{64})' AND r."created_by" = 'migration:0059'\);/gu;
 const rows = [...migration.matchAll(ROW)];
 const updates = [...migration.matchAll(UPDATE)];
 const unquote = (text: string | undefined) =>
@@ -93,6 +93,18 @@ describe("0059_qc_port_definitions", () => {
     expect(migration).not.toMatch(/updated_at/u);
   });
 
+  it("links only when the matching 0059 revision exists, with literal backslashes", () => {
+    expect(updates).toHaveLength(11);
+    for (const [index, update] of updates.entries()) {
+      const row = rows[index];
+      expect([update[3], update[4]]).toEqual([row?.[1], row?.[6]]);
+    }
+    expect(migration.split("\n--> statement-breakpoint\n")[0]).toContain(
+      "SET LOCAL standard_conforming_strings = on;"
+    );
+    expect(rollback).toContain("SET LOCAL standard_conforming_strings = on;");
+  });
+
   it("is journaled at index 59", () => {
     expect(journal.entries[59]).toMatchObject({
       idx: 59,
@@ -116,6 +128,28 @@ describe("0059_qc_port_definitions", () => {
       "qc-port library params were changed after 0059; refusing rollback"
     );
     expect(rollback).toContain(`AND s."params" = l.params;`);
+    expect(rollback).toContain(
+      `DELETE FROM "public"."strategy_definition_revisions" WHERE "created_by" = 'migration:0059' AND "revision" = 1 AND ("id", "definition_id", "sha256") IN (${rows.map((row) => `('${row[1]}', '${row[3]}', '${row[6]}')`).join(", ")});`
+    );
+    for (const table of [
+      "strategy_presets",
+      "strategy_specs",
+      "backtest_results",
+      "backtest_runs",
+      "optimization_runs",
+      "deployment_requests",
+      "autopilot_candidates",
+    ]) {
+      expect(rollback).toMatch(
+        new RegExp(
+          `"public"\\."${table}" [a-z] WHERE [a-z]\\."strategy_id" = l\\.id`,
+          "u"
+        )
+      );
+    }
+    expect(rollback).toContain(
+      "qc-port seed strategies are referenced by runs, results or specs; refusing rollback"
+    );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE|updated_at/iu);
   });
 });

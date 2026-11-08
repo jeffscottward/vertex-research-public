@@ -266,6 +266,25 @@ describe("parseSha256Sums", () => {
     );
   });
 
+  it("reads CRLF line endings without keeping the carriage return", () => {
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    expect(parseSha256Sums(`${a}  SPY.csv\r\n${b}  QQQ.csv\r\n`)).toEqual(
+      new Map([
+        ["SPY.csv", a],
+        ["QQQ.csv", b],
+      ])
+    );
+  });
+
+  it("refuses a duplicate file entry", () => {
+    const a = "a".repeat(64);
+    const b = "b".repeat(64);
+    expect(() => parseSha256Sums(`${a}  SPY.csv\n${b} *SPY.csv\n`)).toThrow(
+      "SHA256SUMS line 2 repeats SPY.csv"
+    );
+  });
+
   it("refuses a malformed line", () => {
     expect(() => parseSha256Sums("abc  SPY.csv\n")).toThrow(
       'SHA256SUMS line 1 is not "<sha256>  <file>"'

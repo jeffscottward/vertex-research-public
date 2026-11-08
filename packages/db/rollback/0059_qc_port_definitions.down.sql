@@ -2,11 +2,13 @@
 -- `bun scripts/research-qc-port-definitions.ts`.
 -- Refuses while any of the 11 definition ids has a revision other than the 0059 revision 1, a row
 -- created by someone else, or a library row whose params are neither empty nor what 0059 set.
+-- Also refuses while any run, result, candidate, request, preset or spec references a seed strategy.
 -- Otherwise deletes the 11 revisions and resets the linked params to []. Drizzle ledger
 -- reconciliation is deliberately not automated. Outside discoverable migrations.
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
 SET LOCAL row_security = off;
+SET LOCAL standard_conforming_strings = on;
 LOCK TABLE "public"."strategy_definition_revisions", "public"."strategies" IN ACCESS EXCLUSIVE MODE;
 CREATE TEMP TABLE qc_port_links (id text PRIMARY KEY, params jsonb NOT NULL) ON COMMIT DROP;
 INSERT INTO qc_port_links (id, params) VALUES
@@ -36,8 +38,20 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'qc-port library params were changed after 0059; refusing rollback';
   END IF;
+  IF EXISTS (
+    SELECT 1 FROM qc_port_links l
+    WHERE EXISTS (SELECT 1 FROM "public"."strategy_presets" p WHERE p."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."strategy_specs" q WHERE q."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."backtest_results" b WHERE b."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."backtest_runs" r WHERE r."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."optimization_runs" o WHERE o."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."deployment_requests" d WHERE d."strategy_id" = l.id)
+      OR EXISTS (SELECT 1 FROM "public"."autopilot_candidates" a WHERE a."strategy_id" = l.id)
+  ) THEN
+    RAISE EXCEPTION 'qc-port seed strategies are referenced by runs, results or specs; refusing rollback';
+  END IF;
 END
 $$;
 UPDATE "public"."strategies" s SET "params" = '[]'::jsonb FROM qc_port_links l WHERE l.id = s."id" AND s."params" = l.params;
-DELETE FROM "public"."strategy_definition_revisions" WHERE "id" IN ('qc-def-qc-asset-class-trend-r1', 'qc-def-qc-futures-trend-carry-r1', 'qc-def-qc-gold-fed-model-r1', 'qc-def-qc-iv-rank-gate-r1', 'qc-def-qc-momentum-rotation-r1', 'qc-def-qc-oil-predicts-equity-r1', 'qc-def-qc-opex-week-r1', 'qc-def-qc-regime-put-vrp-r1', 'qc-def-qc-same-month-seasonality-r1', 'qc-def-qc-turn-of-the-month-r1', 'qc-def-qc-vix-term-gate-r1');
+DELETE FROM "public"."strategy_definition_revisions" WHERE "created_by" = 'migration:0059' AND "revision" = 1 AND ("id", "definition_id", "sha256") IN (('qc-def-qc-asset-class-trend-r1', 'qc-asset-class-trend', 'b0742b461b978bd39aff8b32cd8062fcb21fe4ae2bdb60d8cff5cf425deeb3c8'), ('qc-def-qc-futures-trend-carry-r1', 'qc-futures-trend-carry', '8d4e49e0d8e66822c9e3b8dcac0c3ec47cf1197c2e601eb47b15177f2f8a708c'), ('qc-def-qc-gold-fed-model-r1', 'qc-gold-fed-model', 'cfa888a932e1a913a6c98c43919ad121a5e5d6e6a3608ef1a88fbd10982eef67'), ('qc-def-qc-iv-rank-gate-r1', 'qc-iv-rank-gate', '6af3acdf0f0cb18ad993aba2e7919f8630b4774ac019b595cf4d111eac564f03'), ('qc-def-qc-momentum-rotation-r1', 'qc-momentum-rotation', '917f96c678bbf315bca96d39c4a6672cd726db8a35920b025007f2e8d10a425e'), ('qc-def-qc-oil-predicts-equity-r1', 'qc-oil-predicts-equity', 'a3d24c23955d17c11e1fc004156d6d920a92cb53e362dfd2ff26325824726342'), ('qc-def-qc-opex-week-r1', 'qc-opex-week', 'abc6b6c3383f9a4791e9b99139c460611e3549efda55fa4e3b3f45750ff04c29'), ('qc-def-qc-regime-put-vrp-r1', 'qc-regime-put-vrp', 'b9b17612adb7c2c2f8e36ae0e9e9d101bd36f3058a812eea6fa45c00ee715321'), ('qc-def-qc-same-month-seasonality-r1', 'qc-same-month-seasonality', 'dc06c3f99f0d2e5227567dd0753e04f24829adaf43edc25d37eaf231cc38d06b'), ('qc-def-qc-turn-of-the-month-r1', 'qc-turn-of-the-month', '23b48d9232f78fa35c1855c1a86702280364a4856babe6242a60f1b14743893e'), ('qc-def-qc-vix-term-gate-r1', 'qc-vix-term-gate', 'ac19eabc9a7557814c85d9581c2e15ed4571b64d42a9abe10654a03e05802bd0'));
 COMMIT;

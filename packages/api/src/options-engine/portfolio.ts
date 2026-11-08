@@ -552,9 +552,11 @@ const selection = (
   for (const leg of legs)
     groups.set(leg.part, [...(groups.get(leg.part) ?? []), leg]);
   for (const members of groups.values()) {
+    // Grouped by calendar month: a member whose last bar of the month falls a day early still
+    // competes with the others, and keeps its own month-end date in the chosen set.
     const ranked = new Map<
       string,
-      { key: readonly [number, number, number]; order: number }[]
+      { key: readonly [number, number, number]; order: number; day: string }[]
     >();
     members.forEach((leg, rank) => {
       const { dates } = barsOf(data, leg.symbol);
@@ -573,18 +575,19 @@ const selection = (
         )
           continue;
         const day = dates[index] as string;
-        ranked.set(day, [
-          ...(ranked.get(day) ?? []),
-          { key: [-score, -tie, rank], order: leg.order },
+        const month = day.slice(0, 7);
+        ranked.set(month, [
+          ...(ranked.get(month) ?? []),
+          { key: [-score, -tie, rank], order: leg.order, day },
         ]);
       }
     });
-    for (const [day, items] of ranked) {
+    for (const items of ranked.values()) {
       const sorted = [...items].sort(
         (a, b) =>
           a.key[0] - b.key[0] || a.key[1] - b.key[1] || a.key[2] - b.key[2]
       );
-      for (const { order } of sorted.slice(0, select.top))
+      for (const { order, day } of sorted.slice(0, select.top))
         (chosen.get(order) as Set<string>).add(day);
     }
   }
@@ -750,14 +753,16 @@ export const maxOpenRisk = (
   const maxLoss = new Map(
     priced.map((trade) => [trade.tradeId, trade.maxLoss])
   );
-  const spans = result.trades.map(
-    (record) =>
-      [
-        record.entryDate,
-        record.exitDate,
-        record.contracts * (maxLoss.get(record.id) as number),
-      ] as const
-  );
+  const spans = result.trades.map((record) => {
+    const loss = maxLoss.get(record.id);
+    if (loss === undefined)
+      throw new Error(`No priced trade for trade id ${record.id}`);
+    return [
+      record.entryDate,
+      record.exitDate,
+      record.contracts * loss,
+    ] as const;
+  });
   let worst = 0;
   result.dates.forEach((day, index) => {
     const equity = result.equity[index] as number;
@@ -766,7 +771,11 @@ export const maxOpenRisk = (
         .filter(([entry, exit]) => entry <= day && day < exit)
         .map(([, , amount]) => amount)
     );
-    if (risk !== 0 && equity > 0) worst = Math.max(worst, risk / equity);
+    // Python max(worst, ratio) keeps worst unless ratio > worst, so a NaN never gets through.
+    if (risk !== 0 && equity > 0) {
+      const ratio = risk / equity;
+      if (ratio > worst) worst = ratio;
+    }
   });
   return worst;
 };

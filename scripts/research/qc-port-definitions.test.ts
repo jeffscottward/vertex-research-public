@@ -139,7 +139,7 @@ describe("committed migration 0059", () => {
       });
       expect(params[3].default).toBe("100000");
       expect(migration).toContain(
-        `WHERE "id" = 'strategy-seed-${revision.idea}' AND "params" = '[]'::jsonb;`
+        `WHERE "id" = 'strategy-seed-${revision.idea}' AND "params" = '[]'::jsonb AND EXISTS (SELECT 1 FROM "strategy_definition_revisions" r WHERE r."id" = '${revision.id}' AND r."sha256" = '${revision.sha256}' AND r."created_by" = 'migration:0059');`
       );
     }
   });
@@ -162,6 +162,25 @@ describe("qcPortRevisions", () => {
       sizing: { mode: "allIn" },
     });
     expect(renderMigration(revisions)).toContain("'Trend''s edge'");
+  });
+
+  it("keeps backslashes literal under standard_conforming_strings", async () => {
+    const input = editIdea("qc-asset-class-trend", (entry) => {
+      entry.definition = { ...stored[0]?.definition, name: "Trend \\ edge" };
+    });
+    const revisions = await qcPortRevisions(input, DATA_TO);
+    const sql = renderMigration(revisions);
+    expect(revisions[0]?.name).toBe("Trend \\ edge");
+    expect(sql).toContain("'Trend \\ edge'");
+    expect(sql).toContain('"name":"Trend \\\\ edge"');
+    expect(sql).not.toContain("E'");
+    expect(
+      sql.indexOf("SET LOCAL standard_conforming_strings = on;")
+    ).toBeLessThan(sql.indexOf("INSERT INTO"));
+    const down = renderRollback(revisions);
+    expect(
+      down.indexOf("SET LOCAL standard_conforming_strings = on;")
+    ).toBeLessThan(down.indexOf("INSERT INTO"));
   });
 
   const withoutOpex = (): MutableInput => {
@@ -298,6 +317,17 @@ describe("runQcPortDefinitions", () => {
       );
     }
   );
+
+  it("refuses --check without --input, before running Python", async () => {
+    const spawn = pythonSpawn();
+    const { err, io, written } = createIo({ spawn });
+    await expect(
+      runQcPortDefinitions(["--check", "--data-to", DATA_TO], io)
+    ).resolves.toBe(1);
+    expect(err.join("")).toContain("--check needs --input");
+    expect(spawn).not.toHaveBeenCalled();
+    expect(written.size).toBe(0);
+  });
 
   it("needs --data-to with --input and reports non-Error failures", async () => {
     const missing = createIo({}, inputFiles());
