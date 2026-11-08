@@ -350,10 +350,12 @@ describe("strategy builder model", () => {
       true,
       true,
     ]);
-    expect([lengthUnit("rvol"), lengthUnit("adx")]).toEqual([
-      "sessions",
-      "bars",
-    ]);
+    expect([
+      lengthUnit("rvol"),
+      lengthUnit("adx"),
+      lengthUnit("adx", "1d"),
+      lengthUnit("rvol", "1d"),
+    ]).toEqual(["sessions", "bars", "days", "sessions"]);
     const price = { field: "close", type: "price" } as const;
     expect(withOffset(price, "5")).toEqual({ ...price, offset: 5 });
     expect(withOffset({ ...price, offset: 5 }, "0")).toEqual(price);
@@ -504,6 +506,9 @@ describe("StrategyBuilderWorkspace", () => {
     };
     await setNative(field("Definition text"), JSON.stringify(definition));
     expect(document.body.textContent).toContain("The definition is valid.");
+    expect(document.body.textContent).toContain(
+      "This definition also uses entry.any, management, oncePerLevel, timeframe, maxLeverage."
+    );
 
     await settle(() => button("Add entry condition").click());
     await setNative(field("Risk per trade (%)"), "2");
@@ -512,6 +517,56 @@ describe("StrategyBuilderWorkspace", () => {
     expect(text.entry.any).toEqual([breakout]);
     expect(text.management).toEqual(definition.management);
     expect(text.sizing).toEqual({ ...definition.sizing, riskPct: 2 });
+  });
+
+  it("drops oncePerLevel and timeframe when the new choice cannot take them", async () => {
+    await mount(<StrategyBuilderWorkspace gateway={gatewayOf()} />);
+    const daily = {
+      length: 20,
+      name: "highest",
+      source: "high",
+      timeframe: "1d",
+      type: "indicator",
+    };
+    await setNative(
+      field("Definition text"),
+      JSON.stringify({
+        entry: {
+          all: [
+            {
+              left: { field: "close", type: "price" },
+              oncePerLevel: true,
+              op: "breaksAbove",
+              right: daily,
+            },
+          ],
+        },
+        name: "Daily break",
+        version: 1,
+      })
+    );
+    expect(has("Entry 1 right length (days)")).toBe(true);
+    await setNative(field("Entry 1 comparison"), "crossesAbove");
+    expect(definitionText().entry.all[0].oncePerLevel).toBe(true);
+    await setNative(field("Entry 1 comparison"), ">");
+    await setNative(field("Entry 1 right indicator"), "lowest");
+    expect(definitionText().entry.all[0]).toEqual({
+      left: { field: "close", type: "price" },
+      op: ">",
+      right: { ...daily, name: "lowest" },
+    });
+    await setNative(field("Entry 1 right indicator"), "rvol");
+    expect(definitionText().entry.all[0].right).toEqual({
+      length: 20,
+      name: "rvol",
+      source: "high",
+      type: "indicator",
+    });
+    expect(has("Entry 1 right length (sessions)")).toBe(true);
+    expect(document.body.textContent).toContain("The definition is valid.");
+    expect(document.body.textContent).not.toContain(
+      "This definition also uses"
+    );
   });
 
   it("runs a backtest of the definition and follows it to the result", async () => {
