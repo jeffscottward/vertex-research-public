@@ -1,0 +1,5 @@
+#!/bin/sh
+# Git may run this file from another checkout with the new worktree as the
+# working directory. A worktree on a commit from before this hook has no script.
+[ -f scripts/hooks/post-checkout.ts ] || exit 0
+exec bun scripts/hooks/post-checkout.ts "$@"
