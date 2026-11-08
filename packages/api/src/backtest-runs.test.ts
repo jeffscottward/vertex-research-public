@@ -1993,6 +1993,46 @@ describe("backtestRuns.drift paper forward runner", () => {
     expect(repeats()).toHaveLength(1);
   });
 
+  it("queues every monitor of a batch tick; none supersedes another", async () => {
+    const { client: plain, drift, monitor, run, runs, bars } = await prepared();
+    const second = await plain.backtestRuns.drift.create({
+      baselineRunId: run.id,
+      expectedRevision: run.strategyRevision,
+      label: "Paper runner 2",
+    });
+    for (const id of [monitor.id, second.id])
+      await plain.backtestRuns.drift.paperSet({ id, running: true });
+    const client = clientFor({ bars, comparison: "on", drift, runs });
+    const batch = await client.backtestRuns.drift.paperTick({});
+    expect(batch.results).toHaveLength(2);
+    const repeats = [...runs.rows.values()].filter(
+      (row) => row.spec.comparison !== undefined
+    );
+    expect(repeats.map((row) => row.status)).toEqual(["queued", "queued"]);
+    expect(
+      repeats
+        .map((row) => EngineComparisonSpecSchema.parse(row.spec.comparison).key)
+        .sort()
+    ).toEqual([monitor.id, second.id].sort());
+  });
+
+  it("queues nothing for a setup replay or paper tick with comparison off", async () => {
+    const { bars, drift, monitor, runs } = await prepared();
+    const client = clientFor({ bars, comparison: "off", drift, runs });
+    await client.setupReplay.run({
+      maxHoldBars: 5,
+      paths: 1000,
+      seriesId: "SPY:1d",
+      setup: "gapUpHold",
+      stop: { kind: "atr", multiple: 1 },
+      targetR: 1,
+    });
+    await client.backtestRuns.drift.paperTick({ id: monitor.id });
+    expect(
+      [...runs.rows.values()].filter((row) => row.spec.comparison !== undefined)
+    ).toEqual([]);
+  });
+
   it("keeps the paper tick when the clock is frozen or the comparison queue fails", async () => {
     const { bars, drift, monitor, runs } = await prepared();
     vi.spyOn(performance, "now").mockReturnValue(7);

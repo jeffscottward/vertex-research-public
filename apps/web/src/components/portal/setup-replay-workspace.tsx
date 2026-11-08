@@ -522,8 +522,10 @@ export const SetupReplayWorkspace = ({
     const id = cacheKey(input);
     latest.current += 1;
     const ticket = latest.current;
+    // A replay with an engine comparison always asks the server again: its Nautilus group may
+    // have been superseded since, and the server reuses or requeues it (no flooding).
     const cached = useCache ? cache.get(id) : undefined;
-    if (cached !== undefined) {
+    if (cached !== undefined && cached.comparison === undefined) {
       setRun({
         ran: { input, output: cached, preset: target.preset },
         type: "done",

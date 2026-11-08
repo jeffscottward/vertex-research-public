@@ -537,6 +537,31 @@ describe("SetupReplayWorkspace", () => {
     expect(comparisons).toHaveBeenCalledWith("setupReplay-abc");
   });
 
+  it("asks the server again for a cached replay that carries a comparison", async () => {
+    const run = vi.fn(async () =>
+      output({
+        comparison: {
+          groupId: "setupReplay-abc",
+          host: "web server",
+          wallMs: 1,
+        },
+      })
+    );
+    const { container } = await mount(
+      <SetupReplayWorkspace
+        comparisonGateway={{ comparisons: vi.fn(async () => ({ runs: [] })) }}
+        gateway={gatewayWith({ run })}
+      />
+    );
+    await settle();
+    await choose(container, "Target", 0);
+    await settle();
+    await choose(container, "Target", 2);
+    await settle();
+    // The same choices again: the server reuses or requeues the Nautilus group.
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
   it("shows a comparison that could not be queued without reading runs", async () => {
     const comparisons = vi.fn(async () => ({ runs: [] }));
     const { container } = await mount(
