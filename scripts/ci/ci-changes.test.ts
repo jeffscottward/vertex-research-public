@@ -39,6 +39,15 @@ describe("ci-changes.sh", () => {
       "code"
     );
     expect(classify(["research/baskets/owner-baskets.json"])).toBe("code");
+    for (const path of [
+      "docs/a.jsonl",
+      "research/b.ndjson",
+      "plans/c.JSON",
+      "docs/d.json5",
+      "docs/e.geojson",
+      "docs/f.json.gz",
+    ])
+      expect([path, classify([path])]).toEqual([path, "code"]);
     expect(classify([".github/workflows/ci.yml"])).toBe("code");
     expect(classify([".agents/skills/x/SKILL.md"])).toBe("code");
     expect(classify(["CLAUDE.md"])).toBe("code");
