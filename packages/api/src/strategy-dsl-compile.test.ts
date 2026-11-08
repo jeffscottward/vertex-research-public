@@ -15,12 +15,16 @@ import {
   type StrategyDefinition,
   type StrategyDefinitionInput,
   StrategyDefinitionSchema,
+  type StrategyExprInput,
+  StrategyExprSchema,
+  STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
 } from "./strategy-dsl.ts";
 import {
   assertServerRunnable,
   averageDirectionalIndex,
   averageTrueRange,
   compileStrategy,
+  evaluateStrategyExpression,
   exponentialMean,
   isNyseTradingDay,
   ivRankSeries,
@@ -1632,5 +1636,614 @@ describe("engine refusals", () => {
     expect(() => assertServerRunnable({ options })).toThrow(
       STRATEGY_OPTIONS_REFUSAL.message
     );
+  });
+});
+
+describe("expression trees (evaluateStrategyExpression)", () => {
+  const close = { field: "close", type: "price" } as const;
+  const series = (ref: string, offset?: number): StrategyExprInput =>
+    ({
+      series: ref,
+      type: "series",
+      ...(offset === undefined ? {} : { offset }),
+    }) as StrategyExprInput;
+  const dated = (
+    dates: readonly string[],
+    closes?: readonly number[]
+  ): BarColumns => {
+    const c = Float64Array.from(
+      dates,
+      (_, index) => closes?.[index] ?? 100 + index
+    );
+    return {
+      c,
+      h: c,
+      l: c,
+      o: c,
+      t: Float64Array.from(dates, (date) => Date.parse(`${date}T00:00:00Z`)),
+    };
+  };
+  const values = (
+    bars: BarColumns,
+    expr: StrategyExprInput,
+    input?: Parameters<typeof evaluateStrategyExpression>[2]
+  ) =>
+    Array.from(
+      evaluateStrategyExpression(bars, StrategyExprSchema.parse(expr), input),
+      (value) => (Number.isNaN(value) ? null : value)
+    );
+  const weekdays = (from: string, count: number): string[] => {
+    const out: string[] = [];
+    for (
+      let t = Date.parse(`${from}T00:00:00Z`);
+      out.length < count;
+      t += DAY_MS
+    ) {
+      const day = new Date(t).getUTCDay();
+      if (day !== 0 && day !== 6)
+        out.push(new Date(t).toISOString().slice(0, 10));
+    }
+    return out;
+  };
+  const days = weekdays("2024-01-01", 8);
+  const bars = dated(days, [100, 102, 101, 104, 104, 108, 106, 110]);
+
+  it("evaluates leaves like a condition side and returns a copy", () => {
+    const out = evaluateStrategyExpression(
+      bars,
+      StrategyExprSchema.parse(close)
+    );
+    expect(Array.from(out)).toEqual(Array.from(bars.c));
+    out[0] = -1;
+    expect(bars.c[0]).toBe(100);
+    expect(
+      values(bars, { field: "close", offset: 2, type: "price" }).slice(0, 3)
+    ).toEqual([null, null, 100]);
+  });
+
+  it("does math, NaN when the result is not finite", () => {
+    const ratio = {
+      left: close,
+      op: "div",
+      right: {
+        left: close,
+        op: "sub",
+        right: { type: "const", value: 104 },
+        type: "math",
+      },
+      type: "math",
+    } as StrategyExprInput;
+    expect(values(bars, ratio)).toEqual([
+      -25,
+      -51,
+      -33.666_666_666_666_664,
+      null,
+      null,
+      27,
+      53,
+      18.333_333_333_333_332,
+    ]);
+    expect(
+      values(bars, {
+        left: close,
+        op: "add",
+        right: { type: "const", value: 1 },
+        type: "math",
+      })[0]
+    ).toBe(101);
+    expect(
+      values(bars, {
+        left: close,
+        op: "mul",
+        right: { type: "const", value: 2 },
+        type: "math",
+      })[1]
+    ).toBe(204);
+    // 1e12 / 1e-300 overflows to Infinity: not finite, so NaN.
+    expect(
+      values(bars, {
+        left: { type: "const", value: 1e12 },
+        op: "div",
+        right: { type: "const", value: 1e-300 },
+        type: "math",
+      })[0]
+    ).toBeNull();
+  });
+
+  it("computes change with an offset and NaN for a zero base", () => {
+    expect(values(bars, { length: 2, of: close, type: "change" })).toEqual([
+      null,
+      null,
+      101 / 100 - 1,
+      104 / 102 - 1,
+      104 / 101 - 1,
+      108 / 104 - 1,
+      106 / 104 - 1,
+      110 / 108 - 1,
+    ]);
+    expect(
+      values(bars, { length: 1, of: close, offset: 5, type: "change" })
+    ).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      102 / 100 - 1,
+      101 / 102 - 1,
+    ]);
+    const zero = {
+      left: close,
+      op: "sub",
+      right: close,
+      type: "math",
+    } as StrategyExprInput;
+    expect(
+      values(bars, { length: 1, of: zero, type: "change" }).every(
+        (v) => v === null
+      )
+    ).toBe(true);
+  });
+
+  it("computes the sample deviation of simple returns", () => {
+    const out = values(bars, { length: 3, of: close, type: "returnStdev" });
+    expect(out.slice(0, 3)).toEqual([null, null, null]);
+    const returns = [102 / 100 - 1, 101 / 102 - 1, 104 / 101 - 1];
+    const mean = (returns[0]! + returns[1]! + returns[2]!) / 3;
+    const deviation = Math.sqrt(
+      returns.reduce((sum, r) => sum + (r - mean) ** 2, 0) / 2
+    );
+    expect(out[3]).toBeCloseTo(deviation, 14);
+    // A flat price has no return deviation; a zero price has no return.
+    const flat = dated(days, [5, 5, 5, 5, 0, 5, 5, 5]);
+    // Returns 0, 0, 0, -1, then 5 / 0 (not finite), 0, 0.
+    expect(values(flat, { length: 2, of: close, type: "returnStdev" })).toEqual(
+      [null, null, 0, 0, Math.SQRT1_2, null, null, 0]
+    );
+  });
+
+  it("fits a lagged regression and forecasts from the current x", () => {
+    const x = dated(days, [1, 2, 3, 4, 5, 6, 7, 8]);
+    // y[s] = 2 × x[s − 1] + 1, so the forecast is 2 × x[t] + 1.
+    const y = {
+      left: {
+        left: { field: "close", offset: 1, type: "price" },
+        op: "mul",
+        right: { type: "const", value: 2 },
+        type: "math",
+      },
+      op: "add",
+      right: { type: "const", value: 1 },
+      type: "math",
+    } as StrategyExprInput;
+    const out = values(x, {
+      lag: 1,
+      length: 3,
+      type: "regression",
+      x: close,
+      y,
+    });
+    // y[0] is missing (no x before bar 0), so the first fit uses bars 1 to 3.
+    expect(out.slice(0, 3)).toEqual([null, null, null]);
+    expect(out[3]).toBeCloseTo(9, 12);
+    expect(out[4]).toBeCloseTo(11, 12);
+    expect(out[7]).toBeCloseTo(17, 12);
+    // A flat x has no slope; a missing x[t] has no forecast.
+    expect(
+      values(x, {
+        lag: 0,
+        length: 3,
+        type: "regression",
+        x: { type: "const", value: 1 },
+        y: close,
+      }).every((v) => v === null)
+    ).toBe(true);
+    expect(
+      values(x, {
+        lag: 0,
+        length: 3,
+        type: "regression",
+        x: { field: "close", offset: 6, type: "price" },
+        y: close,
+      })
+    ).toEqual([null, null, null, null, null, null, null, null]);
+  });
+
+  it("averages the month ahead over this and earlier bars", () => {
+    const monthEnds = [
+      "2023-01-31",
+      "2023-02-28",
+      "2023-03-31",
+      "2024-01-31",
+      "2024-02-29",
+      "2024-03-29",
+    ];
+    const monthly = dated(monthEnds, [1, 2, 3, 10, 20, 30]);
+    expect(
+      values(monthly, {
+        minCount: 1,
+        monthsAhead: 1,
+        of: close,
+        type: "seasonal",
+      })
+    ).toEqual([null, null, null, 2, 3, null]); // next month's values at earlier bars only
+    expect(
+      values(monthly, {
+        minCount: 2,
+        monthsAhead: 0,
+        of: close,
+        type: "seasonal",
+      })
+    ).toEqual([null, null, null, 5.5, 11, 16.5]);
+    // December wraps to January; NaN values are skipped.
+    const december = dated(
+      ["2023-01-31", "2023-12-29", "2024-01-31"],
+      [4, 7, Number.NaN]
+    );
+    const ahead = (monthsAhead: number) =>
+      values(december, {
+        minCount: 1,
+        monthsAhead,
+        of: close,
+        type: "seasonal",
+      });
+    expect(ahead(1)).toEqual([null, 4, null]);
+    expect(ahead(0)).toEqual([4, 7, 4]);
+  });
+
+  it("reads series and relative refs aligned like the series filter, then offsets them", () => {
+    const context: StrategySeriesContext = {
+      "ES=F": { [days[0]!]: 4000, [days[3]!]: 4100 },
+      "SPY:TR": { [days[1]!]: 500, [days[2]!]: Number.NaN, [days[4]!]: 505 },
+      VIX: { [days[0]!]: 12 },
+    };
+    expect(values(bars, series("$tr"), { context, symbol: "SPY" })).toEqual([
+      null,
+      500,
+      500,
+      500,
+      505,
+      505,
+      505,
+      505,
+    ]);
+    expect(
+      values(bars, series("$future", 2), { context, symbol: "SPY" })
+    ).toEqual([null, null, 4000, 4000, 4000, 4100, 4100, 4100]);
+    // Carried at most 5 later dates.
+    expect(values(bars, series("VIX"), { context })).toEqual([
+      12,
+      12,
+      12,
+      12,
+      12,
+      12,
+      null,
+      null,
+    ]);
+    expect(() => values(bars, series("$iv"), { context })).toThrow(
+      new InstantBacktestInputError("$iv needs the traded symbol")
+    );
+    expect(() =>
+      values(bars, series("$iv"), { context, symbol: "XLK" })
+    ).toThrow("$iv has no series for XLK");
+    expect(() =>
+      values(bars, series("$iv"), { context, symbol: "QQQ" })
+    ).toThrow(new StrategySeriesDataError("VXN"));
+    expect(() => values(bars, series("VIX"))).toThrow(StrategySeriesDataError);
+  });
+
+  it("uses the series values before the bar date on intraday bars", () => {
+    const hourly: BarColumns = {
+      c: Float64Array.of(1, 1, 1),
+      h: Float64Array.of(1, 1, 1),
+      l: Float64Array.of(1, 1, 1),
+      o: Float64Array.of(1, 1, 1),
+      t: Float64Array.from(
+        [
+          "2024-01-02T15:00:00Z",
+          "2024-01-02T16:00:00Z",
+          "2024-01-03T15:00:00Z",
+        ],
+        (time) => Date.parse(time)
+      ),
+    };
+    const context = { VIX: { "2024-01-02": 13, "2024-01-03": 14 } };
+    expect(values(hourly, series("VIX"), { context })).toEqual([
+      null,
+      null,
+      13,
+    ]);
+    expect(
+      values(hourly, series("VIX"), {
+        calendar: ["2024-01-02", "2024-01-03"],
+        context,
+      })
+    ).toEqual([null, null, 13]);
+  });
+
+  it("aligns on the calendar and reads at the bar dates", () => {
+    const calendar = weekdays("2024-01-01", 23);
+    const monthEnds = dated([
+      calendar[0]!,
+      calendar[6]!,
+      calendar[7]!,
+      calendar[13]!,
+    ]);
+    const context = { VIX: { [calendar[0]!]: 10, [calendar[7]!]: 11 } };
+    // On the bar dates the value is carried 5 bars; on the calendar 5 weekdays.
+    expect(values(monthEnds, series("VIX"), { context })).toEqual([
+      10, 10, 11, 11,
+    ]);
+    expect(values(monthEnds, series("VIX"), { calendar, context })).toEqual([
+      10,
+      null,
+      11,
+      null,
+    ]);
+    expect(values(monthEnds, series("VIX", 1), { calendar, context })).toEqual([
+      null,
+      10,
+      null,
+      11,
+    ]);
+    expect(() =>
+      values(monthEnds, series("VIX"), {
+        calendar: [calendar[1]!, calendar[0]!],
+        context,
+      })
+    ).toThrow(
+      `The calendar must hold ascending YYYY-MM-DD dates without repeats: ${calendar[0]}`
+    );
+    expect(() =>
+      values(monthEnds, series("VIX"), {
+        calendar: [calendar[0]!, calendar[0]!],
+        context,
+      })
+    ).toThrow("without repeats");
+    expect(() =>
+      values(monthEnds, series("VIX"), { calendar: ["2024/01/01"], context })
+    ).toThrow("dates without repeats: 2024/01/01");
+    expect(() =>
+      values(monthEnds, series("VIX"), {
+        calendar: calendar.slice(0, 10),
+        context,
+      })
+    ).toThrow(
+      new InstantBacktestInputError(
+        `Bar date ${calendar[13]} is not in the calendar`
+      )
+    );
+  });
+
+  it("aligns the filters on the calendar too", () => {
+    const calendar = weekdays("2024-01-01", 23);
+    const monthEnds = dated([
+      calendar[0]!,
+      calendar[6]!,
+      calendar[7]!,
+      calendar[13]!,
+    ]);
+    const context = {
+      VIX: { [calendar[0]!]: 10, [calendar[7]!]: 11 },
+      VIX3M: { [calendar[0]!]: 11, [calendar[7]!]: 12 },
+    };
+    const definition = define({
+      entry: {
+        all: [{ left: close, op: ">", right: { type: "const", value: 0 } }],
+      },
+      filters: [
+        {
+          condition: {
+            left: close,
+            op: "<",
+            right: { type: "const", value: 20 },
+          },
+          series: "VIX",
+          type: "series",
+        },
+      ],
+      name: "Calendar filter",
+      version: 1,
+    });
+    expect(
+      Array.from(
+        compileStrategy(monthEnds, definition, undefined, { context }).signals
+      )
+    ).toEqual([1, 1, 1, 1]);
+    expect(
+      Array.from(
+        compileStrategy(monthEnds, definition, undefined, { calendar, context })
+          .signals
+      )
+    ).toEqual([1, 0, 1, 0]);
+    const term = define({
+      entry: {
+        all: [{ left: close, op: ">", right: { type: "const", value: 0 } }],
+      },
+      filters: [{ maxRatio: 1, type: "vixTermStructure" }],
+      name: "Term",
+      version: 1,
+    });
+    expect(
+      Array.from(
+        compileStrategy(monthEnds, term, undefined, { calendar, context })
+          .signals
+      )
+    ).toEqual([1, 0, 1, 0]);
+  });
+
+  it("memoizes a repeated tree once per compile", () => {
+    const tree = {
+      length: 1,
+      of: series("VIX"),
+      type: "change",
+    } as StrategyExprInput;
+    const context = {
+      VIX: Object.fromEntries(days.map((date, index) => [date, 10 + index])),
+    };
+    const definition = define({
+      entry: {
+        all: [{ left: tree, op: ">", right: { type: "const", value: 0 } }],
+      },
+      exit: {
+        any: [{ left: tree, op: "<", right: { type: "const", value: 0 } }],
+      },
+      name: "Repeated",
+      version: 1,
+    });
+    const compiled = compileStrategy(bars, definition, undefined, { context });
+    expect(Array.from(compiled.signals)).toEqual([0, 1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it("reads a relative ref in a series filter", () => {
+    const context = {
+      VXN: Object.fromEntries(days.map((date, index) => [date, 20 - index])),
+    };
+    const definition = define({
+      entry: {
+        all: [{ left: close, op: ">", right: { type: "const", value: 0 } }],
+      },
+      filters: [
+        {
+          condition: {
+            left: close,
+            op: "<",
+            right: { type: "const", value: 17 },
+          },
+          series: "$iv",
+          type: "series",
+        },
+      ],
+      name: "IV ref filter",
+      version: 1,
+    });
+    expect(
+      Array.from(
+        compileStrategy(bars, definition, undefined, { context, symbol: "QQQ" })
+          .signals
+      )
+    ).toEqual([0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(() =>
+      compileStrategy(bars, definition, undefined, { context })
+    ).toThrow("$iv needs the traded symbol");
+  });
+});
+
+describe("portfolio blocks and series support on the server paths", () => {
+  const close = { field: "close", type: "price" } as const;
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    shortDelta: 0.2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+  const bars = wave(300);
+  const days = Array.from(bars.t, (t) =>
+    new Date(t).toISOString().slice(0, 10)
+  );
+  const context = {
+    "SPY:TR": Object.fromEntries(
+      days.map((date, index) => [date, 100 + Math.sin(index / 9)])
+    ),
+  };
+  const reads = define({
+    entry: {
+      all: [
+        {
+          left: { series: "$tr", type: "series" },
+          op: ">",
+          right: { series: "$tr", offset: 1, type: "series" },
+        },
+      ],
+    },
+    exit: {
+      any: [
+        {
+          left: { series: "$tr", type: "series" },
+          op: "<",
+          right: { series: "$tr", offset: 1, type: "series" },
+        },
+      ],
+    },
+    name: "TR momentum",
+    version: 1,
+  });
+
+  it("returns the portfolio block unchanged", () => {
+    const definition = define({
+      entry: {
+        all: [{ left: close, op: ">", right: { type: "const", value: 0 } }],
+      },
+      name: "Portfolio",
+      options,
+      portfolio: { policy: "roll", symbols: ["SPY", "QQQ"] },
+      version: 1,
+    });
+    const compiled = compileStrategy(bars, definition);
+    expect(compiled.portfolio).toBe(definition.portfolio);
+    expect(compiled.options).toBe(definition.options);
+    expect(compileStrategy(bars, smaCross(5, 20)).portfolio).toBeUndefined();
+  });
+
+  it("refuses series without series support, and runs them with it", () => {
+    expect(() => runStrategyDefinition(bars, reads, 0)).toThrow(
+      StrategyUnsupportedError
+    );
+    expect(() =>
+      assertServerRunnable(reads, "1d", { series: true })
+    ).not.toThrow();
+    const input = { context, symbol: "SPY" };
+    const result = runStrategyDefinition(
+      bars,
+      reads,
+      0,
+      undefined,
+      undefined,
+      "1d",
+      { series: true },
+      input
+    );
+    const compiled = compileStrategy(bars, reads, undefined, input);
+    expect(result).toEqual(
+      runSignalBacktest(bars, compiled.signals, {
+        costBps: 0,
+        exits: compiled.exits,
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      })
+    );
+    expect(result.trades.length).toBeGreaterThan(0);
+    // Without series support the input is not read: the refusal comes first.
+    expect(() =>
+      runStrategyDefinition(
+        bars,
+        reads,
+        0,
+        undefined,
+        undefined,
+        "1d",
+        {},
+        input
+      )
+    ).toThrow("series expressions need daily series");
+  });
+
+  it("refuses options on the equity engine whatever the support flags say", () => {
+    const definition = define({ ...STRATEGY_TEMPLATES.smaCross, options });
+    expect(() =>
+      runStrategyDefinition(bars, definition, 0, undefined, undefined, "1d", {
+        options: true,
+        series: true,
+      } as never)
+    ).toThrow(new StrategyUnsupportedError(STRATEGY_OPTIONS_REFUSAL));
+    expect(() =>
+      assertServerRunnable(definition, "1d", { options: true })
+    ).not.toThrow();
+    expect(() =>
+      assertServerRunnable(definition, "1h", { options: true })
+    ).toThrow(STRATEGY_OPTIONS_TIMEFRAME_REFUSAL.message);
   });
 });

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
@@ -104,27 +105,43 @@ def test_indicator_matches_typescript(case: dict[str, Any]) -> None:
 COMPILED = golden()["compiled"]
 
 
-@pytest.mark.parametrize("case", COMPILED, ids=_ids(COMPILED, "id", "symbol"))
+def _series_input(case: dict[str, Any], symbol_key: str = "symbol") -> tuple[Any, Any, Any]:
+    """The context, traded symbol and calendar of a fixture case."""
+    calendar = case.get("calendar")
+    return (
+        golden()["series"],
+        case.get("seriesSymbol", case.get(symbol_key)),
+        None if calendar is None else golden()["calendars"][calendar],
+    )
+
+
+@pytest.mark.parametrize("case", COMPILED, ids=_ids(COMPILED, "id", "symbol", "calendar"))
 def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
+    context, symbol, calendar = _series_input(case)
+
+    def compile_case() -> sig.Compiled:
+        return sig.compile_strategy(
+            bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"],
+            context, symbol, calendar,
+        )
+
     if "refused" in case:
         with pytest.raises(StrategyUnsupportedError) as raised:
-            sig.compile_strategy(
-                bars_of(case["symbol"]), case["definition"], golden()["sectorQuadrants"],
-                golden()["series"], case["symbol"],
-            )
+            compile_case()
         assert raised.value.code == case["refused"]["code"]
         assert str(raised.value) == case["refused"]["message"]
         return
-    compiled = sig.compile_strategy(
-        bars_of(case["symbol"]),
-        case["definition"],
-        golden()["sectorQuadrants"],
-        golden()["series"],
-        case["symbol"],
-    )
+    if "error" in case:
+        with pytest.raises(InputError) as failed:
+            compile_case()
+        assert not isinstance(failed.value, StrategyUnsupportedError)
+        assert str(failed.value) == case["error"]
+        return
+    compiled = compile_case()
     assert list(compiled.signals) == case["signals"]
     assert list(compiled.exits or ()) == case["exits"]
     assert compiled.options == case.get("options")
+    assert compiled.portfolio == case.get("portfolio")
     for name, actual, expected in (
         ("stopDistance", compiled.stop_distance, case["stopDistance"]),
         ("targetDistance", compiled.target_distance, case["targetDistance"]),
@@ -136,6 +153,37 @@ def test_compiled_strategy_matches_typescript(case: dict[str, Any]) -> None:
             assert_series(actual, expected, name)
 
 
+EXPRESSIONS = golden()["expressions"]
+
+
+@pytest.mark.parametrize("case", EXPRESSIONS, ids=_ids(EXPRESSIONS, "id", "dataset"))
+def test_expression_values_match_typescript(case: dict[str, Any]) -> None:
+    context, symbol, calendar = _series_input(case)
+    bars = bars_of(case["dataset"])
+    if "error" in case:
+        with pytest.raises(InputError) as failed:
+            sig.expression_values(bars, case["expr"], context, symbol, calendar)
+        assert str(failed.value) == case["error"]
+        return
+    values = sig.expression_values(bars, case["expr"], context, symbol, calendar)
+    assert_series(values, case["values"], case["id"])
+
+
+SERVER_REFUSALS = golden()["serverRefusals"]
+
+
+@pytest.mark.parametrize("case", SERVER_REFUSALS, ids=_ids(SERVER_REFUSALS, "id"))
+def test_server_refusal_matches_typescript(case: dict[str, Any]) -> None:
+    definition = sig.normalize_definition(case["definition"])
+    refusal = sig.server_refusal(definition, case.get("timeframe"), case.get("support"))
+    if case["refusal"] is None:
+        assert refusal is None
+        return
+    assert refusal is not None
+    assert refusal.code == case["refusal"]["code"]
+    assert str(refusal) == case["refusal"]["message"]
+
+
 REFUSALS = golden()["engineRefusals"]
 
 
@@ -144,7 +192,7 @@ def test_plan_run_refuses_like_the_typescript_server_engine(case: dict[str, Any]
     spec = {"rule": {"kind": "dsl", "definition": case["definition"]}, "costBps": 10, "costs": None,
             "sectorQuadrants": golden()["sectorQuadrants"], "timeframe": case.get("timeframe")}
     with pytest.raises(StrategyUnsupportedError) as raised:
-        sig.plan_run(bars_of(case["symbol"]), spec)
+        sig.plan_run(bars_of(case["symbol"]), spec, case.get("support"))
     assert raised.value.code == case["code"]
     assert str(raised.value) == case["message"]
 
@@ -561,8 +609,9 @@ def test_plan_run_refuses_an_options_block_as_an_equity_strategy() -> None:
         sig.plan_run(bars_of("SPY"), spec)
     assert raised.value.code == STRATEGY_OPTIONS_UNSUPPORTED
     assert str(raised.value) == (
-        "STRATEGY_OPTIONS_UNSUPPORTED: the options block runs only in the options research runner;"
-        ' an equity backtest refuses it. Remove "options" to test the underlying signals.'
+        "STRATEGY_OPTIONS_UNSUPPORTED: the options block runs in backtest runs and the options"
+        " research runner only; paper hand-off, Autopilot and the instant tools refuse it (no"
+        ' orders). Remove "options" to test the underlying signals here.'
     )
     assert isinstance(raised.value, InputError)
     # The options research runner compiles it: signals plus the block, unchanged.
@@ -619,3 +668,281 @@ def test_plan_run_checks_a_known_timeframe() -> None:
     with pytest.raises(StrategyUnsupportedError) as raised:
         sig.plan_run(bars_of("SPY"), {**spec, "timeframe": "5m"})
     assert raised.value.code == STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
+
+
+# ---------------------------------------------------------------------------------------------
+# Expression trees, relative refs, calendars and the portfolio block (strategy-dsl.ts 1.2).
+
+CLOSE = {"type": "price", "field": "close"}
+ZERO = {"type": "const", "value": 0}
+OPTIONS = {"structure": "putCreditVertical", "dte": {"target": 45, "min": 21}, "widthSigma": 0.5, "maxLossPct": 2}
+
+
+def _nested(depth: int) -> dict[str, Any]:
+    expr: dict[str, Any] = CLOSE
+    for _ in range(depth - 1):
+        expr = {"type": "change", "of": expr, "length": 1}
+    return expr
+
+
+def _wide(nodes: int) -> dict[str, Any]:
+    """A balanced-ish math tree of `nodes` nodes (odd), depth at most 6."""
+    leaves = (nodes + 1) // 2
+    level: list[dict[str, Any]] = [CLOSE] * leaves
+    while len(level) > 1:
+        pairs = [{"type": "math", "op": "add", "left": level[i], "right": level[i + 1]}
+                 for i in range(0, len(level) - 1, 2)]
+        level = pairs + ([level[-1]] if len(level) % 2 else [])
+    return level[0]
+
+
+def test_expression_trees_normalize_idempotently() -> None:
+    definition = _definition({
+        "type": "math", "op": "div",
+        "left": {"type": "change", "of": {"type": "series", "series": "$future"}, "length": 252},
+        "right": {"type": "regression", "y": CLOSE, "x": {"type": "returnStdev", "of": CLOSE, "length": 2.0},
+                  "length": 3, "lag": 0},
+    })
+    definition["exit"] = {"any": [{"left": {"type": "seasonal", "of": CLOSE, "monthsAhead": 1, "minCount": 1},
+                                   "op": "<", "right": ZERO}]}
+    normalized = sig.normalize_definition(definition)
+    left = normalized["entry"]["all"][0]["left"]
+    assert left["left"] == {"type": "change", "length": 252, "offset": 0,
+                            "of": {"type": "series", "series": "$future", "offset": 0}}
+    assert left["right"]["x"]["length"] == 2
+    assert sig.normalize_definition(normalized) == normalized
+    assert sig.strategy_series_refs(normalized) == ["$future"]
+    assert sig.expr_size(left) == (4, 7)
+
+
+@pytest.mark.parametrize(
+    ("expr", "message"),
+    [
+        ({"type": "series", "series": "BTC"}, "Unknown series: BTC"),
+        ({"type": "series", "series": "VIX", "offset": -1}, "offset must be a whole number from 0 to 1000"),
+        ({"type": "math", "op": "pow", "left": CLOSE, "right": CLOSE}, "Unknown math operator: pow"),
+        ({"type": "change", "of": CLOSE, "length": 0}, "change length must be a whole number from 1 to 1000"),
+        ({"type": "change", "of": CLOSE, "length": 1.5}, "change length must be a whole number from 1 to 1000"),
+        ({"type": "returnStdev", "of": CLOSE, "length": 1}, "returnStdev length must be a whole number from 2 to 1000"),
+        ({"type": "regression", "y": CLOSE, "x": CLOSE, "length": 2, "lag": 0},
+         "regression length must be a whole number from 3 to 1000"),
+        ({"type": "regression", "y": CLOSE, "x": CLOSE, "length": 3, "lag": True},
+         "regression lag must be a whole number from 0 to 1000"),
+        ({"type": "seasonal", "of": CLOSE, "monthsAhead": 12, "minCount": 1},
+         "seasonal monthsAhead must be a whole number from 0 to 11"),
+        ({"type": "seasonal", "of": CLOSE, "monthsAhead": 0, "minCount": 0},
+         "seasonal minCount must be a whole number from 1 to 1000"),
+        (_nested(7), "An expression may nest at most 6 levels"),
+    ],
+)
+def test_expression_input_errors(expr: dict[str, Any], message: str) -> None:
+    with pytest.raises(InputError, match=f"^{re.escape(message)}$"):
+        sig.normalize_definition(_definition(expr))
+
+
+def test_expression_limits_count_both_sides() -> None:
+    assert sig.expr_size(_wide(21)) == (5, 21)
+    sig.normalize_definition(_definition(_wide(39)))  # 39 + the constant: 40 nodes
+    condition = {"left": _wide(21), "op": ">", "right": _wide(21)}
+    with pytest.raises(InputError, match="^A condition may hold at most 40 expression nodes$"):
+        sig.normalize_definition({**_definition(CLOSE), "entry": {"all": [condition]}})
+    with pytest.raises(InputError, match="^An expression may nest at most 6 levels$"):
+        sig.expression_values(bars_of("SPY"), _nested(7))
+
+
+def test_series_filter_accepts_refs_but_reads_the_close_only() -> None:
+    iv = {"type": "series", "series": "$iv", "condition": ALWAYS}
+    assert sig.normalize_definition(_filtered(iv))["filters"][0]["series"] == "$iv"
+    tree = {**iv, "condition": {**ALWAYS, "left": {"type": "math", "op": "add", "left": CLOSE, "right": CLOSE}}}
+    with pytest.raises(InputError, match="^A series condition reads the series close only"):
+        sig.normalize_definition(_filtered(tree))
+
+
+def test_resolve_series_maps_the_relative_refs() -> None:
+    assert sig.resolve_series("VIX", None) == "VIX"
+    assert sig.resolve_series("$tr", "SPY") == "SPY:TR"
+    assert sig.resolve_series("$iv", "GLD") == "GVZ"
+    assert sig.resolve_series("$future", "USO") == "CL=F"
+    assert sig.resolve_series("$future", None) is None
+    assert sig.resolve_series("$iv", "XLK") is None
+
+
+def test_expression_values_nan_paths() -> None:
+    dates = _weekdays("2024-01-01", "2024-01-12")
+    bars = _bars_on(dates)
+    context = {"VIX": {dates[0]: 10.0, dates[2]: 0.0, dates[3]: 5.0}}
+    ratio = {"type": "math", "op": "div", "left": CLOSE, "right": {"type": "series", "series": "VIX"}}
+    values = sig.expression_values(bars, ratio, context)
+    # A division by the 0 of the third date is not finite: NaN.
+    assert values[0] == 10.0 and values[1] == 101 / 10 and math.isnan(values[2]) and values[3] == 103 / 5
+    shifted = sig.expression_values(bars, {"type": "series", "series": "VIX", "offset": 2}, context)
+    assert math.isnan(shifted[0]) and math.isnan(shifted[1]) and shifted[2] == 10.0
+    # A zero base is not finite: NaN, also inside returnStdev and change.
+    zero_base = {"type": "change", "of": {"type": "series", "series": "VIX"}, "length": 1}
+    changes = sig.expression_values(bars, zero_base, context)
+    assert changes[1] == 0.0 and changes[2] == -1.0 and math.isnan(changes[3])
+    deviation = sig.expression_values(bars, {"type": "returnStdev", "of": CLOSE, "length": 3}, context)
+    assert all(math.isnan(value) for value in deviation[:3]) and deviation[3] > 0
+    seasonal = {"type": "seasonal", "of": CLOSE, "monthsAhead": 0, "minCount": 3}
+    means = sig.expression_values(bars, seasonal, context)
+    assert math.isnan(means[1]) and means[2] == 101.0
+
+
+def test_relative_refs_need_a_mapped_symbol() -> None:
+    bars = bars_of("SPY")
+    with pytest.raises(InputError, match=r"^\$tr needs the traded symbol$"):
+        sig.expression_values(bars, {"type": "series", "series": "$tr"}, golden()["series"])
+    with pytest.raises(InputError, match=r"^\$iv has no series for XLK$"):
+        sig.compile_strategy(bars, _filtered({"type": "series", "series": "$iv", "condition": ALWAYS}),
+                             None, golden()["series"], "XLK")
+    with pytest.raises(SeriesDataError, match="^Series data is not available for VIX$"):
+        sig.expression_values(bars, {"type": "series", "series": "VIX"})
+
+
+def test_calendar_must_hold_ascending_dates_and_every_bar_date() -> None:
+    dates = _weekdays("2024-01-01", "2024-01-05")
+    bars = _bars_on(dates)
+    vix = {"type": "series", "series": "VIX"}
+    context = {"VIX": {dates[0]: 10.0}}
+    with pytest.raises(InputError, match="^The calendar must hold ascending YYYY-MM-DD dates without repeats: "
+                                         "2024-01-01$"):
+        sig.expression_values(bars, vix, context, None, [dates[1], dates[0]])
+    with pytest.raises(InputError, match="^The calendar must hold ascending YYYY-MM-DD dates without repeats: 2024/1/1$"):
+        sig.expression_values(bars, vix, context, None, ["2024/1/1"])
+    with pytest.raises(InputError, match="^Bar date 2024-01-05 is not in the calendar$"):
+        sig.expression_values(bars, vix, context, None, dates[:4])
+    # Carry counts calendar dates: 10 weekdays between two bars ends the 5-date carry.
+    calendar = _weekdays("2024-01-01", "2024-01-31")
+    month_ends = _bars_on([calendar[0], calendar[5], calendar[10]])
+    assert sig.expression_values(month_ends, vix, context)[2] == 10.0
+    aligned = sig.expression_values(month_ends, vix, context, None, calendar)
+    assert aligned[:2] == [10.0, 10.0] and math.isnan(aligned[2])
+
+
+def _portfolio_definition(portfolio: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {**_filtered({"type": "calendarWindow", "window": "opexWeek"}), "options": OPTIONS,
+            "portfolio": portfolio, **extra}
+
+
+@pytest.mark.parametrize(
+    ("portfolio", "message"),
+    [
+        ({"policy": "hold", "symbols": ["SPY"]}, "Unknown portfolio policy: hold"),
+        ({"policy": "roll", "symbols": []}, "A portfolio trades 1 to 7 symbols"),
+        ({"policy": "roll", "symbols": ["XLK"]}, "Unknown portfolio symbol: XLK"),
+        ({"policy": "roll", "symbols": ["SPY", "SPY"]}, "Portfolio symbols must not repeat"),
+        ({"policy": "flat", "cadence": "weekly", "symbols": ["SPY"]}, "Unknown portfolio cadence: weekly"),
+        ({"policy": "roll", "frame": "weekly", "symbols": ["SPY"]}, "Unknown portfolio frame: weekly"),
+        ({"policy": "roll", "legs": [], "symbols": ["SPY"]}, "A portfolio holds 1 to 3 legs"),
+        ({"policy": "roll", "symbols": ["SPY"], "legs": [{"entry": {"all": [ALWAYS]}}]},
+         "A portfolio leg needs an options block"),
+        ({"policy": "roll", "symbols": ["SPY"], "legs": [{"entry": {"all": []}, "options": OPTIONS}]},
+         "A leg entry needs 1 to 8 conditions"),
+        ({"policy": "roll", "symbols": ["SPY"], "legs": [{"entry": {"all": [ALWAYS]}, "filters": [],
+                                                          "options": OPTIONS}]},
+         "A leg needs 1 to 4 filters"),
+        ({"policy": "roll", "symbols": ["SPY"], "select": {"score": CLOSE, "top": 8}},
+         "select top must be a whole number from 1 to 7"),
+        ({"policy": "roll", "symbols": ["SPY"], "select": {"score": _nested(7), "top": 1}},
+         "An expression may nest at most 6 levels"),
+        ({"policy": "window", "shift": 6, "symbols": ["SPY"]}, "shift must be a whole number from 1 to 5"),
+        ({"policy": "flat", "symbols": ["SPY"]}, "cadence is required with the flat policy and only there"),
+        ({"policy": "roll", "cadence": "daily", "symbols": ["SPY"]},
+         "cadence is required with the flat policy and only there"),
+        ({"policy": "window", "frame": "monthly", "symbols": ["SPY"]}, "frame monthly needs the roll policy"),
+        ({"policy": "window", "select": {"score": CLOSE, "top": 1}, "symbols": ["SPY"]},
+         "select needs the roll policy"),
+        ({"policy": "roll", "shift": 1, "symbols": ["SPY"]}, "shift needs the window policy"),
+    ],
+)
+def test_portfolio_refinements(portfolio: dict[str, Any], message: str) -> None:
+    with pytest.raises(InputError, match=f"^{re.escape(message)}$"):
+        sig.normalize_definition(_portfolio_definition(portfolio))
+
+
+SHIFT_MESSAGE = (
+    "A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow"
+    " filters only"
+)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"entry": {"all": [{**ALWAYS, "left": {**CLOSE, "offset": 0}}]}},
+        {"entry": {"all": [{**ALWAYS, "op": ">="}]}},
+        {"entry": {"all": [{**ALWAYS, "right": {"type": "const", "value": 1}}]}},
+        {"entry": {"all": [ALWAYS, ALWAYS]}},
+        {"exit": {"any": [ALWAYS]}},
+        {"filters": [{"type": "ivRank", "max": 30}]},
+        {"filters": None},
+    ],
+)
+def test_a_shifted_window_needs_calendar_only_legs(change: dict[str, Any]) -> None:
+    portfolio = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
+    shifted = _portfolio_definition(portfolio)
+    assert sig.normalize_definition(shifted)["portfolio"] == portfolio
+    with pytest.raises(InputError, match=f"^{re.escape(SHIFT_MESSAGE)}$"):
+        sig.normalize_definition({**shifted, **change})
+    leg = {"entry": {"all": [ALWAYS]}, "filters": [{"type": "calendarWindow", "window": "opexWeek"}],
+           "options": OPTIONS}
+    with pytest.raises(InputError, match=f"^{re.escape(SHIFT_MESSAGE)}$"):
+        sig.normalize_definition(_portfolio_definition({**portfolio, "legs": [leg, {**leg, **change}]}))
+
+
+def test_a_portfolio_needs_an_options_block() -> None:
+    definition = {**_filtered(), "portfolio": {"policy": "roll", "symbols": ["SPY"]}}
+    with pytest.raises(InputError, match="^A portfolio block trades option verticals; add an options block$"):
+        sig.normalize_definition(definition)
+
+
+def test_portfolio_is_normalized_and_returned_unchanged() -> None:
+    portfolio = {
+        "policy": "roll", "frame": "monthly", "symbols": ["SPY", "QQQ"],
+        "select": {"score": {"type": "series", "series": "$tr"}, "tieBreak": CLOSE, "top": 1},
+        "legs": [{"entry": {"all": [ALWAYS]}, "exit": {"any": []},
+                  "filters": [{"type": "ivRank", "max": 30}], "options": OPTIONS}],
+    }
+    definition = _portfolio_definition(portfolio)
+    normalized = sig.normalize_definition(definition)
+    assert normalized["portfolio"]["legs"][0]["filters"][0]["length"] == 252
+    assert normalized["portfolio"]["select"]["tieBreak"] == {"type": "price", "field": "close", "offset": 0}
+    assert sig.normalize_definition(normalized) == normalized
+    assert sig.strategy_series_refs(normalized) == ["$iv", "$tr"]
+    compiled = sig.compile_strategy(bars_of("SPY"), definition)
+    assert compiled.portfolio == portfolio
+    assert compiled.options == OPTIONS
+    plain = sig.compile_strategy(bars_of("SPY"), _filtered())
+    assert plain.portfolio is None
+
+
+def test_server_refusal_support_flags() -> None:
+    reads = sig.normalize_definition(_definition({"type": "series", "series": "VIX"}))
+    refusal = sig.server_refusal(reads)
+    assert refusal is not None and "series expressions need daily series" in str(refusal)
+    assert sig.server_refusal(reads, "1d", {"series": True}) is None
+    options = sig.normalize_definition({**_filtered(), "options": OPTIONS})
+    assert sig.server_refusal(options, "1d", {"options": True}) is None
+    timeframe = sig.server_refusal(options, "1w", {"options": True})
+    assert timeframe is not None and timeframe.code == "STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED"
+
+
+def test_plan_run_loads_series_with_a_context() -> None:
+    definition = _definition({"type": "math", "op": "sub", "left": {"type": "series", "series": "$tr"},
+                              "right": {"type": "series", "series": "$tr", "offset": 1}})
+    spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0, "costs": None,
+            "context": golden()["series"], "symbol": "SPY"}
+    compiled, _ = sig.plan_run(bars_of("SPY"), spec)
+    expected = sig.compile_strategy(bars_of("SPY"), definition, None, golden()["series"], "SPY")
+    assert compiled.signals == expected.signals
+    assert 0 < sum(1 for value in compiled.signals if value == 1) < len(compiled.signals)
+    with pytest.raises(StrategyUnsupportedError, match="^STRATEGY_SERIES_FILTERS_UNSUPPORTED: series expressions"):
+        sig.plan_run(bars_of("SPY"), spec, {"series": False})
+    with pytest.raises(StrategyUnsupportedError, match="^STRATEGY_SERIES_FILTERS_UNSUPPORTED"):
+        sig.plan_run(bars_of("SPY"), {**spec, "context": None})
+    calendar = golden()["calendars"]["weekdays"]
+    on_calendar, _ = sig.plan_run(bars_of("SPY"), {**spec, "calendar": calendar})
+    assert on_calendar.signals == sig.compile_strategy(
+        bars_of("SPY"), definition, None, golden()["series"], "SPY", calendar
+    ).signals
+
