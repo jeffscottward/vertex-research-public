@@ -54,6 +54,8 @@ import {
   type StrategyTab,
 } from "./strategy-library-model.ts";
 import { ParamField, selectClass } from "./strategy-param-field.tsx";
+import { StrategyReelStudy } from "./strategy-reel-study.tsx";
+import { BACKTEST_STUDY_TAG } from "./strategy-reel-study-model.ts";
 
 // External links from a strategy description (source dashboard, code), opened in a new tab.
 export const StrategyLinks = ({
@@ -97,7 +99,8 @@ export interface StrategyDetailProps {
   readonly onChanged: () => Promise<void>;
   readonly onClose: () => void;
   readonly onTab: (tab: StrategyTab) => void;
-  // researchStudies.get for the Backtest study section (QuantConnect idea ports); the browser API by default.
+  // researchStudies.get for the Backtest study section (QuantConnect idea ports and entries tagged
+  // backtest-study); the browser API by default.
   readonly researchStudies?: ResearchStudyGateway;
   readonly tab: StrategyTab;
 }
@@ -755,9 +758,17 @@ const BacktestsTab = ({
   const latest = strategy.latestBacktest;
   return (
     <div className="space-y-3">
-      {/* QuantConnect idea ports keep their backtest study in research_studies under the slug. */}
+      {/* QuantConnect idea ports and entries tagged backtest-study keep their backtest study in
+          research_studies under the slug. */}
       {strategy.tags.includes(QC_IDEA_TAG) ? (
         <StrategyBacktestStudy
+          gateway={researchStudies}
+          key={strategy.slug}
+          slug={strategy.slug}
+        />
+      ) : null}
+      {strategy.tags.includes(BACKTEST_STUDY_TAG) ? (
+        <StrategyReelStudy
           gateway={researchStudies}
           key={strategy.slug}
           slug={strategy.slug}
