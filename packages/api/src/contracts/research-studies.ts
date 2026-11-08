@@ -322,7 +322,7 @@ export const StrategyBacktestRunSchema = z
     from: DateText,
     market: Trimmed(60),
     maxDrawdown: Loss,
-    // Out-of-sample (walk-forward) results; null when the run has no out-of-sample part.
+    // Out-of-sample results (the later part of a time split); null when the run has no out-of-sample part.
     oosCagr: Cagr.nullable(),
     oosSharpe: z.number().nullable(),
     // Null when the run has no losing trade.

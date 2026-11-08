@@ -160,7 +160,11 @@ export const toStrategyStudyViewModel = (
         oosCagr: formatSignedPercent(run.oosCagr),
         oosSharpe: formatRatio(run.oosSharpe),
         period: `${run.from} to ${run.to}`,
-        profitFactor: formatRatio(run.profitFactor),
+        // Null means no losing trade; with no trades at all there is no ratio.
+        profitFactor:
+          run.profitFactor === null && run.trades > 0
+            ? "no losses"
+            : formatRatio(run.profitFactor),
         sharpe: formatRatio(run.sharpe),
         symbol: run.symbol,
         trades: count(run.trades),

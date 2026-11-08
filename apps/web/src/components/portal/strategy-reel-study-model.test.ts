@@ -77,6 +77,18 @@ describe("toStrategyStudyViewModel", () => {
     });
   });
 
+  it("shows a missing profit factor with trades as no losses", () => {
+    const [form] = STUDY.forms;
+    const [run] = form?.runs ?? [];
+    const study = StrategyBacktestStudySchema.parse({
+      ...STUDY,
+      forms: [{ ...form, runs: [{ ...run, profitFactor: null, trades: 3 }] }],
+    });
+    expect(
+      toStrategyStudyViewModel(study).forms[0]?.runs[0]?.profitFactor
+    ).toBe("no losses");
+  });
+
   it("labels robustness, sensitivity and comparison rows", () => {
     const model = toStrategyStudyViewModel(STUDY);
     expect(model.robustness.map((row) => row.status)).toEqual([
