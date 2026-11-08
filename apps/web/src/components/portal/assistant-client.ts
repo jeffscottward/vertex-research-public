@@ -143,7 +143,7 @@ export const describeAssistantFailure = (error: unknown): string => {
       return "Session expired. Sign in again.";
     }
     case "FORBIDDEN": {
-      return "Operator access required.";
+      return message ?? "Operator access required.";
     }
     case "NOT_FOUND": {
       return "Thread not found. Reload the page.";
