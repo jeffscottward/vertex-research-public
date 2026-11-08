@@ -81,6 +81,7 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   flow_events: "symbol,key",
   flow_gex: "symbol,at",
   flow_minutes: "symbol,minute",
+  flow_option_gaps: "symbol,start_time",
   flow_option_prints: "id",
   flow_samples: "symbol,source,at",
   forward_drift_alerts: "id",

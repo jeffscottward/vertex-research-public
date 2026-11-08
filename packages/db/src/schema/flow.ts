@@ -161,6 +161,29 @@ export const flowOptionPrints = pgTable(
   ]
 );
 
+/**
+ * Option-print ranges a run left unfetched because it reached its page cap (migration 0053). Later
+ * runs page each range newest first, move `end_time` back to the oldest print they fetched, and
+ * delete the row once the range is read completely, so a busy window is stored in full over several
+ * runs. `start_time` and `end_time` are inclusive QuantData query bounds.
+ */
+export const flowOptionGaps = pgTable(
+  "flow_option_gaps",
+  {
+    createdAt: utc("created_at").notNull(),
+    endTime: utc("end_time").notNull(),
+    startTime: utc("start_time").notNull(),
+    symbol: text("symbol").$type<FlowSymbolValue>().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.symbol, table.startTime] }),
+    check(
+      "flow_option_gaps_check",
+      sql`${symbolCheck(table.symbol)} and ${table.endTime} >= ${table.startTime}`
+    ),
+  ]
+);
+
 export const flowEvents = pgTable(
   "flow_events",
   {

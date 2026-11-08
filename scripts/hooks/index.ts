@@ -413,3 +413,59 @@ export function runPrePush(
     return 1;
   }
 }
+
+const INSTALLED_LOCKFILE = "node_modules/.pnpm/lock.yaml";
+// A copied node_modules from another pnpm layout needs a purge; the hook has no
+// terminal to confirm it.
+const POST_CHECKOUT_INSTALL: readonly string[] = Object.freeze([
+  "install",
+  "--frozen-lockfile",
+  "--prefer-offline",
+  "--config.confirm-modules-purge=false",
+]);
+
+function readOptionalText(path: string): string | undefined {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+// OMP's `worktree.clone` setting turns `git worktree add` in its bash tool into
+// a copy-on-write clone of the source checkout, ignored files included, and
+// then runs this hook in the new worktree. The copied node_modules matches the
+// source checkout's lockfile, not this commit's: knip then reports unlisted
+// binaries, and every parallel turbo task starts its own pnpm install. One
+// install here prevents both (card vitest-cache-copy-race, 2026-11-08). OMP
+// shows the hook output only after the install ends. A plain `git worktree add`
+// also runs this hook, but its new worktree has no node_modules, so the hook
+// leaves the install to its owner.
+export function runPostCheckout(argv: readonly string[]): number {
+  // Git passes the null object id as the previous HEAD only for a new checkout.
+  if (!ZERO_ID.test(argv[0] ?? "")) {
+    return 0;
+  }
+  const installed = readOptionalText(INSTALLED_LOCKFILE);
+  if (
+    installed === undefined ||
+    installed === readOptionalText("pnpm-lock.yaml")
+  ) {
+    return 0;
+  }
+  console.error(
+    "[hook] node_modules was copied from another checkout and does not match pnpm-lock.yaml; installing"
+  );
+  const result = spawnSync("pnpm", POST_CHECKOUT_INSTALL, {
+    env: withoutGitRepositoryEnvironment(process.env),
+    shell: false,
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+  if (result.status !== 0) {
+    failureExitCode("pnpm", POST_CHECKOUT_INSTALL, result);
+    console.error(
+      "[hook] WARNING: dependencies are stale; run `pnpm install --frozen-lockfile` before you test or push"
+    );
+  }
+  return 0;
+}

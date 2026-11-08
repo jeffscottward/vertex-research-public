@@ -213,6 +213,7 @@ export {
   type FlowEventRecord,
   type FlowGexRecord,
   type FlowMinuteRecord,
+  type FlowOptionGapRecord,
   type FlowOptionPrintRecord,
   type FlowRepository,
   type FlowSampleRecord,

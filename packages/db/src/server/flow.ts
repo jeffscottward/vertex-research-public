@@ -8,6 +8,7 @@ import {
   flowEvents,
   flowGex,
   flowMinutes,
+  flowOptionGaps,
   flowOptionPrints,
   flowSamples,
 } from "../schema/index.ts";
@@ -28,6 +29,7 @@ export type FlowSampleRecord = typeof flowSamples.$inferSelect;
 export type FlowMinuteRecord = typeof flowMinutes.$inferSelect;
 export type FlowBookRecord = typeof flowBook.$inferSelect;
 export type FlowOptionPrintRecord = typeof flowOptionPrints.$inferSelect;
+export type FlowOptionGapRecord = typeof flowOptionGaps.$inferSelect;
 export type FlowEventRecord = typeof flowEvents.$inferSelect;
 export type FlowGexRecord = typeof flowGex.$inferSelect;
 
@@ -72,6 +74,18 @@ export type FlowRepository = Readonly<{
   prune: (before: Date) => Promise<number>;
   /** Newest stored option print time for a symbol (paging stops there). */
   newestOptionPrintAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
+  /** Unfetched option-print ranges of a symbol, newest end first. */
+  optionGaps: (symbol: FlowSymbolValue) => Promise<FlowOptionGapRecord[]>;
+  /** Stores a new gap; a stored gap with the same symbol and start keeps the later end. */
+  addOptionGap: (gap: FlowOptionGapRecord) => Promise<void>;
+  /** Moves a stored gap's end back to where the next read resumes. */
+  moveOptionGapEnd: (
+    symbol: FlowSymbolValue,
+    startTime: Date,
+    endTime: Date
+  ) => Promise<void>;
+  /** Deletes a gap that was read completely. */
+  deleteOptionGap: (symbol: FlowSymbolValue, startTime: Date) => Promise<void>;
   /** Newest stored minute, book or option print time for a symbol (the snapshot window ends there). */
   newestDataAt: (symbol: FlowSymbolValue) => Promise<Date | null>;
   /** Newest sample of any status and newest ok sample, per source. */
@@ -143,6 +157,27 @@ export const createFlowRepository = (
   };
 
   return {
+    addOptionGap: async (gap) => {
+      await database
+        .insert(flowOptionGaps)
+        .values(gap)
+        .onConflictDoUpdate({
+          set: {
+            endTime: sql`greatest(${flowOptionGaps.endTime}, excluded.end_time)`,
+          },
+          target: [flowOptionGaps.symbol, flowOptionGaps.startTime],
+        });
+    },
+    deleteOptionGap: async (symbol, startTime) => {
+      await database
+        .delete(flowOptionGaps)
+        .where(
+          and(
+            eq(flowOptionGaps.symbol, symbol),
+            eq(flowOptionGaps.startTime, startTime)
+          )
+        );
+    },
     insertBooks: (rows) =>
       insertOnce(rows, (batch) =>
         database
@@ -186,6 +221,17 @@ export const createFlowRepository = (
       }
       return { latest, latestOk };
     },
+    moveOptionGapEnd: async (symbol, startTime, endTime) => {
+      await database
+        .update(flowOptionGaps)
+        .set({ endTime })
+        .where(
+          and(
+            eq(flowOptionGaps.symbol, symbol),
+            eq(flowOptionGaps.startTime, startTime)
+          )
+        );
+    },
     newestDataAt: async (symbol) => {
       const [minute] = await database
         .select({ at: max(flowMinutes.minute) })
@@ -212,6 +258,12 @@ export const createFlowRepository = (
         .where(eq(flowOptionPrints.symbol, symbol));
       return toDate(row?.at);
     },
+    optionGaps: (symbol) =>
+      database
+        .select()
+        .from(flowOptionGaps)
+        .where(eq(flowOptionGaps.symbol, symbol))
+        .orderBy(desc(flowOptionGaps.endTime), desc(flowOptionGaps.startTime)),
     prune: async (before) => {
       const removed = [
         await database
@@ -238,6 +290,11 @@ export const createFlowRepository = (
           .delete(flowGex)
           .where(lt(flowGex.at, before))
           .returning({ at: flowGex.at }),
+        // A gap whose newest part is older than the cutoff would only fetch rows prune removes.
+        await database
+          .delete(flowOptionGaps)
+          .where(lt(flowOptionGaps.endTime, before))
+          .returning({ at: flowOptionGaps.endTime }),
       ];
       return removed.reduce((total, rows) => total + rows.length, 0);
     },
