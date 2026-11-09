@@ -71,6 +71,8 @@ Rollback: `packages/db/rollback/0051_research_studies.down.sql` refuses while an
 
 ## Store a new run
 
+Intraday studies run on IBKR bars by default (owner decision 2026-11-09, see [intraday data source](data-sources/intraday.md)).
+
 From the repository root:
 
 ```sh

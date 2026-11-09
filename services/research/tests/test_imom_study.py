@@ -1,6 +1,7 @@
 """Unit tests of the market intraday momentum reel study (synthetic data; no market data, no Nautilus)."""
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import shutil
@@ -677,13 +678,15 @@ class IbkrSourceTest(unittest.TestCase):
         study.main_study = lambda *args: calls.append(args) or 0
         try:
             cli.main(["study", "--ran", "2026-11-09"])
+            cli.main(["study", "--ran", "2026-11-09", "--source", "dukascopy"])
             cli.main(["study", "--ran", "2026-11-09", "--source", "ibkr", "--workers", "2",
                       "--compare-row", "GHLZ US500=0.31,0.012,-0.21", "--compare-row", "ZAB SPY=0.5,0.03,-0.1"])
             with self.assertRaises(SystemExit):
                 cli.main(["study", "--ran", "2026-11-09", "--source", "polygon"])
         finally:
             study.main_study = original
-        self.assertEqual(calls, [("2026-11-09", 8, None, "dukascopy", []),
+        self.assertEqual(calls, [("2026-11-09", 8, None, "ibkr", []),
+                                 ("2026-11-09", 8, None, "dukascopy", []),
                                  ("2026-11-09", 2, None, "ibkr",
                                   ["GHLZ US500=0.31,0.012,-0.21", "ZAB SPY=0.5,0.03,-0.1"])])
 
@@ -702,7 +705,12 @@ class IbkrSourceTest(unittest.TestCase):
             study.main_study("2026-11-09", 1, None, "dukascopy", ["GHLZ US500=0.31,0.012,-0.21"])
         self.assertIn("--compare-row needs --source ibkr", str(caught.exception))
 
-    def test_default_source_is_unchanged(self) -> None:
+    def test_vertex_default_is_ibkr(self) -> None:
+        # Owner 2026-11-09 (card vertex-reel-backtest-dffkn31): IBKR is the intraday-data default.
+        self.assertEqual(data.DEFAULT_SOURCE, data.IBKR)
+        self.assertEqual(inspect.signature(study.main_study).parameters["source"].default, "ibkr")
+
+    def test_helper_defaults_stay_dukascopy(self) -> None:
         self.assertEqual(data.primary_of(), "US500")
         self.assertIs(data.instruments(), data.INSTRUMENTS)
         self.assertIs(data.instrument("SPY"), data.BY_KEY["SPY"])

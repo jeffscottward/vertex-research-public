@@ -18,7 +18,7 @@ from nautilus_backtest.engine import ENGINE_ID, run_signal_backtest
 from nautilus_backtest.signals import plan_run
 
 from . import bias as bias_signal
-from .data import DEFAULT_SOURCE, Instrument, SessionBars, instrument, load_bars, local_times
+from .data import DUKASCOPY, Instrument, SessionBars, instrument, load_bars, local_times
 from .definition import Bias, Params, definition, params_from_json, params_to_json
 
 CAPITAL = 100_000.0
@@ -97,7 +97,7 @@ def run_leg(data: SessionBars, item: Instrument, params: Params, side: str, cost
 def run_job(job: tuple) -> dict[str, Any]:
     """Worker entry (picklable): (market key, params JSON, side, cost multiple, data root[, data source])."""
     key, fields, side, cost_multiple, root, *rest = job
-    source = rest[0] if rest else DEFAULT_SOURCE
+    source = rest[0] if rest else DUKASCOPY
     params = params_from_json(fields)
     return run_leg(load_bars(key, root, source=source), instrument(key, source), params, side, cost_multiple)
 

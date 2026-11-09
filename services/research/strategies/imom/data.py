@@ -95,9 +95,13 @@ PRIMARY = "US500"
 FUTURES_PROXIES = ("US500", "NAS100", "US30", "US2000", "XAUUSD", "XAGUSD", "WTI")
 ETF_TWINS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
 
-DEFAULT_SOURCE = "dukascopy"
+DUKASCOPY = "dukascopy"
 IBKR = "ibkr"
-SOURCES = (DEFAULT_SOURCE, IBKR)
+SOURCES = (DUKASCOPY, IBKR)
+# Vertex default for intraday backtests: IBKR (owner 2026-11-09, card vertex-reel-backtest-dffkn31;
+# docs/vertex-rebuild/data-sources/intraday.md). The CLI and main_study use it. The helpers below keep
+# DUKASCOPY as their default because they pair `source` with the Dukascopy PRIMARY.
+DEFAULT_SOURCE = IBKR
 IBKR_DATA_ENV = "VERTEX_IMOM_IBKR_DATA"
 IBKR_DEFAULT_ROOT = DEFAULT_ROOT.parent / "ibkr5m"
 IBKR_SLIPPAGE_BPS = 0.25
@@ -139,21 +143,21 @@ def check_source(source: str) -> str:
     return source
 
 
-def instruments(source: str = DEFAULT_SOURCE) -> tuple[Instrument, ...]:
+def instruments(source: str = DUKASCOPY) -> tuple[Instrument, ...]:
     """The tested markets of a data source."""
     return IBKR_INSTRUMENTS if check_source(source) == IBKR else INSTRUMENTS
 
 
-def instrument(key: str, source: str = DEFAULT_SOURCE) -> Instrument:
+def instrument(key: str, source: str = DUKASCOPY) -> Instrument:
     return (IBKR_BY_KEY if check_source(source) == IBKR else BY_KEY)[key]
 
 
-def primary_of(source: str = DEFAULT_SOURCE) -> str:
+def primary_of(source: str = DUKASCOPY) -> str:
     """The primary market: the US500 CFD on Dukascopy, SPY on IBKR (the paper's instrument)."""
     return IBKR_PRIMARY if check_source(source) == IBKR else PRIMARY
 
 
-def data_root(root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> Path:
+def data_root(root: str | os.PathLike | None = None, source: str = DUKASCOPY) -> Path:
     if root is not None:
         return Path(root)
     if check_source(source) == IBKR:
@@ -176,7 +180,7 @@ def ibkr_files(key: str, root: str | os.PathLike | None = None) -> tuple[Path, P
     return folder / f"{symbol}.csv.gz", folder / f"{symbol}-bidask.csv.gz"
 
 
-def available(key: str, root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> bool:
+def available(key: str, root: str | os.PathLike | None = None, source: str = DUKASCOPY) -> bool:
     if check_source(source) == IBKR:
         return key in IBKR_BY_KEY and ibkr_files(key, root)[0].exists()
     return all(path.exists() for path in files_of(key, root))
@@ -354,14 +358,14 @@ def ibkr_spread(key: str, root: str | os.PathLike | None = None) -> tuple[float,
 
 
 def input_files(keys: Sequence[str], root: str | os.PathLike | None = None,
-                source: str = DEFAULT_SOURCE) -> list[Path]:
+                source: str = DUKASCOPY) -> list[Path]:
     """The input files of the given markets (IBKR: bars and, when present, the BID_ASK sample)."""
     if check_source(source) == IBKR:
         return [path for key in keys for path in ibkr_files(key, root) if path.exists()]
     return [path for key in keys for path in files_of(key, root)]
 
 
-def data_hash(keys: Sequence[str], root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> str:
+def data_hash(keys: Sequence[str], root: str | os.PathLike | None = None, source: str = DUKASCOPY) -> str:
     """sha256 over the input files (name and content) of the given markets."""
     digest = hashlib.sha256()
     for path in input_files(keys, root, source):
@@ -414,7 +418,7 @@ def load_ibkr_bars(key: str, root: str | os.PathLike | None = None, *, cache: bo
 
 
 def load_bars(key: str, root: str | os.PathLike | None = None, *, cache: bool = True,
-              source: str = DEFAULT_SOURCE) -> SessionBars:
+              source: str = DUKASCOPY) -> SessionBars:
     """5-minute mid bars of one market (cached next to the data folder, keyed by the input file stamps)."""
     if check_source(source) == IBKR:
         return load_ibkr_bars(key, root, cache=cache)
