@@ -15,7 +15,11 @@ vi.mock("./server-internal-dispatch.ts", () => ({
 }));
 
 import { DATABASE_COURSE_LESSONS } from "../../../../packages/academy/src/lessons/database-courses.test-support.ts";
-import { loadCourseLessons, loadLesson } from "./academy-lessons.ts";
+import {
+  loadCourseLessons,
+  loadCourseListing,
+  loadLesson,
+} from "./academy-lessons.ts";
 
 const [FIRST, SECOND] = DATABASE_COURSE_LESSONS as [Lesson, Lesson];
 const specOf = ({ source: _source, ...spec }: Lesson) => spec;
@@ -58,6 +62,53 @@ describe("loadCourseLessons", () => {
       /\/academy\/lessons$/u
     );
     expect(requests[0]?.headers.get("cookie")).toBe("session=abc");
+  });
+});
+
+describe("loadCourseListing", () => {
+  it("marks only a failing database course unavailable (e.g. web deployed before migration 0058)", async () => {
+    const error = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const { transport } = transportOf(() =>
+      json(
+        {
+          code: "STORAGE_ERROR",
+          data: undefined,
+          defined: true,
+          message: "STORAGE_ERROR",
+          status: 503,
+        },
+        503
+      )
+    );
+    await expect(
+      loadCourseListing("quantfinancetogo", "c=1", transport)
+    ).resolves.toEqual({
+      course: "quantfinancetogo",
+      lessons: [],
+      sourceCount: 0,
+      unavailable: true,
+    });
+    expect(error).toHaveBeenCalledWith(
+      "academy course quantfinancetogo unavailable: STORAGE_ERROR"
+    );
+    await expect(
+      loadCourseListing("dyr", "c=1", transport)
+    ).resolves.toMatchObject({
+      course: "dyr",
+      sourceCount: sourceCounts().dyr,
+    });
+    const broken = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    await expect(
+      loadCourseListing("quantfinancetogo", "c=1", broken)
+    ).resolves.toMatchObject({ unavailable: true });
+    expect(error).toHaveBeenLastCalledWith(
+      "academy course quantfinancetogo unavailable: read failed"
+    );
+    error.mockRestore();
   });
 });
 

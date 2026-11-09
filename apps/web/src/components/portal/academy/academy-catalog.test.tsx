@@ -4,13 +4,12 @@ import { lessonSummaries, toLessonSummary } from "@darkfactory/academy/lessons";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-
+import { DATABASE_COURSE_LESSONS } from "../../../../../../packages/academy/src/lessons/database-courses.test-support.ts";
 import {
   AcademyCatalog,
   type AcademyCourseListing,
   AcademyGallery,
 } from "./academy-gallery.tsx";
-import { DATABASE_COURSE_LESSONS } from "../../../../../../packages/academy/src/lessons/database-courses.test-support.ts";
 import { DEFAULT_ACADEMY_QUERY } from "./academy-gallery-query.ts";
 
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
@@ -132,17 +131,71 @@ describe("AcademyCatalog", () => {
     expect(window.location.search).toBe("?type=strategy");
   });
 
-  it("shows a course without lessons as an empty group with its video count", async () => {
+  it("shows a packaged course without lessons as an empty group with its video count", async () => {
     const container = await catalog([
-      { course: "dyr", lessons: dyr, sourceCount: 153 },
-      { course: "quantfinancetogo", lessons: [], sourceCount: 51 },
+      { course: "dyr", lessons: [], sourceCount: 153 },
+      { course: "quantfinancetogo", lessons: qftg, sourceCount: 51 },
     ]);
     const empty = container.querySelector(
-      '[data-academy-course="quantfinancetogo"] [data-course-empty]'
+      '[data-academy-course="dyr"] [data-course-empty="no-lessons"]'
     );
     expect(empty?.textContent).toContain(
-      "No lessons yet: 51 QuantFinanceToGo videos are in the knowledge base."
+      "No lessons yet: 153 Define Your Risk videos are in the knowledge base."
     );
+  });
+
+  it("says a database course with no rows has not been imported yet", async () => {
+    const container = await catalog([
+      { course: "dyr", lessons: dyr, sourceCount: 153 },
+      { course: "quantfinancetogo", lessons: [], sourceCount: 0 },
+    ]);
+    const empty = container.querySelector(
+      '[data-academy-course="quantfinancetogo"] [data-course-empty="not-imported"]'
+    );
+    expect(empty?.textContent).toContain("Course content not imported yet");
+    expect(container.textContent).not.toContain("No lessons yet");
+  });
+
+  it("keeps listing the other courses when one course is unavailable", async () => {
+    const container = await catalog([
+      { course: "dyr", lessons: dyr, sourceCount: 153 },
+      {
+        course: "quantfinancetogo",
+        lessons: [],
+        sourceCount: 0,
+        unavailable: true,
+      },
+    ]);
+    const unavailable = container.querySelector(
+      '[data-academy-course="quantfinancetogo"] [data-course-empty="unavailable"]'
+    );
+    expect(unavailable?.textContent).toContain("Course unavailable");
+    expect(
+      container.querySelector('[data-course-card="quantfinancetogo"]')
+        ?.textContent
+    ).toContain("Lessons unavailable");
+    expect(
+      container.querySelectorAll(
+        '[data-academy-course="dyr"] [data-lesson-card]'
+      ).length
+    ).toBeGreaterThan(0);
+  });
+});
+
+describe("AcademyGallery for a database course with no rows", () => {
+  it("says the content has not been imported instead of an empty gallery", async () => {
+    const container = await mount(
+      <AcademyGallery
+        course="quantfinancetogo"
+        lessons={[]}
+        media={{}}
+        sourceCount={0}
+      />
+    );
+    expect(
+      container.querySelector('[data-course-empty="not-imported"]')?.textContent
+    ).toContain("Course content not imported yet");
+    expect(container.querySelector("[data-lesson-card]")).toBeNull();
   });
 });
 

@@ -4,7 +4,7 @@
 // dispatched in-process with the page request's cookie (operator-only like the pages). The page
 // builds the lesson's charts client-side from the returned spec.
 // Used by: apps/web/src/app/(portal)/academy/**/page.tsx. See: docs/vertex-academy.md#lesson-storage.
-import { type AcademyLessonOutput, createApiClient } from "@darkfactory/api";
+
 import { COURSES, type CourseId } from "@darkfactory/academy/courses";
 import {
   ACADEMY_LESSONS,
@@ -15,6 +15,7 @@ import {
   sourceCounts,
 } from "@darkfactory/academy/lessons";
 import type { Lesson, LessonSummary } from "@darkfactory/academy/schema";
+import { type AcademyLessonOutput, createApiClient } from "@darkfactory/api";
 
 import { ownErrorData } from "./capacity-retry.ts";
 import {
@@ -70,6 +71,37 @@ export const loadCourseLessons = async (
     transport
   ).lessons({ course });
   return { lessons, sourceCount };
+};
+
+type CourseListing = AcademyCourseLessons &
+  Readonly<{
+    course: CourseId;
+    /** The course's lessons could not be read (its storage is missing or failing). */
+    unavailable?: true;
+  }>;
+
+/**
+ * One course's listing for the /academy index. Unlike loadCourseLessons, a failed database read
+ * (for example a web deploy before migration 0058) marks only that course unavailable, so the
+ * other courses still list.
+ */
+export const loadCourseListing = async (
+  course: CourseId,
+  cookieHeader: string | null,
+  transport: AcademyTransport = dispatchInternalOrpcRequest
+): Promise<CourseListing> => {
+  try {
+    return {
+      course,
+      ...(await loadCourseLessons(course, cookieHeader, transport)),
+    };
+  } catch (error) {
+    const code = ownErrorData(error, "code");
+    console.error(
+      `academy course ${course} unavailable: ${typeof code === "string" ? code : "read failed"}`
+    );
+    return { course, lessons: [], sourceCount: 0, unavailable: true };
+  }
 };
 
 export type AcademyLessonPage = Readonly<{

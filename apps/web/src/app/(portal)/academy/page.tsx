@@ -10,7 +10,7 @@ import {
   readAcademyGalleryQuery,
 } from "../../../components/portal/academy/academy-gallery-query.ts";
 import { OperatorAccessRequired } from "../../../components/portal/agent-ops-client.tsx";
-import { loadCourseLessons } from "../../../lib/academy-lessons.ts";
+import { loadCourseListing } from "../../../lib/academy-lessons.ts";
 import { academyMedia } from "../../../lib/academy-media.ts";
 import { getRequestPortalSession } from "../../../lib/request-portal-session.ts";
 
@@ -33,12 +33,12 @@ export default async function AcademyPage({
       </div>
     );
   // Database courses (QuantFinanceToGo) come through academy.lessons; one read at a time per request.
+  // A course whose read fails (e.g. migration 0058 not applied yet) is listed as unavailable.
   const courses: AcademyCourseListing[] = [];
   for (const course of COURSE_LIST)
-    courses.push({
-      course: course.id,
-      ...(await loadCourseLessons(course.id, requestHeaders.get("cookie"))),
-    });
+    courses.push(
+      await loadCourseListing(course.id, requestHeaders.get("cookie"))
+    );
   return (
     <AcademyCatalog
       courses={courses}

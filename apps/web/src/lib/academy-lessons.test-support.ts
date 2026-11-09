@@ -31,6 +31,11 @@ export const loadCourseLessons = async (
       : sourceCounts()[course],
 });
 
+export const loadCourseListing = async (course: CourseId) => ({
+  course,
+  ...(await loadCourseLessons(course)),
+});
+
 export const loadLesson = async (
   slug: string
 ): Promise<AcademyLessonPage | null> => {

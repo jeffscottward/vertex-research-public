@@ -356,6 +356,36 @@ const CourseLessons = ({
   );
 };
 
+export type AcademyCourseListing = Readonly<{
+  course: CourseId;
+  lessons: readonly LessonSummary[];
+  sourceCount: number;
+  /** The course's lessons could not be read (its storage is missing or failing). */
+  unavailable?: true;
+}>;
+
+/** Why a course has no lesson cards, or null when it has some. */
+const emptyCourseNotice = (
+  listing: AcademyCourseListing
+): Readonly<{ state: string; text: string }> | null => {
+  const course = COURSES[listing.course];
+  if (listing.unavailable === true)
+    return {
+      state: "unavailable",
+      text: "Course unavailable: its lessons could not be loaded right now. The other courses are not affected.",
+    };
+  if (listing.lessons.length > 0) return null;
+  if (course.store === "database")
+    return {
+      state: "not-imported",
+      text: "Course content not imported yet: run bun run vertex:academy:import on this deployment.",
+    };
+  return {
+    state: "no-lessons",
+    text: `No lessons yet: ${listing.sourceCount} ${course.creator} videos are in the knowledge base.`,
+  };
+};
+
 /** One course's gallery: /academy/c/<course> (the default course also lists on /academy). */
 export const AcademyGallery = ({
   lessons,
@@ -365,6 +395,7 @@ export const AcademyGallery = ({
   course: courseId = DEFAULT_COURSE_ID,
 }: AcademyGalleryProps) => {
   const course = COURSES[courseId];
+  const notice = emptyCourseNotice({ course: courseId, lessons, sourceCount });
   return (
     <AcademyThemeScope>
       <div
@@ -381,25 +412,28 @@ export const AcademyGallery = ({
           }
           title="Academy"
         />
-        <CourseLessons
-          course={course}
-          initialQuery={initialQuery}
-          lessons={lessons}
-          media={media}
-          sourceCount={sourceCount}
-          syncUrl
-          title="Lessons"
-        />
+        {notice === null ? (
+          <CourseLessons
+            course={course}
+            initialQuery={initialQuery}
+            lessons={lessons}
+            media={media}
+            sourceCount={sourceCount}
+            syncUrl
+            title="Lessons"
+          />
+        ) : (
+          <p
+            className="text-muted-foreground text-sm"
+            data-course-empty={notice.state}
+          >
+            {notice.text}
+          </p>
+        )}
       </div>
     </AcademyThemeScope>
   );
 };
-
-export type AcademyCourseListing = Readonly<{
-  course: CourseId;
-  lessons: readonly LessonSummary[];
-  sourceCount: number;
-}>;
 
 export type AcademyCatalogProps = Readonly<{
   courses: readonly AcademyCourseListing[];
@@ -458,8 +492,10 @@ export const AcademyCatalog = ({
                   {course.tagline}
                 </span>
                 <span className="text-muted-foreground text-sm">
-                  {listing.lessons.length} lessons · {listing.sourceCount}{" "}
-                  {course.creator} videos ·{" "}
+                  {listing.unavailable === true
+                    ? "Lessons unavailable"
+                    : `${listing.lessons.length} lessons · ${listing.sourceCount} ${course.creator} videos`}{" "}
+                  ·{" "}
                   {course.narrated
                     ? "narrated chart videos"
                     : "live animations"}
@@ -488,25 +524,8 @@ export const AcademyCatalog = ({
       </Panel>
       {courses.map((listing) => {
         const course = COURSES[listing.course];
-        return listing.lessons.length === 0 ? (
-          <Panel
-            data-academy-course={course.id}
-            description={courseDescription(
-              course,
-              listing.lessons,
-              listing.sourceCount
-            )}
-            headingId={`academy-${course.id}-lessons-title`}
-            id={`course-${course.id}`}
-            key={course.id}
-            title={course.title}
-          >
-            <p className="text-muted-foreground text-sm" data-course-empty>
-              No lessons yet: {listing.sourceCount} {course.creator} videos are
-              in the knowledge base.
-            </p>
-          </Panel>
-        ) : (
+        const notice = emptyCourseNotice(listing);
+        return notice === null ? (
           <CourseLessons
             course={course}
             initialQuery={
@@ -521,6 +540,30 @@ export const AcademyCatalog = ({
             syncUrl={course.id === DEFAULT_COURSE_ID}
             title={course.title}
           />
+        ) : (
+          <Panel
+            data-academy-course={course.id}
+            description={
+              listing.unavailable === true
+                ? course.tagline
+                : courseDescription(
+                    course,
+                    listing.lessons,
+                    listing.sourceCount
+                  )
+            }
+            headingId={`academy-${course.id}-lessons-title`}
+            id={`course-${course.id}`}
+            key={course.id}
+            title={course.title}
+          >
+            <p
+              className="text-muted-foreground text-sm"
+              data-course-empty={notice.state}
+            >
+              {notice.text}
+            </p>
+          </Panel>
         );
       })}
     </div>
