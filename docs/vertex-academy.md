@@ -95,7 +95,9 @@ no public read. The app never writes these tables: the TypeScript files under
 `scripts/academy/lessons/` stay the authored source, and the importer copies them into Postgres.
 
 Import (validates every spec with the repository parser and checks that each lesson draws, then
-upserts; a re-import of unchanged content changes nothing):
+upserts; a re-import of unchanged content changes nothing). Source ids and slugs are unique across
+courses: an import naming another course's source or lesson is refused before any write, never moved.
+`academy.lessons` lists at most 500 lessons per course; a course with more answers `STORAGE_ERROR`.
 
 ```sh
 DATABASE_URL=postgres://... bun run vertex:academy:import            # every database course
@@ -107,12 +109,20 @@ bun run vertex:academy:import -- --prune                              # also del
 The E2E global setup (`tests/e2e/global-setup.ts`) runs the same import into the test database
 after migrating it, so browser tests see the QuantFinanceToGo lessons.
 
-Deploy order (the QuantFinanceToGo lessons are missing until both have run):
+Deploy order: run both steps **before** the web deploy that reads these tables.
 
 1. `bun run db:migrate` (applies 0058).
 2. `bun run vertex:academy:import` with the deployment's `DATABASE_URL`.
+3. Deploy the web app.
 
-Run the import again after any change to a database course's specs or sources.
+If the web app ships first anyway, `/academy` still lists Define Your Risk, and a course whose read
+fails (tables missing: `STORAGE_ERROR`) shows "Course unavailable" there. A database course with no
+rows shows "Course content not imported yet" on `/academy` and on `/academy/c/<course>`. Until the
+tables exist, `/academy/c/<course>` and `/academy/<slug>` of a database course reach the error
+boundary.
+
+Run the import again after any change to a database course's specs or sources. `--prune` refuses an
+input with no lessons, so it can never empty a course.
 
 ## Media
 

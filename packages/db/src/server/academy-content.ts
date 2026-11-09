@@ -17,7 +17,9 @@ import {
   count,
   desc,
   eq,
+  inArray,
   isNull,
+  ne,
   notInArray,
   sql,
 } from "drizzle-orm";
@@ -111,6 +113,9 @@ const INPUT_ERRORS: Readonly<Record<string, true>> = {
   "23514": true,
 };
 const MAX_LISTED_ISSUES = 5;
+// The academy.lessons contract caps a course listing at 500 (ACADEMY_LESSONS_MAX in @darkfactory/api).
+// One extra row tells a full course from an overflowing one, which is a storage failure, not a list.
+const MAX_LISTED_LESSONS = 500;
 
 const mapError = (operation: string, error: unknown): never => {
   if (
@@ -266,9 +271,9 @@ const countWrites = (
   ).length;
   return {
     created,
-    updated: rows.length - created,
-    unchanged: total - rows.length,
     deleted,
+    unchanged: total - rows.length,
+    updated: rows.length - created,
   };
 };
 
@@ -293,6 +298,60 @@ const specColumns = {
   updatedAt: academyLessonSpecs.updatedAt,
 };
 
+/**
+ * Refuses an import that would move another course's rows: a source id or lesson slug is unique
+ * across courses, so an upsert on it would otherwise rewrite that row's course.
+ */
+const refuseCourseClashes = async (
+  executor: DatabaseExecutor,
+  course: string,
+  slugs: readonly string[],
+  sourceIds: readonly string[]
+): Promise<void> => {
+  const sourceClashes =
+    sourceIds.length === 0
+      ? []
+      : await executor
+          .select({
+            course: academyLessonSources.course,
+            id: academyLessonSources.sourceId,
+          })
+          .from(academyLessonSources)
+          .where(
+            and(
+              inArray(academyLessonSources.sourceId, [...sourceIds]),
+              ne(academyLessonSources.course, course)
+            )
+          )
+          .limit(MAX_LISTED_ISSUES);
+  const specClashes =
+    slugs.length === 0
+      ? []
+      : await executor
+          .select({
+            course: academyLessonSpecs.course,
+            id: academyLessonSpecs.slug,
+          })
+          .from(academyLessonSpecs)
+          .where(
+            and(
+              inArray(academyLessonSpecs.slug, [...slugs]),
+              ne(academyLessonSpecs.course, course)
+            )
+          )
+          .limit(MAX_LISTED_ISSUES);
+  const clashes = [
+    ...sourceClashes.map((row) => `source ${row.id} belongs to ${row.course}`),
+    ...specClashes.map((row) => `lesson ${row.id} belongs to ${row.course}`),
+  ];
+  if (clashes.length > 0)
+    throw new InvalidRepositoryInputError(
+      `academy ${course} import would move rows of another course:\n${clashes
+        .slice(0, MAX_LISTED_ISSUES)
+        .join("\n")}`
+    );
+};
+
 const writeCourse = async (
   executor: DatabaseExecutor,
   course: string,
@@ -301,6 +360,7 @@ const writeCourse = async (
 ): Promise<AcademyCourseImportResult> => {
   const slugs = specs.map((spec) => spec.slug);
   const sourceIds = sources.map((source) => source.sourceId);
+  await refuseCourseClashes(executor, course, slugs, sourceIds);
   // Specs first: a pruned lesson frees its source (and its source id for another lesson).
   const specsDeleted = prune
     ? await executor
@@ -320,10 +380,8 @@ const writeCourse = async (
           .insert(academyLessonSources)
           .values([...sources])
           .onConflictDoUpdate({
-            target: academyLessonSources.sourceId,
             set: {
               caption: sql`excluded.caption`,
-              course: sql`excluded.course`,
               duplicateOf: sql`excluded.duplicate_of`,
               durationSeconds: sql`excluded.duration_seconds`,
               publishedAt: sql`excluded.published_at`,
@@ -331,7 +389,9 @@ const writeCourse = async (
               updatedAt: sql`now()`,
               url: sql`excluded.url`,
             },
-            setWhere: sql`(${academyLessonSources.course}, ${academyLessonSources.url}, ${academyLessonSources.caption}, ${academyLessonSources.publishedAt}, ${academyLessonSources.durationSeconds}, ${academyLessonSources.transcript}, ${academyLessonSources.duplicateOf}) is distinct from (excluded.course, excluded.url, excluded.caption, excluded.published_at, excluded.duration_seconds, excluded.transcript, excluded.duplicate_of)`,
+            // Never across courses (refuseCourseClashes reports those; this also covers a racing import).
+            setWhere: sql`${academyLessonSources.course} = excluded.course and (${academyLessonSources.url}, ${academyLessonSources.caption}, ${academyLessonSources.publishedAt}, ${academyLessonSources.durationSeconds}, ${academyLessonSources.transcript}, ${academyLessonSources.duplicateOf}) is distinct from (excluded.url, excluded.caption, excluded.published_at, excluded.duration_seconds, excluded.transcript, excluded.duplicate_of)`,
+            target: academyLessonSources.sourceId,
           })
           .returning({
             createdAt: academyLessonSources.createdAt,
@@ -344,15 +404,14 @@ const writeCourse = async (
           .insert(academyLessonSpecs)
           .values([...specs])
           .onConflictDoUpdate({
-            target: academyLessonSpecs.slug,
             set: {
-              course: sql`excluded.course`,
               sourceId: sql`excluded.source_id`,
               spec: sql`excluded.spec`,
               specHash: sql`excluded.spec_hash`,
               updatedAt: sql`now()`,
             },
-            setWhere: sql`${academyLessonSpecs.specHash} <> excluded.spec_hash`,
+            setWhere: sql`${academyLessonSpecs.course} = excluded.course and ${academyLessonSpecs.specHash} <> excluded.spec_hash`,
+            target: academyLessonSpecs.slug,
           })
           .returning({
             createdAt: academyLessonSpecs.createdAt,
@@ -380,25 +439,20 @@ export const createAcademyContentRepository = (
   database: DatabaseExecutor
 ): AcademyContentRepository =>
   Object.freeze({
-    listLessons: async (course) => {
+    countSources: async (course) => {
       try {
-        return await database
-          .select({
-            ...specColumns,
-            publishedAt: academyLessonSources.publishedAt,
-          })
-          .from(academyLessonSpecs)
-          .innerJoin(
-            academyLessonSources,
-            eq(academyLessonSpecs.sourceId, academyLessonSources.sourceId)
-          )
-          .where(eq(academyLessonSpecs.course, course))
-          .orderBy(
-            desc(academyLessonSources.publishedAt),
-            asc(academyLessonSpecs.slug)
+        const [row] = await database
+          .select({ total: count() })
+          .from(academyLessonSources)
+          .where(
+            and(
+              eq(academyLessonSources.course, course),
+              isNull(academyLessonSources.duplicateOf)
+            )
           );
+        return row?.total ?? 0;
       } catch (error) {
-        return mapError("academy lesson list", error);
+        return mapError("academy source count", error);
       }
     },
     getLesson: async (slug) => {
@@ -417,24 +471,16 @@ export const createAcademyContentRepository = (
         return mapError("academy lesson read", error);
       }
     },
-    countSources: async (course) => {
-      try {
-        const [row] = await database
-          .select({ total: count() })
-          .from(academyLessonSources)
-          .where(
-            and(
-              eq(academyLessonSources.course, course),
-              isNull(academyLessonSources.duplicateOf)
-            )
-          );
-        return row?.total ?? 0;
-      } catch (error) {
-        return mapError("academy source count", error);
-      }
-    },
     importCourse: async (input) => {
       const validated = await parseAcademyCourseImport(input);
+      // drizzle's notInArray(column, []) matches every row: an empty pruning import would empty the course.
+      if (
+        input.prune === true &&
+        (validated.specs.length === 0 || validated.sources.length === 0)
+      )
+        throw new InvalidRepositoryInputError(
+          `academy ${input.course} import with prune lists no lessons or no sources; refusing to empty the course`
+        );
       try {
         return await database.transaction((transaction) =>
           writeCourse(
@@ -446,6 +492,33 @@ export const createAcademyContentRepository = (
         );
       } catch (error) {
         return mapError("academy content import", error);
+      }
+    },
+    listLessons: async (course) => {
+      try {
+        const rows = await database
+          .select({
+            ...specColumns,
+            publishedAt: academyLessonSources.publishedAt,
+          })
+          .from(academyLessonSpecs)
+          .innerJoin(
+            academyLessonSources,
+            eq(academyLessonSpecs.sourceId, academyLessonSources.sourceId)
+          )
+          .where(eq(academyLessonSpecs.course, course))
+          .orderBy(
+            desc(academyLessonSources.publishedAt),
+            asc(academyLessonSpecs.slug)
+          )
+          .limit(MAX_LISTED_LESSONS + 1);
+        if (rows.length > MAX_LISTED_LESSONS)
+          throw new DatabasePersistenceError(
+            `academy lesson list (over ${MAX_LISTED_LESSONS} lessons)`
+          );
+        return rows;
+      } catch (error) {
+        return mapError("academy lesson list", error);
       }
     },
   });

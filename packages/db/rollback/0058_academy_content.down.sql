@@ -9,6 +9,7 @@
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
 SET LOCAL row_security = off;
+SET LOCAL lock_timeout = '10s';
 LOCK TABLE "public"."academy_lesson_specs", "public"."academy_lesson_sources" IN ACCESS EXCLUSIVE MODE;
 DO $$
 BEGIN

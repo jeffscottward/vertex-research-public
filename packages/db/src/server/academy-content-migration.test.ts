@@ -109,5 +109,12 @@ describe("0058_academy_content migration", () => {
       rollback.indexOf('DROP TABLE "public"."academy_lesson_sources"')
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DELETE FROM|IF EXISTS "/u);
+    // A busy table makes the rollback fail fast instead of queueing behind (and blocking) app reads.
+    expect(rollback.indexOf("SET LOCAL lock_timeout = '10s';")).toBeGreaterThan(
+      -1
+    );
+    expect(rollback.indexOf("SET LOCAL lock_timeout")).toBeLessThan(
+      rollback.indexOf("LOCK TABLE")
+    );
   });
 });

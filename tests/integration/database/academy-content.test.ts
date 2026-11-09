@@ -79,30 +79,36 @@ describe("academy content repository (Postgres)", () => {
       course: "quantfinancetogo",
       sources: {
         created: SOURCES.length,
-        updated: 0,
-        unchanged: 0,
         deleted: 0,
+        unchanged: 0,
+        updated: 0,
       },
-      specs: { created: SPECS.length, updated: 0, unchanged: 0, deleted: 0 },
+      specs: { created: SPECS.length, deleted: 0, unchanged: 0, updated: 0 },
     });
-    const [again] = await importAcademyCourses(repository);
+    // The re-import goes straight to the repository: the draw check above already passed, and it is
+    // the CPU-heavy part (about 1.4 s per run here, several times that on a CI runner).
+    const again = await repository.importCourse({
+      course: "quantfinancetogo",
+      ...QFTG,
+    });
     expect(again).toEqual({
       course: "quantfinancetogo",
       sources: {
         created: 0,
-        updated: 0,
-        unchanged: SOURCES.length,
         deleted: 0,
+        unchanged: SOURCES.length,
+        updated: 0,
       },
-      specs: { created: 0, updated: 0, unchanged: SPECS.length, deleted: 0 },
+      specs: { created: 0, deleted: 0, unchanged: SPECS.length, updated: 0 },
     });
     expect(await repository.countSources("quantfinancetogo")).toBe(
       SOURCES.filter((source) => source["duplicateOf"] === undefined).length
     );
     expect(await repository.countSources("dyr")).toBe(0);
-    // Two full imports, each checking that all 48 lessons draw: well over 5 s on a CI runner. A timed-out
-    // import keeps writing on the pool and deadlocks the rollback test below.
-  }, 60_000);
+    // One importer run checks that all 48 lessons draw (CPU, not database): under 2 s locally, close to
+    // the 5 s default on a loaded CI runner. Vitest does not cancel a timed-out test, so its import kept
+    // writing and deadlocked the rollback test below; this ceiling keeps the test whole.
+  }, 30_000);
 
   it("lists a course newest first and reads one lesson with its source", async () => {
     const repository = createAcademyContentRepository(database());
@@ -117,15 +123,15 @@ describe("academy content repository (Postgres)", () => {
     expect(lesson).toMatchObject({
       course: "quantfinancetogo",
       slug,
-      sourceId: firstSpec.sourceId,
-      spec: { slug, course: "quantfinancetogo", sourceId: firstSpec.sourceId },
       source: {
         course: "quantfinancetogo",
-        sourceId: firstSpec.sourceId,
-        url: sourceOf(firstSpec)["url"],
-        transcript: sourceOf(firstSpec)["transcript"],
         duplicateOf: null,
+        sourceId: firstSpec.sourceId,
+        transcript: sourceOf(firstSpec)["transcript"],
+        url: sourceOf(firstSpec)["url"],
       },
+      sourceId: firstSpec.sourceId,
+      spec: { course: "quantfinancetogo", slug, sourceId: firstSpec.sourceId },
     });
     expect(lesson?.specHash).toBe(await academyLessonSpecHash(lesson?.spec));
     await expect(repository.getLesson("no-such-lesson")).resolves.toBeNull();
@@ -143,9 +149,9 @@ describe("academy content repository (Postgres)", () => {
     });
     expect(result.specs).toEqual({
       created: 0,
-      updated: 1,
-      unchanged: 1,
       deleted: SPECS.length - 2,
+      unchanged: 1,
+      updated: 1,
     });
     expect(result.sources).toMatchObject({ unchanged: 2 });
     expect(result.sources.deleted).toBe(SOURCES.length - 2);
@@ -164,15 +170,38 @@ describe("academy content repository (Postgres)", () => {
         specs: [{ ...firstSpec, steps: [] }],
       })
     ).rejects.toThrow(InvalidRepositoryInputError);
-    // The composite foreign key ties a lesson to a source of its own course: moving a used source to
-    // another course fails, and the whole import with it.
+    // Source ids and slugs are unique across courses: an import of another course naming them is
+    // refused before any write, so it never moves a row to its own course.
     await expect(
       repository.importCourse({
         course: "dyr",
         sources: [{ ...sourceOf(firstSpec), course: "dyr" }],
         specs: [],
       })
-    ).rejects.toThrow(/academy_lesson_specs_source_fk/u);
+    ).rejects.toThrow(
+      `academy dyr import would move rows of another course:\nsource ${firstSpec.sourceId} belongs to quantfinancetogo`
+    );
+    await expect(
+      repository.importCourse({
+        course: "dyr",
+        sources: [{ ...sourceOf(firstSpec), course: "dyr" }],
+        specs: [{ ...firstSpec, course: "dyr" }],
+      })
+    ).rejects.toThrow(
+      `lesson ${String(firstSpec["slug"])} belongs to quantfinancetogo`
+    );
+    expect(
+      (await repository.getLesson(String(firstSpec["slug"])))?.course
+    ).toBe("quantfinancetogo");
+    // A pruning import with nothing in it would empty the course; it is refused.
+    await expect(
+      repository.importCourse({
+        course: "quantfinancetogo",
+        prune: true,
+        sources: [],
+        specs: [],
+      })
+    ).rejects.toThrow(/refusing to empty the course/u);
     expect(await repository.listLessons("quantfinancetogo")).toHaveLength(2);
     // The checks hold for rows written around the repository.
     await expect(
@@ -218,6 +247,6 @@ describe("academy content repository (Postgres)", () => {
     }>(
       "select to_regclass('public.academy_lesson_specs')::text as specs, to_regclass('public.academy_lesson_sources')::text as sources"
     );
-    expect(tables).toEqual({ specs: null, sources: null });
+    expect(tables).toEqual({ sources: null, specs: null });
   });
 });

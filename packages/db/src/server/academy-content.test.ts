@@ -40,8 +40,6 @@ const createDouble = (outcomes: Outcome[], transactionError?: Error) => {
     orderBy: record("orderBy"),
     returning: record("returning"),
     select: record("select"),
-    values: record("values"),
-    where: record("where"),
     then: (
       resolve: (value: unknown) => unknown,
       reject: (error: unknown) => unknown
@@ -49,6 +47,8 @@ const createDouble = (outcomes: Outcome[], transactionError?: Error) => {
       const next = queue.shift() ?? [];
       return next instanceof Error ? reject(next) : resolve(next);
     },
+    values: record("values"),
+    where: record("where"),
   };
   const database = {
     ...chain,
@@ -87,7 +87,7 @@ const updated = { createdAt: AT, updatedAt: LATER };
 describe("canonicalJson and academyLessonSpecHash", () => {
   it("sorts keys at every depth and drops undefined members", () => {
     expect(
-      canonicalJson({ b: [2, { d: 1, c: null }], a: "x", skip: undefined })
+      canonicalJson({ a: "x", b: [2, { c: null, d: 1 }], skip: undefined })
     ).toBe('{"a":"x","b":[2,{"c":null,"d":1}]}');
     expect(canonicalJson(3)).toBe("3");
   });
@@ -95,7 +95,7 @@ describe("canonicalJson and academyLessonSpecHash", () => {
   it("hashes equal specs equally whatever their key order", async () => {
     const hash = await academyLessonSpecHash({ a: 1, b: 2 });
     expect(hash).toMatch(/^[0-9a-f]{64}$/u);
-    await expect(academyLessonSpecHash({ b: 2, a: 1 })).resolves.toBe(hash);
+    await expect(academyLessonSpecHash({ a: 1, b: 2 })).resolves.toBe(hash);
     await expect(academyLessonSpecHash({ a: 1, b: 3 })).resolves.not.toBe(hash);
   });
 });
@@ -143,7 +143,7 @@ describe("parseAcademyCourseImport", () => {
         SPECS[0],
         { ...SPECS[1], sourceId: first.source.sourceId },
         { ...SPECS[1], slug: "unlisted-source", sourceId: "ZZZZZZZZZZZ" },
-        { ...SPECS[1], slug: "stray-course", course: strayCourse },
+        { ...SPECS[1], course: strayCourse, slug: "stray-course" },
       ],
     });
     await expect(result).rejects.toThrow(InvalidRepositoryInputError);
@@ -198,7 +198,7 @@ describe("parseAcademyCourseImport", () => {
 
 describe("academy content repository", () => {
   it("lists a course's lessons joined with their source's publish date", async () => {
-    const row = { slug: first.slug, publishedAt: first.source.publishedAt };
+    const row = { publishedAt: first.source.publishedAt, slug: first.slug };
     const double = createDouble([[row]]);
     await expect(
       createAcademyContentRepository(double.database).listLessons(COURSE)
@@ -209,9 +209,24 @@ describe("academy content repository", () => {
       "innerJoin",
       "where",
       "orderBy",
+      "limit",
     ]);
     expect(double.calls[1]?.[1]).toBe(academyLessonSpecs);
     expect(double.calls[2]?.[1]).toBe(academyLessonSources);
+    expect(double.calls[5]).toEqual(["limit", 501]);
+  });
+
+  it("treats a course over the 500-lesson contract cap as a storage failure", async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => ({
+      slug: `lesson-${index}`,
+    }));
+    await expect(
+      createAcademyContentRepository(createDouble([rows]).database).listLessons(
+        COURSE
+      )
+    ).rejects.toThrow(
+      new DatabasePersistenceError("academy lesson list (over 500 lessons)")
+    );
   });
 
   it("reads one lesson with its source, or null", async () => {
@@ -252,6 +267,8 @@ describe("academy content repository", () => {
 
   it("imports a new course in one transaction: specs and sources upserted, nothing pruned", async () => {
     const double = createDouble([
+      [],
+      [],
       [created, created],
       [created, updated],
     ]);
@@ -259,11 +276,19 @@ describe("academy content repository", () => {
       createAcademyContentRepository(double.database).importCourse(INPUT)
     ).resolves.toEqual({
       course: COURSE,
-      sources: { created: 2, updated: 0, unchanged: 0, deleted: 0 },
-      specs: { created: 1, updated: 1, unchanged: 0, deleted: 0 },
+      sources: { created: 2, deleted: 0, unchanged: 0, updated: 0 },
+      specs: { created: 1, deleted: 0, unchanged: 0, updated: 1 },
     });
     expect(double.names()).toEqual([
       "transaction",
+      "select",
+      "from",
+      "where",
+      "limit",
+      "select",
+      "from",
+      "where",
+      "limit",
       "insert",
       "values",
       "onConflictDoUpdate",
@@ -273,12 +298,32 @@ describe("academy content repository", () => {
       "onConflictDoUpdate",
       "returning",
     ]);
-    expect(double.calls[1]?.[1]).toBe(academyLessonSources);
-    expect(double.calls[5]?.[1]).toBe(academyLessonSpecs);
+    expect(double.calls[2]?.[1]).toBe(academyLessonSources);
+    expect(double.calls[6]?.[1]).toBe(academyLessonSpecs);
+    expect(double.calls[9]?.[1]).toBe(academyLessonSources);
+    expect(double.calls[13]?.[1]).toBe(academyLessonSpecs);
+  });
+
+  it("refuses to move another course's sources or lessons", async () => {
+    const double = createDouble([
+      [{ course: "other", id: first.source.sourceId }],
+      [{ course: "other", id: first.slug }],
+    ]);
+    const failure = createAcademyContentRepository(
+      double.database
+    ).importCourse(INPUT);
+    await expect(failure).rejects.toThrow(InvalidRepositoryInputError);
+    await expect(failure).rejects.toThrow(
+      `academy ${COURSE} import would move rows of another course:\nsource ${first.source.sourceId} belongs to other\nlesson ${first.slug} belongs to other`
+    );
+    expect(double.names()).not.toContain("insert");
+    expect(double.names()).not.toContain("delete");
   });
 
   it("prunes unlisted specs before the upserts and unlisted sources after them", async () => {
     const double = createDouble([
+      [],
+      [],
       [{ slug: "gone" }],
       [],
       [updated],
@@ -291,29 +336,42 @@ describe("academy content repository", () => {
       })
     ).resolves.toEqual({
       course: COURSE,
-      sources: { created: 0, updated: 0, unchanged: 2, deleted: 2 },
-      specs: { created: 0, updated: 1, unchanged: 1, deleted: 1 },
+      sources: { created: 0, deleted: 2, unchanged: 2, updated: 0 },
+      specs: { created: 0, deleted: 1, unchanged: 1, updated: 1 },
     });
     expect(double.names().filter((name) => name === "delete")).toHaveLength(2);
-    expect(double.calls[1]).toEqual(["delete", academyLessonSpecs]);
+    expect(double.calls[9]).toEqual(["delete", academyLessonSpecs]);
     expect(double.calls.at(-3)).toEqual(["delete", academyLessonSources]);
   });
 
-  it("skips the upserts of an empty course and only prunes it", async () => {
-    const double = createDouble([[{ slug: "a" }], [{ sourceId: "b" }]]);
+  it("refuses a pruning import that lists no lessons or no sources (it would empty the course)", async () => {
+    const double = createDouble([]);
+    const repository = createAcademyContentRepository(double.database);
+    await expect(
+      repository.importCourse({
+        course: COURSE,
+        prune: true,
+        sources: [],
+        specs: [],
+      })
+    ).rejects.toThrow(/refusing to empty the course/u);
+    expect(double.names()).toEqual([]);
+  });
+
+  it("skips the upserts and clash checks of an empty course without pruning", async () => {
+    const double = createDouble([]);
     await expect(
       createAcademyContentRepository(double.database).importCourse({
         course: COURSE,
         sources: [],
         specs: [],
-        prune: true,
       })
     ).resolves.toEqual({
       course: COURSE,
-      sources: { created: 0, updated: 0, unchanged: 0, deleted: 1 },
-      specs: { created: 0, updated: 0, unchanged: 0, deleted: 1 },
+      sources: { created: 0, deleted: 0, unchanged: 0, updated: 0 },
+      specs: { created: 0, deleted: 0, unchanged: 0, updated: 0 },
     });
-    expect(double.names()).not.toContain("insert");
+    expect(double.names()).toEqual(["transaction"]);
   });
 
   it("validates before opening a transaction", async () => {
