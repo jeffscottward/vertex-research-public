@@ -22,6 +22,7 @@ import {
   backtestTabsFor,
   DistributionBars,
   isBacktestTab,
+  MonteCarloOverview,
   OverviewStats,
   PeriodsPanel,
   PlaceboPanel,
@@ -508,6 +509,7 @@ const BacktestDetail = ({
         {shown === "overview" ? (
           <>
             <OverviewStats backtest={backtest} />
+            <MonteCarloOverview analytics={backtest.analytics} />
             {backtest.equity.length === 0 ? (
               <p className="text-muted-foreground text-xs">
                 No equity series reported.

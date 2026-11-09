@@ -484,6 +484,7 @@ const MonteCarloRunSchema = z.object({
   maxDrawdown: z.object(PercentilesFields),
   probabilityOfProfit: z.number(),
   riskOfRuin: z.number(),
+  worst: z.object({ finalPnl: z.number(), maxDrawdown: z.number() }),
   fan: z.array(z.object({ step: z.number().int(), ...PercentilesFields })),
 });
 const PnlBucketSchema = z.object({
@@ -613,7 +614,24 @@ export const BacktestAnalyticsSchema = z.object({
     expectancy: IntervalSchema,
   }),
   monteCarlo: z
-    .object({ reshuffle: MonteCarloRunSchema, bootstrap: MonteCarloRunSchema })
+    .object({
+      paths: z.number().int(),
+      seed: z.number(),
+      pnlSource: z.enum(["trades", "equity"]),
+      reshuffle: MonteCarloRunSchema,
+      bootstrap: MonteCarloRunSchema,
+      worst: z.object({
+        finalPnl: z.number(),
+        maxDrawdown: z.number(),
+        riskOfRuin: z.number(),
+      }),
+      sizing: z.object({
+        basis: z.literal("worst_run"),
+        drawdownBudget: z.number(),
+        worstMaxDrawdown: z.number(),
+        sizeScale: z.number(),
+      }),
+    })
     .nullable(),
   benchmark: z
     .object({
