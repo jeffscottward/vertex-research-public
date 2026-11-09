@@ -15,15 +15,15 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Migration 0063 (OpenBB data sources), its guarded rollback, idempotent upserts and the reads of
+// Migration 0064 (OpenBB data sources), its guarded rollback, idempotent upserts and the reads of
 // the openbb repository, plus market daily series upsertPoints, on a real database.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
-  "../../../packages/db/migrations/0063_openbb_sources.sql"
+  "../../../packages/db/migrations/0064_openbb_sources.sql"
 );
 const rollbackSql = read(
-  "../../../packages/db/rollback/0063_openbb_sources.down.sql"
+  "../../../packages/db/rollback/0064_openbb_sources.down.sql"
 );
 const SHA = "e".repeat(64);
 
@@ -64,7 +64,7 @@ const ivRow = (asOf: string, atmIv30d: number | null) => ({
   underlyingPrice: 590.25,
 });
 
-describe("0063 openbb sources (Postgres)", () => {
+describe("0064 openbb sources (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

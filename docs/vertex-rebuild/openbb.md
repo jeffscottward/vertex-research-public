@@ -134,12 +134,12 @@ Macro series ids (`macro_points.seriesId`, unit in brackets):
 
 Rates are stored in percent (OpenBB returns decimals: multiply by 100).
 
-## Tables (migration 0063_openbb_sources.sql)
+## Tables (migration 0064_openbb_sources.sql)
 
 All tables grant SELECT/INSERT/UPDATE/DELETE to `vertex_research` with the guarded `DO $$` block
 (pattern 0039). Primary keys make every ingest an idempotent upsert (the last duplicate key in one
-chunk wins). 0063 also grants UPDATE on `market_daily_series` and `market_daily_points` (0060 granted
-none; `upsertPoints` needs it); the rollback `packages/db/rollback/0063_openbb_sources.down.sql`
+chunk wins). 0064 also grants UPDATE on `market_daily_series` and `market_daily_points` (0060 granted
+none; `upsertPoints` needs it); the rollback `packages/db/rollback/0064_openbb_sources.down.sql`
 refuses while any OpenBB row exists, revokes that UPDATE grant and leaves the vol index points.
 Every table has one CHECK constraint (`<table>_check`): finite doubles, non-negative counts, enums,
 symbol/CUSIP/CIK/accession patterns, `expiration >= as_of`, `finished_at >= started_at`.

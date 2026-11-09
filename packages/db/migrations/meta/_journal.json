@@ -446,8 +446,15 @@
     {
       "idx": 63,
       "version": "7",
-      "when": 1794196338071,
-      "tag": "0063_openbb_sources",
+      "when": 1794188005216,
+      "tag": "0063_strategy_catalog_market_intraday_momentum",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794204708744,
+      "tag": "0064_openbb_sources",
       "breakpoints": true
     }
   ]

@@ -192,7 +192,7 @@ TABLES: dict[str, dict[str, Field]] = {
     },
 }
 
-# Primary keys (docs/vertex-rebuild/openbb.md, migration 0063); rows are de-duplicated on them.
+# Primary keys (docs/vertex-rebuild/openbb.md, migration 0064); rows are de-duplicated on them.
 KEYS: dict[str, tuple[str, ...]] = {
     "daily_series": ("seriesId", "date"),
     "vx_curve": ("asOf", "contractMonth"),

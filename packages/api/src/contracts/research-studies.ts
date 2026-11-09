@@ -286,7 +286,8 @@ export const STRATEGY_BACKTEST_STUDY_KIND = "strategy-backtest";
 export const STRATEGY_BACKTEST_RULES_MAX = 30;
 export const STRATEGY_BACKTEST_GAPS_MAX = 30;
 export const STRATEGY_BACKTEST_FORMS_MAX = 4;
-export const STRATEGY_BACKTEST_RUNS_MAX = 40;
+// Runs per form: one study may hold several strategies on many markets (5 strategies x 14 markets).
+export const STRATEGY_BACKTEST_RUNS_MAX = 80;
 export const STRATEGY_BACKTEST_ROBUSTNESS_MAX = 20;
 export const STRATEGY_BACKTEST_SENSITIVITY_MAX = 80;
 export const STRATEGY_BACKTEST_COMPARISON_MAX = 30;

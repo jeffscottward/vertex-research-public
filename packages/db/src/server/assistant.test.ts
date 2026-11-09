@@ -131,7 +131,8 @@ describe("0022 assistant migration", () => {
       "0060_market_daily_series",
       "0061_qc_port_definitions",
       "0062_academy_content",
-      "0063_openbb_sources",
+      "0063_strategy_catalog_market_intraday_momentum",
+      "0064_openbb_sources",
     ]);
   });
 

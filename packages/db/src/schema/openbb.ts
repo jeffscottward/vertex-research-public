@@ -14,7 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-// OpenBB data sources (docs/vertex-rebuild/openbb.md, migration 0063_openbb_sources). The Python
+// OpenBB data sources (docs/vertex-rebuild/openbb.md, migration 0064_openbb_sources). The Python
 // fetcher in services/openbb prints JSON batches; scripts/openbb/tick.ts posts them to
 // openbb.ingest, which upserts here by primary key. Research only: nothing here places orders.
 

@@ -1,3 +1,4 @@
+import { canonicalJson } from "./canonical-json.ts";
 import {
   type BarColumns,
   InstantBacktestInputError,
@@ -8,17 +9,21 @@ import {
   runSignalBacktest,
   type SignalRunOptions,
 } from "./instant-backtest-engine.ts";
-import { canonicalJson } from "./canonical-json.ts";
 import {
   type CalendarWindowFilter,
   type IvRankFilter,
+  isSessionIndicator,
+  resolveStrategySeries,
   type SectorQuadrantFilter,
   type SeriesFilter,
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
+  STRATEGY_INTRADAY_DAILY_REFUSAL,
   STRATEGY_IV_INDEX,
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
+  type StrategyIndicatorExpr,
+  type StrategyIntraday,
   type StrategyManagement,
   type StrategyOptions,
   type StrategyPortfolio,
@@ -26,8 +31,9 @@ import {
   type StrategySeriesReader,
   type StrategySeriesRef,
   type StrategyServerSupport,
-  resolveStrategySeries,
+  type StrategySessionIndicatorExpr,
   serverStrategyRefusal,
+  strategyIntradayGridRefusal,
   type VolRegimeFilter,
 } from "./strategy-dsl.ts";
 
@@ -516,7 +522,7 @@ const sessionDays = new WeakMap<SeriesCache, SessionDays>();
  */
 const dailyIndicator = (
   bars: BarColumns,
-  expr: Extract<StrategyExpr, { type: "indicator" }>,
+  expr: StrategyIndicatorExpr,
   cache: SeriesCache
 ): Float64Array => {
   let days = sessionDays.get(cache);
@@ -549,13 +555,375 @@ const dailyIndicator = (
   return out;
 };
 
+// Intraday sessions (strategy-dsl.ts StrategyIntradaySchema and the session indicators).
+
+/** Regular-session layout of intraday bars for one intraday block. */
+export type IntradaySessions = Readonly<{
+  bars: BarColumns;
+  /** Bar duration in ms: the most common gap between bars of one New York date (ties: smaller). */
+  duration: number;
+  /** Close time of each bar: ms after midnight of its New York date (bar time + duration). */
+  closeMs: Float64Array;
+  /** Session open (New York) in ms after midnight. */
+  openMs: number;
+  /** Session day of each regular bar (0, 1, ...), -1 for every other bar. */
+  session: Int32Array;
+  /** 1 on the last regular bar of each session day. */
+  last: Uint8Array;
+  /** Per session day: open of its first and close of its last regular bar. */
+  dayOpen: Float64Array;
+  dayClose: Float64Array;
+}>;
+
+/** The most common gap (ties: the smaller), NaN without gaps. */
+const mostCommonGap = (gaps: ReadonlyMap<number, number>): number => {
+  let duration = Number.NaN;
+  let most = 0;
+  for (const [gap, count] of gaps) {
+    if (count > most || (count === most && gap < duration)) {
+      duration = gap;
+      most = count;
+    }
+  }
+  return duration;
+};
+
+/**
+ * Regular-session layout of the bars, or undefined when no two bars share a New York date (daily
+ * or longer bars). A bar is regular when it opens at or after `open` and closes at or before
+ * `close` (New York time; the close time uses the offset at the bar's open).
+ */
+export const intradaySessions = (
+  bars: BarColumns,
+  intraday: StrategyIntraday
+): IntradaySessions | undefined => {
+  const size = bars.t.length;
+  const offsets = new Map<number, number>();
+  const day = new Float64Array(size);
+  const local = new Float64Array(size);
+  const gaps = new Map<number, number>();
+  for (let index = 0; index < size; index += 1) {
+    const t = bars.t[index] as number;
+    const shifted = t + newYorkOffset(t, offsets);
+    const date = Math.floor(shifted / DAY_MS);
+    day[index] = date;
+    local[index] = shifted - date * DAY_MS;
+    if (index > 0 && date === day[index - 1]) {
+      const gap = t - (bars.t[index - 1] as number);
+      if (gap > 0) gaps.set(gap, (gaps.get(gap) ?? 0) + 1);
+    }
+  }
+  const duration = mostCommonGap(gaps);
+  if (Number.isNaN(duration)) return undefined;
+  const openMs = minutesOf(intraday.open) * MINUTE_MS;
+  const closeLimit = minutesOf(intraday.close) * MINUTE_MS;
+  const closeMs = new Float64Array(size);
+  const session = new Int32Array(size).fill(-1);
+  const last = new Uint8Array(size);
+  const dayOpen: number[] = [];
+  const dayClose: number[] = [];
+  let lastDay = Number.NaN;
+  let lastIndex = -1;
+  for (let index = 0; index < size; index += 1) {
+    const close = (local[index] as number) + duration;
+    closeMs[index] = close;
+    if (!((local[index] as number) >= openMs && close <= closeLimit)) continue;
+    if (day[index] !== lastDay) {
+      if (lastIndex >= 0) last[lastIndex] = 1;
+      lastDay = day[index] as number;
+      dayOpen.push(bars.o[index] as number);
+      dayClose.push(Number.NaN);
+    }
+    session[index] = dayOpen.length - 1;
+    dayClose[dayClose.length - 1] = bars.c[index] as number;
+    lastIndex = index;
+  }
+  if (lastIndex >= 0) last[lastIndex] = 1;
+  return {
+    bars,
+    closeMs,
+    dayClose: Float64Array.from(dayClose),
+    dayOpen: Float64Array.from(dayOpen),
+    duration,
+    last,
+    openMs,
+    session,
+  };
+};
+
+/** 1 on the bars where an intraday block allows an entry signal, and where exit conditions count. */
+type IntradayGates = Readonly<{ entry: Uint8Array; exit: Uint8Array }>;
+
+/**
+ * Gates of the intraday block: exits on regular bars of the decision grid (every regular bar
+ * without decisionEvery); entries there too when the close time is in [entryFrom, entryTo] and the
+ * bar is not the last regular bar of its session day.
+ */
+const intradayGates = (
+  sessions: IntradaySessions,
+  intraday: StrategyIntraday
+): IntradayGates => {
+  const size = sessions.session.length;
+  const from = minutesOf(intraday.entryFrom) * MINUTE_MS;
+  const to = minutesOf(intraday.entryTo) * MINUTE_MS;
+  const grid =
+    intraday.decisionEvery === undefined
+      ? undefined
+      : intraday.decisionEvery * MINUTE_MS;
+  const entry = new Uint8Array(size);
+  const exit = new Uint8Array(size);
+  for (let index = 0; index < size; index += 1) {
+    if ((sessions.session[index] as number) < 0) continue;
+    const close = sessions.closeMs[index] as number;
+    if (grid !== undefined && (close - sessions.openMs) % grid !== 0) continue;
+    exit[index] = 1;
+    if (close >= from && close <= to && sessions.last[index] === 0)
+      entry[index] = 1;
+  }
+  return { entry, exit };
+};
+
+/** vwap of each regular bar since the first regular bar of its session day. */
+const vwapSeries = (sessions: IntradaySessions): Float64Array => {
+  const { bars, session } = sessions;
+  const out = new Float64Array(session.length).fill(Number.NaN);
+  let current = -1;
+  let priced = 0;
+  let volume = 0;
+  let typicalSum = 0;
+  let count = 0;
+  for (let index = 0; index < session.length; index += 1) {
+    const day = session[index] as number;
+    if (day < 0) continue;
+    if (day !== current) {
+      current = day;
+      priced = 0;
+      volume = 0;
+      typicalSum = 0;
+      count = 0;
+    }
+    const typical =
+      ((bars.h[index] as number) +
+        (bars.l[index] as number) +
+        (bars.c[index] as number)) /
+      3;
+    const traded = bars.v === undefined ? 0 : (bars.v[index] as number);
+    priced += typical * traded;
+    volume += traded;
+    typicalSum += typical;
+    count += 1;
+    // No volume (or not a number) yet: the running mean of the typical prices.
+    out[index] = volume > 0 ? priced / volume : typicalSum / count;
+  }
+  return out;
+};
+
+/** sessionReturn (see STRATEGY_SESSION_INDICATORS): NaN before `to` and when a price is missing. */
+const sessionReturnSeries = (
+  sessions: IntradaySessions,
+  from: string,
+  to: string
+): Float64Array => {
+  const { bars, closeMs, dayClose, dayOpen, session } = sessions;
+  const timed = from !== "prevClose" && from !== "open";
+  if (timed) alignToGrid("sessionReturn from", from, minutesOf(from), sessions);
+  alignToGrid("sessionReturn to", to, minutesOf(to), sessions);
+  const toMs = minutesOf(to) * MINUTE_MS;
+  const fromMs = timed ? minutesOf(from) * MINUTE_MS : Number.NaN;
+  const target = new Float64Array(dayOpen.length).fill(Number.NaN);
+  const anchor = new Float64Array(dayOpen.length).fill(Number.NaN);
+  for (let day = 0; day < dayOpen.length; day += 1) {
+    if (from === "open") anchor[day] = dayOpen[day] as number;
+    else if (from === "prevClose" && day > 0)
+      anchor[day] = dayClose[day - 1] as number;
+  }
+  for (let index = 0; index < session.length; index += 1) {
+    const day = session[index] as number;
+    if (day < 0) continue;
+    if (closeMs[index] === toMs) target[day] = bars.c[index] as number;
+    if (closeMs[index] === fromMs) anchor[day] = bars.c[index] as number;
+  }
+  const out = new Float64Array(session.length).fill(Number.NaN);
+  for (let index = 0; index < session.length; index += 1) {
+    const day = session[index] as number;
+    if (day < 0 || (closeMs[index] as number) < toMs) continue;
+    out[index] = (target[day] as number) / (anchor[day] as number) - 1;
+  }
+  return out;
+};
+
+/** noiseBand (see STRATEGY_SESSION_INDICATORS); today's move never enters its own sigma. */
+const noiseBandSeries = (
+  sessions: IntradaySessions,
+  band: "upper" | "lower",
+  length: number,
+  multiple: number
+): Float64Array => {
+  const { bars, closeMs, dayClose, dayOpen, openMs, session } = sessions;
+  const moves = new Map<number, number[]>();
+  const out = new Float64Array(session.length).fill(Number.NaN);
+  for (let index = 0; index < session.length; index += 1) {
+    const day = session[index] as number;
+    if (day < 0) continue;
+    const slot = (closeMs[index] as number) - openMs;
+    let history = moves.get(slot);
+    if (history === undefined) {
+      history = [];
+      moves.set(slot, history);
+    }
+    let sigma = Number.NaN;
+    if (history.length >= length) {
+      let sum = 0;
+      for (let at = history.length - length; at < history.length; at += 1)
+        sum += history[at] as number;
+      sigma = sum / length;
+    }
+    const open = dayOpen[day] as number;
+    const previous = day > 0 ? (dayClose[day - 1] as number) : Number.NaN;
+    out[index] =
+      band === "upper"
+        ? Math.max(open, previous) * (1 + multiple * sigma)
+        : Math.min(open, previous) * (1 - multiple * sigma);
+    history.push(Math.abs((bars.c[index] as number) / open - 1));
+  }
+  return out;
+};
+
+/** Refuses (STRATEGY_INTRADAY_GRID_MISALIGNED) `minutes` that are not whole bar durations. */
+const alignToGrid = (
+  field: string,
+  value: string | number,
+  minutes: number,
+  sessions: IntradaySessions
+): void => {
+  if ((minutes * MINUTE_MS) % sessions.duration !== 0)
+    throw new StrategyUnsupportedError(
+      strategyIntradayGridRefusal(field, value, sessions.duration)
+    );
+};
+
+const sessionLayouts = new WeakMap<SeriesCache, IntradaySessions>();
+
+/**
+ * Lays out the sessions of an intraday block for the session indicators read through `cache`.
+ * Refuses bars without two bars on one New York date (STRATEGY_INTRADAY_DAILY_UNSUPPORTED), and
+ * open, close, entryFrom, entryTo or decisionEvery that are not whole multiples of the bar
+ * duration (STRATEGY_INTRADAY_GRID_MISALIGNED; times in minutes since midnight New York).
+ */
+const attachSessions = (
+  bars: BarColumns,
+  intraday: StrategyIntraday,
+  cache: SeriesCache
+): IntradaySessions => {
+  const sessions = intradaySessions(bars, intraday);
+  if (sessions === undefined)
+    throw new StrategyUnsupportedError(STRATEGY_INTRADAY_DAILY_REFUSAL);
+  for (const field of ["open", "close", "entryFrom", "entryTo"] as const)
+    alignToGrid(field, intraday[field], minutesOf(intraday[field]), sessions);
+  if (intraday.decisionEvery !== undefined)
+    alignToGrid(
+      "decisionEvery",
+      intraday.decisionEvery,
+      intraday.decisionEvery,
+      sessions
+    );
+  sessionLayouts.set(cache, sessions);
+  return sessions;
+};
+
+/** One session indicator of the bars under an intraday block (the golden fixture reads it). */
+export const sessionIndicatorSeries = (
+  bars: BarColumns,
+  intraday: StrategyIntraday,
+  expr: StrategySessionIndicatorExpr
+): Float64Array => {
+  const cache: SeriesCache = new Map();
+  attachSessions(bars, intraday, cache);
+  return sessionIndicator(expr, cache);
+};
+
+const sessionIndicator = (
+  expr: StrategySessionIndicatorExpr,
+  cache: SeriesCache
+): Float64Array => {
+  const sessions = sessionLayouts.get(cache);
+  if (sessions === undefined)
+    throw new InstantBacktestInputError(
+      `${expr.name} reads the intraday session; add an intraday block`
+    );
+  const key =
+    expr.name === "vwap"
+      ? "vwap"
+      : expr.name === "sessionReturn"
+        ? `sessionReturn:${expr.from}:${expr.to}`
+        : `noiseBand:${expr.band}:${expr.length}:${expr.multiple ?? 1}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  const series =
+    expr.name === "vwap"
+      ? vwapSeries(sessions)
+      : expr.name === "sessionReturn"
+        ? sessionReturnSeries(sessions, expr.from, expr.to)
+        : noiseBandSeries(sessions, expr.band, expr.length, expr.multiple ?? 1);
+  cache.set(key, series);
+  return series;
+};
+
+/**
+ * volTarget leverage at each bar: min(maxLeverage, targetPct / 100 / sigma), sigma = sample
+ * standard deviation of the last `length` close-to-close returns of the session days completed at
+ * that bar (their last bar is at or before it). Session days are the regular ones of `sessions`,
+ * otherwise the New York dates of the bars. NaN until `length` + 1 day closes exist.
+ */
+export const volTargetLeverage = (
+  bars: BarColumns,
+  sizing: Readonly<{ length: number; maxLeverage: number; targetPct: number }>,
+  sessions?: IntradaySessions
+): Float64Array => {
+  const size = bars.c.length;
+  let last = sessions?.last;
+  if (last === undefined) {
+    const offsets = new Map<number, number>();
+    const dates = Array.from(bars.t, (t) =>
+      Math.floor((t + newYorkOffset(t, offsets)) / DAY_MS)
+    );
+    last = Uint8Array.from(dates, (date, index) =>
+      index === size - 1 || dates[index + 1] !== date ? 1 : 0
+    );
+  }
+  const { length, maxLeverage, targetPct } = sizing;
+  const closes: number[] = [];
+  const out = new Float64Array(size);
+  let leverage = Number.NaN;
+  for (let index = 0; index < size; index += 1) {
+    if (last[index] === 1) {
+      closes.push(bars.c[index] as number);
+      if (closes.length > length) {
+        const returns: number[] = [];
+        for (let at = closes.length - length; at < closes.length; at += 1)
+          returns.push((closes[at] as number) / (closes[at - 1] as number) - 1);
+        let sum = 0;
+        for (const value of returns) sum += value;
+        const mean = sum / length;
+        let squares = 0;
+        for (const value of returns) squares += (value - mean) * (value - mean);
+        const sigma = Math.sqrt(squares / (length - 1));
+        // sigma 0 gives Infinity, so maxLeverage; a NaN close gives NaN (no entry).
+        leverage = Math.min(maxLeverage, targetPct / 100 / sigma);
+      }
+    }
+    out[index] = leverage;
+  }
+  return out;
+};
+
 const evaluateLeaf = (
   bars: BarColumns,
   expr: LeafExpr,
   cache: SeriesCache
 ): Float64Array => {
   const current = evaluateCurrent(bars, expr, cache);
-  if (expr.type === "const") return current;
+  if (expr.type === "const" || isSessionIndicator(expr)) return current;
   const offset = expr.offset ?? 0;
   if (offset === 0) return current;
   const key =
@@ -569,9 +937,7 @@ const evaluateLeaf = (
   return series;
 };
 
-const indicatorKey = (
-  expr: Extract<StrategyExpr, { type: "indicator" }>
-): string =>
+const indicatorKey = (expr: StrategyIndicatorExpr): string =>
   `${expr.name}:${expr.length}:${expr.source}${expr.timeframe === undefined ? "" : `:${expr.timeframe}`}`;
 
 const evaluateCurrent = (
@@ -582,6 +948,7 @@ const evaluateCurrent = (
   const size = bars.c.length;
   if (expr.type === "price") return bars[FIELD_KEY[expr.field]];
   if (expr.type === "const") return new Float64Array(size).fill(expr.value);
+  if (isSessionIndicator(expr)) return sessionIndicator(expr, cache);
   if (expr.timeframe !== undefined) {
     const key = indicatorKey(expr);
     const series = cache.get(key) ?? dailyIndicator(bars, expr, cache);
@@ -1495,6 +1862,10 @@ export type CompiledStrategy = Readonly<{
   options?: StrategyOptions;
   /** Stop management for the engine (trail ATR on the signal bars), when the definition has it. */
   management?: PositionManagement;
+  /** With an intraday block: 1 on the last regular bar of each session day (market on close). */
+  closeAt?: Uint8Array;
+  /** With volTarget sizing: the leverage at each signal bar (see volTargetLeverage). */
+  leverage?: Float64Array;
   /** The definition's portfolio block, unchanged, for the options runner. */
   portfolio?: StrategyPortfolio;
 }>;
@@ -1544,6 +1915,17 @@ const managementOf = (
   };
 };
 
+/** Sessions and gates of an intraday block (none without one). */
+const intradayLayout = (
+  bars: BarColumns,
+  intraday: StrategyIntraday | undefined,
+  cache: SeriesCache
+): Readonly<{ gates?: IntradayGates; sessions?: IntradaySessions }> => {
+  if (intraday === undefined) return {};
+  const sessions = attachSessions(bars, intraday, cache);
+  return { gates: intradayGates(sessions, intraday), sessions };
+};
+
 /** A fresh evaluation context; the series frame is built on first use. */
 const expressionContext = (
   bars: BarColumns,
@@ -1570,11 +1952,23 @@ export const evaluateStrategyExpression = (
   seriesInput?: StrategySeriesInput
 ): Float64Array => evaluate(expressionContext(bars, seriesInput), expr).slice();
 
+/** The options and portfolio blocks of a definition, unchanged, for the options runner. */
+const optionBlocks = (
+  definition: StrategyDefinition
+): Pick<CompiledStrategy, "options" | "portfolio"> => ({
+  ...(definition.options === undefined ? {} : { options: definition.options }),
+  ...(definition.portfolio === undefined
+    ? {}
+    : { portfolio: definition.portfolio }),
+});
+
 /**
  * Compiles a validated definition to signals: 1 when every entry condition and filter holds, at
- * least one entry.any condition holds (when there are any) and the bar is in the session,
- * otherwise -1 when any exit condition holds, otherwise 0. The exit mask keeps exits
- * on bars where the entry conditions also hold, so an open position still exits there.
+ * least one entry.any condition holds (when there are any) and the bar is in the session (and,
+ * with an intraday block, an entry bar of it), otherwise -1 when any exit condition holds (on an
+ * exit bar of the intraday block), otherwise 0. The exit mask keeps exits on bars where the entry
+ * conditions also hold, so an open position still exits there. An intraday block on bars without
+ * two bars on one New York date is refused (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
  */
 export const compileStrategy = (
   bars: BarColumns,
@@ -1585,6 +1979,7 @@ export const compileStrategy = (
   const size = bars.c.length;
   const context = expressionContext(bars, seriesInput);
   const { cache } = context;
+  const { gates, sessions } = intradayLayout(bars, definition.intraday, cache);
   const filters = filterMasks(context, definition, sectorQuadrants);
   const entries = [
     ...definition.entry.all.map((condition) =>
@@ -1605,8 +2000,11 @@ export const compileStrategy = (
       entries.every((series) => series[index] === 1) &&
       (anyOf.length === 0 || anyOf.some((series) => series[index] === 1)) &&
       (definition.session === undefined ||
-        inSession(bars.t[index] as number, definition.session));
-    const exit = exits.some((series) => series[index] === 1);
+        inSession(bars.t[index] as number, definition.session)) &&
+      (gates === undefined || gates.entry[index] === 1);
+    const exit =
+      exits.some((series) => series[index] === 1) &&
+      (gates === undefined || gates.exit[index] === 1);
     if (exit) exitMask[index] = 1;
     if (enter) signals[index] = 1;
     else if (exit) signals[index] = -1;
@@ -1614,18 +2012,18 @@ export const compileStrategy = (
   const stopDistance = distanceSeries(bars, definition.stopLoss, cache);
   const targetDistance = distanceSeries(bars, definition.takeProfit, cache);
   const management = managementOf(bars, definition.management, cache);
+  const { sizing } = definition;
   return {
     exits: exitMask,
     signals,
     ...(stopDistance === undefined ? {} : { stopDistance }),
     ...(targetDistance === undefined ? {} : { targetDistance }),
-    ...(definition.options === undefined
-      ? {}
-      : { options: definition.options }),
-    ...(definition.portfolio === undefined
-      ? {}
-      : { portfolio: definition.portfolio }),
+    ...optionBlocks(definition),
     ...(management === undefined ? {} : { management }),
+    ...(sessions === undefined ? {} : { closeAt: sessions.last }),
+    ...(sizing.mode === "volTarget"
+      ? { leverage: volTargetLeverage(bars, sizing, sessions) }
+      : {}),
   };
 };
 
@@ -1680,5 +2078,8 @@ export const runStrategyDefinition = (
     definition.sizing.maxLeverage !== undefined
       ? { maxLeverage: definition.sizing.maxLeverage }
       : {}),
+    ...(definition.side === undefined ? {} : { side: definition.side }),
+    ...(compiled.closeAt === undefined ? {} : { closeAt: compiled.closeAt }),
+    ...(compiled.leverage === undefined ? {} : { leverage: compiled.leverage }),
   });
 };

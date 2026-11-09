@@ -1203,6 +1203,32 @@ describe("strategy builder model: read-only expressions", () => {
       "high[2]"
     );
     expect(describeExpr({ type: "const", value: -1.5 })).toBe("-1.5");
+    expect(describeExpr({ name: "vwap", type: "indicator" })).toBe("vwap");
+    expect(
+      describeExpr({
+        from: "prevClose",
+        name: "sessionReturn",
+        to: "10:00",
+        type: "indicator",
+      })
+    ).toBe("sessionReturn(prevClose, 10:00)");
+    expect(
+      describeExpr({
+        band: "upper",
+        length: 14,
+        name: "noiseBand",
+        type: "indicator",
+      })
+    ).toBe("noiseBand(upper, 14)");
+    expect(
+      describeExpr({
+        band: "lower",
+        length: 10,
+        multiple: 1.2,
+        name: "noiseBand",
+        type: "indicator",
+      })
+    ).toBe("noiseBand(lower, 10, 1.2)");
     expect(
       describeExpr({
         length: 20,
@@ -1415,6 +1441,45 @@ describe("StrategyBuilderWorkspace: newer definitions", () => {
     expect(document.querySelector("[data-portfolio-summary]")).toBeNull();
     expect(document.querySelector("[data-filter-list]")?.textContent).toContain(
       "No filters."
+    );
+  });
+
+  it("shows session indicators and volTarget sizing as JSON-only fields", async () => {
+    await mount(<StrategyBuilderWorkspace gateway={gatewayOf()} />);
+    const ghlz = {
+      entry: {
+        all: [
+          {
+            left: {
+              from: "prevClose",
+              name: "sessionReturn",
+              to: "10:00",
+              type: "indicator",
+            },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      intraday: {
+        close: "16:00",
+        entryFrom: "15:30",
+        entryTo: "15:30",
+        open: "09:30",
+        timezone: "America/New_York",
+      },
+      name: "GHLZ intraday momentum long",
+      sizing: { length: 14, maxLeverage: 4, mode: "volTarget", targetPct: 2 },
+      stopLoss: { kind: "none" },
+      version: 1,
+    };
+    await setNative(field("Definition text"), JSON.stringify(ghlz));
+    expect(document.body.textContent).toContain("The definition is valid.");
+    expect(document.body.textContent).toContain(
+      "sessionReturn. Edit it in the JSON text."
+    );
+    expect(document.body.textContent).toContain(
+      "Volatility target (edit in the JSON text)"
     );
   });
 });

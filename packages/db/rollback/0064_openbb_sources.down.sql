@@ -1,4 +1,4 @@
--- Guarded reversal of 0063_openbb_sources only.
+-- Guarded reversal of 0064_openbb_sources only.
 -- Refuses while any OpenBB table holds a row so fetched history is never silently discarded.
 -- The UPDATE grant on the market daily series tables is revoked again (0060 granted none).
 -- Vol index points written into market_daily_points by openbb.ingest stay (0060 owns them).

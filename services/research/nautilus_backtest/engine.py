@@ -30,6 +30,15 @@ Model (the same rules as the TypeScript engine):
   the level and a level gapped through at the open. When one fills, the other
   is cancelled.
 - An open position closes with a market order at the last close (reason "end").
+- Short side (RunOptions.side "short"): the entry is a market sell and the exit a market buy, so the
+  NETTING position is short and the CASH account (cash borrowing allowed) holds the sale proceeds;
+  unit equity stays balance + position * close. The stop is a buy stop-market above the entry and
+  the target a buy market-if-touched below it; the stop-first rule reads the coming bar's high.
+- Market on close (Compiled.close_at, intraday blocks): at the close print of a bar with 1, an open
+  position exits with a market order, which Nautilus fills at that close print (reason
+  "sessionClose", the same path as the ruin exit; that bar counts as held); no entry is taken on
+  that bar.
+- volTarget sizing (Compiled.leverage): the position cost is cash * the leverage at the signal bar.
 - Ruin (TS runSignalBacktest): when unit equity marked at a close is at or below 0
   (possible with maxLeverage), a market order closes an open position at that
   close (reason "stop") and the run takes no further entries.
@@ -57,7 +66,7 @@ __all__ = ["ENGINE_ID", "NautilusUnavailable", "RunResult", "require", "run_sign
 
 ENGINE_ID = f"nautilus-trader-{NAUTILUS_VERSION}"
 # Bump when the order or fill model of this module changes.
-MODEL_VERSION = 2
+MODEL_VERSION = 3
 DEFAULT_CAPITAL = 1_000_000.0
 PRECISION = 9
 YEAR_MS = 365.25 * 24 * 60 * 60 * 1000
@@ -209,6 +218,7 @@ class _State:
     pending: int = 0
     pending_stop: float = math.nan
     pending_target: float = math.nan
+    pending_leverage: float = math.nan
     # Client order id of the resting target order (see _plan_target)
     target_order: object | None = None
     # Client order id of the resting stop order, and a stop raised at the last close by the
@@ -254,6 +264,7 @@ def _check_options(bars: Bars, compiled: Compiled, options: RunOptions) -> None:
     if options.max_hold_bars is not None and not (isinstance(options.max_hold_bars, int) and options.max_hold_bars >= 1):
         raise InputError("maxHoldBars must be a whole number of at least 1")
     _check_management(len(bars), compiled, options)
+    _check_side(len(bars), compiled, options)
     if bars.t[0] < 0:
         raise InputError("the Nautilus engine needs bars after 1970 (UNIX nanoseconds)")
 
@@ -281,6 +292,27 @@ def _check_management(size: int, compiled: Compiled, options: RunOptions) -> Non
         raise InputError("trail ATR must match the bar count")
 
 
+def _check_side(size: int, compiled: Compiled, options: RunOptions) -> None:
+    """TS assertSideOptions: a short takes no management and a target below 100%; closeAt and
+    leverage match the bar count; leverage excludes riskPct."""
+    side = options.side
+    if side is not None and side not in ("long", "short"):
+        raise InputError("side must be long or short")
+    if side == "short":
+        if compiled.management is not None:
+            raise InputError("management raises a long stop; a short position takes none")
+        if options.take_profit_pct >= PERCENT:
+            raise InputError("takeProfitPct must be below 100 for a short position")
+    if compiled.close_at is not None and len(compiled.close_at) != size:
+        raise InputError("closeAt must match the bar count")
+    if compiled.leverage is None:
+        return
+    if len(compiled.leverage) != size:
+        raise InputError("leverage must match the bar count")
+    if options.risk_pct is not None:
+        raise InputError("leverage sizing excludes riskPct")
+
+
 def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                         capital: float | None = None) -> RunResult:
     """Runs precomputed signals in a Nautilus BacktestEngine. Same contract as TS runSignalBacktest."""
@@ -293,8 +325,19 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
     profile = None if options.costs is None else options.costs["profile"]
     capital = float(options.costs["capital"]) if options.costs is not None else float(capital or DEFAULT_CAPITAL)
     cost = options.cost_bps / BPS
-    stop_factor = 1 - options.stop_loss_pct / PERCENT if options.stop_loss_pct > 0 else 0.0
-    target_factor = 1 + options.take_profit_pct / PERCENT if options.take_profit_pct > 0 else 0.0
+    short = options.side == "short"
+    # A long stop sits below the entry and its target above; a short one the other way round.
+    if options.stop_loss_pct > 0:
+        stop_factor = 1 + options.stop_loss_pct / PERCENT if short else 1 - options.stop_loss_pct / PERCENT
+    else:
+        stop_factor = 0.0
+    if options.take_profit_pct > 0:
+        target_factor = 1 - options.take_profit_pct / PERCENT if short else 1 + options.take_profit_pct / PERCENT
+    else:
+        target_factor = 0.0
+    # Orders that open and close a position.
+    open_side = OrderSide.SELL if short else OrderSide.BUY
+    close_side = OrderSide.BUY if short else OrderSide.SELL
     slip = None if profile is None else profile["slippage"]
     atr = (average_true_range(bars.h, bars.l, bars.c, slip["period"])
            if slip is not None and slip["kind"] == "atr" else None)
@@ -346,15 +389,16 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
         def get_commission(self, order, fill_qty, fill_px, instrument):
             qty, ref = float(fill_qty), float(fill_px)
             index = state.index
-            buy = order.side == OrderSide.BUY
-            side = "buy" if buy else "sell"
+            side = "buy" if order.side == OrderSide.BUY else "sell"
+            # An entry (a buy, or a sell of a short) pays the flat cost on the planned spend.
+            entry = order.client_order_id in state.entries
             if profile is None:
                 fill = {"price": ref, "spread": 0.0, "slippage": 0.0, "commission": 0.0, "fees": 0.0}
             else:
                 legs = fill_costs(profile, side, qty, ref, atr_before(index))
                 fill = {"price": legs.price, "spread": legs.spread, "slippage": legs.slippage,
                         "commission": legs.commission, "fees": legs.fees}
-            if buy:
+            if entry:
                 fill["bps"] = state.entries[order.client_order_id]["spent"] * cost * capital
             else:
                 fill["bps"] = qty * fill["price"] * cost
@@ -387,8 +431,8 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                 state.stop_update = math.nan
             elif part == CLOSE:
                 self._manage(index)
-                self._close(index, float(nbar.close))
-                if index + 1 < size and state.pending != -1 and not state.ruined:
+                closed = self._close(index, float(nbar.close))
+                if index + 1 < size and state.pending != -1 and not state.ruined and not closed:
                     self._plan_target(index + 1)
 
         def _manage(self, index: int):
@@ -442,7 +486,10 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             position = state.position
             if position is None or math.isnan(position.target):
                 return
-            stop_hit = not math.isnan(position.stop) and bars.l[index] <= position.stop
+            if short:
+                stop_hit = not math.isnan(position.stop) and bars.h[index] >= position.stop
+            else:
+                stop_hit = not math.isnan(position.stop) and bars.l[index] <= position.stop
             order = None if state.target_order is None else self.cache.order(state.target_order)
             live = order is not None and order.is_open
             if stop_hit and live:
@@ -450,7 +497,7 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                 state.target_order = None
             elif not stop_hit and not live:
                 order = self.order_factory.market_if_touched(
-                    instrument_id, OrderSide.SELL, Quantity(position.qty, PRECISION),
+                    instrument_id, close_side, Quantity(position.qty, PRECISION),
                     Price(round(position.target, PRECISION), PRECISION), reduce_only=True, tags=["target"])
                 state.target_order = order.client_order_id
                 self.submit_order(order)
@@ -458,18 +505,24 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
         def _levels(self, entry_price: float) -> tuple[float, float]:
             if compiled.stop_distance is None:
                 stop = entry_price * stop_factor if stop_factor > 0 else math.nan
+            elif short:
+                stop = entry_price + state.pending_stop
             else:
                 stop = entry_price - state.pending_stop
             if compiled.target_distance is None:
                 target = entry_price * target_factor if target_factor > 0 else math.nan
+            elif short:
+                target = entry_price - state.pending_target
             else:
                 target = entry_price + state.pending_target
             return stop, target
 
         def _spend_for(self, cash: float, open_price: float, stop: float) -> float:
+            if compiled.leverage is not None:
+                return cash * state.pending_leverage
             if options.risk_pct is None:
                 return cash
-            per_unit = open_price - stop
+            per_unit = stop - open_price if short else open_price - stop
             if not per_unit > 0:
                 return 0.0
             risk_units = cash * options.risk_pct / PERCENT / per_unit
@@ -478,7 +531,8 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
 
         def _enter(self, index: int, open_price: float):
             if ((compiled.stop_distance is not None and math.isnan(state.pending_stop))
-                    or (compiled.target_distance is not None and math.isnan(state.pending_target))):
+                    or (compiled.target_distance is not None and math.isnan(state.pending_target))
+                    or (compiled.leverage is not None and math.isnan(state.pending_leverage))):
                 return
             cash = self._cash()
             if profile is None:
@@ -488,7 +542,8 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                     return
                 units = spent * (1 - cost) / open_price
             else:
-                quote = fill_costs(profile, "buy", 0, open_price, atr_before(index))
+                # A short is sized like a long of the same notional.
+                quote = fill_costs(profile, "sell" if short else "buy", 0, open_price, atr_before(index))
                 stop, _ = self._levels(quote.price)
                 spent = self._spend_for(cash, quote.price, stop)
                 units = affordable_units(profile, spent * (1 - cost), quote.price, capital)
@@ -497,34 +552,43 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             qty = math.floor(units * capital * 10 ** PRECISION) / 10 ** PRECISION
             if qty <= 0:
                 return
-            order = self.order_factory.market(instrument_id, OrderSide.BUY, Quantity(qty, PRECISION))
+            order = self.order_factory.market(instrument_id, open_side, Quantity(qty, PRECISION))
             state.entries[order.client_order_id] = {"spent": spent, "index": index, "cash": cash, "units": units}
             self.submit_order(order)
 
         def _exit(self, reason: str):
             net = self._net()
-            if net <= 0:
+            if net == 0:
                 return
             self.cancel_all_orders(instrument_id)
             state.exit_reason = reason
-            self.submit_order(self.order_factory.market(instrument_id, OrderSide.SELL, Quantity(net, PRECISION),
+            self.submit_order(self.order_factory.market(instrument_id, close_side, Quantity(abs(net), PRECISION),
                                                         reduce_only=True))
 
-        def _close(self, index: int, close: float):
+        def _close(self, index: int, close: float) -> bool:
+            """Decisions at the close print of bar `index`; True when a market-on-close exit was sent."""
             position = state.position
             if self._cash() + self._net() * close / capital <= 0:
-                # Ruin: an open position exits with a market sell at this close (Nautilus fills it
+                # Ruin: an open position exits with a market order at this close (Nautilus fills it
                 # at the close print); no entries after it.
                 state.ruined = True
                 if position is not None:
                     self._exit("stop")
                     position = None
+            # Market on close: the bar is held, then the position exits at this close print.
+            closing = compiled.close_at is not None and compiled.close_at[index] == 1
+            moc = closing and position is not None
+            if moc:
+                state.bars_in_position += 1
+                self._exit("sessionClose")
+                position = None
             if index < size - 1:
                 signal = compiled.signals[index]
-                if signal == 1 and position is None and not state.ruined:
+                if signal == 1 and position is None and not state.ruined and not closing:
                     state.pending = 1
                     state.pending_stop = _distance_at(compiled.stop_distance, index)
                     state.pending_target = _distance_at(compiled.target_distance, index)
+                    state.pending_leverage = _distance_at(compiled.leverage, index)
                 if position is not None and (
                         signal == -1
                         or (compiled.exits is not None and compiled.exits[index] == 1)
@@ -538,11 +602,12 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             state.equity.append(self._cash() + self._net() * close / capital)
             if index == size - 1 and position is not None:
                 self._exit("end")
+            return moc
 
         def on_order_filled(self, event):
             charges = state.charges.pop(event.client_order_id)
             qty = float(event.last_qty)
-            if event.order_side == OrderSide.BUY:
+            if event.client_order_id in state.entries:
                 plan = state.entries.pop(event.client_order_id)
                 units = qty / capital
                 stop, target = self._levels(charges["price"])
@@ -555,7 +620,7 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                                        legs=legs, stop=stop, target=target, initial_stop=stop)
                 if not math.isnan(stop):
                     order = self.order_factory.stop_market(
-                        instrument_id, OrderSide.SELL, event.last_qty, Price(round(stop, PRECISION), PRECISION),
+                        instrument_id, close_side, event.last_qty, Price(round(stop, PRECISION), PRECISION),
                         reduce_only=True, tags=["stop"])
                     state.stop_order = order.client_order_id
                     self.submit_order(order)
@@ -579,7 +644,9 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
                 "exitIndex": state.index,
                 "exitPrice": charges["price"],
                 "exitReason": reason,
-                "netReturn": proceeds / position.spent - 1,
+                # TS: a short's net return is its P&L over the committed spend.
+                "netReturn": ((cash - position.entry_cash) / position.spent if short
+                              else proceeds / position.spent - 1),
                 "pnl": cash - position.entry_cash,
                 "units": position.units,
             }

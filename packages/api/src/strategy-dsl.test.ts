@@ -11,6 +11,8 @@ import {
   STRATEGY_DSL_MAX_EXPR_DEPTH,
   STRATEGY_DSL_MAX_EXPR_NODES,
   STRATEGY_FUTURE_TWIN,
+  STRATEGY_INTRADAY_DAILY_REFUSAL,
+  STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
   STRATEGY_IV_INDEX,
   STRATEGY_MONTHLY_INDICATOR_MESSAGE,
   STRATEGY_OPTION_IS_DEBIT,
@@ -1865,5 +1867,418 @@ describe("DSL extensions: timeframe, breaks, oncePerLevel, entry.any, management
     ).toEqual([
       "filters.0.condition: A series condition takes no oncePerLevel or timeframe: the series has one value per date",
     ]);
+  });
+});
+
+describe("intraday block, session indicators, side and volTarget sizing", () => {
+  const intraday = {
+    close: "16:00",
+    entryFrom: "10:00",
+    entryTo: "15:30",
+    open: "09:30",
+    timezone: "America/New_York",
+  } as const;
+  const close = { field: "close", type: "price" } as const;
+  const vwap = { name: "vwap", type: "indicator" } as const;
+  const sessionReturn = {
+    from: "open",
+    name: "sessionReturn",
+    to: "10:30",
+    type: "indicator",
+  } as const;
+  const upper = {
+    band: "upper",
+    length: 14,
+    name: "noiseBand",
+    type: "indicator",
+  } as const;
+  const withIndicators = {
+    ...minimal,
+    entry: {
+      all: [
+        { left: close, op: ">", right: vwap },
+        { left: sessionReturn, op: ">", right: { type: "const", value: 0 } },
+      ],
+      any: [{ left: close, op: "crossesAbove", right: upper }],
+    },
+    exit: {
+      any: [
+        {
+          left: close,
+          op: "<",
+          right: { ...upper, band: "lower", multiple: 2 },
+        },
+      ],
+    },
+    intraday,
+  };
+  const volTarget = {
+    length: 14,
+    maxLeverage: 4,
+    mode: "volTarget",
+    targetPct: 2,
+  } as const;
+  const options = {
+    dte: { min: 21, target: 45 },
+    exitDte: 7,
+    maxLossPct: 2,
+    profitTakePct: 50,
+    shortDelta: 0.2,
+    structure: "putCreditVertical",
+    widthSigma: 0.5,
+  } as const;
+
+  it("accepts the intraday block, the session indicators, side short and volTarget, adding no defaults", () => {
+    const definition = {
+      ...withIndicators,
+      intraday: { ...intraday, decisionEvery: 30 },
+      side: "short",
+      sizing: volTarget,
+    };
+    expect(issuesOf(definition)).toEqual([]);
+    const parsed = StrategyDefinitionSchema.parse(definition);
+    expect(parsed.intraday).toEqual({ ...intraday, decisionEvery: 30 });
+    expect(parsed.side).toBe("short");
+    expect(parsed.sizing).toEqual(volTarget);
+    expect(parsed.entry.all[0]?.right).toEqual(vwap);
+    expect(parsed.exit.any[0]?.right).toEqual({
+      ...upper,
+      band: "lower",
+      multiple: 2,
+    });
+    // No side, intraday or noiseBand multiple when absent.
+    const plain = StrategyDefinitionSchema.parse({
+      ...withIndicators,
+      intraday,
+    });
+    expect(plain.side).toBeUndefined();
+    expect(plain.intraday?.decisionEvery).toBeUndefined();
+    expect(plain.entry.any?.[0]?.right).toEqual(upper);
+    expect(issuesOf({ ...minimal, side: "long" })).toEqual([]);
+    expect(
+      issuesOf({
+        ...withIndicators,
+        entry: {
+          all: [
+            {
+              left: close,
+              op: ">",
+              right: { ...sessionReturn, from: "prevClose" },
+            },
+          ],
+        },
+      })
+    ).toEqual([]);
+    expect(
+      issuesOf({
+        ...withIndicators,
+        entry: {
+          all: [
+            {
+              left: close,
+              op: ">",
+              right: { ...sessionReturn, from: "10:00" },
+            },
+          ],
+        },
+      })
+    ).toEqual([]);
+  });
+
+  it.each([
+    [
+      "a session indicator without an intraday block",
+      { ...withIndicators, intraday: undefined },
+      [
+        "entry.all.0.right: vwap reads the intraday session; add an intraday block",
+        "entry.all.1.left: sessionReturn reads the intraday session; add an intraday block",
+        "entry.any.0.right: noiseBand reads the intraday session; add an intraday block",
+        "exit.any.0.right: noiseBand reads the intraday session; add an intraday block",
+      ],
+    ],
+    [
+      "a session indicator inside an expression tree without an intraday block",
+      {
+        ...withIndicators,
+        entry: {
+          all: [
+            {
+              left: { left: close, op: "add", right: close, type: "math" },
+              op: ">",
+              right: {
+                left: close,
+                op: "sub",
+                right: { name: "vwap", type: "indicator" },
+                type: "math",
+              },
+            },
+          ],
+        },
+        exit: { any: [] },
+        intraday: undefined,
+      },
+      [
+        "entry.all.0.right: vwap reads the intraday session; add an intraday block",
+      ],
+    ],
+    [
+      "sessionReturn from at to",
+      {
+        ...minimal,
+        entry: {
+          all: [
+            {
+              left: { ...sessionReturn, from: "10:30" },
+              op: ">",
+              right: close,
+            },
+          ],
+        },
+        intraday,
+      },
+      ["entry.all.0.left.from: sessionReturn from must be before to"],
+    ],
+    [
+      "sessionReturn from after to",
+      {
+        ...minimal,
+        entry: {
+          all: [
+            {
+              left: { ...sessionReturn, from: "11:00" },
+              op: ">",
+              right: close,
+            },
+          ],
+        },
+        intraday,
+      },
+      ["entry.all.0.left.from: sessionReturn from must be before to"],
+    ],
+    [
+      "intraday open after close",
+      { ...minimal, intraday: { ...intraday, close: "09:00" } },
+      [
+        "intraday.close: intraday open must be before close",
+        "intraday.entryFrom: The entry window must be inside the session: open < entryFrom <= entryTo < close",
+      ],
+    ],
+    [
+      "entryFrom at open",
+      { ...minimal, intraday: { ...intraday, entryFrom: "09:30" } },
+      [
+        "intraday.entryFrom: The entry window must be inside the session: open < entryFrom <= entryTo < close",
+      ],
+    ],
+    [
+      "entryFrom after entryTo",
+      { ...minimal, intraday: { ...intraday, entryFrom: "15:45" } },
+      [
+        "intraday.entryFrom: The entry window must be inside the session: open < entryFrom <= entryTo < close",
+      ],
+    ],
+    [
+      "entryTo at close",
+      { ...minimal, intraday: { ...intraday, entryTo: "16:00" } },
+      [
+        "intraday.entryFrom: The entry window must be inside the session: open < entryFrom <= entryTo < close",
+      ],
+    ],
+    [
+      "side short with management",
+      {
+        ...minimal,
+        management: { breakevenR: 1 },
+        side: "short",
+        stopLoss: { kind: "pct", pct: 2 },
+      },
+      [
+        "management: management raises a long stop; a short definition takes no management",
+      ],
+    ],
+    [
+      "side short with options",
+      { ...minimal, options, side: "short" },
+      [
+        "side: Option strategies take their direction from options.structure; remove side",
+      ],
+    ],
+    [
+      "options with volTarget",
+      { ...minimal, options, sizing: volTarget },
+      [
+        "sizing: Option strategies size by options.maxLossPct; remove the volTarget sizing",
+      ],
+    ],
+    [
+      "options with intraday",
+      { ...minimal, intraday, options },
+      [
+        "intraday: Option strategies run on daily bars; remove the intraday block",
+      ],
+    ],
+    [
+      "calendarWindow with intraday",
+      {
+        ...minimal,
+        filters: [
+          {
+            fromDay: -2,
+            toDay: 3,
+            type: "calendarWindow",
+            window: "turnOfMonth",
+          },
+        ],
+        intraday,
+      },
+      [
+        "filters: calendarWindow filters run on daily bars only; remove them or the intraday block",
+      ],
+    ],
+    [
+      "a series condition on a session indicator",
+      {
+        ...minimal,
+        filters: [
+          {
+            condition: { left: close, op: ">", right: vwap },
+            series: "ES=F",
+            type: "series",
+          },
+        ],
+        intraday,
+      },
+      [
+        "filters.0.condition: A series condition reads the series close only: use the close price and close-sourced indicators other than atr, adx and rvol",
+      ],
+    ],
+  ])("refuses %s", (_label, definition, expected) => {
+    expect(issuesOf(definition)).toEqual(expected);
+  });
+
+  it.each([
+    ["side", { ...minimal, side: "both" }],
+    ["timezone", { ...minimal, intraday: { ...intraday, timezone: "UTC" } }],
+    [
+      "a time that is not HH:MM",
+      { ...minimal, intraday: { ...intraday, open: "9:30" } },
+    ],
+    [
+      "decisionEvery 0",
+      { ...minimal, intraday: { ...intraday, decisionEvery: 0 } },
+    ],
+    [
+      "decisionEvery above 390",
+      { ...minimal, intraday: { ...intraday, decisionEvery: 391 } },
+    ],
+    [
+      "decisionEvery not whole",
+      { ...minimal, intraday: { ...intraday, decisionEvery: 1.5 } },
+    ],
+    [
+      "an unknown intraday key",
+      { ...minimal, intraday: { ...intraday, tz: "x" } },
+    ],
+    ["volTarget length 1", { ...minimal, sizing: { ...volTarget, length: 1 } }],
+    [
+      "volTarget length above 252",
+      { ...minimal, sizing: { ...volTarget, length: 253 } },
+    ],
+    [
+      "volTarget maxLeverage 0",
+      { ...minimal, sizing: { ...volTarget, maxLeverage: 0 } },
+    ],
+    [
+      "volTarget maxLeverage above 50",
+      { ...minimal, sizing: { ...volTarget, maxLeverage: 51 } },
+    ],
+    [
+      "volTarget targetPct 0",
+      { ...minimal, sizing: { ...volTarget, targetPct: 0 } },
+    ],
+    [
+      "volTarget targetPct above 100",
+      { ...minimal, sizing: { ...volTarget, targetPct: 101 } },
+    ],
+    [
+      "noiseBand length 0",
+      {
+        ...withIndicators,
+        exit: {
+          any: [{ left: close, op: "<", right: { ...upper, length: 0 } }],
+        },
+      },
+    ],
+    [
+      "noiseBand length above 60",
+      {
+        ...withIndicators,
+        exit: {
+          any: [{ left: close, op: "<", right: { ...upper, length: 61 } }],
+        },
+      },
+    ],
+    [
+      "noiseBand multiple 0",
+      {
+        ...withIndicators,
+        exit: {
+          any: [{ left: close, op: "<", right: { ...upper, multiple: 0 } }],
+        },
+      },
+    ],
+    [
+      "noiseBand band",
+      {
+        ...withIndicators,
+        exit: {
+          any: [{ left: close, op: "<", right: { ...upper, band: "middle" } }],
+        },
+      },
+    ],
+    [
+      "vwap with a length",
+      {
+        ...withIndicators,
+        exit: {
+          any: [{ left: close, op: "<", right: { ...vwap, length: 3 } }],
+        },
+      },
+    ],
+    [
+      "sessionReturn from anchor",
+      {
+        ...withIndicators,
+        exit: {
+          any: [
+            {
+              left: close,
+              op: "<",
+              right: { ...sessionReturn, from: "close" },
+            },
+          ],
+        },
+      },
+    ],
+  ])("refuses an invalid %s", (_label, definition) => {
+    expect(issuesOf(definition)).not.toEqual([]);
+  });
+
+  it("refuses the intraday block on a daily timeframe (STRATEGY_INTRADAY_DAILY_UNSUPPORTED)", () => {
+    const definition = StrategyDefinitionSchema.parse({ ...minimal, intraday });
+    for (const timeframe of STRATEGY_DAILY_TIMEFRAMES)
+      expect(serverStrategyRefusal(definition, timeframe)).toBe(
+        STRATEGY_INTRADAY_DAILY_REFUSAL
+      );
+    expect(STRATEGY_INTRADAY_DAILY_REFUSAL.code).toBe(
+      STRATEGY_INTRADAY_DAILY_UNSUPPORTED
+    );
+    expect(
+      STRATEGY_INTRADAY_DAILY_REFUSAL.message.startsWith(
+        `${STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: `
+      )
+    ).toBe(true);
+    expect(serverStrategyRefusal(definition, "5m")).toBeUndefined();
+    expect(serverStrategyRefusal(definition)).toBeUndefined();
   });
 });

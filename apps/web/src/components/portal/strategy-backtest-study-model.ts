@@ -43,7 +43,7 @@ export const qcPortDefinitionRef = (
 
 /**
  * Backtest runs, prefilled with the stored definition: daily bars, from the study's run start, its
- * capital and no cost; the page takes the first portfolio symbol and the latest stored date.
+ * capital and no cost; the page takes the first portfolio symbol and ends the run today (UTC).
  */
 export const qcPortRunHref = (
   ref: QcPortDefinitionRef,
@@ -58,6 +58,7 @@ export const qcPortRunHref = (
     strategyId,
     symbol: null,
     timeframe: "1d",
+    to: null,
   });
 
 export type QcPortRunRow = Readonly<{

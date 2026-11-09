@@ -47,13 +47,13 @@ const argOf = (calls: readonly Call[], method: string, nth = 0) =>
   calls.filter((call) => call.method === method)[nth]?.args[0];
 const render = (value: unknown) => dialect.sqlToQuery(value as SQL);
 
-describe("0063 openbb migration", () => {
+describe("0064 openbb migration", () => {
   const migration = readFileSync(
-    new URL("../../migrations/0063_openbb_sources.sql", import.meta.url),
+    new URL("../../migrations/0064_openbb_sources.sql", import.meta.url),
     "utf8"
   );
   const rollback = readFileSync(
-    new URL("../../rollback/0063_openbb_sources.down.sql", import.meta.url),
+    new URL("../../rollback/0064_openbb_sources.down.sql", import.meta.url),
     "utf8"
   );
   const tables = Object.values(schema)

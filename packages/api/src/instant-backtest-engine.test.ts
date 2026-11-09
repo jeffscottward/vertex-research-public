@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { type CostProfile, ZERO_COST_PROFILE } from "./backtest-costs.ts";
 import {
   type BarColumns,
+  barsInPositionOf,
   downsampleIndexes,
   InstantBacktestInputError,
   type InstantRunParams,
@@ -19,20 +20,20 @@ const DAY_MS = 86_400_000;
 type Row = readonly [o: number, h: number, l: number, c: number];
 
 const columns = (rows: readonly Row[], step = DAY_MS): BarColumns => ({
-  t: Float64Array.from(rows, (_, index) => index * step),
-  o: Float64Array.from(rows, (row) => row[0]),
+  c: Float64Array.from(rows, (row) => row[3]),
   h: Float64Array.from(rows, (row) => row[1]),
   l: Float64Array.from(rows, (row) => row[2]),
-  c: Float64Array.from(rows, (row) => row[3]),
+  o: Float64Array.from(rows, (row) => row[0]),
+  t: Float64Array.from(rows, (_, index) => index * step),
 });
 
 const smaParams = (
   overrides: Partial<InstantRunParams> = {}
 ): InstantRunParams => ({
-  rule: { kind: "smaCross", fast: 1, slow: 2 },
+  costBps: 0,
+  rule: { fast: 1, kind: "smaCross", slow: 2 },
   stopLossPct: 0,
   takeProfitPct: 0,
-  costBps: 0,
   ...overrides,
 });
 
@@ -94,40 +95,40 @@ describe("runInstantBacktest input checks", () => {
 
   it.each([
     [
-      { kind: "smaCross", fast: 0, slow: 2 } as const,
+      { fast: 0, kind: "smaCross", slow: 2 } as const,
       "fast must be an integer",
     ],
     [
-      { kind: "smaCross", fast: 1, slow: 4 } as const,
+      { fast: 1, kind: "smaCross", slow: 4 } as const,
       "slow must be an integer",
     ],
     [
-      { kind: "smaCross", fast: 2, slow: 2 } as const,
+      { fast: 2, kind: "smaCross", slow: 2 } as const,
       "fast must be shorter than slow",
     ],
     [
       {
-        kind: "breakout",
         entryLookback: 1.5,
         exitLookback: 1,
+        kind: "breakout",
         trendSma: 0,
       } as const,
       "entryLookback must be an integer",
     ],
     [
       {
-        kind: "breakout",
         entryLookback: 1,
         exitLookback: 9,
+        kind: "breakout",
         trendSma: 0,
       } as const,
       "exitLookback must be an integer",
     ],
     [
       {
-        kind: "breakout",
         entryLookback: 1,
         exitLookback: 1,
+        kind: "breakout",
         trendSma: 9,
       } as const,
       "trendSma must be an integer",
@@ -135,45 +136,45 @@ describe("runInstantBacktest input checks", () => {
     [
       {
         kind: "rsiReversion",
-        period: 3,
-        oversold: 30,
         overbought: 70,
+        oversold: 30,
+        period: 3,
       } as const,
       "period must be an integer from 1 to 2",
     ],
     [
       {
         kind: "rsiReversion",
-        period: 2,
+        overbought: 70,
         oversold: Number.NaN,
-        overbought: 70,
+        period: 2,
       } as const,
       "oversold must be from 0 to 100",
     ],
     [
       {
         kind: "rsiReversion",
-        period: 2,
+        overbought: 70,
         oversold: -1,
-        overbought: 70,
+        period: 2,
       } as const,
       "oversold must be from 0 to 100",
     ],
     [
       {
         kind: "rsiReversion",
-        period: 2,
-        oversold: 30,
         overbought: 101,
+        oversold: 30,
+        period: 2,
       } as const,
       "overbought must be from 0 to 100",
     ],
     [
       {
         kind: "rsiReversion",
-        period: 2,
-        oversold: 70,
         overbought: 70,
+        oversold: 70,
+        period: 2,
       } as const,
       "oversold must be below overbought",
     ],
@@ -217,13 +218,13 @@ describe("runInstantBacktest moving-average rule", () => {
     expect(result.trades).toEqual([
       {
         entryIndex: 3,
-        exitIndex: 5,
         entryPrice: 12.5,
+        exitIndex: 5,
         exitPrice: 10,
-        units: 0.08,
+        exitReason: "signal",
         netReturn: -0.199_999_999_999_999_96,
         pnl: -0.199_999_999_999_999_96,
-        exitReason: "signal",
+        units: 0.08,
       },
     ]);
     expect(result.stats.trades).toBe(1);
@@ -277,14 +278,14 @@ describe("runInstantBacktest moving-average rule", () => {
     );
     expect(result.trades).toEqual([]);
     expect(result.stats).toMatchObject({
-      trades: 0,
-      winRate: null,
-      profitFactor: null,
       exposure: 0,
+      maxDrawdown: 0,
+      profitFactor: null,
       sharpe: null,
       sortino: null,
-      maxDrawdown: 0,
       totalReturn: 0,
+      trades: 0,
+      winRate: null,
     });
   });
 
@@ -331,7 +332,7 @@ describe("runInstantBacktest moving-average rule", () => {
         [10, 10, 10, 10],
         [10, 10, 10, 10],
       ]),
-      smaParams({ rule: { kind: "smaCross", fast: 1, slow: 2 } })
+      smaParams({ rule: { fast: 1, kind: "smaCross", slow: 2 } })
     );
     expect(two.stats.sharpe).toBeNull();
     expect(two.stats.bars).toBe(2);
@@ -445,9 +446,9 @@ describe("runInstantBacktest breakout rule", () => {
       columns(rows),
       smaParams({
         rule: {
-          kind: "breakout",
           entryLookback: 2,
           exitLookback: 2,
+          kind: "breakout",
           trendSma: 0,
         },
       })
@@ -455,8 +456,8 @@ describe("runInstantBacktest breakout rule", () => {
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0]).toMatchObject({
       entryIndex: 3,
-      exitIndex: 6,
       entryPrice: 11,
+      exitIndex: 6,
       exitPrice: 10,
       exitReason: "signal",
     });
@@ -475,9 +476,9 @@ describe("runInstantBacktest breakout rule", () => {
       [10.9, 11, 10.9, 11],
     ];
     const rule = {
-      kind: "breakout",
       entryLookback: 2,
       exitLookback: 3,
+      kind: "breakout",
       trendSma: 5,
     } as const;
     const filtered = runInstantBacktest(columns(falling), smaParams({ rule }));
@@ -544,19 +545,19 @@ describe("runInstantBacktest RSI reversion rule", () => {
     const result = runInstantBacktest(
       columns(rows),
       smaParams({
-        rule: { kind: "rsiReversion", period: 2, oversold: 30, overbought: 70 },
+        rule: { kind: "rsiReversion", overbought: 70, oversold: 30, period: 2 },
       })
     );
     expect(result.trades).toEqual([
       {
         entryIndex: 3,
-        exitIndex: 6,
         entryPrice: 8,
+        exitIndex: 6,
         exitPrice: 9,
-        units: 1 / 8,
+        exitReason: "signal",
         netReturn: 9 / 8 - 1,
         pnl: 9 / 8 - 1,
-        exitReason: "signal",
+        units: 1 / 8,
       },
     ]);
     expect(result.stats.exposure).toBeCloseTo(3 / 7);
@@ -1053,5 +1054,397 @@ describe("runSignalBacktest maxLeverage", () => {
     });
     const cash = -19 + 0.19 * 99.5 * 0.95;
     for (const value of equity.slice(1)) expect(value).toBeCloseTo(cash, 12);
+  });
+});
+
+describe("runSignalBacktest short side", () => {
+  const base: SignalRunOptions = {
+    costBps: 0,
+    side: "short",
+    stopLossPct: 0,
+    takeProfitPct: 0,
+  };
+  // A short entry at the bar 1 open (100).
+  const entryRows: Row[] = [
+    [100, 100, 100, 100],
+    [100, 101, 95, 96],
+  ];
+  const run = (
+    rows: readonly Row[],
+    signals: readonly number[],
+    overrides: Partial<SignalRunOptions> = {}
+  ) =>
+    runSignalBacktest(columns(rows), Int8Array.from(signals), {
+      ...base,
+      ...overrides,
+    });
+
+  it("sells at the next open and buys back at the exit: P&L = units × (entry - exit)", () => {
+    const { equity, trades } = run(
+      [...entryRows, [96, 97, 91, 92], [90, 91, 89, 90]],
+      [1, 0, -1, 0]
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      entryIndex: 1,
+      entryPrice: 100,
+      exitIndex: 3,
+      exitPrice: 90,
+      exitReason: "signal",
+    });
+    expect(trades[0]?.units).toBeCloseTo(0.01, 12);
+    expect(trades[0]?.pnl).toBeCloseTo(0.1, 12);
+    expect(trades[0]?.netReturn).toBeCloseTo(0.1, 12);
+    // Unused cash 1 + 0.01 × 100 = 2, marked at 2 - 0.01 × close.
+    expect(equity[1]).toBeCloseTo(1.04, 12);
+    expect(equity[2]).toBeCloseTo(1.08, 12);
+    expect(equity[3]).toBeCloseTo(1.1, 12);
+  });
+
+  it("charges the flat cost on both legs", () => {
+    const { trades } = run(
+      [...entryRows, [96, 97, 91, 92], [90, 91, 89, 90]],
+      [1, 0, -1, 0],
+      { costBps: 100 }
+    );
+    // 0.0099 units sold at 100 less 0.01; bought back at 90 plus 1%.
+    const cash = 1 + 0.0099 * 100 - 0.01 - 0.0099 * 90 * 1.01;
+    expect(trades[0]?.units).toBeCloseTo(0.0099, 12);
+    expect(trades[0]?.pnl).toBeCloseTo(cash - 1, 12);
+    expect(trades[0]?.netReturn).toBeCloseTo(cash - 1, 12);
+  });
+
+  it("puts the percent stop above the entry and the target below it", () => {
+    const stopped = run(
+      [...entryRows, [101, 106, 100, 104], [104, 104, 104, 104]],
+      [1, 0, 0, 0],
+      { stopLossPct: 5, takeProfitPct: 10 }
+    );
+    expect(stopped.trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 105,
+      exitReason: "stop",
+    });
+    const gapped = run(
+      [...entryRows, [108, 109, 107, 108], [108, 108, 108, 108]],
+      [1, 0, 0, 0],
+      { stopLossPct: 5 }
+    );
+    expect(gapped.trades[0]).toMatchObject({
+      exitPrice: 108,
+      exitReason: "stop",
+    });
+    const target = run(
+      [...entryRows, [95, 96, 89, 90], [90, 90, 90, 90]],
+      [1, 0, 0, 0],
+      { stopLossPct: 5, takeProfitPct: 10 }
+    );
+    expect(target.trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 90,
+      exitReason: "target",
+    });
+    const gapTarget = run(
+      [...entryRows, [85, 86, 84, 85], [85, 85, 85, 85]],
+      [1, 0, 0, 0],
+      { takeProfitPct: 10 }
+    );
+    expect(gapTarget.trades[0]).toMatchObject({
+      exitPrice: 85,
+      exitReason: "target",
+    });
+    // Both levels inside one bar: the stop fills first.
+    const both = run(
+      [...entryRows, [100, 106, 89, 95], [95, 95, 95, 95]],
+      [1, 0, 0, 0],
+      { stopLossPct: 5, takeProfitPct: 10 }
+    );
+    expect(both.trades[0]).toMatchObject({
+      exitPrice: 105,
+      exitReason: "stop",
+    });
+  });
+
+  it("puts distance levels above and below the entry", () => {
+    const rows: Row[] = [...entryRows, [99, 100, 95, 96], [96, 97, 96, 97]];
+    const levels = {
+      stopDistance: new Float64Array(4).fill(3),
+      targetDistance: new Float64Array(4).fill(4),
+    };
+    expect(run(rows, [1, 0, 0, 0], levels).trades[0]).toMatchObject({
+      exitIndex: 1,
+      exitPrice: 96,
+      exitReason: "target",
+    });
+    const up: Row[] = [...entryRows.slice(0, 1), [100, 104, 99, 102]];
+    expect(run(up, [1, 0], levels).trades[0]).toMatchObject({
+      exitPrice: 103,
+      exitReason: "stop",
+    });
+  });
+
+  it("sizes riskPct by the stop distance above the entry", () => {
+    // 1% of equity at a stop 2 above: 0.005 units (0.5 of equity sold).
+    const { trades } = run([...entryRows, [96, 97, 95, 96]], [1, 0, 0], {
+      riskPct: 1,
+      stopDistance: new Float64Array(3).fill(2),
+    });
+    expect(trades[0]?.units).toBeCloseTo(0.005, 12);
+    expect(trades[0]?.pnl).toBeCloseTo(0.005 * 4, 12);
+  });
+
+  it("takes no riskPct position without a stop", () => {
+    expect(run(entryRows, [1, 0], { riskPct: 1 }).trades).toEqual([]);
+  });
+
+  it("stops trading after a gap through the stop takes equity below 0", () => {
+    // riskPct 10, stop 1 above, 20× cap: 0.1 units sold for 10 (unused cash 11); a gap to 150
+    // buys back at the open: 11 - 0.1 × 150 = -4. The signal at bar 3 does not enter.
+    const { equity, trades } = run(
+      [
+        [100, 100, 100, 100],
+        [100, 100, 100, 100],
+        [150, 150, 150, 150],
+        [150, 151, 149, 150],
+        [150, 150, 150, 150],
+      ],
+      [1, 0, 0, 1, 0],
+      {
+        maxLeverage: 20,
+        riskPct: 10,
+        stopDistance: new Float64Array(5).fill(1),
+      }
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({ exitPrice: 150, exitReason: "stop" });
+    expect(
+      Array.from(equity, (value) => Math.round(value * 1e9) / 1e9)
+    ).toEqual([1, 1, -4, -4, -4]);
+  });
+
+  it("closes at the close when the marked equity reaches 0 (ruin)", () => {
+    // Leverage 5: 0.05 units sold at 100 (unused cash 6); the close 125 marks 6 - 6.25 < 0.
+    const { trades } = run(
+      [
+        [100, 100, 100, 100],
+        [100, 125, 100, 125],
+        [125, 125, 125, 125],
+      ],
+      [1, 0, 0],
+      { leverage: new Float64Array(3).fill(5) }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 1,
+      exitPrice: 125,
+      exitReason: "stop",
+    });
+    expect(trades[0]?.pnl).toBeCloseTo(-1.25, 12);
+  });
+
+  it("pays the cost profile on the sale and the buy-back", () => {
+    const profile: CostProfile = {
+      ...ZERO_COST_PROFILE,
+      commission: {
+        ...ZERO_COST_PROFILE.commission,
+        minPerOrder: 1,
+        perShare: 0.01,
+      },
+      id: "hand",
+      slippage: { bps: 100, kind: "bps" },
+    };
+    const { equity, trades } = run(
+      [...entryRows, [96, 97, 91, 92], [90, 91, 89, 90]],
+      [1, 0, -1, 0],
+      { costs: { capital: 1000, profile } }
+    );
+    // Sold at 100 × 0.99 = 99 (999 / 99 shares fit next to the 1.00 minimum commission), bought
+    // back at 90 × 1.01 = 90.9.
+    const shares = 999 / 99;
+    const trade = trades[0];
+    expect(trade?.entryPrice).toBeCloseTo(99, 12);
+    expect(trade?.exitPrice).toBeCloseTo(90.9, 12);
+    expect(trade?.units).toBeCloseTo(shares / 1000, 9);
+    expect(trade?.pnl).toBeCloseTo((shares * (99 - 90.9) - 2) / 1000, 9);
+    expect(trade?.costs?.commission).toBeCloseTo(0.002, 12);
+    expect(trade?.costs?.slippage).toBeCloseTo((shares * 1.9) / 1000, 9);
+    // Before costs: the same shares sold at 100 and bought back at 90.
+    expect(trade?.grossPnl).toBeCloseTo((shares * 10) / 1000, 9);
+    expect(equity[3]).toBeCloseTo(1 + (trade?.pnl ?? 0), 12);
+  });
+});
+
+describe("runSignalBacktest market on close", () => {
+  const rows: Row[] = [
+    [100, 100, 100, 100],
+    [100, 101, 99, 100],
+    [100, 103, 99, 102],
+    [102, 103, 101, 102],
+    [102, 103, 101, 103],
+    [103, 105, 102, 104],
+  ];
+  const closeAt = Uint8Array.from([0, 0, 1, 0, 0, 1]);
+
+  it("exits at the close of a closeAt bar, takes no entry there and holds no position after it", () => {
+    const { equity, stats, trades } = runSignalBacktest(
+      columns(rows),
+      Int8Array.from([1, 0, 1, 1, 0, 0]),
+      { closeAt, costBps: 0, stopLossPct: 0, takeProfitPct: 0 }
+    );
+    expect(trades.map((trade) => [trade.entryIndex, trade.exitIndex])).toEqual([
+      [1, 2],
+      [4, 5],
+    ]);
+    expect(trades[0]).toMatchObject({
+      exitPrice: 102,
+      exitReason: "sessionClose",
+    });
+    // The last bar is a closeAt bar: a market-on-close exit, not the end of the data.
+    expect(trades[1]).toMatchObject({
+      exitPrice: 104,
+      exitReason: "sessionClose",
+    });
+    expect(equity[2]).toBeCloseTo(1.02, 12);
+    expect(equity[3]).toBeCloseTo(1.02, 12);
+    // Bars 1, 2, 4 and 5 were held, and barsInPositionOf counts the closeAt bars.
+    expect(stats.exposure).toBeCloseTo(4 / 6, 12);
+    expect(barsInPositionOf(trades)).toBe(4);
+  });
+
+  it("closes a short at the close with the flat cost", () => {
+    const { trades } = runSignalBacktest(
+      columns(rows),
+      Int8Array.from([1, 0, 0, 0, 0, 0]),
+      {
+        closeAt,
+        costBps: 10,
+        side: "short",
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 102,
+      exitReason: "sessionClose",
+    });
+    const units = 0.999 / 100;
+    const cash = 1 + units * 100 - 0.001 - units * 102 * 1.001;
+    expect(trades[0]?.pnl).toBeCloseTo(cash - 1, 12);
+  });
+});
+
+describe("runSignalBacktest leverage sizing", () => {
+  const rows: Row[] = [
+    [100, 100, 100, 100],
+    [100, 102, 100, 102],
+    [102, 103, 101, 103],
+  ];
+  const run = (leverage: readonly number[], signals = [1, 0, 0]) =>
+    runSignalBacktest(columns(rows), Int8Array.from(signals), {
+      costBps: 0,
+      leverage: Float64Array.from(leverage),
+      stopLossPct: 0,
+      takeProfitPct: 0,
+    });
+
+  it("commits cash × the leverage of the signal bar", () => {
+    const { equity, trades } = run([2, 9, 9]);
+    expect(trades[0]?.units).toBeCloseTo(0.02, 12);
+    // Unused cash 1 - 2 = -1; marked at -1 + 0.02 × close.
+    expect(equity[1]).toBeCloseTo(1.04, 12);
+    expect(equity[2]).toBeCloseTo(1.06, 12);
+  });
+
+  it("blocks the entry while the leverage is missing or not above 0", () => {
+    expect(run([Number.NaN, 2, 2]).trades).toEqual([]);
+    expect(run([0, 2, 2]).trades).toEqual([]);
+    expect(run([Number.NaN, 0.5, 2], [1, 1, 0]).trades[0]?.units).toBeCloseTo(
+      0.5 / 102,
+      12
+    );
+  });
+});
+
+describe("runSignalBacktest side, closeAt and leverage input errors", () => {
+  const bars = columns([
+    [100, 100, 100, 100],
+    [100, 100, 100, 100],
+  ]);
+  const signals = Int8Array.from([1, 0]);
+  const base: SignalRunOptions = {
+    costBps: 0,
+    stopLossPct: 0,
+    takeProfitPct: 0,
+  };
+  it.each<[string, Partial<SignalRunOptions>, string]>([
+    [
+      "an unknown side",
+      { side: "flat" as "long" },
+      "side must be long or short",
+    ],
+    [
+      "management on a short",
+      { management: { breakevenR: 1 }, side: "short" },
+      "management raises a long stop; a short position takes none",
+    ],
+    [
+      "a short target of 100%",
+      { side: "short", takeProfitPct: 100 },
+      "takeProfitPct must be below 100 for a short position",
+    ],
+    [
+      "a closeAt of another length",
+      { closeAt: new Uint8Array(3) },
+      "closeAt must match the bar count",
+    ],
+    [
+      "a leverage of another length",
+      { leverage: new Float64Array(3) },
+      "leverage must match the bar count",
+    ],
+    [
+      "leverage with riskPct",
+      {
+        leverage: new Float64Array(2),
+        riskPct: 1,
+        stopDistance: new Float64Array(2).fill(1),
+      },
+      "leverage sizing excludes riskPct",
+    ],
+  ])("rejects %s", (_name, overrides, message) => {
+    expect(() =>
+      runSignalBacktest(bars, signals, { ...base, ...overrides })
+    ).toThrow(message);
+  });
+
+  it("accepts an explicit long side", () => {
+    expect(
+      runSignalBacktest(bars, signals, { ...base, side: "long" }).trades
+    ).toHaveLength(1);
+  });
+});
+
+describe("barsInPositionOf", () => {
+  it("counts entry to the bar before the exit, and the last bar for a trade closed at the end", () => {
+    const rows: Row[] = Array.from({ length: 6 }, () => [100, 101, 99, 100]);
+    const { stats, trades } = runSignalBacktest(
+      columns(rows),
+      Int8Array.from([1, 0, -1, 0, 1, 0]),
+      { costBps: 0, stopLossPct: 0, takeProfitPct: 0 }
+    );
+    // Held: bars 1 and 2 (exit at the bar 3 open), then bar 5 (closed at the end).
+    expect(
+      trades.map((trade) => [
+        trade.entryIndex,
+        trade.exitIndex,
+        trade.exitReason,
+      ])
+    ).toEqual([
+      [1, 3, "signal"],
+      [5, 5, "end"],
+    ]);
+    expect(barsInPositionOf(trades)).toBe(3);
+    expect(stats.exposure).toBeCloseTo(3 / 6, 12);
+    expect(barsInPositionOf([])).toBe(0);
   });
 });
