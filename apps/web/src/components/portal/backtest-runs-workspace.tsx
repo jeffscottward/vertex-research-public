@@ -57,7 +57,9 @@ import {
   loadLinkedDefinition,
   metricRows,
   type OptionsBook,
+  optionsLinkSymbol,
   optionsMetricRows,
+  optionsRunSymbols,
   optionsSignalRows,
   optionTradesHeading,
   pickInitialRunId,
@@ -65,6 +67,7 @@ import {
   readDefinitionLink,
   replayGeometry,
   runsOptionsDefinition,
+  todayUtc,
   toSubmitInput,
   toUniverseSubmitInputs,
 } from "./backtest-runs-model.ts";
@@ -713,6 +716,46 @@ const CostFields = ({
   );
 };
 
+// The symbol of an options definition run. Options runs read the daily series store (Core 7
+// closes, IV indices and futures), so the stored bar series and their dates do not limit them.
+const StoreSymbolField = ({
+  form,
+  onChange,
+  value,
+}: Readonly<{
+  form: RunForm;
+  onChange: (symbol: string) => void;
+  value: string;
+}>) => {
+  const id = useId();
+  // Shown only while an options definition is selected.
+  const definition = (form.definition as LinkedDefinition).definition;
+  return (
+    <div className="grid gap-1 md:col-span-2" data-store-symbol="">
+      <label className="font-medium text-sm" htmlFor={id}>
+        Symbol (daily series store, 1d)
+      </label>
+      <select
+        className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {optionsRunSymbols(definition).map((symbol) => (
+          <option key={symbol} value={symbol}>
+            {symbol}
+          </option>
+        ))}
+      </select>
+      <p className="text-muted-foreground text-sm">
+        Options runs use the daily series store, not the stored bar series: the
+        run reads the store from From to To (a To after the last stored day is
+        fine).
+      </p>
+    </div>
+  );
+};
+
 export type BacktestRunsWorkspaceProps = Readonly<{
   gateway?: BacktestRunsGateway;
   initialRunId?: string | null;
@@ -760,6 +803,8 @@ export const BacktestRunsWorkspace = ({
   const [reload, setReload] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // The symbol of an options definition run (daily series store); "" until a definition loads.
+  const [optionsSymbol, setOptionsSymbol] = useState("");
   const seriesId = useId();
   const strategyId = useId();
   const fromId = useId();
@@ -819,14 +864,14 @@ export const BacktestRunsWorkspace = ({
           (loaded) => {
             if (!active) return;
             setLinkedDefinition(loaded);
-            const target = definitionSeries(
-              loadedSeries,
-              link,
-              loaded.definition
-            );
-            if (target !== null && "error" in target) setMessage(target.error);
-            const picked =
-              target === null || "error" in target ? undefined : target.series;
+            // Options runs read the daily series store, not the stored bar series: any allowed
+            // symbol runs, from the link's start to its end or today (UTC).
+            const options = loaded.definition.options !== undefined;
+            if (options)
+              setOptionsSymbol(optionsLinkSymbol(link, loaded.definition));
+            const picked = options
+              ? undefined
+              : definitionSeries(loadedSeries, link);
             // The series select lists the universe only; show every series for one outside it.
             if (
               picked !== undefined &&
@@ -843,6 +888,7 @@ export const BacktestRunsWorkspace = ({
                 ...current.params,
                 costBps: link.costBps ?? current.params.costBps,
               },
+              to: link.to ?? (options ? todayUtc() : current.to),
             }));
           },
           (error: unknown) => {
@@ -932,11 +978,21 @@ export const BacktestRunsWorkspace = ({
     (entry) => seriesKey(entry) === selectedSeries
   );
   const visible = visibleSeries(load.series, universe);
+  // An options definition runs on a store symbol, so it needs no stored bar series and has no
+  // batch run over a universe of stored series.
+  const storeRun = runsOptionsDefinition(form);
   // One run per series needs a universe with more than one stored series.
   const batchReady =
-    universe !== "all" && !visible.fallback && visible.series.length > 1;
+    !storeRun &&
+    universe !== "all" &&
+    !visible.fallback &&
+    visible.series.length > 1;
   const plan = toUniverseSubmitInputs(form, visible.series);
-  const request = series === undefined ? null : toSubmitInput(form, series);
+  const runSeries = storeRun
+    ? { symbol: optionsSymbol, timeframe: "1d" as const }
+    : series;
+  const request =
+    runSeries === undefined ? null : toSubmitInput(form, runSeries);
   const canRun = request !== null && !("error" in request);
 
   const submit = async () => {
@@ -997,49 +1053,59 @@ export const BacktestRunsWorkspace = ({
           void submit();
         }}
       >
-        <UniverseSelect
-          fallback={visible.fallback}
-          onChange={(choice) => {
-            setUniverse(choice);
-            writeQuery(
-              { universe: choice },
-              { universe: DEFAULT_UNIVERSE_CHOICE }
-            );
-            applySeries(visibleSeries(load.series, choice).series[0]);
-          }}
-          selectClassName="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-          storedSymbols={load.series.map((entry) => entry.symbol)}
-          value={universe}
-        />
-        <div className="grid gap-1">
-          <label className="font-medium text-sm" htmlFor={seriesId}>
-            Symbol and timeframe
-          </label>
-          <select
-            className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
-            id={seriesId}
-            onChange={(event) => {
-              const next = load.series.find(
-                (entry) => seriesKey(entry) === event.target.value
-              );
-              setSelectedSeries(event.target.value);
-              if (next !== undefined)
-                setForm((current) => ({
-                  ...current,
-                  from: isoDate(next.firstT),
-                  to: isoDate(next.lastT),
-                }));
-            }}
-            value={selectedSeries}
-          >
-            {visible.series.map((entry) => (
-              <option key={seriesKey(entry)} value={seriesKey(entry)}>
-                {entry.symbol} {entry.timeframe} ({isoDate(entry.firstT)} to{" "}
-                {isoDate(entry.lastT)})
-              </option>
-            ))}
-          </select>
-        </div>
+        {storeRun ? (
+          <StoreSymbolField
+            form={form}
+            onChange={setOptionsSymbol}
+            value={optionsSymbol}
+          />
+        ) : (
+          <>
+            <UniverseSelect
+              fallback={visible.fallback}
+              onChange={(choice) => {
+                setUniverse(choice);
+                writeQuery(
+                  { universe: choice },
+                  { universe: DEFAULT_UNIVERSE_CHOICE }
+                );
+                applySeries(visibleSeries(load.series, choice).series[0]);
+              }}
+              selectClassName="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+              storedSymbols={load.series.map((entry) => entry.symbol)}
+              value={universe}
+            />
+            <div className="grid gap-1">
+              <label className="font-medium text-sm" htmlFor={seriesId}>
+                Symbol and timeframe
+              </label>
+              <select
+                className="min-h-11 w-full min-w-0 rounded-md border bg-background px-3 text-sm"
+                id={seriesId}
+                onChange={(event) => {
+                  const next = load.series.find(
+                    (entry) => seriesKey(entry) === event.target.value
+                  );
+                  setSelectedSeries(event.target.value);
+                  if (next !== undefined)
+                    setForm((current) => ({
+                      ...current,
+                      from: isoDate(next.firstT),
+                      to: isoDate(next.lastT),
+                    }));
+                }}
+                value={selectedSeries}
+              >
+                {visible.series.map((entry) => (
+                  <option key={seriesKey(entry)} value={seriesKey(entry)}>
+                    {entry.symbol} {entry.timeframe} ({isoDate(entry.firstT)} to{" "}
+                    {isoDate(entry.lastT)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         <div className="grid gap-1">
           <label className="font-medium text-sm" htmlFor={strategyId}>
             Strategy (optional)
@@ -1116,12 +1182,7 @@ export const BacktestRunsWorkspace = ({
           {batchReady ? (
             <button
               className="min-h-11 rounded-md border px-4 font-medium text-sm disabled:opacity-60"
-              disabled={
-                submitting ||
-                !canRun ||
-                plan.inputs.length === 0 ||
-                runsOptionsDefinition(form)
-              }
+              disabled={submitting || !canRun || plan.inputs.length === 0}
               onClick={() => {
                 void submitUniverse();
               }}
@@ -1132,9 +1193,7 @@ export const BacktestRunsWorkspace = ({
           ) : null}
           {batchReady ? (
             <p className="text-muted-foreground text-sm" data-universe-plan="">
-              {runsOptionsDefinition(form)
-                ? "An options definition runs on its own portfolio symbols, one run at a time."
-                : describeUniversePlan(plan)}
+              {describeUniversePlan(plan)}
             </p>
           ) : null}
           {request !== null && "error" in request ? (
