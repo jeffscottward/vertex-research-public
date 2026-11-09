@@ -80,6 +80,20 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
   one-at-a-time changes, four extra walk-forward grid points); runs on other markets are not counted.
 - The strategy-backtest study contract holds up to 80 runs per form (was 40) to list five strategies on fourteen markets.
 
+## IBKR rerun (owner request 2026-11-09; fixed before the first IBKR run)
+
+- Data: IBKR 5-minute TRADES bars, regular hours, paged backwards through the read-only `vertex-history` service (new
+  `endDateTime` parameter) by `research/backtests/imom/fetch_ibkr.py`, from IBKR's earliest available bar. Markets: SPY first,
+  then the other Core 7 ETF twins as the fetch completes. ES futures are not rerun: IBKR keeps intraday history of expired
+  futures for about 2 years only.
+- Costs: half of the median quoted spread per side, measured from IBKR 5-minute BID_ASK bars (time-average ask minus
+  time-average bid) on a sample (the first full week of each calendar quarter), plus IBKR Pro Fixed commissions and fees, plus
+  0.25 bp slippage per side. Doubled spread and slippage for the cost gate, as before.
+- Primary: GHLZ on SPY (the paper's instrument). The same gates and verdict rule as above, the same 60/40 split by time,
+  walk-forward, sensitivity, Monte Carlo and deflated Sharpe. ZAB and BIAS on SPY are reported alongside; the options form uses
+  the same SPY bars.
+- The Dukascopy results above stay as they are; the report shows both data sources side by side.
+
 ## Code and tests
 
 - `services/research/strategies/imom/` (data, definition, runner, metrics reuse, study, rules); tests in
