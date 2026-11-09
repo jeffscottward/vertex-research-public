@@ -22,6 +22,7 @@ from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import (
     STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
     STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+    STRATEGY_INTRADAY_GRID_MISALIGNED,
     STRATEGY_OPTIONS_UNSUPPORTED,
     Bars,
     InputError,
@@ -1086,6 +1087,41 @@ def test_intraday_block_on_daily_bars_is_refused() -> None:
     refusal = sig.server_refusal(normalized, "1d")
     assert refusal is not None and refusal.code == STRATEGY_INTRADAY_DAILY_UNSUPPORTED
     assert sig.server_refusal(normalized, "5m") is None
+
+
+GRID_TAIL = (
+    " is not a whole multiple of the 30-minute bar duration; put every intraday time (minutes since"
+    " midnight New York) and decisionEvery on the bar grid."
+)
+
+
+@pytest.mark.parametrize(("block", "field"), [
+    ({"open": "09:45"}, "open 09:45"),
+    ({"close": "15:50"}, "close 15:50"),
+    ({"entryFrom": "10:15"}, "entryFrom 10:15"),
+    ({"entryTo": "11:10"}, "entryTo 11:10"),
+    ({"decisionEvery": 45}, "decisionEvery 45"),
+])
+def test_intraday_block_off_the_bar_grid_is_refused(block, field) -> None:
+    # 30-minute bars: every time and decisionEvery must be a whole number of 30 minutes.
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.compile_strategy(_intraday_bars(GATE_ROWS), _always(**block))
+    assert raised.value.code == STRATEGY_INTRADAY_GRID_MISALIGNED
+    assert str(raised.value) == f"{STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday {field}{GRID_TAIL}"
+
+
+@pytest.mark.parametrize(("origin", "to", "field"), [
+    ("prevClose", "10:15", "sessionReturn to 10:15"),
+    ("10:15", "11:00", "sessionReturn from 10:15"),
+])
+def test_session_return_off_the_bar_grid_is_refused(origin, to, field) -> None:
+    expr = {"from": origin, "name": "sessionReturn", "to": to, "type": "indicator"}
+    with pytest.raises(StrategyUnsupportedError) as raised:
+        sig.session_indicator_series(_intraday_bars(GATE_ROWS), INTRADAY, expr)
+    assert raised.value.code == STRATEGY_INTRADAY_GRID_MISALIGNED
+    assert str(raised.value) == f"{STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday {field}{GRID_TAIL}"
+    on_grid = {"from": "10:00", "name": "sessionReturn", "to": "11:00", "type": "indicator"}
+    assert len(sig.session_indicator_series(_intraday_bars(GATE_ROWS), INTRADAY, on_grid)) == 8
 
 
 def test_vol_target_leverage_daily_and_per_session_day() -> None:

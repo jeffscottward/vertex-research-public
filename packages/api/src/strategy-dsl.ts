@@ -661,8 +661,8 @@ export const StrategyIntradaySchema = z
 
 /**
  * Volatility-target sizing: at each entry, notional = equity × min(maxLeverage, targetPct / 100 /
- * sigma), sigma = sample standard deviation of the last `length` completed session-day
- * close-to-close returns (the close of a day is its last regular bar; without an intraday block
+ * sigma), targetPct = daily volatility target in percent, sigma = daily volatility: sample standard
+ * deviation of the last `length` completed session-day close-to-close returns (not annualized) (the close of a day is its last regular bar; without an intraday block
  * every bar of a New York date counts). No sigma yet means no entry.
  */
 const VolTargetSizingSchema = z
@@ -931,13 +931,17 @@ export const STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED =
 /** Refusal code: the intraday block needs intraday bars (a daily or weekly run refuses it). */
 export const STRATEGY_INTRADAY_DAILY_UNSUPPORTED =
   "STRATEGY_INTRADAY_DAILY_UNSUPPORTED";
+/** Refusal code: an intraday time or decisionEvery is not a whole multiple of the bar duration. */
+export const STRATEGY_INTRADAY_GRID_MISALIGNED =
+  "STRATEGY_INTRADAY_GRID_MISALIGNED";
 
 export type StrategyRefusal = Readonly<{
   code:
     | typeof STRATEGY_OPTIONS_UNSUPPORTED
     | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED
     | typeof STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
-    | typeof STRATEGY_INTRADAY_DAILY_UNSUPPORTED;
+    | typeof STRATEGY_INTRADAY_DAILY_UNSUPPORTED
+    | typeof STRATEGY_INTRADAY_GRID_MISALIGNED;
   message: string;
 }>;
 
@@ -955,6 +959,16 @@ export const STRATEGY_INTRADAY_DAILY_REFUSAL: StrategyRefusal = {
   code: STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
   message: `${STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars on one New York date); a daily or weekly run refuses it.`,
 };
+
+/** Refusal: `field` (an HH:MM time or decisionEvery) is off the grid of `durationMs` bars. */
+export const strategyIntradayGridRefusal = (
+  field: string,
+  value: string | number,
+  durationMs: number
+): StrategyRefusal => ({
+  code: STRATEGY_INTRADAY_GRID_MISALIGNED,
+  message: `${STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday ${field} ${value} is not a whole multiple of the ${durationMs / 60_000}-minute bar duration; put every intraday time (minutes since midnight New York) and decisionEvery on the bar grid.`,
+});
 
 /** Timeframes of one bar per trading day or longer; every other timeframe is intraday. */
 export const STRATEGY_DAILY_TIMEFRAMES: readonly string[] = ["1d", "1w"];

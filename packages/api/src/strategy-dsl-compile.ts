@@ -28,6 +28,7 @@ import {
   type StrategyRefusal,
   type StrategySessionIndicatorExpr,
   serverStrategyRefusal,
+  strategyIntradayGridRefusal,
   type VolRegimeFilter,
 } from "./strategy-dsl.ts";
 
@@ -698,8 +699,10 @@ const sessionReturnSeries = (
   to: string
 ): Float64Array => {
   const { bars, closeMs, dayClose, dayOpen, session } = sessions;
-  const toMs = minutesOf(to) * MINUTE_MS;
   const timed = from !== "prevClose" && from !== "open";
+  if (timed) alignToGrid("sessionReturn from", from, minutesOf(from), sessions);
+  alignToGrid("sessionReturn to", to, minutesOf(to), sessions);
+  const toMs = minutesOf(to) * MINUTE_MS;
   const fromMs = timed ? minutesOf(from) * MINUTE_MS : Number.NaN;
   const target = new Float64Array(dayOpen.length).fill(Number.NaN);
   const anchor = new Float64Array(dayOpen.length).fill(Number.NaN);
@@ -760,11 +763,26 @@ const noiseBandSeries = (
   return out;
 };
 
+/** Refuses (STRATEGY_INTRADAY_GRID_MISALIGNED) `minutes` that are not whole bar durations. */
+const alignToGrid = (
+  field: string,
+  value: string | number,
+  minutes: number,
+  sessions: IntradaySessions
+): void => {
+  if ((minutes * MINUTE_MS) % sessions.duration !== 0)
+    throw new StrategyUnsupportedError(
+      strategyIntradayGridRefusal(field, value, sessions.duration)
+    );
+};
+
 const sessionLayouts = new WeakMap<SeriesCache, IntradaySessions>();
 
 /**
  * Lays out the sessions of an intraday block for the session indicators read through `cache`.
- * Refuses bars without two bars on one New York date (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
+ * Refuses bars without two bars on one New York date (STRATEGY_INTRADAY_DAILY_UNSUPPORTED), and
+ * open, close, entryFrom, entryTo or decisionEvery that are not whole multiples of the bar
+ * duration (STRATEGY_INTRADAY_GRID_MISALIGNED; times in minutes since midnight New York).
  */
 const attachSessions = (
   bars: BarColumns,
@@ -774,6 +792,15 @@ const attachSessions = (
   const sessions = intradaySessions(bars, intraday);
   if (sessions === undefined)
     throw new StrategyUnsupportedError(STRATEGY_INTRADAY_DAILY_REFUSAL);
+  for (const field of ["open", "close", "entryFrom", "entryTo"] as const)
+    alignToGrid(field, intraday[field], minutesOf(intraday[field]), sessions);
+  if (intraday.decisionEvery !== undefined)
+    alignToGrid(
+      "decisionEvery",
+      intraday.decisionEvery,
+      intraday.decisionEvery,
+      sessions
+    );
   sessionLayouts.set(cache, sessions);
   return sessions;
 };

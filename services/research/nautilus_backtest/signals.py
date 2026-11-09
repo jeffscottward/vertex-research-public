@@ -29,6 +29,7 @@ from .bars import (
     assert_window,
     calendar_intraday_unsupported,
     intraday_daily_unsupported,
+    intraday_grid_misaligned,
     is_finite_number,
     options_unsupported,
     series_filters_unsupported,
@@ -1177,8 +1178,11 @@ def vwap_series(sessions: IntradaySessions) -> Series:
 def session_return_series(sessions: IntradaySessions, origin: str, to: str) -> Series:
     """TS sessionReturnSeries: price at `to` / price at `origin` - 1 from the bar closing at `to`."""
     bars = sessions.bars
-    to_ms = _minutes_of(to) * MINUTE_MS
     timed = origin not in SESSION_ANCHORS
+    if timed:
+        _align_to_grid("sessionReturn from", origin, _minutes_of(origin), sessions)
+    _align_to_grid("sessionReturn to", to, _minutes_of(to), sessions)
+    to_ms = _minutes_of(to) * MINUTE_MS
     from_ms = _minutes_of(origin) * MINUTE_MS if timed else NAN
     days = len(sessions.day_open)
     target = [NAN] * days
@@ -1248,11 +1252,23 @@ def _session_key(expr: Mapping[str, Any]) -> str:
     return f"noiseBand:{expr['band']}:{expr['length']}:{float(expr.get('multiple', 1))}"
 
 
+def _align_to_grid(field: str, value: str | float, minutes: float, sessions: IntradaySessions) -> None:
+    """TS alignToGrid: refuses `minutes` that are not whole bar durations."""
+    if math.fmod(minutes * MINUTE_MS, sessions.duration) != 0:
+        raise intraday_grid_misaligned(field, value, sessions.duration)
+
+
 def _attach_sessions(bars: Bars, intraday: Mapping[str, Any]) -> IntradaySessions:
-    """TS attachSessions: refuses bars without two bars on one New York date."""
+    """TS attachSessions: refuses bars without two bars on one New York date, and open, close,
+    entryFrom, entryTo or decisionEvery that are not whole multiples of the bar duration."""
     sessions = intraday_sessions(bars, intraday)
     if sessions is None:
         raise intraday_daily_unsupported()
+    for field in ("open", "close", "entryFrom", "entryTo"):
+        _align_to_grid(field, intraday[field], _minutes_of(intraday[field]), sessions)
+    every = intraday.get("decisionEvery")
+    if every is not None:
+        _align_to_grid("decisionEvery", every, every, sessions)
     return sessions
 
 

@@ -11,6 +11,7 @@ import {
 import {
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+  STRATEGY_INTRADAY_GRID_MISALIGNED,
   STRATEGY_OPTIONS_REFUSAL,
   STRATEGY_TEMPLATES,
   type StrategyDefinition,
@@ -2372,6 +2373,68 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
         }
       }
       expect(() => assertServerRunnable(definition, "5m")).not.toThrow();
+    });
+
+    it("refuses intraday times off the bar grid (STRATEGY_INTRADAY_GRID_MISALIGNED)", () => {
+      const refusal = (run: () => unknown): string => {
+        try {
+          run();
+        } catch (error) {
+          expect(error).toBeInstanceOf(StrategyUnsupportedError);
+          expect((error as StrategyUnsupportedError).code).toBe(
+            STRATEGY_INTRADAY_GRID_MISALIGNED
+          );
+          return (error as StrategyUnsupportedError).message;
+        }
+        throw new Error("expected a refusal");
+      };
+      // 30-minute bars: every time and decisionEvery must be a whole number of 30 minutes.
+      for (const [block, field] of [
+        [{ open: "09:45" }, "open 09:45"],
+        [{ close: "15:50" }, "close 15:50"],
+        [{ entryFrom: "10:15" }, "entryFrom 10:15"],
+        [{ entryTo: "11:10" }, "entryTo 11:10"],
+        [{ decisionEvery: 45 }, "decisionEvery 45"],
+      ] as const) {
+        expect(refusal(() => compileStrategy(bars, always(block)))).toBe(
+          `${STRATEGY_INTRADAY_GRID_MISALIGNED}: intraday ${field} is not a whole multiple of the 30-minute bar duration; put every intraday time (minutes since midnight New York) and decisionEvery on the bar grid.`
+        );
+      }
+      for (const [from, to, field] of [
+        ["prevClose", "10:15", "sessionReturn to 10:15"],
+        ["10:15", "11:00", "sessionReturn from 10:15"],
+      ] as const) {
+        const expr = {
+          from,
+          name: "sessionReturn",
+          to,
+          type: "indicator",
+        } as const;
+        expect(
+          refusal(() => sessionIndicatorSeries(bars, intraday, expr))
+        ).toContain(`intraday ${field} is not`);
+        expect(
+          refusal(() =>
+            compileStrategy(
+              bars,
+              define({
+                entry: { all: [{ left: expr, op: ">", right: zero }] },
+                intraday,
+                name: "off grid",
+                version: 1,
+              })
+            )
+          )
+        ).toContain(field);
+      }
+      expect(() =>
+        sessionIndicatorSeries(bars, intraday, {
+          from: "10:00",
+          name: "sessionReturn",
+          to: "11:00",
+          type: "indicator",
+        })
+      ).not.toThrow();
     });
 
     it("refuses a session indicator without an intraday block", () => {

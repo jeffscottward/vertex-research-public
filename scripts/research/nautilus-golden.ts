@@ -525,6 +525,33 @@ const intradayDefinitions: { id: string; definition: Json; symbol: string }[] =
     { definition: SESSION_MIX, id: "intraday:mix", symbol: "session" },
     // Daily bars: refused (STRATEGY_INTRADAY_DAILY_UNSUPPORTED).
     { definition: ghlz("long"), id: "intraday:ghlz:long", symbol: "SPY" },
+    // Off the 5-minute bar grid: refused (STRATEGY_INTRADAY_GRID_MISALIGNED).
+    {
+      definition: ghlz("long", {
+        intraday: { ...NEW_YORK_SESSION, entryFrom: "15:32", entryTo: "15:32" },
+      }),
+      id: "intraday:grid:entry",
+      symbol: "session",
+    },
+    {
+      definition: ghlz("long", {
+        intraday: {
+          ...NEW_YORK_SESSION,
+          decisionEvery: 7,
+          entryFrom: "15:30",
+          entryTo: "15:30",
+        },
+      }),
+      id: "intraday:grid:decisionEvery",
+      symbol: "session",
+    },
+    {
+      definition: ghlz("long", {
+        entry: { all: [returnSign("prevClose", "10:03", ">")] },
+      }),
+      id: "intraday:grid:sessionReturn",
+      symbol: "session",
+    },
   ];
 
 const SMA_CROSS: InstantRule = { fast: 10, kind: "smaCross", slow: 30 };
@@ -1719,7 +1746,7 @@ const buildEngine = (
   // Intraday sessions: GHLZ and ZAB long and short, a short with a percent stop and target, and
   // ZAB short with a cost profile (both legs of a short pay charges).
   for (const { definition, id, symbol } of intradayDefinitions) {
-    if (symbol === "session")
+    if (symbol === "session" && !id.startsWith("intraday:grid:"))
       dslCase(id, symbol, baseSpec({ definition, kind: "dsl" }));
   }
   dslCase(
