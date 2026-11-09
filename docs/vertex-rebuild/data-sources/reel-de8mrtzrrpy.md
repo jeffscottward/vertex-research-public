@@ -29,15 +29,15 @@ What would change this: the owner adds Indian equities to the book. Then the rou
 
 Vertex already reads Yahoo Finance through public, undocumented endpoints (JSON chart and options data from `query1`/`query2.finance.yahoo.com` with a session cookie from `fc.yahoo.com`; the XML headline RSS feed) and, in offline research fetchers, through the `yfinance` Python package. There is no official Yahoo Finance API and no account in use.
 
-### Call sites
+### Files that name a Yahoo endpoint or client
 
-The guard test `scripts/ci/yahoo-call-sites.test.ts` fails when a source file gains or loses a Yahoo endpoint host or a Yahoo client package (`yfinance`, `yahooquery`, `yahoo-finance2`) without this list changing. The list covers direct call sites only. Yahoo data also arrives indirectly through the market-context panel, which shows public data from the ibkr-monitor service (Cboe, Yahoo; `apps/web/src/components/portal/market-context-workspace.tsx`), and through the Vibe-Trading agent framework, whose tools default to free sources including Yahoo (`packages/api/src/agent-frameworks.ts`).
+The guard test `scripts/ci/yahoo-call-sites.test.ts` fails when a source file gains or loses a Yahoo endpoint host or a Yahoo client package (`yfinance`, `yahooquery`, `yahoo-finance2`) without this list changing. A row is a file that names a Yahoo endpoint or imports a Yahoo client; the HTTP request may run in a sibling module (named in the Use column). The list covers direct use only. Yahoo data also arrives indirectly through the market-context panel, which shows public data from the ibkr-monitor service (Cboe, Yahoo; `apps/web/src/components/portal/market-context-workspace.tsx`), and through the Vibe-Trading agent framework, whose tools default to free sources including Yahoo (`packages/api/src/agent-frameworks.ts`).
 
 <!-- yahoo-call-sites:start -->
 | File | Use |
 | --- | --- |
-| `packages/api/src/price-alerts.ts` | Price alerts: 1-day 5-minute chart for the alert check |
-| `packages/api/src/signal-alerts.ts` | Signal alerts: chart bars per timeframe |
+| `packages/api/src/price-alerts.ts` | Price alerts: builds the 1-day 5-minute chart URL; `packages/api/src/server/price-alerts.ts` fetches it |
+| `packages/api/src/signal-alerts.ts` | Signal alerts: builds the chart URL per timeframe; `packages/api/src/server/signal-alerts.ts` fetches it |
 | `packages/api/src/server/market-news.ts` | Market news: per-symbol headline RSS feed |
 | `packages/api/src/server/options-chain-yahoo.ts` | `/stock/<SYMBOL>` options chain (cookie + crumb, then the options endpoint) |
 | `packages/api/src/server/pick-lists.ts` | Pick-list screen: daily bars per member |
@@ -66,11 +66,11 @@ Read on 2026-11-09 from `https://legal.yahoo.com/us/en/yahoo/terms/otos/index.ht
 
 Vertex has no agreement with Yahoo. How these clauses apply to the reads above is an owner decision.
 
-Stored copies: the repository tracks Yahoo-derived daily bars as frozen test and backtest inputs: `tests/fixtures/golden/SPY-1d.csv` and `tests/fixtures/golden/QQQ-1d.csv` (from the golden fetcher) and `research/backtests/sector-rotation/closes.json` (from `freeze.ts`). Unit tests also use small Yahoo response samples (`packages/api/src/fixtures/day-trader-skill/trader-news/yahoo-*.xml`, `trader-alerts/yahoo-*.json`, `packages/api/src/server/options-chain-yahoo.fixture.json`). The other research fetchers write outside the repository (`~/Documents/reports/...`), and Quant Lab snapshots go to the git-ignored `private/` tree.
+Stored copies: the repository tracks Yahoo-derived daily bars as frozen test and backtest inputs: `tests/fixtures/golden/SPY-1d.csv` and `tests/fixtures/golden/QQQ-1d.csv` (from the golden fetcher) and `research/backtests/sector-rotation/closes.json` (from `freeze.ts`). The app database holds a copy too: `scripts/market-series/import.ts` (`bun run vertex:series:import`) loads the `qc-ports` fetcher output, Yahoo files included, into the `market_daily_series` table. Unit tests also use small Yahoo response samples (`packages/api/src/fixtures/day-trader-skill/trader-news/yahoo-*.xml`, `trader-alerts/yahoo-*.json`, `packages/api/src/server/options-chain-yahoo.fixture.json`). The other research fetchers write outside the repository (`~/Documents/reports/...`), and Quant Lab snapshots go to the git-ignored `private/` tree.
 
 The `yfinance` README says the package "is **not** affiliated, endorsed, or vetted by Yahoo, Inc." and "the Yahoo! finance API is intended for personal use only".
 
-Operational risk: there is no published contract. The endpoints can change, rate-limit or require a new cookie/crumb at any time without notice. This review changes no call site and no stored copy. Whether to keep the live paths (the `packages/api` server reads: price and signal alerts, market news, options chain, pick-list screen, research lenses, sector rotation; and Quant Lab snapshots) and the tracked copies, or move them to IBKR history, a licensed vendor or synthetic fixtures, is an owner decision for a separate card.
+Operational risk: there is no published contract. The endpoints can change, rate-limit or require a new cookie/crumb at any time without notice. This review changes no call site and no stored copy. Whether to keep the live paths (the `packages/api` server reads: price and signal alerts, market news, options chain, pick-list screen, research lenses, sector rotation; and Quant Lab snapshots) the tracked copies and the `market_daily_series` rows, or move them to IBKR history, a licensed vendor or synthetic fixtures, is an owner decision for a separate card.
 
 ## Zerodha Varsity
 
