@@ -183,6 +183,7 @@ describe("OpenTelemetry real OTLP export", () => {
     expect(spanAttributes["enabled"]).toBe(true);
     expect(spanAttributes).not.toHaveProperty("nested");
     expect(spanAttributes["password"]).toBe(REDACTED);
+    expect(spanAttributes["note"]).toEqual(expect.stringContaining(REDACTED));
     expect(spanAttributes["request.id"]).toBe("request_export");
     expect(spanAttributes["darkfactory.outcome"]).toBe("success");
     expect(span?.status?.code).toBe(1);
@@ -221,6 +222,8 @@ describe("OpenTelemetry real OTLP export", () => {
       "feature-item.created"
     );
 
+    // Deliberate: shutdown through the real exporters must resolve; afterEach
+    // only repeats it (dispose is memoized) when an earlier assertion fails.
     return expect(runtime.dispose()).resolves.toBeUndefined();
   });
 });
