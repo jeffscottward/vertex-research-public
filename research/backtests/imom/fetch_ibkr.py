@@ -18,6 +18,7 @@ import re
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(os.environ.get("VERTEX_IMOM_DATA_ROOT", Path.home() / "Documents" / "reports" / "vertex-reel-dffkn31-data"))
 OUT = ROOT / "ibkr5m"
@@ -29,6 +30,23 @@ REMOTE = (
     'T=$(grep -E "^VERTEX_STATUS_TOKEN=" /opt/vertex-status/token.env | cut -d= -f2- | tr -d "\\""); '
     'printf "Authorization: Bearer %s\\n" "$T" | curl -s -m 120 -H @- "http://127.0.0.1:8791/vertex-history/v1/bars?{query}"'
 )
+NEW_YORK = ZoneInfo("America/New_York")
+QUIET_FROM, QUIET_TO = 9 * 60 + 25, 16 * 60 + 5  # weekday market hours: leave the shared gateway to trading
+
+
+def wait_off_hours(now=lambda: datetime.now(NEW_YORK), sleep=time.sleep) -> None:
+    """Sleep while US markets are open (Mon-Fri 09:25-16:05 New York), so the backfill never competes with trading.
+
+    `now` (an aware-datetime clock) and `sleep` are injectable for tests."""
+    while True:
+        current = now().astimezone(NEW_YORK)
+        minute = current.hour * 60 + current.minute
+        if current.weekday() >= 5 or not QUIET_FROM <= minute < QUIET_TO:
+            return
+        print(f"market hours ({current:%H:%M} New York): pausing until 16:05", flush=True)
+        sleep((QUIET_TO - minute) * 60 + 5)
+
+
 SYMBOL_RE = re.compile(r"^[A-Z0-9.]{1,12}$")
 
 
@@ -37,6 +55,7 @@ def request(symbol: str, end: datetime, what: str = "TRADES", days: int = PAGE_D
              f"&duration={days}%20D&whatToShow={what}&useRTH=1&endDateTime={end:%Y%m%d-%H:%M:%S}")
     failures = 0
     while failures < 3:
+        wait_off_hours()
         proc = subprocess.run(["ssh", "quantvps", REMOTE.format(query=query)], capture_output=True, text=True, timeout=180)
         try:
             body = json.loads(proc.stdout)
