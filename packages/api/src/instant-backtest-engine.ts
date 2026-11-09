@@ -475,6 +475,21 @@ export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
     0
   );
 
+/**
+ * A stop or target level: entry ± a distance (above when `above`), else entry × a percent factor
+ * (NaN when the factor is 0, no level).
+ */
+const levelAt = (
+  entryPrice: number,
+  distance: number | undefined,
+  factor: number,
+  above: boolean
+): number => {
+  if (distance === undefined)
+    return factor > 0 ? entryPrice * factor : Number.NaN;
+  return above ? entryPrice + distance : entryPrice - distance;
+};
+
 /** Runs one backtest. Starting equity is 1. Throws InstantBacktestInputError on bad input. */
 export const runInstantBacktest = (
   bars: BarColumns,
@@ -782,22 +797,18 @@ export const runSignalBacktest = (
     )
       return;
     const levels = (entryPrice: number) => ({
-      stop:
-        options.stopDistance === undefined
-          ? stopFactor > 0
-            ? entryPrice * stopFactor
-            : Number.NaN
-          : short
-            ? entryPrice + pendingStop
-            : entryPrice - pendingStop,
-      target:
-        options.targetDistance === undefined
-          ? targetFactor > 0
-            ? entryPrice * targetFactor
-            : Number.NaN
-          : short
-            ? entryPrice - pendingTarget
-            : entryPrice + pendingTarget,
+      stop: levelAt(
+        entryPrice,
+        options.stopDistance === undefined ? undefined : pendingStop,
+        stopFactor,
+        short
+      ),
+      target: levelAt(
+        entryPrice,
+        options.targetDistance === undefined ? undefined : pendingTarget,
+        targetFactor,
+        !short
+      ),
     });
     if (costs === null) {
       const { stop, target } = levels(open);

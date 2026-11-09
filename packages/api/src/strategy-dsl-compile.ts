@@ -548,6 +548,19 @@ export type IntradaySessions = Readonly<{
   dayClose: Float64Array;
 }>;
 
+/** The most common gap (ties: the smaller), NaN without gaps. */
+const mostCommonGap = (gaps: ReadonlyMap<number, number>): number => {
+  let duration = Number.NaN;
+  let most = 0;
+  for (const [gap, count] of gaps) {
+    if (count > most || (count === most && gap < duration)) {
+      duration = gap;
+      most = count;
+    }
+  }
+  return duration;
+};
+
 /**
  * Regular-session layout of the bars, or undefined when no two bars share a New York date (daily
  * or longer bars). A bar is regular when it opens at or after `open` and closes at or before
@@ -573,15 +586,8 @@ export const intradaySessions = (
       if (gap > 0) gaps.set(gap, (gaps.get(gap) ?? 0) + 1);
     }
   }
-  let duration = Number.NaN;
-  let most = 0;
-  for (const [gap, count] of gaps) {
-    if (count > most || (count === most && gap < duration)) {
-      duration = gap;
-      most = count;
-    }
-  }
-  if (most === 0) return undefined;
+  const duration = mostCommonGap(gaps);
+  if (Number.isNaN(duration)) return undefined;
   const openMs = minutesOf(intraday.open) * MINUTE_MS;
   const closeLimit = minutesOf(intraday.close) * MINUTE_MS;
   const closeMs = new Float64Array(size);
@@ -1606,6 +1612,17 @@ const managementOf = (
   };
 };
 
+/** Sessions and gates of an intraday block (none without one). */
+const intradayLayout = (
+  bars: BarColumns,
+  intraday: StrategyIntraday | undefined,
+  cache: SeriesCache
+): Readonly<{ gates?: IntradayGates; sessions?: IntradaySessions }> => {
+  if (intraday === undefined) return {};
+  const sessions = attachSessions(bars, intraday, cache);
+  return { gates: intradayGates(sessions, intraday), sessions };
+};
+
 /**
  * Compiles a validated definition to signals: 1 when every entry condition and filter holds, at
  * least one entry.any condition holds (when there are any) and the bar is in the session (and,
@@ -1622,12 +1639,7 @@ export const compileStrategy = (
 ): CompiledStrategy => {
   const size = bars.c.length;
   const cache: SeriesCache = new Map();
-  let sessions: IntradaySessions | undefined;
-  let gates: IntradayGates | undefined;
-  if (definition.intraday !== undefined) {
-    sessions = attachSessions(bars, definition.intraday, cache);
-    gates = intradayGates(sessions, definition.intraday);
-  }
+  const { gates, sessions } = intradayLayout(bars, definition.intraday, cache);
   const filters = filterMasks(bars, definition, sectorQuadrants, seriesInput);
   const entries = [
     ...definition.entry.all.map((condition) =>
