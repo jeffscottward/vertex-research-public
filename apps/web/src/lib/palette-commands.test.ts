@@ -112,8 +112,25 @@ describe("paletteGroups commands", () => {
     });
   });
 
-  it("lists matching pages after the command", () =>
-    expect(headings(paletteGroups(items, "c"))).toEqual(["Commands", "Pages"]));
+  it("lists matching pages after the command", () => {
+    const charts = { group: "Research", href: "/charts", label: "Charts" };
+    const groups = paletteGroups([...items, charts], "chart");
+    expect(headings(groups)).toEqual(["Commands", "Pages"]);
+    return expect(groups[1]?.entries.map((entry) => entry.id)).toEqual([
+      "page:Research:/charts",
+    ]);
+  });
+
+  it("keeps one-letter tickers that are also aliases (C, O, S)", () => {
+    const groups = paletteGroups(items, "c");
+    expect(headings(groups)).toEqual(["Commands", "Pages", "Ticker"]);
+    expect(top("c")).toMatchObject({ fill: "chart ", kind: "complete" });
+    expect(hrefs("o")).toContain("/stock/O");
+    return expect(top("c nvda")).toMatchObject({
+      href: "/charts?symbol=NVDA",
+      kind: "go",
+    });
+  });
 });
 
 describe("paletteGroups completions", () => {

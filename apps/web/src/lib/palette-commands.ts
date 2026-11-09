@@ -318,7 +318,10 @@ export const paletteGroups = (
     ];
   const name = first.toLowerCase();
   const command = COMMAND_LIST.find((entry) => entry.names.includes(name));
-  if (command !== undefined)
+  // A lone one-letter alias ("c", "o", "s") is also a real ticker (Citigroup, Realty Income,
+  // SentinelOne): it takes the general path below, which offers the template and the ticker.
+  const loneLetter = rest.length === 0 && name.length === 1;
+  if (command !== undefined && !loneLetter)
     return [
       ...group("Commands", [commandEntry(command, rest)]),
       ...group("Pages", pages),

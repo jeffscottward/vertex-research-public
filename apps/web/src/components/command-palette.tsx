@@ -52,15 +52,17 @@ const assignLocation = (href: string): void => {
 const ROW =
   "flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-muted-foreground text-sm";
 
-// Mounted fresh on each opening, so it starts with an empty query and the first row selected.
+// Mounted fresh on each opening, so it starts with startQuery (usually empty) and the first row selected.
 const PaletteBody = ({
   items,
   onGo,
+  startQuery,
 }: {
   readonly items: readonly PaletteItem[];
   readonly onGo: (href: string) => void;
+  readonly startQuery: string;
 }) => {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(startQuery);
   // cmdk's selected row: an entry id.
   const [selected, setSelected] = useState("");
   const groups = useMemo(() => paletteGroups(items, query), [items, query]);
@@ -152,10 +154,13 @@ const PaletteBody = ({
 };
 
 export const CommandPalette = ({
+  initialQuery,
   items,
   navigate = assignLocation,
   trigger = "icon",
 }: {
+  /** Opens the palette on mount with this text (UI lab demo links: ?q=chart NVDA 1D). */
+  readonly initialQuery?: string;
   readonly items: readonly PaletteItem[];
   readonly navigate?: (href: string) => void;
   /** "search": a search box with the Ctrl/Cmd+K hint (icon only below sm). */
@@ -165,14 +170,20 @@ export const CommandPalette = ({
   const [isOpen, setIsOpen] = useState(false);
   // Bumped on every opening: a fresh PaletteBody even when the dialog closed without "close".
   const [openings, setOpenings] = useState(0);
+  const [startQuery, setStartQuery] = useState("");
 
-  const open = useCallback(() => {
+  const open = useCallback((text = "") => {
     const dialog = dialogRef.current;
     if (dialog === null || dialog.open) return;
+    setStartQuery(text);
     setIsOpen(true);
     setOpenings((count) => count + 1);
     return dialog.showModal();
   }, []);
+
+  useEffect(() => {
+    if (initialQuery !== undefined) open(initialQuery);
+  }, [initialQuery, open]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -216,7 +227,7 @@ export const CommandPalette = ({
             aria-keyshortcuts="Control+K Meta+K /"
             className="hidden min-h-11 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-muted-foreground text-sm shadow-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring sm:flex"
             data-slot="portal-search"
-            onClick={open}
+            onClick={() => open()}
             type="button"
           >
             <Search aria-hidden="true" className="size-4 shrink-0" />
@@ -234,7 +245,7 @@ export const CommandPalette = ({
             aria-label="Search ticker or page"
             className="sm:hidden"
             data-trigger="portal-search-icon"
-            onClick={open}
+            onClick={() => open()}
             variant="ghost"
           >
             <Search aria-hidden="true" />
@@ -244,7 +255,7 @@ export const CommandPalette = ({
         <IconButton
           aria-keyshortcuts="Control+K Meta+K /"
           aria-label="Jump to a page"
-          onClick={open}
+          onClick={() => open()}
           title="Jump to a page (Ctrl+K or /)"
           variant="ghost"
         >
@@ -263,7 +274,14 @@ export const CommandPalette = ({
         onClose={() => setIsOpen(false)}
         ref={dialogRef}
       >
-        {isOpen ? <PaletteBody items={items} key={openings} onGo={go} /> : null}
+        {isOpen ? (
+          <PaletteBody
+            items={items}
+            key={openings}
+            onGo={go}
+            startQuery={startQuery}
+          />
+        ) : null}
       </dialog>
     </>
   );

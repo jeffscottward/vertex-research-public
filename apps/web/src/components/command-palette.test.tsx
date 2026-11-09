@@ -284,6 +284,18 @@ describe("CommandPalette search trigger", () => {
     await key(window, { key: "K", metaKey: true });
     return expect(dialog.hasAttribute("open")).toBe(true);
   });
+
+  it("opens from the plain icon trigger", async () => {
+    const container = await mount();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="Jump to a page"]')
+        ?.click()
+    );
+    return expect(container.querySelector("dialog")?.hasAttribute("open")).toBe(
+      true
+    );
+  });
 });
 
 describe("toPaletteItems", () =>
