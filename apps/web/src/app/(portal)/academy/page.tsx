@@ -33,7 +33,7 @@ export default async function AcademyPage({
       </div>
     );
   // Database courses (QuantFinanceToGo) come through academy.lessons; one read at a time per request.
-  // A course whose read fails (e.g. migration 0058 not applied yet) is listed as unavailable.
+  // A course whose read fails (e.g. migration 0059 not applied yet) is listed as unavailable.
   const courses: AcademyCourseListing[] = [];
   for (const course of COURSE_LIST)
     courses.push(

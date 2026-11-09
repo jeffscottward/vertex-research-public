@@ -100,10 +100,10 @@ QuantFinanceToGo captions and transcripts stay out of this repository.
 A course's `store` in the registry says where the app reads its lessons:
 
 - `package`: shipped in `@darkfactory/academy` (Define Your Risk).
-- `database`: Postgres (QuantFinanceToGo). Migration `0058_academy_content` adds
+- `database`: Postgres (QuantFinanceToGo). Migration `0059_academy_content` adds
   `academy_lesson_sources` (one row per reel: transcript, caption, URL, keyed by `source_id`) and
   `academy_lesson_specs` (one row per lesson: slug, course, spec JSON and its hash, one spec per
-  source). Rollback: `packages/db/rollback/0058_academy_content.down.sql`. The repository is
+  source). Rollback: `packages/db/rollback/0059_academy_content.down.sql`. The repository is
   `createAcademyContentRepository` in `@darkfactory/db/server`.
 
 The web app reads both stores through the same operator-only contracts, `academy.lessons` and
@@ -134,7 +134,7 @@ the QuantFinanceToGo lessons with placeholder transcripts.
 
 Deploy order: run both steps **before** the web deploy that reads these tables.
 
-1. `bun run db:migrate` (applies 0058).
+1. `bun run db:migrate` (applies 0059).
 2. On the rig, against the production `DATABASE_URL`: `bun run vertex:academy:import -- --course
    quantfinancetogo --kb <rig KB path>/trading/quantfinancetogo/raw`. Alternatively, set
    `ACADEMY_KB_ROOT=<rig KB path>` and omit `--kb`. The transcripts never pass through the repository

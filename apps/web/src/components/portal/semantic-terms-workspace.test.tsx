@@ -26,6 +26,7 @@ vi.mock("@darkfactory/api", async (importOriginal) => ({
 }));
 
 import {
+  ATTRIBUTE_NOT_CERTIFIED_TEXT,
   CATALOG_UNAVAILABLE_TEXT,
   CERTIFY_CONFLICT_TEXT,
   createBrowserSemanticTermsGateway,
@@ -73,10 +74,12 @@ const catalog = (): SemanticCatalog => ({
   attributes: [
     {
       description: "Sum of closed trades",
+      grain: "run_spec",
       id: "realized_pnl_sql",
       sql: "select sum(pnl) from trades",
       termId: "realized_pnl",
       ...uncertified,
+      certificationNote: "Needs owner certification (fake)",
     },
   ],
   canWrite: true,
@@ -281,7 +284,9 @@ describe("SemanticTermsWorkspace", () => {
     );
     await act(async () => resolve(catalog()));
 
-    expect(container.textContent).toContain("2 terms, 1 not certified.");
+    expect(container.textContent).toContain(
+      "2 terms, 1 not certified; 1 SQL attributes, 1 need owner certification."
+    );
     const pnl = term(container, "realized_pnl");
     expect(pnl.textContent).toContain("Realized P&L");
     expect(pnl.textContent).toContain("realized_pnl");
@@ -298,7 +303,14 @@ describe("SemanticTermsWorkspace", () => {
     );
     expect(
       attribute?.querySelector('[data-uncertified="true"]')?.textContent
-    ).toBe(NOT_CERTIFIED_TEXT);
+    ).toBe(
+      `${ATTRIBUTE_NOT_CERTIFIED_TEXT}Note: Needs owner certification (fake)`
+    );
+    expect(
+      attribute?.querySelector('[data-grain="run_spec"]')?.textContent
+    ).toBe(
+      "Rows: per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy"
+    );
 
     const liq = term(container, "net_liq");
     expect(liq.getAttribute("data-certified")).toBe("false");

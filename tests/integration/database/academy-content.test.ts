@@ -22,12 +22,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { importAcademyCourses } from "../../../scripts/academy/import-lessons.ts";
 import { DATABASE_COURSE_FIXTURE_CONTENT } from "../../../scripts/academy/lessons/index.ts";
 
-// Academy content tables (migration 0058) on a real database: repository reads and the import write,
+// Academy content tables (migration 0059) on a real database: repository reads and the import write,
 // the checks and foreign keys behind them, and the guarded rollback.
 
 const ROLLBACK = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0058_academy_content.down.sql",
+    "../../../packages/db/rollback/0059_academy_content.down.sql",
     import.meta.url
   ),
   "utf8"

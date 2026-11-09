@@ -1,4 +1,4 @@
--- Guarded reversal of 0058_academy_content only.
+-- Guarded reversal of 0059_academy_content only.
 -- Refuses while either Academy content table holds a row, so imported lessons are never silently
 -- discarded: delete them first (they are reproducible with `bun run vertex:academy:import`), knowing
 -- the database courses' pages then show no lessons. No cascading drops, truncation or conditional

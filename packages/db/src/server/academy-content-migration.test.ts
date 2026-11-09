@@ -4,17 +4,17 @@ import { describe, expect, it } from "vitest";
 
 import { academyLessonSources, academyLessonSpecs } from "../schema/index.ts";
 
-// Migration 0058: Academy course content (lesson sources and specs) moves into Postgres.
+// Migration 0059: Academy course content (lesson sources and specs) moves into Postgres.
 const dialect = new PgDialect();
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
-const migration = read("../../migrations/0058_academy_content.sql");
-const rollback = read("../../rollback/0058_academy_content.down.sql");
+const migration = read("../../migrations/0059_academy_content.sql");
+const rollback = read("../../rollback/0059_academy_content.down.sql");
 const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
-  entries: { idx: number; tag: string }[];
+  entries: { idx: number; tag: string; when: number }[];
 };
 
-describe("0058_academy_content migration", () => {
+describe("0059_academy_content migration", () => {
   it.each([
     ["academy_lesson_sources", academyLessonSources],
     ["academy_lesson_specs", academyLessonSpecs],
@@ -83,15 +83,18 @@ describe("0058_academy_content migration", () => {
     expect(migration).not.toContain(";;");
   });
 
-  it("is journaled as idx 58 after 0057", () => {
+  it("is journaled as idx 59 after 0058, and later, so databases that ran 0058 still apply it", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0058_academy_content"
+      (entry) => entry.tag === "0059_academy_content"
     );
-    expect(journal.entries[index]).toMatchObject({ idx: 58 });
+    expect(journal.entries[index]).toMatchObject({ idx: 59 });
     expect(journal.entries[index - 1]).toMatchObject({
-      idx: 57,
-      tag: "0057_strategy_catalog_qc_ports",
+      idx: 58,
+      tag: "0058_semantic_unlinked_runs",
     });
+    expect(journal.entries[index]?.when).toBeGreaterThan(
+      journal.entries[index - 1]?.when ?? Number.POSITIVE_INFINITY
+    );
   });
 
   it("has a guarded rollback that refuses while any content row exists and never cascades", () => {
