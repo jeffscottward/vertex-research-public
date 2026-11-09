@@ -23,7 +23,7 @@ The owner chose IBKR on 2026-11-09 for the question "Which data should Vertex us
 | Spread used for costs | quoted SPY bid/ask measured from IBKR `BID_ASK` bars | CFD spread, wider than SPY's |
 
 On the same rules, GHLZ on SPY gave Sharpe −0.36 (out-of-sample −0.93) on IBKR, against −1.72 (−2.04) on the Dukascopy
-SPY CFD (the `GHLZ SPY (Dukascopy, CFD costs)` comparison row of the stored IBKR study). The Dukascopy figures come from
+SPY CFD (the `GHLZ SPY` row of the Dukascopy study `imom-2026-11-08`, 2017-02 to 2026-11). The Dukascopy figures come from
 fewer years and a cost model that does not match the traded ETF. The original study's primary, GHLZ on the US500 CFD,
 gave −2.10 (−2.75), see [the spec](../../specs/strategies/market-intraday-momentum.md).
 
