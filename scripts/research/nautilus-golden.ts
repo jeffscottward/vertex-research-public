@@ -44,6 +44,7 @@ import {
   compileStrategy,
   evaluateStrategyExpression,
   exponentialMean,
+  type IntradaySessions,
   intradaySessions,
   nyseHolidays,
   realizedVolatility,
@@ -2573,6 +2574,16 @@ const holidayDates = (): string[] => {
 /** Session indicator and volTarget series use the first SESSION_INDICATOR_BARS session bars. */
 const SESSION_INDICATOR_BARS = 4500;
 
+/** The New York sessions of intraday bars; throws for bars without two bars on one New York date. */
+export const requireIntradaySessions = (
+  bars: BarColumns,
+  intraday: StrategyIntraday
+): IntradaySessions => {
+  const sessions = intradaySessions(bars, intraday);
+  if (sessions === undefined) throw new Error("session bars must be intraday");
+  return sessions;
+};
+
 /** 7. Session indicators and volTarget leverage (intraday bars, and daily bars for volTarget). */
 const buildSessionIndicators = (
   datasets: Record<string, BarColumns>
@@ -2604,8 +2615,7 @@ const buildSessionIndicators = (
     },
   ];
   const sizing = { length: 14, maxLeverage: 4, targetPct: 2 };
-  const sessions = intradaySessions(bars, intraday);
-  if (sessions === undefined) throw new Error("session bars must be intraday");
+  const sessions = requireIntradaySessions(bars, intraday);
   return [
     ...exprs.map((expr) => ({
       bars: SESSION_INDICATOR_BARS,
