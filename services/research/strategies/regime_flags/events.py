@@ -107,3 +107,9 @@ def mean_below_p(low: Sequence[float], high: Sequence[float]) -> float:
     if error == 0.0:
         return 0.5
     return normal_tail((statistics.fmean(high) - statistics.fmean(low)) / error)
+
+
+def benjamini_hochberg(p_values: Sequence[float], q: float = 0.05) -> int:
+    """How many of the p-values the Benjamini-Hochberg step-up rule rejects at false discovery rate ``q``."""
+    ordered = sorted(p_values)
+    return max((rank for rank, p in enumerate(ordered, start=1) if p <= q * rank / len(ordered)), default=0)

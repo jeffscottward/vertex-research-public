@@ -73,6 +73,12 @@ class TestStatistics:
         assert events.mean_below_p([10.0, 12.0], [0.0, 2.0]) > 1 - 1e-6
         assert events.mean_below_p([1.0, 3.0], [1.0, 3.0]) == pytest.approx(0.5)
 
+    def test_benjamini_hochberg_counts_the_step_up_rejections(self):
+        # ranks 1 to 4 allow 0.0125, 0.025, 0.0375, 0.05: the third value passes, so the first three count
+        assert events.benjamini_hochberg([0.03, 0.001, 0.2, 0.02]) == 3
+        assert events.benjamini_hochberg([0.2, 0.3]) == 0
+        assert events.benjamini_hochberg([]) == 0
+
 
 class TestStretchedFeatures:
     def test_trailing_return_needs_the_full_lag(self):
