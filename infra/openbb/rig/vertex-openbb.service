@@ -1,0 +1,18 @@
+# Vertex OpenBB ingest (card vertex-openbb; research only: public data, no orders). Rig user unit.
+# Runs every job of vertex-openbb.steps through tick-runner (one timer for all jobs, owner card
+# infra-bot-consolidation). Install with install.sh in this folder; see docs/vertex-rebuild/openbb.md.
+[Unit]
+Description=Vertex OpenBB ingest (research only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/.local/share/vertex-openbb/vertex-openbb.steps
+# Steps of one stage run in parallel, stages one after another: stage 1 (Cboe, CFTC, Fed) max 420 s,
+# stage 2 (Treasury, OECD, FRED, FINRA, Fama-French) max 240 s, SEC stages 3-6 300 + 300 + 300 + 600 s,
+# plus 10 s per stage = 2220 s; install.test.ts checks the bound.
+TimeoutStartSec=2280
+MemoryMax=3G
+Nice=10
+NoNewPrivileges=yes

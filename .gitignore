@@ -129,3 +129,6 @@ token*.json
 # (vcs.useIgnoreFile).
 .*-bundle-*/
 .vite-browser-boundary-*/
+
+# Python build artifacts
+*.egg-info/
