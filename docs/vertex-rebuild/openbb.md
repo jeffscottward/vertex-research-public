@@ -225,6 +225,10 @@ Reads (operator, read-only):
 
 ## MCP tools (read-only, existing agent-key route)
 
+The in-app assistant (`/assistant`) does not list these tools yet: its semantic-layer eval replay keys
+every recorded model call by the exact tool list, so `openbb_*` joins the assistant catalogue when that
+eval is re-recorded (`ASSISTANT_DEFERRED_TOOL_PATTERN` in `assistant-runtime.ts`). Research agents get
+them now over `/api/mcp`.
 Defined in `packages/api/src/server/mcp.ts` (`readOnly: true`); each forwards to the read procedure of
 the same name with the caller's agent key (read keys allowed; `openbb.*` is an agent-key root):
 
