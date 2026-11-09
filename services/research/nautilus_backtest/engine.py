@@ -35,8 +35,9 @@ Model (the same rules as the TypeScript engine):
   unit equity stays balance + position * close. The stop is a buy stop-market above the entry and
   the target a buy market-if-touched below it; the stop-first rule reads the coming bar's high.
 - Market on close (Compiled.close_at, intraday blocks): at the close print of a bar with 1, an open
-  position exits with a market order, which Nautilus fills at that close print (reason "signal",
-  the same path as the ruin exit); no entry is taken on that bar.
+  position exits with a market order, which Nautilus fills at that close print (reason
+  "sessionClose", the same path as the ruin exit; that bar counts as held); no entry is taken on
+  that bar.
 - volTarget sizing (Compiled.leverage): the position cost is cash * the leverage at the signal bar.
 - Ruin (TS runSignalBacktest): when unit equity marked at a close is at or below 0
   (possible with maxLeverage), a market order closes an open position at that
@@ -579,7 +580,7 @@ def run_signal_backtest(bars: Bars, compiled: Compiled, options: RunOptions, *,
             moc = closing and position is not None
             if moc:
                 state.bars_in_position += 1
-                self._exit("signal")
+                self._exit("sessionClose")
                 position = None
             if index < size - 1:
                 signal = compiled.signals[index]

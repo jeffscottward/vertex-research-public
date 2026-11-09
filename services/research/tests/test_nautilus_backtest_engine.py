@@ -324,7 +324,7 @@ def test_vol_target_short_exits_market_on_close_on_an_early_close_day():
     }
     spec = {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0}
     result = engine.run_spec(_intraday_short_bars(), spec)
-    assert [(t["entryIndex"], t["exitIndex"], t["exitReason"]) for t in result.trades] == [(13, 14, "signal")]
+    assert [(t["entryIndex"], t["exitIndex"], t["exitReason"]) for t in result.trades] == [(13, 14, "sessionClose")]
     trade = result.trades[0]
     assert math.isclose(trade["entryPrice"], 100.0, rel_tol=PRICE_REL_TOL)
     assert math.isclose(trade["exitPrice"], 98.0, rel_tol=PRICE_REL_TOL)
