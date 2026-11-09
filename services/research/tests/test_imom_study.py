@@ -57,8 +57,17 @@ class DataTest(unittest.TestCase):
         self.assertEqual([t for t, _ in out], [1, 2])
         self.assertAlmostEqual(out[0][1][3], 100.1)
         self.assertEqual([bar[4] for _, bar in out], [5.0, 1.0])  # bid volume
-        expected = sorted([0.2 / 100.1 * 1e4, 0.2 / 101.1 * 1e4])
-        self.assertAlmostEqual(spread, sum(expected) / 2)
+        # In-sample spreads only: the cut is at 60 % of the time (t <= 1.6), so only the first bar counts.
+        self.assertAlmostEqual(spread, 0.2 / 100.1 * 1e4)
+        self.assertAlmostEqual(data.mid_minutes(bid, ask, is_fraction=1.0)[1], (0.2 / 100.1 + 0.2 / 101.1) / 2 * 1e4)
+        self.assertEqual(data.mid_minutes({}, {}), ([], 0.0))
+
+    def test_drops_a_session_that_gaps_more_than_30_percent(self) -> None:
+        rows = (minutes_of("2024-01-09") + minutes_of("2024-01-10", price=lambda i: 800.0 + i * 0.01)
+                + minutes_of("2024-01-11", price=lambda i: 800.0))
+        days = {day for day, _ in data.local_times(data.aggregate(sorted(rows)).t)}
+        # The split day goes; the next day compares with the split day's close and stays.
+        self.assertEqual(days, {"2024-01-09", "2024-01-11"})
 
     def test_aggregates_to_five_minutes_aligned_to_the_open_in_both_dst_regimes(self) -> None:
         for day in ("2024-01-10", "2024-07-10"):
@@ -284,6 +293,10 @@ class OptionsTest(unittest.TestCase):
         self.assertEqual(options.price_event(event, self._etf(400.0), no_iv), "no IV")
         no_rate = Market("SPY", ("2024-01-09", "2024-01-10"), (400.0, 400.0), (20.0, 20.0), (None, 0.04))
         self.assertEqual(options.price_event(event, self._etf(400.0), no_rate), "no rate")
+        old = Market("SPY", ("2024-01-04", "2024-01-11"), (400.0, 400.0), (20.0, 20.0), (0.04, 0.04))
+        self.assertEqual(options.price_event(event, self._etf(400.0), old), "stale IV")  # 6 calendar days
+        five = Market("SPY", ("2024-01-05", "2024-01-11"), (400.0, 400.0), (20.0, 20.0), (0.04, 0.04))
+        self.assertIsInstance(options.price_event(event, self._etf(400.0), five), options.Spread)
         late = options.OptionEvent("US500", "SPY", "long", ny_ms("2024-01-10", "15:32"))
         self.assertEqual(options.price_event(late, self._etf(400.0), spy_market(["2024-01-09"])), "no ETF bar")
 
