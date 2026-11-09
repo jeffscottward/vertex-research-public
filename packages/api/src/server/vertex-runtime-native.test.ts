@@ -138,6 +138,75 @@ describe("Vertex independent native runtime authority", () => {
       await vertexNativeBootstrapPermissionResource("other")
     ).not.toBe(resource);
   });
+  it("requires the exact grant operation before resolving policy selection", async () => {
+    const binding = {
+      format: "vertex-native-emitter-binding-v1",
+      ...scope,
+      referenceId: "reference",
+      servicePrincipalId: identity.servicePrincipalId,
+      actorId: "native-actor",
+      streamId: snapshot.streamId,
+      ownerEpoch: snapshot.ownerEpoch,
+      validFrom: "2025-12-31T00:00:00Z",
+      expiresAt: "2026-01-02T00:00:00Z",
+    } as const;
+    const resolveWith = async (operations: string[]) => {
+      const grant = {
+        grantId: identity.grantId,
+        servicePrincipalId: identity.servicePrincipalId,
+        ...scope,
+        operations,
+        issuedAt: "2025-12-31T00:00:00Z",
+        expiresAt: "2026-01-02T00:00:00Z",
+        revokedAt: null,
+      };
+      const results = [
+        [
+          {
+            payload: lease,
+            state: "running",
+            grant_id: identity.grantId,
+            worker_instance_id: lease.leaseId,
+            lease_id: lease.leaseId,
+            lease_epoch: lease.leaseEpoch,
+          },
+        ],
+        [
+          {
+            payload: grant,
+            record_hash: await hashArtifact(grant),
+            revoked_at: null,
+          },
+        ],
+      ];
+      const execute = vi.fn(async () => ({ rows: results.shift() ?? [] }));
+      const policySelection = vi.fn(async () => {
+        throw new Error("synthetic selection outage");
+      });
+      const resolve = createVertexRuntimeNativeProjectionPrincipal({
+        clock,
+        emitterBindings: [binding],
+        policySelection,
+      });
+      const outcome = resolve(
+        { execute } as unknown as Transaction,
+        identity,
+        lease,
+        "publishGenesis",
+        snapshot
+      );
+      return { outcome, execute, policySelection };
+    };
+    const missing = await resolveWith(["publishPortfolioSnapshot"]);
+    await expect(missing.outcome).rejects.toMatchObject({ code: "denied" });
+    expect(missing.execute).toHaveBeenCalledTimes(2);
+    expect(missing.policySelection).not.toHaveBeenCalled();
+    const granted = await resolveWith(["publishGenesis"]);
+    await expect(granted.outcome).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    return expect(granted.policySelection).toHaveBeenCalledTimes(1);
+  });
   return it("requires explicit unambiguous gateway scope without probing a broker", async () => {
     const execute = vi.fn();
     const transaction = vi.fn();
