@@ -1326,6 +1326,31 @@ describe("portfolio block", () => {
       )
     ).toEqual([`portfolio.select.tieBreak: ${message}`]);
   });
+
+  it("limits the nodes of a selection score", () => {
+    const full = (depth: number): unknown =>
+      depth === 1
+        ? { series: "$tr", type: "series" }
+        : {
+            left: full(depth - 1),
+            op: "add",
+            right: full(depth - 1),
+            type: "math",
+          };
+    // 1 + 31 + 15 = 47 nodes, 6 levels.
+    const score = { left: full(5), op: "add", right: full(4), type: "math" };
+    expect(
+      issues(
+        withPortfolio({
+          policy: "roll",
+          select: { score, top: 1 },
+          symbols: ["SPY"],
+        })
+      )
+    ).toEqual([
+      `portfolio.select.score: A condition may hold at most ${STRATEGY_DSL_MAX_EXPR_NODES} expression nodes`,
+    ]);
+  });
 });
 
 describe("deeply nested expressions", () => {
@@ -1381,6 +1406,29 @@ describe("deeply nested expressions", () => {
       entry: { all: [{ left: deep, op: ">", right: one }] },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("leaves a missing or non-object child to the parse, not to the depth check", () => {
+    for (const child of [{}, { of: null }, { of: 5 }]) {
+      // The broken node sits at the deepest allowed level.
+      const broken = nest(STRATEGY_DSL_MAX_EXPR_DEPTH - 1, (of) => ({
+        length: 1,
+        of,
+        type: "change",
+      }));
+      let node = broken as { of: unknown };
+      for (let level = 2; level < STRATEGY_DSL_MAX_EXPR_DEPTH; level += 1)
+        node = node.of as { of: unknown };
+      node.of = { length: 1, type: "change", ...child };
+      const result = StrategyDefinitionSchema.safeParse({
+        ...minimal,
+        entry: { all: [{ left: broken, op: ">", right: one }] },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((issue) => issue.message)).not.toContain(
+        message
+      );
+    }
   });
 });
 

@@ -380,13 +380,13 @@ export const strategyExprSeries = (
 const EXPR_DEPTH_MESSAGE = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
 
 /** Child keys of each nested expression type (raw input; other types are leaves). */
-const RAW_EXPR_CHILD_KEYS: Readonly<Record<string, readonly string[]>> = {
-  change: ["of"],
-  math: ["left", "right"],
-  regression: ["y", "x"],
-  returnStdev: ["of"],
-  seasonal: ["of"],
-};
+const RAW_EXPR_CHILD_KEYS: ReadonlyMap<unknown, readonly string[]> = new Map([
+  ["change", ["of"]],
+  ["math", ["left", "right"]],
+  ["regression", ["y", "x"]],
+  ["returnStdev", ["of"]],
+  ["seasonal", ["of"]],
+]);
 
 /**
  * Whether raw (unparsed) expression input nests deeper than STRATEGY_DSL_MAX_EXPR_DEPTH. Iterative
@@ -399,12 +399,9 @@ export const rawStrategyExprTooDeep = (value: unknown): boolean => {
     const [node, depth] = item;
     if (typeof node !== "object" || node === null) continue;
     if (depth > STRATEGY_DSL_MAX_EXPR_DEPTH) return true;
-    const record = node as Record<string, unknown>;
-    const type = Object.hasOwn(record, "type") ? record["type"] : undefined;
-    if (typeof type !== "string" || !Object.hasOwn(RAW_EXPR_CHILD_KEYS, type))
-      continue;
-    for (const key of RAW_EXPR_CHILD_KEYS[type] ?? [])
-      if (Object.hasOwn(record, key)) stack.push([record[key], depth + 1]);
+    // A missing child is pushed as undefined and skipped above.
+    for (const key of RAW_EXPR_CHILD_KEYS.get(Reflect.get(node, "type")) ?? [])
+      stack.push([Reflect.get(node, key), depth + 1]);
   }
   return false;
 };
@@ -423,19 +420,17 @@ const depthGuarded = <S extends z.ZodType>(
     return value;
   }, schema) as unknown as S;
 
-const exprLimitIssue = (
+/**
+ * The node limit of a condition or a selection score. Depth needs no check here: the raw depth
+ * guard in front of each parse already refused deeper input.
+ */
+const exprNodesIssue = (
   exprs: readonly AnyStrategyExpr[]
-): string | undefined => {
-  let nodes = 0;
-  for (const expr of exprs) {
-    const size = strategyExprSize(expr);
-    if (size.depth > STRATEGY_DSL_MAX_EXPR_DEPTH) return EXPR_DEPTH_MESSAGE;
-    nodes += size.nodes;
-  }
-  return nodes > STRATEGY_DSL_MAX_EXPR_NODES
+): string | undefined =>
+  exprs.reduce((nodes, expr) => nodes + strategyExprSize(expr).nodes, 0) >
+  STRATEGY_DSL_MAX_EXPR_NODES
     ? `A condition may hold at most ${STRATEGY_DSL_MAX_EXPR_NODES} expression nodes`
     : undefined;
-};
 
 export const StrategyConditionSchema = depthGuarded(
   z
@@ -446,19 +441,15 @@ export const StrategyConditionSchema = depthGuarded(
     })
     .strict()
     .superRefine((condition, context) => {
-      const issue = exprLimitIssue([condition.left, condition.right]);
+      const issue = exprNodesIssue([condition.left, condition.right]);
       if (issue !== undefined)
         context.addIssue({ code: "custom", message: issue });
     }),
-  (value) =>
-    typeof value === "object" && value !== null
-      ? [
-          Object.hasOwn(value, "left") ? Reflect.get(value, "left") : undefined,
-          Object.hasOwn(value, "right")
-            ? Reflect.get(value, "right")
-            : undefined,
-        ]
-      : []
+  // new Object() makes a missing or non-object condition read as no sides (the parse refuses it).
+  (value) => [
+    Reflect.get(new Object(value), "left"),
+    Reflect.get(new Object(value), "right"),
+  ]
 );
 
 export const STRATEGY_IV_RANK_MIN_LENGTH = 20;
@@ -736,7 +727,7 @@ export const StrategyPortfolioLegSchema = z
   .strict();
 
 const SelectionScoreSchema = StrategyExprSchema.superRefine((expr, context) => {
-  const issue = exprLimitIssue([expr]);
+  const issue = exprNodesIssue([expr]);
   if (issue !== undefined) context.addIssue({ code: "custom", message: issue });
 });
 const DepthGuardedSelectionScoreSchema = depthGuarded(

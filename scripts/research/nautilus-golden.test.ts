@@ -7,6 +7,7 @@ import { scaledTimeout } from "../lib/test-timeout-scale.ts";
 import {
   assertGapExit,
   GOLDEN_FIXTURE,
+  orCaseError,
   runGoldenCli,
 } from "./nautilus-golden.ts";
 
@@ -74,5 +75,15 @@ describe("assertGapExit", () => {
     expect(() => assertGapExit("case", trade, "stop", 96)).toThrow(
       "unexpected first trade"
     );
+  });
+});
+
+describe("orCaseError", () => {
+  it("throws again an error that is not part of the contract", () => {
+    expect(() =>
+      orCaseError(() => {
+        throw new RangeError("a bug, not a case result");
+      })
+    ).toThrow("a bug, not a case result");
   });
 });

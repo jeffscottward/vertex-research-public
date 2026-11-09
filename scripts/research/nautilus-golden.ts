@@ -39,7 +39,6 @@ import {
 import {
   averageDirectionalIndex,
   averageTrueRange,
-  type CompiledStrategy,
   compileStrategy,
   evaluateStrategyExpression,
   exponentialMean,
@@ -534,7 +533,8 @@ const monthlyBars = (): BarColumns => {
  * Trading calendars of StrategySeriesInput.calendar: every weekday (holidays included, so the carry
  * counts more dates than the bars have), and 2015 only (the 2016 SPY bars are missing from it).
  */
-const calendars = (): Record<string, string[]> => ({
+type CalendarName = "weekdays" | "weekdays2015";
+const calendars = (): Record<CalendarName, string[]> => ({
   weekdays: calendarDates("2014-10-01", "2016-12-31"),
   weekdays2015: calendarDates("2015-01-01", "2015-12-31"),
 });
@@ -873,7 +873,7 @@ const change = (
 });
 
 type ExprCase = Readonly<{
-  calendar?: string;
+  calendar?: CalendarName;
   dataset: string;
   expr: StrategyExprInput;
   id: string;
@@ -1051,7 +1051,7 @@ const exprCondition = (
 ) => ({ left, op, right });
 
 type ExprDefinition = Readonly<{
-  calendar?: string;
+  calendar?: CalendarName;
   definition: Json;
   id: string;
   /** Dataset key (the bars). */
@@ -1649,22 +1649,28 @@ const buildIndicators = (
 const seriesInputOf = (
   series: SeriesJson,
   symbol: string | undefined,
-  calendar: string | undefined
+  calendar: CalendarName | undefined
 ): StrategySeriesInput => ({
   context: series as StrategySeriesContext,
   ...(symbol === undefined ? {} : { symbol }),
-  ...(calendar === undefined ? {} : { calendar: calendars()[calendar] ?? [] }),
+  ...(calendar === undefined ? {} : { calendar: calendars()[calendar] }),
 });
 
-/** Runs `build`; an input error is part of the contract (Python raises the same message). */
-const orInputError = <T>(build: () => T): T | { error: string } => {
+/**
+ * Runs `build`. A refusal or an input error is part of the contract (Python refuses with the same
+ * code and message, or raises the same message); any other error is a bug and is thrown again.
+ */
+export const orCaseError = <T>(
+  build: () => T
+): T | { error: string } | { refused: { code: string; message: string } } => {
   try {
     return build();
   } catch (error) {
-    if (
-      error instanceof InstantBacktestInputError &&
-      !(error instanceof StrategyUnsupportedError)
-    )
+    if (error instanceof StrategyUnsupportedError) {
+      const { code, message } = error;
+      return { refused: { code, message } };
+    }
+    if (error instanceof InstantBacktestInputError)
       return { error: error.message };
     throw error;
   }
@@ -1679,43 +1685,35 @@ const buildCompiled = (
     definition: Json,
     symbol: string,
     seriesSymbol = symbol,
-    calendar?: string
+    calendar?: CalendarName
   ) => {
     const parsed = StrategyDefinitionSchema.parse(definition);
-    let compiled: CompiledStrategy;
-    try {
-      compiled = compileStrategy(
+    return orCaseError(() => {
+      const compiled = compileStrategy(
         datasets[symbol] as BarColumns,
         parsed,
         sectorQuadrants,
         seriesInputOf(series, seriesSymbol, calendar)
       );
-    } catch (error) {
-      // A refusal is part of the contract: Python must refuse with the same code and message.
-      if (error instanceof StrategyUnsupportedError) {
-        const { code, message } = error;
-        return { refused: { code, message } };
-      }
-      if (error instanceof InstantBacktestInputError)
-        return { error: error.message };
-      throw error;
-    }
-    return {
-      exits: Array.from(compiled.exits),
-      signals: Array.from(compiled.signals),
-      stopDistance:
-        compiled.stopDistance === undefined
-          ? null
-          : list(compiled.stopDistance),
-      targetDistance:
-        compiled.targetDistance === undefined
-          ? null
-          : list(compiled.targetDistance),
-      ...(compiled.options === undefined ? {} : { options: compiled.options }),
-      ...(compiled.portfolio === undefined
-        ? {}
-        : { portfolio: compiled.portfolio }),
-    };
+      return {
+        exits: Array.from(compiled.exits),
+        signals: Array.from(compiled.signals),
+        stopDistance:
+          compiled.stopDistance === undefined
+            ? null
+            : list(compiled.stopDistance),
+        targetDistance:
+          compiled.targetDistance === undefined
+            ? null
+            : list(compiled.targetDistance),
+        ...(compiled.options === undefined
+          ? {}
+          : { options: compiled.options }),
+        ...(compiled.portfolio === undefined
+          ? {}
+          : { portfolio: compiled.portfolio }),
+      };
+    });
   };
 
   const compiled: Json[] = [];
@@ -1785,7 +1783,7 @@ const buildExpressions = (
     expr,
     id,
     ...(symbol === undefined ? {} : { symbol }),
-    ...orInputError(() => ({
+    ...orCaseError(() => ({
       values: list(
         evaluateStrategyExpression(
           datasets[dataset] as BarColumns,
