@@ -117,7 +117,7 @@ Public documentation was reviewed alongside existing project evaluations; no acc
 - **[L4]** [Historical simulation semantics and result restrictions](../services/research/backtesting/historical.py).
 - **[L5]** [FinancialDatasets adapter](../services/research/providers/financialdatasets.py).
 - **[L6]** [Implementation plan](vertex-rebuild/implementation-plan.md), [architecture decisions](vertex-rebuild/architecture-decisions.md), [repository architecture](../ARCHITECTURE.md). These establish intended roles and safety boundaries; older plan status is not a substitute for later scoped evidence.
-- **[L7]** [Source review: reel De8MRTzRrPy](vertex-rebuild/data-sources/reel-de8mrtzrrpy.md): Screener.in, Yahoo Finance and Zerodha Varsity verdicts, quoted terms, Yahoo file inventory and stored copies (inventory guarded by `scripts/ci/yahoo-call-sites.test.ts`).
+- **[L7]** [Source review: reel De8MRTzRrPy](vertex-rebuild/data-sources/reel-de8mrtzrrpy.md): Screener.in, Yahoo Finance and Zerodha Varsity verdicts, quoted terms, Yahoo file inventory (2026-11-09 snapshot with the command that rebuilds it) and stored copies.
 
 [L1]: ../services/research/providers/ibkr_history.py
 [L2]: ../services/research/providers/quantdata.py

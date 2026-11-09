@@ -31,9 +31,16 @@ Vertex already reads Yahoo Finance through public, undocumented endpoints (JSON 
 
 ### Files that name a Yahoo endpoint or client
 
-The guard test `scripts/ci/yahoo-call-sites.test.ts` fails when a source file gains or loses a Yahoo endpoint host or a Yahoo client package (`yfinance`, `yahooquery`, `yahoo-finance2`) without this list changing. A row is a file that names a Yahoo endpoint or imports a Yahoo client; the HTTP request may run in a sibling module (named in the Use column). The list covers direct use only. Yahoo data also arrives indirectly through the market-context panel, which shows public data from the ibkr-monitor service (Cboe, Yahoo; `apps/web/src/components/portal/market-context-workspace.tsx`), and through the Vibe-Trading agent framework, whose tools default to free sources including Yahoo (`packages/api/src/agent-frameworks.ts`).
+Snapshot of `origin/vertex/rebuild-darkfactory-20260921` at `033a7608` (2026-11-09). Other branches can differ. Rebuild the list with:
 
-<!-- yahoo-call-sites:start -->
+```sh
+git grep --no-color -lE 'finance\.yahoo\.com|fc\.yahoo\.com|yahoo-finance2|^[[:space:]]*(import|from)[[:space:]]+([[:alnum:]_.]+[[:space:]]*,[[:space:]]*)*(yfinance|yahooquery)([^[:alnum:]_]|$)' \
+  -- '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.py' '*.ipynb' '*.sh' \
+  ':!*.test.*' ':!*.spec.*' ':!*/test_*.py' ':!*_test.py' ':!*/conftest.py'
+```
+
+A row is a file that names a Yahoo endpoint host or imports a Yahoo client package (`yfinance`, `yahooquery`, `yahoo-finance2`); the HTTP request may run in a sibling module (named in the Use column). The list covers direct use only. Yahoo data also arrives indirectly through the market-context panel, which shows public data from the ibkr-monitor service (Cboe, Yahoo; `apps/web/src/components/portal/market-context-workspace.tsx`), and through the Vibe-Trading agent framework, whose tools default to free sources including Yahoo (`packages/api/src/agent-frameworks.ts`).
+
 | File | Use |
 | --- | --- |
 | `packages/api/src/price-alerts.ts` | Price alerts: builds the 1-day 5-minute chart URL; `packages/api/src/server/price-alerts.ts` fetches it |
@@ -53,7 +60,6 @@ The guard test `scripts/ci/yahoo-call-sites.test.ts` fails when a source file ga
 | `research/backtests/quantjourney/fetch_data.py` | Offline backtest fetcher (`yfinance`) |
 | `research/backtests/sma30-timing/fetch_data.py` | Offline backtest fetcher (`yfinance`) |
 | `services/research/tests/golden/fetch_yahoo.py` | Golden backtest battery: rebuilds the frozen daily-bar fixture (chart endpoint) |
-<!-- yahoo-call-sites:end -->
 
 ### Terms of use
 
