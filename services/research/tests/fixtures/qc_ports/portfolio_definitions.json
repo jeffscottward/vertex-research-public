@@ -1,0 +1,922 @@
+{
+  "about": "Whole-definition inputs of the qc-ports portfolio golden fixture (strategies/qc_ports/golden.py): the 11 run-A definitions with shorter lookbacks for 4.5 years of synthetic data, plus flat daily runs with exits, plus a select case where GLD misses the last bar of 2022-08.",
+  "cases": [
+    {
+      "name": "qc-asset-class-trend",
+      "definition": {
+        "name": "10-month SMA trend",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 10,
+                "source": "close"
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+          "policy": "roll",
+          "frame": "monthly"
+        }
+      },
+      "start": "2020-06-30",
+      "end": "2022-06-30"
+    },
+    {
+      "name": "qc-futures-trend-carry",
+      "definition": {
+        "name": "Trend and carry",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "math",
+                "op": "div",
+                "left": {
+                  "type": "change",
+                  "of": {
+                    "type": "series",
+                    "series": "$future"
+                  },
+                  "length": 60
+                },
+                "right": {
+                  "type": "math",
+                  "op": "mul",
+                  "left": {
+                    "type": "returnStdev",
+                    "of": {
+                      "type": "series",
+                      "series": "$future"
+                    },
+                    "length": 60
+                  },
+                  "right": {
+                    "type": "const",
+                    "value": 15.874507866387544
+                  }
+                }
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            },
+            {
+              "left": {
+                "type": "math",
+                "op": "sub",
+                "left": {
+                  "type": "change",
+                  "of": {
+                    "type": "series",
+                    "series": "$tr"
+                  },
+                  "length": 60
+                },
+                "right": {
+                  "type": "change",
+                  "of": {
+                    "type": "series",
+                    "series": "$future"
+                  },
+                  "length": 60
+                }
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+          "policy": "roll",
+          "legs": [
+            {
+              "entry": {
+                "all": [
+                  {
+                    "left": {
+                      "type": "math",
+                      "op": "div",
+                      "left": {
+                        "type": "change",
+                        "of": {
+                          "type": "series",
+                          "series": "$future"
+                        },
+                        "length": 60
+                      },
+                      "right": {
+                        "type": "math",
+                        "op": "mul",
+                        "left": {
+                          "type": "returnStdev",
+                          "of": {
+                            "type": "series",
+                            "series": "$future"
+                          },
+                          "length": 60
+                        },
+                        "right": {
+                          "type": "const",
+                          "value": 15.874507866387544
+                        }
+                      }
+                    },
+                    "op": "<",
+                    "right": {
+                      "type": "const",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "left": {
+                      "type": "math",
+                      "op": "sub",
+                      "left": {
+                        "type": "change",
+                        "of": {
+                          "type": "series",
+                          "series": "$tr"
+                        },
+                        "length": 60
+                      },
+                      "right": {
+                        "type": "change",
+                        "of": {
+                          "type": "series",
+                          "series": "$future"
+                        },
+                        "length": 60
+                      }
+                    },
+                    "op": "<",
+                    "right": {
+                      "type": "const",
+                      "value": 0
+                    }
+                  }
+                ]
+              },
+              "options": {
+                "structure": "putDebitVertical",
+                "dte": {
+                  "target": 60,
+                  "min": 45
+                },
+                "longDelta": 0.5,
+                "widthSigma": 1.0,
+                "maxLossPct": 2
+              }
+            }
+          ]
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-gold-fed-model",
+      "definition": {
+        "name": "Fed model gold timing",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "series",
+            "series": "EY_TNX_RATIO",
+            "condition": {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 2
+              }
+            }
+          }
+        ],
+        "portfolio": {
+          "symbols": ["GLD"],
+          "policy": "roll"
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-iv-rank-gate",
+      "definition": {
+        "name": "Put credit vertical + ivRank",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "putCreditVertical",
+          "dte": {
+            "target": 45,
+            "min": 30
+          },
+          "shortDelta": 0.25,
+          "widthSigma": 0.5,
+          "profitTakePct": 50,
+          "exitDte": 21,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+          "policy": "flat",
+          "cadence": "monthEnd"
+        },
+        "filters": [
+          {
+            "type": "ivRank",
+            "length": 60,
+            "min": 50
+          }
+        ]
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-momentum-rotation",
+      "definition": {
+        "name": "Momentum top 2",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "change",
+                "of": {
+                  "type": "price",
+                  "field": "close"
+                },
+                "length": 11,
+                "offset": 1
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "series",
+            "series": "$iv",
+            "condition": {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+          "policy": "roll",
+          "frame": "monthly",
+          "select": {
+            "score": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 11,
+              "offset": 1
+            },
+            "tieBreak": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 12
+            },
+            "top": 2
+          }
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-oil-predicts-equity",
+      "definition": {
+        "name": "Oil regression",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "regression",
+                "y": {
+                  "type": "math",
+                  "op": "sub",
+                  "left": {
+                    "type": "change",
+                    "of": {
+                      "type": "price",
+                      "field": "close"
+                    },
+                    "length": 1
+                  },
+                  "right": {
+                    "type": "math",
+                    "op": "div",
+                    "left": {
+                      "type": "series",
+                      "series": "IRX",
+                      "offset": 1
+                    },
+                    "right": {
+                      "type": "const",
+                      "value": 1200
+                    }
+                  }
+                },
+                "x": {
+                  "type": "change",
+                  "of": {
+                    "type": "series",
+                    "series": "USO:TR"
+                  },
+                  "length": 1
+                },
+                "length": 18,
+                "lag": 1
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY", "QQQ"],
+          "policy": "roll",
+          "frame": "monthly"
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-opex-week",
+      "definition": {
+        "name": "OpEx week",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 30,
+            "min": 21
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "calendarWindow",
+            "window": "opexWeek"
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM"],
+          "policy": "window",
+          "shift": 1
+        }
+      },
+      "start": "2020-06-30",
+      "end": "2022-07-15"
+    },
+    {
+      "name": "qc-regime-put-vrp",
+      "definition": {
+        "name": "Put credit vertical + volRegime",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "putCreditVertical",
+          "dte": {
+            "target": 45,
+            "min": 30
+          },
+          "shortDelta": 0.25,
+          "widthSigma": 0.5,
+          "profitTakePct": 50,
+          "exitDte": 21,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY"],
+          "policy": "flat",
+          "cadence": "monthEnd"
+        },
+        "filters": [
+          {
+            "type": "volRegime",
+            "maxVix": 25,
+            "maxTermRatio": 1.0,
+            "trendLength": 50
+          }
+        ]
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-same-month-seasonality",
+      "definition": {
+        "name": "Seasonality top 2",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "seasonal",
+                "of": {
+                  "type": "change",
+                  "of": {
+                    "type": "price",
+                    "field": "close"
+                  },
+                  "length": 1
+                },
+                "monthsAhead": 1,
+                "minCount": 2
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "series",
+            "series": "$iv",
+            "condition": {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+          "policy": "roll",
+          "frame": "monthly",
+          "select": {
+            "score": {
+              "type": "seasonal",
+              "of": {
+                "type": "change",
+                "of": {
+                  "type": "price",
+                  "field": "close"
+                },
+                "length": 1
+              },
+              "monthsAhead": 1,
+              "minCount": 2
+            },
+            "top": 2
+          }
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-turn-of-the-month",
+      "definition": {
+        "name": "Turn of month -3..2",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 30,
+            "min": 21
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "calendarWindow",
+            "window": "turnOfMonth",
+            "fromDay": -3,
+            "toDay": 2
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "QQQ", "DIA", "IWM"],
+          "policy": "window"
+        }
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "qc-vix-term-gate",
+      "definition": {
+        "name": "Put credit vertical + vixTermStructure",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "putCreditVertical",
+          "dte": {
+            "target": 45,
+            "min": 30
+          },
+          "shortDelta": 0.25,
+          "widthSigma": 0.5,
+          "profitTakePct": 50,
+          "exitDte": 21,
+          "maxLossPct": 2
+        },
+        "portfolio": {
+          "symbols": ["SPY"],
+          "policy": "flat",
+          "cadence": "monthEnd"
+        },
+        "filters": [
+          {
+            "type": "vixTermStructure",
+            "maxRatio": 0.9999999999999999
+          }
+        ]
+      },
+      "start": "2020-06-30"
+    },
+    {
+      "name": "flat-daily-exits",
+      "symbol": "QQQ",
+      "start": "2020-03-02",
+      "capital": 250000,
+      "definition": {
+        "name": "SMA cross call",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 10,
+                "source": "close"
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": "<",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 20,
+                "source": "close"
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 30,
+            "min": 21
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "profitTakePct": 50,
+          "exitDte": 5,
+          "maxLossPct": 2
+        }
+      }
+    },
+    {
+      "name": "flat-daily-portfolio-iv-gaps",
+      "start": "2020-01-31",
+      "definition": {
+        "name": "Daily put credit on gappy members",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50,
+                "source": "close"
+              }
+            }
+          ]
+        },
+        "exit": {
+          "any": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": "<",
+              "right": {
+                "type": "indicator",
+                "name": "sma",
+                "length": 50,
+                "source": "close"
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "putCreditVertical",
+          "dte": {
+            "target": 45,
+            "min": 30
+          },
+          "shortDelta": 0.25,
+          "widthSigma": 0.5,
+          "profitTakePct": 50,
+          "exitDte": 21,
+          "maxLossPct": 1
+        },
+        "portfolio": {
+          "symbols": ["SLV", "USO", "GLD"],
+          "policy": "flat",
+          "cadence": "daily"
+        }
+      }
+    },
+    {
+      "name": "select-member-early-month-end",
+      "definition": {
+        "name": "Momentum top 1, GLD misses 2022-08-31",
+        "version": 1,
+        "entry": {
+          "all": [
+            {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "options": {
+          "structure": "callDebitVertical",
+          "dte": {
+            "target": 60,
+            "min": 45
+          },
+          "longDelta": 0.5,
+          "widthSigma": 1.0,
+          "maxLossPct": 2
+        },
+        "filters": [
+          {
+            "type": "series",
+            "series": "$iv",
+            "condition": {
+              "left": {
+                "type": "price",
+                "field": "close"
+              },
+              "op": ">",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "portfolio": {
+          "symbols": ["SPY", "GLD"],
+          "policy": "roll",
+          "frame": "monthly",
+          "select": {
+            "score": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 3,
+              "offset": 1
+            },
+            "tieBreak": {
+              "type": "change",
+              "of": {
+                "type": "price",
+                "field": "close"
+              },
+              "length": 12
+            },
+            "top": 1
+          }
+        }
+      },
+      "start": "2021-01-04",
+      "end": "2023-06-30"
+    }
+  ]
+}

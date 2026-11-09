@@ -1,3 +1,4 @@
+import { canonicalJson } from "./canonical-json.ts";
 import {
   type BarColumns,
   InstantBacktestInputError,
@@ -12,6 +13,7 @@ import {
   type CalendarWindowFilter,
   type IvRankFilter,
   isSessionIndicator,
+  resolveStrategySeries,
   type SectorQuadrantFilter,
   type SeriesFilter,
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
@@ -20,12 +22,15 @@ import {
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
-  type StrategyFilter,
   type StrategyIndicatorExpr,
   type StrategyIntraday,
   type StrategyManagement,
   type StrategyOptions,
+  type StrategyPortfolio,
   type StrategyRefusal,
+  type StrategySeriesReader,
+  type StrategySeriesRef,
+  type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
   serverStrategyRefusal,
   strategyIntradayGridRefusal,
@@ -423,6 +428,27 @@ const shift = (values: Float64Array, offset: number): Float64Array => {
 };
 
 type SeriesCache = Map<string, Float64Array>;
+type LeafExpr = Extract<
+  StrategyExpr,
+  { type: "price" | "const" | "indicator" }
+>;
+type TreeExpr = Exclude<StrategyExpr, LeafExpr>;
+
+/** What series expressions and filters read: the bar dates and the series input. */
+type SeriesFrame = Readonly<{
+  barDates: readonly string[];
+  /** StrategySeriesInput.calendar and the calendar position of each bar, when given. */
+  calendar: Readonly<{ at: Int32Array; dates: readonly string[] }> | undefined;
+  input: StrategySeriesInput | undefined;
+  intraday: boolean;
+}>;
+
+/** Evaluation state of one compile: the bars, the series cache and the (lazy) series frame. */
+type ExprContext = Readonly<{
+  bars: BarColumns;
+  cache: SeriesCache;
+  frame: () => SeriesFrame;
+}>;
 
 // Indicator timeframe "1d" (strategy-dsl.ts STRATEGY_INDICATOR_TIMEFRAMES).
 
@@ -891,9 +917,9 @@ export const volTargetLeverage = (
   return out;
 };
 
-const evaluate = (
+const evaluateLeaf = (
   bars: BarColumns,
-  expr: StrategyExpr,
+  expr: LeafExpr,
   cache: SeriesCache
 ): Float64Array => {
   const current = evaluateCurrent(bars, expr, cache);
@@ -916,7 +942,7 @@ const indicatorKey = (expr: StrategyIndicatorExpr): string =>
 
 const evaluateCurrent = (
   bars: BarColumns,
-  expr: StrategyExpr,
+  expr: LeafExpr,
   cache: SeriesCache
 ): Float64Array => {
   const size = bars.c.length;
@@ -956,6 +982,172 @@ const evaluateCurrent = (
   }[expr.name]();
   cache.set(key, series);
   return series;
+};
+
+/**
+ * Values of an expression on each bar (NaN = not available). Leaves use the indicator cache; every
+ * other node is memoized by its canonical JSON within one compile.
+ */
+const evaluate = (context: ExprContext, expr: StrategyExpr): Float64Array => {
+  if (
+    expr.type === "price" ||
+    expr.type === "const" ||
+    expr.type === "indicator"
+  )
+    return evaluateLeaf(context.bars, expr, context.cache);
+  const key = `expr:${canonicalJson(expr)}`;
+  const cached = context.cache.get(key);
+  if (cached !== undefined) return cached;
+  const values = evaluateTree(context, expr);
+  context.cache.set(key, values);
+  return values;
+};
+
+const finiteOrNaN = (value: number): number =>
+  Number.isFinite(value) ? value : Number.NaN;
+
+const MATH: Readonly<
+  Record<
+    Extract<StrategyExpr, { type: "math" }>["op"],
+    (left: number, right: number) => number
+  >
+> = {
+  add: (left, right) => left + right,
+  div: (left, right) => left / right,
+  mul: (left, right) => left * right,
+  sub: (left, right) => left - right,
+};
+
+/** Sample standard deviation of the last `length` one-bar simple returns (NaN when one is missing). */
+const returnDeviation = (
+  values: Float64Array,
+  length: number
+): Float64Array => {
+  const returns = new Float64Array(values.length).fill(Number.NaN);
+  for (let index = 1; index < values.length; index += 1)
+    returns[index] = finiteOrNaN(
+      (values[index] as number) / (values[index - 1] as number) - 1
+    );
+  return rollingMoments(returns, length).deviation;
+};
+
+/**
+ * a0 + a1 × x[t] by least squares of y[s] on x[s − lag] over the `length` bars s ending at t
+ * (two-pass sums in bar order). NaN when a value is missing or the x window is flat.
+ */
+const regressionSeries = (
+  y: Float64Array,
+  x: Float64Array,
+  length: number,
+  lag: number
+): Float64Array => {
+  const out = new Float64Array(y.length).fill(Number.NaN);
+  for (let index = length - 1 + lag; index < y.length; index += 1) {
+    const first = index - length + 1;
+    let sumX = 0;
+    let sumY = 0;
+    for (let at = first; at <= index; at += 1) {
+      sumX += x[at - lag] as number;
+      sumY += y[at] as number;
+    }
+    const current = x[index] as number;
+    if (
+      !(
+        Number.isFinite(sumX) &&
+        Number.isFinite(sumY) &&
+        Number.isFinite(current)
+      )
+    )
+      continue;
+    const meanX = sumX / length;
+    const meanY = sumY / length;
+    let squares = 0;
+    let products = 0;
+    for (let at = first; at <= index; at += 1) {
+      const deltaX = (x[at - lag] as number) - meanX;
+      squares += deltaX * deltaX;
+      products += deltaX * ((y[at] as number) - meanY);
+    }
+    if (!(squares > 0)) continue;
+    const slope = products / squares;
+    const intercept = meanY - slope * meanX;
+    out[index] = finiteOrNaN(intercept + slope * current);
+  }
+  return out;
+};
+
+/**
+ * Mean of the finite values at this and earlier bars in the UTC calendar month `monthsAhead` after
+ * the bar's month; NaN with fewer than `minCount` values.
+ */
+const seasonalSeries = (
+  values: Float64Array,
+  t: Float64Array,
+  monthsAhead: number,
+  minCount: number
+): Float64Array => {
+  const out = new Float64Array(values.length).fill(Number.NaN);
+  const sums = new Float64Array(12);
+  const counts = new Float64Array(12);
+  for (let index = 0; index < values.length; index += 1) {
+    const month = new Date(t[index] as number).getUTCMonth();
+    const value = values[index] as number;
+    if (Number.isFinite(value)) {
+      sums[month] = (sums[month] as number) + value;
+      counts[month] = (counts[month] as number) + 1;
+    }
+    const target = (month + monthsAhead) % 12;
+    const count = counts[target] as number;
+    if (count >= minCount) out[index] = (sums[target] as number) / count;
+  }
+  return out;
+};
+
+const evaluateTree = (context: ExprContext, expr: TreeExpr): Float64Array => {
+  const size = context.bars.c.length;
+  switch (expr.type) {
+    case "series":
+      return shift(
+        seriesValues(context.frame(), expr.series),
+        expr.offset ?? 0
+      );
+    case "math": {
+      const left = evaluate(context, expr.left);
+      const right = evaluate(context, expr.right);
+      const apply = MATH[expr.op];
+      return Float64Array.from({ length: size }, (_, index) =>
+        finiteOrNaN(apply(left[index] as number, right[index] as number))
+      );
+    }
+    case "change": {
+      const of = evaluate(context, expr.of);
+      const offset = expr.offset ?? 0;
+      const out = new Float64Array(size).fill(Number.NaN);
+      for (let index = offset + expr.length; index < size; index += 1)
+        out[index] = finiteOrNaN(
+          (of[index - offset] as number) /
+            (of[index - offset - expr.length] as number) -
+            1
+        );
+      return out;
+    }
+    case "returnStdev":
+      return returnDeviation(evaluate(context, expr.of), expr.length);
+    case "regression":
+      return regressionSeries(
+        evaluate(context, expr.y),
+        evaluate(context, expr.x),
+        expr.length,
+        expr.lag
+      );
+    default:
+      return seasonalSeries(
+        evaluate(context, expr.of),
+        context.bars.t,
+        expr.monthsAhead,
+        expr.minCount
+      );
+  }
 };
 
 const compare = (op: StrategyCondition["op"], left: number, right: number) => {
@@ -1033,12 +1225,11 @@ const oncePerLevel = (fired: Uint8Array, right: Float64Array): Uint8Array => {
 
 /** Boolean series of one condition on the bars. */
 const conditionSeries = (
-  bars: BarColumns,
-  condition: StrategyCondition,
-  cache: SeriesCache
+  context: ExprContext,
+  condition: StrategyCondition
 ): Uint8Array => {
-  const left = evaluate(bars, condition.left, cache);
-  const right = evaluate(bars, condition.right, cache);
+  const left = evaluate(context, condition.left);
+  const right = evaluate(context, condition.right);
   const fired = compareSeries(condition.op, left, right);
   return condition.oncePerLevel === true ? oncePerLevel(fired, right) : fired;
 };
@@ -1094,10 +1285,19 @@ export type StrategySeriesContext = Readonly<
   Record<string, Readonly<Record<string, number>>>
 >;
 
-/** What the ivRank, vixTermStructure, volRegime and series filters read. */
+/** What the ivRank, vixTermStructure, volRegime and series filters and series expressions read. */
 export type StrategySeriesInput = Readonly<{
+  /**
+   * Trading dates (YYYY-MM-DD, ascending, no repeats) to align every series on before reading it at
+   * the bar dates, so the carry counts calendar dates rather than bars (for example month-end bars).
+   * Every bar date must be in it. Without it the series align on the bar dates.
+   */
+  calendar?: readonly string[];
   context: StrategySeriesContext;
-  /** Traded symbol; ivRank reads its implied-volatility index (STRATEGY_IV_INDEX). */
+  /**
+   * Traded symbol; ivRank reads its implied-volatility index (STRATEGY_IV_INDEX) and the relative
+   * refs $tr, $iv and $future resolve with it (resolveStrategySeries).
+   */
   symbol?: string;
 }>;
 
@@ -1120,18 +1320,16 @@ export class StrategyUnsupportedError extends InstantBacktestInputError {
 }
 
 /**
- * Throws StrategyUnsupportedError when the server engines cannot run the definition or filters
- * (on `timeframe`, when given). Research runners call compileStrategy instead.
+ * Throws StrategyUnsupportedError when a server path cannot run the definition or filters (on
+ * `timeframe`, when given) with what it loads (`support`, see serverStrategyRefusal). Research
+ * runners call compileStrategy instead.
  */
 export const assertServerRunnable = (
-  definition: Readonly<{
-    filters?: readonly StrategyFilter[] | undefined;
-    intraday?: StrategyIntraday | undefined;
-    options?: StrategyOptions | undefined;
-  }>,
-  timeframe?: string
+  definition: StrategySeriesReader,
+  timeframe?: string,
+  support?: StrategyServerSupport
 ): void => {
-  const refusal = serverStrategyRefusal(definition, timeframe);
+  const refusal = serverStrategyRefusal(definition, timeframe, support);
   if (refusal !== undefined) throw new StrategyUnsupportedError(refusal);
 };
 
@@ -1203,6 +1401,95 @@ const alignSeries = (
     out[index] = values[next - 1] as number;
   }
   return out;
+};
+
+/** The series id a ref reads for the traded symbol (relative refs need a mapped symbol). */
+const seriesId = (
+  ref: StrategySeriesRef,
+  input: StrategySeriesInput | undefined
+): string => {
+  const symbol = input?.symbol;
+  const id = resolveStrategySeries(ref, symbol);
+  if (id !== undefined) return id;
+  throw new InstantBacktestInputError(
+    symbol === undefined
+      ? `${ref} needs the traded symbol`
+      : `${ref} has no series for ${symbol}`
+  );
+};
+
+/** Calendar position of each bar date; the calendar must be ascending dates holding every bar date. */
+const calendarPositions = (
+  dates: readonly string[],
+  barDates: readonly string[]
+): Int32Array => {
+  const positions = new Map<string, number>();
+  dates.forEach((date, index) => {
+    if (
+      !DATE_PATTERN.test(date) ||
+      (index > 0 && date <= (dates[index - 1] as string))
+    )
+      throw new InstantBacktestInputError(
+        `The calendar must hold ascending YYYY-MM-DD dates without repeats: ${date}`
+      );
+    positions.set(date, index);
+  });
+  return Int32Array.from(barDates, (date) => {
+    const at = positions.get(date);
+    if (at === undefined)
+      throw new InstantBacktestInputError(
+        `Bar date ${date} is not in the calendar`
+      );
+    return at;
+  });
+};
+
+const seriesFrame = (
+  bars: BarColumns,
+  input: StrategySeriesInput | undefined
+): SeriesFrame => {
+  const barDates = Array.from(bars.t, (t) =>
+    new Date(t).toISOString().slice(0, 10)
+  );
+  const dates = input?.calendar;
+  return {
+    barDates,
+    calendar:
+      dates === undefined
+        ? undefined
+        : { at: calendarPositions(dates, barDates), dates },
+    input,
+    intraday: isIntraday(bars.t),
+  };
+};
+
+/** alignSeries on the bar dates, or on the calendar and then read at the bar dates. */
+const alignOn = (
+  frame: SeriesFrame,
+  series: DailySeries,
+  values: Float64Array,
+  exact: boolean
+): Float64Array => {
+  const { calendar } = frame;
+  if (calendar === undefined)
+    return alignSeries(series, values, frame.barDates, frame.intraday, exact);
+  const aligned = alignSeries(
+    series,
+    values,
+    calendar.dates,
+    frame.intraday,
+    exact
+  );
+  return Float64Array.from(calendar.at, (at) => aligned[at] as number);
+};
+
+/** The value of a series ref on each bar, aligned like the series filter (carried, not exact). */
+const seriesValues = (
+  frame: SeriesFrame,
+  ref: StrategySeriesRef
+): Float64Array => {
+  const series = dailySeries(frame.input, seriesId(ref, frame.input));
+  return alignOn(frame, series, series.values, false);
 };
 
 /** 100 × (v − min) / (max − min) over the `length` values ending at each value; NaN when flat. */
@@ -1405,12 +1692,8 @@ const calendarMask = (
 };
 
 /** ivRank mask: the traded symbol's IV index rank on the bar date is within [min, max]. */
-const ivRankMask = (
-  filter: IvRankFilter,
-  input: StrategySeriesInput | undefined,
-  barDates: readonly string[],
-  intraday: boolean
-): Uint8Array => {
+const ivRankMask = (filter: IvRankFilter, frame: SeriesFrame): Uint8Array => {
+  const { input } = frame;
   const symbol = input?.symbol;
   if (symbol === undefined)
     throw new InstantBacktestInputError("ivRank needs the traded symbol");
@@ -1419,14 +1702,13 @@ const ivRankMask = (
       `ivRank has no implied-volatility index for ${symbol}`
     );
   const index = dailySeries(input, STRATEGY_IV_INDEX[symbol] as string);
-  const rank = alignSeries(
+  const rank = alignOn(
+    frame,
     index,
     ivRankSeries(index.values, filter.length),
-    barDates,
-    intraday,
     true
   );
-  return maskOf(barDates.length, (at) =>
+  return maskOf(frame.barDates.length, (at) =>
     within(rank[at] as number, filter.min, filter.max)
   );
 };
@@ -1434,10 +1716,9 @@ const ivRankMask = (
 /** volRegime mask: VIX, VIX / VIX3M and the SPY trend on the bar date. */
 const volRegimeMask = (
   filter: VolRegimeFilter,
-  input: StrategySeriesInput | undefined,
-  barDates: readonly string[],
-  intraday: boolean
+  frame: SeriesFrame
 ): Uint8Array => {
+  const { input } = frame;
   const vix = dailySeries(input, "VIX");
   const ratio = termRatioSeries(input);
   const spy = dailySeries(input, "SPY");
@@ -1445,11 +1726,11 @@ const volRegimeMask = (
   const trend = spy.values.map((close, index) =>
     close > (average[index] as number) ? 1 : 0
   );
-  const vixOn = alignSeries(vix, vix.values, barDates, intraday, true);
-  const ratioOn = alignSeries(ratio, ratio.values, barDates, intraday, true);
-  const trendOn = alignSeries(spy, trend, barDates, intraday, true);
+  const vixOn = alignOn(frame, vix, vix.values, true);
+  const ratioOn = alignOn(frame, ratio, ratio.values, true);
+  const trendOn = alignOn(frame, spy, trend, true);
   return maskOf(
-    barDates.length,
+    frame.barDates.length,
     (at) =>
       (vixOn[at] as number) <= filter.maxVix &&
       (ratioOn[at] as number) <= filter.maxTermRatio &&
@@ -1458,14 +1739,10 @@ const volRegimeMask = (
 };
 
 /** series mask: the condition evaluated on the series, each side aligned to the bars. */
-const seriesMask = (
-  filter: SeriesFilter,
-  input: StrategySeriesInput | undefined,
-  barDates: readonly string[],
-  intraday: boolean
-): Uint8Array => {
-  const series = dailySeries(input, filter.series);
-  if (series.values.length === 0) return new Uint8Array(barDates.length);
+const seriesMask = (filter: SeriesFilter, context: ExprContext): Uint8Array => {
+  const frame = context.frame();
+  const series = dailySeries(frame.input, seriesId(filter.series, frame.input));
+  if (series.values.length === 0) return new Uint8Array(frame.barDates.length);
   const { values } = series;
   const columns: BarColumns = {
     c: values,
@@ -1476,15 +1753,14 @@ const seriesMask = (
       Date.parse(`${date}T00:00:00Z`)
     ),
   };
-  const cache: SeriesCache = new Map();
+  // The condition reads the close only (no series expressions), so the frame is never read here.
+  const own: ExprContext = {
+    bars: columns,
+    cache: new Map(),
+    frame: context.frame,
+  };
   const side = (expr: StrategyExpr) =>
-    alignSeries(
-      series,
-      evaluate(columns, expr, cache),
-      barDates,
-      intraday,
-      false
-    );
+    alignOn(frame, series, evaluate(own, expr), false);
   return compareSeries(
     filter.condition.op,
     side(filter.condition.left),
@@ -1532,17 +1808,15 @@ const filterSeries = (
 };
 
 const filterMasks = (
-  bars: BarColumns,
+  context: ExprContext,
   definition: StrategyDefinition,
-  sectorQuadrants: SectorQuadrantSeries | undefined,
-  seriesInput: StrategySeriesInput | undefined
+  sectorQuadrants: SectorQuadrantSeries | undefined
 ): Uint8Array[] => {
   const filters = definition.filters ?? [];
   if (filters.length === 0) return [];
-  const intraday = isIntraday(bars.t);
-  const barDates = Array.from(bars.t, (t) =>
-    new Date(t).toISOString().slice(0, 10)
-  );
+  const { bars } = context;
+  const frame = context.frame();
+  const { barDates, intraday } = frame;
   return filters.map((filter) => {
     switch (filter.type) {
       case "sectorQuadrant": {
@@ -1552,16 +1826,16 @@ const filterMasks = (
         return filterSeries(bars.t, filter, points, intraday);
       }
       case "ivRank":
-        return ivRankMask(filter, seriesInput, barDates, intraday);
+        return ivRankMask(filter, frame);
       case "vixTermStructure": {
-        const ratio = termRatioSeries(seriesInput);
-        const on = alignSeries(ratio, ratio.values, barDates, intraday, true);
+        const ratio = termRatioSeries(frame.input);
+        const on = alignOn(frame, ratio, ratio.values, true);
         return maskOf(barDates.length, (at) =>
           within(on[at] as number, filter.minRatio, filter.maxRatio)
         );
       }
       case "volRegime":
-        return volRegimeMask(filter, seriesInput, barDates, intraday);
+        return volRegimeMask(filter, frame);
       case "calendarWindow":
         // Fail closed: the UTC date of an intraday bar is not its exchange session.
         if (intraday)
@@ -1573,7 +1847,7 @@ const filterMasks = (
           bars.t.map((t) => Math.floor(t / DAY_MS))
         );
       default:
-        return seriesMask(filter, seriesInput, barDates, intraday);
+        return seriesMask(filter, context);
     }
   });
 };
@@ -1592,6 +1866,8 @@ export type CompiledStrategy = Readonly<{
   closeAt?: Uint8Array;
   /** With volTarget sizing: the leverage at each signal bar (see volTargetLeverage). */
   leverage?: Float64Array;
+  /** The definition's portfolio block, unchanged, for the options runner. */
+  portfolio?: StrategyPortfolio;
 }>;
 
 const distanceSeries = (
@@ -1600,7 +1876,7 @@ const distanceSeries = (
   cache: SeriesCache
 ): Float64Array | undefined => {
   if (level.kind !== "atr") return undefined;
-  const atr = evaluate(
+  const atr = evaluateLeaf(
     bars,
     { length: level.length, name: "atr", source: "close", type: "indicator" },
     cache
@@ -1623,7 +1899,7 @@ const managementOf = (
       : {
           trail: {
             activateR: trail.activateR,
-            atr: evaluate(
+            atr: evaluateLeaf(
               bars,
               {
                 length: trail.length,
@@ -1650,6 +1926,42 @@ const intradayLayout = (
   return { gates: intradayGates(sessions, intraday), sessions };
 };
 
+/** A fresh evaluation context; the series frame is built on first use. */
+const expressionContext = (
+  bars: BarColumns,
+  seriesInput: StrategySeriesInput | undefined
+): ExprContext => {
+  let frame: SeriesFrame | undefined;
+  return {
+    bars,
+    cache: new Map(),
+    frame: () => {
+      frame ??= seriesFrame(bars, seriesInput);
+      return frame;
+    },
+  };
+};
+
+/**
+ * Values of one expression on each bar, NaN where not available, with the semantics of a condition
+ * side (series expressions read `seriesInput`). For portfolio selection scores.
+ */
+export const evaluateStrategyExpression = (
+  bars: BarColumns,
+  expr: StrategyExpr,
+  seriesInput?: StrategySeriesInput
+): Float64Array => evaluate(expressionContext(bars, seriesInput), expr).slice();
+
+/** The options and portfolio blocks of a definition, unchanged, for the options runner. */
+const optionBlocks = (
+  definition: StrategyDefinition
+): Pick<CompiledStrategy, "options" | "portfolio"> => ({
+  ...(definition.options === undefined ? {} : { options: definition.options }),
+  ...(definition.portfolio === undefined
+    ? {}
+    : { portfolio: definition.portfolio }),
+});
+
 /**
  * Compiles a validated definition to signals: 1 when every entry condition and filter holds, at
  * least one entry.any condition holds (when there are any) and the bar is in the session (and,
@@ -1665,20 +1977,21 @@ export const compileStrategy = (
   seriesInput?: StrategySeriesInput
 ): CompiledStrategy => {
   const size = bars.c.length;
-  const cache: SeriesCache = new Map();
+  const context = expressionContext(bars, seriesInput);
+  const { cache } = context;
   const { gates, sessions } = intradayLayout(bars, definition.intraday, cache);
-  const filters = filterMasks(bars, definition, sectorQuadrants, seriesInput);
+  const filters = filterMasks(context, definition, sectorQuadrants);
   const entries = [
     ...definition.entry.all.map((condition) =>
-      conditionSeries(bars, condition, cache)
+      conditionSeries(context, condition)
     ),
     ...filters,
   ];
   const exits = definition.exit.any.map((condition) =>
-    conditionSeries(bars, condition, cache)
+    conditionSeries(context, condition)
   );
   const anyOf = (definition.entry.any ?? []).map((condition) =>
-    conditionSeries(bars, condition, cache)
+    conditionSeries(context, condition)
   );
   const signals = new Int8Array(size);
   const exitMask = new Uint8Array(size);
@@ -1705,9 +2018,7 @@ export const compileStrategy = (
     signals,
     ...(stopDistance === undefined ? {} : { stopDistance }),
     ...(targetDistance === undefined ? {} : { targetDistance }),
-    ...(definition.options === undefined
-      ? {}
-      : { options: definition.options }),
+    ...optionBlocks(definition),
     ...(management === undefined ? {} : { management }),
     ...(sessions === undefined ? {} : { closeAt: sessions.last }),
     ...(sizing.mode === "volTarget"
@@ -1718,7 +2029,8 @@ export const compileStrategy = (
 
 /**
  * Compiles and runs a validated definition on the equity engine of the server paths. Starting
- * equity is 1. Refuses (StrategyUnsupportedError) an options block and series filters.
+ * equity is 1. Refuses (StrategyUnsupportedError) an options block always, and filters and
+ * expressions that read series unless `support.series` (then `seriesInput` is their input).
  */
 export const runStrategyDefinition = (
   bars: BarColumns,
@@ -1726,14 +2038,22 @@ export const runStrategyDefinition = (
   costBps: number,
   costs?: NonNullable<SignalRunOptions["costs"]>,
   sectorQuadrants?: SectorQuadrantSeries,
-  timeframe?: string
+  timeframe?: string,
+  support?: StrategyServerSupport,
+  seriesInput?: StrategySeriesInput
 ): InstantRunResult => {
-  // The equity engine of the server paths: it would trade the underlying of an options block, and
-  // it gets no series context. Research runners call compileStrategy with their context. With a
-  // known timeframe it also refuses calendar filters on intraday timeframes; compile still checks
-  // the bar spacing when the timeframe is not given.
-  assertServerRunnable(definition, timeframe);
-  const compiled = compileStrategy(bars, definition, sectorQuadrants);
+  // The equity engine would trade the underlying of an options block, so options are refused
+  // whatever `support` says (the options runner is separate; callers that want only the signals
+  // call compileStrategy). With a known timeframe it also refuses calendar filters on intraday
+  // timeframes; compile still checks the bar spacing when the timeframe is not given.
+  const series = support?.series === true;
+  assertServerRunnable(definition, timeframe, series ? { series } : {});
+  const compiled = compileStrategy(
+    bars,
+    definition,
+    sectorQuadrants,
+    series ? seriesInput : undefined
+  );
   return runSignalBacktest(bars, compiled.signals, {
     costBps,
     ...(costs === undefined ? {} : { costs }),

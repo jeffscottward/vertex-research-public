@@ -8,10 +8,13 @@ import {
   STRATEGY_INDICATORS,
   STRATEGY_OPERATORS,
   STRATEGY_PRICE_FIELDS,
+  STRATEGY_SERIES_REFS,
   STRATEGY_TEMPLATE_IDS,
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
+  type StrategyFilter,
+  type StrategySeriesRef,
   type StrategyTemplateId,
 } from "@darkfactory/api";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -41,7 +44,14 @@ import {
   defaultCondition,
   defaultExpr,
   definitionText,
+  describeCondition,
+  describeExpr,
+  describeFilter,
+  describeOptions,
+  describePortfolio,
+  type EditableExpr,
   INDICATOR_LABELS,
+  isEditableExpr,
   jsonOnlyFields,
   lengthUnit,
   numberOf,
@@ -50,6 +60,7 @@ import {
   removeAt,
   replaceAt,
   type ShiftableExpr,
+  seriesRefLabel,
   templateDefinition,
   toBuilderRunInput,
   usesSource,
@@ -61,7 +72,10 @@ import {
 
 // Strategy builder: a visual editor and a text editor for the same strategy definition (version 1).
 // Every change is validated at once. "Run backtest" queues a backtest run of the definition; the
-// run stores a revision of the definition. Research only; this page has no order path.
+// run stores a revision of the definition. The visual editor edits price, number and indicator
+// inputs and the series of series filters; series, math, change, returnStdev, regression and
+// seasonal expressions, other filter settings and the options and portfolio blocks are shown
+// read-only and kept unchanged (edit them in the text). Research only; this page has no order path.
 
 const POLL_MS = 1000;
 // 20 minutes: a Nautilus run may wait up to 10 minutes for the research worker and then run up to
@@ -184,16 +198,32 @@ const ExprEditor = ({
           className={CONTROL}
           id={id}
           onChange={(event) =>
-            onChange(defaultExpr(event.target.value as StrategyExpr["type"]))
+            onChange(defaultExpr(event.target.value as EditableExpr["type"]))
           }
           value={expr.type}
         >
           <option value="price">Price</option>
           <option value="indicator">Indicator</option>
           <option value="const">Number</option>
+          {isEditableExpr(expr) ? null : (
+            <option disabled value={expr.type}>
+              Expression (edit as JSON)
+            </option>
+          )}
         </select>
       )}
     </Labeled>
+    {isEditableExpr(expr) ? null : (
+      <div className="grid gap-1 sm:col-span-2" data-expr-readonly={expr.type}>
+        <code className="break-all rounded-md border bg-muted/40 p-2 text-xs">
+          {describeExpr(expr)}
+        </code>
+        <p className="text-muted-foreground text-xs">
+          Edit this expression in the definition text (JSON); the visual builder
+          keeps it unchanged.
+        </p>
+      </div>
+    )}
     {expr.type === "price" ? (
       <Labeled label={`${label} price`}>
         {(id) => (
@@ -363,6 +393,101 @@ const ConditionList = ({
     </button>
   </fieldset>
 );
+
+// Entry filters: series filters choose their series here (ids, `<ETF>:TR` and the relative refs
+// $tr, $iv and $future); conditions and the other filter types are shown read-only.
+const FilterList = ({
+  filters,
+  onChange,
+}: Readonly<{
+  filters: readonly StrategyFilter[] | undefined;
+  onChange: (filters: StrategyFilter[]) => void;
+}>) => (
+  <fieldset className="grid gap-3 rounded-md border p-4" data-filter-list="">
+    <legend className="px-1 font-medium text-sm">Entry filters</legend>
+    {filters === undefined ? (
+      <p className="text-muted-foreground text-sm">
+        No filters. Add filters in the definition text (JSON).
+      </p>
+    ) : (
+      filters.map((filter, index) => {
+        const name = `Filter ${index + 1}`;
+        return (
+          <div className="grid gap-2 border-b pb-3 last:border-b-0" key={name}>
+            {filter.type === "series" ? (
+              <Labeled label={`${name} series`}>
+                {(id) => (
+                  <select
+                    className={CONTROL}
+                    id={id}
+                    onChange={(event) =>
+                      onChange(
+                        replaceAt(filters, index, {
+                          ...filter,
+                          series: event.target.value as StrategySeriesRef,
+                        })
+                      )
+                    }
+                    value={filter.series}
+                  >
+                    {STRATEGY_SERIES_REFS.map((ref) => (
+                      <option key={ref} value={ref}>
+                        {seriesRefLabel(ref)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Labeled>
+            ) : null}
+            <code
+              className="break-all rounded-md border bg-muted/40 p-2 text-xs"
+              data-filter-summary={filter.type}
+            >
+              {filter.type === "series"
+                ? describeCondition(filter.condition)
+                : describeFilter(filter)}
+            </code>
+          </div>
+        );
+      })
+    )}
+    {filters === undefined ? null : (
+      <p className="text-muted-foreground text-xs">
+        Edit filter conditions and settings in the definition text (JSON).
+      </p>
+    )}
+  </fieldset>
+);
+
+// The options and portfolio blocks, read-only: the builder keeps them unchanged on every edit.
+const OptionsSummary = ({
+  definition,
+}: Readonly<{ definition: StrategyDefinition }>) => {
+  const { options, portfolio } = definition;
+  if (options === undefined) return null;
+  return (
+    <fieldset
+      className="grid gap-2 rounded-md border p-4 text-sm [overflow-wrap:anywhere]"
+      data-options-summary=""
+    >
+      <legend className="px-1 font-medium text-sm">
+        Options and portfolio (read-only)
+      </legend>
+      <p>Option vertical: {describeOptions(options)}</p>
+      {portfolio === undefined ? null : (
+        <ul className="grid gap-1" data-portfolio-summary="">
+          {describePortfolio(portfolio).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+      <p className="text-muted-foreground text-xs">
+        Edit these blocks in the definition text (JSON). Backtest option prices
+        are modeled; research only, no orders.
+      </p>
+    </fieldset>
+  );
+};
 
 type ExitLevel = StrategyDefinition["stopLoss"];
 
@@ -760,6 +885,11 @@ export const StrategyBuilderWorkspace = ({
               prefix="Exit"
               title="Exit when ANY of these is true"
             />
+            <FilterList
+              filters={draft.filters}
+              onChange={(filters) => edit({ ...draft, filters })}
+            />
+            <OptionsSummary definition={draft} />
             <fieldset className="grid gap-3 rounded-md border p-4 md:grid-cols-3">
               <legend className="px-1 font-medium text-sm">
                 Risk and sizing

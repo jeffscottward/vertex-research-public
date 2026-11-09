@@ -6,6 +6,8 @@ import {
   COST_PROFILE_PRESETS,
   type CostProfilePresetId,
   type InstantBacktestSeries,
+  type StrategyDefinition,
+  type StrategyDefinitionGetOutput,
 } from "@darkfactory/api";
 
 import {
@@ -16,6 +18,17 @@ import {
 // Pure helpers for the backtest runs page: request building, metric rows and trade replay state.
 // Research only; no order path.
 
+/** A stored strategy definition revision the form runs (from a strategy library link). */
+export type LinkedDefinition = Readonly<{
+  id: string;
+  revision: number;
+  sha256: string;
+  name: string;
+  definition: StrategyDefinition;
+  /** False when the linked SHA-256 was not found, so the latest revision was loaded instead. */
+  pinned: boolean;
+}>;
+
 export type RunForm = Readonly<{
   params: InstantParams;
   from: string;
@@ -24,6 +37,8 @@ export type RunForm = Readonly<{
   strategyId: string;
   /** "" for no cost profile. */
   costProfile: CostProfilePresetId | "";
+  /** Set to run a stored definition (rule kind dsl) instead of the SMA cross or breakout rule. */
+  definition?: LinkedDefinition | null;
 }>;
 
 /** Cost profile choices for the form. Runs use stock bars, so option presets are not offered. */
@@ -44,6 +59,46 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/u;
 export const isoDate = (epochMs: number): string =>
   new Date(epochMs).toISOString().slice(0, 10);
 
+/** The rule part of a run request, before dates, capital and strategy are added. */
+export type RunRuleInput = Pick<
+  BacktestRunSubmitInput,
+  "costBps" | "rule" | "stopLossPct" | "symbol" | "takeProfitPct" | "timeframe"
+>;
+
+/**
+ * True when the form runs a stored options definition. The options book charges its own costs
+ * ($0.65 per contract per leg plus half the bid-ask spread), so the flat cost is 0 and no cost
+ * profile is sent.
+ */
+export const runsOptionsDefinition = (form: Pick<RunForm, "definition">) =>
+  form.definition?.definition.options !== undefined;
+
+/** The rule part of the request: the stored definition, or the SMA cross or breakout rule. */
+const ruleInput = (
+  form: RunForm,
+  series: InstantBacktestSeries
+): Readonly<{ input: RunRuleInput }> | Readonly<{ error: string }> => {
+  const definition = form.definition ?? null;
+  if (definition === null) return toRunInput(form.params, series);
+  const members: readonly string[] | undefined =
+    definition.definition.portfolio?.symbols;
+  if (members !== undefined && !members.includes(series.symbol))
+    return {
+      error: `The definition trades ${members.join(", ")}; choose one of them.`,
+    };
+  const costBps = runsOptionsDefinition(form) ? 0 : form.params.costBps;
+  if (!(costBps >= 0 && costBps <= 500))
+    return { error: "Cost per side must be from 0 to 500 bps." };
+  return {
+    input: {
+      costBps,
+      rule: { definition: definition.definition, kind: "dsl" },
+      symbol: series.symbol,
+      timeframe: series.timeframe,
+    },
+  };
+};
+
 /** Builds the submit request, or returns the reason the form cannot run. */
 export const toSubmitInput = (
   form: RunForm,
@@ -51,7 +106,7 @@ export const toSubmitInput = (
 ):
   | Readonly<{ input: BacktestRunSubmitInput }>
   | Readonly<{ error: string }> => {
-  const base = toRunInput(form.params, series);
+  const base = ruleInput(form, series);
   if ("error" in base) return base;
   if (!(DATE_PATTERN.test(form.from) && DATE_PATTERN.test(form.to)))
     return { error: "Enter both dates as YYYY-MM-DD." };
@@ -66,7 +121,9 @@ export const toSubmitInput = (
       initialCapital: form.initialCapital,
       strategyId: form.strategyId === "" ? null : form.strategyId,
       to: form.to,
-      ...(form.costProfile === "" ? {} : { costProfile: form.costProfile }),
+      ...(form.costProfile === "" || runsOptionsDefinition(form)
+        ? {}
+        : { costProfile: form.costProfile }),
     },
   };
 };
@@ -232,6 +289,221 @@ export const costRows = (
     { label: "Flat cost (bps)", value: money(costs.bps) },
   ];
 };
+
+/** The options book of an options run (report.options). */
+export type OptionsBook = NonNullable<BacktestRunReportOutput["options"]>;
+export type TradeExitReason =
+  BacktestRunReportOutput["trades"][number]["exitReason"];
+
+/** Plain labels of every exit reason, the options book reasons included. */
+export const EXIT_REASON_LABELS: Readonly<Record<TradeExitReason, string>> = {
+  end: "End of data",
+  exitDte: "Exit DTE reached",
+  expiry: "Expiry",
+  profitTake: "Profit take",
+  sessionClose: "Session close",
+  signal: "Exit signal",
+  "stale-iv": "Stale IV",
+  stop: "Stop loss",
+  target: "Take profit",
+};
+
+/** The label of an exit reason; a reason this page does not know is shown as stored. */
+export const exitReasonLabel = (reason: string): string =>
+  (EXIT_REASON_LABELS as Readonly<Record<string, string | undefined>>)[
+    reason
+  ] ?? reason;
+
+/** Options book metrics as labelled rows; the Nautilus gap only when the run has one. */
+export const optionsMetricRows = (book: OptionsBook): readonly MetricRow[] => {
+  const { metrics } = book;
+  return [
+    { label: "Start", value: metrics.start },
+    { label: "End", value: metrics.end },
+    { label: "Capital", value: money(book.capital) },
+    { label: "Final equity", value: money(metrics.finalEquity) },
+    { label: "Total return", value: percent(metrics.totalReturn) },
+    { label: "CAGR", value: percent(metrics.cagr) },
+    { label: "Sharpe ratio", value: ratio(metrics.sharpe) },
+    {
+      label: "Probabilistic Sharpe (1 trial)",
+      value: ratio(metrics.deflatedSharpe),
+    },
+    // The runner stores drawdowns as negative or positive fractions; show the loss as negative.
+    { label: "Max drawdown", value: percent(-Math.abs(metrics.maxDrawdown)) },
+    {
+      label: "Worst month",
+      value:
+        metrics.worstMonth === null
+          ? "n/a"
+          : `${metrics.worstMonth} (${percent(metrics.worstMonthReturn)})`,
+    },
+    { label: "Trades", value: String(metrics.trades) },
+    { label: "Win rate", value: percent(metrics.winRate) },
+    { label: "Exposure", value: percent(metrics.exposure) },
+    { label: "Skipped entries", value: String(metrics.skipped) },
+    { label: "Max open risk", value: percent(metrics.maxOpenRisk) },
+    { label: "Stale-IV exits", value: String(metrics.staleIvExits) },
+    ...(book.nautilusGap === null
+      ? []
+      : [
+          {
+            label: "Nautilus gap (largest daily equity gap)",
+            value: `${(book.nautilusGap * 100).toFixed(4)}%`,
+          },
+        ]),
+  ];
+};
+
+/** Entry signals of each traded symbol, in symbol order (0 when the book has none). */
+export const optionsSignalRows = (
+  book: OptionsBook
+): readonly Readonly<{ symbol: string; signals: number }>[] =>
+  book.symbols.map((symbol) => ({
+    signals: book.signals[symbol] ?? 0,
+    symbol,
+  }));
+
+/** Heading of the option trades table; marks a stored list shorter than the trade count. */
+export const optionTradesHeading = (book: OptionsBook): string =>
+  book.trades.length < book.metrics.trades
+    ? `Option trades (first ${book.trades.length} of ${book.metrics.trades})`
+    : "Option trades";
+
+/**
+ * A link that opens this page with a stored strategy definition, e.g. from the strategy library:
+ * /backtest-runs?definition=<id>&sha=<sha256>&strategy=<id>&timeframe=1d&from=…&initialCapital=…
+ * Without `symbol` the page takes the first portfolio symbol of the definition; without `to` the
+ * form keeps the series' last stored date.
+ */
+export type DefinitionLink = Readonly<{
+  id: string;
+  sha256: string | null;
+  symbol: string | null;
+  timeframe: string;
+  from: string | null;
+  initialCapital: number | null;
+  costBps: number | null;
+}>;
+
+const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
+
+/** Reads a definition link from the address bar; null when it names no definition. */
+export const readDefinitionLink = (search: string): DefinitionLink | null => {
+  const params = new URLSearchParams(search);
+  const text = (name: string): string | null => {
+    const value = params.get(name)?.trim() ?? "";
+    return value === "" ? null : value;
+  };
+  const number = (name: string): number | null => {
+    const value = Number(text(name) ?? Number.NaN);
+    return Number.isFinite(value) ? value : null;
+  };
+  const id = text("definition");
+  if (id === null) return null;
+  const sha256 = text("sha");
+  const from = text("from");
+  return {
+    costBps: number("costBps"),
+    from: from !== null && DATE_PATTERN.test(from) ? from : null,
+    id,
+    initialCapital: number("initialCapital"),
+    sha256: sha256 !== null && SHA256_PATTERN.test(sha256) ? sha256 : null,
+    symbol: text("symbol"),
+    timeframe: text("timeframe") ?? "1d",
+  };
+};
+
+/** The page address of a definition link; empty values are left out. */
+export const definitionRunHref = (
+  link: DefinitionLink & Readonly<{ strategyId: string | null }>
+): string => {
+  const entries: readonly (readonly [string, string | number | null])[] = [
+    ["definition", link.id],
+    ["sha", link.sha256],
+    ["strategy", link.strategyId],
+    ["symbol", link.symbol],
+    ["timeframe", link.timeframe],
+    ["from", link.from],
+    ["initialCapital", link.initialCapital],
+    ["costBps", link.costBps],
+  ];
+  const params = new URLSearchParams();
+  for (const [name, value] of entries)
+    if (value !== null) params.set(name, String(value));
+  return `/backtest-runs?${params.toString()}`;
+};
+
+export type DefinitionGetter = (
+  id: string,
+  revision?: number
+) => Promise<StrategyDefinitionGetOutput>;
+
+/**
+ * Loads the linked definition: the latest revision, or the revision whose SHA-256 the link names
+ * when the latest one differs. A SHA-256 that no listed revision has loads the latest, unpinned.
+ */
+export const loadLinkedDefinition = async (
+  get: DefinitionGetter,
+  link: Pick<DefinitionLink, "id" | "sha256">
+): Promise<LinkedDefinition> => {
+  const latest = await get(link.id);
+  const linked = (
+    revision: StrategyDefinitionGetOutput["revision"],
+    pinned: boolean
+  ): LinkedDefinition => ({
+    definition: revision.definition,
+    id: revision.id,
+    name: revision.name,
+    pinned,
+    revision: revision.revision,
+    sha256: revision.sha256,
+  });
+  if (link.sha256 === null || latest.revision.sha256 === link.sha256)
+    return linked(latest.revision, true);
+  const match = latest.history.find((entry) => entry.sha256 === link.sha256);
+  if (match === undefined) return linked(latest.revision, false);
+  return linked((await get(link.id, match.revision)).revision, true);
+};
+
+/**
+ * The stored series a definition link runs on. With a portfolio: the link symbol when it is a
+ * member with a stored series, else the first member with one, else an error. Without one: the
+ * link symbol's series; null keeps the form's series.
+ */
+export const definitionSeries = (
+  series: readonly InstantBacktestSeries[],
+  link: Pick<DefinitionLink, "symbol" | "timeframe">,
+  definition: StrategyDefinition
+):
+  | Readonly<{ series: InstantBacktestSeries }>
+  | Readonly<{ error: string }>
+  | null => {
+  const stored = (symbol: string | null) =>
+    series.find(
+      (entry) => entry.symbol === symbol && entry.timeframe === link.timeframe
+    );
+  const members: readonly string[] | undefined = definition.portfolio?.symbols;
+  if (members === undefined) {
+    const found = stored(link.symbol);
+    return found === undefined ? null : { series: found };
+  }
+  const candidates =
+    link.symbol !== null && members.includes(link.symbol)
+      ? [link.symbol, ...members]
+      : members;
+  for (const symbol of candidates) {
+    const found = stored(symbol);
+    if (found !== undefined) return { series: found };
+  }
+  return {
+    error: `No stored ${link.timeframe} series for the definition's symbols (${members.join(", ")}). Import bars for one of them first.`,
+  };
+};
+
+/** "Strategy definition: <id> revision 1 (sha 0123456789ab…), <name>." */
+export const describeLinkedDefinition = (linked: LinkedDefinition): string =>
+  `Strategy definition: ${linked.id} revision ${linked.revision} (sha ${linked.sha256.slice(0, 12)}…), ${linked.name}.${linked.pinned ? "" : " The linked SHA-256 is not a stored revision, so the latest revision is loaded."}`;
 
 /** Provenance sentence for the report footer. */
 export const describeRevision = (

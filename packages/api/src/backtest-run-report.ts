@@ -1,16 +1,28 @@
+import type { z } from "zod";
+
+import {
+  BACKTEST_RUN_TRADES_MAX,
+  type BacktestRunOptionsMetricsSchema,
+  type BacktestRunOptionsTradeSchema,
+  type OPTIONS_EXIT_REASONS,
+} from "./contracts/backtest-runs.ts";
+
 import {
   type BarColumns,
   downsampleIndexes,
   type InstantRunResult,
+  summarize,
 } from "./instant-backtest-engine.ts";
+import type { LedgerResult } from "./options-engine/index.ts";
 
 // Report for one backtest run: account-currency metrics, a chart-sized equity and drawdown series,
 // a chart-sized price series for trade replay and the trade list. The engine starts at equity 1;
 // every money value here is that value multiplied by the initial capital. Statistics always use the
-// full series; only the chart series are reduced. Research only; no order path.
+// full series; only the chart series are reduced. An options run (buildOptionsRunReport) has the
+// same report from the options ledger: money equity per day, its spreads as trades and the options
+// book result. Research only; no order path.
 
 const BACKTEST_RUN_CHART_MAX_POINTS = 2000;
-export const BACKTEST_RUN_TRADES_MAX = 5000;
 
 export type BacktestRunMetrics = Readonly<{
   initialDeposit: number;
@@ -69,7 +81,13 @@ export type BacktestRunReportTrade = Readonly<{
   units: number;
   pnl: number;
   netReturn: number;
-  exitReason: "signal" | "stop" | "target" | "end" | "sessionClose";
+  exitReason:
+    | "signal"
+    | "stop"
+    | "target"
+    | "end"
+    | "sessionClose"
+    | (typeof OPTIONS_EXIT_REASONS)[number];
   balanceAfter: number;
   /** Only with a cost profile: charges of both legs and the P&L before them, in money. */
   costs?: number;
@@ -96,6 +114,21 @@ export type BacktestRunReport = Readonly<{
   }>[];
   trades: readonly BacktestRunReportTrade[];
   tradesTruncated: boolean;
+  options?: BacktestRunOptionsReport;
+}>;
+
+export type BacktestRunOptionsMetrics = z.infer<
+  typeof BacktestRunOptionsMetricsSchema
+>;
+
+export type BacktestRunOptionsReport = Readonly<{
+  capital: number;
+  metrics: BacktestRunOptionsMetrics;
+  nautilusGap: number | null;
+  signals: Readonly<Record<string, number>>;
+  symbols: readonly string[];
+  trades: readonly z.infer<typeof BacktestRunOptionsTradeSchema>[];
+  tradesTruncated: boolean;
 }>;
 
 type DrawdownPass = Readonly<{
@@ -105,14 +138,14 @@ type DrawdownPass = Readonly<{
   drawdownPct: Float64Array;
 }>;
 
-const drawdownPass = (equity: Float64Array, capital: number): DrawdownPass => {
-  let peak = (equity[0] as number) * capital;
+/** Drawdown of a money equity series. */
+const drawdownPass = (values: Float64Array): DrawdownPass => {
+  let peak = values[0] as number;
   let lowest = peak;
   let maxDrawdownAbs = 0;
   let maxDrawdownPct = 0;
-  const drawdownPct = new Float64Array(equity.length);
-  for (const [index, unit] of equity.entries()) {
-    const value = unit * capital;
+  const drawdownPct = new Float64Array(values.length);
+  for (const [index, value] of values.entries()) {
     peak = Math.max(peak, value);
     lowest = Math.min(lowest, value);
     const drop = peak - value;
@@ -123,31 +156,30 @@ const drawdownPass = (equity: Float64Array, capital: number): DrawdownPass => {
   return { drawdownPct, lowest, maxDrawdownAbs, maxDrawdownPct };
 };
 
-type TradePass = Readonly<{
-  grossProfit: number;
+interface StreakPass {
   grossLoss: number;
-  profitTrades: number;
-  lossTrades: number;
-  largestProfit: number | null;
+  grossProfit: number;
   largestLoss: number | null;
-  maxConsecutiveWins: number;
+  largestProfit: number | null;
+  lossTrades: number;
   maxConsecutiveLosses: number;
   maxConsecutiveLossesMoney: number;
+  maxConsecutiveWins: number;
   maximalConsecutiveLoss: number;
   maximalConsecutiveLossCount: number;
-  trades: BacktestRunReportTrade[];
-}>;
+  profitTrades: number;
+}
 
-const tradePass = (
-  bars: BarColumns,
-  result: InstantRunResult,
-  capital: number
-): TradePass => {
-  const pass = {
+/**
+ * Profit, loss and streaks of the trades' money P&L in trade order. A loss streak counts
+ * consecutive trades with pnl < 0; a zero-pnl trade ends both streaks.
+ */
+const streakPass = (pnls: readonly number[]): StreakPass => {
+  const pass: StreakPass = {
     grossLoss: 0,
     grossProfit: 0,
-    largestLoss: null as number | null,
-    largestProfit: null as number | null,
+    largestLoss: null,
+    largestProfit: null,
     lossTrades: 0,
     maxConsecutiveLosses: 0,
     maxConsecutiveLossesMoney: 0,
@@ -155,15 +187,11 @@ const tradePass = (
     maximalConsecutiveLoss: 0,
     maximalConsecutiveLossCount: 0,
     profitTrades: 0,
-    trades: [] as BacktestRunReportTrade[],
   };
   let winStreak = 0;
   let lossStreak = 0;
   let lossStreakMoney = 0;
-  let balance = capital;
-  for (const [index, trade] of result.trades.entries()) {
-    const pnl = trade.pnl * capital;
-    balance += pnl;
+  for (const pnl of pnls) {
     winStreak = pnl > 0 ? winStreak + 1 : 0;
     lossStreak = pnl < 0 ? lossStreak + 1 : 0;
     lossStreakMoney = pnl < 0 ? lossStreakMoney + pnl : 0;
@@ -185,8 +213,23 @@ const tradePass = (
       pass.maximalConsecutiveLoss = lossStreakMoney;
       pass.maximalConsecutiveLossCount = lossStreak;
     }
-    if (index < BACKTEST_RUN_TRADES_MAX) {
-      pass.trades.push({
+  }
+  return pass;
+};
+
+/** The report trades of an engine run, at most BACKTEST_RUN_TRADES_MAX. */
+const reportTrades = (
+  bars: BarColumns,
+  result: InstantRunResult,
+  capital: number
+): BacktestRunReportTrade[] => {
+  let balance = capital;
+  return result.trades.flatMap((trade, index) => {
+    const pnl = trade.pnl * capital;
+    balance += pnl;
+    if (index >= BACKTEST_RUN_TRADES_MAX) return [];
+    return [
+      {
         balanceAfter: balance,
         entryPrice: trade.entryPrice,
         entryT: bars.t[trade.entryIndex] as number,
@@ -203,10 +246,66 @@ const tradePass = (
               costs: trade.costs.total * capital,
               grossPnl: (trade.pnl + trade.costs.total) * capital,
             }),
-      });
-    }
-  }
-  return pass;
+      },
+    ];
+  });
+};
+
+type MetricsInput = Readonly<{
+  capital: number;
+  equity: Float64Array;
+  drawdown: DrawdownPass;
+  streaks: StreakPass;
+  tradeCount: number;
+  stats: Pick<
+    BacktestRunMetrics,
+    "buyHoldReturn" | "cagr" | "exposure" | "sharpe" | "sortino" | "totalReturn"
+  >;
+}>;
+
+/** Account-currency metrics of a money equity series and its trades' streaks. */
+const reportMetrics = (input: MetricsInput): BacktestRunMetrics => {
+  const { capital, drawdown, stats, streaks, tradeCount } = input;
+  const finalEquity = input.equity.at(-1) as number;
+  const netProfit = finalEquity - capital;
+  return {
+    absoluteDrawdown: Math.max(0, capital - drawdown.lowest),
+    averageLossTrade:
+      streaks.lossTrades > 0 ? streaks.grossLoss / streaks.lossTrades : null,
+    averageProfitTrade:
+      streaks.profitTrades > 0
+        ? streaks.grossProfit / streaks.profitTrades
+        : null,
+    buyHoldReturn: stats.buyHoldReturn,
+    cagr: stats.cagr,
+    expectedPayoff: tradeCount > 0 ? netProfit / tradeCount : null,
+    exposure: stats.exposure,
+    finalEquity,
+    grossLoss: streaks.grossLoss,
+    grossProfit: streaks.grossProfit,
+    initialDeposit: capital,
+    largestLossTrade: streaks.largestLoss,
+    largestProfitTrade: streaks.largestProfit,
+    lossTrades: streaks.lossTrades,
+    maxConsecutiveLosses: streaks.maxConsecutiveLosses,
+    maxConsecutiveLossesMoney: streaks.maxConsecutiveLossesMoney,
+    maxConsecutiveWins: streaks.maxConsecutiveWins,
+    maxDrawdownAbs: drawdown.maxDrawdownAbs,
+    maxDrawdownPct: drawdown.maxDrawdownPct,
+    maximalConsecutiveLoss: streaks.maximalConsecutiveLoss,
+    maximalConsecutiveLossCount: streaks.maximalConsecutiveLossCount,
+    netProfit,
+    profitFactor:
+      streaks.grossLoss < 0 ? streaks.grossProfit / -streaks.grossLoss : null,
+    profitTrades: streaks.profitTrades,
+    recoveryFactor:
+      drawdown.maxDrawdownAbs > 0 ? netProfit / drawdown.maxDrawdownAbs : null,
+    sharpe: stats.sharpe,
+    sortino: stats.sortino,
+    totalReturn: stats.totalReturn,
+    totalTrades: tradeCount,
+    winRate: tradeCount > 0 ? streaks.profitTrades / tradeCount : null,
+  };
 };
 
 const costsOf = (
@@ -257,64 +356,40 @@ export const buildBacktestRunReport = (
   costProfile?: Readonly<{ id: string; label: string }>
 ): BacktestRunReport => {
   const size = result.equity.length;
-  const drawdown = drawdownPass(result.equity, initialCapital);
-  const trades = tradePass(bars, result, initialCapital);
+  const equity = result.equity.map((unit) => unit * initialCapital);
+  const drawdown = drawdownPass(equity);
   const tradeCount = result.trades.length;
-  const finalEquity = (result.equity[size - 1] as number) * initialCapital;
-  const netProfit = finalEquity - initialCapital;
+  const metrics = reportMetrics({
+    capital: initialCapital,
+    drawdown,
+    equity,
+    stats: result.stats,
+    streaks: streakPass(
+      result.trades.map((trade) => trade.pnl * initialCapital)
+    ),
+    tradeCount,
+  });
   const chartIndexes = downsampleIndexes(size, BACKTEST_RUN_CHART_MAX_POINTS);
   return {
     bars: size,
     ...(costProfile === undefined
       ? {}
-      : { costs: costsOf(result, initialCapital, costProfile, netProfit) }),
+      : {
+          costs: costsOf(
+            result,
+            initialCapital,
+            costProfile,
+            metrics.netProfit
+          ),
+        }),
     equity: chartIndexes.map((index) => ({
       drawdownPct: drawdown.drawdownPct[index] as number,
-      equity: (result.equity[index] as number) * initialCapital,
+      equity: equity[index] as number,
       t: bars.t[index] as number,
     })),
     firstT: bars.t[0] as number,
     lastT: bars.t[size - 1] as number,
-    metrics: {
-      absoluteDrawdown: Math.max(0, initialCapital - drawdown.lowest),
-      averageLossTrade:
-        trades.lossTrades > 0 ? trades.grossLoss / trades.lossTrades : null,
-      averageProfitTrade:
-        trades.profitTrades > 0
-          ? trades.grossProfit / trades.profitTrades
-          : null,
-      buyHoldReturn: result.stats.buyHoldReturn,
-      cagr: result.stats.cagr,
-      expectedPayoff: tradeCount > 0 ? netProfit / tradeCount : null,
-      exposure: result.stats.exposure,
-      finalEquity,
-      grossLoss: trades.grossLoss,
-      grossProfit: trades.grossProfit,
-      initialDeposit: initialCapital,
-      largestLossTrade: trades.largestLoss,
-      largestProfitTrade: trades.largestProfit,
-      lossTrades: trades.lossTrades,
-      maxConsecutiveLosses: trades.maxConsecutiveLosses,
-      maxConsecutiveLossesMoney: trades.maxConsecutiveLossesMoney,
-      maxConsecutiveWins: trades.maxConsecutiveWins,
-      maxDrawdownAbs: drawdown.maxDrawdownAbs,
-      maxDrawdownPct: drawdown.maxDrawdownPct,
-      maximalConsecutiveLoss: trades.maximalConsecutiveLoss,
-      maximalConsecutiveLossCount: trades.maximalConsecutiveLossCount,
-      netProfit,
-      profitFactor:
-        trades.grossLoss < 0 ? trades.grossProfit / -trades.grossLoss : null,
-      profitTrades: trades.profitTrades,
-      recoveryFactor:
-        drawdown.maxDrawdownAbs > 0
-          ? netProfit / drawdown.maxDrawdownAbs
-          : null,
-      sharpe: result.stats.sharpe,
-      sortino: result.stats.sortino,
-      totalReturn: result.stats.totalReturn,
-      totalTrades: tradeCount,
-      winRate: tradeCount > 0 ? trades.profitTrades / tradeCount : null,
-    },
+    metrics,
     prices: chartIndexes.map((index) => ({
       c: bars.c[index] as number,
       h: bars.h[index] as number,
@@ -322,7 +397,124 @@ export const buildBacktestRunReport = (
       o: bars.o[index] as number,
       t: bars.t[index] as number,
     })),
-    trades: trades.trades,
+    trades: reportTrades(bars, result, initialCapital),
+    tradesTruncated: tradeCount > BACKTEST_RUN_TRADES_MAX,
+  };
+};
+
+/** UTC midnight in ms of a YYYY-MM-DD date. */
+const dateMs = (date: string): number => Date.parse(`${date}T00:00:00.000Z`);
+
+export type OptionsRunReportInput = Readonly<{
+  /**
+   * Daily bars of the run symbol; the report prices are the bars on the ledger dates (by UTC
+   * date) and buy and hold compares their first and last close.
+   */
+  bars: BarColumns;
+  /** The options ledger in money (dates, equity, trades); `capital` is its starting cash. */
+  ledger: Pick<LedgerResult, "capital" | "dates" | "equity" | "trades">;
+  metrics: BacktestRunOptionsMetrics;
+  nautilusGap: number | null;
+  signals: Readonly<Record<string, number>>;
+  symbols: readonly string[];
+}>;
+
+/**
+ * Builds the report of an options run from its ledger: daily money equity and drawdown, the
+ * account metrics (total return, CAGR, Sharpe and exposure as the options metrics compute them;
+ * Sortino from the daily equity), the spreads as trades (units = contracts, prices per contract,
+ * netReturn = return on risk, balanceAfter = the ledger equity at the exit date) and `options`,
+ * the options book result.
+ */
+export const buildOptionsRunReport = (
+  input: OptionsRunReportInput
+): BacktestRunReport => {
+  const { ledger, metrics } = input;
+  const capital = ledger.capital;
+  const times = Float64Array.from(ledger.dates, dateMs);
+  const size = times.length;
+  const equity = Float64Array.from(ledger.equity);
+  const drawdown = drawdownPass(equity);
+  const unit = equity.map((value) => value / capital);
+  const ratios = summarize(
+    { c: unit, h: unit, l: unit, o: unit, t: times },
+    unit,
+    [],
+    0
+  );
+  const days = new Set(ledger.dates);
+  const { bars } = input;
+  // Bars on the ledger dates: [bar index, UTC midnight of its date].
+  const priced = Array.from(bars.t, (t, index): [number, number] => {
+    const day = new Date(t).toISOString().slice(0, 10);
+    return [days.has(day) ? index : -1, dateMs(day)];
+  }).filter(([index]) => index >= 0);
+  const firstClose = bars.c[priced[0]?.[0] ?? 0] as number;
+  const lastClose = bars.c[priced.at(-1)?.[0] ?? 0] as number;
+  const equityAt = new Map(
+    ledger.dates.map((date, index) => [date, ledger.equity[index] as number])
+  );
+  const tradeCount = ledger.trades.length;
+  const chartIndexes = downsampleIndexes(size, BACKTEST_RUN_CHART_MAX_POINTS);
+  return {
+    bars: size,
+    equity: chartIndexes.map((index) => ({
+      drawdownPct: drawdown.drawdownPct[index] as number,
+      equity: equity[index] as number,
+      t: times[index] as number,
+    })),
+    firstT: times[0] as number,
+    lastT: times[size - 1] as number,
+    metrics: reportMetrics({
+      capital,
+      drawdown,
+      equity,
+      stats: {
+        buyHoldReturn: priced.length > 1 ? lastClose / firstClose - 1 : 0,
+        cagr: metrics.cagr,
+        exposure: metrics.exposure,
+        sharpe: metrics.sharpe,
+        sortino: ratios.sortino,
+        totalReturn: metrics.totalReturn,
+      },
+      streaks: streakPass(ledger.trades.map((trade) => trade.pnl)),
+      tradeCount,
+    }),
+    options: {
+      capital,
+      metrics,
+      nautilusGap: input.nautilusGap,
+      signals: input.signals,
+      symbols: input.symbols,
+      trades: ledger.trades.slice(0, BACKTEST_RUN_TRADES_MAX),
+      tradesTruncated: tradeCount > BACKTEST_RUN_TRADES_MAX,
+    },
+    prices: downsampleIndexes(priced.length, BACKTEST_RUN_CHART_MAX_POINTS).map(
+      (position) => {
+        const [index, t] = priced[position] as [number, number];
+        return {
+          c: bars.c[index] as number,
+          h: bars.h[index] as number,
+          l: bars.l[index] as number,
+          o: bars.o[index] as number,
+          t,
+        };
+      }
+    ),
+    trades: ledger.trades
+      .slice(0, BACKTEST_RUN_TRADES_MAX)
+      .map((trade, index) => ({
+        balanceAfter: equityAt.get(trade.exitDate) as number,
+        entryPrice: trade.entryPrice,
+        entryT: dateMs(trade.entryDate),
+        exitPrice: trade.exitPrice,
+        exitReason: trade.exitReason,
+        exitT: dateMs(trade.exitDate),
+        n: index + 1,
+        netReturn: trade.returnOnRisk,
+        pnl: trade.pnl,
+        units: trade.contracts,
+      })),
     tradesTruncated: tradeCount > BACKTEST_RUN_TRADES_MAX,
   };
 };

@@ -83,13 +83,13 @@ describe("0062_strategy_catalog_market_intraday_momentum", () => {
     ]);
   });
 
-  it("is journaled after the LD34 catalog row", () => {
+  it("is journaled after the QC port definitions", () => {
     const index = journal.entries.findIndex(
       (entry) => entry.tag === "0062_strategy_catalog_market_intraday_momentum"
     );
     expect(index).toBeGreaterThan(0);
     return expect(journal.entries[index - 1]?.tag).toBe(
-      "0059_strategy_catalog_ld34"
+      "0061_qc_port_definitions"
     );
   });
 

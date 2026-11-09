@@ -4,11 +4,18 @@ import type {
   MarketBarColumns,
   MarketBarSeries,
   MarketBarsRepository,
+  MarketDailyColumns,
+  MarketDailySeriesRepository,
 } from "@darkfactory/db/server";
+import { marketDailyBars } from "@darkfactory/db/server";
 import { implement } from "@orpc/server";
 
 import { COST_PROFILE_PRESETS } from "../backtest-costs.ts";
-import { buildBacktestRunReport } from "../backtest-run-report.ts";
+import {
+  type BacktestRunReport,
+  buildBacktestRunReport,
+  buildOptionsRunReport,
+} from "../backtest-run-report.ts";
 import {
   type BacktestSweepGrid,
   runBacktestSweep,
@@ -44,11 +51,18 @@ import {
 } from "../engine-comparison.ts";
 import {
   InstantBacktestInputError,
-  type InstantRunResult,
   runInstantBacktest,
 } from "../instant-backtest-engine.ts";
+import {
+  optionsDatasetFromRows,
+  optionsRunMetrics,
+  type OptionsRunOutcome,
+  runOptionsDefinition,
+} from "../options-engine/portfolio.ts";
 import { ComboInputError, combinePortfolio } from "../portfolio-combination.ts";
 import {
+  STRATEGY_IV_INDEX,
+  type StrategyDefinition,
   StrategyDefinitionSchema,
   serverStrategyRefusal,
 } from "../strategy-dsl.ts";
@@ -65,6 +79,13 @@ import {
   loadSectorQuadrants,
   type SectorQuadrantSource,
 } from "./sector-quadrant-series.ts";
+import {
+  type LoadedStrategySeries,
+  loadStrategySeries,
+  runInputsSha256,
+  type StrategySeriesLoader,
+  strategySeriesInput,
+} from "./strategy-series.ts";
 
 // Backtest run procedures. submit stores a queued run. With the TypeScript engine (the default of
 // VERTEX_BACKTEST_RUNS_ENGINE) it schedules the execution on the request's tracked background
@@ -75,7 +96,9 @@ import {
 // Nautilus run that waited longer than the same limit while no worker claimed any Nautilus run
 // (a busy worker does not fail its backlog). The claim is a conditional update, so
 // a run executes at most once. sweep runs a parameter grid in the request after a cells x bars
-// budget check and stores nothing. Research only; no order path.
+// budget check and stores nothing. Definitions that read daily series run with the series store
+// rows (strategy-series.ts); options definitions run in the options runner (options-engine) on
+// those rows. Research only; no order path.
 
 const BACKTEST_RUN_STALE_MS = 10 * 60 * 1000;
 export const NAUTILUS_UNCLAIMED_ERROR =
@@ -95,14 +118,130 @@ export type BacktestRunExecutionDependencies = Readonly<{
   marketBars: MarketBarsRepository;
   /** Stored sector rotation points for definitions with sector filters. */
   sectorRotation?: SectorQuadrantSource;
+  /** Daily series store for definitions that read series and for options definitions. */
+  marketDailySeries?: MarketDailySeriesRepository;
 }>;
+
+/** What backtest runs load: the options runner and the daily series. */
+const BACKTEST_RUN_SUPPORT = { options: true, series: true } as const;
+
+/**
+ * Why a backtest run spec cannot run an options definition, or undefined: the options book has its
+ * own costs and exits, so the run-level costs, stop and target must be off, and the run symbol
+ * must be one the book trades (a portfolio member, else a symbol with an IV index).
+ */
+const optionsSpecProblem = (
+  spec: Readonly<{
+    costBps: number;
+    costProfile?: unknown;
+    stopLossPct: number;
+    symbol: string;
+    takeProfitPct: number;
+  }>,
+  definition: StrategyDefinition
+): string | undefined => {
+  if (spec.costBps !== 0 || spec.costProfile !== undefined)
+    return "Options definitions charge the options book costs; set costBps to 0 and leave out costProfile.";
+  if (spec.stopLossPct !== 0 || spec.takeProfitPct !== 0)
+    return "Options definitions exit by the options block; set stopLossPct and takeProfitPct to 0.";
+  const members: readonly string[] | undefined = definition.portfolio?.symbols;
+  if (members !== undefined && !members.includes(spec.symbol))
+    return `The run symbol ${spec.symbol} is not in the portfolio symbols (${members.join(", ")}).`;
+  if (members === undefined && STRATEGY_IV_INDEX[spec.symbol] === undefined)
+    return `Options definitions trade ${Object.keys(STRATEGY_IV_INDEX).sort().join(", ")}; ${spec.symbol} has no IV index.`;
+  return undefined;
+};
+
+/**
+ * Throws StrategyUnsupportedError or InstantBacktestInputError when a stored run cannot run its
+ * definition (queued before the submit check, or written past it): refuse rather than run it half.
+ */
+const assertRunnableDefinition = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition
+): void => {
+  assertServerRunnable(definition, spec.timeframe, BACKTEST_RUN_SUPPORT);
+  const problem =
+    definition.options === undefined
+      ? undefined
+      : optionsSpecProblem(spec, definition);
+  if (problem !== undefined) throw new InstantBacktestInputError(problem);
+};
+
+export type OptionsRun = Readonly<{
+  outcome: OptionsRunOutcome;
+  metrics: ReturnType<typeof optionsRunMetrics>;
+}>;
+
+/**
+ * Runs an options definition on its loaded store rows (TypeScript options runner: from `from` to
+ * `to` with the run capital and symbol). An error of the runner (missing data, a ledger it cannot
+ * book) becomes an input error with the runner's message, so the run fails with it.
+ */
+export const runOptionsOnRows = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  loaded: LoadedStrategySeries
+): OptionsRun => {
+  try {
+    const outcome = runOptionsDefinition(
+      definition,
+      optionsDatasetFromRows(Object.fromEntries(loaded.rows)),
+      {
+        capital: spec.initialCapital,
+        end: spec.to,
+        start: spec.from,
+        symbol: spec.symbol,
+      }
+    );
+    return { metrics: optionsRunMetrics(outcome), outcome };
+  } catch (error) {
+    // A code error is not the data's: it keeps its type (the run gets the generic message).
+    if (error instanceof TypeError || error instanceof RangeError) throw error;
+    throw new InstantBacktestInputError(
+      `Options run failed: ${(error as Error).message}`
+    );
+  }
+};
+
+/** The report of an options run; `nautilusGap` is null for the TypeScript engine. */
+export const optionsRunReport = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  bars: MarketBarColumns,
+  run: OptionsRun,
+  nautilusGap: number | null
+): BacktestRunReport =>
+  buildOptionsRunReport({
+    bars,
+    ledger: run.outcome.result,
+    metrics: run.metrics,
+    nautilusGap,
+    signals: run.outcome.signals,
+    symbols: definition.portfolio?.symbols ?? [spec.symbol],
+  });
+
+/** Runs an options definition on its loaded store rows and builds the report (TypeScript engine). */
+export const runOptionsBacktest = (
+  spec: BacktestRunRecord["spec"],
+  definition: StrategyDefinition,
+  bars: MarketBarColumns,
+  loaded: LoadedStrategySeries
+): BacktestRunReport =>
+  optionsRunReport(
+    spec,
+    definition,
+    bars,
+    runOptionsOnRows(spec, definition, loaded),
+    null
+  );
 
 export type LoadedRunBars =
   | Readonly<{ bars: MarketBarColumns; series: MarketBarSeries }>
   | Readonly<{ error: string }>;
 
 /** The stored bars of the run's date range, or the error message for the run. */
-export const loadRunBars = async (
+const loadRunBars = async (
   marketBars: MarketBarsRepository,
   spec: BacktestRunRecord["spec"]
 ): Promise<LoadedRunBars> => {
@@ -118,50 +257,167 @@ export const loadRunBars = async (
   return { bars, series };
 };
 
+/** The bars of an options run: the store row of the run symbol (bar rules), from `from` to `to`. */
+export const optionsRunBars = (
+  row: MarketDailyColumns,
+  spec: Pick<BacktestRunRecord["spec"], "from" | "to">
+): MarketBarColumns => {
+  const bars = marketDailyBars(row);
+  const keep = bars.dates.flatMap((date, index) =>
+    date >= spec.from && date <= spec.to ? [index] : []
+  );
+  const column = (values: readonly number[]) =>
+    Float64Array.from(keep, (index) => values[index] as number);
+  return {
+    c: column(bars.close),
+    h: column(bars.high),
+    l: column(bars.low),
+    o: column(bars.open),
+    t: Float64Array.from(keep, (index) =>
+      Date.parse(`${bars.dates[index] as string}T00:00:00.000Z`)
+    ),
+  };
+};
+
+/** What a run reads: its bars, definition, daily series rows and the hash of them. */
+export type RunData = Readonly<{
+  bars: MarketBarColumns;
+  /** The market_bars series of the run; null for options runs (bars from the series store). */
+  series: MarketBarSeries | null;
+  definition: StrategyDefinition | undefined;
+  /** The daily series rows the definition reads; null when it reads none. */
+  daily: LoadedStrategySeries | null;
+  /** Hash of the bars and of the rows (runInputsSha256); options runs: the rows hash. */
+  seriesSha256: string;
+}>;
+
+/**
+ * Loads what a run reads, or the error message for the run. Equity runs read market_bars; an
+ * options run reads the series store only (its bars are the run symbol's store row). With
+ * `check`, a definition the run cannot run throws (StrategyUnsupportedError or an input error);
+ * a missing series throws StrategySeriesDataError. `loadSeries` replaces the run's own series load
+ * (a batch claim loads the store once for all its runs).
+ */
+export const loadRunData = async (
+  dependencies: BacktestRunExecutionDependencies,
+  spec: BacktestRunRecord["spec"],
+  check: boolean,
+  loadSeries?: StrategySeriesLoader
+): Promise<RunData | Readonly<{ error: string }>> => {
+  const definition =
+    spec.rule.kind === "dsl"
+      ? StrategyDefinitionSchema.parse(spec.rule.definition)
+      : undefined;
+  if (definition !== undefined && check)
+    assertRunnableDefinition(spec, definition);
+  const loadDaily = async () =>
+    definition === undefined
+      ? null
+      : loadSeries === undefined
+        ? await loadStrategySeries(
+            dependencies.marketDailySeries,
+            definition,
+            spec.symbol,
+            spec.to
+          )
+        : await loadSeries(definition, spec.symbol, spec.to);
+  if (definition?.options !== undefined) {
+    // An options definition always reads store rows, the run symbol's row among them.
+    const daily = (await loadDaily()) as LoadedStrategySeries;
+    const bars = optionsRunBars(
+      daily.rows.get(spec.symbol) as MarketDailyColumns,
+      spec
+    );
+    if (bars.t.length < 2)
+      return {
+        error: `Fewer than 2 daily series bars for ${spec.symbol} between ${spec.from} and ${spec.to}`,
+      };
+    return {
+      bars,
+      daily,
+      definition,
+      series: null,
+      seriesSha256: daily.sha256,
+    };
+  }
+  const loaded = await loadRunBars(dependencies.marketBars, spec);
+  if ("error" in loaded) return loaded;
+  const daily = await loadDaily();
+  return {
+    bars: loaded.bars,
+    daily,
+    definition,
+    series: loaded.series,
+    seriesSha256: await runInputsSha256(
+      loaded.series.sourceSha256,
+      daily?.sha256 ?? null
+    ),
+  };
+};
+
 const executeClaimed = async (
   dependencies: BacktestRunExecutionDependencies,
   run: BacktestRunRecord
 ): Promise<void> => {
   const { spec } = run;
-  const loaded = await loadRunBars(dependencies.marketBars, spec);
+  const loaded = await loadRunData(dependencies, spec, true);
   if ("error" in loaded) {
     await dependencies.runs.fail(run.id, loaded.error);
     return;
   }
-  const { bars, series } = loaded;
+  const { bars, daily, definition, seriesSha256 } = loaded;
   const costs = costsForSpec(spec);
-  const { rule } = spec;
   // A definition rule carries its own stop, target and sizing; the run-level stop and target
   // apply to the fixed rules only.
-  let result: InstantRunResult;
-  if (rule.kind === "dsl") {
-    const definition = StrategyDefinitionSchema.parse(rule.definition);
-    // Queued before the submit check, or written past it: refuse rather than run it half.
-    assertServerRunnable(definition, spec.timeframe);
-    const sectorQuadrants = await loadSectorQuadrants(
-      dependencies.sectorRotation,
+  if (definition === undefined) {
+    const result = runInstantBacktest(bars, runParamsForSpec(spec));
+    await dependencies.runs.complete(run.id, {
+      ...buildBacktestRunReport(
+        bars,
+        result,
+        spec.initialCapital,
+        costs?.profile
+      ),
+      seriesSha256,
+    });
+    return;
+  }
+  if (definition.options !== undefined) {
+    const report = runOptionsBacktest(
+      spec,
       definition,
-      bars.t[0] as number
-    );
-    result = runStrategyDefinition(
       bars,
-      definition,
-      spec.costBps,
-      costs,
-      sectorQuadrants,
-      spec.timeframe
+      daily as LoadedStrategySeries
     );
-  } else result = runInstantBacktest(bars, runParamsForSpec(spec));
-  const report = {
+    await dependencies.runs.complete(run.id, { ...report, seriesSha256 });
+    return;
+  }
+  const sectorQuadrants = await loadSectorQuadrants(
+    dependencies.sectorRotation,
+    definition,
+    bars.t[0] as number
+  );
+  const result = runStrategyDefinition(
+    bars,
+    definition,
+    spec.costBps,
+    costs,
+    sectorQuadrants,
+    spec.timeframe,
+    BACKTEST_RUN_SUPPORT,
+    daily === null
+      ? undefined
+      : strategySeriesInput(definition, spec.symbol, daily.rows)
+  );
+  await dependencies.runs.complete(run.id, {
     ...buildBacktestRunReport(
       bars,
       result,
       spec.initialCapital,
       costs?.profile
     ),
-    seriesSha256: series.sourceSha256,
-  };
-  await dependencies.runs.complete(run.id, report);
+    seriesSha256,
+  });
 };
 
 /**
@@ -209,6 +465,7 @@ export const dependenciesFor = (
   const {
     backtestRuns: runs,
     marketBars,
+    marketDailySeries,
     sectorRotation,
   } = context.repositories;
   if (runs === undefined || marketBars === undefined)
@@ -216,6 +473,7 @@ export const dependenciesFor = (
   return {
     marketBars,
     runs,
+    ...(marketDailySeries === undefined ? {} : { marketDailySeries }),
     ...(sectorRotation === undefined ? {} : { sectorRotation }),
   };
 };
@@ -238,14 +496,22 @@ const submit = api.backtestRuns.submit
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
-    // The server engines cannot run an options block or series filters: refuse before queueing.
+    // Backtest runs load the daily series and run options blocks (1d only); an options run has
+    // the book's own costs and exits. Refuse what cannot run before queueing.
     if (input.rule.kind === "dsl") {
+      const { definition } = input.rule;
       const refusal = serverStrategyRefusal(
-        input.rule.definition,
-        input.timeframe
+        definition,
+        input.timeframe,
+        BACKTEST_RUN_SUPPORT
       );
-      if (refusal !== undefined)
-        throw failures.VALIDATION_ERROR({ message: refusal.message });
+      const problem =
+        refusal?.message ??
+        (definition.options === undefined
+          ? undefined
+          : optionsSpecProblem(input, definition));
+      if (problem !== undefined)
+        throw failures.VALIDATION_ERROR({ message: problem });
     }
     const dependencies = dependenciesFor(context, failures);
     const { costProfile, strategyId, ...rest } = input;

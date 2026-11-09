@@ -248,6 +248,32 @@ export {
   marketBarSeriesId,
 } from "./market-bars.ts";
 export type {
+  MarketDailyColumns,
+  MarketDailyPoint,
+  MarketDailyRange,
+  MarketDailySeries,
+  MarketDailySeriesInput,
+  MarketDailySeriesRepository,
+} from "./market-daily-series.ts";
+export {
+  createMarketDailySeriesRepository,
+  isMarketDailyDate,
+  MARKET_DAILY_SERIES_ID_PATTERN,
+  MarketDailySeriesInputError,
+  validateMarketDailySeries,
+} from "./market-daily-series.ts";
+export type {
+  MarketDailyBars,
+  MarketDailyViews,
+} from "./market-daily-views.ts";
+export {
+  createMarketDailyViews,
+  marketDailyBars,
+  marketDailyCloses,
+  marketDailyTotalReturn,
+  TOTAL_RETURN_SUFFIX,
+} from "./market-daily-views.ts";
+export type {
   ResearchCatalogImport,
   ResearchCategoryInput,
   ResearchCompanyResearchInput,

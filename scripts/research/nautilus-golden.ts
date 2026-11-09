@@ -18,6 +18,7 @@ import {
 } from "../../packages/api/src/backtest-costs.ts";
 import {
   type BarColumns,
+  InstantBacktestInputError,
   type InstantRule,
   type InstantRunResult,
   type InstantTrade,
@@ -30,14 +31,18 @@ import {
 import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
+  type StrategyExprInput,
+  StrategyExprSchema,
   type StrategyIntraday,
+  type StrategyServerSupport,
   type StrategySessionIndicatorExpr,
+  serverStrategyRefusal,
 } from "../../packages/api/src/strategy-dsl.ts";
 import {
   averageDirectionalIndex,
   averageTrueRange,
-  type CompiledStrategy,
   compileStrategy,
+  evaluateStrategyExpression,
   exponentialMean,
   intradaySessions,
   nyseHolidays,
@@ -48,7 +53,8 @@ import {
   runStrategyDefinition,
   type SectorQuadrantSeries,
   type StrategySeriesContext,
-  type StrategyUnsupportedError,
+  type StrategySeriesInput,
+  StrategyUnsupportedError,
   sessionIndicatorSeries,
   volTargetLeverage,
 } from "../../packages/api/src/strategy-dsl-compile.ts";
@@ -870,6 +876,38 @@ const calendarBars = (): BarColumns => {
   return toBars(columns);
 };
 
+/** Month-end bars (the last weekday of each month, October 2014 to December 2016). */
+const monthlyBars = (): BarColumns => {
+  const random = randomFrom(23);
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  const weekdays = calendarDates("2014-10-01", "2016-12-31");
+  let price = 190;
+  weekdays.forEach((date, index) => {
+    const next = weekdays[index + 1];
+    if (next !== undefined && next.slice(0, 7) === date.slice(0, 7)) return;
+    const open = price;
+    const close = open * (1 + (random() - 0.48) * 0.08);
+    columns.t.push(Date.parse(`${date}T00:00:00Z`));
+    columns.o.push(open);
+    columns.h.push(Math.max(open, close) * 1.01);
+    columns.l.push(Math.min(open, close) * 0.99);
+    columns.c.push(close);
+    columns.v.push(20_000_000);
+    price = close;
+  });
+  return toBars(columns);
+};
+
+/**
+ * Trading calendars of StrategySeriesInput.calendar: every weekday (holidays included, so the carry
+ * counts more dates than the bars have), and 2015 only (the 2016 SPY bars are missing from it).
+ */
+type CalendarName = "weekdays" | "weekdays2015";
+const calendars = (): Record<CalendarName, string[]> => ({
+  weekdays: calendarDates("2014-10-01", "2016-12-31"),
+  weekdays2015: calendarDates("2015-01-01", "2015-12-31"),
+});
+
 type SeriesJson = Record<string, Record<string, number | null>>;
 
 /**
@@ -937,6 +975,12 @@ const seriesContext = (): SeriesJson => {
       (index) => index % 7 === 3
     ),
     SPY: record(weekdays, walk(weekdays, 13, 200, 1.6, 0), () => false),
+    // Total-return close of SPY ($tr), missing every 11th weekday.
+    "SPY:TR": record(
+      weekdays,
+      walk(weekdays, 17, 180, 1.4, 0),
+      (index) => index % 11 === 5
+    ),
     VIX: {
       ...record(weekdays, vix, (index) => index % 41 === 7),
       [weekdays[100] as string]: null,
@@ -1160,6 +1204,659 @@ const qcDefinitions: {
   },
 ];
 
+// Expression trees (strategy-dsl.ts StrategyExprSchema): one value per bar each.
+const priceExpr = (
+  field: "open" | "high" | "low" | "close",
+  offset?: number
+) => ({
+  field,
+  type: "price" as const,
+  ...(offset === undefined ? {} : { offset }),
+});
+const constant = (value: number) => ({ type: "const" as const, value });
+const indicator = (name: "sma" | "atr" | "ema", length: number) => ({
+  length,
+  name,
+  type: "indicator" as const,
+});
+const seriesOf = (series: string, offset?: number): StrategyExprInput =>
+  ({
+    series,
+    type: "series",
+    ...(offset === undefined ? {} : { offset }),
+  }) as StrategyExprInput;
+const math = (
+  op: "add" | "sub" | "mul" | "div",
+  left: StrategyExprInput,
+  right: StrategyExprInput
+): StrategyExprInput => ({ left, op, right, type: "math" });
+const change = (
+  of: StrategyExprInput,
+  length: number,
+  offset?: number
+): StrategyExprInput => ({
+  length,
+  of,
+  type: "change",
+  ...(offset === undefined ? {} : { offset }),
+});
+
+type ExprCase = Readonly<{
+  calendar?: CalendarName;
+  dataset: string;
+  expr: StrategyExprInput;
+  id: string;
+  symbol?: string;
+}>;
+
+/** evaluateStrategyExpression (TS) and expression_values (Python) cases. */
+const exprCases: readonly ExprCase[] = [
+  { dataset: "SPY", expr: seriesOf("VIX"), id: "series:VIX" },
+  { dataset: "SPY", expr: seriesOf("VIX", 3), id: "series:VIX:offset3" },
+  { dataset: "SPY", expr: seriesOf("$tr"), id: "series:$tr", symbol: "SPY" },
+  { dataset: "QQQ", expr: seriesOf("$iv"), id: "series:$iv", symbol: "QQQ" },
+  {
+    dataset: "SPY",
+    expr: seriesOf("$future", 1),
+    id: "series:$future:offset1",
+    symbol: "SPY",
+  },
+  // Intraday bars read the values dated before the bar date; GC=F misses every 7th weekday.
+  { dataset: "intraday", expr: seriesOf("GC=F"), id: "series:GC=F:intraday" },
+  // CL=F has a 12-weekday gap: the carry ends after 5 dates.
+  { dataset: "SPY", expr: seriesOf("CL=F"), id: "series:CL=F:gap" },
+  {
+    dataset: "SPY",
+    expr: math(
+      "div",
+      math("sub", priceExpr("close"), indicator("sma", 20)),
+      indicator("atr", 14)
+    ),
+    id: "math:nested",
+  },
+  {
+    dataset: "SPY",
+    expr: math("mul", seriesOf("VIX"), constant(0.01)),
+    id: "math:mul:series",
+  },
+  {
+    dataset: "SPY",
+    expr: math(
+      "add",
+      priceExpr("open", 2),
+      math("sub", priceExpr("high"), priceExpr("low"))
+    ),
+    id: "math:add:offset",
+  },
+  // Division by zero is not finite: NaN on every bar.
+  {
+    dataset: "SPY",
+    expr: math(
+      "div",
+      priceExpr("close"),
+      math("sub", priceExpr("close"), priceExpr("close"))
+    ),
+    id: "math:div:zero",
+  },
+  { dataset: "SPY", expr: change(priceExpr("close"), 5), id: "change:5" },
+  {
+    dataset: "SPY",
+    expr: change(priceExpr("close"), 5, 2),
+    id: "change:5:offset2",
+  },
+  { dataset: "SPY", expr: change(seriesOf("CL=F"), 3), id: "change:CL=F" },
+  {
+    dataset: "SPY",
+    expr: change(math("sub", priceExpr("close"), priceExpr("close")), 1),
+    id: "change:zero",
+  },
+  {
+    dataset: "SPY",
+    expr: { length: 20, of: priceExpr("close"), type: "returnStdev" },
+    id: "returnStdev:20",
+  },
+  {
+    dataset: "SPY",
+    expr: { length: 5, of: seriesOf("GC=F"), type: "returnStdev" },
+    id: "returnStdev:GC=F",
+  },
+  {
+    dataset: "SPY",
+    expr: {
+      lag: 1,
+      length: 20,
+      type: "regression",
+      x: change(seriesOf("$future"), 1),
+      y: change(priceExpr("close"), 1),
+    },
+    id: "regression:lag1",
+    symbol: "SPY",
+  },
+  // A flat x window has no slope: NaN.
+  {
+    dataset: "SPY",
+    expr: {
+      lag: 0,
+      length: 10,
+      type: "regression",
+      x: constant(1),
+      y: priceExpr("close"),
+    },
+    id: "regression:flat",
+  },
+  {
+    dataset: "SPY",
+    expr: {
+      lag: 0,
+      length: 30,
+      type: "regression",
+      x: indicator("ema", 10),
+      y: priceExpr("close"),
+    },
+    id: "regression:lag0",
+  },
+  {
+    dataset: "monthly",
+    expr: {
+      minCount: 1,
+      monthsAhead: 1,
+      of: change(priceExpr("close"), 1),
+      type: "seasonal",
+    },
+    id: "seasonal:monthsAhead1",
+  },
+  {
+    dataset: "SPY",
+    expr: {
+      minCount: 2,
+      monthsAhead: 0,
+      of: change(priceExpr("close"), 1),
+      type: "seasonal",
+    },
+    id: "seasonal:daily",
+  },
+  // Monthly bars: without a calendar the carry counts month ends; with one it counts weekdays.
+  { dataset: "monthly", expr: seriesOf("CL=F"), id: "calendar:none:CL=F" },
+  {
+    calendar: "weekdays",
+    dataset: "monthly",
+    expr: seriesOf("CL=F"),
+    id: "calendar:weekdays:CL=F",
+  },
+  {
+    calendar: "weekdays",
+    dataset: "monthly",
+    expr: seriesOf("$tr", 1),
+    id: "calendar:weekdays:$tr",
+    symbol: "SPY",
+  },
+  {
+    calendar: "weekdays",
+    dataset: "SPY",
+    expr: seriesOf("GC=F"),
+    id: "calendar:weekdays:daily",
+  },
+  // Input errors: Python raises InputError with the same message.
+  { dataset: "monthly", expr: seriesOf("$iv"), id: "error:noSymbol" },
+  {
+    dataset: "SPY",
+    expr: seriesOf("$future"),
+    id: "error:unmapped",
+    symbol: "XLK",
+  },
+  { dataset: "QQQ", expr: seriesOf("$tr"), id: "error:missing", symbol: "QQQ" },
+  {
+    calendar: "weekdays2015",
+    dataset: "SPY",
+    expr: seriesOf("VIX"),
+    id: "error:calendar",
+  },
+];
+
+const exprCondition = (
+  left: StrategyExprInput,
+  op: string,
+  right: StrategyExprInput
+) => ({ left, op, right });
+
+type ExprDefinition = Readonly<{
+  calendar?: CalendarName;
+  definition: Json;
+  id: string;
+  /** Dataset key (the bars). */
+  symbol: string;
+  /** Traded symbol of the series input, when it is not the dataset key. */
+  seriesSymbol?: string;
+}>;
+
+/** Compiled definitions with expression trees, relative refs and calendars. */
+const exprDefinitions: readonly ExprDefinition[] = [
+  {
+    definition: {
+      entry: {
+        all: [
+          exprCondition(
+            math(
+              "div",
+              math("sub", priceExpr("close"), indicator("sma", 20)),
+              indicator("atr", 14)
+            ),
+            "crossesAbove",
+            constant(0.5)
+          ),
+        ],
+      },
+      exit: {
+        any: [
+          exprCondition(
+            math("sub", priceExpr("close"), indicator("sma", 20)),
+            "<",
+            constant(0)
+          ),
+        ],
+      },
+      name: "ATR-scaled distance",
+      version: 1,
+    },
+    id: "expr:math",
+    symbol: "SPY",
+  },
+  {
+    definition: {
+      entry: {
+        all: [
+          exprCondition(
+            change(seriesOf("$tr"), 20),
+            ">",
+            change(seriesOf("$future"), 20)
+          ),
+        ],
+      },
+      exit: {
+        any: [
+          exprCondition(change(seriesOf("$tr"), 5, 1), "<", constant(-0.02)),
+        ],
+      },
+      filters: [
+        {
+          condition: exprCondition(
+            priceExpr("close"),
+            "<",
+            indicator("sma", 50)
+          ),
+          series: "$iv",
+          type: "series",
+        },
+      ],
+      name: "Total return beats the future, IV below trend",
+      version: 1,
+    },
+    id: "expr:refs",
+    symbol: "SPY",
+  },
+  {
+    definition: {
+      entry: {
+        all: [
+          exprCondition(change(priceExpr("close"), 1), "<", {
+            lag: 1,
+            length: 20,
+            type: "regression",
+            x: change(seriesOf("ES=F"), 1),
+            y: change(priceExpr("close"), 1),
+          }),
+        ],
+      },
+      exit: {
+        any: [
+          exprCondition(
+            { length: 20, of: priceExpr("close"), type: "returnStdev" },
+            ">",
+            constant(0.012)
+          ),
+        ],
+      },
+      name: "Regression on the lagged future",
+      version: 1,
+    },
+    id: "expr:regression",
+    symbol: "QQQ",
+  },
+  {
+    definition: {
+      entry: {
+        all: [
+          exprCondition(
+            {
+              minCount: 1,
+              monthsAhead: 1,
+              of: change(priceExpr("close"), 1),
+              type: "seasonal",
+            } as StrategyExprInput,
+            ">",
+            constant(0)
+          ),
+        ],
+      },
+      name: "Seasonal month ahead",
+      version: 1,
+    },
+    id: "expr:seasonal",
+    symbol: "monthly",
+  },
+  // Month-end bars: CL=F has a 12-weekday gap, carried 5 weekdays on the calendar but 5 month ends
+  // without it.
+  ...([undefined, "weekdays"] as const).map((calendar) => ({
+    ...(calendar === undefined ? {} : { calendar }),
+    definition: {
+      entry: { all: [exprCondition(seriesOf("CL=F"), ">", constant(0))] },
+      exit: {
+        any: [
+          exprCondition(
+            {
+              minCount: 1,
+              monthsAhead: 1,
+              of: change(priceExpr("close"), 1),
+              type: "seasonal",
+            } as StrategyExprInput,
+            "<",
+            constant(0)
+          ),
+        ],
+      },
+      name: "Oil quoted at the month end",
+      version: 1,
+    },
+    id: `expr:calendar:${calendar ?? "none"}`,
+    symbol: "monthly",
+  })),
+  {
+    calendar: "weekdays",
+    definition: {
+      entry: {
+        all: [exprCondition(seriesOf("$tr", 1), "<", seriesOf("$tr"))],
+      },
+      filters: [{ length: 20, max: 60, type: "ivRank" }],
+      name: "Refs on month ends",
+      version: 1,
+    },
+    id: "expr:refs:calendar",
+    seriesSymbol: "SPY",
+    symbol: "monthly",
+  },
+  {
+    definition: {
+      entry: { all: [exprCondition(seriesOf("$iv"), ">", constant(15))] },
+      name: "IV ref of a symbol without an IV index",
+      version: 1,
+    },
+    id: "expr:error:unmapped",
+    symbol: "monthly",
+  },
+  {
+    definition: {
+      entry: { all: [always] },
+      filters: [
+        {
+          condition: exprCondition(priceExpr("close"), ">", constant(0)),
+          series: "$tr",
+          type: "series",
+        },
+      ],
+      name: "Missing total return",
+      version: 1,
+    },
+    id: "expr:error:missing",
+    symbol: "QQQ",
+  },
+  {
+    calendar: "weekdays2015",
+    definition: {
+      entry: { all: [exprCondition(seriesOf("VIX"), "<", constant(20))] },
+      name: "Calendar without the 2016 bars",
+      version: 1,
+    },
+    id: "expr:error:calendar",
+    symbol: "SPY",
+  },
+  {
+    // The options runner gets the options and portfolio blocks back unchanged.
+    definition: {
+      entry: { all: [always] },
+      name: "Roll portfolio",
+      options: {
+        dte: { min: 21, target: 30 },
+        maxLossPct: 1,
+        structure: "callDebitVertical",
+        widthSigma: 0.5,
+      },
+      portfolio: {
+        frame: "monthly",
+        policy: "roll",
+        select: {
+          score: change(seriesOf("$tr"), 1),
+          tieBreak: seriesOf("$iv"),
+          top: 2,
+        },
+        symbols: ["SPY", "QQQ", "GLD"],
+      },
+      version: 1,
+    },
+    id: "expr:portfolio",
+    symbol: "SPY",
+  },
+  {
+    // Defaulted fields come back with their defaults: indicator source close (leg condition,
+    // selection score), ivRank length and sectorQuadrant timeframe on a leg filter.
+    definition: {
+      entry: { all: [always] },
+      name: "Portfolio defaults",
+      options: {
+        dte: { min: 21, target: 30 },
+        maxLossPct: 1,
+        structure: "callDebitVertical",
+        widthSigma: 0.5,
+      },
+      portfolio: {
+        legs: [
+          {
+            entry: {
+              all: [
+                exprCondition(priceExpr("close"), ">", indicator("sma", 5)),
+              ],
+            },
+            filters: [
+              { max: 40, type: "ivRank" },
+              { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+            ],
+            options: {
+              dte: { min: 21, target: 30 },
+              maxLossPct: 1,
+              structure: "callDebitVertical",
+              widthSigma: 0.5,
+            },
+          },
+        ],
+        policy: "roll",
+        select: {
+          score: math("sub", priceExpr("close"), indicator("ema", 3)),
+          top: 1,
+        },
+        symbols: ["SPY", "QQQ"],
+      },
+      version: 1,
+    },
+    id: "expr:portfolioDefaults",
+    symbol: "SPY",
+  },
+];
+
+type RefusalCase = Readonly<{
+  definition: Json;
+  id: string;
+  support?: StrategyServerSupport;
+  timeframe?: string;
+}>;
+
+const OPTIONS_BLOCK = {
+  dte: { min: 21, target: 45 },
+  maxLossPct: 2,
+  shortDelta: 0.2,
+  structure: "putCreditVertical",
+  widthSigma: 0.5,
+};
+const seriesEntry = {
+  entry: { all: [exprCondition(seriesOf("$tr"), ">", indicator("sma", 20))] },
+  name: "Series expression",
+  version: 1,
+};
+const seriesRead = exprCondition(priceExpr("close"), "<", seriesOf("VIX"));
+const calendarEntry = {
+  entry: { all: [always] },
+  filters: [{ type: "calendarWindow", window: "opexWeek" }],
+  name: "Opex",
+  version: 1,
+};
+const ivEntry = {
+  ...seriesEntry,
+  filters: [
+    { length: 60, min: 30, type: "ivRank" },
+    { type: "calendarWindow", window: "opexWeek" },
+  ],
+};
+
+/** serverStrategyRefusal (TS) and server_refusal (Python) with the support flags. */
+const refusalCases: readonly RefusalCase[] = [
+  {
+    definition: { ...seriesEntry, options: OPTIONS_BLOCK },
+    id: "options:none",
+  },
+  {
+    definition: { ...seriesEntry, options: OPTIONS_BLOCK },
+    id: "options:series",
+    support: { series: true },
+  },
+  {
+    definition: { ...seriesEntry, options: OPTIONS_BLOCK },
+    id: "options:intraday",
+    support: { options: true, series: true },
+    timeframe: "1h",
+  },
+  {
+    definition: { ...seriesEntry, options: OPTIONS_BLOCK },
+    id: "options:noSeries",
+    support: { options: true },
+    timeframe: "1d",
+  },
+  {
+    definition: { ...seriesEntry, options: OPTIONS_BLOCK },
+    id: "options:all",
+    support: { options: true, series: true },
+    timeframe: "1d",
+  },
+  { definition: seriesEntry, id: "expressions:none" },
+  {
+    // entry.any and exit.any read series too.
+    definition: {
+      ...calendarEntry,
+      entry: { all: [always], any: [always, seriesRead] },
+    },
+    id: "expressions:entryAny",
+  },
+  {
+    definition: { ...calendarEntry, exit: { any: [seriesRead] } },
+    id: "expressions:exitAny",
+  },
+  {
+    definition: {
+      ...calendarEntry,
+      options: OPTIONS_BLOCK,
+      portfolio: {
+        legs: [
+          {
+            entry: { all: [always] },
+            exit: { any: [seriesRead] },
+            options: OPTIONS_BLOCK,
+          },
+        ],
+        policy: "roll",
+        symbols: ["SPY"],
+      },
+    },
+    id: "portfolio:legExitSeries",
+    support: { options: true },
+    timeframe: "1d",
+  },
+  {
+    definition: seriesEntry,
+    id: "expressions:series",
+    support: { series: true },
+  },
+  { definition: ivEntry, id: "filters:none", support: { options: true } },
+  {
+    definition: ivEntry,
+    id: "filters:series:intraday",
+    support: { series: true },
+    timeframe: "5m",
+  },
+  {
+    definition: calendarEntry,
+    id: "calendar:daily",
+    timeframe: "1w",
+  },
+  {
+    definition: {
+      ...calendarEntry,
+      options: OPTIONS_BLOCK,
+      portfolio: {
+        cadence: "daily",
+        legs: [
+          {
+            entry: { all: [always] },
+            filters: [
+              {
+                condition: exprCondition(priceExpr("close"), "<", constant(20)),
+                series: "VIX",
+                type: "series",
+              },
+            ],
+            options: OPTIONS_BLOCK,
+          },
+        ],
+        policy: "flat",
+        symbols: ["SPY"],
+      },
+    },
+    id: "portfolio:legSeries",
+    support: { options: true },
+  },
+  {
+    definition: {
+      entry: { all: [always] },
+      name: "Select",
+      options: OPTIONS_BLOCK,
+      portfolio: {
+        policy: "roll",
+        select: { score: change(seriesOf("$tr"), 3), top: 1 },
+        symbols: ["SPY", "QQQ"],
+      },
+      version: 1,
+    },
+    id: "portfolio:select",
+    support: { options: true },
+  },
+  {
+    definition: {
+      ...calendarEntry,
+      options: OPTIONS_BLOCK,
+      portfolio: { policy: "window", shift: 2, symbols: ["SPY"] },
+    },
+    id: "portfolio:shift",
+    support: { options: true },
+    timeframe: "1d",
+  },
+];
+
 // 3. Fixed rules.
 const RULES: { id: string; rule: InstantRule }[] = [
   { id: "smaCross-10-30", rule: SMA_CROSS },
@@ -1350,60 +2047,95 @@ const buildIndicators = (
 ];
 
 /** 2. Compiled DSL definitions. */
+/** The series input of a case: the context, the traded symbol and the named calendar. */
+const seriesInputOf = (
+  series: SeriesJson,
+  symbol: string | undefined,
+  calendar: CalendarName | undefined
+): StrategySeriesInput => ({
+  context: series as StrategySeriesContext,
+  ...(symbol === undefined ? {} : { symbol }),
+  ...(calendar === undefined ? {} : { calendar: calendars()[calendar] }),
+});
+
+/**
+ * Runs `build`. A refusal or an input error is part of the contract (Python refuses with the same
+ * code and message, or raises the same message); any other error is a bug and is thrown again.
+ */
+export const orCaseError = <T>(
+  build: () => T
+): T | { error: string } | { refused: { code: string; message: string } } => {
+  try {
+    return build();
+  } catch (error) {
+    if (error instanceof StrategyUnsupportedError) {
+      const { code, message } = error;
+      return { refused: { code, message } };
+    }
+    if (error instanceof InstantBacktestInputError)
+      return { error: error.message };
+    throw error;
+  }
+};
+
+/** JSON of a compiled strategy (Float64Array columns as lists). */
+const compiledToJson = (compiled: ReturnType<typeof compileStrategy>) => ({
+  exits: Array.from(compiled.exits),
+  signals: Array.from(compiled.signals),
+  stopDistance:
+    compiled.stopDistance === undefined ? null : list(compiled.stopDistance),
+  targetDistance:
+    compiled.targetDistance === undefined
+      ? null
+      : list(compiled.targetDistance),
+  ...(compiled.options === undefined ? {} : { options: compiled.options }),
+  ...(compiled.portfolio === undefined
+    ? {}
+    : { portfolio: compiled.portfolio }),
+  ...(compiled.management === undefined
+    ? {}
+    : {
+        management: {
+          ...compiled.management,
+          ...(compiled.management.trail === undefined
+            ? {}
+            : {
+                trail: {
+                  ...compiled.management.trail,
+                  atr: list(compiled.management.trail.atr),
+                },
+              }),
+        },
+      }),
+  ...(compiled.closeAt === undefined
+    ? {}
+    : { closeAt: Array.from(compiled.closeAt) }),
+  ...(compiled.leverage === undefined
+    ? {}
+    : { leverage: list(compiled.leverage) }),
+});
+
 const buildCompiled = (
   datasets: Record<string, BarColumns>,
   libraryDefinitions: readonly Readonly<{ definition: Json; id: string }>[],
   series: SeriesJson
 ): Json[] => {
-  const compiledJson = (definition: Json, symbol: string) => {
+  const compiledJson = (
+    definition: Json,
+    symbol: string,
+    seriesSymbol = symbol,
+    calendar?: CalendarName
+  ) => {
     const parsed = StrategyDefinitionSchema.parse(definition);
-    let compiled: CompiledStrategy;
-    try {
-      compiled = compileStrategy(
+    return orCaseError(() => {
+      const compiled = compileStrategy(
         datasets[symbol] as BarColumns,
         parsed,
         sectorQuadrants,
-        { context: series as StrategySeriesContext, symbol }
+        seriesInputOf(series, seriesSymbol, calendar)
       );
-    } catch (error) {
-      // A refusal is part of the contract: Python must refuse with the same code and message.
-      const { code, message } = error as StrategyUnsupportedError;
-      return { refused: { code, message } };
-    }
-    return {
-      exits: Array.from(compiled.exits),
-      signals: Array.from(compiled.signals),
-      stopDistance:
-        compiled.stopDistance === undefined
-          ? null
-          : list(compiled.stopDistance),
-      targetDistance:
-        compiled.targetDistance === undefined
-          ? null
-          : list(compiled.targetDistance),
-      ...(compiled.options === undefined ? {} : { options: compiled.options }),
-      ...(compiled.management === undefined
-        ? {}
-        : {
-            management: {
-              ...compiled.management,
-              ...(compiled.management.trail === undefined
-                ? {}
-                : {
-                    trail: {
-                      ...compiled.management.trail,
-                      atr: list(compiled.management.trail.atr),
-                    },
-                  }),
-            },
-          }),
-      ...(compiled.closeAt === undefined
-        ? {}
-        : { closeAt: Array.from(compiled.closeAt) }),
-      ...(compiled.leverage === undefined
-        ? {}
-        : { leverage: list(compiled.leverage) }),
-    };
+      return compiledToJson(compiled);
+    });
   };
 
   const compiled: Json[] = [];
@@ -1453,9 +2185,64 @@ const buildCompiled = (
       ...compiledJson(definition, symbol),
     });
   }
+  for (const {
+    calendar,
+    definition,
+    id,
+    seriesSymbol,
+    symbol,
+  } of exprDefinitions) {
+    compiled.push({
+      ...(calendar === undefined ? {} : { calendar }),
+      definition,
+      id,
+      ...(seriesSymbol === undefined ? {} : { seriesSymbol }),
+      symbol,
+      ...compiledJson(definition, symbol, seriesSymbol ?? symbol, calendar),
+    });
+  }
 
   return compiled;
 };
+
+/** 2b. Expression values (evaluateStrategyExpression / expression_values). */
+const buildExpressions = (
+  datasets: Record<string, BarColumns>,
+  series: SeriesJson
+): Json[] =>
+  exprCases.map(({ calendar, dataset, expr, id, symbol }) => ({
+    ...(calendar === undefined ? {} : { calendar }),
+    dataset,
+    expr,
+    id,
+    ...(symbol === undefined ? {} : { symbol }),
+    ...orCaseError(() => ({
+      values: list(
+        evaluateStrategyExpression(
+          datasets[dataset] as BarColumns,
+          StrategyExprSchema.parse(expr),
+          seriesInputOf(series, symbol, calendar)
+        )
+      ),
+    })),
+  }));
+
+/** 2c. Server refusals with the support flags (serverStrategyRefusal / server_refusal). */
+const buildServerRefusals = (): Json[] =>
+  refusalCases.map(({ definition, id, support, timeframe }) => {
+    const refusal = serverStrategyRefusal(
+      StrategyDefinitionSchema.parse(definition),
+      timeframe,
+      support
+    );
+    return {
+      definition,
+      id,
+      refusal: refusal ?? null,
+      ...(support === undefined ? {} : { support }),
+      ...(timeframe === undefined ? {} : { timeframe }),
+    };
+  });
 
 /** 3. Fixed-rule signals. */
 const buildFixedRules = (datasets: Record<string, BarColumns>): Json[] => {
@@ -1858,7 +2645,11 @@ const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
     ["qc:calendar:opexWeek", "intraday"],
     // Daily bars, but a known intraday timeframe: refused by the timeframe, not the spacing.
     ["qc:calendar:opexWeek", "SPY", "1m"],
-  ].map(([id, symbol, timeframe]) => {
+    // The equity engine refuses options whatever the support flags say.
+    ["qc:options:putCredit", "SPY", "1d", { options: true, series: true }],
+    // Series support: the next refusal is the calendar filter on an intraday timeframe.
+    ["qc:calendar:opexTrend", "SPY", "5m", { series: true }],
+  ].map(([id, symbol, timeframe, support]) => {
     const definition = qcDefinitions.find((entry) => entry.id === id)
       ?.definition as Json;
     try {
@@ -1868,7 +2659,8 @@ const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
         10,
         undefined,
         sectorQuadrants,
-        timeframe
+        timeframe as string | undefined,
+        support as StrategyServerSupport | undefined
       );
       return { id, ran: true };
     } catch (error) {
@@ -1880,6 +2672,7 @@ const buildEngineRefusals = (datasets: Record<string, BarColumns>): Json[] =>
         message,
         symbol,
         ...(timeframe === undefined ? {} : { timeframe }),
+        ...(support === undefined ? {} : { support }),
       };
     }
   });
@@ -1894,6 +2687,7 @@ const buildGolden = (io: GoldenIo): string => {
     gap: gapBars(),
     hourly: hourlyBars(),
     intraday,
+    monthly: monthlyBars(),
     QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),
     SPY: readCsv(csv("SPY-1d.csv"), BAR_COUNT),
     session: sessionBars(),
@@ -1920,20 +2714,25 @@ const buildGolden = (io: GoldenIo): string => {
   // Runs last: the engine cases add the gap-case bars to `datasets`.
   const engine = buildEngine(datasets, libraryDefinitions);
   const engineRefusals = buildEngineRefusals(datasets);
+  const expressions = buildExpressions(datasets, series);
+  const serverRefusals = buildServerRefusals();
   const golden = {
     barCount: BAR_COUNT,
     bars: Object.fromEntries(
       Object.entries(datasets).map(([key, bars]) => [key, barsJson(bars)])
     ),
+    calendars: calendars(),
     compiled,
     costs,
     engine,
     engineRefusals,
+    expressions,
     fixedRules,
     indicators,
     nyseHolidays: holidayDates(),
     sectorQuadrants,
     series,
+    serverRefusals,
     sessionIndicators: buildSessionIndicators(datasets),
   };
 

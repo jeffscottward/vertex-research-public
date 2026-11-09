@@ -490,13 +490,19 @@ const call = async (
     : undefined;
 };
 
-/** The batch request of one engine process: the shared bars and its runs as cases on their slices. */
+/**
+ * The batch request of one engine process: the shared bars, its runs as cases on their slices and
+ * the daily series rows of the batch (definitions that read series; options definitions run on
+ * the rows in the options runner).
+ */
 export const batchRequest = (
   bars: ClaimedBatch["bars"],
-  runs: readonly BatchRun[]
+  runs: readonly BatchRun[],
+  series?: ClaimedBatch["series"]
 ): string =>
   JSON.stringify({
     bars,
+    ...(series === null || series === undefined ? {} : { series }),
     cases: runs.map((run) => ({
       id: run.id,
       slice: [run.first, run.end],
@@ -521,7 +527,10 @@ export const splitRuns = <T>(runs: readonly T[], parts: number): T[][] => {
   );
 };
 
-/** `batch - -` prints one result or input error per case and the process usage. */
+/**
+ * `batch - -` prints one result or input error per case and the process usage. A result is the
+ * equity engine result or the options runner document (kind "options"); the API validates both.
+ */
 const BatchOutputSchema = z.object({
   engine: z.string(),
   results: z.array(
@@ -529,11 +538,26 @@ const BatchOutputSchema = z.object({
       error: z.string().optional(),
       id: z.string(),
       result: z
-        .object({
-          equity: z.unknown(),
-          stats: z.unknown(),
-          trades: z.unknown(),
-        })
+        .union([
+          z.object({
+            bookSkipped: z.unknown(),
+            capital: z.unknown(),
+            dates: z.unknown(),
+            equity: z.unknown(),
+            kind: z.literal("options"),
+            metrics: z.unknown(),
+            nautilusGap: z.unknown(),
+            openPositions: z.unknown(),
+            signals: z.unknown(),
+            skipped: z.unknown(),
+            trades: z.unknown(),
+          }),
+          z.object({
+            equity: z.unknown(),
+            stats: z.unknown(),
+            trades: z.unknown(),
+          }),
+        ])
         .optional(),
       wallMs: z.number(),
     })
@@ -628,12 +652,13 @@ export const readBatchOutput = (
           wallMs: entry.wallMs,
         },
         id: run.id,
-        // The API validates the result shape (BacktestRunEngineResultSchema).
+        // The API validates the result shape (BacktestRunEngineAnyResultSchema).
         result: entry.result as Extract<
           BacktestRunEngineCompleteItem,
           { result: unknown }
         >["result"],
-        seriesSha256: context.seriesSha256,
+        // A run that reads daily series has its own hash (bars and rows).
+        seriesSha256: run.seriesSha256 ?? context.seriesSha256,
       };
     if (entry?.error !== undefined)
       return {
@@ -810,7 +835,7 @@ const runPart = async (
     ["-m", "nautilus_backtest", "batch", "-", "-"],
     {
       cwd: io.researchDir,
-      input: batchRequest(batch.bars, part),
+      input: batchRequest(batch.bars, part, batch.series),
       signal: io.signal,
       timeoutMs: NAUTILUS_RUN_TIMEOUT_MS,
     }

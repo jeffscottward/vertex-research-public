@@ -33,6 +33,7 @@ class SeriesDataError(InputError):
 
 
 STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED"
+STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED = "STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED"
 STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
 STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
 STRATEGY_INTRADAY_DAILY_UNSUPPORTED = "STRATEGY_INTRADAY_DAILY_UNSUPPORTED"
@@ -48,20 +49,30 @@ class StrategyUnsupportedError(InputError):
 
 
 def options_unsupported() -> StrategyUnsupportedError:
-    """TS STRATEGY_OPTIONS_REFUSAL: the options block runs only in the options research runner."""
+    """TS STRATEGY_OPTIONS_REFUSAL: this path does not run options blocks."""
     return StrategyUnsupportedError(
         STRATEGY_OPTIONS_UNSUPPORTED,
-        f"{STRATEGY_OPTIONS_UNSUPPORTED}: the options block runs only in the options research"
-        ' runner; an equity backtest refuses it. Remove "options" to test the underlying signals.',
+        f"{STRATEGY_OPTIONS_UNSUPPORTED}: the options block runs in backtest runs and the options"
+        " research runner only; paper hand-off, Autopilot and the instant tools refuse it (no"
+        ' orders). Remove "options" to test the underlying signals here.',
     )
 
 
-def series_filters_unsupported(types: Sequence[str]) -> StrategyUnsupportedError:
-    """TS serverStrategyRefusal for series filters (types in first-use order, no repeats)."""
+def options_timeframe_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_OPTIONS_TIMEFRAME_REFUSAL: options definitions run on daily bars only."""
+    return StrategyUnsupportedError(
+        STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED,
+        f"{STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED}: options definitions run on daily bars (1d)"
+        " only.",
+    )
+
+
+def series_filters_unsupported(what: str) -> StrategyUnsupportedError:
+    """TS serverStrategyRefusal for series reads; `what` names the filters or the expressions."""
     return StrategyUnsupportedError(
         STRATEGY_SERIES_FILTERS_UNSUPPORTED,
-        f"{STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the {', '.join(types)} filters need daily series"
-        " that the server does not load; only the research runners pass them. sectorQuadrant and"
+        f"{STRATEGY_SERIES_FILTERS_UNSUPPORTED}: {what} need daily series that this path does not"
+        " load; backtest runs and the research runners load them. sectorQuadrant and"
         " calendarWindow filters work here.",
     )
 

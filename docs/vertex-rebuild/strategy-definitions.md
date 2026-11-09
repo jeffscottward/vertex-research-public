@@ -155,6 +155,31 @@ LD34 (nested Donchian long-only breakout) enters when the close breaks above any
 
 The full definition repeats both conditions for 50, 100 and 200 days (eight `entry.any` conditions).
 
+### Series and arithmetic expressions
+
+These expressions read daily series and combine other expressions. They nest (at most 6 levels, at most 40 expression nodes in one condition or one selection score). A value that is not finite (for example a division by 0) is not available.
+
+| Expression | Value on bar t |
+| --- | --- |
+| `{ "type": "series", "series": <id or ref>, "offset": 0..1000 (optional) }` | The series value on the bar (the latest value dated on or before the bar date, carried at most 5 bar dates, as the `series` filter aligns), `offset` bars ago. |
+| `{ "type": "math", "op": "add" \| "sub" \| "mul" \| "div", "left": <expr>, "right": <expr> }` | left op right. |
+| `{ "type": "change", "of": <expr>, "length": 1..1000, "offset": 0..1000 (optional) }` | of[t − offset] / of[t − offset − length] − 1. |
+| `{ "type": "returnStdev", "of": <expr>, "length": 2..1000 }` | Sample standard deviation (n − 1) of the last `length` one-bar simple returns of `of`. Needs all `length + 1` values. |
+| `{ "type": "regression", "y": <expr>, "x": <expr>, "length": 3..1000, "lag": 0..1000 }` | Forecast a0 + a1 × x[t], from the least-squares fit of y[s] on x[s − lag] over s = t − length + 1 … t. Needs every pair and x[t]; not available when x is flat. |
+| `{ "type": "seasonal", "of": <expr>, "monthsAhead": 0..11, "minCount": 1..1000 }` | Mean of the values of `of` at bar t and earlier bars whose calendar month is `monthsAhead` months after the month of bar t. Not available with fewer than `minCount` values. |
+
+Series ids are the ids of the `series` filter (below) plus `$tr`, `$iv` and `$future`, which name a series of the traded symbol: its total-return close (`SPY:TR` for SPY), its implied-volatility index (VIX for SPY) and its futures twin (ES=F for SPY). Price and indicator expressions read the bars of the frame (see [Portfolio block](#portfolio-block)). A `series` filter condition cannot use these expressions; it reads one series close.
+
+Example, the futures trend of qc-futures-trend-carry, T = (F_t / F_t−252 − 1) / (σ × √252), σ the sample deviation of the last 252 daily returns of the futures twin F:
+
+```json
+{ "type": "math", "op": "div",
+  "left": { "type": "change", "of": { "type": "series", "series": "$future" }, "length": 252 },
+  "right": { "type": "math", "op": "mul",
+    "left": { "type": "returnStdev", "of": { "type": "series", "series": "$future" }, "length": 252 },
+    "right": { "type": "const", "value": 15.874507866387544 } } }
+```
+
 ## Entry filters
 
 A filter gates entries only: the entry signal needs every entry condition and every filter; exit conditions still close a position on any bar. `filters`, the filter fields marked optional and `options` have no default, so a definition without them keeps the same canonical JSON and revision (pinned in `strategy-dsl.test.ts`).
@@ -204,30 +229,72 @@ Look-ahead: a daily value is known after its close. Daily bars (signal at the cl
 | `exitDte` | Optional, 0 to 400 and below `dte.min`: close when DTE ≤ `exitDte`. |
 | `maxLossPct` | Above 0 and at most 2: contracts = floor(`maxLossPct`% of equity / max loss per contract). Above 2 is refused. |
 
-With `options`, `sizing` must be `allIn` (or omitted) and `stopLoss` and `takeProfit` must be `none`: the options block sizes and exits the spread. The compiler still produces the entry and exit signal arrays, and `CompiledStrategy.options` (Python `Compiled.options`) is the block unchanged for the options runner, which turns signal bars into spreads. The equity engine run of such a definition is the underlying signal run, not the option P&L.
+With `options`, `sizing` must be `allIn` (or omitted) and `stopLoss` and `takeProfit` must be `none`: the options block sizes and exits the spread. The compiler still produces the entry and exit signal arrays, and `CompiledStrategy.options` and `.portfolio` (Python `Compiled.options`, `.portfolio`) are the blocks unchanged for the options runner, which turns signal bars into spreads.
+
+### The options runner
+
+One runner, written twice with the same arithmetic: `packages/api/src/options-engine` (TypeScript, the instant engine of backtest runs) and `services/research/strategies/qc_ports` (Python: `portfolio.run_definition`, booked again in NautilusTrader 1.227.0 by the Nautilus worker). Golden fixtures pin TypeScript to Python.
+
+- Pricing: Black-Scholes-Merton with a dividend yield per symbol, the risk-free rate from IRX, and an ATM implied volatility from the symbol's volatility index (0.9 × VIX, VXN, VXD, RVX; 0.95 × GVZ, OVX, VXSLV) with a per-symbol skew. Expiries are the standard monthly expiries; strikes are on a 1-dollar grid (0.5 below 25 dollars).
+- Costs: 0.65 dollars per contract and leg plus half the bid-ask spread (a per-symbol percent of the mid, at least 1 cent), on entry and exit. A spread held to expiry settles at its payoff value without exit cost.
+- Sizing: contracts = floor(`maxLossPct`% of equity / max loss per contract), where the max loss includes the entry cost and the worst exit cost, and at most what the cash pays for.
+- A signal at bar i opens the spread at the close of bar i + 1. Exits, checked at each close: expiry, a missing IV index (after 5 trading days), `exitDte`, the profit take, the exit signal (one bar after it), the end of the data.
+- The ledger books every amount in cents and marks equity on each SPY trading date from the run start. Metrics: total return, CAGR, Sharpe (daily, × √252), the probabilistic Sharpe (deflated Sharpe with one trial), max drawdown, worst month, trades, win rate, exposure, skipped trades, the largest open risk and the stale-IV exits.
+
+## Portfolio block
+
+```json
+{
+  "symbols": ["SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO"],
+  "policy": "roll",
+  "frame": "monthly",
+  "select": { "score": <expr>, "tieBreak": <expr>, "top": 2 },
+  "legs": [ { "entry": { "all": [...] }, "exit": { "any": [...] }, "filters": [...], "options": {...} } ]
+}
+```
+
+An options definition may name the symbols it trades and how it turns signals into spreads. Without the block it trades the run symbol with the `flat` policy on every bar.
+
+| Field | Meaning |
+| --- | --- |
+| `symbols` | 1 to 7 Core 7 ETFs (each has an IV index and a futures twin), no repeats. The order is the order of the run legs and the last tie-break of `select`. |
+| `policy` | `roll`: at each month-end bar where the leg enters, one spread that closes at the next month-end. `flat`: one open spread per run leg; a candidate bar opens a spread only when the last one has closed; the exit is the first later bar where an exit condition holds. `window`: one spread per run of entry bars, opened after the first bar and closed after the last. |
+| `cadence` | Required with `flat` and only there: `daily` (every bar) or `monthEnd` (month-end bars) are the candidate bars. |
+| `frame` | Optional, `roll` only: `monthly` compiles the conditions on month-end bars whose open, high, low and close are the total-return close. Lengths and offsets count months. Series are aligned on the daily bars first (5 trading days at most) and then read at the month-end. These bars have no range and no volume, so `atr`, `adx` and `rvol` are refused anywhere in the definition. |
+| `shift` | Optional, `window` only, 1 to 5: reads the window that many bars ahead. Allowed only when every leg has the entry `close > 0`, no exit and calendarWindow filters only (the trading calendar is known in advance). |
+| `select` | Optional, `roll` only: on each month-end, among the members whose leg enters and whose `score` (and `tieBreak`) is available, the `top` with the highest score are kept (then the highest tieBreak, then the symbol order). |
+| `legs` | Optional, 1 to 3 more legs (entry, exit, filters, options) on every symbol, after the definition's own leg. |
+
+A month-end bar is the last bar of each calendar month of the symbol's bars; the month of the last bar is not complete and has none. A member joins at its first bar with an IV index value; signals before it, or before the run start, are ignored. Each (leg, symbol) is one run leg; trade ids follow the entry date, then the run leg (leg by leg, symbol by symbol), then the entry bar.
+
+The 11 QuantConnect idea ports are portfolio definitions ([qc ports](../specs/strategies/), `services/research/strategies/qc_ports/ideas.py`); their run A definitions are stored as `qc-<idea>` definitions.
 
 ## Where definitions run
 
-The server engines run equity strategies and load sector points only. `serverStrategyRefusal` (`strategy-dsl.ts`) names what they cannot run, and every server path refuses it rather than ignoring it:
+`serverStrategyRefusal` (`strategy-dsl.ts`) names what a server path cannot run with what it loads (`support`: `options`, `series`), and every server path refuses it rather than ignoring it:
 
 | Code | Refused |
 | --- | --- |
-| `STRATEGY_OPTIONS_UNSUPPORTED` | A definition with an `options` block. The block runs only in the options research runner. |
-| `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter (no series loader on the server). `sectorQuadrant` and `calendarWindow` filters are allowed. |
+| `STRATEGY_OPTIONS_UNSUPPORTED` | A definition with an `options` block, on a path without the options runner (paper hand-off, Autopilot, the instant tools). |
+| `STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED` | An `options` block on any timeframe except `1d`. |
+| `STRATEGY_SERIES_FILTERS_UNSUPPORTED` | An `ivRank`, `vixTermStructure`, `volRegime` or `series` filter or a series expression (in `entry.all`, `entry.any`, `exit.any`, a portfolio leg or the portfolio selection), on a path without the series loader. `sectorQuadrant` and `calendarWindow` filters are allowed everywhere. |
 | `STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED` | A `calendarWindow` filter on an intraday timeframe (every timeframe except `1d` and `1w`). |
 | `STRATEGY_INTRADAY_DAILY_UNSUPPORTED` | An `intraday` block on a daily timeframe (`1d`, `1w`). Without a known timeframe `compileStrategy` / `compile_strategy` refuse it when the bars have no two bars on one New York date. |
 | `STRATEGY_INTRADAY_GRID_MISALIGNED` | An `intraday` block time (`open`, `close`, `entryFrom`, `entryTo`, a `sessionReturn` `HH:MM` time) or `decisionEvery` that is not a whole multiple of the bar duration. |
 
-| Path | Refusal |
-| --- | --- |
-| `backtestRuns.submit` (portal, assistant and MCP `backtest_runs_submit`) | `VALIDATION_ERROR` (422) with the code in the message; nothing is queued. |
-| Queued run on the server engine, Nautilus worker claim (single or batch) | The run fails with the refusal message (a row written past the submit check); a batch claim goes on to the next run. |
-| `autopilot.campaigns.create` filters | `VALIDATION_ERROR`; no campaign is stored. A stored campaign with such filters (or calendar filters on an intraday timeframe) fails on its next tick before breeding. |
-| `autopilot.candidates.sendToPaper` | `VALIDATION_ERROR` before any write. |
-| `autopilot.candidates.get` | The tearsheet shows, but `nautilus` (the paper config) is null for a refused definition. |
-| `runStrategyDefinition` (TypeScript) and `plan_run` (Python Nautilus engine) | Always `StrategyUnsupportedError`, whatever data is passed: code `STRATEGY_OPTIONS_UNSUPPORTED` for an options block, `STRATEGY_SERIES_FILTERS_UNSUPPORTED` for series filters (the golden fixture `engineRefusals` pins the same codes and messages in both). Research runners call `compileStrategy` / `compile_strategy` with their series context instead; it returns the signals and the options block. |
+Backtest runs and Autopilot load daily series from the series store (`market_daily_series`, loader `packages/api/src/server/strategy-series.ts`): the refs the definition reads, resolved for the run symbol (`<ETF>:TR` is the adjusted close of the ETF row), up to the run's `to` with the whole history before `from`. A missing series fails the run with `Series data is not available for <id>` (an Autopilot tick retries instead); a server without the series store fails it with `The daily series store is not available on this server (needed for <ids>)`. Options runs load what the options runner reads (`optionsDefinitionSeriesIds`: each symbol's row and IV index, IRX and SPY, plus the definition's refs).
 
-`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing (decision 2026-11-08, card vertex-qc-ports: save accepts, every execution path refuses, so a saved options or series definition stays usable by the research runner and can never run ungated). Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
+| Path | Behaviour |
+| --- | --- |
+| `backtestRuns.submit` (portal, assistant and MCP `backtest_runs_submit`) | Support `{options, series}`. Refused definitions get `VALIDATION_ERROR` (422) with the code in the message; nothing is queued. An options definition also needs `costBps` 0, no `costProfile`, `stopLossPct` and `takeProfitPct` 0 (the book has its own costs and exits) and a symbol in `portfolio.symbols` (without a portfolio block, a symbol with an IV index: SPY, QQQ, DIA, IWM, GLD, SLV, USO). |
+| TypeScript engine (`instant-2`) | Equity definitions run with their series input; options definitions run in `options-engine` (`runOptionsDefinition` from `from` to `to` with the run capital). The report has the ledger equity, the spreads as trades (units = contracts, netReturn = return on risk, balanceAfter = ledger equity at the exit date), the run symbol's series store row on the ledger dates as prices (options runs never read `market_bars`) and `options` (capital, `optionsRunMetrics`, signals, symbols, trades, `nautilusGap` null). `seriesSha256` hashes the series rows (equity runs that read series: the bar hash and the rows). A run written past the submit check fails with the same message. |
+| Nautilus worker claim (single or batch) | The claim sends `series` (store rows, null when the run reads none); `seriesSha256` then covers bars and rows (options runs: the rows, their bars being the run symbol's row) (in a batch, loaded once: each series run has its own `seriesSha256`, and `series` holds each row up to the latest `to`). Rows over 40 MB fail the run at claim. An options run is claimed alone; one in a comparison batch fails. `complete`/`completeMany` accept the options runner document (`kind: "options"`, validated strictly); the API reloads the rows, checks the hash, runs the options runner on the same rows and requires the worker's ledger to be that run (days, trade identities, skips and signals equal; equity, prices, `maxLoss` and metrics within 1e-9; fees and P&L within one cent; `nautilusGap` at most 1e-6) and builds the same report with the worker's `nautilusGap`. |
+| `autopilot.campaigns.create` and ticks | Support `{series}`: series filters are accepted and every gate, in-sample, neighbour and comparison run reads the campaign's series (loaded once per tick; a missing series or store retries next tick). Options blocks stay refused. |
+| `autopilot.candidates.sendToPaper` | No support: `VALIDATION_ERROR` before any write for options or series definitions. |
+| `autopilot.candidates.get` | The tearsheet shows, but `nautilus` (the paper config) is null for a definition paper refuses. |
+| `runStrategyDefinition` (TypeScript) and `plan_run` (Python Nautilus engine) | Always refuse an options block (`StrategyUnsupportedError`); series filters run only with `support.series` and a series input (Python: the spec `context`). Research runners call `compileStrategy` / `compile_strategy` with their series context. |
+
+`backtestRuns.definitions.validate` and `.save` accept these definitions: saving stores a revision and runs nothing (decision 2026-11-08, card vertex-qc-ports: save accepts and runs nothing; execution follows the table above). Paper-forward monitors run fixed rules only (a definition run has no fixed-rule parameters), and pick lists do not read definitions.
 
 ## Execution model
 
