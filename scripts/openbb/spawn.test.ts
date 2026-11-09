@@ -15,13 +15,21 @@ describe("spawnOpenbbFetcher", () => {
     ).resolves.toEqual({ exitCode: 3, stderr: "err/", stdout: "out" });
   });
 
-  it("passes only the given environment", async () => {
-    await expect(
-      spawnOpenbbFetcher("sh", ["-c", 'printf "${SECRET:-unset}"'], {
-        cwd: "/",
-        env,
-      })
-    ).resolves.toMatchObject({ exitCode: 0, stdout: "unset" });
+  it("passes only the given environment, never the parent's", async () => {
+    const before = process.env["VERTEX_AGENT_API_KEY"];
+    process.env["VERTEX_AGENT_API_KEY"] = "leak";
+    try {
+      await expect(
+        spawnOpenbbFetcher(
+          "sh",
+          ["-c", 'printf "${VERTEX_AGENT_API_KEY:-unset}"'],
+          { cwd: "/", env }
+        )
+      ).resolves.toMatchObject({ exitCode: 0, stdout: "unset" });
+    } finally {
+      if (before === undefined) delete process.env["VERTEX_AGENT_API_KEY"];
+      else process.env["VERTEX_AGENT_API_KEY"] = before;
+    }
   });
 
   it("reports a signal kill as exit code 1", async () => {
