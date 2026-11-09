@@ -91,6 +91,7 @@ def run_leg(data: SessionBars, item: Instrument, params: Params, side: str, cost
         "stats": result.stats,
         "spreadBps": data.spread_bps,
         "bars": len(bars),
+        "slippageBps": item.slippage_bps * cost_multiple,
     }
 
 

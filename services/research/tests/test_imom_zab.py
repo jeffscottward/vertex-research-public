@@ -2,18 +2,41 @@
 from __future__ import annotations
 
 import dataclasses
+import json
+import random
 import tempfile
 import unittest
 import unittest.mock
+from datetime import date, timedelta
 from pathlib import Path
 
-from strategies.imom import runner, zab_study
+from strategies.imom import runner, study, zab_study
 from strategies.imom.data import IBKR, IBKR_SLIPPAGE_BPS, instrument
 from strategies.imom.definition import ZAB, ZAB_1X, ZAB_SENSITIVITY, params_to_json
 
 
 def row(key: str, *, pass_all: bool = False, oos: float = 0.0, stress: float = 0.0) -> dict:
     return {"key": key, "passAll": pass_all, "outOfSample": {"sharpe": oos}, "stress": {"sharpe": stress}}
+
+
+def fake_leg(key: str, params, side: str, mult: float, slippage: float, drift: float = 0.0004) -> dict:
+    """A synthetic leg: 400 weekday points and one trade a day; ZAB's own trades are tagged for the MC check."""
+    rng = random.Random(f"{key}{json.dumps(params_to_json(params), sort_keys=True)}{side}{mult}")
+    day, equity, points, trades = date(2010, 1, 4), 1.0, [], []
+    while len(points) < 400:
+        if day.weekday() < 5:
+            ret = drift / mult + rng.gauss(0, 0.004)
+            trades.append({"pnl": equity * ret, "before": equity, "day": day.isoformat(),
+                           "entryMs": len(points), "tag": (params == ZAB and mult == 1.0)})
+            equity *= 1 + ret
+            points.append((day.isoformat(), equity))
+        day += timedelta(days=1)
+    return {"points": points, "trades": trades, "slippageBps": slippage * mult, "engine": "fake", "side": side}
+
+
+def fake_results(keys, slippage: float = 1.0) -> study.Results:
+    jobs = zab_study.plan(keys)
+    return study.Results({study.leg_id(k, p, s, mult): fake_leg(k, p, s, mult, slippage) for k, p, s, mult in jobs})
 
 
 class PlanTest(unittest.TestCase):
@@ -76,6 +99,11 @@ class VerdictTest(unittest.TestCase):
         rows = [row("SPY", pass_all=True), row("QQQ", pass_all=True), row("IWM", pass_all=True), row("DIA")]
         self.assertEqual(zab_study.verdict(rows)["verdict"], "edge")
 
+    def test_edge_with_exactly_two_and_spy_failing(self) -> None:
+        rows = [row("SPY", oos=-1, stress=-1), row("QQQ"), row("IWM", pass_all=True), row("DIA", pass_all=True)]
+        result = zab_study.verdict(rows)
+        self.assertEqual((result["verdict"], result["passAll"]), ("edge", ["IWM", "DIA"]))
+
     def test_spy_never_counts(self) -> None:
         rows = [row("SPY", pass_all=True, oos=2, stress=2), row("QQQ", pass_all=True, oos=1, stress=1),
                 row("IWM"), row("DIA")]
@@ -109,6 +137,59 @@ class SlippageTest(unittest.TestCase):
         profile = runner.cost_profile(dataclasses.replace(item, slippage_bps=1.0), 0.8, 2.0)
         self.assertEqual(profile["slippage"], {"kind": "bps", "bps": 2.0})
         self.assertAlmostEqual(profile["spreadBps"], 1.6)
+
+
+class WiringTest(unittest.TestCase):
+    def test_market_row_on_fake_legs(self) -> None:
+        results = fake_results(["QQQ"])
+        captured = {}
+        original_mc, original_dsr = zab_study.m.monte_carlo, zab_study.m.deflated_sharpe
+
+        def mc(rets, paths, seed):
+            captured["mc"] = (len(rets), paths, seed)
+            return original_mc(rets, paths=paths, seed=seed)
+
+        def dsr(points, n, sharpes):
+            captured["dsr"] = (n, len(sharpes))
+            return original_dsr(points, n, sharpes)
+
+        with unittest.mock.patch.object(zab_study.m, "monte_carlo", mc), \
+                unittest.mock.patch.object(zab_study.m, "deflated_sharpe", dsr):
+            got, detail = zab_study.market_row(results, "QQQ", 0.5)
+        zab_trades = results.trades("QQQ", ZAB)
+        self.assertTrue(all(t["tag"] for t in zab_trades))
+        self.assertEqual(captured["mc"], (len(zab_trades), 2000, 31))
+        self.assertEqual(captured["dsr"], (80, 8))
+        self.assertEqual(got["stress"]["sharpe"], zab_study.m.stats(results.points("QQQ", ZAB, 2.0))["sharpe"])
+        self.assertIn("oosSharpe", got["stress"])
+        self.assertEqual(len(got["gates"]), 5)
+        self.assertEqual(got["neighbourShare"], got["neighboursPositive"] / 7)
+        self.assertEqual(detail["key"], "QQQ")
+
+    def test_market_row_refuses_legs_at_another_slippage(self) -> None:
+        with self.assertRaises(RuntimeError):
+            zab_study.market_row(fake_results(["QQQ"], slippage=0.25), "QQQ", 0.5)
+
+    def test_run_passes_the_pre_registered_slippage_and_gives_a_verdict(self) -> None:
+        seen = {}
+
+        def run_all(jobs, root, workers, log, primary, source, slippage_bps=None):
+            seen.update(source=source, slippage=slippage_bps, primary=primary, jobs=len(jobs))
+            return fake_results(list(zab_study.MARKETS)).runs
+
+        bars = unittest.mock.Mock(t=(1, 2, 3), spread_bps=0.5)
+        with unittest.mock.patch.object(zab_study, "require_inputs", lambda *a: None), \
+                unittest.mock.patch.object(zab_study, "require_own_spread", lambda *a: 0.5), \
+                unittest.mock.patch.object(zab_study, "load_bars", lambda *a, **k: bars), \
+                unittest.mock.patch.object(zab_study, "data_hash", lambda *a: "sha256:x"), \
+                unittest.mock.patch.object(zab_study, "_run_all", run_all):
+            doc = zab_study.run("2026-11-10", ["DIA", "SPY", "IWM", "QQQ"], log=lambda _: None)
+        self.assertEqual(seen, {"source": IBKR, "slippage": 1.0, "primary": "SPY",
+                                "jobs": len(zab_study.plan(list(zab_study.MARKETS)))})
+        self.assertEqual([r["key"] for r in doc["markets"]], ["SPY", "QQQ", "IWM", "DIA"])
+        self.assertIn(doc["verdict"]["verdict"], ("edge", "weak", "no edge"))
+        self.assertEqual(doc["config"]["slippageBps"], 1.0)
+        json.dumps(study.finite(doc), allow_nan=False)
 
 
 if __name__ == "__main__":

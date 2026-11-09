@@ -8,7 +8,8 @@ Fixed by the pre-registration (2026-11-09), not by this code's caller:
 - Costs: half the measured spread per side, 1 bp slippage per side, IBKR Pro Fixed commissions and fees.
 - Per market, the five gates: OOS Sharpe >= 0.5; deflated Sharpe probability >= 0.95 with N = 80 trials;
   Monte Carlo P5 max drawdown >= -35 % (2,000 trade bootstraps, seed 31); at least 75 % of the 7 one-at-a-time
-  changes (ZAB_SENSITIVITY) keep Sharpe > 0; Sharpe > 0 with doubled spread and slippage.
+  changes (ZAB_SENSITIVITY) keep Sharpe > 0; full-period Sharpe > 0 with doubled spread and slippage (commissions
+  unchanged; the OOS Sharpe at 2x costs is reported, not gated).
 - Verdict: edge = at least 2 of QQQ, IWM, DIA pass all five; weak = no edge but at least 2 of them have OOS Sharpe > 0
   and Sharpe > 0 with doubled costs; no edge = anything else. SPY's gates are shown but never count.
 
@@ -117,13 +118,26 @@ def verdict(rows: Sequence[Mapping]) -> dict:
     return {"verdict": result, "reason": why, "passAll": passed, "weakPass": weak}
 
 
+def check_slippage(results: Results, key: str) -> None:
+    """Every leg of the market ran at the pre-registered slippage (doubled on the cost-stress legs)."""
+    for (leg_key, _, side, mult), leg in results.runs.items():
+        if leg_key == key and abs(leg.get("slippageBps", -1.0) - SLIPPAGE_BPS * mult) > 1e-9:
+            raise RuntimeError(f"{key} {side} x{mult:g}: slippage {leg.get('slippageBps')} bps, "
+                               f"expected {SLIPPAGE_BPS * mult:g}")
+
+
 def market_row(results: Results, key: str, spread_bps: float) -> tuple[dict, dict]:
     """Per-market results and gates; the second value is the chart detail (daily curves)."""
+    check_slippage(results, key)
     primary = results.points(key, ZAB)
+    if len(primary) < 3:
+        raise RuntimeError(f"{key}: ZAB produced {len(primary)} daily points")
     summary = m.summary(primary)
     trades = results.trades(key, ZAB)
     one_x = m.summary(results.points(key, ZAB_1X))
-    stress = m.stats(results.points(key, ZAB, GATE["costStressMultiple"]))
+    stress_points = results.points(key, ZAB, GATE["costStressMultiple"])
+    # The gate is the full-period Sharpe (pre-registration); the OOS Sharpe at 2x costs is reported only.
+    stress = {**m.stats(stress_points), "oosSharpe": m.summary(stress_points)["outOfSample"]["sharpe"]}
     mc = m.monte_carlo(m.trade_returns(trades), paths=m.MC_PATHS, seed=m.MC_SEED)
     trial_sharpes = [m.stats(results.points(key, params))["sharpePerDay"] for params in configurations()]
     dsr = m.deflated_sharpe(primary, TRIALS, trial_sharpes)
