@@ -124,6 +124,7 @@ import {
   createMarketDailySeriesRepository,
   type MarketDailySeriesRepository,
 } from "./market-daily-series.ts";
+import { createOpenbbRepository, type OpenbbRepository } from "./openbb.ts";
 import {
   type BacktestRunsRepository,
   createBacktestRunsRepository,
@@ -4294,6 +4295,7 @@ export type Repositories = Readonly<{
   strategyLibrary?: StrategyLibraryRepository;
   marketBars?: MarketBarsRepository;
   marketDailySeries?: MarketDailySeriesRepository;
+  openbb?: OpenbbRepository;
   backtestRuns?: BacktestRunsRepository;
   forwardDrift?: ForwardDriftRepository;
   agentModelRuns?: AgentModelRunsRepository;
@@ -4346,6 +4348,7 @@ export const createRepositories = (
     database,
     dependencies.now
   ),
+  openbb: createOpenbbRepository(database, dependencies.now),
   backtestRuns: createBacktestRunsRepository(
     database,
     resolveDependencies(dependencies)

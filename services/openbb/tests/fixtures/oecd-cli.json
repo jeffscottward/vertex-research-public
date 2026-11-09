@@ -1,0 +1,310 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "oecd-cli",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "date": "2024-01-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.09195
+        },
+        {
+          "date": "2024-02-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.19873
+        },
+        {
+          "date": "2024-03-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.28094
+        },
+        {
+          "date": "2024-04-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.31683
+        },
+        {
+          "date": "2024-05-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.31429
+        },
+        {
+          "date": "2024-06-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.30333
+        },
+        {
+          "date": "2024-07-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.31796
+        },
+        {
+          "date": "2024-08-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.37421
+        },
+        {
+          "date": "2024-09-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.47209
+        },
+        {
+          "date": "2024-10-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.58716
+        },
+        {
+          "date": "2024-11-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.6934
+        },
+        {
+          "date": "2024-12-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.75657
+        },
+        {
+          "date": "2025-01-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.75335
+        },
+        {
+          "date": "2025-02-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.68948
+        },
+        {
+          "date": "2025-03-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.5894
+        },
+        {
+          "date": "2025-04-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.49651
+        },
+        {
+          "date": "2025-05-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.45961
+        },
+        {
+          "date": "2025-06-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.47252
+        },
+        {
+          "date": "2025-07-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.50542
+        },
+        {
+          "date": "2025-08-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.54735
+        },
+        {
+          "date": "2025-09-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.60722
+        },
+        {
+          "date": "2025-10-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.69538
+        },
+        {
+          "date": "2025-11-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.82158
+        },
+        {
+          "date": "2025-12-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 99.97923
+        },
+        {
+          "date": "2026-01-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.1517
+        },
+        {
+          "date": "2026-02-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.3057
+        },
+        {
+          "date": "2026-03-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.4315
+        },
+        {
+          "date": "2026-04-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.5444
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.65
+        },
+        {
+          "date": "2026-06-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.763
+        },
+        {
+          "date": "2026-07-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.8691
+        },
+        {
+          "date": "2026-08-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.9464
+        },
+        {
+          "date": "2026-09-01",
+          "frequency": "monthly",
+          "name": "OECD composite leading indicator, United States (amplitude adjusted)",
+          "seriesId": "OECD_CLI_USA",
+          "source": "oecd",
+          "unit": "index",
+          "value": 100.9993
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

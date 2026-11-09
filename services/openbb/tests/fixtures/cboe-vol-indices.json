@@ -1,0 +1,797 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "cboe-vol-indices",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "daily_series",
+      "rows": [
+        {
+          "close": 22.73,
+          "date": "2026-10-29",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 26.15,
+          "date": "2026-10-30",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 25.45,
+          "date": "2026-11-02",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 25.82,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 24.11,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 25.83,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 25.97,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "GVZ"
+        },
+        {
+          "close": 57.16,
+          "date": "2026-10-29",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 58.48,
+          "date": "2026-10-30",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 62.69,
+          "date": "2026-11-02",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 61.69,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 58.81,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 60.29,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 58.29,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "OVX"
+        },
+        {
+          "close": 20.29,
+          "date": "2026-10-29",
+          "high": 20.55,
+          "low": 18.78,
+          "open": 20.34,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 22.4,
+          "date": "2026-10-30",
+          "high": 24.91,
+          "low": 21.23,
+          "open": 21.3,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 23.95,
+          "date": "2026-11-02",
+          "high": 24.36,
+          "low": 21.39,
+          "open": 22.3,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 23.74,
+          "date": "2026-11-03",
+          "high": 24.11,
+          "low": 23.25,
+          "open": 24.02,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 19.7,
+          "date": "2026-11-04",
+          "high": 21.85,
+          "low": 19.52,
+          "open": 21.76,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 28.88,
+          "date": "2026-11-05",
+          "high": 28.9,
+          "low": 20.14,
+          "open": 20.15,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 26.16,
+          "date": "2026-11-06",
+          "high": 27.78,
+          "low": 24.49,
+          "open": 27.78,
+          "seriesId": "RVX"
+        },
+        {
+          "close": 151.03,
+          "date": "2026-10-29",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 149.76,
+          "date": "2026-10-30",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 152.78,
+          "date": "2026-11-02",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 150.01,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 150.9,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 149.37,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 153.55,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "SKEW"
+        },
+        {
+          "close": 17.2,
+          "date": "2026-10-29",
+          "high": 17.36,
+          "low": 16.21,
+          "open": 17.15,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 19.42,
+          "date": "2026-10-30",
+          "high": 23.93,
+          "low": 18.03,
+          "open": 18.43,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 21.15,
+          "date": "2026-11-02",
+          "high": 21.77,
+          "low": 18.03,
+          "open": 19.05,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 20.83,
+          "date": "2026-11-03",
+          "high": 21.91,
+          "low": 20.29,
+          "open": 21.66,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 16.61,
+          "date": "2026-11-04",
+          "high": 19.22,
+          "low": 16.57,
+          "open": 19.2,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 28.18,
+          "date": "2026-11-05",
+          "high": 28.36,
+          "low": 16.7,
+          "open": 17.14,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 25.64,
+          "date": "2026-11-06",
+          "high": 27.76,
+          "low": 23.47,
+          "open": 27.68,
+          "seriesId": "VIX"
+        },
+        {
+          "close": 13.62,
+          "date": "2026-10-29",
+          "high": 13.7,
+          "low": 9.29,
+          "open": 9.55,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 19.33,
+          "date": "2026-10-30",
+          "high": 24.44,
+          "low": 10.88,
+          "open": 11.17,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 17.9,
+          "date": "2026-11-02",
+          "high": 18.79,
+          "low": 9.49,
+          "open": 10.6,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 23.22,
+          "date": "2026-11-03",
+          "high": 23.22,
+          "low": 12.16,
+          "open": 12.54,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 12.08,
+          "date": "2026-11-04",
+          "high": 13.54,
+          "low": 11.03,
+          "open": 12.91,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 36.8,
+          "date": "2026-11-05",
+          "high": 36.81,
+          "low": 10.72,
+          "open": 10.78,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 28.73,
+          "date": "2026-11-06",
+          "high": 31.01,
+          "low": 20.75,
+          "open": 23.07,
+          "seriesId": "VIX1D"
+        },
+        {
+          "close": 22.29,
+          "date": "2026-10-29",
+          "high": 22.52,
+          "low": 22.08,
+          "open": 22.45,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 22.8,
+          "date": "2026-10-30",
+          "high": 23.71,
+          "low": 22.65,
+          "open": 22.68,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 23.12,
+          "date": "2026-11-02",
+          "high": 23.27,
+          "low": 22.26,
+          "open": 22.6,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 22.85,
+          "date": "2026-11-03",
+          "high": 23.13,
+          "low": 22.85,
+          "open": 23.04,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 21.83,
+          "date": "2026-11-04",
+          "high": 22.26,
+          "low": 21.62,
+          "open": 22.19,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 24.6,
+          "date": "2026-11-05",
+          "high": 26.32,
+          "low": 22.03,
+          "open": 22.03,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 24.3,
+          "date": "2026-11-06",
+          "high": 24.4,
+          "low": 23.17,
+          "open": 24.04,
+          "seriesId": "VIX1Y"
+        },
+        {
+          "close": 19.37,
+          "date": "2026-10-29",
+          "high": 19.44,
+          "low": 18.77,
+          "open": 19.4,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 20.78,
+          "date": "2026-10-30",
+          "high": 23.08,
+          "low": 20.22,
+          "open": 20.36,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 21.6,
+          "date": "2026-11-02",
+          "high": 21.86,
+          "low": 19.88,
+          "open": 20.56,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 21.27,
+          "date": "2026-11-03",
+          "high": 21.55,
+          "low": 21.01,
+          "open": 21.47,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 18.8,
+          "date": "2026-11-04",
+          "high": 19.74,
+          "low": 18.77,
+          "open": 19.66,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 25.55,
+          "date": "2026-11-05",
+          "high": 25.65,
+          "low": 19.23,
+          "open": 19.23,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 24.6,
+          "date": "2026-11-06",
+          "high": 24.71,
+          "low": 22.98,
+          "open": 24.6,
+          "seriesId": "VIX3M"
+        },
+        {
+          "close": 21.24,
+          "date": "2026-10-29",
+          "high": 21.36,
+          "low": 20.83,
+          "open": 21.33,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 22.2,
+          "date": "2026-10-30",
+          "high": 23.71,
+          "low": 21.86,
+          "open": 21.91,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 22.67,
+          "date": "2026-11-02",
+          "high": 22.83,
+          "low": 21.51,
+          "open": 21.96,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 22.31,
+          "date": "2026-11-03",
+          "high": 22.6,
+          "low": 22.24,
+          "open": 22.57,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 20.68,
+          "date": "2026-11-04",
+          "high": 21.33,
+          "low": 20.67,
+          "open": 21.27,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 25.29,
+          "date": "2026-11-05",
+          "high": 25.42,
+          "low": 20.95,
+          "open": 20.95,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 24.7,
+          "date": "2026-11-06",
+          "high": 24.83,
+          "low": 23.46,
+          "open": 24.49,
+          "seriesId": "VIX6M"
+        },
+        {
+          "close": 15.87,
+          "date": "2026-10-29",
+          "high": 16.25,
+          "low": 14.56,
+          "open": 16.02,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 19.25,
+          "date": "2026-10-30",
+          "high": 25.06,
+          "low": 17.44,
+          "open": 18.0,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 22.46,
+          "date": "2026-11-02",
+          "high": 23.38,
+          "low": 17.92,
+          "open": 19.24,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 21.96,
+          "date": "2026-11-03",
+          "high": 22.23,
+          "low": 21.1,
+          "open": 22.0,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 15.19,
+          "date": "2026-11-04",
+          "high": 18.12,
+          "low": 15.15,
+          "open": 17.48,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 32.66,
+          "date": "2026-11-05",
+          "high": 32.95,
+          "low": 16.35,
+          "open": 16.35,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 27.18,
+          "date": "2026-11-06",
+          "high": 29.8,
+          "low": 24.94,
+          "open": 29.58,
+          "seriesId": "VIX9D"
+        },
+        {
+          "close": 98.01,
+          "date": "2026-10-29",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 106.43,
+          "date": "2026-10-30",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 110.47,
+          "date": "2026-11-02",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 107.4,
+          "date": "2026-11-03",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 90.41,
+          "date": "2026-11-04",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 134.99,
+          "date": "2026-11-05",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 121.94,
+          "date": "2026-11-06",
+          "high": null,
+          "low": null,
+          "open": null,
+          "seriesId": "VVIX"
+        },
+        {
+          "close": 15.67,
+          "date": "2026-10-29",
+          "high": 16.18,
+          "low": 15.08,
+          "open": 16.09,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 17.05,
+          "date": "2026-10-30",
+          "high": 19.84,
+          "low": 16.33,
+          "open": 16.5,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 18.8,
+          "date": "2026-11-02",
+          "high": 19.37,
+          "low": 16.68,
+          "open": 17.01,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 18.46,
+          "date": "2026-11-03",
+          "high": 18.98,
+          "low": 17.74,
+          "open": 18.58,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 15.96,
+          "date": "2026-11-04",
+          "high": 17.14,
+          "low": 15.75,
+          "open": 16.25,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 23.44,
+          "date": "2026-11-05",
+          "high": 23.59,
+          "low": 16.37,
+          "open": 16.37,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 21.55,
+          "date": "2026-11-06",
+          "high": 23.26,
+          "low": 20.2,
+          "open": 23.01,
+          "seriesId": "VXD"
+        },
+        {
+          "close": 25.18,
+          "date": "2026-10-29",
+          "high": 25.39,
+          "low": 23.66,
+          "open": 24.66,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 28.5,
+          "date": "2026-10-30",
+          "high": 31.73,
+          "low": 26.12,
+          "open": 27.28,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 30.89,
+          "date": "2026-11-02",
+          "high": 31.24,
+          "low": 27.05,
+          "open": 27.72,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 30.53,
+          "date": "2026-11-03",
+          "high": 31.01,
+          "low": 30.07,
+          "open": 30.35,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 25.08,
+          "date": "2026-11-04",
+          "high": 27.59,
+          "low": 24.95,
+          "open": 27.52,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 38.26,
+          "date": "2026-11-05",
+          "high": 38.66,
+          "low": 26.27,
+          "open": 26.27,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 34.02,
+          "date": "2026-11-06",
+          "high": 35.43,
+          "low": 32.25,
+          "open": 34.5,
+          "seriesId": "VXN"
+        },
+        {
+          "close": 44.63,
+          "date": "2026-10-29",
+          "high": 45.72,
+          "low": 42.68,
+          "open": 43.87,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 48.84,
+          "date": "2026-10-30",
+          "high": 51.76,
+          "low": 47.04,
+          "open": 50.4,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 46.39,
+          "date": "2026-11-02",
+          "high": 47.12,
+          "low": 44.74,
+          "open": 47.12,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 46.8,
+          "date": "2026-11-03",
+          "high": 48.61,
+          "low": 46.45,
+          "open": 48.13,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 45.98,
+          "date": "2026-11-04",
+          "high": 46.2,
+          "low": 43.88,
+          "open": 45.66,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 47.27,
+          "date": "2026-11-05",
+          "high": 48.23,
+          "low": 44.72,
+          "open": 45.44,
+          "seriesId": "VXSLV"
+        },
+        {
+          "close": 46.05,
+          "date": "2026-11-06",
+          "high": 47.46,
+          "low": 45.1,
+          "open": 47.34,
+          "seriesId": "VXSLV"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

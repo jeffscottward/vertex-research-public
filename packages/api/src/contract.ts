@@ -42,6 +42,7 @@ import { instantBacktestContract } from "./contracts/instant-backtest.ts";
 import { playsContract } from "./contracts/plays.ts";
 import { setupReplayContract } from "./contracts/setup-replay.ts";
 import { researchLensesContract } from "./contracts/research-lenses.ts";
+import { openbbContract } from "./contracts/openbb.ts";
 import { sectorRotationContract } from "./contracts/sector-rotation.ts";
 import { congressTradesContract } from "./contracts/congress-trades.ts";
 import { riskAllocatorContract } from "./contracts/risk-allocator.ts";
@@ -323,6 +324,7 @@ export const appContract = {
   backtestRuns: backtestRunsContract,
   autopilot: autopilotContract,
   researchLenses: researchLensesContract,
+  openbb: openbbContract,
   sectorRotation: sectorRotationContract,
   congressTrades: congressTradesContract,
   riskAllocator: riskAllocatorContract,

@@ -24,6 +24,8 @@ import {
   STRIKE_WINDOWS,
   type StrikeWindow,
 } from "./options-chain-table.tsx";
+import type { OpenbbGateway } from "../openbb/gateway.ts";
+import { OpenbbFilingsTab } from "../openbb/openbb-panels.tsx";
 import { StockChartPanel } from "./stock-chart-panel.tsx";
 import {
   parseStockQuery,
@@ -40,6 +42,7 @@ const TABS: readonly (readonly [StockTab, string])[] = [
   ["chart", "Chart"],
   ["options", "Options chain"],
   ["analytics", "Analytics"],
+  ["filings", "Filings"],
 ];
 
 type ChainState =
@@ -249,6 +252,7 @@ export interface StockDetailWorkspaceProps {
   readonly marketData?: MarketDataGateway;
   readonly optionsChain?: OptionsChainGateway;
   readonly optionsAnalytics?: OptionsAnalyticsGateway;
+  readonly openbb?: OpenbbGateway;
 }
 
 export const StockDetailWorkspace = ({
@@ -256,6 +260,7 @@ export const StockDetailWorkspace = ({
   marketData: suppliedMarketData,
   optionsChain: suppliedOptionsChain,
   optionsAnalytics,
+  openbb,
 }: StockDetailWorkspaceProps) => {
   const [marketData] = useState(
     () => suppliedMarketData ?? createBrowserMarketDataGateway()
@@ -376,7 +381,12 @@ export const StockDetailWorkspace = ({
           ))}
         </ul>
       </nav>
-      {query.tab === "analytics" ? (
+      {query.tab === "filings" ? (
+        <OpenbbFilingsTab
+          {...(openbb === undefined ? {} : { gateway: openbb })}
+          symbol={symbol}
+        />
+      ) : query.tab === "analytics" ? (
         <OptionsAnalyticsPanel gateway={optionsAnalytics} symbol={symbol} />
       ) : (
         <>

@@ -95,6 +95,14 @@ const isForbidden = (tool: CatalogueTool): boolean => {
   );
 };
 
+/**
+ * MCP tools the in-app assistant does not get yet. The OpenBB read tools (card vertex-openbb) reach
+ * research agents over /api/mcp; the assistant catalogue gains them when the semantic-layer eval
+ * (tests/integration/semantic-layer) is re-recorded with them, since every recorded call is keyed
+ * by the exact tool list.
+ */
+export const ASSISTANT_DEFERRED_TOOL_PATTERN = /^openbb_/u;
+
 const isConfirmTool = (name: string): boolean =>
   ASSISTANT_CONFIRM_TOOLS.includes(name);
 
@@ -102,6 +110,7 @@ const allowedIn = (tool: CatalogueTool, mode: AssistantMode): boolean => {
   if (isConfirmTool(tool.name))
     return mode === "act" && !CONFIRM_FORBIDDEN_PATTERN.test(tool.procedure);
   if (isForbidden(tool)) return false;
+  if (ASSISTANT_DEFERRED_TOOL_PATTERN.test(tool.name)) return false;
   if (tool.readOnly) return true;
   return mode === "act" && ASSISTANT_WRITE_TOOLS.includes(tool.name);
 };
@@ -1113,13 +1122,13 @@ export const runAssistantTurn = async (
   let drawingNumber = 0;
   let artifactBytesUsed = 0;
   const chartContext = {
+    // chart_draw, chart_clear_drawings and teach_steps default to the chart the operator is on.
+    chartSymbol: input.page?.chart?.symbol,
     nextDrawingNumber: () => {
       drawingNumber += 1;
       return drawingNumber;
     },
     turnId: shortTurnId(input.turnId ?? crypto.randomUUID()),
-    // chart_draw, chart_clear_drawings and teach_steps default to the chart the operator is on.
-    chartSymbol: input.page?.chart?.symbol,
   };
   const today = (input.now ?? (() => new Date()))().toISOString().slice(0, 10);
   const messages: AssistantChatMessage[] = [

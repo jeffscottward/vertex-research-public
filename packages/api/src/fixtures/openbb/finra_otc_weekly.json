@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-otc",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "finra_otc_weekly",
+      "rows": [
+        {
+          "weekStart": "2026-10-19",
+          "symbol": "SPY",
+          "venue": "ats",
+          "tier": "T1",
+          "shares": 45678901,
+          "trades": 234567,
+          "lastUpdated": "2026-11-03"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
