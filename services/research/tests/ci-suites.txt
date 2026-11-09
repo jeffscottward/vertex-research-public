@@ -105,3 +105,4 @@ tests/test_imom_zab.py
 tests/test_qc_ports_audit.py
 tests/test_qc_ports_definitions.py
 tests/test_qc_ports_golden.py
+tests/test_volspike_study.py
