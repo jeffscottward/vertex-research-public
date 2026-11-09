@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Search } from "lucide-react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
@@ -15,9 +16,8 @@ const push = vi.fn();
 
 import {
   CommandPalette,
-  filterPaletteItems,
   type PaletteItem,
-  paletteMatches,
+  toPaletteItems,
 } from "./command-palette.tsx";
 
 const testGlobal = globalThis as typeof globalThis & {
@@ -32,6 +32,20 @@ beforeAll(() => {
   HTMLDialogElement.prototype.close ??= function (this: HTMLDialogElement) {
     return this.removeAttribute("open");
   };
+  // cmdk sizes its list with ResizeObserver and scrolls the selected row into view; jsdom has
+  // neither.
+  globalThis.ResizeObserver ??= class {
+    observe() {
+      return;
+    }
+    unobserve() {
+      return;
+    }
+    disconnect() {
+      return;
+    }
+  };
+  Element.prototype.scrollIntoView ??= () => undefined;
   return;
 });
 afterAll(() => delete testGlobal.IS_REACT_ACT_ENVIRONMENT);
@@ -65,6 +79,23 @@ const mount = async (trigger?: "icon" | "search") => {
   return container;
 };
 
+const type = async (input: HTMLInputElement, value: string) => {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )?.set;
+  return await act(async () => {
+    setter?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+};
+
+const comboboxIn = (container: HTMLElement) =>
+  container.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+
+const selectedIn = (container: HTMLElement) =>
+  container.querySelector('[role="option"][aria-selected="true"]');
+
 const key = async (target: EventTarget, init: KeyboardEventInit) => {
   return await act(async () => ({
     dispatchEvent: target.dispatchEvent(
@@ -73,45 +104,40 @@ const key = async (target: EventTarget, init: KeyboardEventInit) => {
   }));
 };
 
-describe("filterPaletteItems", () =>
-  it("matches label, group or path and ranks label prefixes first", () => {
-    expect(filterPaletteItems(items, "").map((item) => item.href)).toEqual([
-      "/dashboard",
-      "/backtests",
-      "/audit",
-    ]);
-    expect(filterPaletteItems(items, "rec").map((item) => item.href)).toEqual([
-      "/audit",
-    ]);
-    expect(filterPaletteItems(items, "back").map((item) => item.href)).toEqual([
-      "/backtests",
-    ]);
-    return expect(filterPaletteItems(items, "zzz")).toEqual([]);
-  }));
-
 describe("CommandPalette", () => {
-  it("opens with / or Ctrl+K, filters, and navigates with arrows and Enter", async () => {
+  it("opens with / focused on the input and wraps arrows through the rows", async () => {
     const container = await mount();
     const dialog = container.querySelector("dialog")!;
     await key(window, { key: "/" });
     expect(dialog.hasAttribute("open")).toBe(true);
-    const input = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Page name"]'
-    )!;
-    await key(input, { key: "ArrowDown" });
-    expect(
-      container
-        .querySelector('[aria-selected="true"]')
-        ?.getAttribute("data-href")
-    ).toBe("/backtests");
+    const input = comboboxIn(container);
+    expect(document.activeElement).toBe(input);
+    expect(selectedIn(container)?.textContent).toContain("Chart");
+    await key(input, { key: "ArrowUp" });
+    expect(selectedIn(container)?.getAttribute("data-href")).toBe("/audit");
     await key(input, { key: "Enter" });
-    expect(push).toHaveBeenCalledWith("/backtests");
-    expect(dialog.hasAttribute("open")).toBe(false);
-    await key(window, { ctrlKey: true, key: "k" });
-    return expect(dialog.hasAttribute("open")).toBe(true);
+    expect(push).toHaveBeenCalledWith("/audit");
+    return expect(dialog.hasAttribute("open")).toBe(false);
   });
 
-  return it("ignores / while the user is typing in a field", async () => {
+  it("reopens with Ctrl+K and an empty query", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    await type(comboboxIn(container), "audit");
+    await act(async () => container.querySelector("dialog")!.close());
+    await key(window, { ctrlKey: true, key: "k" });
+    return expect(comboboxIn(container).value).toBe("");
+  });
+
+  it("keeps the query when Ctrl+K is pressed while open", async () => {
+    const container = await mount();
+    await key(window, { ctrlKey: true, key: "k" });
+    await type(comboboxIn(container), "audit");
+    await key(comboboxIn(container), { ctrlKey: true, key: "k" });
+    return expect(comboboxIn(container).value).toBe("audit");
+  });
+
+  it("ignores / while the user is typing in a field", async () => {
     const container = await mount();
     const field = document.createElement("input");
     document.body.append(field);
@@ -120,32 +146,92 @@ describe("CommandPalette", () => {
       false
     );
   });
+
+  it("runs a typed command with Enter", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    await type(comboboxIn(container), "chart nvda 1w");
+    expect(selectedIn(container)?.textContent).toContain("Chart NVDA · 1W");
+    await key(comboboxIn(container), { key: "Enter" });
+    return expect(push).toHaveBeenCalledWith("/charts?symbol=NVDA&interval=1W");
+  });
+
+  it("fills in a command template with Tab and stays open", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    const input = comboboxIn(container);
+    await type(input, "ch");
+    const tab = await key(input, { key: "Tab" });
+    expect(tab.dispatchEvent).toBe(false);
+    expect(input.value).toBe("chart ");
+    expect(selectedIn(container)?.textContent).toContain(
+      "chart <ticker> [interval]"
+    );
+    expect(push).not.toHaveBeenCalled();
+    return expect(container.querySelector("dialog")!.hasAttribute("open")).toBe(
+      true
+    );
+  });
+
+  it("fills in a command template with Enter", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    const input = comboboxIn(container);
+    await type(input, "opt");
+    await key(input, { key: "Enter" });
+    expect(input.value).toBe("options ");
+    return expect(push).not.toHaveBeenCalled();
+  });
+
+  it("leaves Tab alone when a page is selected", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    const input = comboboxIn(container);
+    await type(input, "audit");
+    const tab = await key(input, { key: "Tab" });
+    expect(tab.dispatchEvent).toBe(true);
+    return expect(input.value).toBe("audit");
+  });
+
+  it("shows a wrong command as a hint row that cannot be selected", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    const input = comboboxIn(container);
+    await type(input, "options AAPL 2026-02-31");
+    const hint = container.querySelector('[role="option"]');
+    expect(hint?.textContent).toContain('"2026-02-31" is not a date');
+    expect(hint?.getAttribute("aria-disabled")).toBe("true");
+    expect(selectedIn(container)).toBeNull();
+    await key(input, { key: "Enter" });
+    await act(async () => (hint as HTMLElement).click());
+    return expect(push).not.toHaveBeenCalled();
+  });
+
+  it("says what to try when nothing matches", async () => {
+    const container = await mount();
+    await key(window, { key: "/" });
+    await type(comboboxIn(container), "zzzzzzz qqqqqqq");
+    return expect(container.querySelector("dialog")?.textContent).toContain(
+      "No match. Try: chart NVDA 1D"
+    );
+  });
+
+  it("closes on a backdrop click and on Escape, but not on a click inside", async () => {
+    const container = await mount();
+    const dialog = container.querySelector("dialog")!;
+    await key(window, { key: "/" });
+    await act(async () => comboboxIn(container).click());
+    expect(dialog.hasAttribute("open")).toBe(true);
+    await act(async () => dialog.click());
+    expect(dialog.hasAttribute("open")).toBe(false);
+    await key(window, { key: "/" });
+    // Escape closes the native dialog itself and fires "close".
+    await act(async () => dialog.dispatchEvent(new Event("close")));
+    return expect(comboboxIn(container)).toBeNull();
+  });
 });
 
-describe("paletteMatches", () =>
-  it("adds Open <TICKER> after page matches only for ticker-like text", () => {
-    expect(paletteMatches(items, "nvda")).toEqual([
-      { group: "Ticker", href: "/stock/NVDA", label: "Open NVDA" },
-    ]);
-    expect(paletteMatches(items, "audit").map((item) => item.href)).toEqual([
-      "/audit",
-      "/stock/AUDIT",
-    ]);
-    return expect(paletteMatches(items, "mission control")).toHaveLength(1);
-  }));
-
 describe("CommandPalette search trigger", () => {
-  const type = async (input: HTMLInputElement, value: string) => {
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      "value"
-    )?.set;
-    return await act(async () => {
-      setter?.call(input, value);
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-  };
-
   it("shows a search box with the shortcut hint and an icon for mobile", async () => {
     const container = await mount("search");
     const box = container.querySelector('[data-slot="portal-search"]');
@@ -177,14 +263,10 @@ describe("CommandPalette search trigger", () => {
         ?.click()
     );
     expect(dialog.hasAttribute("open")).toBe(true);
-    const input = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Page name"]'
-    )!;
-    expect(input.placeholder).toBe("Search ticker or page");
+    const input = comboboxIn(container);
+    expect(input.placeholder).toBe("Search ticker, page or command");
     await type(input, "nvda");
-    expect(
-      container.querySelector('[aria-selected="true"]')?.textContent
-    ).toContain("Open NVDA");
+    expect(selectedIn(container)?.textContent).toContain("Open NVDA");
     await key(input, { key: "Enter" });
     return expect(push).toHaveBeenCalledWith("/stock/NVDA");
   });
@@ -203,3 +285,14 @@ describe("CommandPalette search trigger", () => {
     return expect(dialog.hasAttribute("open")).toBe(true);
   });
 });
+
+describe("toPaletteItems", () =>
+  it("flattens navigation groups into pages tagged with their group", () =>
+    expect(
+      toPaletteItems([
+        {
+          group: "Records",
+          items: [{ href: "/audit", icon: Search, label: "Audit" }],
+        },
+      ])
+    ).toEqual([{ group: "Records", href: "/audit", label: "Audit" }])));

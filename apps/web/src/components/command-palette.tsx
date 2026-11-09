@@ -1,6 +1,12 @@
 "use client";
 
+// What: CommandPalette, the Cmd+K / "/" palette (cmdk in a native dialog): jump to a page or a
+// ticker, or run a typed command such as "chart NVDA 1W" or "options AAPL 2026-12-19".
+// Used by: apps/web/src/components/portal-shell.tsx (top bar search).
+// See: apps/web/src/lib/palette-commands.ts (commands, parsing, groups), tests/e2e/portal-topbar.spec.ts.
+
 import { IconButton } from "@darkfactory/ui";
+import { Command } from "cmdk";
 import { Search } from "lucide-react";
 import {
   type KeyboardEvent,
@@ -12,45 +18,13 @@ import {
 } from "react";
 
 import type { NavigationItem } from "../lib/navigation.ts";
-import { isTickerQuery, tickerHref } from "../lib/ticker-href.ts";
+import {
+  type PaletteEntry,
+  type PaletteItem,
+  paletteGroups,
+} from "../lib/palette-commands.ts";
 
-export type PaletteItem = Readonly<{
-  label: string;
-  href: string;
-  group: string;
-}>;
-
-// Case-insensitive match on label, group or path; prefix matches on the label sort first.
-export const filterPaletteItems = (
-  items: readonly PaletteItem[],
-  query: string
-): PaletteItem[] => {
-  const needle = query.trim().toLowerCase();
-  if (needle === "") return [...items];
-  return items
-    .filter((item) =>
-      `${item.label} ${item.group} ${item.href}`.toLowerCase().includes(needle)
-    )
-    .sort(
-      (left, right) =>
-        Number(!left.label.toLowerCase().startsWith(needle)) -
-        Number(!right.label.toLowerCase().startsWith(needle))
-    );
-};
-
-/** Page matches, then "Open <TICKER>" when the query looks like a ticker symbol. */
-export const paletteMatches = (
-  items: readonly PaletteItem[],
-  query: string
-): PaletteItem[] => {
-  const pages = filterPaletteItems(items, query);
-  if (!isTickerQuery(query)) return pages;
-  const symbol = query.trim().toUpperCase();
-  return [
-    ...pages,
-    { group: "Ticker", href: tickerHref(symbol), label: `Open ${symbol}` },
-  ];
-};
+export type { PaletteItem } from "../lib/palette-commands.ts";
 
 const isTypingTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -75,6 +49,108 @@ const assignLocation = (href: string): void => {
   window.location.assign(href);
 };
 
+const ROW =
+  "flex min-h-11 items-center justify-between gap-3 rounded-md px-3 text-muted-foreground text-sm";
+
+// Mounted fresh on each opening, so it starts with an empty query and the first row selected.
+const PaletteBody = ({
+  items,
+  onGo,
+}: {
+  readonly items: readonly PaletteItem[];
+  readonly onGo: (href: string) => void;
+}) => {
+  const [query, setQuery] = useState("");
+  // cmdk's selected row: an entry id.
+  const [selected, setSelected] = useState("");
+  const groups = useMemo(() => paletteGroups(items, query), [items, query]);
+
+  const choose = (entry: Exclude<PaletteEntry, { kind: "hint" }>) =>
+    entry.kind === "go" ? onGo(entry.href) : setQuery(entry.fill);
+
+  // Tab fills in the selected command template; otherwise Tab keeps its usual meaning.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const entry = groups
+      .flatMap((group) => group.entries)
+      .find((candidate) => candidate.id === selected);
+    if (entry?.kind !== "complete") return;
+    event.preventDefault();
+    return setQuery(entry.fill);
+  };
+
+  return (
+    <Command
+      label="Search ticker, page or command"
+      loop
+      onKeyDown={onKeyDown}
+      onValueChange={setSelected}
+      shouldFilter={false}
+      value={selected}
+      vimBindings={false}
+    >
+      <div className="border-border border-b p-3">
+        <Command.Input
+          // The dialog opened on purpose: its input takes focus.
+          autoFocus
+          className="min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onValueChange={setQuery}
+          placeholder="Search ticker, page or command"
+          value={query}
+        />
+      </div>
+      <Command.List className="max-h-80 overflow-y-auto p-1">
+        <Command.Empty className="px-3 py-2 text-muted-foreground text-sm">
+          No match. Try: chart NVDA 1D, options AAPL 2026-12-19
+        </Command.Empty>
+        {groups.map((group) => (
+          <Command.Group
+            className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-[0.7rem] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wide"
+            heading={group.heading}
+            key={group.heading}
+          >
+            {group.entries.map((entry) =>
+              entry.kind === "hint" ? (
+                <Command.Item
+                  className={`${ROW} cursor-default`}
+                  disabled
+                  key={entry.id}
+                  value={entry.id}
+                >
+                  {entry.label}
+                </Command.Item>
+              ) : (
+                <Command.Item
+                  className={`${ROW} cursor-pointer data-[selected=true]:bg-accent data-[selected=true]:text-foreground`}
+                  data-href={entry.kind === "go" ? entry.href : undefined}
+                  key={entry.id}
+                  onSelect={() => choose(entry)}
+                  value={entry.id}
+                >
+                  <span className="truncate font-medium text-foreground">
+                    {entry.label}
+                  </span>
+                  <span className="shrink-0 truncate font-mono text-xs">
+                    {entry.kind === "go" ? entry.detail : entry.hint}
+                  </span>
+                </Command.Item>
+              )
+            )}
+          </Command.Group>
+        ))}
+      </Command.List>
+      <div
+        aria-hidden="true"
+        className="flex gap-4 border-border border-t px-3 py-2 text-muted-foreground text-xs"
+      >
+        <span>↵ open</span>
+        <span>Tab complete</span>
+        <span>Esc close</span>
+      </div>
+    </Command>
+  );
+};
+
 export const CommandPalette = ({
   items,
   navigate = assignLocation,
@@ -86,21 +162,22 @@ export const CommandPalette = ({
   readonly trigger?: "icon" | "search";
 }) => {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [query, setQuery] = useState("");
-  const [active, setActive] = useState(0);
-  const matches = useMemo(() => paletteMatches(items, query), [items, query]);
+  const [isOpen, setIsOpen] = useState(false);
+  // Bumped on every opening: a fresh PaletteBody even when the dialog closed without "close".
+  const [openings, setOpenings] = useState(0);
 
   const open = useCallback(() => {
     const dialog = dialogRef.current;
     if (dialog === null || dialog.open) return;
-    setQuery("");
-    setActive(0);
-    dialog.showModal();
-    return inputRef.current?.focus();
+    setIsOpen(true);
+    setOpenings((count) => count + 1);
+    return dialog.showModal();
   }, []);
 
-  const close = useCallback(() => dialogRef.current?.close(), []);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    return dialogRef.current?.close();
+  }, []);
 
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
@@ -123,28 +200,9 @@ export const CommandPalette = ({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const go = (item: PaletteItem | undefined) => {
-    if (item === undefined) return;
+  const go = (href: string) => {
     close();
-    return navigate(item.href);
-  };
-
-  const onInputKey = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      return setActive((index) =>
-        Math.min(index + 1, Math.max(matches.length - 1, 0))
-      );
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      return setActive((index) => Math.max(index - 1, 0));
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      return go(matches[active]);
-    }
-    return;
+    return navigate(href);
   };
 
   return (
@@ -201,65 +259,11 @@ export const CommandPalette = ({
           if (event.target === dialogRef.current) return close();
           return;
         }}
+        // Escape closes the native dialog without close(): keep isOpen in step.
+        onClose={() => setIsOpen(false)}
         ref={dialogRef}
       >
-        <div className="border-border border-b p-3">
-          <input
-            aria-activedescendant={
-              matches[active] === undefined
-                ? undefined
-                : `palette-item-${active}`
-            }
-            aria-controls="palette-results"
-            aria-expanded="true"
-            aria-label="Page name"
-            className="min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onChange={(event) => {
-              setQuery(event.target.value);
-              return setActive(0);
-            }}
-            onKeyDown={onInputKey}
-            placeholder="Search ticker or page"
-            ref={inputRef}
-            role="combobox"
-            value={query}
-          />
-        </div>
-        <div
-          className="max-h-80 overflow-y-auto p-1"
-          id="palette-results"
-          role="listbox"
-        >
-          {matches.length === 0 ? (
-            <p className="px-3 py-2 text-muted-foreground text-sm">
-              No matching page.
-            </p>
-          ) : (
-            matches.map((item, index) => {
-              return (
-                <div
-                  aria-selected={index === active}
-                  className={`flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-md px-3 text-sm ${index === active ? "bg-accent text-foreground" : "text-muted-foreground"}`}
-                  data-href={item.href}
-                  id={`palette-item-${index}`}
-                  key={`${item.group}:${item.href}`}
-                  onClick={() => go(item)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") go(item);
-                  }}
-                  onMouseMove={() => setActive(index)}
-                  role="option"
-                  tabIndex={-1}
-                >
-                  <span className="font-medium text-foreground">
-                    {item.label}
-                  </span>
-                  <span className="text-xs">{item.group}</span>
-                </div>
-              );
-            })
-          )}
-        </div>
+        {isOpen ? <PaletteBody items={items} key={openings} onGo={go} /> : null}
       </dialog>
     </>
   );
