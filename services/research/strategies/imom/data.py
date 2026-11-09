@@ -14,6 +14,15 @@ in-sample part (first 60 % of the time) only. Mid bars are aggregated to 5-minut
 holidays and special closures, sessions with fewer than 30 five-minute bars, and sessions that open more than
 30 % away from the previous close (splits such as USO 1:8 in April 2020, or bad prints). NYSE early-close days
 (13:00) keep their bars up to 13:00 only (42 bars), so no 15:30 decision exists on those days.
+
+Source `ibkr` (study `--source ibkr`): IBKR 5-minute TRADES bars (regular hours) fetched by
+research/backtests/imom/fetch_ibkr.py into ~/Documents/reports/vertex-reel-dffkn31-data/ibkr5m (env
+VERTEX_IMOM_IBKR_DATA): `<SYMBOL>.csv.gz` (timestamp,open,high,low,close,volume; UTC ms of the bar open) are used
+as they are as 5-minute bars, with the same session, holiday, early-close and split rules. Markets: the Core 7 ETF
+twins whose file exists; primary SPY. The spread of a symbol is the median quoted spread (time-average ask minus
+time-average bid, bps of their mid) of its `<SYMBOL>-bidask.csv.gz` sample bars inside the in-sample part (first 60 %
+of the time) of the SPY bar window; a symbol without such a sample uses SPY's (recorded as `SPY fallback`). Half the
+spread is charged per side (as for Dukascopy) plus 0.25 bp slippage per side.
 """
 from __future__ import annotations
 
@@ -23,7 +32,7 @@ import hashlib
 import os
 import pickle
 import statistics
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -46,8 +55,10 @@ MIN_SESSION_BARS = 30
 MAX_GAP = 0.30
 IS_FRACTION = 0.6
 CACHE_VERSION = 2
-# NYSE full-day closures outside the regular holiday rules (Hurricane Sandy, national days of mourning).
-SPECIAL_CLOSURES = frozenset({date(2012, 10, 29), date(2012, 10, 30), date(2018, 12, 5), date(2025, 1, 9)})
+# NYSE full-day closures outside the regular holiday rules (Hurricane Sandy; national days of mourning for
+# Presidents Reagan 2004-06-11, Ford 2007-01-02, G. H. W. Bush 2018-12-05 and Carter 2025-01-09).
+SPECIAL_CLOSURES = frozenset({date(2004, 6, 11), date(2007, 1, 2), date(2012, 10, 29), date(2012, 10, 30),
+                              date(2018, 12, 5), date(2025, 1, 9)})
 
 
 @dataclass(frozen=True)
@@ -84,6 +95,21 @@ PRIMARY = "US500"
 FUTURES_PROXIES = ("US500", "NAS100", "US30", "US2000", "XAUUSD", "XAGUSD", "WTI")
 ETF_TWINS = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
 
+DEFAULT_SOURCE = "dukascopy"
+IBKR = "ibkr"
+SOURCES = (DEFAULT_SOURCE, IBKR)
+IBKR_DATA_ENV = "VERTEX_IMOM_IBKR_DATA"
+IBKR_DEFAULT_ROOT = DEFAULT_ROOT.parent / "ibkr5m"
+IBKR_SLIPPAGE_BPS = 0.25
+IBKR_PRIMARY = "SPY"
+# IBKR: the Core 7 ETF twins traded on their own bars (the file name is the symbol).
+IBKR_INSTRUMENTS: tuple[Instrument, ...] = tuple(
+    Instrument(key, key, f"{key} ETF (IBKR 5-minute trades)", "etf-twin", "etf", key, IBKR_SLIPPAGE_BPS)
+    for key in ETF_TWINS)
+IBKR_BY_KEY = {item.key: item for item in IBKR_INSTRUMENTS}
+SPREAD_MEASURED = "measured"
+SPREAD_FALLBACK = f"{IBKR_PRIMARY} fallback"
+
 Minute = tuple[float, float, float, float, float]
 
 
@@ -107,9 +133,32 @@ class SessionBars:
         return len(self.t)
 
 
-def data_root(root: str | os.PathLike | None = None) -> Path:
+def check_source(source: str) -> str:
+    if source not in SOURCES:
+        raise ValueError(f"Unknown data source {source!r} (expected one of {', '.join(SOURCES)})")
+    return source
+
+
+def instruments(source: str = DEFAULT_SOURCE) -> tuple[Instrument, ...]:
+    """The tested markets of a data source."""
+    return IBKR_INSTRUMENTS if check_source(source) == IBKR else INSTRUMENTS
+
+
+def instrument(key: str, source: str = DEFAULT_SOURCE) -> Instrument:
+    return (IBKR_BY_KEY if check_source(source) == IBKR else BY_KEY)[key]
+
+
+def primary_of(source: str = DEFAULT_SOURCE) -> str:
+    """The primary market: the US500 CFD on Dukascopy, SPY on IBKR (the paper's instrument)."""
+    return IBKR_PRIMARY if check_source(source) == IBKR else PRIMARY
+
+
+def data_root(root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> Path:
     if root is not None:
         return Path(root)
+    if check_source(source) == IBKR:
+        env = os.environ.get(IBKR_DATA_ENV)
+        return Path(env) if env else IBKR_DEFAULT_ROOT
     env = os.environ.get(DATA_ENV)
     return Path(env) if env else DEFAULT_ROOT
 
@@ -120,7 +169,16 @@ def files_of(key: str, root: str | os.PathLike | None = None) -> tuple[Path, Pat
     return folder / f"{item.source}-bid.csv.gz", folder / f"{item.source}-ask.csv.gz"
 
 
-def available(key: str, root: str | os.PathLike | None = None) -> bool:
+def ibkr_files(key: str, root: str | os.PathLike | None = None) -> tuple[Path, Path]:
+    """(5-minute TRADES bars, BID_ASK sample) of one IBKR symbol."""
+    folder = data_root(root, IBKR)
+    symbol = IBKR_BY_KEY[key].source
+    return folder / f"{symbol}.csv.gz", folder / f"{symbol}-bidask.csv.gz"
+
+
+def available(key: str, root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> bool:
+    if check_source(source) == IBKR:
+        return key in IBKR_BY_KEY and ibkr_files(key, root)[0].exists()
     return all(path.exists() for path in files_of(key, root))
 
 
@@ -229,15 +287,88 @@ def aggregate(minutes: Iterable[tuple[int, Minute]], spread_bps: float = 0.0) ->
     return SessionBars(*(tuple(col) for col in cols), spread_bps=spread_bps)
 
 
-def data_hash(keys: Sequence[str], root: str | os.PathLike | None = None) -> str:
+def _stat(path: Path) -> tuple[int, int] | None:
+    if not path.exists():
+        return None
+    st = path.stat()
+    return st.st_size, st.st_mtime_ns
+
+
+def _window(path: Path) -> tuple[int, int]:
+    """First and last timestamp of a bar file."""
+    first = last = None
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", newline="") as fh:
+        reader = csv.reader(fh)
+        next(reader, None)
+        for row in reader:
+            if not row:
+                continue
+            t = int(row[0])
+            first = t if first is None else min(first, t)
+            last = t if last is None else max(last, t)
+    if first is None or last is None:
+        raise ValueError(f"No bars in {path}")
+    return first, last
+
+
+_CUTS: dict[tuple, float] = {}
+
+
+def ibkr_cut_ms(root: str | os.PathLike | None = None, is_fraction: float = IS_FRACTION) -> float:
+    """End of the in-sample part of the SPY bar window (UTC ms): first + is_fraction x (last - first)."""
+    path = ibkr_files(IBKR_PRIMARY, root)[0]
+    if not path.exists():
+        raise FileNotFoundError(f"No IBKR bars for {IBKR_PRIMARY} ({path}); the spread window needs them")
+    stamp = (str(path), _stat(path), is_fraction)
+    if stamp not in _CUTS:
+        first, last = _window(path)
+        _CUTS[stamp] = first + (last - first) * is_fraction
+    return _CUTS[stamp]
+
+
+def bidask_median_bps(path: Path, cut_ms: float) -> float | None:
+    """Median quoted spread in bps of the mid of the BID_ASK sample bars at or before `cut_ms` (open = time-average
+    bid, close = time-average ask); None without such bars."""
+    if not path.exists():
+        return None
+    spreads = []
+    for t, (bid, _, _, ask, _) in read_side(path).items():
+        if t <= cut_ms and bid > 0 and ask >= bid:
+            spreads.append((ask - bid) / ((ask + bid) / 2) * BPS)
+    return statistics.median(spreads) if spreads else None
+
+
+def ibkr_spread(key: str, root: str | os.PathLike | None = None) -> tuple[float, str]:
+    """(spread bps, origin) of an IBKR symbol: its own in-sample BID_ASK median (`measured`), else SPY's
+    (`SPY fallback`). SPY itself needs a sample: the study does not run without a measured cost."""
+    cut = ibkr_cut_ms(root)
+    own = bidask_median_bps(ibkr_files(key, root)[1], cut)
+    if own is not None:
+        return own, SPREAD_MEASURED
+    spy = bidask_median_bps(ibkr_files(IBKR_PRIMARY, root)[1], cut) if key != IBKR_PRIMARY else None
+    if spy is None:
+        raise FileNotFoundError(f"No IBKR BID_ASK sample of {IBKR_PRIMARY} in the in-sample window "
+                                f"({ibkr_files(IBKR_PRIMARY, root)[1]})")
+    return spy, SPREAD_FALLBACK
+
+
+def input_files(keys: Sequence[str], root: str | os.PathLike | None = None,
+                source: str = DEFAULT_SOURCE) -> list[Path]:
+    """The input files of the given markets (IBKR: bars and, when present, the BID_ASK sample)."""
+    if check_source(source) == IBKR:
+        return [path for key in keys for path in ibkr_files(key, root) if path.exists()]
+    return [path for key in keys for path in files_of(key, root)]
+
+
+def data_hash(keys: Sequence[str], root: str | os.PathLike | None = None, source: str = DEFAULT_SOURCE) -> str:
     """sha256 over the input files (name and content) of the given markets."""
     digest = hashlib.sha256()
-    for key in keys:
-        for path in files_of(key, root):
-            digest.update(path.name.encode())
-            with path.open("rb") as fh:
-                for chunk in iter(lambda: fh.read(1 << 20), b""):
-                    digest.update(chunk)
+    for path in input_files(keys, root, source):
+        digest.update(path.name.encode())
+        with path.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(chunk)
     return "sha256:" + digest.hexdigest()
 
 
@@ -247,17 +378,19 @@ def _cache_path(key: str, root: str | os.PathLike | None) -> tuple[Path, tuple]:
     return data_root(root).parent / "m5-cache" / f"{BY_KEY[key].source}.pkl", stamp
 
 
-def load_bars(key: str, root: str | os.PathLike | None = None, *, cache: bool = True) -> SessionBars:
-    """5-minute mid bars of one market (cached next to the data folder, keyed by the input file stamps)."""
-    path, stamp = _cache_path(key, root)
+def _ibkr_cache_path(key: str, root: str | os.PathLike | None) -> tuple[Path, tuple]:
+    files = (*ibkr_files(key, root), *ibkr_files(IBKR_PRIMARY, root))
+    stamp = (CACHE_VERSION, IBKR, *(_stat(path) for path in files))
+    return data_root(root, IBKR).parent / "m5-cache" / f"ibkr-{IBKR_BY_KEY[key].source}.pkl", stamp
+
+
+def _cached(path: Path, stamp: tuple, build: Callable[[], SessionBars], cache: bool) -> SessionBars:
     if cache and path.exists():
         with path.open("rb") as fh:
             saved = pickle.load(fh)  # noqa: S301 - our own cache file on the rig
         if saved.get("stamp") == stamp:
             return saved["bars"]
-    bid_path, ask_path = files_of(key, root)
-    minutes, spread = mid_minutes(read_side(bid_path), read_side(ask_path))
-    bars = aggregate(minutes, spread)
+    bars = build()
     if cache:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -265,6 +398,34 @@ def load_bars(key: str, root: str | os.PathLike | None = None, *, cache: bool = 
             pickle.dump({"stamp": stamp, "bars": bars}, fh)
         tmp.replace(path)
     return bars
+
+
+def load_ibkr_bars(key: str, root: str | os.PathLike | None = None, *, cache: bool = True) -> SessionBars:
+    """IBKR 5-minute bars of one ETF twin as session bars (same rules as `aggregate`), with the in-sample BID_ASK
+    spread (`ibkr_spread`)."""
+    bars_path = ibkr_files(key, root)[0]
+
+    def build() -> SessionBars:
+        spread, _ = ibkr_spread(key, root)
+        return aggregate(sorted(read_side(bars_path).items()), spread)
+
+    path, stamp = _ibkr_cache_path(key, root)
+    return _cached(path, stamp, build, cache)
+
+
+def load_bars(key: str, root: str | os.PathLike | None = None, *, cache: bool = True,
+              source: str = DEFAULT_SOURCE) -> SessionBars:
+    """5-minute mid bars of one market (cached next to the data folder, keyed by the input file stamps)."""
+    if check_source(source) == IBKR:
+        return load_ibkr_bars(key, root, cache=cache)
+
+    def build() -> SessionBars:
+        bid_path, ask_path = files_of(key, root)
+        minutes, spread = mid_minutes(read_side(bid_path), read_side(ask_path))
+        return aggregate(minutes, spread)
+
+    path, stamp = _cache_path(key, root)
+    return _cached(path, stamp, build, cache)
 
 
 def local_times(times: Sequence[float]) -> list[tuple[str, int]]:

@@ -80,6 +80,23 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
   one-at-a-time changes, four extra walk-forward grid points); runs on other markets are not counted.
 - The strategy-backtest study contract holds up to 80 runs per form (was 40) to list five strategies on fourteen markets.
 
+## IBKR rerun (owner request 2026-11-09; fixed before the first IBKR run)
+
+- Data: IBKR 5-minute TRADES bars, regular hours, paged backwards through the read-only `vertex-history` service (new
+  `endDateTime` parameter) by `research/backtests/imom/fetch_ibkr.py`, from IBKR's earliest available bar. Markets: SPY first,
+  then the other Core 7 ETF twins as the fetch completes. ES futures are not rerun: IBKR keeps intraday history of expired
+  futures for about 2 years only.
+- Costs: half of the median quoted spread per side, measured from IBKR 5-minute BID_ASK bars (time-average ask minus
+  time-average bid) on a sample (the first full week of each calendar quarter), plus IBKR Pro Fixed commissions and fees, plus
+  0.25 bp slippage per side. Doubled spread and slippage for the cost gate, as before.
+- Primary: GHLZ on SPY (the paper's instrument). The same gates and verdict rule as above, the same 60/40 split by time,
+  walk-forward, sensitivity, Monte Carlo and deflated Sharpe. ZAB and BIAS on SPY are reported alongside; the options form uses
+  the same SPY bars.
+- The Dukascopy results above stay as they are; the report shows both data sources side by side.
+- The study contract keeps one document per spec slug, so importing the IBKR run replaces the stored Dukascopy document; the
+  Dukascopy headline rows travel in its comparison table (`--compare-row`) and the full Dukascopy results stay in this spec and
+  the report.
+
 ## Code and tests
 
 - `services/research/strategies/imom/` (data, definition, runner, metrics reuse, study, rules); tests in
@@ -114,3 +131,19 @@ Verdict: **no edge** (OOS Sharpe <= 0 and deflated Sharpe probability < 0.5; 0 o
   paper's) it falls to 0.24 for 2017-2024 and -0.12 overall. So the ZAB rule reproduces; whether it survives depends on real SPY
   fill costs being near the paper's or near this study's. A follow-up needs real SPY quotes and fills (IBKR) and its own
   pre-registration.
+
+### IBKR rerun results (2026-11-09, run id `imom-ibkr-2026-11-09`, commit `476942c7`)
+
+SPY 5-minute IBKR trades 2004-01 to 2026-11 (449,761 bars); measured SPY spread 0.70 bp (in-sample BID_ASK sample).
+Verdict: **no edge** (0 of 5 gates).
+
+| GHLZ on SPY (IBKR) | Sharpe | CAGR | Max DD | Trades |
+| --- | --- | --- | --- | --- |
+| In-sample (2004 to 2017) | -0.01 | -0.2 % | -31.8 % | 3,387 |
+| Out-of-sample (2017 to 2026) | -0.93 | -4.8 % | -37.6 % | 2,274 |
+| Full | -0.36 | -2.1 % | -56.6 % | 5,660 |
+
+- Before costs GHLZ on SPY has Sharpe 0.52 over 2004-2026 (1.12 in 2004-07, 1.24 in 2008-12, then 0.36, -0.20, -0.07): the
+  paper's effect existed in its own sample period and faded after 2013.
+- ZAB on SPY with IBKR data and costs: Sharpe 0.34 full, 0.72 out-of-sample (1x: 0.46 / 0.53). Not part of the pre-registered
+  rule (the primary is GHLZ); a ZAB study needs its own pre-registration.

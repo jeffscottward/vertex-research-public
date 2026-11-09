@@ -3,6 +3,10 @@ both forms (underlying and same-day debit verticals), 60/40 out-of-sample split,
 cost stress, Monte Carlo, deflated Sharpe and the comparisons, assembled as one `strategy-backtest` research
 study document plus a detail JSON for the report (research only; nothing creates an order).
 
+Data source `dukascopy` (default): Dukascopy 1-minute bid/ask, primary GHLZ on the US500 CFD. Data source `ibkr`:
+IBKR 5-minute bars of the Core 7 ETF twins, primary GHLZ on SPY, options on the same SPY bars (spec section
+'IBKR rerun'); same study id, gates and verdict rule; run id `imom-ibkr-<date>`.
+
 Pre-registered design and pass rule: docs/specs/strategies/market-intraday-momentum.md (commit 3131469c).
 """
 from __future__ import annotations
@@ -18,7 +22,24 @@ from datetime import date
 from pathlib import Path
 
 from . import metrics as m
-from .data import BY_KEY, ETF_TWINS, FUTURES_PROXIES, INSTRUMENTS, PRIMARY, available, daily_closes, data_hash, load_bars
+from .data import (
+    DEFAULT_SOURCE,
+    ETF_TWINS,
+    FUTURES_PROXIES,
+    IBKR,
+    IBKR_DATA_ENV,
+    PRIMARY,
+    SPREAD_MEASURED,
+    available,
+    check_source,
+    daily_closes,
+    data_hash,
+    ibkr_spread,
+    instrument,
+    instruments,
+    load_bars,
+    primary_of,
+)
 from .definition import (
     BIAS_SENSITIVITY,
     GHLZ,
@@ -41,6 +62,26 @@ GATE = {"oosSharpeMin": 0.5, "deflatedSharpeMin": 0.95, "monteCarloDrawdownP5Min
 MIN_TRADES = 100
 CORE7_RERUN = "research/backtests/core7/rerun-results.json"  # json-data-ignore: committed research artifact (comparison source label)
 STRATEGY_NAMES = {sid: name for sid, name, _ in STRATEGIES}
+# Source-dependent wording of the document (the Dukascopy text is the original study's).
+TEXT = {
+    DEFAULT_SOURCE: {
+        "primaryName": "US500 CFD",
+        "equityLabel": "GHLZ on the US500 CFD (ES proxy), long and short legs summed, net of costs",
+        "underlying": ("Dukascopy 5-minute bid/ask mid bars, New York session; GHLZ and ZAB as DSL definitions "
+                       "(long + short legs, daily returns summed), BIAS as a research signal; Nautilus engine; "
+                       "measured spread + 1 bp slippage per side, ETF commissions; market-on-close exit."),
+        "volume": "Dukascopy volume is tick volume.",
+    },
+    IBKR: {
+        "primaryName": "SPY",
+        "equityLabel": "GHLZ on SPY (IBKR 5-minute bars), long and short legs summed, net of costs",
+        "underlying": ("IBKR 5-minute TRADES bars (regular hours), New York session; GHLZ and ZAB as DSL definitions "
+                       "(long + short legs, daily returns summed), BIAS as a research signal; Nautilus engine; "
+                       "half the in-sample IBKR quoted spread + 0.25 bp slippage per side, IBKR Pro Fixed "
+                       "commissions; market-on-close exit."),
+        "volume": "IBKR volume is traded volume of the 5-minute bars.",
+    },
+}
 
 Log = Callable[[str], None]
 
@@ -64,7 +105,7 @@ def config_id(params: Params) -> str:
     return json.dumps(params_to_json(params), sort_keys=True)
 
 
-def plan_jobs(keys: Sequence[str]) -> tuple[list[tuple[str, Params, str, float]], dict]:
+def plan_jobs(keys: Sequence[str], primary: str = PRIMARY) -> tuple[list[tuple[str, Params, str, float]], dict]:
     """Every distinct leg run of the study, and the configurations tried on the primary market."""
     configs: dict[str, tuple[str, Params]] = {}  # config id -> (label, params), primary market
 
@@ -77,16 +118,16 @@ def plan_jobs(keys: Sequence[str]) -> tuple[list[tuple[str, Params, str, float]]
             runs.append((key, params, 1.0))
     stress = float(GATE["costStressMultiple"])
     for _, _, params in STRATEGIES:
-        runs.append((PRIMARY, params, stress))
-    runs += [(key, GHLZ, stress) for key in keys if key != PRIMARY]
+        runs.append((primary, params, stress))
+    runs += [(key, GHLZ, stress) for key in keys if key != primary]
     for sid, name, params in STRATEGIES:
         add_config(name, params)
     for group, rows in (("GHLZ", GHLZ_SENSITIVITY), ("ZAB", ZAB_SENSITIVITY), ("BIAS", BIAS_SENSITIVITY)):
         for param, value, params in rows:
-            runs.append((PRIMARY, params, 1.0))
+            runs.append((primary, params, 1.0))
             add_config(f"{group} {param} {value}", params)
     for params in WALK_FORWARD_GRID:
-        runs.append((PRIMARY, params, 1.0))
+        runs.append((primary, params, 1.0))
         add_config(f"GHLZ walk-forward signal end {params.signal_to}, entry {params.entry}", params)
     jobs: list[tuple[str, Params, str, float]] = []
     seen: set[tuple] = set()
@@ -99,11 +140,12 @@ def plan_jobs(keys: Sequence[str]) -> tuple[list[tuple[str, Params, str, float]]
     return jobs, configs
 
 
-def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, workers: int, log: Log) -> dict:
-    payload = [(key, params_to_json(params), side, mult, root) for key, params, side, mult in jobs]
+def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, workers: int, log: Log,
+             primary: str = PRIMARY, source: str = DEFAULT_SOURCE) -> dict:
+    payload = [(key, params_to_json(params), side, mult, root, source) for key, params, side, mult in jobs]
     out: dict[tuple, dict] = {}
     # The longest markets first so the pool stays busy.
-    order = sorted(range(len(jobs)), key=lambda i: (jobs[i][0] != PRIMARY, jobs[i][0]))
+    order = sorted(range(len(jobs)), key=lambda i: (jobs[i][0] != primary, jobs[i][0]))
     with ProcessPoolExecutor(max_workers=workers) as pool:
         futures = {i: pool.submit(run_job, payload[i]) for i in order}
         for done, i in enumerate(order, start=1):
@@ -114,14 +156,16 @@ def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, w
     return out
 
 
-def _warm_cache(keys: Sequence[str], root: str | None, workers: int, log: Log) -> None:
+def _warm_cache(keys: Sequence[str], root: str | None, workers: int, log: Log,
+                source: str = DEFAULT_SOURCE) -> None:
     with ProcessPoolExecutor(max_workers=min(workers, len(keys))) as pool:
-        for key, n in zip(keys, pool.map(_bar_count, [(k, root) for k in keys])):
+        for key, n in zip(keys, pool.map(_bar_count, [(k, root, source) for k in keys])):
             log(f"data {key}: {n} five-minute bars")
 
 
-def _bar_count(job: tuple[str, str | None]) -> int:
-    return len(load_bars(job[0], job[1]))
+def _bar_count(job: tuple) -> int:
+    key, root, *rest = job
+    return len(load_bars(key, root, source=rest[0] if rest else DEFAULT_SOURCE))
 
 
 # ------------------------------------------------------------------------------------------------
@@ -150,14 +194,15 @@ def _exposure(legs: Sequence[dict]) -> float:
     return min(1.0, max(0.0, sum(values)))
 
 
-def underlying_row(results: Results, key: str, sid: str, params: Params, bh: Sequence) -> dict:
+def underlying_row(results: Results, key: str, sid: str, params: Params, bh: Sequence,
+                   source: str = DEFAULT_SOURCE) -> dict:
     points = results.points(key, params)
     s = m.summary(points)
     trades = results.trades(key, params)
     ts = m.trade_stats(trades)
     bh_w = m.window(bh, points)
     bh_s = m.stats(bh_w) if len(bh_w) > 2 else None
-    item = BY_KEY[key]
+    item = instrument(key, source)
     return {
         "symbol": f"{STRATEGY_NAMES[sid]} {key}"[:40], "market": f"{STRATEGY_NAMES[sid]}: {item.label}"[:60],
         "from": points[0][0], "to": points[-1][0], "trades": ts["trades"],
@@ -185,14 +230,14 @@ def _run_entry(form: str, sid: str, key: str, points: Sequence, trades: int, ext
 # Options form
 
 
-def _option_job(job: tuple[str, str, str, list[tuple[str, float]], str | None]) -> tuple[str, str, dict | None, list]:
-    """Worker entry (picklable): (strategy id, signal market, twin, [(side, entry ms)], data root)."""
+def _option_job(job: tuple) -> tuple[str, str, dict | None, list]:
+    """Worker entry (picklable): (strategy id, signal market, twin, [(side, entry ms)], data root[, data source])."""
     from strategies.qc_ports.data import load_market
 
     from .options import EtfClock, OptionEvent, book, price_events, spread_returns
 
-    sid, key, twin, entries, root = job
-    etf = EtfClock(load_bars(twin, root))
+    sid, key, twin, entries, root, *rest = job
+    etf = EtfClock(load_bars(twin, root, source=rest[0] if rest else DEFAULT_SOURCE))
     events = [OptionEvent(key, twin, side, entry_ms) for side, entry_ms in entries]
     spreads, skipped = price_events(events, {twin: etf}, {twin: load_market(twin)})
     if not spreads:
@@ -211,20 +256,21 @@ def _option_job(job: tuple[str, str, str, list[tuple[str, float]], str | None]) 
     return sid, key, booked, skipped
 
 
-def options_form(results: Results, keys: Sequence[str], root: str | None, log: Log, workers: int = 8) -> dict:
+def options_form(results: Results, keys: Sequence[str], root: str | None, log: Log, workers: int = 8,
+                 source: str = DEFAULT_SOURCE) -> dict:
     """Same-day debit verticals on the ETF twin of every signal market, per strategy (one book per pair)."""
     jobs = []
     for sid, _, params in STRATEGIES:
         for key in keys:
-            twin = BY_KEY[key].twin
-            if not available(twin, root):
+            twin = instrument(key, source).twin
+            if not available(twin, root, source):
                 continue
             entries = [(t["side"], t["entryMs"]) for t in results.trades(key, params)]
-            jobs.append((sid, key, twin, entries, root))
+            jobs.append((sid, key, twin, entries, root, source))
     out: dict[tuple[str, str], dict] = {}
     with ProcessPoolExecutor(max_workers=max(1, min(workers, len(jobs)))) as pool:
         for sid, key, booked, skipped in pool.map(_option_job, jobs):
-            twin = BY_KEY[key].twin
+            twin = instrument(key, source).twin
             if booked is None:
                 log(f"options {sid} {key}->{twin}: no priced spreads ({len(skipped)} skipped)")
                 continue
@@ -234,14 +280,14 @@ def options_form(results: Results, keys: Sequence[str], root: str | None, log: L
     return out
 
 
-def option_row(sid: str, key: str, booked: dict, bh: Sequence) -> dict:
+def option_row(sid: str, key: str, booked: dict, bh: Sequence, source: str = DEFAULT_SOURCE) -> dict:
     points = booked["points"]
     s = m.summary(points)
     trades = booked["nautilus"].trades
     pnl = [t.get("pnl", 0.0) for t in trades]
     wins = [p for p in pnl if p > 0]
     losses = [-p for p in pnl if p <= 0]
-    twin = BY_KEY[key].twin
+    twin = instrument(key, source).twin
     bh_w = m.window(bh, points)
     bh_s = m.stats(bh_w) if len(bh_w) > 2 else None
     held = sum(1 for n in booked["nautilus"].open_positions if n > 0)
@@ -290,14 +336,15 @@ def checks_of(primary: dict, dsr: dict, mc: dict, neighbour_share: float, n_neig
     ]
 
 
-def verdict_of(primary: dict, dsr: dict, checks: list[dict], options: dict, trades: int) -> tuple[str, str]:
+def verdict_of(primary: dict, dsr: dict, checks: list[dict], options: dict, trades: int,
+               market: str = PRIMARY) -> tuple[str, str]:
     """The pre-registered rule (spec 'Pass/fail rule'); the reason names the failed gates and the options form."""
     gates = checks[:5]
     passed = sum(1 for c in gates if c["pass"])
     failed = "; ".join(f"{c['check']}: {c['result']}" for c in gates if not c["pass"]) or "none"
     oos = primary["outOfSample"]["sharpe"]
     opt = options["outOfSample"]["sharpe"]
-    tail = (f"{passed}/5 gates pass on GHLZ US500 (OOS Sharpe {oos:.2f}, deflated Sharpe probability "
+    tail = (f"{passed}/5 gates pass on GHLZ {market} (OOS Sharpe {oos:.2f}, deflated Sharpe probability "
             f"{dsr['probability']:.2f}). Failed: {failed}. Options form OOS Sharpe {opt:.2f}.")
     if oos <= 0 or dsr["probability"] < 0.5 or passed <= 2:
         return "no-edge", tail
@@ -339,36 +386,40 @@ def library_rows(repo: Path) -> list[dict]:
 
 
 def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path | None = None,
-              detail_path: Path | None = None, log: Log = _log) -> dict:
+              detail_path: Path | None = None, log: Log = _log, source: str = DEFAULT_SOURCE,
+              extra_comparison: Sequence[dict] = ()) -> dict:
     repo = repo or Path(__file__).resolve().parents[4]
-    keys = [item.key for item in INSTRUMENTS if available(item.key, root)]
-    missing = [item.key for item in INSTRUMENTS if item.key not in keys]
-    if PRIMARY not in keys:
-        raise FileNotFoundError(f"No data for the primary market {PRIMARY}")
+    check_source(source)
+    pk = primary_of(source)
+    markets = instruments(source)
+    keys = [item.key for item in markets if available(item.key, root, source)]
+    missing = [item.key for item in markets if item.key not in keys]
+    if pk not in keys:
+        raise FileNotFoundError(f"No data for the primary market {pk}")
     if missing:
         log(f"warning: no data for {', '.join(missing)}; they are left out")
-    _warm_cache(keys, root, workers, log)
-    jobs, configs = plan_jobs(keys)
+    _warm_cache(keys, root, workers, log, source)
+    jobs, configs = plan_jobs(keys, pk)
     log(f"{len(jobs)} Nautilus leg runs on {workers} workers")
-    results = Results(_run_all(jobs, root, workers, log))
+    results = Results(_run_all(jobs, root, workers, log, pk, source))
 
-    bh = {key: daily_closes(load_bars(key, root)) for key in keys}
+    bh = {key: daily_closes(load_bars(key, root, source=source)) for key in keys}
     rows, runs_detail, curves = [], [], {}
     for sid, _, params in STRATEGIES:
         for key in keys:
-            rows.append(underlying_row(results, key, sid, params, bh[key]))
+            rows.append(underlying_row(results, key, sid, params, bh[key], source))
             points = results.points(key, params)
             curves[(sid, key)] = points
             runs_detail.append(_run_entry("underlying", sid, key, points, len(results.trades(key, params)),
-                                          {"label": BY_KEY[key].label, "spreadBps": results.legs(key, params)[0]["spreadBps"],
+                                          {"label": instrument(key, source).label, "spreadBps": results.legs(key, params)[0]["spreadBps"],
                                            "legs": {leg["side"]: {"trades": len(leg["trades"]),
                                                                   **m.summary(leg["points"])["full"]}
                                                     for leg in results.legs(key, params)}}))
 
-    # Primary: GHLZ on the US500 CFD.
-    primary = curves[(PRIMARY_STRATEGY, PRIMARY)]
+    # Primary: GHLZ on the US500 CFD (Dukascopy) or SPY (IBKR).
+    primary = curves[(PRIMARY_STRATEGY, pk)]
     primary_summary = m.summary(primary)
-    primary_trades = results.trades(PRIMARY, GHLZ)
+    primary_trades = results.trades(pk, GHLZ)
     is_part, oos_part = m.split(primary, m.IS_FRACTION)
 
     def part_trades(first: str, last: str) -> dict:
@@ -379,13 +430,13 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     sens_rows, sens_detail = [], []
     trial_sharpes: dict[str, float] = {}
     for cid, (label, params) in configs.items():
-        trial_sharpes[cid] = m.stats(results.points(PRIMARY, params))["sharpePerDay"]
+        trial_sharpes[cid] = m.stats(results.points(pk, params))["sharpePerDay"]
     positive = 0
     for group, rows_ in (("GHLZ", GHLZ_SENSITIVITY), ("ZAB", ZAB_SENSITIVITY), ("BIAS", BIAS_SENSITIVITY)):
         for param, value, params in rows_:
-            points = results.points(PRIMARY, params)
+            points = results.points(pk, params)
             s = m.stats(points)
-            n = len(results.trades(PRIMARY, params))
+            n = len(results.trades(pk, params))
             sens_rows.append({"param": f"{group} {param}"[:60], "value": value[:40], "sharpe": s["sharpe"],
                               "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"], "trades": n})
             sens_detail.append({"strategy": group, "change": f"{param} = {value}", "sharpe": s["sharpe"],
@@ -396,16 +447,16 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     neighbour_share = positive / len(GHLZ_SENSITIVITY)
 
     # Walk-forward over GHLZ signal end x entry time.
-    wf_candidates = [results.points(PRIMARY, params) for params in WALK_FORWARD_GRID]
+    wf_candidates = [results.points(pk, params) for params in WALK_FORWARD_GRID]
     wf = m.walk_forward(wf_candidates, warmup_days=0)
     wf_stats = m.stats(wf["curve"]) if len(wf["curve"]) > 2 else m.stats(primary)
     base_on_wf = m.stats([p for p in primary if p[0] >= wf["curve"][0][0]]) if wf["curve"] else m.stats(primary)
     picks = [dict(p, signalEnd=WALK_FORWARD_GRID[p["pick"]].signal_to, entry=WALK_FORWARD_GRID[p["pick"]].entry)
              for p in wf["picks"]]
 
-    stress_points = results.points(PRIMARY, GHLZ, GATE["costStressMultiple"])
+    stress_points = results.points(pk, GHLZ, GATE["costStressMultiple"])
     stress_stats = m.stats(stress_points)
-    stress_all = {sid: m.stats(results.points(PRIMARY, params, GATE["costStressMultiple"]))
+    stress_all = {sid: m.stats(results.points(pk, params, GATE["costStressMultiple"]))
                   for sid, _, params in STRATEGIES}
     stress_markets = {key: m.stats(results.points(key, GHLZ, GATE["costStressMultiple"])) for key in keys}
     trade_rets = m.trade_returns(primary_trades)
@@ -413,58 +464,65 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     dsr = m.deflated_sharpe(primary, len(configs), list(trial_sharpes.values()))
 
     log("options form")
-    options = options_form(results, keys, root, log, workers)
+    options = options_form(results, keys, root, log, workers, source)
     opt_rows = []
     for sid, _, _ in STRATEGIES:
         for key in keys:
             booked = options.get((sid, key))
             if booked is None or len(booked["points"]) < 3:
                 continue
-            twin = BY_KEY[key].twin
-            opt_rows.append(option_row(sid, key, booked, bh.get(twin, [])))
+            twin = instrument(key, source).twin
+            opt_rows.append(option_row(sid, key, booked, bh.get(twin, []), source))
             runs_detail.append(_run_entry(
                 "options", sid, key, booked["points"], len(booked["nautilus"].trades),
                 {"twin": twin, "skipped": len(booked["skipped"]), "skipReasons": booked["skipReasons"],
                  "ledgerNautilusMaxGap": booked["maxGap"],
                  "sizeSkipped": len(booked["nautilus"].skipped)}))
-    primary_opt = options.get((PRIMARY_STRATEGY, PRIMARY))
+    primary_opt = options.get((PRIMARY_STRATEGY, pk))
     opt_points = primary_opt["points"] if primary_opt else []
     opt_summary = m.summary(opt_points)
 
     checks = checks_of(primary_summary, dsr, mc, neighbour_share, len(GHLZ_SENSITIVITY), stress_stats, wf_stats,
                        base_on_wf, opt_summary)
-    verdict, reason = verdict_of(primary_summary, dsr, checks, opt_summary, len(primary_trades))
+    verdict, reason = verdict_of(primary_summary, dsr, checks, opt_summary, len(primary_trades), pk)
 
-    bh_primary = m.window(bh[PRIMARY], primary)
+    bh_primary = m.window(bh[pk], primary)
     equity_series = {
-        "GHLZ US500 (underlying, net of costs)": m.rebase(primary),
-        "GHLZ US500 signals as SPY debit verticals (options form)": m.rebase(opt_points),
-        "Buy and hold US500 CFD": m.rebase(bh_primary),
+        f"GHLZ {pk} (underlying, net of costs)": m.rebase(primary),
+        f"GHLZ {pk} signals as SPY debit verticals (options form)": m.rebase(opt_points),
+        f"Buy and hold {TEXT[source]['primaryName']}": m.rebase(bh_primary),
     }
     if opt_points:
         equity_series["Buy and hold SPY (options window)"] = m.rebase(m.window(bh.get("SPY", []), opt_points))
-    comparison = _comparison(results, keys, curves, bh, options, repo)
+    comparison = _comparison(results, keys, curves, bh, options, repo, pk, source)
+    # Rows of the other data source's run (command line) follow this run's own strategy rows on the primary.
+    comparison = comparison[:len(STRATEGIES)] + list(extra_comparison) + comparison[len(STRATEGIES):]
     ld_rows: list[dict] = []  # LD34 is compared in the report; this runner reads no other study files (AGENTS.md rule 13)
     commit = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=False, capture_output=True,
                             text=True).stdout.strip()
-    dhash = data_hash(keys, root)
+    dhash = data_hash(keys, root, source)
     engine = next(iter(results.runs.values()))["engine"] if results.runs else ENGINE_ID
     provenance = {"commit": commit[:40] or "0000000", "engine": engine, "dataHash": dhash[:80],
-                  "runId": f"imom-{ran}"}
+                  "runId": f"imom-ibkr-{ran}" if source == IBKR else f"imom-{ran}"}
+    spread_origins = {key: ibkr_spread(key, root)[1] for key in keys} if source == IBKR else {}
+    fallbacks = [key for key, origin in spread_origins.items() if origin != SPREAD_MEASURED]
+    if fallbacks:
+        log(f"warning: no in-sample BID_ASK sample for {', '.join(fallbacks)}; they use the {pk} spread")
 
     detail = {
+        "source": source,
         "verdict": verdict,
         "verdictReason": reason,
         "gates": [{"name": c["check"], "value": c["value"], "threshold": c["threshold"], "pass": c["pass"],
                    "result": c["result"]} for c in checks],
         "primary": {
-            "market": PRIMARY, "marketLabel": BY_KEY[PRIMARY].label, "strategy": "GHLZ",
+            "market": pk, "marketLabel": instrument(pk, source).label, "strategy": "GHLZ",
             "is": _part(primary_summary["inSample"], part_trades(is_part[0][0], is_part[-1][0])),
             "oos": _part(primary_summary["outOfSample"], part_trades(oos_part[0][0], oos_part[-1][0])),
             "full": _part(primary_summary["full"], part_trades(primary[0][0], primary[-1][0])),
             "split": {"isFrom": is_part[0][0], "isTo": is_part[-1][0], "oosFrom": oos_part[0][0],
                       "oosTo": oos_part[-1][0]},
-            "spreadBps": results.legs(PRIMARY, GHLZ)[0]["spreadBps"],
+            "spreadBps": results.legs(pk, GHLZ)[0]["spreadBps"],
             "options": {"twin": "SPY", **({k: _part(v, {}) for k, v in opt_summary.items()}),
                         "trades": len(primary_opt["nautilus"].trades) if primary_opt else 0,
                         "ledgerNautilusMaxGap": primary_opt["maxGap"] if primary_opt else None,
@@ -485,12 +543,13 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
                        "lossShare": mc.get("lossShare"), "paths": mc.get("paths"), "trades": mc.get("trades"),
                        "seed": m.MC_SEED},
         "deflatedSharpe": {"prob": dsr["probability"], "trials": dsr["trials"], **dsr,
-                           "scope": "distinct configurations tried on the primary market (US500)",
+                           "scope": f"distinct configurations tried on the primary market ({pk})",
                            "configurations": [label for label, _ in configs.values()]},
         "comparison": [{"name": r["name"], "sharpe": r["sharpe"], "cagr": r["cagr"], "maxDd": r["maxDrawdown"],
                         "source": r.get("source", "this study"), "kind": r["kind"]} for r in comparison + ld_rows],
         "provenance": {**provenance, "dataHash": dhash},
         "spreads": {key: results.legs(key, GHLZ)[0]["spreadBps"] for key in keys},
+        "spreadOrigins": spread_origins,
         "missingMarkets": missing,
         "config": {"capital": CAPITAL, "isFraction": m.IS_FRACTION, "gate": GATE, "minTrades": MIN_TRADES},
     }
@@ -498,7 +557,30 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
         detail_path.parent.mkdir(parents=True, exist_ok=True)
         detail_path.write_text(json.dumps(finite(detail, log=lambda _: None), allow_nan=False))  # json-data-ignore: report artifact under ~/Documents, outside the repo; the app never reads it
     return document(ran, rows, opt_rows, sens_rows, checks, verdict, reason, primary, comparison, ld_rows,
-                    provenance, detail, curves, keys)
+                    provenance, detail, curves, keys, source)
+
+
+DUKASCOPY_SUFFIX = " (Dukascopy, CFD costs)"
+
+
+def parse_compare_row(text: str) -> dict:
+    """A Dukascopy headline row given on the command line, `NAME=SHARPE,CAGR,MAXDD` (fractions, e.g.
+    `GHLZ US500=0.31,0.012,-0.21`), as a comparison row labelled '(Dukascopy, CFD costs)'. The IBKR run takes the
+    Dukascopy numbers from the command line so it reads no other run's output file."""
+    name, sep, values = text.partition("=")
+    name = name.strip()
+    parts = [p.strip() for p in values.split(",")]
+    if not sep or not name or len(parts) != 3:
+        raise ValueError(f"Comparison row {text!r}: expected NAME=SHARPE,CAGR,MAXDD")
+    sharpe, cagr, max_dd = (float(p) for p in parts)
+    if not all(math.isfinite(x) for x in (sharpe, cagr, max_dd)) or not -1.0 <= max_dd <= 0.0 or cagr <= -1.0:
+        raise ValueError(f"Comparison row {text!r}: needs finite numbers, CAGR > -1 and -1 <= max drawdown <= 0 "
+                         "(fractions, not percent)")
+    full = (name + DUKASCOPY_SUFFIX)
+    if len(full) > 80:
+        raise ValueError(f"Comparison row name {name!r} is too long")
+    return {"name": full, "kind": "strategy", "sharpe": sharpe, "cagr": cagr, "maxDrawdown": max_dd,
+            "source": "Dukascopy run of this study (command line)"}
 
 
 def _part(s: dict, trades: dict) -> dict:
@@ -507,23 +589,23 @@ def _part(s: dict, trades: dict) -> dict:
 
 
 def _comparison(results: Results, keys: Sequence[str], curves: Mapping, bh: Mapping, options: Mapping,
-                repo: Path) -> list[dict]:
+                repo: Path, primary: str = PRIMARY, source: str = DEFAULT_SOURCE) -> list[dict]:
     rows = []
     for sid, name, _ in STRATEGIES:
-        s = m.stats(curves[(sid, PRIMARY)])
-        rows.append({"name": f"{name} on US500 (underlying)", "kind": "strategy", "sharpe": s["sharpe"],
+        s = m.stats(curves[(sid, primary)])
+        rows.append({"name": f"{name} on {primary} (underlying)", "kind": "strategy", "sharpe": s["sharpe"],
                      "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"], "source": "this study"})
-    if "SPY" in keys:
+    if "SPY" in keys and primary != "SPY":
         s = m.stats(curves[("ghlz", "SPY")])
         rows.append({"name": "GHLZ on SPY (underlying)", "kind": "strategy", "sharpe": s["sharpe"], "cagr": s["cagr"],
                      "maxDrawdown": s["maxDrawdown"], "source": "this study"})
         z = m.stats(curves[("zab", "SPY")])
         rows.append({"name": "ZAB on SPY (underlying, the paper's market)", "kind": "strategy", "sharpe": z["sharpe"],
                      "cagr": z["cagr"], "maxDrawdown": z["maxDrawdown"], "source": "this study"})
-    primary_opt = options.get(("ghlz", PRIMARY))
+    primary_opt = options.get(("ghlz", primary))
     if primary_opt:
         s = m.stats(primary_opt["points"])
-        rows.append({"name": "GHLZ US500 signals as SPY debit verticals (2 % max loss)", "kind": "strategy",
+        rows.append({"name": f"GHLZ {primary} signals as SPY debit verticals (2 % max loss)", "kind": "strategy",
                      "sharpe": s["sharpe"], "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"], "source": "this study"})
     for group, members in (("futures proxies", FUTURES_PROXIES), ("ETF twins", ETF_TWINS)):
         present = [k for k in members if k in keys]
@@ -537,8 +619,9 @@ def _comparison(results: Results, keys: Sequence[str], curves: Mapping, bh: Mapp
         b = m.stats(bh_port)
         rows.append({"name": f"Buy and hold equal-weight, Core 7 {group} (same window)", "kind": "buy-and-hold",
                      "sharpe": b["sharpe"], "cagr": b["cagr"], "maxDrawdown": b["maxDrawdown"], "source": "this study"})
-    b = m.stats(m.window(bh[PRIMARY], curves[("ghlz", PRIMARY)]))
-    rows.append({"name": "Buy and hold US500 CFD (same window)", "kind": "buy-and-hold", "sharpe": b["sharpe"],
+    b = m.stats(m.window(bh[primary], curves[("ghlz", primary)]))
+    rows.append({"name": f"Buy and hold {TEXT[source]['primaryName']} (same window)", "kind": "buy-and-hold",
+                 "sharpe": b["sharpe"],
                  "cagr": b["cagr"], "maxDrawdown": b["maxDrawdown"], "source": "this study"})
     rows += library_rows(repo)
     return rows
@@ -546,9 +629,10 @@ def _comparison(results: Results, keys: Sequence[str], curves: Mapping, bh: Mapp
 
 def document(ran: str, rows: list, opt_rows: list, sens_rows: list, checks: list, verdict: str, reason: str,
              primary: list, comparison: list, ld_rows: list, provenance: dict, detail: dict, curves: Mapping,
-             keys: Sequence[str]) -> dict:
+             keys: Sequence[str], source: str = DEFAULT_SOURCE) -> dict:
     from .rules import GAPS, RULES
 
+    text = TEXT[check_source(source)]
     eq = m.monthly(primary)
     if len(eq) > 400:
         eq = eq[-400:]
@@ -569,9 +653,7 @@ def document(ran: str, rows: list, opt_rows: list, sens_rows: list, checks: list
         "gaps": GAPS,
         "forms": [
             {"key": "underlying", "label": "As stated (underlying, long and short legs, flat at 16:00)",
-             "description": ("Dukascopy 5-minute bid/ask mid bars, New York session; GHLZ and ZAB as DSL definitions "
-                             "(long + short legs, daily returns summed), BIAS as a research signal; Nautilus engine; "
-                             "measured spread + 1 bp slippage per side, ETF commissions; market-on-close exit."),
+             "description": text["underlying"],
              "runs": rows[:80]},
             {"key": "options", "label": "Vertex form (same-day debit verticals on the ETF twin, 2 % max loss)",
              "description": ("Each signal opens a call (long) or put (short) debit vertical on the ETF twin at the entry, "
@@ -584,9 +666,9 @@ def document(ran: str, rows: list, opt_rows: list, sens_rows: list, checks: list
         "sensitivity": sens_rows[:80],
         "comparison": comp,
         "equity": eq,
-        "equityLabel": "GHLZ on the US500 CFD (ES proxy), long and short legs summed, net of costs",
+        "equityLabel": text["equityLabel"],
         "provenance": provenance,
-        "notes": notes(detail, curves, keys),
+        "notes": notes(detail, curves, keys, source),
     }
 
 
@@ -596,23 +678,24 @@ def _empty_option_row() -> dict:
             "oosSharpe": None, "oosCagr": None, "buyHoldCagr": None, "buyHoldSharpe": None}
 
 
-def notes(detail: dict, curves: Mapping, keys: Sequence[str]) -> str:
+def notes(detail: dict, curves: Mapping, keys: Sequence[str], source: str = DEFAULT_SOURCE) -> str:
     p = detail["primary"]
+    pk = p.get("market", PRIMARY)
     lines = [
-        f"Primary GHLZ US500 {p['split']['isFrom']} to {p['split']['oosTo']}: IS Sharpe {p['is']['sharpe']:.2f}, "
+        f"Primary GHLZ {pk} {p['split']['isFrom']} to {p['split']['oosTo']}: IS Sharpe {p['is']['sharpe']:.2f}, "
         f"OOS Sharpe {p['oos']['sharpe']:.2f} (OOS from {p['split']['oosFrom']}), CAGR {p['full']['cagr']:.1%}, "
         f"max DD {p['full']['maxDd']:.1%}, {p['full']['trades']} trades.",
-        f"Options form (SPY verticals on US500 signals): {p['options']['trades']} spreads, OOS Sharpe "
+        f"Options form (SPY verticals on {pk} signals): {p['options']['trades']} spreads, OOS Sharpe "
         f"{p['options']['outOfSample']['sharpe']:.2f}; ledger vs Nautilus max equity gap "
         f"{(p['options']['ledgerNautilusMaxGap'] or 0):.2f} USD.",
         "Legs: each strategy runs a long and a short DSL leg on 100,000 USD each; their daily returns are summed "
         "(the legs never hold together). Trades and Monte Carlo use both legs.",
         "BIAS factor definitions are our defaults (not shown in the reel); Session Delta uses 5-minute bar volume, "
-        "not tick delta. Dukascopy volume is tick volume.",
+        "not tick delta. " + TEXT[source]["volume"],
         "Options are priced from a daily IV index with a fixed smile; no intraday option quotes exist here, so the "
         "options form is a model, not a replay. One spread per market and day (later ZAB re-entries ignored).",
         "The deflated Sharpe trial count covers the primary market's configurations only (all strategies, "
-        "sensitivity rows and walk-forward grid points on US500); runs on other markets are not counted.",
+        f"sensitivity rows and walk-forward grid points on {pk}); runs on other markets are not counted.",
         "Spread costs use the median spread of the in-sample part only. Option exits reuse the previous close's IV; "
         "expiry is the nearest Friday weekly (deviation from 'nearest expiry'). Sessions opening > 30 % from the "
         "previous close are dropped (USO split).",
@@ -620,6 +703,14 @@ def notes(detail: dict, curves: Mapping, keys: Sequence[str]) -> str:
                                           if detail["missingMarkets"] else ""),
         "Full per-market tables, daily equity and drawdown: the detail JSON of the run (report artifact).",
     ]
+    if source == IBKR:
+        origins = detail.get("spreadOrigins", {})
+        fallback = [key for key, origin in origins.items() if origin != SPREAD_MEASURED]
+        lines.insert(0, "Data source: IBKR 5-minute TRADES bars (regular hours), Core 7 ETF twins, primary GHLZ on SPY; "
+                        "spread = median IBKR BID_ASK sample spread in the in-sample part of the SPY window (half per "
+                        "side), 0.25 bp slippage per side, IBKR Pro Fixed commissions. The Dukascopy run is the "
+                        "default source of the same study." + (f" Spread from SPY (no own sample): {', '.join(fallback)}."
+                                                                if fallback else ""))
     return "\n".join(lines)[:4000]
 
 
@@ -635,12 +726,17 @@ def finite(value, path: str = "$", log: Log = _log):
     return value
 
 
-def main_study(ran: str, workers: int, detail: str | None) -> int:
+def main_study(ran: str, workers: int, detail: str | None, source: str = DEFAULT_SOURCE,
+               compare_rows: Sequence[str] = ()) -> int:
     date.fromisoformat(ran)
-    root = os.environ.get("VERTEX_IMOM_DATA")
-    doc = run_study(ran, root=root, workers=workers, detail_path=Path(detail) if detail else None)
+    if compare_rows and source != IBKR:
+        raise SystemExit(f"--compare-row needs --source {IBKR}: it adds Dukascopy headline rows to the IBKR comparison")
+    extra = [parse_compare_row(row) for row in compare_rows]
+    root = os.environ.get(IBKR_DATA_ENV if check_source(source) == IBKR else "VERTEX_IMOM_DATA")
+    doc = run_study(ran, root=root, workers=workers, detail_path=Path(detail) if detail else None, source=source,
+                    extra_comparison=extra)
     print(json.dumps(finite(doc), allow_nan=False))
     return 0
 
 
-__all__ = ["GATE", "SLUG", "checks_of", "main_study", "plan_jobs", "run_study", "verdict_of"]
+__all__ = ["GATE", "SLUG", "checks_of", "main_study", "parse_compare_row", "plan_jobs", "run_study", "verdict_of"]

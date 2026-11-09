@@ -111,7 +111,7 @@ class ValidateTest(unittest.TestCase):
 
     def test_rejections(self):
         for raw in [q(symbol="SPY", secType="OPT"), q(symbol="BTC", secType="CRYPTO"), q(symbol="", secType="STK"),
-                    q(symbol="SPY;rm"), q(symbol="ES", secType="CONTFUT"), q(symbol="SPY", whatToShow="BID_ASK"),
+                    q(symbol="SPY;rm"), q(symbol="ES", secType="CONTFUT"), q(symbol="SPY", whatToShow="BID"),
                     q(symbol="SPY", barSize="1 secs"), q(symbol="SPY", account="x"), q(symbol="SPY", useRTH="yes"),
                     q(symbol="SPY", contractMonth="202612"), {"symbol": ["SPY", "QQQ"]}]:
             with self.assertRaises(vh.BadRequest, msg=raw):
@@ -454,11 +454,12 @@ class FakeIbClient:
     """Stands in for EClient: answers contract details and replays scripted market data callbacks."""
 
     def __init__(self, gw, md_mult=100, depth_script=None, ticks=None, depth_raises=None, min_tick=0.01,
-                 slow=None):
+                 slow=None, bars=None):
         self.gw, self.md_mult, self.min_tick = gw, md_mult, min_tick
         self.slow = slow or {}  # call name -> (fake seconds it takes, answers at all)
         self.depth_script = depth_script or []
         self.ticks = ticks or {}
+        self.bars = bars or []  # BarData-like rows answered to reqHistoricalData
         self.depth_raises = depth_raises
         self.calls = []
 
@@ -511,6 +512,13 @@ class FakeIbClient:
 
     def cancelMktDepth(self, rid, smart):
         self.calls.append(("cancelMktDepth", rid, smart))
+
+    def reqHistoricalData(self, rid, spec, end, duration, bar_size, what, rth, date_format, keep_up, options):
+        self.calls.append(("reqHistoricalData", rid, end, duration, bar_size, what, rth, date_format, keep_up,
+                           options, spec.secType, spec.conId))
+        for bar in self.bars:
+            self.gw.add_row(rid, bar)
+        self.gw.finish(rid)
 
 
 def fake_gateway(**kw):
@@ -761,6 +769,9 @@ class IbapiSignatureTest(unittest.TestCase):
         self.assertEqual(params(EClient.reqMktDepth), ["reqId", "contract", "numRows", "isSmartDepth",
                                                       "mktDepthOptions"])
         self.assertEqual(params(EClient.cancelMktDepth), ["reqId", "isSmartDepth"])
+        self.assertEqual(params(EClient.reqHistoricalData), ["reqId", "contract", "endDateTime", "durationStr",
+                                                            "barSizeSetting", "whatToShow", "useRTH", "formatDate",
+                                                            "keepUpToDate", "chartOptions"])
         for name in vh.IbGateway.IB_CALLS:
             self.assertTrue(hasattr(EClient, name), name)
         wrapper = vh._wrapper_class()
@@ -891,6 +902,183 @@ class HttpTest(unittest.TestCase):
         status, body = self.call("/vertex-history/v1/bars?symbol=SPY&barSize=1%20day&duration=1%20Y")
         self.assertEqual((status, body["count"]), (200, 2))
         self.assertNotIn(TOKEN, json.dumps(body))
+        self.assertNotIn("endDateTime", body["request"])
+        status, body = self.call("/vertex-history/v1/bars?symbol=SPY&endDateTime=20261001-20:00:00")
+        self.assertEqual((status, body["request"]["endDateTime"]), (200, "20261001-20:00:00"))
+        for bad in ("", "20261001%2020:00:00", "20991231-00:00:00"):
+            status, body = self.call("/vertex-history/v1/bars?symbol=SPY&endDateTime=" + bad)
+            self.assertEqual((status, body["error"]), (400, "bad_request"), bad)
+        status, body = self.call("/vertex-history/v1/bars?symbol=ES&secType=CONTFUT&exchange=CME"
+                                 "&endDateTime=20261001-20:00:00")
+        self.assertEqual(status, 400)
+        self.assertIn("CONTFUT", body["message"])
+
+
+def ib_time(ts):
+    return time.strftime("%Y%m%d-%H:%M:%S", time.gmtime(ts))
+
+
+NOW = Clock().t  # 2027-01-15T08:00:00Z
+
+
+def bar_row(date, o, h, low, c, v):
+    return types.SimpleNamespace(date=date, open=o, high=h, low=low, close=c, volume=v)
+
+
+class EndDateTimeValidateTest(unittest.TestCase):
+    def test_valid_end_is_normalized_into_the_request(self):
+        r = vh.validate(q(symbol="spy", endDateTime="20261001-20:00:00"), now=NOW)
+        self.assertEqual(r["endDateTime"], "20261001-20:00:00")
+        self.assertEqual({k: v for k, v in r.items() if k != "endDateTime"}, vh.validate(q(symbol="spy"), now=NOW))
+        for ok in ("19900101-00:00:00", "20240229-23:59:59", ib_time(NOW - 1), " 20261001-20:00:00 "):
+            self.assertEqual(vh.validate(q(symbol="SPY", endDateTime=ok), now=NOW)["endDateTime"], ok.strip())
+        r = vh.validate(q(symbol="ES", secType="FUT", exchange="CME", contractMonth="202612",
+                          endDateTime="20261001-20:00:00"), now=NOW)
+        self.assertEqual(r["endDateTime"], "20261001-20:00:00")
+        r = vh.validate(q(symbol="EUR", secType="CASH", endDateTime="20261001-20:00:00"), now=NOW)
+        self.assertEqual(r["endDateTime"], "20261001-20:00:00")
+
+    def test_absent_param_is_unchanged(self):
+        r = vh.validate(q(symbol="SPY"), now=NOW)
+        self.assertNotIn("endDateTime", r)
+        before = {"symbol": "SPY", "secType": "STK", "exchange": "SMART", "currency": "USD", "barSize": "1 day",
+                  "duration": "1 Y", "whatToShow": "TRADES", "useRTH": True, "contractMonth": None}
+        self.assertEqual(vh.cache_key(r), vh.cache_key(before))  # same key as before the parameter existed
+        self.assertEqual(vh.ttl_for(r, now=NOW), 3600)
+
+    def test_bad_format(self):
+        bad = ["", "20261001 20:00:00", "20261001-20:00", "2026-10-01T20:00:00", "20261001-20:00:00 UTC",
+               "20261001-20:00:00Z", "20261001-200000", "2026101-20:00:00", "20261301-00:00:00", "20260230-00:00:00",
+               "20250229-00:00:00", "20261000-00:00:00", "20261001-24:00:00", "20261001-23:60:00",
+               "20261001-23:59:60", "20261001-20:00:00\n1", "\uff12\uff10\uff12\uff16" + "1001-20:00:00",
+               "\u0662\u0660\u0662\u0666" + "1001-20:00:00", "abcdefgh-ij:kl:mn"]
+        for value in bad:
+            with self.assertRaises(vh.BadRequest, msg=value):
+                vh.validate(q(symbol="SPY", endDateTime=value), now=NOW)
+        with self.assertRaises(vh.BadRequest):
+            vh.validate({"symbol": ["SPY"], "endDateTime": ["20261001-20:00:00", "20261002-20:00:00"]}, now=NOW)
+        with self.assertRaisesRegex(vh.BadRequest, "1990"):
+            vh.validate(q(symbol="SPY", endDateTime="19891231-23:59:59"), now=NOW)
+
+    def test_future_or_now_is_refused(self):
+        for value in (ib_time(NOW), ib_time(NOW + 1), "20991231-23:59:59"):
+            with self.assertRaisesRegex(vh.BadRequest, "past", msg=value):
+                vh.validate(q(symbol="SPY", endDateTime=value), now=NOW)
+        # The default clock is the real one.
+        with self.assertRaises(vh.BadRequest):
+            vh.validate(q(symbol="SPY", endDateTime=ib_time(time.time() + 120)))
+        self.assertIn("endDateTime", vh.validate(q(symbol="SPY", endDateTime=ib_time(time.time() - 120))))
+
+    def test_contfut_is_refused(self):
+        with self.assertRaisesRegex(vh.BadRequest, "CONTFUT"):
+            vh.validate(q(symbol="ES", secType="CONTFUT", exchange="CME", endDateTime="20261001-20:00:00"), now=NOW)
+        self.assertNotIn("endDateTime", vh.validate(q(symbol="ES", secType="CONTFUT", exchange="CME"), now=NOW))
+
+    def test_bars_only(self):
+        for fn in (vh.validate_ticks, vh.validate_depth):
+            with self.assertRaisesRegex(vh.BadRequest, "unknown parameter"):
+                fn(q(symbol="SPY", endDateTime="20261001-20:00:00"))
+
+    def test_cache_key_differs_by_end_date(self):
+        keys = {vh.cache_key(vh.validate(q(symbol="SPY", **extra), now=NOW))
+                for extra in ({}, {"endDateTime": "20261001-20:00:00"}, {"endDateTime": "20261001-20:00:01"},
+                              {"endDateTime": "20250101-00:00:00"})}
+        self.assertEqual(len(keys), 4)
+
+    def test_ttl_for_past_ranges(self):
+        def ttl(end, bar="1 day"):
+            return vh.ttl_for(vh.validate(q(symbol="SPY", barSize=bar, duration="1 D", endDateTime=ib_time(end)),
+                                          now=NOW), now=NOW)
+
+        self.assertEqual(ttl(NOW - 60), 3600)  # not settled: the bar size's TTL
+        self.assertEqual(ttl(NOW - 60, "1 min"), 120)
+        self.assertEqual(ttl(NOW - 86400 - 600, "1 min"), 600)  # only copies fetched after settling qualify
+        self.assertEqual(ttl(NOW - 3 * 86400, "1 min"), 86400)
+        self.assertEqual(ttl(NOW - 30 * 86400), 86400)
+
+
+class EndDateTimeGatewayTest(unittest.TestCase):
+    def test_valid_end_date_is_passed_to_reqHistoricalData(self):
+        gw = fake_gateway(bars=[bar_row("1790899200", 1, 2, 0.5, 1.5, 10)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="SPY", barSize="1 hour", duration="2 D",
+                                            endDateTime="20261001-20:00:00"), now=NOW), lambda: None)
+        self.assertEqual(bars, [{"t": 1790899200, "o": 1.0, "h": 2.0, "l": 0.5, "c": 1.5, "v": 10.0}])
+        calls = [c for c in gw._client.calls if c[0] == "reqHistoricalData"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][2:], ("20261001-20:00:00", "2 D", "1 hour", "TRADES", 1, 2, False, [], "STK", 4242))
+
+    def test_absent_end_date_is_the_empty_string(self):
+        gw = fake_gateway()
+        _info, bars = gw.fetch(vh.validate(q(symbol="ES", secType="CONTFUT", exchange="CME"), now=NOW), lambda: None)
+        self.assertEqual(bars, [])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[2], call[3], call[5]), ("", "1 Y", "TRADES"))
+
+    def test_bid_ask_is_passed_through_with_null_volume(self):
+        gw = fake_gateway(bars=[bar_row("1790899200", 9.9, 10.2, 9.8, 10.0, -1)])
+        _info, bars = gw.fetch(vh.validate(q(symbol="SPY", whatToShow="bid_ask", endDateTime="20261001-20:00:00"),
+                                          now=NOW), lambda: None)
+        self.assertEqual(bars, [{"t": 1790899200, "o": 9.9, "h": 10.2, "l": 9.8, "c": 10.0, "v": None}])
+        call = next(c for c in gw._client.calls if c[0] == "reqHistoricalData")
+        self.assertEqual((call[2], call[5]), ("20261001-20:00:00", "BID_ASK"))
+
+
+class BidAskValidateTest(unittest.TestCase):
+    def test_stocks_only(self):
+        r = vh.validate(q(symbol="SPY", whatToShow="BID_ASK", barSize="5 mins", duration="1 W"), now=NOW)
+        self.assertEqual(r["whatToShow"], "BID_ASK")
+        for raw in (q(symbol="EUR", secType="CASH", whatToShow="BID_ASK"),
+                    q(symbol="ES", secType="CONTFUT", exchange="CME", whatToShow="BID_ASK"),
+                    q(symbol="ES", secType="FUT", exchange="CME", contractMonth="202612", whatToShow="BID_ASK")):
+            with self.assertRaisesRegex(vh.BadRequest, "BID_ASK", msg=raw):
+                vh.validate(raw, now=NOW)
+        with self.assertRaises(vh.BadRequest):  # same duration bounds as TRADES
+            vh.validate(q(symbol="SPY", whatToShow="BID_ASK", barSize="1 min", duration="3 D"), now=NOW)
+        self.assertNotEqual(vh.cache_key(r), vh.cache_key(dict(r, whatToShow="TRADES")))
+
+
+class EndDateTimeServiceTest(unittest.TestCase):
+    def test_echo_cache_separation_and_absent(self):
+        svc, gw, c = make_service()
+        status, body = svc.bars(q(symbol="SPY", endDateTime="20261001-20:00:00"))
+        self.assertEqual((status, body["request"]["endDateTime"]), (200, "20261001-20:00:00"))
+        self.assertEqual(gw.calls[-1]["endDateTime"], "20261001-20:00:00")
+        self.assertEqual(body["cache"], {"hit": False, "age_seconds": 0, "ttl_seconds": 86400, "stale": False})
+        c.sleep(20)
+        status, body = svc.bars(q(symbol="SPY", endDateTime="20261002-20:00:00"))  # other range: not the cache
+        self.assertEqual((status, body["cache"]["hit"], len(gw.calls)), (200, False, 2))
+        c.sleep(20)
+        status, body = svc.bars(q(symbol="SPY"))  # absent: today's behaviour, no echo
+        self.assertEqual((status, body["cache"]["hit"], len(gw.calls)), (200, False, 3))
+        self.assertNotIn("endDateTime", body["request"])
+        self.assertNotIn("endDateTime", gw.calls[-1])
+        self.assertEqual(body["cache"]["ttl_seconds"], 3600)
+        c.sleep(5 * 3600)  # settled past range: still cached; the open-ended request is not
+        status, body = svc.bars(q(symbol="SPY", endDateTime="20261001-20:00:00"))
+        self.assertEqual((status, body["cache"]["hit"], len(gw.calls)), (200, True, 3))
+        self.assertEqual(body["request"]["endDateTime"], "20261001-20:00:00")
+        self.assertEqual(svc.bars(q(symbol="SPY"))[1]["cache"]["hit"], False)
+        self.assertEqual(len(gw.calls), 4)
+
+    def test_copy_fetched_before_settling_keeps_the_short_ttl(self):
+        svc, gw, c = make_service()
+        end = ib_time(c.t - 3600)  # one hour ago: the last bar may still change
+        status, body = svc.bars(q(symbol="SPY", endDateTime=end))
+        self.assertEqual((status, body["cache"]["ttl_seconds"]), (200, 3600))
+        c.sleep(86400)  # now settled, but this copy predates settling
+        status, body = svc.bars(q(symbol="SPY", endDateTime=end))
+        self.assertEqual((status, body["cache"]["hit"], len(gw.calls)), (200, False, 2))
+        c.sleep(3 * 3600)
+        status, body = svc.bars(q(symbol="SPY", endDateTime=end))
+        self.assertEqual((status, body["cache"]["hit"], len(gw.calls)), (200, True, 2))
+
+    def test_bad_end_dates_are_400_without_a_request(self):
+        svc, gw, c = make_service()
+        for raw in (q(symbol="SPY", endDateTime="2026-10-01"), q(symbol="SPY", endDateTime=ib_time(c.t + 60)),
+                    q(symbol="ES", secType="CONTFUT", exchange="CME", endDateTime="20261001-20:00:00")):
+            status, body = svc.bars(raw)
+            self.assertEqual((status, body["error"]), (400, "bad_request"), raw)
+        self.assertEqual(gw.calls, [])
 
 
 if __name__ == "__main__":
