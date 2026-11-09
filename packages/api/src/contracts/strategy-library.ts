@@ -32,6 +32,9 @@ export const STRATEGY_SORT_VALUES = [
   "sharpe",
   "return",
 ] as const;
+// high lists a strategy first inside every sort.
+export const STRATEGY_PRIORITY_VALUES = ["normal", "high"] as const;
+export const STRATEGY_EXTERNAL_METRICS_LIMIT = 12;
 export const STRATEGY_LIST_MAX = 500;
 export const STRATEGY_PARAMS_LIMIT = 60;
 export const STRATEGY_TAGS_LIMIT = 20;
@@ -49,6 +52,7 @@ export const StrategyKindSchema = z.enum(STRATEGY_KIND_VALUES);
 export const StrategyStatusSchema = z.enum(STRATEGY_STATUS_VALUES);
 export const StrategyParamTypeSchema = z.enum(STRATEGY_PARAM_TYPE_VALUES);
 export const StrategySortSchema = z.enum(STRATEGY_SORT_VALUES);
+export const StrategyPrioritySchema = z.enum(STRATEGY_PRIORITY_VALUES);
 
 const IdSchema = z.string().trim().min(1).max(128);
 const requiredText = (max: number) => z.string().trim().min(1).max(max);
@@ -83,6 +87,26 @@ export const StrategyParamSchema = z.object({
   options: z.array(z.string()).optional(),
 });
 
+export const StrategyExternalMetricSchema = z
+  .object({ label: requiredText(60), value: requiredText(80) })
+  .strict();
+// A third party's published CLAIM about the strategy: where it was published, the method the source
+// describes and the metrics it reports. Non-null is the single source of the label "Externally
+// pre-validated". It never means validated by Vertex; null means no external claim.
+export const StrategyExternalValidationSchema = z
+  .object({
+    sourceUrl: z.url({ protocol: /^https$/u }).max(300),
+    sourceTitle: requiredText(200),
+    sourceAuthor: requiredText(120),
+    publishedOn: z.iso.date(),
+    claimedMethod: requiredText(1000),
+    claimedMetrics: z
+      .array(StrategyExternalMetricSchema)
+      .min(1)
+      .max(STRATEGY_EXTERNAL_METRICS_LIMIT),
+  })
+  .strict();
+
 export const StrategySchema = z.object({
   id: z.string().min(1),
   slug: z.string(),
@@ -95,6 +119,8 @@ export const StrategySchema = z.object({
   favorite: z.boolean(),
   section: z.string().nullable(),
   params: z.array(StrategyParamSchema),
+  priority: StrategyPrioritySchema,
+  externalValidation: StrategyExternalValidationSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -159,6 +185,9 @@ export const StrategyCreateInputSchema = z
     favorite: z.boolean().optional(),
     section: clearableText(80).optional(),
     params: ParamsInputSchema.optional(),
+    priority: StrategyPrioritySchema.optional(),
+    // null (or omitted on create) means no external claim.
+    externalValidation: StrategyExternalValidationSchema.nullable().optional(),
   })
   .strict();
 
@@ -173,6 +202,9 @@ export const StrategyUpdateInputSchema = z
     favorite: z.boolean().optional(),
     section: clearableText(80).optional(),
     params: ParamsInputSchema.optional(),
+    priority: StrategyPrioritySchema.optional(),
+    // null (or omitted on create) means no external claim.
+    externalValidation: StrategyExternalValidationSchema.nullable().optional(),
   })
   .strict()
   .refine(
@@ -186,6 +218,8 @@ export const StrategyUpdateInputSchema = z
         input.favorite,
         input.section,
         input.params,
+        input.priority,
+        input.externalValidation,
       ].some((value) => value !== undefined),
     { message: "Change at least one field" }
   );
@@ -293,6 +327,10 @@ export const strategyLibraryContract = {
 export type StrategyKindValue = z.infer<typeof StrategyKindSchema>;
 export type StrategyStatusValue = z.infer<typeof StrategyStatusSchema>;
 export type StrategySortValue = z.infer<typeof StrategySortSchema>;
+export type StrategyPriorityValue = z.infer<typeof StrategyPrioritySchema>;
+export type StrategyExternalValidationOutput = z.infer<
+  typeof StrategyExternalValidationSchema
+>;
 export type StrategyParamOutput = z.infer<typeof StrategyParamSchema>;
 export type StrategyOutput = z.infer<typeof StrategySchema>;
 export type StrategySummaryOutput = z.infer<typeof StrategySummarySchema>;

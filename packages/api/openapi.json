@@ -170298,6 +170298,76 @@
                               }
                             ]
                           },
+                          "externalValidation": {
+                            "anyOf": [
+                              {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "claimedMethod": {
+                                    "maxLength": 1000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "claimedMetrics": {
+                                    "items": {
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "label": {
+                                          "maxLength": 60,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        },
+                                        "value": {
+                                          "maxLength": 80,
+                                          "minLength": 1,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "label",
+                                        "value"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "maxItems": 12,
+                                    "minItems": 1,
+                                    "type": "array"
+                                  },
+                                  "publishedOn": {
+                                    "format": "date",
+                                    "type": "string"
+                                  },
+                                  "sourceAuthor": {
+                                    "maxLength": 120,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "sourceTitle": {
+                                    "maxLength": 200,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "sourceUrl": {
+                                    "format": "uri",
+                                    "maxLength": 300,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "sourceUrl",
+                                  "sourceTitle",
+                                  "sourceAuthor",
+                                  "publishedOn",
+                                  "claimedMethod",
+                                  "claimedMetrics"
+                                ],
+                                "type": "object"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "favorite": {
                             "type": "boolean"
                           },
@@ -170448,6 +170518,13 @@
                             "minimum": 0,
                             "type": "integer"
                           },
+                          "priority": {
+                            "enum": [
+                              "normal",
+                              "high"
+                            ],
+                            "type": "string"
+                          },
                           "section": {
                             "anyOf": [
                               {
@@ -170506,6 +170583,8 @@
                           "favorite",
                           "section",
                           "params",
+                          "priority",
+                          "externalValidation",
                           "createdAt",
                           "updatedAt",
                           "presetCount",
@@ -171056,6 +171135,76 @@
                       }
                     ]
                   },
+                  "externalValidation": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "claimedMethod": {
+                            "maxLength": 1000,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "claimedMetrics": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "label": {
+                                  "maxLength": 60,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 12,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "publishedOn": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "sourceAuthor": {
+                            "maxLength": 120,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "sourceTitle": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "sourceUrl": {
+                            "format": "uri",
+                            "maxLength": 300,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "sourceUrl",
+                          "sourceTitle",
+                          "sourceAuthor",
+                          "publishedOn",
+                          "claimedMethod",
+                          "claimedMetrics"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "favorite": {
                     "type": "boolean"
                   },
@@ -171083,6 +171232,13 @@
                     },
                     "maxItems": 60,
                     "type": "array"
+                  },
+                  "priority": {
+                    "enum": [
+                      "normal",
+                      "high"
+                    ],
+                    "type": "string"
                   },
                   "section": {
                     "anyOf": [
@@ -171151,6 +171307,76 @@
                       "anyOf": [
                         {
                           "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "externalValidation": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "claimedMethod": {
+                              "maxLength": 1000,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "claimedMetrics": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "label": {
+                                    "maxLength": 60,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 12,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "publishedOn": {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            "sourceAuthor": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sourceTitle": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sourceUrl": {
+                              "format": "uri",
+                              "maxLength": 300,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "sourceUrl",
+                            "sourceTitle",
+                            "sourceAuthor",
+                            "publishedOn",
+                            "claimedMethod",
+                            "claimedMetrics"
+                          ],
+                          "type": "object"
                         },
                         {
                           "type": "null"
@@ -171233,6 +171459,13 @@
                       },
                       "type": "array"
                     },
+                    "priority": {
+                      "enum": [
+                        "normal",
+                        "high"
+                      ],
+                      "type": "string"
+                    },
                     "section": {
                       "anyOf": [
                         {
@@ -171291,6 +171524,8 @@
                     "favorite",
                     "section",
                     "params",
+                    "priority",
+                    "externalValidation",
                     "createdAt",
                     "updatedAt"
                   ],
@@ -172129,6 +172364,76 @@
                             }
                           ]
                         },
+                        "externalValidation": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "claimedMethod": {
+                                  "maxLength": 1000,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "claimedMetrics": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "label": {
+                                        "maxLength": 60,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "maxLength": 80,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "value"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 12,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "publishedOn": {
+                                  "format": "date",
+                                  "type": "string"
+                                },
+                                "sourceAuthor": {
+                                  "maxLength": 120,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "sourceTitle": {
+                                  "maxLength": 200,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "sourceUrl": {
+                                  "format": "uri",
+                                  "maxLength": 300,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "sourceUrl",
+                                "sourceTitle",
+                                "sourceAuthor",
+                                "publishedOn",
+                                "claimedMethod",
+                                "claimedMetrics"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
                         "favorite": {
                           "type": "boolean"
                         },
@@ -172279,6 +172584,13 @@
                           "minimum": 0,
                           "type": "integer"
                         },
+                        "priority": {
+                          "enum": [
+                            "normal",
+                            "high"
+                          ],
+                          "type": "string"
+                        },
                         "section": {
                           "anyOf": [
                             {
@@ -172337,6 +172649,8 @@
                         "favorite",
                         "section",
                         "params",
+                        "priority",
+                        "externalValidation",
                         "createdAt",
                         "updatedAt",
                         "presetCount",
@@ -172899,6 +173213,76 @@
                       }
                     ]
                   },
+                  "externalValidation": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "claimedMethod": {
+                            "maxLength": 1000,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "claimedMetrics": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "label": {
+                                  "maxLength": 60,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "maxLength": 80,
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 12,
+                            "minItems": 1,
+                            "type": "array"
+                          },
+                          "publishedOn": {
+                            "format": "date",
+                            "type": "string"
+                          },
+                          "sourceAuthor": {
+                            "maxLength": 120,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "sourceTitle": {
+                            "maxLength": 200,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "sourceUrl": {
+                            "format": "uri",
+                            "maxLength": 300,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "sourceUrl",
+                          "sourceTitle",
+                          "sourceAuthor",
+                          "publishedOn",
+                          "claimedMethod",
+                          "claimedMetrics"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "favorite": {
                     "type": "boolean"
                   },
@@ -172918,6 +173302,13 @@
                     },
                     "maxItems": 60,
                     "type": "array"
+                  },
+                  "priority": {
+                    "enum": [
+                      "normal",
+                      "high"
+                    ],
+                    "type": "string"
                   },
                   "section": {
                     "anyOf": [
@@ -172982,6 +173373,76 @@
                       "anyOf": [
                         {
                           "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "externalValidation": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "claimedMethod": {
+                              "maxLength": 1000,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "claimedMetrics": {
+                              "items": {
+                                "additionalProperties": false,
+                                "properties": {
+                                  "label": {
+                                    "maxLength": 60,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "label",
+                                  "value"
+                                ],
+                                "type": "object"
+                              },
+                              "maxItems": 12,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "publishedOn": {
+                              "format": "date",
+                              "type": "string"
+                            },
+                            "sourceAuthor": {
+                              "maxLength": 120,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sourceTitle": {
+                              "maxLength": 200,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "sourceUrl": {
+                              "format": "uri",
+                              "maxLength": 300,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "sourceUrl",
+                            "sourceTitle",
+                            "sourceAuthor",
+                            "publishedOn",
+                            "claimedMethod",
+                            "claimedMetrics"
+                          ],
+                          "type": "object"
                         },
                         {
                           "type": "null"
@@ -173064,6 +173525,13 @@
                       },
                       "type": "array"
                     },
+                    "priority": {
+                      "enum": [
+                        "normal",
+                        "high"
+                      ],
+                      "type": "string"
+                    },
                     "section": {
                       "anyOf": [
                         {
@@ -173122,6 +173590,8 @@
                     "favorite",
                     "section",
                     "params",
+                    "priority",
+                    "externalValidation",
                     "createdAt",
                     "updatedAt"
                   ],

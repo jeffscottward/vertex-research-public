@@ -52,12 +52,27 @@ const strategyRow = (
   favorite: false,
   section: null,
   params: [],
+  priority: "normal",
+  externalValidation: null,
   createdAt: at,
   updatedAt: at,
   presetCount: 0,
   backtestCount: 0,
   ...overrides,
 });
+
+// A third party's claim, in the shape migration 0065 stores for the volume spike breakout row.
+const claim = {
+  sourceUrl: "https://youtu.be/XLMG6-SATRk",
+  sourceTitle: "I Backtested 10,000 Strategies",
+  sourceAuthor: "Lil Fish, YouTube",
+  publishedOn: "2026-09-24",
+  claimedMethod: "10,500 strategies ranked by total net R.",
+  claimedMetrics: [
+    { label: "Rank", value: "1 of 10,500" },
+    { label: "Win rate", value: "14%" },
+  ],
+};
 
 const presetRow = (
   overrides: Partial<StrategyPreset> = {}
@@ -114,6 +129,8 @@ const strategiesRepository = (
         name: input.name,
         kind: input.kind,
         slug: "new",
+        priority: input.priority ?? "normal",
+        externalValidation: input.externalValidation ?? null,
       })
     ),
     update: vi.fn(async (input) => {
@@ -125,6 +142,12 @@ const strategiesRepository = (
             ...(input.favorite === undefined
               ? {}
               : { favorite: input.favorite }),
+            ...(input.priority === undefined
+              ? {}
+              : { priority: input.priority }),
+            ...(input.externalValidation === undefined
+              ? {}
+              : { externalValidation: input.externalValidation }),
           };
     }),
     savePreset: vi.fn(async (input) => {
@@ -386,23 +409,33 @@ describe("strategy library rules", () => {
       cagr: null,
       maxDrawdown: null,
     });
+    const normal = "normal" as const;
     const rows = [
-      { id: "a", name: "beta", updatedAt: at, latestBacktest: null },
+      {
+        id: "a",
+        name: "beta",
+        priority: normal,
+        updatedAt: at,
+        latestBacktest: null,
+      },
       {
         id: "b",
         name: "Alpha",
+        priority: normal,
         updatedAt: later,
         latestBacktest: latest(0.5, -0.1),
       },
       {
         id: "c",
         name: "gamma",
+        priority: normal,
         updatedAt: at,
         latestBacktest: latest(1.2, 0.3),
       },
       {
         id: "d",
         name: "delta",
+        priority: normal,
         updatedAt: at,
         latestBacktest: latest(null, null),
       },
@@ -425,6 +458,53 @@ describe("strategy library rules", () => {
       "b",
       "a",
       "d",
+    ]);
+  });
+
+  return it("puts high-priority strategies first inside every sort", () => {
+    const row = (
+      id: string,
+      priority: "normal" | "high",
+      updatedAt: Date,
+      sharpe: number | null
+    ) => ({
+      id,
+      name: id,
+      priority,
+      updatedAt,
+      latestBacktest:
+        sharpe === null
+          ? null
+          : {
+              id: `bt-${id}`,
+              createdAt: at,
+              sharpe,
+              totalReturn: sharpe,
+              cagr: null,
+              maxDrawdown: null,
+            },
+    });
+    // Without priority every sort would lead with "a": first by name, newest and best metric.
+    const rows = [
+      row("a", "normal", later, 2),
+      row("y", "high", at, null),
+      row("b", "normal", at, 1),
+      row("z", "high", at, 0.1),
+      row("x", "high", later, 0.4),
+    ];
+    const ids = (sort?: "updated" | "name" | "sharpe" | "return") =>
+      sortStrategies(rows, sort).map((entry) => entry.id);
+    expect(ids("name")).toEqual(["x", "y", "z", "a", "b"]);
+    expect(ids("updated")).toEqual(["x", "z", "y", "a", "b"]);
+    expect(ids()).toEqual(ids("updated"));
+    expect(ids("sharpe")).toEqual(["x", "z", "y", "a", "b"]);
+    expect(ids("return")).toEqual(["x", "z", "y", "a", "b"]);
+    return expect(rows.map((entry) => entry.id)).toEqual([
+      "a",
+      "y",
+      "b",
+      "z",
+      "x",
     ]);
   });
 });
@@ -482,6 +562,165 @@ describe("strategyLibrary procedures", () => {
     ]);
     expect(result.strategies[0]?.latestBacktest).toMatchObject({ id: "bt-up" });
     return expect(result.strategies[2]?.latestBacktest).toBeNull();
+  });
+
+  it("returns the priority and the external claim and lists high priority first", async () => {
+    const rows = [
+      strategyRow({ id: "s-up", name: "Rising", backtestCount: 2 }),
+      strategyRow({
+        id: "s-claim",
+        name: "Volume spike breakout",
+        priority: "high",
+        externalValidation: claim,
+        updatedAt: at,
+      }),
+      strategyRow({ id: "s-new", name: "Newest", updatedAt: later }),
+    ];
+    const client = clientFor({ strategyLibrary: strategiesRepository(rows) });
+    for (const sort of ["updated", "name", "sharpe", "return"] as const) {
+      const listed = await client.strategyLibrary.list({ sort });
+      expect(listed.strategies[0]?.id, sort).toBe("s-claim");
+    }
+    const { strategies } = await client.strategyLibrary.list({});
+    expect(strategies.map((row) => row.id)).toEqual([
+      "s-claim",
+      "s-new",
+      "s-up",
+    ]);
+    expect(strategies[0]).toMatchObject({
+      priority: "high",
+      externalValidation: claim,
+    });
+    expect(strategies[1]).toMatchObject({
+      priority: "normal",
+      externalValidation: null,
+    });
+    const found = await client.strategyLibrary.get({ id: "s-claim" });
+    expect(found.strategy.priority).toBe("high");
+    expect(found.strategy.externalValidation).toEqual(claim);
+    // The output is a copy: it shares no reference with the repository row.
+    expect(found.strategy.externalValidation).not.toBe(claim);
+    const plain = await client.strategyLibrary.get({ id: "s-up" });
+    expect(plain.strategy.priority).toBe("normal");
+    return expect(plain.strategy.externalValidation).toBeNull();
+  });
+
+  it("accepts and rejects the priority and the external claim on create and update", async () => {
+    const repository = strategiesRepository([
+      strategyRow({ priority: "high", externalValidation: claim }),
+    ]);
+    const client = clientFor({ strategyLibrary: repository });
+    expect(
+      await client.strategyLibrary.create({ name: "Plain", kind: "python" })
+    ).toMatchObject({ priority: "normal", externalValidation: null });
+    expect(
+      await client.strategyLibrary.create({
+        name: "Claimed",
+        kind: "python",
+        priority: "high",
+        externalValidation: claim,
+      })
+    ).toMatchObject({ priority: "high", externalValidation: claim });
+    expect(repository.create).toHaveBeenLastCalledWith({
+      name: "Claimed",
+      kind: "python",
+      priority: "high",
+      externalValidation: claim,
+    });
+    expect(
+      await client.strategyLibrary.update({
+        id: "s-hmm",
+        externalValidation: null,
+      })
+    ).toMatchObject({ priority: "high", externalValidation: null });
+    expect(repository.update).toHaveBeenLastCalledWith({
+      id: "s-hmm",
+      externalValidation: null,
+    });
+    expect(
+      await client.strategyLibrary.update({ id: "s-hmm", priority: "normal" })
+    ).toMatchObject({ priority: "normal" });
+    expect(repository.update).toHaveBeenLastCalledWith({
+      id: "s-hmm",
+      priority: "normal",
+    });
+    const metric = { label: "Rank", value: "1" };
+    const invalid: Record<string, unknown>[] = [
+      { priority: "urgent" },
+      { externalValidation: { ...claim, sourceUrl: "http://youtu.be/x" } },
+      { externalValidation: { ...claim, sourceUrl: "not a url" } },
+      {
+        externalValidation: {
+          ...claim,
+          sourceUrl: `https://x.test/${"a".repeat(300)}`,
+        },
+      },
+      { externalValidation: { ...claim, sourceTitle: " " } },
+      { externalValidation: { ...claim, sourceTitle: "t".repeat(201) } },
+      { externalValidation: { ...claim, sourceAuthor: "a".repeat(121) } },
+      { externalValidation: { ...claim, publishedOn: "24.09.2026" } },
+      { externalValidation: { ...claim, publishedOn: "2026-02-30" } },
+      { externalValidation: { ...claim, claimedMethod: "m".repeat(1001) } },
+      { externalValidation: { ...claim, claimedMetrics: [] } },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: Array.from({ length: 13 }, () => metric),
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ ...metric, unit: "R" }],
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ label: "l".repeat(61), value: "1" }],
+        },
+      },
+      {
+        externalValidation: {
+          ...claim,
+          claimedMetrics: [{ label: "Rank", value: "v".repeat(81) }],
+        },
+      },
+      { externalValidation: { ...claim, validatedByVertex: true } },
+      { externalValidation: { sourceUrl: claim.sourceUrl } },
+    ];
+    const calls = repository.create.mock.calls.length;
+    for (const fields of invalid) {
+      await expectCode(
+        client.strategyLibrary.create({
+          name: "x",
+          kind: "python",
+          ...fields,
+        } as never),
+        "BAD_REQUEST",
+        400
+      );
+      await expectCode(
+        client.strategyLibrary.update({ id: "s-hmm", ...fields } as never),
+        "BAD_REQUEST",
+        400
+      );
+    }
+    expect(repository.create.mock.calls).toHaveLength(calls);
+    repository.update.mockRejectedValueOnce(
+      new InvalidRepositoryInputError(
+        "externalValidation.claimedMethod must not contain control characters"
+      )
+    );
+    return await expectCode(
+      client.strategyLibrary.update({
+        id: "s-hmm",
+        externalValidation: { ...claim, claimedMethod: "line\nbreak" },
+      }),
+      "VALIDATION_ERROR",
+      422,
+      "externalValidation.claimedMethod must not contain control characters"
+    );
   });
 
   it("creates, updates, saves and removes presets, and maps failures", async () => {
