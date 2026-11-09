@@ -67,6 +67,7 @@ import {
   STRATEGY_TEMPLATES,
   StrategyDefinitionSchema,
 } from "./strategy-dsl.ts";
+import { runStrategyDefinition } from "./strategy-dsl-compile.ts";
 
 const at = new Date("2026-10-23T12:00:00.000Z");
 const DAY_MS = 86_400_000;
@@ -2839,6 +2840,173 @@ describe("backtest runs on the Nautilus engine", () => {
       ).toEqual(result.stats);
     }
     expect([...reasons].sort()).toEqual(["end", "signal", "stop", "target"]);
+  });
+
+  it("stores an intraday GHLZ run whose trades exit at the session close", async () => {
+    // 1-minute regular-session bars (09:30 to 15:59 New York, EST) on four days. Days 2 and 4 open
+    // with a gap up and drift up, so their return from the prior close to 10:00 is above 0; day 3
+    // gaps and drifts down. Each 16:00 close exits the position at the close of the 15:59 bar.
+    const minute = 60_000;
+    const columns: Record<"c" | "h" | "l" | "o" | "t", number[]> = {
+      c: [],
+      h: [],
+      l: [],
+      o: [],
+      t: [],
+    };
+    let price = 100;
+    for (const [day, move] of [0.002, 0.005, -0.005, 0.005].entries()) {
+      const start = Date.UTC(2024, 0, 8 + day, 14, 30);
+      price *= 1 + move;
+      for (let slot = 0; slot < 390; slot += 1) {
+        const open = price;
+        price = open * (1 + (2 * move) / 390 + 0.0004 * Math.sin(slot));
+        columns.t.push(start + slot * minute);
+        columns.o.push(open);
+        columns.c.push(price);
+        columns.h.push(Math.max(open, price) * 1.0002);
+        columns.l.push(Math.min(open, price) * 0.9998);
+      }
+    }
+    const bars = {
+      c: Float64Array.from(columns.c),
+      h: Float64Array.from(columns.h),
+      l: Float64Array.from(columns.l),
+      o: Float64Array.from(columns.o),
+      t: Float64Array.from(columns.t),
+    };
+    const definition = StrategyDefinitionSchema.parse({
+      entry: {
+        all: [
+          {
+            left: {
+              from: "prevClose",
+              name: "sessionReturn",
+              to: "10:00",
+              type: "indicator",
+            },
+            op: ">",
+            right: { type: "const", value: 0 },
+          },
+        ],
+      },
+      intraday: {
+        close: "16:00",
+        entryFrom: "15:30",
+        entryTo: "15:30",
+        open: "09:30",
+        timezone: "America/New_York",
+      },
+      name: "GHLZ intraday momentum long",
+      sizing: { mode: "allIn" },
+      stopLoss: { kind: "none" },
+      version: 1,
+    });
+    const runs = memoryRuns();
+    const client = clientFor({
+      bars: fakeBars({
+        getSeries: vi.fn(async () => ({
+          ...seriesRow,
+          barCount: bars.t.length,
+          firstT: bars.t[0] as number,
+          id: "SPY:1m",
+          lastT: bars.t.at(-1) as number,
+          timeframe: "1m" as const,
+        })),
+        loadColumns: vi.fn(async () => bars),
+      }),
+      runs,
+    });
+    const intradaySpec = {
+      ...spec,
+      from: "2024-01-08",
+      rule: { definition, kind: "dsl" as const },
+      timeframe: "1m" as const,
+      to: "2024-01-11",
+    };
+    const complete = async (relabel: boolean) => {
+      const run = await queue(runs, { spec: intradaySpec });
+      const claimed = (await client.backtestRuns.engine.claim({ engine }))
+        .run as Claimed;
+      // What the Nautilus worker sends: the golden set holds it to the TypeScript engine.
+      const result = runStrategyDefinition(
+        bars,
+        definition,
+        spec.costBps,
+        undefined,
+        undefined,
+        "1m"
+      );
+      const trades = result.trades.map((trade) =>
+        relabel ? { ...trade, exitReason: "signal" as const } : trade
+      );
+      return {
+        outcome: client.backtestRuns.engine.complete({
+          engine,
+          id: run.id,
+          result: {
+            equity: Array.from(result.equity),
+            stats: result.stats,
+            trades,
+          },
+          seriesSha256: claimed.seriesSha256,
+        }),
+        result,
+        run,
+      };
+    };
+    const { outcome, result, run } = await complete(false);
+    expect(result.trades.map((trade) => trade.exitReason)).toEqual([
+      "sessionClose",
+      "sessionClose",
+    ]);
+    // Each trade fills at the 15:30 open after the signal at the 15:30 close print, and holds the
+    // 15:30 to 15:59 bars, the exit bar included: 30 bars per day.
+    expect(
+      result.trades.map((trade) => [
+        new Date(bars.t[trade.entryIndex] as number).toISOString(),
+        new Date(bars.t[trade.exitIndex] as number).toISOString(),
+      ])
+    ).toEqual([
+      ["2024-01-09T20:30:00.000Z", "2024-01-09T20:59:00.000Z"],
+      ["2024-01-11T20:30:00.000Z", "2024-01-11T20:59:00.000Z"],
+    ]);
+    expect(barsInPositionOf(result.trades)).toBe(60);
+    expect(result.stats.exposure).toBeCloseTo(60 / bars.t.length, 12);
+    await expect(outcome).resolves.toEqual({ id: run.id, status: "succeeded" });
+    const report = runs.rows.get(run.id)?.report as
+      | { trades: { exitReason: string }[] }
+      | undefined;
+    expect(report?.trades.map((trade) => trade.exitReason)).toEqual([
+      "sessionClose",
+      "sessionClose",
+    ]);
+    // The same report as the server's own TypeScript run of the definition.
+    const serverRuns = memoryRuns();
+    const serverRun = await serverRuns.create({
+      engineVersion: BACKTEST_RUN_ENGINE_VERSION,
+      requestedBy: "operator",
+      spec: intradaySpec,
+      strategyId: null,
+      strategyRevision: null,
+      strategySnapshot: null,
+    });
+    await executeBacktestRun(
+      {
+        marketBars: fakeBars({ loadColumns: vi.fn(async () => bars) }),
+        runs: serverRuns,
+      },
+      serverRun.id
+    );
+    expect(serverRuns.rows.get(serverRun.id)?.status).toBe("succeeded");
+    expect(report).toEqual(serverRuns.rows.get(serverRun.id)?.report);
+    // Labelled as signal exits (fills at the open), the exit bars would not count as held.
+    const relabelled = await complete(true);
+    await expectCode(relabelled.outcome, "BAD_REQUEST", 400);
+    expect(runs.rows.get(relabelled.run.id)).toMatchObject({
+      error: "The engine stats do not match its equity and trades (exposure)",
+      status: "failed",
+    });
   });
 
   it("refuses a result whose stats differ from its equity and trades", async () => {
