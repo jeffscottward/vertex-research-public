@@ -30,10 +30,6 @@ overrides:
   "image-size@<2.0.3": ^2.0.3
   "sharp@<0.35.4": ^0.35.4
   "undici@>=7.0.0 <7.29.1": ^7.29.1
-  # One OTel API copy: better-auth and drizzle-orm auto-install the optional
-  # @opentelemetry/api peer at its latest version, which would add a second
-  # global API next to the catalog pin.
-  "@opentelemetry/api": 1.9.1
 
 catalog:
   "@axe-core/playwright": 4.14.0
@@ -44,15 +40,14 @@ catalog:
   "@vitest/coverage-v8": 5.0.5
   "@fontsource-variable/geist": 5.3.0
   "@fontsource-variable/geist-mono": 5.3.0
-  # Hold the OTel API and OTLP exporters on the 2.x SDK line: api 1.10.0 and
-  # exporters 0.300.0 belong to the 3.0 SDK (2.12 peers need api <1.10.0) and
-  # would mix with the 2.x resources/sdk-metrics/sdk-trace-base below.
-  "@opentelemetry/api": 1.9.1
-  "@opentelemetry/exporter-metrics-otlp-http": 0.223.0
-  "@opentelemetry/exporter-trace-otlp-http": 0.223.0
-  "@opentelemetry/resources": 2.12.0
-  "@opentelemetry/sdk-metrics": 2.12.0
-  "@opentelemetry/sdk-trace-base": 2.12.0
+  # OpenTelemetry 3.x SDK line: the 3.x SDK packages peer on api >=1.10.0
+  # <1.11.0 and the 0.30x OTLP exporters belong to the same release train.
+  "@opentelemetry/api": 1.10.0
+  "@opentelemetry/exporter-metrics-otlp-http": 0.301.0
+  "@opentelemetry/exporter-trace-otlp-http": 0.301.0
+  "@opentelemetry/resources": 3.1.0
+  "@opentelemetry/sdk-metrics": 3.1.0
+  "@opentelemetry/sdk-trace": 3.1.0
   "@orpc/client": 1.16.1
   "@orpc/contract": 1.16.1
   "@orpc/openapi": 1.16.1
