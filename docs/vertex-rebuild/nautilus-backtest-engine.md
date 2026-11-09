@@ -89,11 +89,16 @@ Nautilus matches every order and keeps the cash and position ledger. The model g
 - Stop first (the TypeScript rule): a bar that reaches the stop exits at the stop, also when it opens beyond the target. The target order rests during a bar only when that bar's low stays above the stop. The strategy reads the coming bar's low for this execution rule only; signals never read it.
 - Signals use data up to the close of bar i. Entries and signal exits are market orders at the open print of bar i + 1.
 - An entry places a reduce-only stop-market order and, under the stop-first rule, a reduce-only market-if-touched order. A level touched inside the bar fills at the level. A level gapped through fills at the open.
+- Stop management (a definition's `management`, see [strategy definitions](strategy-definitions.md#stop-management-and-leverage)): at the close of every bar with an open position the strategy computes the raised stop like TypeScript `manage` (breakeven at entry + `breakevenR` × R, trail at the highest close − `multiple` × ATR once the high reaches entry + `activateR` × R, never lower). It modifies the resting stop-market order at the next open print, before any other price of that bar; nothing trades between that close and this open, so this equals a change at the close. A bar that opens at or below the raised stop exits at the open (TypeScript fills min(open, stop)).
+- Leverage (`sizing.maxLeverage` with `riskPct`): the position cost is capped at cash × `maxLeverage`, as in TypeScript. The venue is a cash account with `allow_cash_borrowing`, so the borrowed part shows as negative cash; no financing is charged (the LD34 study runner charges it in research).
+- Ruin (as TypeScript `runSignalBacktest`): when unit equity marked at a close is at or below 0, a market order closes an open position at that close print (reason `stop`) and the strategy places no further entries. That bar's equity is the cash after the fill.
 - An open position closes at the last close (exit reason `end`).
 - The fee model charges the flat `costBps`, half the spread, the slippage, the commission and the fees in USD. Nautilus fills at the reference price; the trade record shows the cost-adjusted price.
 - One CFD instrument with 9-decimal prices and quantities, so fractional units match the TypeScript sizing.
 
 Known differences: Nautilus books fees in whole cents, and prices and quantities have 9 decimals. Both stay inside the parity tolerances.
+
+Model version: every result carries `modelVersion` (`MODEL_VERSION` in `nautilus_backtest/engine.py`), raised whenever the order or fill model changes. Version 2 added stop management (the stop modify at the next open), `maxLeverage` sizing and the ruin rule, and `normalize_definition` now rejects unknown keys like the strict TypeScript schema. Workers on the research hosts must run version 2 before definitions with `timeframe`, `breaksAbove`/`breaksBelow`, `oncePerLevel`, `entry.any`, `management` or `maxLeverage` are queued: version 1 code ignores most of those fields and would return results that look valid but are wrong. Nothing in the API checks `modelVersion` yet, so deploy the worker first.
 
 ## Parity tolerances
 

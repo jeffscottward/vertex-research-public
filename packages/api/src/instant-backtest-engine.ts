@@ -357,7 +357,11 @@ interface PositionState {
   entryCash: number;
   entryIndex: number;
   entryPrice: number;
+  /** Stop set at entry, and the highest high and close since entry (stop management). */
+  initialStop: number;
   legs: Legs | null;
+  maxClose: number;
+  maxHigh: number;
   /** Cash not used by the position (0 when fully invested). */
   rest: number;
   /** Cash committed to the position, including the entry costs. */
@@ -512,6 +516,27 @@ export type SignalRunOptions = Readonly<{
    * at the next open as a signal exit. Undefined means no time limit.
    */
   maxHoldBars?: number;
+  /**
+   * With riskPct: the position cost is capped at cash × maxLeverage instead of the cash (1 to 50).
+   * The borrowed part makes the unused cash negative; no financing is charged. A gap can then
+   * take equity to 0 or below: see the ruin rule of runSignalBacktest.
+   */
+  maxLeverage?: number;
+  /** Stop management of the open position (see PositionManagement). */
+  management?: PositionManagement;
+}>;
+
+/**
+ * Moves the stop of an open position up at the close of every bar it is open (the entry bar
+ * included), after that bar's stop and target check, with R = entry price - initial stop (> 0).
+ * breakevenR: once the highest high since entry reaches entry + breakevenR × R, stop = max(stop,
+ * entry). trail: once the highest high reaches entry + activateR × R, stop = max(stop, highest
+ * close since entry - multiple × atr[i]); a NaN ATR leaves the stop. The new stop applies from the
+ * next bar. Without a stop (NaN) nothing moves.
+ */
+export type PositionManagement = Readonly<{
+  breakevenR?: number;
+  trail?: Readonly<{ activateR: number; multiple: number; atr: Float64Array }>;
 }>;
 
 const assertSignalOptions = (
@@ -540,6 +565,33 @@ const assertSignalOptions = (
       "maxHoldBars must be a whole number of at least 1"
     );
   }
+  assertManagementOptions(size, options);
+};
+
+const positive = (name: string, value: number | undefined): void => {
+  if (value !== undefined && !(Number.isFinite(value) && value > 0))
+    throw new InstantBacktestInputError(`${name} must be above 0`);
+};
+
+/** Checks maxLeverage (needs riskPct, 1 to 50) and the management levels and ATR length. */
+const assertManagementOptions = (
+  size: number,
+  options: SignalRunOptions
+): void => {
+  const { management, maxLeverage } = options;
+  if (maxLeverage !== undefined) {
+    if (options.riskPct === undefined)
+      throw new InstantBacktestInputError("maxLeverage needs riskPct");
+    if (!(maxLeverage >= 1 && maxLeverage <= 50))
+      throw new InstantBacktestInputError("maxLeverage must be from 1 to 50");
+  }
+  positive("breakevenR", management?.breakevenR);
+  const trail = management?.trail;
+  if (trail === undefined) return;
+  positive("trail activateR", trail.activateR);
+  positive("trail multiple", trail.multiple);
+  if (trail.atr.length !== size)
+    throw new InstantBacktestInputError("trail ATR must match the bar count");
 };
 
 /** Distance at the signal bar; NaN when missing or not above 0. */
@@ -550,7 +602,9 @@ const distanceAt = (series: Float64Array | undefined, index: number) => {
 
 /**
  * Runs the fill and accounting model over precomputed signals: 1 enters while flat, -1 exits while
- * in a position, 0 does nothing. Signals act at the open of the next bar.
+ * in a position, 0 does nothing. Signals act at the open of the next bar. Ruin rule: when equity
+ * marked at a bar's close (cash, or unused cash + units × close in a position) is at or below 0,
+ * an open position exits at that close (reason "stop") and the run takes no further entries.
  */
 export const runSignalBacktest = (
   bars: BarColumns,
@@ -569,6 +623,8 @@ export const runSignalBacktest = (
   let cash = 1;
   let position: PositionState | null = null;
   let pending: 1 | -1 | 0 = 0;
+  /** Set once equity marked at a close falls to 0 or below (see the ruin rule below). */
+  let ruined = false;
   let pendingStop = Number.NaN;
   let pendingTarget = Number.NaN;
   let barsInPosition = 0;
@@ -635,13 +691,18 @@ export const runSignalBacktest = (
     position = null;
   };
 
-  /** Cash to commit: all of it, or the amount that loses riskPct of equity at the stop. */
+  /**
+   * Cash to commit: all of it, or the amount that loses riskPct of equity at the stop, capped at
+   * the cash (times maxLeverage when set).
+   */
   const spendFor = (open: number, stop: number): number => {
     if (options.riskPct === undefined) return cash;
     const perUnit = open - stop;
     if (!(perUnit > 0)) return 0;
     const riskUnits = (cash * options.riskPct) / PERCENT / perUnit;
-    return Math.min(cash, (riskUnits * open) / (1 - cost));
+    const cap =
+      options.maxLeverage === undefined ? cash : cash * options.maxLeverage;
+    return Math.min(cap, (riskUnits * open) / (1 - cost));
   };
 
   const enter = (index: number, open: number) => {
@@ -674,7 +735,10 @@ export const runSignalBacktest = (
         entryCash: cash,
         entryIndex: index,
         entryPrice: open,
+        initialStop: stop,
         legs: null,
+        maxClose: Number.NEGATIVE_INFINITY,
+        maxHigh: Number.NEGATIVE_INFINITY,
         rest: cash - spent,
         spent,
         stop,
@@ -696,10 +760,12 @@ export const runSignalBacktest = (
     );
     if (!(units > 0)) return;
     const buy = fillCosts(profile, "buy", units * capital, open, atrNow);
+    const level = levels(buy.price);
     position = {
       entryCash: cash,
       entryIndex: index,
       entryPrice: buy.price,
+      initialStop: level.stop,
       legs: {
         bps: spent * cost,
         commission: buy.commission / capital,
@@ -707,11 +773,44 @@ export const runSignalBacktest = (
         slippage: buy.slippage / capital,
         spread: buy.spread / capital,
       },
+      maxClose: Number.NEGATIVE_INFINITY,
+      maxHigh: Number.NEGATIVE_INFINITY,
       rest: cash - spent,
       spent,
       units,
-      ...levels(buy.price),
+      ...level,
     };
+  };
+
+  const management = options.management;
+  /** Stop management at the close of bar `index` (see PositionManagement). */
+  const manage = (index: number) => {
+    const held = position;
+    if (held === null || management === undefined) return;
+    const { breakevenR, trail } = management;
+    // A NaN price is skipped, here and in the Python engine.
+    const high = bars.h[index] as number;
+    const close = bars.c[index] as number;
+    if (!Number.isNaN(high)) held.maxHigh = Math.max(held.maxHigh, high);
+    if (!Number.isNaN(close)) held.maxClose = Math.max(held.maxClose, close);
+    const risk = held.entryPrice - held.initialStop;
+    if (!(risk > 0)) return;
+    if (
+      breakevenR !== undefined &&
+      held.maxHigh >= held.entryPrice + breakevenR * risk
+    )
+      held.stop = Math.max(held.stop, held.entryPrice);
+    if (
+      trail !== undefined &&
+      held.maxHigh >= held.entryPrice + trail.activateR * risk
+    ) {
+      const trailAtr = trail.atr[index] as number;
+      if (!Number.isNaN(trailAtr))
+        held.stop = Math.max(
+          held.stop,
+          held.maxClose - trail.multiple * trailAtr
+        );
+    }
   };
 
   for (let index = 0; index < size; index += 1) {
@@ -731,9 +830,23 @@ export const runSignalBacktest = (
         exitPosition(index, Math.max(open, held.target), "target");
       }
     }
+    manage(index);
+    // Ruin: equity marked at the close at or below 0 (possible with maxLeverage, usually after a
+    // gap through the stop) ends trading: an open position exits at that close as a stop, and
+    // the run takes no further entries.
+    const close = bars.c[index] as number;
+    const marked =
+      position === null
+        ? cash
+        : (position as PositionState).rest +
+          (position as PositionState).units * close;
+    if (marked <= 0) {
+      if (position !== null) exitPosition(index, close, "stop");
+      ruined = true;
+    }
     const signal = signals[index] as number;
     if (index < size - 1) {
-      if (signal === 1 && position === null) {
+      if (signal === 1 && position === null && !ruined) {
         pending = 1;
         pendingStop = distanceAt(options.stopDistance, index);
         pendingTarget = distanceAt(options.targetDistance, index);

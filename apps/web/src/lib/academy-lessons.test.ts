@@ -66,7 +66,7 @@ describe("loadCourseLessons", () => {
 });
 
 describe("loadCourseListing", () => {
-  it("marks only a failing database course unavailable (e.g. web deployed before migration 0059)", async () => {
+  it("marks only a failing database course unavailable (e.g. web deployed before migration 0060)", async () => {
     const error = vi
       .spyOn(console, "error")
       .mockImplementation(() => undefined);

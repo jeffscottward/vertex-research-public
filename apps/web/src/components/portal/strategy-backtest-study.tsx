@@ -5,7 +5,7 @@
 // (researchStudies.get, operator-only) and shows its verdict, runs, gate effects and monthly
 // equity. Read-only research: no arm, deploy or order control lives here. New studies are stored
 // with `bun run vertex:research-studies:import`.
-import { isQcPortStudy } from "@darkfactory/api";
+import { isQcPortStudy, type ResearchStudyDocument } from "@darkfactory/api";
 import {
   Button,
   cn,
@@ -49,13 +49,14 @@ export const NOT_APPROVAL =
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 120;
 
-type State =
+/** Load state of a study section; `model` is the mapped study once it is ready. */
+export type StudyState<Model> =
   | Readonly<{ type: "loading" }>
   | Readonly<{ type: "forbidden" }>
   | Readonly<{ type: "unauthorized" }>
   | Readonly<{ type: "not-found" }>
   | Readonly<{ type: "error"; message: string }>
-  | Readonly<{ type: "ready"; model: QcPortStudyViewModel }>;
+  | Readonly<{ type: "ready"; model: Model }>;
 
 const EquityChart = ({ model }: { readonly model: QcPortStudyViewModel }) => {
   if (model.equity.length === 0)
@@ -234,11 +235,12 @@ const StudyBody = ({ model }: { readonly model: QcPortStudyViewModel }) => (
   </div>
 );
 
-const Pending = ({
+/** Every state of a study section but ready: loading, operator-only, signed out, missing, error. */
+export const StudyPending = ({
   state,
   onRetry,
 }: {
-  readonly state: Exclude<State, Readonly<{ type: "ready" }>>;
+  readonly state: Exclude<StudyState<unknown>, Readonly<{ type: "ready" }>>;
   readonly onRetry: () => void;
 }) => {
   if (state.type === "loading")
@@ -291,27 +293,32 @@ const Pending = ({
   );
 };
 
-export const StrategyBacktestStudy = ({
-  slug,
-  gateway: supplied,
-}: Readonly<{
-  slug: string;
-  gateway?: ResearchStudyGateway | undefined;
-}>) => {
+/**
+ * Loads the study stored under `slug` (researchStudies.get) and maps it with `toModel`, which
+ * returns null when the stored document is not of the expected kind (named by `kind` in the error).
+ * `toModel` must keep its identity across renders (define it at module level).
+ */
+export const useResearchStudy = <Model,>(
+  slug: string,
+  supplied: ResearchStudyGateway | undefined,
+  kind: string,
+  toModel: (study: ResearchStudyDocument) => Model | null
+) => {
   const [gateway] = useState(
     () => supplied ?? createBrowserResearchStudyGateway()
   );
-  const [state, setState] = useState<State>({ type: "loading" });
+  const [state, setState] = useState<StudyState<Model>>({ type: "loading" });
   const load = useCallback(async () => {
     setState({ type: "loading" });
     try {
       const { study } = await getResearchStudyWithTimeout(gateway, slug);
-      if (!isQcPortStudy(study))
+      const model = toModel(study);
+      if (model === null)
         return setState({
-          message: `Study ${slug} is not a qc-port backtest study.`,
+          message: `Study ${slug} is not a ${kind} study.`,
           type: "error",
         });
-      return setState({ model: toQcPortStudyViewModel(study), type: "ready" });
+      return setState({ model, type: "ready" });
     } catch (error) {
       const failure = describePortfolioMonitorFailure(error);
       if (failure.kind === "forbidden") return setState({ type: "forbidden" });
@@ -323,10 +330,29 @@ export const StrategyBacktestStudy = ({
         type: "error",
       });
     }
-  }, [gateway, slug]);
+  }, [gateway, kind, slug, toModel]);
   useEffect(() => {
     void load();
   }, [load]);
+  return { load, state };
+};
+
+const qcPortModel = (study: ResearchStudyDocument) =>
+  isQcPortStudy(study) ? toQcPortStudyViewModel(study) : null;
+
+export const StrategyBacktestStudy = ({
+  slug,
+  gateway: supplied,
+}: Readonly<{
+  slug: string;
+  gateway?: ResearchStudyGateway | undefined;
+}>) => {
+  const { load, state } = useResearchStudy(
+    slug,
+    supplied,
+    "qc-port backtest",
+    qcPortModel
+  );
 
   return (
     <section
@@ -343,7 +369,7 @@ export const StrategyBacktestStudy = ({
       {state.type === "ready" ? (
         <StudyBody model={state.model} />
       ) : (
-        <Pending onRetry={() => void load()} state={state} />
+        <StudyPending onRetry={() => void load()} state={state} />
       )}
     </section>
   );

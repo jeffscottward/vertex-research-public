@@ -127,7 +127,8 @@ describe("0022 assistant migration", () => {
       "0056_semantic_layer",
       "0057_strategy_catalog_qc_ports",
       "0058_semantic_unlinked_runs",
-      "0059_academy_content",
+      "0059_strategy_catalog_ld34",
+      "0060_academy_content",
     ]);
   });
 
