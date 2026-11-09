@@ -6,6 +6,7 @@ import {
   COST_PROFILE_PRESETS,
   type CostProfilePresetId,
   type InstantBacktestSeries,
+  STRATEGY_OPTION_SYMBOLS,
   type StrategyDefinition,
   type StrategyDefinitionGetOutput,
 } from "@darkfactory/api";
@@ -73,19 +74,26 @@ export type RunRuleInput = Pick<
 export const runsOptionsDefinition = (form: Pick<RunForm, "definition">) =>
   form.definition?.definition.options !== undefined;
 
+/**
+ * The symbol and timeframe a run reads: a stored bar series, or for an options definition a symbol
+ * of the daily series store on 1d.
+ */
+export type RunSeries = Pick<InstantBacktestSeries, "symbol" | "timeframe">;
+
 /** The rule part of the request: the stored definition, or the SMA cross or breakout rule. */
 const ruleInput = (
   form: RunForm,
-  series: InstantBacktestSeries
+  series: RunSeries
 ): Readonly<{ input: RunRuleInput }> | Readonly<{ error: string }> => {
   const definition = form.definition ?? null;
   if (definition === null) return toRunInput(form.params, series);
-  const members: readonly string[] | undefined =
-    definition.definition.portfolio?.symbols;
-  if (members !== undefined && !members.includes(series.symbol))
-    return {
-      error: `The definition trades ${members.join(", ")}; choose one of them.`,
-    };
+  if (runsOptionsDefinition(form)) {
+    const symbols = optionsRunSymbols(definition.definition);
+    if (!symbols.includes(series.symbol))
+      return {
+        error: `The definition trades ${symbols.join(", ")}; choose one of them.`,
+      };
+  }
   const costBps = runsOptionsDefinition(form) ? 0 : form.params.costBps;
   if (!(costBps >= 0 && costBps <= 500))
     return { error: "Cost per side must be from 0 to 500 bps." };
@@ -102,7 +110,7 @@ const ruleInput = (
 /** Builds the submit request, or returns the reason the form cannot run. */
 export const toSubmitInput = (
   form: RunForm,
-  series: InstantBacktestSeries
+  series: RunSeries
 ):
   | Readonly<{ input: BacktestRunSubmitInput }>
   | Readonly<{ error: string }> => {
@@ -373,8 +381,9 @@ export const optionTradesHeading = (book: OptionsBook): string =>
 /**
  * A link that opens this page with a stored strategy definition, e.g. from the strategy library:
  * /backtest-runs?definition=<id>&sha=<sha256>&strategy=<id>&timeframe=1d&from=…&initialCapital=…
- * Without `symbol` the page takes the first portfolio symbol of the definition; without `to` the
- * form keeps the series' last stored date.
+ * An options definition runs on the daily series store: without `symbol` the page takes its first
+ * portfolio symbol, without `to` today's UTC date. Other definitions run on the stored bar series of
+ * `symbol`; without `to` the form keeps the series' last stored date.
  */
 export type DefinitionLink = Readonly<{
   id: string;
@@ -382,6 +391,7 @@ export type DefinitionLink = Readonly<{
   symbol: string | null;
   timeframe: string;
   from: string | null;
+  to: string | null;
   initialCapital: number | null;
   costBps: number | null;
 }>;
@@ -402,15 +412,19 @@ export const readDefinitionLink = (search: string): DefinitionLink | null => {
   const id = text("definition");
   if (id === null) return null;
   const sha256 = text("sha");
-  const from = text("from");
+  const date = (name: string): string | null => {
+    const value = text(name);
+    return value !== null && DATE_PATTERN.test(value) ? value : null;
+  };
   return {
     costBps: number("costBps"),
-    from: from !== null && DATE_PATTERN.test(from) ? from : null,
+    from: date("from"),
     id,
     initialCapital: number("initialCapital"),
     sha256: sha256 !== null && SHA256_PATTERN.test(sha256) ? sha256 : null,
     symbol: text("symbol"),
     timeframe: text("timeframe") ?? "1d",
+    to: date("to"),
   };
 };
 
@@ -425,6 +439,7 @@ export const definitionRunHref = (
     ["symbol", link.symbol],
     ["timeframe", link.timeframe],
     ["from", link.from],
+    ["to", link.to],
     ["initialCapital", link.initialCapital],
     ["costBps", link.costBps],
   ];
@@ -466,40 +481,38 @@ export const loadLinkedDefinition = async (
   return linked((await get(link.id, match.revision)).revision, true);
 };
 
-/**
- * The stored series a definition link runs on. With a portfolio: the link symbol when it is a
- * member with a stored series, else the first member with one, else an error. Without one: the
- * link symbol's series; null keeps the form's series.
- */
+/** The stored bar series a definition link names (definitions without options), if any. */
 export const definitionSeries = (
   series: readonly InstantBacktestSeries[],
-  link: Pick<DefinitionLink, "symbol" | "timeframe">,
+  link: Pick<DefinitionLink, "symbol" | "timeframe">
+): InstantBacktestSeries | undefined =>
+  series.find(
+    (entry) =>
+      entry.symbol === link.symbol && entry.timeframe === link.timeframe
+  );
+
+/**
+ * Symbols an options definition may run on: its portfolio members, else every Core 7 ETF. Options
+ * runs read the daily series store, so a member needs no stored bar series.
+ */
+export const optionsRunSymbols = (
   definition: StrategyDefinition
-):
-  | Readonly<{ series: InstantBacktestSeries }>
-  | Readonly<{ error: string }>
-  | null => {
-  const stored = (symbol: string | null) =>
-    series.find(
-      (entry) => entry.symbol === symbol && entry.timeframe === link.timeframe
-    );
-  const members: readonly string[] | undefined = definition.portfolio?.symbols;
-  if (members === undefined) {
-    const found = stored(link.symbol);
-    return found === undefined ? null : { series: found };
-  }
-  const candidates =
-    link.symbol !== null && members.includes(link.symbol)
-      ? [link.symbol, ...members]
-      : members;
-  for (const symbol of candidates) {
-    const found = stored(symbol);
-    if (found !== undefined) return { series: found };
-  }
-  return {
-    error: `No stored ${link.timeframe} series for the definition's symbols (${members.join(", ")}). Import bars for one of them first.`,
-  };
+): readonly string[] =>
+  definition.portfolio?.symbols ?? STRATEGY_OPTION_SYMBOLS;
+
+/** The symbol an options definition link opens with: the link symbol when allowed, else the first. */
+export const optionsLinkSymbol = (
+  link: Pick<DefinitionLink, "symbol">,
+  definition: StrategyDefinition
+): string => {
+  const symbols = optionsRunSymbols(definition);
+  return link.symbol !== null && symbols.includes(link.symbol)
+    ? link.symbol
+    : (symbols[0] as string);
 };
+
+/** Today's date in UTC as YYYY-MM-DD: the default end of an options run (the store slices to it). */
+export const todayUtc = (): string => isoDate(Date.now());
 
 /** "Strategy definition: <id> revision 1 (sha 0123456789ab…), <name>." */
 export const describeLinkedDefinition = (linked: LinkedDefinition): string =>
