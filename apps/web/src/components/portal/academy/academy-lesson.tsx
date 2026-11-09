@@ -240,7 +240,7 @@ export const AcademyLesson = ({
                   className="whitespace-pre-line border-border border-l-2 pl-3"
                   data-source-caption
                 >
-                  {lesson.source.caption}
+                  {lesson.source.caption.trim()}
                 </blockquote>
               )}
             </div>

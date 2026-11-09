@@ -416,10 +416,10 @@ describe("AcademyLesson", () => {
   it("shows a music-only empty state with the caption when the transcript is empty", async () => {
     const { section, lesson } = await renderWithSource(
       [],
-      "Sharpe ratio as a hypothesis test\n#quant"
+      "\nSharpe ratio as a hypothesis test\n#quant\n"
     );
     expect(section.querySelector("[data-transcript]")).toBeNull();
-    expect(section.textContent).not.toContain("Timestamps are");
+    expect(section.querySelector("p")?.textContent).toMatch(/\d\.$/);
     const empty = section.querySelector("[data-transcript-empty]");
     expect(empty?.textContent).toContain(
       "No spoken narration in this reel (music only)."
@@ -434,7 +434,7 @@ describe("AcademyLesson", () => {
   });
 
   it("omits the caption block when the transcript and caption are both empty", async () => {
-    const { section } = await renderWithSource([], "");
+    const { section } = await renderWithSource([], "  \n");
     const empty = section.querySelector("[data-transcript-empty]");
     expect(empty?.textContent).toContain("music only");
     expect(empty?.textContent).not.toContain("caption is shown below");
@@ -447,7 +447,9 @@ describe("AcademyLesson", () => {
       { start: 65, text: "Second line" },
     ]);
     expect(section.querySelector("[data-transcript-empty]")).toBeNull();
-    expect(section.textContent).toContain("Timestamps are");
+    expect(section.querySelector("p")?.textContent).toMatch(
+      /\d\. Timestamps are /
+    );
     const items = section.querySelectorAll("[data-transcript] li");
     expect(items).toHaveLength(2);
     expect(items[1]?.textContent).toContain("Second line");
