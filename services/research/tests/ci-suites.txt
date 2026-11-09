@@ -70,6 +70,7 @@ tests/test_quant_strategies_quant.py
 tests/test_quant_strategies_swing.py
 tests/test_quant_strategies_wheel.py
 tests/test_regime_composite.py
+tests/test_regime_flags.py
 tests/test_rvol_at_time.py
 tests/test_rvol_intraday.py
 tests/test_sector_rotation.py

@@ -46,7 +46,7 @@ Basis codes: S = stated by the source; I = implied by the source; A = Vertex def
 |A3|`stretch(t) = C(t) / SMA200(t) − 1`. SMA200 is the mean of the last 200 closes, including day t.|S / A|
 |A4|`vol(t)` = sample standard deviation of the last 21 daily log returns, times √252.|I / A|
 |A5|`since_high(t)` = trading days since the last record close of the series up to day t (0 = day t is a record close).|S / A|
-|A6|Signal day: `run ≥ 20%` AND `stretch ≥ 10%` AND `vol ≤ 15%` AND `since_high ≤ 4`. The first 200 days of a series have no signal.|A (the author gives no thresholds)|
+|A6|Signal day: `run ≥ 20%` AND `stretch ≥ 10%` AND `vol ≤ 15%` AND `since_high ≤ 4`. A day with fewer than 200 closes up to it has no signal.|A (the author gives no thresholds)|
 |A7|Episode start: the first signal day, and after that each signal day that is at least 30 trading days after the previous episode start. The 30-day windows of two episodes never overlap.|A|
 |A8|Base rates, on days with all features defined and a complete window: (i) all days; (ii) near-record days (`since_high ≤ 4`).|A|
 |A9|Grid (54 cells, robustness only): run 15 / 20 / 25%, stretch 8 / 10 / 12%, vol 12 / 15 / 18%, high = record close or 252-day closing high (each within the last 5 trading days). The base rate of a cell uses the near-high days of its own high type.|A|
