@@ -1,6 +1,6 @@
 # Data sources and platform roles
 
-**As of 2026-09-23 (Gamma Forge wording updated 2026-11-03).** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. The trading-domain code that came from Gamma Forge, the earlier version of Vertex, is native Vertex code (ADR-V02 amendment).
+**As of 2026-09-23 (Gamma Forge wording updated 2026-11-03; Yahoo Finance row and source review added 2026-11-09).** This is a dashboard map, not an activation checklist or proof of subscriptions. **IBKR is the primary venue and first-choice source for data it can actually supply under verified permissions.** Other providers fill demonstrated gaps. The trading-domain code that came from Gamma Forge, the earlier version of Vertex, is native Vertex code (ADR-V02 amendment).
 
 ## The distinction at a glance
 
@@ -23,6 +23,9 @@ Dashboard areas below describe intended uses, not a claim that every panel is im
 | **QuantPad AI** | AI research workspace, strategy-building/backtesting tools; documented historical universe, coverage, symbology, bars and ticks API | **Quant Lab / strategy research:** candidate historical inputs and externally developed research artifacts | Optional historical gap-filler after IBKR. Its documented exclusion of the in-progress session does not establish live Quant Data equivalence | Local integration is a **supplied-artifact, rights-gated boundary, not a QuantPad API client**. Public API/export marketing does not resolve license restrictions. Written external-use/retention/model/derived-output permission and actual endpoint/plan entitlement are unresolved. [3][L3] |
 | **NautilusTrader** | Event-driven engine; historical replay, modeled fills, performance outputs and execution-adapter events | **Quant Lab:** run reproducible simulations. **Execution infrastructure:** engine component behind separately authorized native services | Uses IBKR/vendor data; does not supply an independent market history or account truth. Reuse its IBKR historical integration rather than assume a second collector is needed | Source, offline tests and native compilation/identity evidence are not broker/runtime qualification. Current v3 historical results remain limited-retrospective/inconclusive; no promotion or execution authority. [4][L4] |
 | **FinancialDatasets.ai** | Financial statements, metrics, SEC filings/items, earnings, insider/institutional information; documented historical stock OHLCV and other research data | **Company dossiers / screening / research chat:** financial and filing evidence. **Quant Lab / charts:** eligible price inputs for supported research | Candidate for fundamental/filing gaps and documented price-history fallback—not an automatic replacement for IBKR quotes or Quant Data flow | Gamma-derived request/shape adapter exists; account access and permitted storage/redistribution/model use are unverified. Current historical-price docs describe **daily/weekly/monthly/yearly EOD data**; local acceptance of second/minute interval arguments is not proof the vendor supports them. [5][L5] |
+| **Yahoo Finance** | Undocumented public endpoints (JSON chart bars and options chain without Greeks; XML headline RSS) and the `yfinance` package in offline research fetchers | **Alerts, market news, pick-list screen, research lenses, sector rotation, `/stock/<SYMBOL>` options chain, Quant Lab snapshots:** free daily/intraday context where no licensed source is wired | Convenience fallback only. IBKR or a licensed vendor wins wherever both exist; Yahoo bars are never account or execution truth | In use in the files listed in [L7], with no account, API key or published contract. Vertex has no agreement with Yahoo; its terms address automated collection and derived databases (quoted in [L7]), and how they apply is an open owner decision, as is replacing the live paths. Endpoints can change or rate-limit without notice. [6][L7] |
+
+Sources reviewed and not integrated: Screener.in (India-only fundamentals, personal-use terms, no API) and Zerodha Varsity (course content, reproduction not permitted). See the [source review][L7].
 
 ## Other planned data and evidence categories
 
@@ -107,12 +110,14 @@ Public documentation was reviewed alongside existing project evaluations; no acc
 - **[3] QuantPad AI:** [product and historical-only positioning](https://quantpad.ai/), [External Data API](https://api.quantpad.ai/external/openapi.json), [published license restrictions](https://quantpad.ai/license). Technical API availability does not settle the license conflict.
 - **[4] NautilusTrader:** [engine documentation](https://nautilustrader.io/docs/latest/), [IBKR integration and historical data](https://nautilustrader.io/docs/latest/integrations/interactive_brokers/#historical-data).
 - **[5] FinancialDatasets.ai:** [introduction](https://docs.financialdatasets.ai/introduction), [documented dataset/API index](https://docs.financialdatasets.ai/llms.txt), [historical price contract](https://docs.financialdatasets.ai/api/prices/historical.md).
+- **[6] Yahoo Finance:** [terms of service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html), [`yfinance` disclaimer](https://github.com/ranaroussi/yfinance#readme). Quotes and the call-site inventory are in [L7].
 - **[L1]** [IBKR historical source boundary](../services/research/providers/ibkr_history.py).
 - **[L2]** [Quant Data adapter](../services/research/providers/quantdata.py).
 - **[L3]** [QuantPad supplied-input boundary](../services/research/providers/quantpad.py).
 - **[L4]** [Historical simulation semantics and result restrictions](../services/research/backtesting/historical.py).
 - **[L5]** [FinancialDatasets adapter](../services/research/providers/financialdatasets.py).
 - **[L6]** [Implementation plan](vertex-rebuild/implementation-plan.md), [architecture decisions](vertex-rebuild/architecture-decisions.md), [repository architecture](../ARCHITECTURE.md). These establish intended roles and safety boundaries; older plan status is not a substitute for later scoped evidence.
+- **[L7]** [Source review: reel De8MRTzRrPy](vertex-rebuild/data-sources/reel-de8mrtzrrpy.md): Screener.in, Yahoo Finance and Zerodha Varsity verdicts, quoted terms, Yahoo file inventory (2026-11-09 snapshot with the command that rebuilds it) and stored copies.
 
 [L1]: ../services/research/providers/ibkr_history.py
 [L2]: ../services/research/providers/quantdata.py
@@ -120,3 +125,4 @@ Public documentation was reviewed alongside existing project evaluations; no acc
 [L4]: ../services/research/backtesting/historical.py
 [L5]: ../services/research/providers/financialdatasets.py
 [L6]: vertex-rebuild/implementation-plan.md
+[L7]: vertex-rebuild/data-sources/reel-de8mrtzrrpy.md
