@@ -90,9 +90,10 @@ window with a position that stays open overnight (the `intraday` block closes at
 - Robustness on the primary: in-sample first 60% / out-of-sample last 40% of the time; walk-forward (3 years train, 1 year
   test, best Sharpe of the grid vol_mult {2.5, 3, 3.5} x k {5, 10} x stop {10, 15, 20} points); one-at-a-time changes
   (vol_mult 2, 2.5, 3.5, 4; vol_n 20, 30, 100; k 3, 10, 20; stop 10, 20, 30 points and the percent stop; time stop 40, 160
-  candles; no Wednesday skip; no 4-hour trend filter; session 08:30 to 16:00; 1 entry per day; no entry limit; long only;
-  short only); source costs and doubled Vertex costs; 2,000 trade bootstraps; a random-entry control (500 runs with the same
-  number of entries in the same session, the same stop and exits).
+  candles; no Wednesday skip; no 4-hour trend filter; session 08:30 to 16:00; the session test on the candle open in place
+  of the candle close; 1 entry per day; no entry limit; long only; short only); source costs and doubled Vertex costs; 2,000
+  trade bootstraps; a random-entry control (500 runs with the same number of entries in the same session, the same stop and
+  exits).
 - Deflated Sharpe ratio, three numbers: over every distinct configuration this study ran on the primary; with N = 10,000
   trials (the number the source states) and with N = 10,500, both using the spread of the Sharpe ratios of our own
   configurations as the trial variance; and on the source's claimed result (657 trades, per-trade mean and spread rebuilt
