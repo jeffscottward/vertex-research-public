@@ -306,3 +306,27 @@ describe("CandleCanvas optional studies and markers", () => {
     return expect(renderer.dispose).toHaveBeenCalled();
   });
 });
+
+describe("ChartRendererBoundary", () => {
+  it("replaces a child that throws while rendering with the table note", async () => {
+    const Broken = (): never => {
+      throw new Error("renderer exploded");
+    };
+    const caught = vi.fn();
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container, { onCaughtError: caught });
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <ChartRendererBoundary>
+          <Broken />
+        </ChartRendererBoundary>
+      )
+    );
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "could not display the selected data"
+    );
+    return expect(caught).toHaveBeenCalledOnce();
+  });
+});

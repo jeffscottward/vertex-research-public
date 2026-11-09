@@ -140,6 +140,7 @@ import { VertexWorkerServiceError } from "./vertex-worker-auth.ts";
 import { todosRouter } from "./todos.ts";
 import { watchlistRouter } from "./watchlist.ts";
 import { priceAlertsRouter } from "./price-alerts.ts";
+import { openbbRouter } from "./openbb.ts";
 import { sectorRotationRouter } from "./sector-rotation.ts";
 import { marketNewsRouter } from "./market-news.ts";
 import { basketsRouter } from "./baskets.ts";
@@ -1717,6 +1718,7 @@ export const appRouter = api.router({
   dashboard: { summary: dashboardSummary },
   watchlist: watchlistRouter,
   priceAlerts: priceAlertsRouter,
+  openbb: openbbRouter,
   sectorRotation: sectorRotationRouter,
   marketNews: marketNewsRouter,
   baskets: basketsRouter,

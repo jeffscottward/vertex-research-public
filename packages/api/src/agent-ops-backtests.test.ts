@@ -945,4 +945,18 @@ describe("papers.addFromArxiv", () => {
     ).toMatchObject({ created: false, paper: { id: "paper-jump" } });
     return expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("falls back to a stored bare-id row for a versioned request without fetching", async () => {
+    const fetch = vi.fn();
+    setArxivFetchOptionsForTesting({ fetch });
+    const client = clientFor(session("operator"), {
+      researchPapers: memoryPapers([
+        paper({ id: "paper-bare", identifier: "arXiv:2402.05272" }),
+      ]),
+    });
+    expect(
+      await client.papers.addFromArxiv({ arxiv: "arXiv:2402.05272v3" })
+    ).toMatchObject({ created: false, paper: { id: "paper-bare" } });
+    return expect(fetch).not.toHaveBeenCalled();
+  });
 });

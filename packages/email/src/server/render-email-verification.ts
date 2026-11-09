@@ -64,6 +64,7 @@ const assertTrustedVerificationUrl = (
 
   const queryKeys = [...verificationUrl.searchParams.keys()];
   const tokens = verificationUrl.searchParams.getAll("token");
+  const [token] = tokens;
   const callbackValues = verificationUrl.searchParams.getAll("callbackURL");
   const [callbackValue] = callbackValues;
   if (
@@ -76,7 +77,8 @@ const assertTrustedVerificationUrl = (
     queryKeys[0] !== "token" ||
     queryKeys[1] !== "callbackURL" ||
     tokens.length !== 1 ||
-    !VERIFICATION_TOKEN_PATTERN.test(tokens[0] ?? "") ||
+    token === undefined ||
+    !VERIFICATION_TOKEN_PATTERN.test(token) ||
     callbackValues.length !== 1 ||
     callbackValue === undefined
   ) {

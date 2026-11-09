@@ -5,12 +5,14 @@ import {
   decodeBase64,
   hashArtifact,
   rawSha,
+  type NativeRecord,
 } from "./vertex-runtime-epoch-bytes.ts";
 import {
   applyNativeEpochEvent,
   initialNativeEpochState,
 } from "./vertex-runtime-epoch-replay.ts";
 import { reconstructVertexEpochEvidence } from "./vertex-runtime-epoch-evidence.ts";
+import { rebuildEpochSnapshot } from "./vertex-runtime-epoch-snapshot.ts";
 import { verifyVertexEpochApproval } from "./vertex-runtime-epoch-approval.ts";
 import { createVertexRuntimeEpochOperations } from "./vertex-runtime-epoch.ts";
 import type { PersistenceContext } from "@darkfactory/db/server/vertex-epoch";
@@ -21,7 +23,7 @@ const base64 = (bytes: Uint8Array): string =>
   btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""));
 const stamp = "2026-01-01T00:00:00.000000000Z";
 const now = 1_767_225_600_000_000_000n;
-const fixture = async (strandedOwner = false) => {
+const fixture = async (strandedOwner = false, checkpointed = false) => {
   const accountAlias = "fixture-account";
   const simulatorId = "fixture-simulator";
   const streamId = "fixture-stream";
@@ -126,6 +128,14 @@ const fixture = async (strandedOwner = false) => {
     ownerEpoch: "1",
     sourceEventHash: sourceHash,
   });
+  const checkpoint = { ...snapshot, snapshotId: "fixture-checkpoint" };
+  if (checkpointed)
+    await append("portfolio-checkpoint", {
+      snapshotId: checkpoint.snapshotId,
+      sequence: "1",
+      ownerEpoch: "1",
+      sourceEventHash: sourceHash,
+    });
   const priorStateSha256 = await hashArtifact(state);
   let claim = await append("epoch-claimed", { epoch: "2" });
   if (strandedOwner) claim = await append("epoch-claimed", { epoch: "3" });
@@ -176,6 +186,13 @@ const fixture = async (strandedOwner = false) => {
     nativeProofs: [],
     nativeFactIdentities: [],
   };
+  if (checkpointed)
+    outbox.projections.push({
+      ...outbox.projections[0],
+      publicationSequence: "2",
+      kind: "portfolio-snapshot",
+      payloadBase64: base64(canonical(checkpoint)),
+    });
   outbox.ownerEpoch = state["ownerEpoch"];
   outbox.metadata[0].value = state["ownerEpoch"];
   const outboxBytes = canonical(outbox);
@@ -275,6 +292,114 @@ describe("concrete native epoch evidence", () => {
       false
     );
     return expect(proof.projections[0]?.["acknowledged"]).toBe(false);
+  });
+  it("rejects an acknowledged projection after pending history in replay mode", async () => {
+    const value = await fixture(false, true);
+    const replay = async () => {
+      const bytes = canonical(value.outbox);
+      value.fence.nativeOutboxEvidenceSha256 = await rawSha(bytes);
+      return reconstructVertexEpochEvidence(
+        bytes,
+        canonical(value.fence),
+        now,
+        false
+      );
+    };
+    const [genesis, checkpoint] = value.outbox.projections;
+    genesis.acknowledged = false;
+    checkpoint.acknowledged = false;
+    const pending = await replay();
+    expect(pending.projections.map((row) => row["acknowledged"])).toEqual([
+      false,
+      false,
+    ]);
+    checkpoint.acknowledged = true;
+    return await expect(replay()).rejects.toThrow();
+  });
+  it("rejects native orders whose dispatch flags are not booleans", async () => {
+    const value = await fixture();
+    const [state, target] = [
+      value.outbox.checkpoints[3].payloadBase64,
+      value.outbox.projections[0].payloadBase64,
+    ].map(
+      (payload: string): NativeRecord =>
+        JSON.parse(new TextDecoder().decode(decodeBase64(payload)))
+    );
+    if (!(state && target)) throw new Error("fixture lacks genesis bytes");
+    await expect(
+      rebuildEpochSnapshot(structuredClone(state), target)
+    ).resolves.toEqual(target);
+    const order = {
+      submissionKey: "fixture-order",
+      reservationEventId: "fixture-reservation",
+      admission: {
+        schemaVersion: "1.0.0",
+        admissionId: "fixture-admission",
+        admissionKind: "PAPER-SIMULATION",
+        accountAlias: state["accountAlias"],
+        environment: "paper",
+        simulatorId: state["simulatorId"],
+        streamId: target["streamId"],
+        ownerEpoch: "1",
+        intentId: "fixture-intent",
+        intentSha256: "b".repeat(64),
+        reviewedArtifactSha256: "b".repeat(64),
+        reviewId: "fixture-review",
+        reviewVersion: "1.0.0",
+        actorId: "fixture-actor",
+        policyVersion: "1.0.0",
+        strategyVersion: "fixture-strategy",
+        portfolioSnapshotId: target["snapshotId"],
+        portfolioSequence: "1",
+        maximumLoss: "1",
+        maximumNotional: "1",
+        admittedAt: stamp,
+        expiresAt: "2026-01-01T01:00:00.000000000Z",
+        idempotencyKey: "fixture-idempotency",
+        simulationOnly: true,
+        brokerSubmissionAllowed: false,
+        liveAuthorization: false,
+        executionAuthorized: false,
+      },
+      status: "submitted",
+      reservationState: "reserved",
+      dispatchMarked: true,
+      finalityProven: false as boolean | string,
+      cancelRequested: false,
+      reconciledEpoch: "1",
+      cashReserve: "1",
+      shareReserve: {},
+    };
+    const reserved = {
+      ...target,
+      reservations: [
+        {
+          reservationId: `reservation-${await hashArtifact({
+            kind: "native-genesis-reservation-v1",
+            accountAlias: state["accountAlias"],
+            submissionKey: order.submissionKey,
+            instrumentId: null,
+          })}`,
+          submissionKey: order.submissionKey,
+          instrumentId: null,
+          cashAmount: "1",
+          shareQuantity: "0",
+          currency: "USD",
+          state: "reserved",
+          sourceEventId: order.reservationEventId,
+          authoritative: false,
+        },
+      ],
+    };
+    const rebuild = () =>
+      rebuildEpochSnapshot(
+        { ...structuredClone(state), orders: { [order.submissionKey]: order } },
+        reserved,
+        false
+      );
+    await expect(rebuild()).resolves.toEqual(reserved);
+    order.finalityProven = "false";
+    return await expect(rebuild()).rejects.toThrow();
   });
   it("rejects altered original checkpoint and noncanonical row bytes", async () => {
     const value = await fixture();

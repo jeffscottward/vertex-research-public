@@ -11,6 +11,12 @@ vi.mock("../../../components/portal/market-context-page.tsx", () => ({
   MarketContextPage: () => <div data-workspace="markets" />,
 }));
 
+vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
+  OpenbbMarketsSection: (props: { symbol?: string }) => (
+    <div data-openbb="markets" data-symbol={props.symbol} />
+  ),
+}));
+
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
 const roots: Root[] = [];
@@ -38,6 +44,7 @@ describe("market context route files", () => {
     expect(
       container.querySelector('[data-workspace="markets"]')
     ).not.toBeNull();
+    expect(container.querySelector('[data-openbb="markets"]')).not.toBeNull();
   });
 
   it("renders an accessible loading state", async () => {

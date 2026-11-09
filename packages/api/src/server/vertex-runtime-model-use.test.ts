@@ -754,6 +754,33 @@ describe("source-bound runtime model use", () => {
     missingLink.h.persisted.set("vertex_reviewed_artifact_links", []);
     return await expect(missingLink.accepted()).rejects.toThrow();
   });
+  it("binds uncollected artifact metadata only to the empty collection key", async () => {
+    const f = await acceptedFixture();
+    const [row] = f.h.persisted.get("vertex_artifacts") ?? [];
+    const payload = row?.["payload"];
+    if (!(row && payload) || typeof payload !== "object")
+      throw new Error("fixture lacks artifact row");
+    const metadata = { ...payload, collectionId: null };
+    row["payload"] = metadata;
+    row["metadata_hash"] = await hashArtifact(metadata);
+    const queries = () =>
+      f.h.execute.mock.calls.map(
+        ([query]) => new PgDialect().sqlToQuery(query).sql
+      );
+    const before = queries().length;
+    await expect(f.accepted()).rejects.toThrow();
+    const mismatched = queries().slice(before);
+    // A non-empty key stops at the artifact binding, before any grant lookup.
+    expect(mismatched).toHaveLength(1);
+    expect(mismatched[0]).toContain('"vertex_artifacts"');
+    row["collection_key"] = "";
+    await expect(f.accepted()).rejects.toThrow();
+    // The empty key passes that binding and reaches the review lookup.
+    const matched = queries().slice(before + mismatched.length);
+    return expect(
+      matched.some((query) => query.includes('"vertex_reviews"'))
+    ).toBe(true);
+  });
   return it("cannot reuse old rights revision after the current policy changes", async () => {
     const f = await acceptedFixture();
     f.h.rightsRow["payload"] = { ...f.h.rights, version: "2.0.0" };

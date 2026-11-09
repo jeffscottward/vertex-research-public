@@ -9,7 +9,7 @@ import {
 // URL state for /stock/<SYMBOL>?interval=&expiry=&tab=. Missing or invalid values fall back
 // to the defaults (1D chart, nearest expiry, chart tab), so every link opens a useful page.
 
-export const STOCK_TABS = ["chart", "options", "analytics"] as const;
+export const STOCK_TABS = ["chart", "options", "analytics", "filings"] as const;
 export type StockTab = (typeof STOCK_TABS)[number];
 
 export type StockQuery = Readonly<{

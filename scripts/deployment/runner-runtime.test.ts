@@ -610,6 +610,48 @@ describe("concrete isolated backend", () => {
     }
   });
 
+  it.each([
+    ["a sealed image", "built", "cleanup"],
+    ["an interrupted build", "commit", "cleanup"],
+    ["a completed build without a sealed image id", "sealed", undefined],
+  ])(
+    "treats a missing image tag after %s as cleanup uncertainty only when an image may exist",
+    async (_label, failure, cleanupError) => {
+      const fixture = await backendFixture();
+      const original = fixture.command.getMockImplementation()!;
+      let cleaning = false;
+      fixture.command.mockImplementation(async (command) => {
+        if (failure === "commit" && command.args[2] === "commit")
+          return { code: 9, output: Buffer.alloc(0) };
+        if (failure === "sealed" && command.args[5] === "{{.Id}}")
+          return { code: 0, output: Buffer.from("not-an-image-id") };
+        if (
+          cleaning &&
+          command.args[2] === "image" &&
+          command.args[3] === "inspect"
+        )
+          return { code: 1, output: Buffer.alloc(0) };
+        return original(command);
+      });
+      const prepared = fixture.ports.prepare(
+        fixture.snapshot,
+        fixture.policy.policy,
+        fixture.policy.sha256
+      );
+      if (failure === "built") await prepared;
+      else await expect(prepared).rejects.toThrow();
+      cleaning = true;
+      const cleanup = fixture.ports.cleanup();
+      if (cleanupError) await expect(cleanup).rejects.toThrow(cleanupError);
+      else await cleanup;
+      return expect(
+        fixture.command.mock.calls.some(
+          ([command]) => command.args[2] === "image" && command.args[3] === "rm"
+        )
+      ).toBe(false);
+    }
+  );
+
   return it("constructs a non-root read-only namespace with only explicit disposable outputs", () => {
     const args = isolatedContainerArguments(
       `sha256:${"a".repeat(64)}`,

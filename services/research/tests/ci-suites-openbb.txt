@@ -1,0 +1,6 @@
+# OpenBB fetcher suites (sixth run of scripts/ci/research-python.sh, separate venv from
+# services/openbb/requirements-openbb-linux-py312.lock, PYTHONPATH=services/openbb).
+# Paths are relative to services/research. Every test_*.py file under services/openbb must be
+# listed here (the script checks it). Recorded upstream fixtures only; sockets are blocked.
+../openbb/tests/test_jobs.py
+../openbb/tests/test_units.py

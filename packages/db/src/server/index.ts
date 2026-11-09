@@ -254,6 +254,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {
   createMarketDailySeriesRepository,
@@ -262,6 +263,34 @@ export {
   MarketDailySeriesInputError,
   validateMarketDailySeries,
 } from "./market-daily-series.ts";
+export type {
+  Openbb13fRow,
+  OpenbbCotRow,
+  OpenbbEventRow,
+  OpenbbFactorRow,
+  OpenbbFtdRow,
+  OpenbbInsiderRow,
+  OpenbbMacroPointInput,
+  OpenbbMacroPointRow,
+  OpenbbMacroSeriesRow,
+  OpenbbOptionIvDailyRow,
+  OpenbbOptionIvTermRow,
+  OpenbbOtcRow,
+  OpenbbRepository,
+  OpenbbRun,
+  OpenbbRunInput,
+  OpenbbSecFilingRow,
+  OpenbbShortInterestRow,
+  OpenbbShortVolumeRow,
+  OpenbbTableStat,
+  OpenbbUpsertRows,
+  OpenbbUpsertTable,
+  OpenbbVxCurveRow,
+} from "./openbb.ts";
+export {
+  createOpenbbRepository,
+  OPENBB_UPSERT_TABLES,
+} from "./openbb.ts";
 export type {
   MarketDailyBars,
   MarketDailyViews,

@@ -216,7 +216,6 @@ overrides:
   image-size@<2.0.3: ^2.0.3
   sharp@<0.35.4: ^0.35.4
   undici@>=7.0.0 <7.29.1: ^7.29.1
-  '@vitest/coverage-v8@5.0.5>ast-v8-to-istanbul': 1.0.5
   '@opentelemetry/api': 1.9.1
 
 importers:
@@ -4694,8 +4693,8 @@ packages:
     resolution: {integrity: sha512-FvWoWYfSCM6kRxCSH+MGLHIKKGRL6A6AW7Zek2O32REPQRdg131428uRTKMBYAeRd3XXAaHDS60Wpri7CdKDrA==}
     engines: {node: '>=4'}
 
-  ast-v8-to-istanbul@1.0.5:
-    resolution: {integrity: sha512-UPAgKJFSEGMWSDr3LX4tqnAb4f7KGT8O40Tyx8wbYmmZ/yn58lNCm8h3svs3eXgiGd5AXxz8NDOvXWvicq+rJA==}
+  ast-v8-to-istanbul@1.0.8:
+    resolution: {integrity: sha512-lPdpagk13ANXV+HClJEpCZM7kUsl5XcvgqKzZhaj6Ve1ZFICcY2sGhAN1n1vT0tML6EclT7bfVgTxqL57Gkpow==}
 
   auth@1.7.14:
     resolution: {integrity: sha512-a3g2oaGjzq/fG9jGEMjQGcDzSM9oyhmGFL+ZbsPDT31WQ3BjZLlNkgGJpTYwwZE8pLDGa6N8sAiKQ8WGTzdfiQ==}
@@ -11659,7 +11658,7 @@ snapshots:
       '@bcoe/v8-coverage': 1.0.2
       '@vitest/istanbul-lib-coverage': 1.0.2
       '@vitest/istanbul-lib-report': 1.0.2
-      ast-v8-to-istanbul: 1.0.5
+      ast-v8-to-istanbul: 1.0.8
       magicast: 0.5.5
       obug: 3.0.0
       std-env: 4.3.0
@@ -11828,7 +11827,7 @@ snapshots:
     dependencies:
       tslib: 2.9.1
 
-  ast-v8-to-istanbul@1.0.5:
+  ast-v8-to-istanbul@1.0.8:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       estree-walker: 3.0.3
