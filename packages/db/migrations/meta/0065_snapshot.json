@@ -1,5 +1,5 @@
 {
-  "id": "9555b9c1-3e0a-4d36-a787-602b42d5e4c6",
+  "id": "5230a732-95fb-4722-a096-07f30f0d203d",
   "prevId": "e114bf3c-d2a9-4b3a-9012-0f1e6bd1b276",
   "version": "7",
   "dialect": "postgresql",
@@ -9923,6 +9923,10 @@
         "strategies_priority_check": {
           "name": "strategies_priority_check",
           "value": "\"strategies\".\"priority\" in ('normal', 'high')"
+        },
+        "strategies_external_validation_check": {
+          "name": "strategies_external_validation_check",
+          "value": "\"strategies\".\"external_validation\" is null or jsonb_typeof(\"strategies\".\"external_validation\") = 'object'"
         }
       },
       "isRLSEnabled": false

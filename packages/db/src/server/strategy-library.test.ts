@@ -36,6 +36,7 @@ interface Operation {
   fields?: Record<string, unknown>;
   kind: string;
   locked?: boolean;
+  orderBy?: SQL[];
   set?: Record<string, unknown>;
   table?: unknown;
   values?: Record<string, unknown>;
@@ -57,7 +58,10 @@ const createDouble = (
         if (!(condition === undefined)) operation.where = condition;
         return chain;
       },
-      orderBy: () => chain,
+      orderBy: (...order: SQL[]) => {
+        operation.orderBy = order;
+        return chain;
+      },
       limit: () => chain,
       for: () => {
         operation.locked = true;
@@ -118,6 +122,7 @@ const ADDED_BY_0065 = [
   "priority",
   "external_validation",
   "strategies_priority_check",
+  "strategies_external_validation_check",
 ];
 const claim = {
   sourceUrl: "https://youtu.be/XLMG6-SATRk",
@@ -693,6 +698,21 @@ describe("strategy library repository", () => {
         search: "x".repeat(101),
       })
     ).rejects.toBeInstanceOf(InvalidRepositoryInputError);
+  });
+
+  it("orders high priority first in SQL, before the limit", async () => {
+    const double = createDouble([
+      [{ id: "s-high", presetCount: 0, backtestCount: 0, ...plain }],
+    ]);
+    await createStrategyLibraryRepository(double.database).list({ limit: 1 });
+    const order = (double.operations[0]!.orderBy ?? []).map(
+      (entry) => dialect.sqlToQuery(entry).sql
+    );
+    return expect(order).toEqual([
+      `case when "strategies"."priority" = 'high' then 0 else 1 end`,
+      '"strategies"."updated_at" desc',
+      '"strategies"."id" desc',
+    ]);
   });
 
   it("filters by one source tag with a jsonb containment test", async () => {

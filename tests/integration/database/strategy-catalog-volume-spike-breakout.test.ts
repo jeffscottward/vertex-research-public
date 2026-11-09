@@ -120,6 +120,39 @@ describe("0065 volume spike breakout catalog row (Postgres)", () => {
     });
   });
 
+  it("keeps the high-priority row in a list limited to one row, ahead of a newer normal row", async () => {
+    if (resource === undefined) throw new Error("Database not started");
+    await postgres().query(
+      "insert into strategies (id, slug, name, kind, created_at, updated_at) values ('vsb-newer', 'vsb-newer', 'Newer', 'python', now() + interval '1 day', now() + interval '1 day')"
+    );
+    const rows = await createStrategyLibraryRepository(resource.db).list({
+      limit: 1,
+    });
+    expect(rows.map((row) => [row.id, row.priority])).toEqual([
+      ["strategy-seed-volume-spike-breakout", "high"],
+    ]);
+    const two = await createStrategyLibraryRepository(resource.db).list({
+      limit: 2,
+    });
+    expect(two[1]?.id).toBe("vsb-newer");
+    await postgres().query("delete from strategies where id = 'vsb-newer'");
+  });
+
+  it("refuses an external claim that is not a JSON object", async () => {
+    for (const value of [`'"claim"'`, "'[]'", "'null'", "'1'"]) {
+      await expect(
+        postgres().query(
+          `update strategies set external_validation = ${value}::jsonb where slug = 'volume-spike-breakout'`
+        ),
+        value
+      ).rejects.toThrow(/strategies_external_validation_check/u);
+    }
+    const [row] = await postgres().query<{ kind: string }>(
+      "select jsonb_typeof(external_validation) as kind from strategies where slug = 'volume-spike-breakout'"
+    );
+    return expect(row?.kind).toBe("object");
+  });
+
   it("refuses the rollback while the row was edited", async () => {
     await postgres().query(
       "update strategies set updated_at = updated_at + interval '1 second' where slug = 'volume-spike-breakout'"
@@ -168,7 +201,7 @@ describe("0065 volume spike breakout catalog row (Postgres)", () => {
     );
     expect(left?.n).toBe(0);
     const [constraint] = await postgres().query<{ n: number }>(
-      "select count(*)::int as n from pg_constraint where conname = 'strategies_priority_check'"
+      "select count(*)::int as n from pg_constraint where conname in ('strategies_priority_check', 'strategies_external_validation_check')"
     );
     return expect(constraint?.n).toBe(0);
   });

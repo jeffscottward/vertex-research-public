@@ -86,7 +86,7 @@ const describeStrategyFailure = (error: unknown): string => {
     error !== null &&
     Reflect.get(error, "code") === "STORAGE_ERROR"
   ) {
-    return "Strategy library storage unavailable (503). Apply migration 0019 if the tables are missing.";
+    return "Strategy library storage unavailable (503): its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
   }
   return describeAgentOpsFailure(error);
 };

@@ -117,6 +117,9 @@ export const StrategyBadges = ({
           variant={badge.key === "high-priority" ? "default" : "outline"}
         >
           {badge.label}
+          {badge.srText === null ? null : (
+            <span className="sr-only">{badge.srText}</span>
+          )}
         </Badge>
       ))}
     </span>

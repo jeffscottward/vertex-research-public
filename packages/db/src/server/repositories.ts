@@ -3299,7 +3299,12 @@ export const createStrategyLibraryRepository = (
           .select(strategyListColumns)
           .from(strategies)
           .where(conditions.length === 0 ? undefined : andWhere(...conditions))
-          .orderBy(desc(strategies.updatedAt), desc(strategies.id))
+          // High priority first, before the limit, so a limited list never cuts a high-priority row.
+          .orderBy(
+            sql`case when ${strategies.priority} = 'high' then 0 else 1 end`,
+            desc(strategies.updatedAt),
+            desc(strategies.id)
+          )
           .limit(limit);
         return rows.map(withStrategyCounts);
       } catch (error) {

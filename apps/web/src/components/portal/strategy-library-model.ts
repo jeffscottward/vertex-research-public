@@ -62,7 +62,10 @@ export type StrategyBadge = Readonly<{
   key: StrategyBadgeKey;
   label: string;
   hint: string;
+  // Read by screen readers after the label; null when the label says it all.
+  srText: string | null;
 }>;
+const EXTERNAL_CLAIM_SR_TEXT = " (source claim, not validated by Vertex)";
 export const strategyBadges = (
   strategy: Pick<StrategySummaryOutput, "priority" | "externalValidation">
 ): StrategyBadge[] => {
@@ -73,6 +76,7 @@ export const strategyBadges = (
             hint: "Listed first in every sort.",
             key: "high-priority" as const,
             label: HIGH_PRIORITY_LABEL,
+            srText: null,
           },
         ]
       : []),
@@ -80,9 +84,10 @@ export const strategyBadges = (
       ? []
       : [
           {
-            hint: "A third party published a positive backtest. This is a claim, not a Vertex validation.",
+            hint: "A third party published a backtest of this strategy. This is the source's claim, not a Vertex validation.",
             key: "externally-pre-validated" as const,
             label: EXTERNALLY_PRE_VALIDATED_LABEL,
+            srText: EXTERNAL_CLAIM_SR_TEXT,
           },
         ]),
   ];

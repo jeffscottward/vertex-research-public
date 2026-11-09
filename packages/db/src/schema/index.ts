@@ -990,6 +990,10 @@ export const strategies = pgTable(
       "strategies_priority_check",
       sql`${table.priority} in ('normal', 'high')`
     ),
+    check(
+      "strategies_external_validation_check",
+      sql`${table.externalValidation} is null or jsonb_typeof(${table.externalValidation}) = 'object'`
+    ),
   ]
 );
 

@@ -5,6 +5,7 @@
 -- uses them (priority <> 'normal' or external_validation IS NOT NULL); otherwise it raises and changes nothing.
 -- The backtest study in research_studies (id volume-spike-breakout) is kept; it has no link to the row.
 -- Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
+-- Run with `psql -v ON_ERROR_STOP=1` WITHOUT `--single-transaction` (the file has its own BEGIN/COMMIT).
 BEGIN;
 SET LOCAL search_path = pg_catalog, public;
 SET LOCAL row_security = off;
@@ -40,6 +41,7 @@ BEGIN
   END IF;
 END
 $$;
+ALTER TABLE "public"."strategies" DROP CONSTRAINT "strategies_external_validation_check";
 ALTER TABLE "public"."strategies" DROP CONSTRAINT "strategies_priority_check";
 ALTER TABLE "public"."strategies" DROP COLUMN "external_validation";
 ALTER TABLE "public"."strategies" DROP COLUMN "priority";

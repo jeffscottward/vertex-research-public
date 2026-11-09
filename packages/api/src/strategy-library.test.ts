@@ -5,6 +5,7 @@ import {
   type SafeAuthSession,
 } from "@darkfactory/auth/server";
 import {
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
   normalizeBacktestResult,
   type AgentOpsRepository,
@@ -603,6 +604,33 @@ describe("strategyLibrary procedures", () => {
     const plain = await client.strategyLibrary.get({ id: "s-up" });
     expect(plain.strategy.priority).toBe("normal");
     return expect(plain.strategy.externalValidation).toBeNull();
+  });
+
+  it("reports missing tables or columns and invalid stored values as a typed storage error", async () => {
+    const repository = strategiesRepository([strategyRow()]);
+    const client = clientFor({ strategyLibrary: repository });
+    const message =
+      "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).";
+    repository.list.mockRejectedValueOnce(
+      new DatabasePersistenceError("strategies read")
+    );
+    await expectCode(
+      client.strategyLibrary.list({}),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
+    repository.get.mockRejectedValueOnce(
+      new DatabasePersistenceError(
+        "strategy s-hmm read (stored priority must be one of normal, high)"
+      )
+    );
+    return await expectCode(
+      client.strategyLibrary.get({ id: "s-hmm" }),
+      "STORAGE_ERROR",
+      503,
+      message
+    );
   });
 
   it("accepts and rejects the priority and the external claim on create and update", async () => {

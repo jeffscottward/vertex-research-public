@@ -220,7 +220,10 @@ describe("StrategyDetail", () => {
     );
     expect(badgeKeys(container)).toEqual([
       ["high-priority", "High priority"],
-      ["externally-pre-validated", "Externally pre-validated"],
+      [
+        "externally-pre-validated",
+        "Externally pre-validated (source claim, not validated by Vertex)",
+      ],
     ]);
     expect(
       container
@@ -233,7 +236,25 @@ describe("StrategyDetail", () => {
     expect(
       container.querySelector("[data-strategy-external-validation]")
         ?.textContent
+    ).toBe("Externally pre-validated (source claim, not validated by Vertex)");
+    // Visible text is the label alone; screen readers also hear that it is a claim (not via title).
+    const external = container.querySelector(
+      "[data-strategy-external-validation]"
+    ) as HTMLElement;
+    const srOnly = external.querySelector("span.sr-only") as HTMLElement;
+    expect(srOnly.textContent).toBe(" (source claim, not validated by Vertex)");
+    expect(
+      [...external.childNodes]
+        .filter((node) => node !== srOnly)
+        .map((node) => node.textContent)
+        .join("")
     ).toBe("Externally pre-validated");
+    expect(external.getAttribute("title")).toBe(
+      "A third party published a backtest of this strategy. This is the source's claim, not a Vertex validation."
+    );
+    expect(
+      container.querySelector('[data-strategy-priority="high"] .sr-only')
+    ).toBeNull();
     const block = container.querySelector(
       '[data-strategy-external-claim="strategy-seed-volume-spike-breakout"]'
     ) as HTMLElement;
@@ -344,7 +365,10 @@ describe("StrategyDetail", () => {
       })
     );
     expect(badgeKeys(claimed)).toEqual([
-      ["externally-pre-validated", "Externally pre-validated"],
+      [
+        "externally-pre-validated",
+        "Externally pre-validated (source claim, not validated by Vertex)",
+      ],
     ]);
     expect(
       claimed.querySelectorAll("[data-strategy-external-claim]")

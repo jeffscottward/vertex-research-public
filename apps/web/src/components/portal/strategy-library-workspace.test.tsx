@@ -393,7 +393,7 @@ describe("strategy library board", () => {
       );
     expect(badges('[data-strategy-row="s-spike"]')).toEqual([
       "High priority",
-      "Externally pre-validated",
+      "Externally pre-validated (source claim, not validated by Vertex)",
     ]);
     // Beside the name, inside the row header cell.
     expect(
@@ -416,14 +416,14 @@ describe("strategy library board", () => {
       container.querySelector(
         '[data-strategy-row="s-spike"] [data-strategy-external-validation]'
       )?.textContent
-    ).toBe("Externally pre-validated");
+    ).toBe("Externally pre-validated (source claim, not validated by Vertex)");
     expect(
       container.querySelectorAll("[data-strategy-external-validation]")
     ).toHaveLength(1);
     await click(button("Cards"));
     expect(badges('[data-strategy-card="s-spike"]')).toEqual([
       "High priority",
-      "Externally pre-validated",
+      "Externally pre-validated (source claim, not validated by Vertex)",
     ]);
     expect(badges('[data-strategy-card="s-urgent"]')).toEqual([
       "High priority",
@@ -434,6 +434,11 @@ describe("strategy library board", () => {
         '[data-strategy-card="s-spike"] [data-strategy-priority="high"], [data-strategy-card="s-spike"] [data-strategy-external-validation]'
       )
     ).toHaveLength(2);
+    expect(
+      container.querySelector(
+        '[data-strategy-card="s-spike"] [data-strategy-external-validation] .sr-only'
+      )?.textContent
+    ).toBe(" (source claim, not validated by Vertex)");
     // The board lists; it offers no arm, order or deploy control for the row.
     const card = container.querySelector('[data-strategy-card="s-spike"]')!;
     return expect(
@@ -441,6 +446,18 @@ describe("strategy library board", () => {
         (control) => control.getAttribute("aria-label") ?? control.textContent
       )
     ).toEqual(["Volume spike breakout", "Favorite Volume spike breakout"]);
+  });
+
+  it("explains a storage error with the migrations to apply", async () => {
+    const gateway = gatewayWith({
+      list: vi.fn(async () => Promise.reject({ code: "STORAGE_ERROR" })),
+    });
+    const container = await mount(
+      <StrategyLibraryWorkspace gateway={gateway} initialStrategyId={null} />
+    );
+    return expect(container.textContent).toContain(
+      "Strategy library storage unavailable (503): its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065)."
+    );
   });
 
   it("links the source dashboard and code named in a description", async () => {

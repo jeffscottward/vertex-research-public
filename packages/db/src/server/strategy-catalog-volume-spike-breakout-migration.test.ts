@@ -44,7 +44,10 @@ describe(TAG, () => {
     expect(ddl).toContain(
       `CHECK ("strategies"."priority" in ('normal', 'high'))`
     );
-    expect(ddl.match(/--> statement-breakpoint/gu)).toHaveLength(3);
+    expect(ddl).toContain(
+      `ADD CONSTRAINT "strategies_external_validation_check" CHECK ("strategies"."external_validation" is null or jsonb_typeof("strategies"."external_validation") = 'object')`
+    );
+    expect(ddl.match(/--> statement-breakpoint/gu)).toHaveLength(4);
     return expect(data).toContain('"priority", "external_validation"');
   });
 
@@ -183,6 +186,7 @@ describe(TAG, () => {
       "another strategy uses priority or external_validation; refusing rollback"
     );
     const drops = [
+      'DROP CONSTRAINT "strategies_external_validation_check"',
       'DROP CONSTRAINT "strategies_priority_check"',
       'DROP COLUMN "external_validation"',
       'DROP COLUMN "priority"',

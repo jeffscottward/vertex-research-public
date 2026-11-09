@@ -1,6 +1,7 @@
 ALTER TABLE "strategies" ADD COLUMN "priority" text DEFAULT 'normal' NOT NULL;--> statement-breakpoint
 ALTER TABLE "strategies" ADD COLUMN "external_validation" jsonb;--> statement-breakpoint
 ALTER TABLE "strategies" ADD CONSTRAINT "strategies_priority_check" CHECK ("strategies"."priority" in ('normal', 'high'));--> statement-breakpoint
+ALTER TABLE "strategies" ADD CONSTRAINT "strategies_external_validation_check" CHECK ("strategies"."external_validation" is null or jsonb_typeof("strategies"."external_validation") = 'object');--> statement-breakpoint
 -- Seed: volume spike breakout on NAS100 15-minute candles from YouTube video XLMG6-SATRk (owner request 2026-11-09).
 -- Spec: docs/specs/strategies/volume-spike-breakout.md; backtest study: research_studies id volume-spike-breakout.
 -- The columns above carry the library priority and the third-party claim ("externally pre-validated"; a claim, never a Vertex validation).

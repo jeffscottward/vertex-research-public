@@ -67,7 +67,7 @@ const mapStrategyError = (
   if (error instanceof DatabasePersistenceError) {
     throw failures.STORAGE_ERROR({
       message:
-        "Strategy library storage unavailable. Apply migration 0019 if the tables are missing.",
+        "Strategy library storage unavailable: its tables or columns are missing, or a stored value is invalid. Apply the pending strategy-library migrations (0019, 0065).",
     });
   }
   throw error;
