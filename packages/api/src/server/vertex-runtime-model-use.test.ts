@@ -763,15 +763,23 @@ describe("source-bound runtime model use", () => {
     const metadata = { ...payload, collectionId: null };
     row["payload"] = metadata;
     row["metadata_hash"] = await hashArtifact(metadata);
+    const queries = () =>
+      f.h.execute.mock.calls.map(
+        ([query]) => new PgDialect().sqlToQuery(query).sql
+      );
+    const before = queries().length;
     await expect(f.accepted()).rejects.toThrow();
-    const mismatchedQueries = f.h.execute.mock.calls.length;
+    const mismatched = queries().slice(before);
+    // A non-empty key stops at the artifact binding, before any grant lookup.
+    expect(mismatched).toHaveLength(1);
+    expect(mismatched[0]).toContain('"vertex_artifacts"');
     row["collection_key"] = "";
-    // Matching empty key passes the artifact binding, then fails at the
-    // still-collected review rather than at the artifact row.
     await expect(f.accepted()).rejects.toThrow();
+    // The empty key passes that binding and reaches the review lookup.
+    const matched = queries().slice(before + mismatched.length);
     return expect(
-      f.h.execute.mock.calls.length - mismatchedQueries
-    ).toBeGreaterThan(mismatchedQueries);
+      matched.some((query) => query.includes('"vertex_reviews"'))
+    ).toBe(true);
   });
   return it("cannot reuse old rights revision after the current policy changes", async () => {
     const f = await acceptedFixture();

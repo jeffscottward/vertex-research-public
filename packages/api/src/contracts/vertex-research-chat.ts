@@ -528,7 +528,8 @@ export const VertexResearchChatReadTranscriptPageOutputSchema = z
                 ? value.thread.participantIds.includes(
                     item.author.participantId
                   ) &&
-                  (index === 0 || item.parentMessageId === previous?.messageId)
+                  (previous === undefined ||
+                    item.parentMessageId === previous.messageId)
                 : item.author.kind === "user" &&
                   item.author.actorId === value.thread.ownerActorId &&
                   item.kind === "statement" &&
