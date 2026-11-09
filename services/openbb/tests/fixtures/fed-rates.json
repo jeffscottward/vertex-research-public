@@ -1,0 +1,1894 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "fed-rates",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Effective federal funds rate",
+          "seriesId": "EFFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Overnight bank funding rate",
+          "seriesId": "OBFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.87
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.89
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.89
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.87
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.88
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.9
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.92
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.93
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.95
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.94
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.94
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.95
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.95
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.97
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.94
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Secured overnight financing rate",
+          "seriesId": "SOFR",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 3.92
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.24
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.21
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.19
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.1
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.09
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.15
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.12
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.13
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.96
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.0
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.0
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.99
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.05
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.98
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.94
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.91
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.95
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.9
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 10 years",
+          "seriesId": "UST10Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.84
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.13
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.1
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.11
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.17
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.12
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.11
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.1
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.09
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.11
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.11
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.11
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.1
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.07
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.06
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.06
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.05
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.03
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.01
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 month",
+          "seriesId": "UST1M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.03
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.47
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.48
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.53
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.49
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.46
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.5
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.51
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.52
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.41
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.44
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.47
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.5
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.47
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.42
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.36
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.38
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.4
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.39
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 1 year",
+          "seriesId": "UST1Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.28
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.8
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.79
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.82
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.77
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.74
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.77
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.79
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.81
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.65
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.69
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.68
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.7
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.67
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.61
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.56
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.59
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.61
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.58
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 2 years",
+          "seriesId": "UST2Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.46
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.6
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.56
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.52
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.43
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.43
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.48
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.42
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.42
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.29
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.33
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.31
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.3
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.37
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.32
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.31
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.28
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.32
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.28
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 30 years",
+          "seriesId": "UST30Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.25
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.25
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.26
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.28
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.28
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.26
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.27
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.26
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.25
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.22
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.22
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.22
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.22
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.18
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.18
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.16
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.21
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.21
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.21
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 3 months",
+          "seriesId": "UST3M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.17
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.02
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.0
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 5.0
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.91
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.89
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.94
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.94
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.95
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.78
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.82
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.84
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.82
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.85
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.78
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.71
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.7
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.74
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.69
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 5 years",
+          "seriesId": "UST5Y",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.59
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.32
+        },
+        {
+          "date": "2026-10-13",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.34
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.37
+        },
+        {
+          "date": "2026-10-15",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.35
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.34
+        },
+        {
+          "date": "2026-10-19",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.37
+        },
+        {
+          "date": "2026-10-20",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.36
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.35
+        },
+        {
+          "date": "2026-10-22",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.29
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.3
+        },
+        {
+          "date": "2026-10-26",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.35
+        },
+        {
+          "date": "2026-10-27",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.34
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.32
+        },
+        {
+          "date": "2026-10-29",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.28
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.25
+        },
+        {
+          "date": "2026-11-02",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.25
+        },
+        {
+          "date": "2026-11-03",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.26
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.25
+        },
+        {
+          "date": "2026-11-05",
+          "frequency": "daily",
+          "name": "Treasury constant maturity 6 months",
+          "seriesId": "UST6M",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 4.19
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

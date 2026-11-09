@@ -1,0 +1,59 @@
+{
+  "job": "cboe-vx-curve",
+  "today": "2026-11-08",
+  "argv": ["cboe-vx-curve"],
+  "env": {},
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "fetcher:cboe:FuturesCurve:{\"date\":\"2026-11-08\",\"symbol\":\"VX_EOD\"}",
+      "result": [
+        {
+          "date": "2026-11-06",
+          "expiration": "2026-11",
+          "price": 23.75
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2026-12",
+          "price": 22.25
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-01",
+          "price": 22.05
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-02",
+          "price": 21.95
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-03",
+          "price": 21.7
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-04",
+          "price": 21.8
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-05",
+          "price": 21.75
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-06",
+          "price": 21.7
+        },
+        {
+          "date": "2026-11-06",
+          "expiration": "2027-07",
+          "price": 21.9
+        }
+      ]
+    }
+  ]
+}

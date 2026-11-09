@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "sec-insider",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "sec_insider_trades",
+      "rows": [
+        {
+          "accessionNumber": "0001140361-26-040001",
+          "rowNumber": 0,
+          "symbol": "AAPL",
+          "filingDate": "2026-11-04",
+          "transactionDate": "2026-11-02",
+          "ownerName": "Example Owner",
+          "ownerTitle": "Chief Executive Officer",
+          "transactionCode": "S",
+          "shares": 50000.0,
+          "price": 225.5,
+          "sharesAfter": 3250000.0,
+          "acquiredDisposed": "D",
+          "url": null
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
