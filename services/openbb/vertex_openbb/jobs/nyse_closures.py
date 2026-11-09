@@ -1,8 +1,10 @@
 """NYSE full-day market closures (no trading session at all; early closes are not listed).
 
 Source: https://www.nyse.com/markets/hours-calendars (checked 2026-11-08; the page lists 2026-2028).
-2025 is no longer on that page; its dates are NYSE's published 2025 calendar plus the closure on
-2025-01-09 (national day of mourning for President Carter). Extend the list when NYSE publishes a
+2024 and 2025 are no longer on that page; their dates come from NYSE Group's press release "NYSE
+Group Announces 2024, 2025 and 2026 Holiday and Early Closings Calendar" (2023-11-10, checked
+2026-11-09 at https://www.nasdaq.com/press-release/nyse-group-announces-2024-2025-and-2026-holiday-and-early-closings-calendar-2023-11),
+plus the closure on 2025-01-09 (national day of mourning for President Carter), announced later. Extend the list when NYSE publishes a
 new year; the Reg SHO job warns when its window reaches a year not covered here.
 """
 
@@ -13,6 +15,9 @@ from datetime import date
 CLOSURES: frozenset[date] = frozenset(
     date.fromisoformat(day)
     for day in (
+        # 2024
+        "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27", "2024-06-19",
+        "2024-07-04", "2024-09-02", "2024-11-28", "2024-12-25",
         # 2025
         "2025-01-01", "2025-01-09", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
         "2025-06-19", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25",
@@ -27,7 +32,7 @@ CLOSURES: frozenset[date] = frozenset(
         "2028-09-04", "2028-11-23", "2028-12-25",
     )
 )
-YEARS: frozenset[int] = frozenset(range(2025, 2029))
+YEARS: frozenset[int] = frozenset(range(2024, 2029))
 
 
 def is_closed(day: date) -> bool:

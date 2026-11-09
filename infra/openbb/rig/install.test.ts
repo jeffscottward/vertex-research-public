@@ -88,7 +88,10 @@ describe("vertex-openbb.steps", () => {
     const deadline = Number(/^DEFAULT_DEADLINE_S = ([\d.]+)$/mu.exec(cli)?.[1]);
     expect(deadline).toBe(240);
     for (const step of steps)
-      expect(step.timeout, step.name).toBeGreaterThanOrEqual(deadline + 90);
+      expect(step.timeout, step.name).toBeGreaterThanOrEqual(
+        // SEC steps also wait up to 20 s for the SEC lock before the fetcher starts.
+        deadline + 90 + (step.name.startsWith("sec-") ? 20 : 0)
+      );
   });
 
   it("runs every SEC job in a stage of its own and nothing else in SEC stages", () => {
@@ -120,6 +123,7 @@ describe("vertex-openbb.service", () => {
     expect(directive(service, "MemoryMax")).toBe("3G");
     expect(directive(service, "MemoryHigh")).toBe("2560M");
     expect(directive(service, "OOMPolicy")).toBe("continue");
+    expect(directive(service, "Environment")).toBe("VERTEX_OPENBB_TIMER=1");
     expect(directive(service, "Type")).toBe("oneshot");
     expect(directive(service, "ExecStart")).toBe(
       "%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/.local/share/vertex-openbb/vertex-openbb.steps"
@@ -147,10 +151,16 @@ describe("scripts", () => {
       'uv pip sync --quiet --require-hashes --only-binary :all: --no-config "$base/checkout/$lock"'
     );
     expect(install).toContain('user="$(id -un)"');
+    expect(install).toContain("uv venv --quiet --no-config --python 3.12");
+    // The run lock is released before systemd is touched.
+    expect(install.indexOf("exec 9>&-")).toBeGreaterThan(-1);
+    expect(install.indexOf("exec 9>&-")).toBeLessThan(
+      install.indexOf("systemctl --user daemon-reload")
+    );
     expect(install).not.toContain("$USER");
     expect(install).not.toContain("static interface");
     expect(install).toContain(
-      "uv pip install --quiet --no-deps --no-build-isolation"
+      "uv pip install --quiet --no-config --no-deps --no-build-isolation"
     );
     expect(install.indexOf("worktree prune")).toBeLessThan(
       install.indexOf("worktree add")
@@ -187,7 +197,10 @@ const fakeHome = (linger = "yes") => {
     writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(join(bin, name), 0o755);
   };
-  fake("bun", `echo "bun $*" >>"${log}"`);
+  fake(
+    "bun",
+    `echo "bun $*" >>"${log}"; if [[ -n "\${OPENBB_DEADLINE_S:-}" ]]; then echo "deadline leaked" >>"${log}"; fi`
+  );
   // Logs its full argument list; FAKE_FLOCK_BUSY makes it fail like a held lock (-E code, or 1).
   fake(
     "flock",
@@ -241,7 +254,7 @@ describe("vertex-openbb-run.sh", () => {
 
   it("timer SEC runs wait 20 s for the lock, then skip with exit 0", () => {
     const host = fakeHome();
-    const timer = { INVOCATION_ID: "abc" };
+    const timer = { VERTEX_OPENBB_TIMER: "1" };
     const free = host.run("vertex-openbb-run.sh", ["sec-ftd"], timer);
     expect(free.status).toBe(0);
     expect(host.calls().split("\n")[0]).toBe(
@@ -261,6 +274,33 @@ describe("vertex-openbb-run.sh", () => {
     expect(failing.run("vertex-openbb-run.sh", ["sec-ftd"], timer).status).toBe(
       1
     );
+  });
+
+  it("treats a shell with INVOCATION_ID but no timer marker as a manual run that waits", () => {
+    const host = fakeHome();
+    const run = host.run("vertex-openbb-run.sh", ["sec-insider"], {
+      INVOCATION_ID: "desktop-session",
+    });
+    expect(run.status).toBe(0);
+    expect(host.calls().split("\n")[0]).toBe(
+      `flock ${host.home}/.cache/vertex-openbb/sec.lock ${host.home}/fake-bin/bun run vertex:openbb:tick sec-insider`
+    );
+  });
+
+  it("drops an OPENBB_DEADLINE_S override from the shell and from openbb.env", () => {
+    const host = fakeHome();
+    writeFileSync(
+      join(host.home, ".config/vertex/openbb.env"),
+      "VERTEX_ORIGIN=https://vertex.domain.test\nOPENBB_DEADLINE_S=900\n",
+      { mode: 0o600 }
+    );
+    expect(
+      host.run("vertex-openbb-run.sh", ["fed-rates"], {
+        OPENBB_DEADLINE_S: "900",
+      }).status
+    ).toBe(0);
+    expect(host.calls()).toBe("bun run vertex:openbb:tick fed-rates\n");
+    expect(read("vertex-openbb-run.sh")).toContain("unset OPENBB_DEADLINE_S");
   });
 
   it("exits 2 without the env or key file, or with an empty key", () => {

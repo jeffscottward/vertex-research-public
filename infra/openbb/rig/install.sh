@@ -69,12 +69,12 @@ fi
 (cd "$base/checkout" && pnpm install --frozen-lockfile --silent)
 
 if [[ ! -x "$base/venv/bin/python" ]]; then
-  uv venv --quiet --python 3.12 "$base/venv"
+  uv venv --quiet --no-config --python 3.12 "$base/venv"
 fi
 # sync makes the venv exactly the lock (hash-checked, removes strays); the package itself adds
 # nothing: no dependencies, and setuptools comes from the lock (no build isolation download).
 VIRTUAL_ENV="$base/venv" uv pip sync --quiet --require-hashes --only-binary :all: --no-config "$base/checkout/$lock"
-VIRTUAL_ENV="$base/venv" uv pip install --quiet --no-deps --no-build-isolation "$base/checkout/services/openbb"
+VIRTUAL_ENV="$base/venv" uv pip install --quiet --no-config --no-deps --no-build-isolation "$base/checkout/services/openbb"
 # Import every module the jobs use once, so a broken venv fails the install, not a timed step.
 "$base/venv/bin/python" -I -m vertex_openbb --warm
 
@@ -82,6 +82,8 @@ install -m 0644 "$base/checkout/infra/openbb/rig/vertex-openbb.steps" "$base/ver
 install -D -m 0700 "$base/checkout/infra/openbb/rig/vertex-openbb-run.sh" "$HOME/.local/bin/vertex-openbb-run"
 install -D -m 0644 "$base/checkout/infra/openbb/rig/vertex-openbb.service" "$HOME/.config/systemd/user/vertex-openbb.service"
 install -D -m 0644 "$base/checkout/infra/openbb/rig/vertex-openbb.timer" "$HOME/.config/systemd/user/vertex-openbb.timer"
+# The new files are in place: let timer runs start again before touching systemd.
+exec 9>&-
 systemctl --user daemon-reload
 if [[ "$enable" == "--enable" ]]; then
   systemctl --user enable --now vertex-openbb.timer

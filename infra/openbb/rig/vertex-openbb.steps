@@ -8,7 +8,8 @@
 # run at the same time (SEC fair access: <= 10 requests/s for the whole host; the wrapper also holds a
 # SEC lock against manual backfills).
 # Every timeout is at least the fetcher deadline OPENBB_DEADLINE_S (default 240 s) + 90 s, so the
-# fetcher prints what it has and the tick posts it before tick-runner stops the step.
+# fetcher prints what it has and the tick posts it before tick-runner stops the step; SEC steps add
+# the 20 s SEC lock wait (deadline + 110 s). The wrapper unsets OPENBB_DEADLINE_S, so the default holds.
 # Backfills are manual: vertex-openbb-run <job> --since <date> (see docs/vertex-rebuild/openbb.md).
 cboe-option-iv        420  3600   1  ~/.local/bin/vertex-openbb-run cboe-option-iv --window mon-fri@16:20-21:00
 cboe-vol-indices      330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vol-indices --window mon-fri@16:45-24:00
@@ -24,7 +25,7 @@ finra-otc             330  21600  2  ~/.local/bin/vertex-openbb-run finra-otc
 finra-short-interest  330  43200  2  ~/.local/bin/vertex-openbb-run finra-short-interest
 finra-short-volume    330  10800  2  ~/.local/bin/vertex-openbb-run finra-short-volume
 famafrench            330  86400  2  ~/.local/bin/vertex-openbb-run famafrench
-sec-filings           330  7200   3  ~/.local/bin/vertex-openbb-run sec-filings --window mon-fri@07:00-22:00
-sec-insider           330  21600  4  ~/.local/bin/vertex-openbb-run sec-insider
-sec-ftd               330  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
+sec-filings           350  7200   3  ~/.local/bin/vertex-openbb-run sec-filings --window mon-fri@07:00-22:00
+sec-insider           350  21600  4  ~/.local/bin/vertex-openbb-run sec-insider
+sec-ftd               350  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
 sec-13f               600  86400  6  ~/.local/bin/vertex-openbb-run sec-13f

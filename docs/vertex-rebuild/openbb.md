@@ -32,7 +32,8 @@ The Python fetcher only reads public upstreams and prints to stdout.
   error, 2 bad arguments or missing/malformed SEC contact, 3 upstream failed for every source of the
   job. Errors go to stderr. No secret is printed.
 - Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240; every step
-  timeout is at least this + 90 s, checked by `infra/openbb/rig/install.test.ts`) bounds the whole job and prints the rows fetched so far with a warning.
+  timeout is at least this + 90 s, SEC steps + 110 s, checked by `infra/openbb/rig/install.test.ts`;
+  the rig wrapper unsets any override so the default holds) bounds the whole job and prints the rows fetched so far with a warning.
 - One failing source never drops the others: it is reported as a warning and its rows are left out.
   A source that returns records but no valid row warns `none gave a row (format change?)`.
 - `--warm` imports every fetcher the jobs use, checks the SEC guard hooks and prints
@@ -62,16 +63,19 @@ Treasury/OECD/FRED/FINRA/Fama-French, SEC jobs alone in stages 3-6). Each step r
 `vertex-openbb-run <job> [--window <days>@<HH:MM>-<HH:MM>]`; outside its window the tick prints
 `skip: outside window` and exits 0. The wrapper holds `~/.cache/vertex-openbb/sec.lock` for `sec-*`
 jobs, so a manual SEC backfill never overlaps the timer's SEC stages: a manual run waits for the lock;
-a timer run (systemd sets `INVOCATION_ID`) waits 20 s (`flock -w 20 -E 75`), then prints
+a timer run (the service sets `VERTEX_OPENBB_TIMER=1`; `INVOCATION_ID` is no marker because desktop
+session shells on the rig set it too) waits 20 s (`flock -w 20 -E 75`), then prints
 `skip: SEC lock held (manual run in progress)` and exits 0. The service sets `MemoryHigh=2560M`,
 `MemoryMax=3G` and `OOMPolicy=continue` (an out-of-memory kill ends one step, not the run);
 `TimeoutStartSec` covers the stage maxima plus 10 s per stage. Every step timeout is at least the
-fetcher deadline `OPENBB_DEADLINE_S` (default 240 s) + 90 s, so the fetcher prints what it has and the
-tick posts it before tick-runner stops the step (`infra/openbb/rig/install.test.ts` checks both).
+fetcher deadline `OPENBB_DEADLINE_S` (default 240 s) + 90 s, and SEC steps another 20 s for the lock
+wait (350 s; `sec-13f` 600 s), so the fetcher prints what it has and the tick posts it before
+tick-runner stops the step (`infra/openbb/rig/install.test.ts` checks both). The wrapper unsets
+`OPENBB_DEADLINE_S`, because the step budget assumes the default.
 The tick gives each openbb.* call 60 s and refuses fetcher output over 64 MiB (a failed run).
 Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering; it
-holds tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` for up to 600 s and
-for the whole install, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
+waits up to 600 s for tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` and
+holds it until the files are in place, releasing it before the systemctl calls, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
 --no-config`).
 
 | Job | Source | Tables | Step: stage, every, `--window` (America/New_York), timeout | Default `--since` |
@@ -148,7 +152,9 @@ Nullable beyond the columns marked null below: `atm_iv_30d`, `put_iv_25d_30d`, `
 Units: IV columns (`atm_iv_30d`, `put_iv_25d_30d`, `call_iv_25d_30d`, `atm_iv`) are decimals
 (0.153 = 15.3%; Zod bounds them to 0..10); `underlying_price` and the VX `price` are > 0. `net_gex`
 (dollars per 1% move), `gamma_flip`, `call_wall` and `put_wall` exclude same-day expirations. 13F
-`value` is in dollars (filings before 2023 reported thousands; the fetcher scales them x1000).
+`value` is in dollars (filings before 2023 reported thousands; the fetcher scales them x1000). Rows
+stored before that scaling, for periods with filings before 2023-01-03, are 1000 x too small and must
+be refetched once: `vertex-openbb-run sec-13f --since 2022-01-01`.
 
 | Table | Primary key | Columns |
 | --- | --- | --- |

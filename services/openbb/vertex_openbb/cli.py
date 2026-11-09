@@ -306,8 +306,10 @@ def run(
     doc = document(ctx, tables, openbb_version())
     # ASCII escapes: a lone surrogate from an upstream string can never break the stdout encoding.
     text = json.dumps(doc, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
+    # Check the unescaped form too: ensure_ascii turns a non-ASCII contact into \u escapes.
+    plain = json.dumps(doc, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
     for secret in scrub:
-        if secret and secret in text:
+        if secret and (secret in text or secret in plain):
             stderr.write("vertex_openbb: refusing to print a document that contains the contact address\n")
             return EXIT_INTERNAL
     stdout.write(text + "\n")

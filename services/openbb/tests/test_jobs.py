@@ -335,6 +335,7 @@ def test_nyse_closure_list() -> None:
     assert year(2026) == ["01-01", "01-19", "02-16", "04-03", "05-25", "06-19", "07-03", "09-07", "11-26", "12-25"]
     assert year(2027) == ["01-01", "01-18", "02-15", "03-26", "05-31", "06-18", "07-05", "09-06", "11-25", "12-24"]
     assert "01-09" in year(2025) and len(year(2025)) == 11
+    assert year(2024) == ["01-01", "01-15", "02-19", "03-29", "05-27", "06-19", "07-04", "09-02", "11-28", "12-25"]
     assert all(d.weekday() < 5 for d in CLOSURES)
 
 
@@ -350,3 +351,23 @@ def test_lone_surrogate_never_breaks_the_document() -> None:
     assert result.code == 0 and result.stdout.isascii()
     row = result.table("sec_filings")[0]
     assert len(row["description"].encode("utf-16-le", "surrogatepass")) // 2 <= 2000
+
+
+def test_regsho_backfill_into_2024_skips_its_closures() -> None:
+    # 2024-12-25 (Christmas) is not requested and 2024 is covered: no warning.
+    result = run(["finra-short-volume", "--since", "2024-12-24"], _regsho_calls(["2024-12-24", "2024-12-26"]),
+                 today=date(2024, 12, 26))
+    assert result.code == 0 and result.document["warnings"] == []
+
+
+def test_non_ascii_contact_never_printed() -> None:
+    from vertex_openbb.upstream import canonical
+
+    contact = "jos\u00e9@example.org"
+    params = {"symbol": "AAPL", "start_date": "2026-10-09", "end_date": "2026-11-08", "use_cache": False}
+    filing = {"filing_date": "2026-11-06", "report_type": "8-K", "accession_number": "0001140361-26-042505",
+              "report_url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042505/a.htm",
+              "primary_doc_description": f"contact {contact}"}
+    result = run(["sec-filings", "--symbols", "AAPL"], [call(f"fetcher:sec:Filings:{canonical(params)}", [filing])],
+                 env={"VERTEX_RESEARCH_CONTACT_EMAIL": contact})
+    assert result.code == 1 and result.stdout == "" and "refusing" in result.stderr and contact not in result.stderr
