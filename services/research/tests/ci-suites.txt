@@ -100,6 +100,7 @@ tests/test_qc_ports_portfolio.py
 tests/test_qc_ports_metrics.py
 tests/test_ld34_study.py
 tests/test_imom_study.py
+tests/test_imom_fetch_ibkr.py
 tests/test_qc_ports_audit.py
 tests/test_qc_ports_definitions.py
 tests/test_qc_ports_golden.py

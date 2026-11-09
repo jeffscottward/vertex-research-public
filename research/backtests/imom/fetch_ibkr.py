@@ -34,15 +34,17 @@ NEW_YORK = ZoneInfo("America/New_York")
 QUIET_FROM, QUIET_TO = 9 * 60 + 25, 16 * 60 + 5  # weekday market hours: leave the shared gateway to trading
 
 
-def wait_off_hours() -> None:
-    """Sleep while US markets are open (Mon-Fri 09:25-16:05 New York), so the backfill never competes with trading."""
+def wait_off_hours(now=lambda: datetime.now(NEW_YORK), sleep=time.sleep) -> None:
+    """Sleep while US markets are open (Mon-Fri 09:25-16:05 New York), so the backfill never competes with trading.
+
+    `now` (an aware-datetime clock) and `sleep` are injectable for tests."""
     while True:
-        now = datetime.now(NEW_YORK)
-        minute = now.hour * 60 + now.minute
-        if now.weekday() >= 5 or not QUIET_FROM <= minute < QUIET_TO:
+        current = now().astimezone(NEW_YORK)
+        minute = current.hour * 60 + current.minute
+        if current.weekday() >= 5 or not QUIET_FROM <= minute < QUIET_TO:
             return
-        print(f"market hours ({now:%H:%M} New York): pausing until 16:05", flush=True)
-        time.sleep((QUIET_TO - minute) * 60 + 5)
+        print(f"market hours ({current:%H:%M} New York): pausing until 16:05", flush=True)
+        sleep((QUIET_TO - minute) * 60 + 5)
 
 
 SYMBOL_RE = re.compile(r"^[A-Z0-9.]{1,12}$")

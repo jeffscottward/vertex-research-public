@@ -729,6 +729,8 @@ def finite(value, path: str = "$", log: Log = _log):
 def main_study(ran: str, workers: int, detail: str | None, source: str = DEFAULT_SOURCE,
                compare_rows: Sequence[str] = ()) -> int:
     date.fromisoformat(ran)
+    if compare_rows and source != IBKR:
+        raise SystemExit(f"--compare-row needs --source {IBKR}: it adds Dukascopy headline rows to the IBKR comparison")
     extra = [parse_compare_row(row) for row in compare_rows]
     root = os.environ.get(IBKR_DATA_ENV if check_source(source) == IBKR else "VERTEX_IMOM_DATA")
     doc = run_study(ran, root=root, workers=workers, detail_path=Path(detail) if detail else None, source=source,

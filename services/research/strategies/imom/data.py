@@ -55,8 +55,10 @@ MIN_SESSION_BARS = 30
 MAX_GAP = 0.30
 IS_FRACTION = 0.6
 CACHE_VERSION = 2
-# NYSE full-day closures outside the regular holiday rules (Hurricane Sandy, national days of mourning).
-SPECIAL_CLOSURES = frozenset({date(2012, 10, 29), date(2012, 10, 30), date(2018, 12, 5), date(2025, 1, 9)})
+# NYSE full-day closures outside the regular holiday rules (Hurricane Sandy; national days of mourning for
+# Presidents Reagan 2004-06-11, Ford 2007-01-02, G. H. W. Bush 2018-12-05 and Carter 2025-01-09).
+SPECIAL_CLOSURES = frozenset({date(2004, 6, 11), date(2007, 1, 2), date(2012, 10, 29), date(2012, 10, 30),
+                              date(2018, 12, 5), date(2025, 1, 9)})
 
 
 @dataclass(frozen=True)

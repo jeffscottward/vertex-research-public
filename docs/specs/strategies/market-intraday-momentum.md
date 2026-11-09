@@ -93,6 +93,9 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
   walk-forward, sensitivity, Monte Carlo and deflated Sharpe. ZAB and BIAS on SPY are reported alongside; the options form uses
   the same SPY bars.
 - The Dukascopy results above stay as they are; the report shows both data sources side by side.
+- The study contract keeps one document per spec slug, so importing the IBKR run replaces the stored Dukascopy document; the
+  Dukascopy headline rows travel in its comparison table (`--compare-row`) and the full Dukascopy results stay in this spec and
+  the report.
 
 ## Code and tests
 

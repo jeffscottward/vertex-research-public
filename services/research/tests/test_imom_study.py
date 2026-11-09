@@ -91,6 +91,11 @@ class DataTest(unittest.TestCase):
         # July 4 holiday, Jan 9 2025 closure, a Saturday and an 18-bar session are dropped; July 3 ends at 13:00.
         self.assertEqual(days, {"2024-07-03": 42, "2024-07-08": 78})
 
+    def test_special_closures_include_presidential_mourning_days(self) -> None:
+        for day in ("2004-06-11", "2007-01-02", "2012-10-29", "2012-10-30", "2018-12-05", "2025-01-09"):
+            self.assertTrue(data.is_closed(date.fromisoformat(day)), day)
+        self.assertFalse(data.is_closed(date(2007, 1, 3)))
+
     def test_early_close_rule(self) -> None:
         self.assertTrue(data.is_early_close(date(2024, 11, 29)))
         self.assertTrue(data.is_early_close(date(2024, 12, 24)))
@@ -691,6 +696,11 @@ class IbkrSourceTest(unittest.TestCase):
                     "GHLZ=a,0.1,-0.1", "GHLZ=0.1,-1.5,-0.1", "X" * 70 + "=0.1,0.1,-0.1"):
             with self.assertRaises(ValueError, msg=bad):
                 study.parse_compare_row(bad)
+
+    def test_compare_rows_require_the_ibkr_source(self) -> None:
+        with self.assertRaises(SystemExit) as caught:
+            study.main_study("2026-11-09", 1, None, "dukascopy", ["GHLZ US500=0.31,0.012,-0.21"])
+        self.assertIn("--compare-row needs --source ibkr", str(caught.exception))
 
     def test_default_source_is_unchanged(self) -> None:
         self.assertEqual(data.primary_of(), "US500")
