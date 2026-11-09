@@ -30,6 +30,10 @@ overrides:
   "image-size@<2.0.3": ^2.0.3
   "sharp@<0.35.4": ^0.35.4
   "undici@>=7.0.0 <7.29.1": ^7.29.1
+  # One OTel API copy: better-auth, drizzle-orm and orpc auto-install the
+  # optional @opentelemetry/api peer at its latest version; follow the catalog
+  # pin so a newer api cannot sit next to the one the 3.x SDK peers on.
+  "@opentelemetry/api": "catalog:"
 
 catalog:
   "@axe-core/playwright": 4.14.0

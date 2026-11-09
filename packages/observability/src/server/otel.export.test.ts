@@ -4,15 +4,25 @@
 import { createServer, type IncomingHttpHeaders } from "node:http";
 import type { AddressInfo } from "node:net";
 import { gunzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { REDACTED } from "../redaction.ts";
 import { initializeTelemetry } from "./otel.ts";
+
+// The real exporters merge these from the environment; clear them so the
+// runner's shell cannot change headers, timeouts or compression here.
+const OTLP_ENV_NAMES = ["HEADERS", "TIMEOUT", "COMPRESSION"].flatMap((name) => [
+  `OTEL_EXPORTER_OTLP_${name}`,
+  `OTEL_EXPORTER_OTLP_TRACES_${name}`,
+  `OTEL_EXPORTER_OTLP_METRICS_${name}`,
+]);
 
 type CollectedRequest = Readonly<{
   method: string | undefined;
   url: string | undefined;
   headers: IncomingHttpHeaders;
   body: unknown;
+  parseError?: string;
 }>;
 
 type OtlpAttribute = Readonly<{
@@ -40,14 +50,20 @@ const startCollector = async () => {
       const text = (
         request.headers["content-encoding"] === "gzip" ? gunzipSync(raw) : raw
       ).toString("utf8");
-      requests.push({
+      const base = {
         method: request.method,
         url: request.url,
         headers: request.headers,
-        body: JSON.parse(text) as unknown,
-      });
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end("{}");
+      };
+      try {
+        requests.push({ ...base, body: JSON.parse(text) as unknown });
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("{}");
+      } catch (error) {
+        requests.push({ ...base, body: text, parseError: String(error) });
+        response.writeHead(400);
+        response.end();
+      }
     });
   });
   // The package tsconfig lib predates ES2024, so Promise.withResolvers is not typed.
@@ -65,10 +81,18 @@ const startCollector = async () => {
 };
 
 let closeCollector: (() => Promise<void>) | undefined;
+let disposeRuntime: (() => Promise<void>) | undefined;
+
+beforeEach(() => {
+  for (const name of OTLP_ENV_NAMES) vi.stubEnv(name, undefined);
+});
 
 afterEach(async () => {
+  await disposeRuntime?.();
+  disposeRuntime = undefined;
   await closeCollector?.();
   closeCollector = undefined;
+  vi.unstubAllEnvs();
 });
 
 describe("OpenTelemetry real OTLP export", () => {
@@ -83,6 +107,7 @@ describe("OpenTelemetry real OTLP export", () => {
       allowInsecureOtlpLocalhost: true,
       otlpHeaders: { "X-Honeycomb-Team": "team-marker" },
     });
+    disposeRuntime = runtime.dispose;
     expect(runtime.state).toEqual({ status: "exporting" });
 
     await runtime.withSpan(
@@ -92,6 +117,8 @@ describe("OpenTelemetry real OTLP export", () => {
         attributes: {
           enabled: true,
           nested: { category: "ignored" },
+          password: "raw-password-marker",
+          note: "sent with Bearer rawbearermarker123",
         } as unknown as Readonly<Record<string, string | number | boolean>>,
       },
       (span) => {
@@ -117,9 +144,15 @@ describe("OpenTelemetry real OTLP export", () => {
       (request) => request.url === "/otel/v1/metrics"
     );
     expect(traceRequests).toHaveLength(1);
-    expect(metricRequests.length).toBeGreaterThanOrEqual(1);
+    expect(metricRequests).toHaveLength(1);
+    expect(collector.requests).toHaveLength(2);
+    const wire = JSON.stringify(collector.requests);
+    expect(wire).not.toContain("raw-password-marker");
+    expect(wire).not.toContain("rawbearermarker123");
     for (const request of collector.requests) {
+      expect(request.parseError).toBeUndefined();
       expect(request.method).toBe("POST");
+      expect(request.headers["content-encoding"]).toBeUndefined();
       expect(request.headers["x-honeycomb-team"]).toBe("team-marker");
       expect(request.headers["content-type"]).toMatch(/^application\/json/);
     }
@@ -131,6 +164,7 @@ describe("OpenTelemetry real OTLP export", () => {
           scope: { name: string };
           spans: ReadonlyArray<{
             name: string;
+            status?: { code?: number };
             attributes: readonly OtlpAttribute[];
             events: ReadonlyArray<{ attributes: readonly OtlpAttribute[] }>;
           }>;
@@ -148,6 +182,10 @@ describe("OpenTelemetry real OTLP export", () => {
     const spanAttributes = attributeMap(span?.attributes);
     expect(spanAttributes["enabled"]).toBe(true);
     expect(spanAttributes).not.toHaveProperty("nested");
+    expect(spanAttributes["password"]).toBe(REDACTED);
+    expect(spanAttributes["request.id"]).toBe("request_export");
+    expect(spanAttributes["darkfactory.outcome"]).toBe("success");
+    expect(span?.status?.code).toBe(1);
     expect(span?.events).toHaveLength(1);
     expect(attributeMap(span?.events[0]?.attributes)).toEqual({
       "event.id": "event_export",
