@@ -2,8 +2,8 @@ import type { LessonSpecInput } from "../../../../../packages/academy/src/schema
 
 export const spec = {
   caveats: [
-    "All data is simulated with the GARCH model itself, so the clustering is built in by design.",
-    "Plain GARCH is symmetric; in real markets volatility usually reacts more strongly to falls than to rises.",
+    "The data comes from the GARCH model itself, so the clusters are there by construction.",
+    "Plain GARCH treats rises and falls alike, while real volatility tends to jump more after falls.",
     "Parameter values are the typical sizes used in the reel, not estimates from real data.",
   ],
   course: "quantfinancetogo",
@@ -131,7 +131,7 @@ export const spec = {
     },
   ],
   summary:
-    "Calm weeks follow calm weeks and high-volatility days arrive in groups. GARCH(1,1) builds tomorrow's variance from a constant that pulls toward a normal level, today's move squared times alpha and today's variance times beta. With omega 0.05, alpha 0.10 and beta 0.85, a 4% drop at 1% a day lifts the forecast to about 1.58%; the extra variance halves in about 13.5 days.",
+    "Quiet weeks follow quiet weeks and volatile days come in bunches. GARCH(1,1) forecasts tomorrow's variance from a constant pulling toward a long-run level, alpha times today's squared move and beta times today's variance. With omega 0.05, alpha 0.10 and beta 0.85, a 4% fall on a 1%-a-day market raises the forecast to about 1.58%; the extra variance decays by half in about 13.5 days.",
   tags: {
     instruments: ["volatility", "portfolio"],
     regime: ["any", "high-vol"],

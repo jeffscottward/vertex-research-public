@@ -66,7 +66,7 @@ export const spec = {
     },
     {
       caption:
-        "Height is the Sharpe ratio after costs, over the rule's two knobs: how far back it looks and how stretched the spread must be before it trades.",
+        "Height shows the after-cost Sharpe ratio across the rule's two settings: its lookback length and how wide the spread must stretch before a trade.",
       color: "violet",
       element: "surface",
     },

@@ -106,7 +106,7 @@ export const spec = {
     },
   ],
   summary:
-    "Real prices make big moves far more often than the bell curve predicts. At the same volatility a fat-tailed curve is taller in the middle and heavier at the edges. The creator simulates 100 years at about 1% a day twice, with a bell curve and with a Student t curve (3 degrees of freedom): 0 days beyond 5% against 74.",
+    "Large price moves happen far more often in real markets than a bell curve allows. With equal volatility, a fat-tailed curve has a higher peak and thicker edges. The creator runs 100 years of simulated days at about 1% a day under both models, a bell curve and a Student t curve with 3 degrees of freedom: no days beyond 5% for the bell, 74 for the Student t.",
   tags: {
     instruments: ["portfolio", "volatility"],
     regime: ["any"],
@@ -115,8 +115,8 @@ export const spec = {
     topics: ["fat tails", "student t", "tail risk", "black monday"],
   },
   takeaways: [
-    "Real price changes have big moves much more often than the bell curve predicts.",
-    "At the same volatility a fat-tailed curve is taller in the middle and heavier at the edges.",
+    "Large moves show up in real price changes far more often than a bell curve allows.",
+    "With equal volatility, a fat-tailed curve has a higher peak and thicker edges than the bell.",
     "In the creator's 100-year simulation at 1% a day: 0 days beyond 5% on the bell curve, 74 with fat tails (Student t, 3 degrees of freedom).",
     "A risk model built on the bell curve calls crashes almost impossible; a fat-tailed model makes Black Monday (-22.6%) rare but expected.",
   ],

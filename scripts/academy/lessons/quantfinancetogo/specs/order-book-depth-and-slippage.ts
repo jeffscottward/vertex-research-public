@@ -132,7 +132,7 @@ export const spec = {
     },
   ],
   summary:
-    "How the order book works. Waiting limit orders form the bids and the asks; the best bid and best ask are the best prices and the gap between them is the spread. A market order trades at once against the other side; if it is larger than the size at the best price it eats through the next levels, pays more at each (slippage) and pushes the price.",
+    "The order book: resting limit orders make up the bids and the asks. The highest bid and lowest ask are the best prices, and the distance between them is the spread. A market order fills immediately against the opposite side; when it is bigger than the size shown at the best price, it works through deeper levels, paying more at each one (slippage) and moving the price.",
   tags: {
     instruments: ["single-stock"],
     regime: ["any"],
@@ -150,7 +150,7 @@ export const spec = {
   takeaways: [
     "Limit orders wait in the book: buy or sell, but only at this price or better. The best bid and best ask are the best prices; the gap is the spread.",
     "A market order trades right away against the best orders on the other side.",
-    "If it is larger than the size at the best price, it eats through the next levels; every level costs a little more (slippage) and a large buy pushes the price up.",
+    "An order bigger than the size at the best price works through deeper levels, each a little more expensive (slippage), and a big buy moves the price up.",
     "Market makers keep orders on both sides and earn the spread; depth decides how much a large order moves the price.",
   ],
   title:

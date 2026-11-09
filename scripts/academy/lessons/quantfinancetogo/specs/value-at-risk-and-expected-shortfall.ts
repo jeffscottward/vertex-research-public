@@ -133,7 +133,7 @@ export const spec = {
   takeaways: [
     "VaR is the loss you should not exceed over a chosen period at a chosen confidence, for example 2% over one day at 99%.",
     "Historical VaR: sort many past days and draw the line where only one day in a hundred is worse.",
-    "VaR tells you where the worst day in a hundred begins and nothing about how bad that day gets.",
+    "VaR marks where the worst day in a hundred starts but says nothing about how deep that day goes.",
     "Expected shortfall is the average loss beyond the VaR line; bank supervisors moved toward it for market risk after the financial crisis.",
     "In the creator's fat-tailed simulation the bell-curve 99% line was crossed on 396 days instead of the promised 252.",
   ],

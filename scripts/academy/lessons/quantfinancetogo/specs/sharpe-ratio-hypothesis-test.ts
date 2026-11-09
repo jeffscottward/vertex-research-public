@@ -80,7 +80,7 @@ export const spec = {
     },
   ],
   summary:
-    "Hypothesis testing asks whether a strategy’s profit could be luck. Under the null of no edge, the t-statistic is about the yearly Sharpe ratio times the square root of years, and the p-value is the chance of a result at least that extreme.",
+    "A hypothesis test asks whether a strategy's profit might be chance. Assuming no edge (the null), the t-statistic is roughly the annual Sharpe ratio times the square root of the number of years, and the p-value is the probability of a result at least as extreme.",
   tags: {
     instruments: ["portfolio"],
     regime: ["any"],

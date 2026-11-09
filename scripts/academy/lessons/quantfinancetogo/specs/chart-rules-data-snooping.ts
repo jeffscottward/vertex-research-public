@@ -86,7 +86,7 @@ export const spec = {
   },
   takeaways: [
     "Test thousands of rules on one history and a few will look brilliant by pure luck.",
-    "Rules that worked in one stretch of history stopped working in the next, so winners could not be picked in advance.",
+    "A rule that did well in one period failed in the following one, so nobody could have known the winners ahead of time.",
     "Patterns on charts are real; what has not survived honest tests is that they predict what comes next.",
   ],
   title: "Chart-trading rules and data snooping",

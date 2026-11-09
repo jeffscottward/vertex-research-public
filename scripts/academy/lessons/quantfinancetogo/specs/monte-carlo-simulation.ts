@@ -73,7 +73,7 @@ export const spec = {
   steps: [
     {
       caption:
-        "Assumed numbers: a $10,000 portfolio, 30 years, an average return of 8% a year and swings of 20% a year.",
+        "Assumptions: $10,000 invested for 30 years, 8% average yearly return and 20% yearly volatility.",
       color: "gray",
       element: "axes",
     },

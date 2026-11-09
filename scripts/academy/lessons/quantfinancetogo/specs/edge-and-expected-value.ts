@@ -119,9 +119,9 @@ export const spec = {
   },
   takeaways: [
     "An edge is a small positive expected value: a bet on red loses 2.7 cents per $1 on average, which is the casino's 2.7-cent edge.",
-    "A single result says almost nothing: one player was $11 ahead after 47 spins and still ended $22 down.",
+    "One outcome proves almost nothing: a player who was up $11 after 47 spins still finished $22 behind.",
     "The edge grows with every bet while luck grows only with the square root of the number of bets; after about 1,400 bets the edge is bigger.",
-    "Insurance companies, market makers and quant funds look for a small edge and repeat it many thousands of times.",
+    "Insurers, market makers and quant funds all hunt for a small edge and then apply it thousands of times over.",
     "An edge only pays if you survive the swings: even the casino was $44 down after its first 2,000 bets.",
   ],
   title:

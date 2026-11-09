@@ -93,8 +93,8 @@ export const spec = {
     "Inverse-volatility weights, w_i = (1/σ_i) / Σ_j (1/σ_j), give equal risk shares for two assets at any correlation.",
   ],
   caveats: [
-    "The calmer mix usually earns less, so many risk parity funds borrow money to scale it up.",
-    "When stocks and bonds fall at the same time, the balance does not protect you.",
+    "A lower-volatility mix tends to return less, which is why many risk parity funds use leverage to scale it up.",
+    "If stocks and bonds drop together, the balancing offers no protection.",
     "Volatilities and correlation are fixed assumptions; with more assets, full risk parity has to solve for equal contributions.",
   ],
 } satisfies LessonSpecInput;

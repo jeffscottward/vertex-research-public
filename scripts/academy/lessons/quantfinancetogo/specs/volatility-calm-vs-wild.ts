@@ -72,13 +72,13 @@ export const spec = {
   steps: [
     {
       caption:
-        "Two simulated investments, both built to grow 8% a year on average. This is the wild one; set volatility to 3.9% for the calm one.",
+        "Two simulated investments, each designed to grow 8% a year on average. This one is the wild one; set volatility to 3.9% to see the calm one.",
       color: "gray",
       element: "axes",
     },
     {
       caption:
-        "Risk is how far the returns jump around their average, up as well as down: 1.99% a day for the wild one, 0.25% for the calm one.",
+        "Risk measures how widely returns swing around their average, both up and down: 1.99% a day for the wild investment, 0.25% for the calm one.",
       color: "gray",
       element: "paths",
       time: [0, 1],
@@ -117,11 +117,11 @@ export const spec = {
     topics: ["volatility", "risk", "standard deviation", "square root rule"],
   },
   takeaways: [
-    "In quantitative finance, risk is how far the returns jump around their average, up as well as down.",
+    "Quant finance defines risk as how widely returns swing around their average, both up and down.",
     "Volatility is the standard deviation of daily returns quoted per year: multiply by √252, about 15.87.",
     "The calm investment has a volatility of 3.9% a year and the wild one 31.6%, with the same 8% average return.",
     "Same average, very different risk: the calm one lost money in 2.7% of 100,000 simulated years, the wild one in 46.8%.",
-    "Volatility is everywhere in quantitative finance, from comparing investments to pricing options.",
+    "Volatility shows up throughout quant finance, from ranking investments to pricing options.",
   ],
   title:
     "Risk and volatility: two investments with the same 8% average, calm vs wild",

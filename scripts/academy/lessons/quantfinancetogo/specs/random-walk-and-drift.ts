@@ -3,7 +3,7 @@ import type { LessonSpecInput } from "../../../../../packages/academy/src/schema
 
 export const spec = {
   caveats: [
-    "It is only a first model: real prices move in percent, have calm and wild phases and sometimes jump.",
+    "This is just a starting model: real prices move in percentages, go through calm and volatile periods and can jump.",
     "The drift is an expectation; over any stretch of time the random part can still win.",
   ],
   course: "quantfinancetogo",
@@ -74,7 +74,7 @@ export const spec = {
   steps: [
     {
       caption:
-        "Heads moves the price up $1, tails moves it down $1, and every flip is 50-50. Every walk starts at $100.",
+        "Each flip is 50-50: heads adds $1 to the price, tails takes $1 away. All walks begin at $100.",
       color: "gray",
       element: "axes",
     },
@@ -120,10 +120,10 @@ export const spec = {
     topics: ["random walk", "drift", "equity risk premium", "square root rule"],
   },
   takeaways: [
-    "A random walk is a sum of coin flips, and it can look just like a stock chart: our eyes find trends and crashes even in pure chance.",
+    "Adding up coin flips gives a random walk that can pass for a stock chart; people see trends and crashes even in pure chance.",
     "The drift is the expected value of one step; a coin that wins 19 of 37 flips drifts +2.7 cents per step.",
     "In the short run chance wins: 43% of prices were below their start after 25 steps, 20% after 1,000 and 4% after 4,000.",
-    "The drift grows with every step while the randomness only grows with the square root, so after about 1,400 steps the drift is ahead.",
+    "Drift adds up linearly with the steps, but the randomness grows only with their square root, so the drift takes the lead after about 1,400 steps.",
     "In the simplest stock model the drift is the average return (partly the equity risk premium) and the random steps are the risk.",
   ],
   title:

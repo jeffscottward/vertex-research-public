@@ -140,7 +140,7 @@ export const spec: LessonSpecInput = {
   takeaways: [
     "Each factor is a long-short return: small minus big (SMB), cheap minus expensive (HML).",
     "Alpha is what the factors cannot explain; omitted factors leak into alpha.",
-    "Three factors explain much of the differences in average returns, though not momentum.",
+    "Three factors account for much of the spread in average returns, but they do not capture momentum.",
   ],
   title: "The Fama-French three-factor model",
 };

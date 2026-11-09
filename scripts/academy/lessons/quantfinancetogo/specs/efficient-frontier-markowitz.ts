@@ -164,7 +164,7 @@ export const spec = {
       element: "frontier",
       color: "gold",
       caption:
-        "Along the edge more return always costs more risk. Which point fits depends on how much risk someone wants to take.",
+        "On the frontier, extra return always comes with extra risk; the right point depends on how much risk the investor accepts.",
     },
   ],
   formulas: ["portfolioVariance", "sharpe"],

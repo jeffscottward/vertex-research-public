@@ -7,7 +7,7 @@ export const spec = {
   sourceId: "Dd4puohxGZj",
   title: "Sharpe ratio: extra return per unit of risk",
   summary:
-    "Part 8 of Quant Finance from scratch. Subtract the safe rate from an investment's return and divide by its volatility: the Sharpe ratio. A wild investment (12% at 24% risk) against a calm one (6% at 3%) shows that twice the return for eight times the risk is a bad deal here.",
+    "Part 8 of Quant Finance from scratch. The Sharpe ratio is an investment's return minus the safe rate, divided by its volatility. Comparing a wild investment (12% return, 24% risk) with a calm one (6%, 3%) shows that doubling the return for eight times the risk is a poor trade here.",
   kind: "concept",
   tags: {
     regime: ["any"],
@@ -144,7 +144,7 @@ export const spec = {
   ],
   caveats: [
     "The chart uses the assumed inputs (Sharpe 1.00 and 0.38); the creator's 10,000 simulated years measured 0.99 and 0.36.",
-    "The Sharpe ratio treats swings up and down the same; a strategy with rare big crashes can look better than it is until the crash comes.",
+    "The Sharpe ratio counts upside and downside swings equally, so a strategy with rare large crashes can look better than it really is until a crash arrives.",
     "Returns and volatilities are fixed assumptions here; real ones have to be estimated and change over time.",
   ],
 } satisfies LessonSpecInput;

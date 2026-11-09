@@ -101,7 +101,7 @@ export const spec = {
     },
   ],
   summary:
-    "Random steps always build the same bell because far more paths lead to the middle than to the edges: 924 of 4,096 twelve-row pin-board paths land in the middle bin. Coin flips, 400-step walks and sums of uniform amounts all give the bell (central limit theorem): about 68% of results within one standard deviation, 95% within two, 99.7% within three. Quants use it to size a stock's yearly move.",
+    "Many random steps add up to a bell because far more routes end near the center than at the sides: 924 of 4,096 routes through a twelve-row pin board finish in the center bin. Coin tosses, 400-step walks and sums of uniform amounts all give it (central limit theorem): about 68% of outcomes within one standard deviation, 95% within two, 99.7% within three. Quants use it to size a yearly stock move.",
   tags: {
     instruments: ["volatility"],
     regime: ["any"],
@@ -115,7 +115,7 @@ export const spec = {
     ],
   },
   takeaways: [
-    "Random steps build the bell because far more paths lead to the middle than to the edges: 924 of 4,096 twelve-row paths land in the middle.",
+    "Adding random steps gives a bell because many more routes end near the center than at the sides: 924 of the 4,096 routes of a twelve-row board finish in the center.",
     "The steps need not be coin flips: adding up 100 random amounts between -1 and +1 builds the same bell (the central limit theorem).",
     "About 68% of results land within one standard deviation, 95% within two and 99.7% within three.",
     "A stock that swings 16% a year ends within 16% in about 2 years out of 3 and within 32% in 19 out of 20; the bell puts a move beyond 48% at once in about 370 years.",

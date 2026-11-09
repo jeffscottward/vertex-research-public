@@ -70,14 +70,14 @@ export const spec = {
     },
     {
       caption:
-        "1,000 prices walk 400 steps each. A few end up far away, and most stay surprisingly close to where they started.",
+        "1,000 prices each take 400 random steps. A handful drift far, while most finish surprisingly near their start.",
       color: "gray",
       element: "paths",
       time: [0, 1],
     },
     {
       caption:
-        "The spread is σ√n: about $5 after 25 steps, $10 after 100 and $20 after 400. Four times the steps give only twice the spread.",
+        "The spread is σ√n: roughly $5 after 25 steps, $10 after 100 and $20 after 400. Quadrupling the steps only doubles the spread.",
       color: "violet",
       element: "band",
     },
@@ -120,7 +120,7 @@ export const spec = {
     "Ups and downs cancel, but their squares (the variance) add up: variance 100 after 100 steps, and its square root is 10.",
     "The rule turns daily risk into yearly risk: 1% up or down a day becomes about 1% x √252 = 15.9% a year.",
     "With a positive drift, ending above the start gets more likely the longer you wait: 64% after one year and 91% after ten for a 6.8% drift, in this simple model.",
-    "It sits inside every option price, because a later deadline leaves the price more room to move.",
+    "Every option price contains it: the further away expiry is, the more room the stock has to move.",
   ],
   title:
     "The square-root-of-time rule: risk grows with the square root of the steps",

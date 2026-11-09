@@ -154,7 +154,7 @@ export const spec: LessonSpecInput = {
     "The first source of money is the spread: buy a little below fair at the bid, sell a little above at the ask.",
     "After delta hedging, theta is the income (the call it owes loses value daily) and gamma is the cost of re-hedging big moves.",
     "If the stock moves exactly as much as the implied volatility, income and cost cancel; calmer it earns, wilder it loses.",
-    "Vega is the risk to this income: a jump in implied volatility makes the call it owes more expensive.",
+    "Vega threatens this income: if implied volatility jumps, the call the market maker owes gets dearer.",
     "If a customer sells the call instead, everything flips.",
   ],
   title: "How a hedged market maker earns: implied vs realized volatility",

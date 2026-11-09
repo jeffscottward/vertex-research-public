@@ -73,13 +73,13 @@ export const spec = {
   steps: [
     {
       caption:
-        "Every line obeys the same law, geometric Brownian motion: a steady drift plus random shocks that compound over time.",
+        "All the lines follow one rule, geometric Brownian motion: a constant drift plus compounding random shocks.",
       color: "gray",
       element: "axes",
     },
     {
       caption:
-        "One path is just one of a whole fan of possible futures, and none of them is more real than the others.",
+        "The highlighted path is a single member of a large fan of possible futures; no path is more likely to be the real one.",
       color: "gray",
       element: "paths",
       time: [0, 1],
@@ -110,13 +110,13 @@ export const spec = {
     },
     {
       caption:
-        "Forecasting a single price is hopeless, while forecasting the distribution actually works.",
+        "Predicting one exact price cannot work, but predicting the spread of outcomes can.",
       color: "violet",
       element: "pdf",
     },
   ],
   summary:
-    "An animation in which every price path obeys the same law, geometric Brownian motion: a steady drift plus random shocks that compound over time. The highlighted path is just one of a whole fan of possible futures, none more real than the others. Where they all land is a lognormal cloud, wide and skewed, which is why forecasting a single price is hopeless while forecasting the distribution works.",
+    "Price paths that all follow one rule, geometric Brownian motion: a constant drift plus compounding random shocks. The highlighted path is a single member of a large fan of possible futures, and no path is more likely to be the real one. The end points form a lognormal cloud that is wide and skewed, so predicting one exact price cannot work, while predicting the spread of outcomes can.",
   tags: {
     instruments: ["single-stock"],
     regime: ["any"],
@@ -126,7 +126,7 @@ export const spec = {
   },
   takeaways: [
     "Under geometric Brownian motion, a price follows a steady drift plus random shocks that compound over time.",
-    "A highlighted path is only one of a whole fan of possible futures, and none of them is more real than the others.",
+    "Any single path is one possible future among many, and none is more real than the rest.",
     "The end prices form a lognormal cloud, wide and skewed, so forecasting the distribution works where forecasting one price does not.",
   ],
   title:

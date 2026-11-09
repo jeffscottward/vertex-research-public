@@ -133,7 +133,7 @@ export const spec: LessonSpecInput = {
     },
   ],
   summary:
-    "Part 32. Buy a call and sell a put with the same strike and expiry, and you buy the stock at the strike whatever happens. That sure deal is worth the stock price minus the present value of the strike, so C - P = S - K e^(-rT). With stock and strike at 100, 5% and one year, the call costs $10.45, the put $5.57, and the $4.88 gap equals 100 - 95.12. Traders use it to check quotes.",
+    "Part 32. A long call and a short put at the same strike and expiry together guarantee buying the stock at the strike. That certain purchase is worth today's stock price less the present value of the strike, so C - P = S - K e^(-rT). With stock and strike at 100, 5% and one year, the call is $10.45, the put $5.57, and their $4.88 difference matches 100 - 95.12. Traders use it to check quotes.",
   tags: {
     instruments: ["synthetics", "single-stock"],
     regime: ["any"],
@@ -149,8 +149,8 @@ export const spec: LessonSpecInput = {
   takeaways: [
     "A long call plus a short put with the same strike and expiry buys the stock at the strike on that date, whatever happens.",
     "Call minus put equals the stock minus the present value of the strike: 10.45 - 5.57 = 100 - 95.12 = 4.88.",
-    "The rule needs no model for the stock, so traders use it to check quotes and to turn a call price into a put price.",
-    "If prices break it, traders lock in a riskless profit until it holds again.",
+    "No stock model is needed, which is why traders use the identity to check quotes and to convert a call price into a put price.",
+    "When quotes violate it, traders can earn a riskless profit until prices line up again.",
     "It holds exactly for European options on stocks without dividends; American options and dividends change it.",
   ],
   title:

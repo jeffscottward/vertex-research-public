@@ -3,7 +3,7 @@ import type { LessonSpecInput } from "../../../../../packages/academy/src/schema
 
 export const spec: LessonSpecInput = {
   caveats: [
-    "Constant volatility and rate, no fees, trading at every step; real prices do not move in fixed steps. The chart prices European calls only.",
+    "The model holds volatility and the rate fixed, ignores fees and assumes a trade at each step; real prices do not jump in fixed sizes. Only European calls are priced in the chart.",
   ],
   course: "quantfinancetogo",
   formulas: ["binomialTree", "blackScholes"],
@@ -111,7 +111,7 @@ export const spec: LessonSpecInput = {
     ],
   },
   takeaways: [
-    "The stock moves in steps, each up or down by a fixed factor that comes from the volatility.",
+    "Each step the stock goes up or down by a set factor, and the volatility decides how big that factor is.",
     "Risk-neutral weights make the stock grow like money in the bank; the real chance of an up move never matters.",
     "Each node is worth the discounted weighted average of the two nodes after it; walking back gives today's price.",
     "With more steps the tree price converges to Black-Scholes: $12.16, $9.54, $11.04, then $10.25 with 10 and $10.45 with 1,000 steps.",

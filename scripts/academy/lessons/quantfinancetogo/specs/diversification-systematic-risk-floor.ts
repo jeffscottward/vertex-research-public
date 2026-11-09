@@ -99,7 +99,7 @@ export const spec = {
     "Market (systematic) risk stays; firm-specific (idiosyncratic) risk averages away.",
   ],
   caveats: [
-    "It only works this well because all these assets earn about the same; mixing in assets that earn less costs return.",
+    "The effect is this strong only because the assets here have similar expected returns; adding lower-returning assets gives up return.",
     "Every asset here has the same volatility and every pair the same correlation; real assets differ.",
     "Simulated returns from one hidden market factor; the figures in the captions are the formula's values for the reel's inputs.",
   ],

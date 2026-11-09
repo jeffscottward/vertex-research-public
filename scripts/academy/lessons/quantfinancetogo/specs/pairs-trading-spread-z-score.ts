@@ -86,7 +86,7 @@ export const spec = {
   steps: [
     {
       caption:
-        "Two simulated stocks over 250 trading days. You do not need to know where the market goes to trade them.",
+        "Two simulated stocks across 250 trading days. Trading them needs no forecast of the market's direction.",
       color: "gray",
       element: "axes",
     },
@@ -133,7 +133,7 @@ export const spec = {
     },
   ],
   summary:
-    "Pairs trading needs no view on where the market goes. Two stocks that share a common trend form a spread that behaves like a rubber band: stretch it far enough and it snaps back. The strategy shorts the expensive stock and buys the cheap one when the gap is extreme, and closes both when it returns to normal.",
+    "Pairs trading does not depend on the market's direction. Two stocks that move with a shared trend leave a spread that acts like a rubber band: pulled far enough, it springs back. The strategy sells the rich stock and buys the cheap one when the gap is extreme, then exits both when the gap is back to normal.",
   tags: {
     instruments: ["single-stock"],
     regime: ["range"],
@@ -149,7 +149,7 @@ export const spec = {
   },
   takeaways: [
     "Two stocks with a common trend form a spread that tends to snap back like a rubber band.",
-    "The rule is that and nothing more: short the expensive one and buy the cheap one when the gap is extreme, close both when it is back to normal.",
+    "That is the whole rule: when the gap is extreme, sell the rich stock and buy the cheap one; when it is back to normal, exit both.",
     "The trade does not depend on the market's direction, only on the gap between the two stocks closing.",
     "Profit adds up trade by trade, and every entry and exit pays costs, so a rule that trades too often can give the edge away.",
   ],

@@ -5,7 +5,7 @@ export const spec = {
   caveats: [
     "Even pure chance often looks like a pull: in the creator's test 34% of pure random walks passed the usual -2 limit, and three months of a random walk typically showed a half-life of about 10 days.",
     "A 2016 study of 97 published return signals found returns on average 58% lower after publication (cited in the video, not verified here).",
-    "The average itself can shift, a pull from the past can vanish, and a spread can keep widening before it comes back.",
+    "The mean can move, an old pull can disappear, and a spread can widen further before it reverts.",
   ],
   course: "quantfinancetogo",
   formulas: ["ornsteinUhlenbeck", "randomWalk"],
@@ -82,7 +82,7 @@ export const spec = {
     },
     {
       caption:
-        "Every day the distance from the average shrinks by a fixed share, plus a random shock.",
+        "Each day a fixed fraction of the gap to the average closes, and a random shock is added.",
       color: "gray",
       element: "paths",
       time: [0, 1],
@@ -94,7 +94,7 @@ export const spec = {
     },
     {
       caption:
-        "The half-life is the time it takes for half of the distance to disappear, so a short half-life means a strong pull back.",
+        "The half-life is how long half of the gap takes to close; the shorter it is, the stronger the pull back.",
       color: "cyan",
       element: "halfLife",
     },
@@ -131,7 +131,7 @@ export const spec = {
     "The simplest model shrinks the distance from the average by a fixed share each day plus a random shock; the half-life measures the strength of the pull.",
     "To test it, regress today's change on yesterday's distance: a negative slope means a pull back, judged against a strict t-statistic limit of about -3 rather than -2.",
     "In the video's simulation, a built-in half-life of 10 days was estimated at 9.5 days with a t-statistic of about -6, far beyond that limit.",
-    "It is profitable only if the pull is real, strong enough to beat trading costs and still there in data not used for testing.",
+    "It pays only when the pull is genuine, large enough to cover costs and still present in data held out from testing.",
   ],
   title:
     "Mean reversion: a pull back to the average, its half-life and how to test it",

@@ -56,7 +56,7 @@ export const spec = {
       element: "assets",
       color: "blue",
       caption:
-        "Eight simulated stocks with betas from 0 to 1.4. Each also has swings of its own, unrelated to the market.",
+        "Eight simulated stocks, betas from 0 to 1.4, each with extra stock-specific swings that have nothing to do with the market.",
     },
     {
       element: "line",

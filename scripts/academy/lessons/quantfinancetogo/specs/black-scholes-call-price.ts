@@ -118,7 +118,7 @@ export const spec: LessonSpecInput = {
     topics: ["black-scholes", "option pricing", "volatility"],
   },
   takeaways: [
-    "C = S N(d1) - K e^(-rT) N(d2), with d1 = [ln(S/K) + (r + σ²/2)T] / (σ√T) and d2 = d1 - σ√T.",
+    "Call price: C = S N(d1) - K e^(-rT) N(d2), where d2 = d1 - σ√T and d1 = [ln(S/K) + (r + σ²/2)T] / (σ√T).",
     "The test run gives d1 = 0.3, d2 = 0.1 and a price of $9.93; one million Monte Carlo paths give $9.92.",
     "The same call costs $4.49 with three months left and $15.08 with two years left.",
     "The stock's expected return is not an input, because stock and cash can copy the option.",

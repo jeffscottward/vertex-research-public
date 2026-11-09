@@ -144,7 +144,7 @@ export const spec = {
     "Volatility targeting sets exposure = target volatility / forecast volatility.",
     "Target 10% and forecast 20%: hold 50% of your money in the market, so your risk stays at about 10%.",
     "When the forecast is below the target the rule asks for more than 100%, which means borrowing, so exposure usually gets a cap.",
-    "Every forecast looks back: a sudden crash after a calm stretch still hits a full position.",
+    "Any forecast relies on the past, so a sudden crash after a quiet period still catches a full-size position.",
   ],
   title:
     "Volatility targeting: exposure equals target vol divided by forecast vol",

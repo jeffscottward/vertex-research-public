@@ -4,7 +4,7 @@ import type { LessonSpecInput } from "../../../../../packages/academy/src/schema
 export const spec: LessonSpecInput = {
   caveats: [
     "The audio says one day costs about $0.08; the caption and Black-Scholes give about 1.8 cents, which the chart uses.",
-    "Greeks describe small changes one at a time; for large moves they change themselves. Rho is not drawn.",
+    "Each Greek measures one small change with the others held fixed; over large moves the Greeks themselves shift. Rho is not shown.",
   ],
   course: "quantfinancetogo",
   formulas: ["delta", "gamma", "theta", "vega"],
@@ -110,7 +110,7 @@ export const spec: LessonSpecInput = {
     },
   ],
   summary:
-    "Part 34. An option's price depends on the stock price, time left, volatility and interest rate; each Greek measures one of them changing alone. Delta and gamma belong to the stock price, theta to time, vega to volatility, rho to the rate. For the test call (stock and strike 100, 5%, one year, 20%): gamma 0.0188, about -1.8 cents a day of theta, 38 cents of vega per point, rho 0.53.",
+    "Part 34. An option's value depends on stock price, time to expiry, volatility and the interest rate; each Greek isolates one. Delta and gamma track the stock price, theta tracks time, vega tracks volatility and rho tracks the rate. For the test call (stock and strike 100, 5%, one year, 20%): gamma 0.0188, theta about -1.8 cents a day, vega 38 cents per volatility point, rho 0.53.",
   tags: {
     instruments: ["single-stock"],
     regime: ["any"],
@@ -123,7 +123,7 @@ export const spec: LessonSpecInput = {
     "Delta and gamma belong to the stock price; gamma is how fast delta changes, so a large gamma makes a delta hedge go out of date quickly.",
     "Theta belongs to time (about -1.8 cents a day here) and vega to volatility (about +38 cents per point).",
     "Rho belongs to the interest rate: about +0.53 per rate point, because a strike paid later is worth less when rates rise.",
-    "A position can be protected against small stock moves and still lose through time, volatility or rates.",
+    "A position hedged against small stock moves can still lose money through time decay, volatility or rates.",
   ],
   title: "The Greeks: what each one measures for a call option",
 };

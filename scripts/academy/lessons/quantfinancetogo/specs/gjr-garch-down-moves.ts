@@ -136,7 +136,7 @@ export const spec = {
     },
   ],
   summary:
-    "Plain GARCH squares today's move, so a 4% drop and a 4% rise raise tomorrow's forecast by the same amount. GJR-GARCH (Glosten, Jagannathan and Runkle, 1993) adds a weight gamma that only switches on after a down day. With omega 0.02, alpha 0.02, gamma 0.12 and beta 0.90 at 1% a day, a 4% rise lifts the forecast to about 1.11% and a 4% drop to about 1.78%.",
+    "Plain GARCH uses the square of today's move, so a 4% fall and a 4% rise lift tomorrow's forecast equally. GJR-GARCH (Glosten, Jagannathan and Runkle, 1993) adds a weight, gamma, that applies only after a down day. With omega 0.02, alpha 0.02, gamma 0.12 and beta 0.90 on a 1%-a-day market, a 4% rise takes the forecast to about 1.11% and a 4% fall to about 1.78%.",
   tags: {
     instruments: ["volatility", "portfolio"],
     regime: ["any", "high-vol"],
