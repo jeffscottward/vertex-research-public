@@ -57,7 +57,13 @@ export const EngineComparisonStatsSchema = z.object({
   winRate: nullableNumber,
 });
 
-export const ENGINE_EXIT_REASONS = ["signal", "stop", "target", "end"] as const;
+export const ENGINE_EXIT_REASONS = [
+  "signal",
+  "stop",
+  "target",
+  "end",
+  "sessionClose",
+] as const;
 
 /** One trade as [entry bar, exit bar, exit reason]. */
 export const EngineComparisonTradeSchema = z.tuple([

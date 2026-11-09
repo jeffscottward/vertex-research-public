@@ -61466,7 +61466,8 @@
                                                 "signal",
                                                 "stop",
                                                 "target",
-                                                "end"
+                                                "end",
+                                                "sessionClose"
                                               ],
                                               "type": "string"
                                             }
@@ -66037,7 +66038,8 @@
                                       "signal",
                                       "stop",
                                       "target",
-                                      "end"
+                                      "end",
+                                      "sessionClose"
                                     ],
                                     "type": "string"
                                   },
@@ -66256,7 +66258,8 @@
                                           "signal",
                                           "stop",
                                           "target",
-                                          "end"
+                                          "end",
+                                          "sessionClose"
                                         ],
                                         "type": "string"
                                       }
@@ -69034,7 +69037,8 @@
                                       "signal",
                                       "stop",
                                       "target",
-                                      "end"
+                                      "end",
+                                      "sessionClose"
                                     ],
                                     "type": "string"
                                   },
@@ -69253,7 +69257,8 @@
                                           "signal",
                                           "stop",
                                           "target",
-                                          "end"
+                                          "end",
+                                          "sessionClose"
                                         ],
                                         "type": "string"
                                       }
@@ -72411,7 +72416,8 @@
                                             "signal",
                                             "stop",
                                             "target",
-                                            "end"
+                                            "end",
+                                            "sessionClose"
                                           ],
                                           "type": "string"
                                         }
@@ -73467,7 +73473,8 @@
                                                         "signal",
                                                         "stop",
                                                         "target",
-                                                        "end"
+                                                        "end",
+                                                        "sessionClose"
                                                       ],
                                                       "type": "string"
                                                     }
@@ -74895,7 +74902,8 @@
                                                   "signal",
                                                   "stop",
                                                   "target",
-                                                  "end"
+                                                  "end",
+                                                  "sessionClose"
                                                 ],
                                                 "type": "string"
                                               }
@@ -76910,7 +76918,8 @@
                                 "signal",
                                 "stop",
                                 "target",
-                                "end"
+                                "end",
+                                "sessionClose"
                               ],
                               "type": "string"
                             },
@@ -77683,7 +77692,8 @@
                                           "signal",
                                           "stop",
                                           "target",
-                                          "end"
+                                          "end",
+                                          "sessionClose"
                                         ],
                                         "type": "string"
                                       },

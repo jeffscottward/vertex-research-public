@@ -1294,13 +1294,20 @@ describe("runSignalBacktest market on close", () => {
       [1, 2],
       [4, 5],
     ]);
-    expect(trades[0]).toMatchObject({ exitPrice: 102, exitReason: "signal" });
+    expect(trades[0]).toMatchObject({
+      exitPrice: 102,
+      exitReason: "sessionClose",
+    });
     // The last bar is a closeAt bar: a market-on-close exit, not the end of the data.
-    expect(trades[1]).toMatchObject({ exitPrice: 104, exitReason: "signal" });
+    expect(trades[1]).toMatchObject({
+      exitPrice: 104,
+      exitReason: "sessionClose",
+    });
     expect(equity[2]).toBeCloseTo(1.02, 12);
     expect(equity[3]).toBeCloseTo(1.02, 12);
-    // Bars 1, 2, 4 and 5 were held.
+    // Bars 1, 2, 4 and 5 were held, and barsInPositionOf counts the closeAt bars.
     expect(stats.exposure).toBeCloseTo(4 / 6, 12);
+    expect(barsInPositionOf(trades)).toBe(4);
   });
 
   it("closes a short at the close with the flat cost", () => {
@@ -1318,7 +1325,7 @@ describe("runSignalBacktest market on close", () => {
     expect(trades[0]).toMatchObject({
       exitIndex: 2,
       exitPrice: 102,
-      exitReason: "signal",
+      exitReason: "sessionClose",
     });
     const units = 0.999 / 100;
     const cash = 1 + units * 100 - 0.001 - units * 102 * 1.001;

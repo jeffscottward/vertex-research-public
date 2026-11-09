@@ -69,7 +69,7 @@ export type BacktestRunReportTrade = Readonly<{
   units: number;
   pnl: number;
   netReturn: number;
-  exitReason: "signal" | "stop" | "target" | "end";
+  exitReason: "signal" | "stop" | "target" | "end" | "sessionClose";
   balanceAfter: number;
   /** Only with a cost profile: charges of both legs and the P&L before them, in money. */
   costs?: number;

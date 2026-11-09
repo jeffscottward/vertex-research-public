@@ -98,7 +98,7 @@ export type InstantTrade = Readonly<{
   netReturn: number;
   /** Change in equity (starting equity 1) from entry to exit, after both cost legs. */
   pnl: number;
-  exitReason: "signal" | "stop" | "target" | "end";
+  exitReason: "signal" | "stop" | "target" | "end" | "sessionClose";
   /** Only when a cost profile is set: charges of both legs and the P&L before them. */
   costs?: InstantTradeCosts;
   grossPnl?: number;
@@ -463,7 +463,9 @@ export const summarize = (
 /**
  * Bars that end with an open position (the `barsInPosition` of summarize), from the trades of a
  * finished run. Trades never overlap. A trade holds from its entry bar to the bar before its exit
- * bar (an exit fills during the bar); a trade closed after the last bar (`end`) holds that bar too.
+ * bar (an exit fills during the bar). A trade closed after the last bar (`end`) or at the close by
+ * a market-on-close order (`sessionClose`) holds its exit bar too; a ruin exit at the close does
+ * not (that bar ends flat).
  */
 export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
   trades.reduce(
@@ -471,7 +473,9 @@ export const barsInPositionOf = (trades: readonly InstantTrade[]): number =>
       total +
       trade.exitIndex -
       trade.entryIndex +
-      (trade.exitReason === "end" ? 1 : 0),
+      (trade.exitReason === "end" || trade.exitReason === "sessionClose"
+        ? 1
+        : 0),
     0
   );
 
@@ -550,7 +554,7 @@ export type SignalRunOptions = Readonly<{
   side?: "long" | "short";
   /**
    * Market on close: at the close of a bar with 1, an open position exits at that close (reason
-   * "signal", costs as for any fill), and that bar takes no entry signal.
+   * "sessionClose", costs as for any fill), and that bar takes no entry signal.
    */
   closeAt?: Uint8Array;
   /**
@@ -943,7 +947,7 @@ export const runSignalBacktest = (
     const closing = options.closeAt?.[index] === 1;
     if (closing && position !== null) {
       barsInPosition += 1;
-      exitPosition(index, close, "signal");
+      exitPosition(index, close, "sessionClose");
     }
     const signal = signals[index] as number;
     if (index < size - 1) {

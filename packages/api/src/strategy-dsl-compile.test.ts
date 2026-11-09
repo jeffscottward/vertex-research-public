@@ -2470,7 +2470,7 @@ describe("intraday sessions, session indicators, gates and volTarget", () => {
       entryPrice: 100,
       exitIndex: 14,
       exitPrice: 98,
-      exitReason: "signal",
+      exitReason: "sessionClose",
     });
     const leverage = 0.1 / Math.sqrt(0.02);
     expect(result.trades[0]?.pnl).toBeCloseTo(leverage * 0.02, 12);
