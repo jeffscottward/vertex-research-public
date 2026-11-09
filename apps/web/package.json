@@ -38,6 +38,7 @@
     "@tanstack/charts": "0.18.0",
     "@tanstack/react-form": "catalog:",
     "@vinext/cloudflare": "catalog:",
+    "cmdk": "catalog:",
     "d3-scale": "4.0.2",
     "klinecharts": "9.8.12",
     "lucide-react": "catalog:",
