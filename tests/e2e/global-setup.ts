@@ -11,6 +11,7 @@ import {
   dropPostgresTestDatabase,
 } from "@darkfactory/testkit/postgres";
 import { importAcademyCourses } from "../../scripts/academy/import-lessons.ts";
+import { DATABASE_COURSE_FIXTURE_CONTENT } from "../../scripts/academy/lessons/index.ts";
 import { e2eEnvironment } from "./env.ts";
 import { resetDatabase } from "./helpers/database.ts";
 import {
@@ -55,8 +56,11 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     });
     try {
       await migrate(resource.db);
-      // Database-backed Academy courses (QuantFinanceToGo); resets never truncate them.
-      await importAcademyCourses(createAcademyContentRepository(resource.db));
+      // Database-backed Academy courses (QuantFinanceToGo) with synthetic sources: CI has no knowledge
+      // base, and the real transcripts never enter the repository. Resets never truncate them.
+      await importAcademyCourses(createAcademyContentRepository(resource.db), {
+        content: DATABASE_COURSE_FIXTURE_CONTENT,
+      });
     } finally {
       await resource.close();
     }

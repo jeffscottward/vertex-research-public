@@ -21,7 +21,7 @@ tradeable strategies, a modeled backtest and a gated paper deployment request.
 | --- | --- |
 | Course registry | `packages/academy/src/courses.ts` |
 | Lesson specs (one per transcript) | `packages/academy/src/lessons/specs/<slug>.json` (dyr), other courses `specs/<course>/<slug>.ts` |
-| Transcripts | `packages/academy/src/lessons/sources.json` (dyr), `sources.<course>.generated.ts` (`scripts/academy/build-sources.ts [--course <id>]`, file names in `scripts/academy/course-files.ts`) |
+| Transcripts | `packages/academy/src/lessons/sources.json` (dyr, `scripts/academy/build-sources.ts`); database courses: the knowledge base only, read at import time (never committed) |
 | Classification pass 1 (judge model) | `packages/academy/src/lessons/classification.json` |
 | Spec contract | `packages/academy/src/schema.ts` |
 | Scenes, tables, formulas, timeline/VTT | `packages/academy/src/{scene-kit,scenes,tables,formulas,mathml,timeline}.ts` |
@@ -45,12 +45,11 @@ refusal all read it; nothing else hard-codes a course.
 | Course | Store | Specs | Sources | Narrated | Strategy prefix |
 | --- | --- | --- | --- | --- | --- |
 | `dyr` (Define Your Risk, default) | `package` | `specs/<slug>.json` (no `course` field) | `sources.json` | yes | `dyr-` |
-| `quantfinancetogo` | `database` | `scripts/academy/lessons/quantfinancetogo/specs/<slug>.ts` exporting `spec` with `course: "quantfinancetogo"` | `scripts/academy/lessons/quantfinancetogo/sources.generated.ts` | no | `qftg-` |
+| `quantfinancetogo` | `database` | `scripts/academy/lessons/quantfinancetogo/specs/<slug>.ts` exporting `spec` with `course: "quantfinancetogo"` | knowledge base (`trading/quantfinancetogo/raw`), never committed; synthetic `sources.fixture.ts` for tests | no | `qftg-` |
 
 Spec format (`specFormat` in the registry): AGENTS.md rule 13 forbids new JSON data files, so a new
 course authors each spec as a TypeScript module (`export const spec = { ... } satisfies
-LessonSpecInput;`) and gets its transcripts as a generated TypeScript module. The Define Your Risk
-JSON specs and `sources.json` stay on the rule's pending list until that course moves to Postgres
+LessonSpecInput;`). The Define Your Risk JSON specs and `sources.json` stay on the rule's pending list until that course moves to Postgres
 too.
 
 - Pages: `/academy` shows a course picker and one group per course (the default course keeps the
@@ -67,16 +66,34 @@ To add a course:
 1. Add its id to `COURSE_IDS` and an entry to `COURSES` (pick a strategy prefix that is not a prefix
    of another course's; `courses.test.ts` checks this).
 2. Add a reader to `READERS` in `scripts/academy/build-sources.ts` for the knowledge-base note
-   format and the output file to `SOURCES_OUTPUT` in `scripts/academy/course-files.ts` (format `ts`),
-   run `bun scripts/academy/build-sources.ts --course <id>` and commit the generated module.
-3. Import the sources module in `packages/academy/src/lessons/index.ts` (`SOURCE_FILES`).
-4. Write specs in `specs/<specDir>/<slug>.ts` with `course: "<id>"`, then run
+   format. A database course commits no sources: add a synthetic fixture (ids, URLs, dates,
+   placeholder text) to `SOURCE_ID_FILES` in `scripts/academy/course-files.ts` and its specs and
+   fixture to `scripts/academy/lessons/index.ts`.
+3. Write specs in `specs/<specDir>/<slug>.ts` with `course: "<id>"`, then run
    `bun scripts/academy/build-lesson-index.ts` (it checks the folder, the course of each source,
    and that slugs and sourceIds are unique across courses).
 
 QuantFinanceToGo sources come from `trading/quantfinancetogo/raw/ig-<post id>.md`: frontmatter
 (`post_id`, `url`, `published`, `duration`, `title`), the `## Caption` text block (becomes
 `caption`) and `## Transcript` segments `- [mm:ss] text` with real start times.
+
+### Private transcripts
+
+Owner decision ([Discord, 2026-11-08](https://discord.com/channels/1511468532876185770/1569026480288301237/1569139130800021597)):
+QuantFinanceToGo captions and transcripts stay out of this repository.
+
+- `bun run vertex:academy:import` reads them from the knowledge base where it runs (the rig) and
+  writes them to Postgres.
+- `scripts/academy/lessons/quantfinancetogo/sources.fixture.ts` stands in for them in tests, CI and the
+  E2E seed. It keeps each reel's public id, URL, date and length, with placeholder text only. A new
+  reel needs a row there as well as its note in the knowledge base.
+- `scripts/ci/private-academy-sources.test.ts` fails if a sources snapshot, a reel note or a
+  non-synthetic fixture is committed; `.gitignore` covers `sources.generated.ts`.
+- Lesson text is paraphrased. On 2026-11-08, no spec repeated 12 or more consecutive words of its
+  reel's transcript or caption (checked against the knowledge base). Keep it that way when authoring.
+- Commits made on the PR branch before this decision still contain a snapshot
+  (`sources.quantfinancetogo.generated.ts`, `sources.generated.ts`). Rewriting that history is an
+  owner decision; nothing was force-pushed.
 
 ## Database storage
 
@@ -91,28 +108,37 @@ A course's `store` in the registry says where the app reads its lessons:
 
 The web app reads both stores through the same operator-only contracts, `academy.lessons` and
 `academy.lesson` (`packages/api/src/contracts/academy.ts`); the transcripts are private, so there is
-no public read. The app never writes these tables: the TypeScript files under
-`scripts/academy/lessons/` stay the authored source, and the importer copies them into Postgres.
+no public read. The app never writes these tables: the specs under `scripts/academy/lessons/` and the
+knowledge-base notes stay the authored source, and the importer copies them into Postgres.
 
 Import (validates every spec with the repository parser and checks that each lesson draws, then
 upserts; a re-import of unchanged content changes nothing). Source ids and slugs are unique across
 courses: an import naming another course's source or lesson is refused before any write, never moved.
 `academy.lessons` lists at most 500 lessons per course; a course with more answers `STORAGE_ERROR`.
 
+Sources always come from the knowledge base. By default that is the course's notes folder in
+`$ACADEMY_KB_ROOT`, or in `~/Github/knowledge-bases` when the variable is unset
+(`trading/quantfinancetogo/raw`); `--kb <dir>` names the folder directly. A missing or empty folder
+exits 2 with the path it looked for.
+
 ```sh
 DATABASE_URL=postgres://... bun run vertex:academy:import            # every database course
 bun run vertex:academy:import -- --course quantfinancetogo --dry-run  # validate only, no database
-bun run vertex:academy:import -- --course quantfinancetogo --kb default  # sources from the KB notes
+bun run vertex:academy:import -- --course quantfinancetogo --kb <dir>  # notes from another folder
 bun run vertex:academy:import -- --prune                              # also delete rows no longer authored
 ```
 
 The E2E global setup (`tests/e2e/global-setup.ts`) runs the same import into the test database
-after migrating it, so browser tests see the QuantFinanceToGo lessons.
+after migrating it, with the synthetic fixture sources (CI has no knowledge base). Browser tests see
+the QuantFinanceToGo lessons with placeholder transcripts.
 
 Deploy order: run both steps **before** the web deploy that reads these tables.
 
 1. `bun run db:migrate` (applies 0058).
-2. `bun run vertex:academy:import` with the deployment's `DATABASE_URL`.
+2. On the rig, against the production `DATABASE_URL`: `bun run vertex:academy:import -- --course
+   quantfinancetogo --kb <rig KB path>/trading/quantfinancetogo/raw`. Alternatively, set
+   `ACADEMY_KB_ROOT=<rig KB path>` and omit `--kb`. The transcripts never pass through the repository
+   or CI.
 3. Deploy the web app.
 
 If the web app ships first anyway, `/academy` still lists Define Your Risk, and a course whose read

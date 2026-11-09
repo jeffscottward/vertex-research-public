@@ -1,8 +1,10 @@
-// Builds one course's sources file (course-files.ts SOURCES_OUTPUT) from its knowledge base.
+// Builds a package course's sources file (course-files.ts SOURCES_OUTPUT) from its knowledge base, and
+// parses the knowledge-base notes of every course.
 // Usage: bun scripts/academy/build-sources.ts [--course <id>] [<kb transcripts dir>]
-// The course defaults to dyr (packages/academy/src/lessons/sources.json); database courses get a
-// generated TS module under scripts/academy/lessons/<course>, the input of `bun run
-// vertex:academy:import` (which can also read the notes directly with --kb). Research data only.
+// The course defaults to dyr (packages/academy/src/lessons/sources.json). Database courses have no
+// sources file: their captions and transcripts never enter the repository (owner decision
+// 2026-11-08), and `bun run vertex:academy:import` reads the notes with readKnowledgeBaseSources.
+// Research data only.
 // - dyr: transcripts/D*.md notes. Each transcript becomes sentences with start times ESTIMATED from
 //   word position over the audio duration (the notes store plain text without segment timestamps).
 // - quantfinancetogo: raw/ig-<post id>.md notes with YAML frontmatter (post_id, url, published,
@@ -19,7 +21,7 @@ import {
   DEFAULT_COURSE_ID,
   isCourseId,
 } from "../../packages/academy/src/courses.ts";
-import { SOURCES_OUTPUT, sourcesModule } from "./course-files.ts";
+import { SOURCES_OUTPUT } from "./course-files.ts";
 
 const field = (text: string, label: string): string => {
   const match = new RegExp(`\\*\\*${label}:\\*\\* (.+)`, "u").exec(text);
@@ -54,15 +56,15 @@ const parseDyrNote = (name: string, text: string): SourceRecord => {
     return { start, text: sentence };
   });
   return {
-    sourceId: id,
-    url: field(text, "Canonical URL"),
     caption:
       field(text, "Source caption") ||
       // First line of the note (its title heading).
       text.replace(/\n[\s\S]*/u, "").replace(/^# /u, ""),
-    publishedAt: field(text, "Published \\(UTC\\)"),
     durationSeconds: duration,
+    publishedAt: field(text, "Published \\(UTC\\)"),
+    sourceId: id,
     transcript,
+    url: field(text, "Canonical URL"),
     ...(DUPLICATES[id] === undefined ? {} : { duplicateOf: DUPLICATES[id] }),
   };
 };
@@ -116,14 +118,14 @@ const parseReelNote = (name: string, text: string): SourceRecord => {
       ];
     });
   return {
+    caption: caption || (fields["title"] ?? ""),
     course: "quantfinancetogo",
+    durationSeconds: Number(fields["duration"]) || 0,
+    publishedAt: fields["published"] ?? "",
     sourceId:
       fields["post_id"] || name.replace(/^ig-/u, "").replace(/\.md$/u, ""),
-    url: fields["url"] ?? "",
-    caption: caption || (fields["title"] ?? ""),
-    publishedAt: fields["published"] ?? "",
-    durationSeconds: Number(fields["duration"]) || 0,
     transcript,
+    url: fields["url"] ?? "",
   };
 };
 
@@ -139,14 +141,23 @@ const READERS: Readonly<Record<CourseId, Reader>> = {
   quantfinancetogo: { dir: "raw", file: /^ig-.+\.md$/u, parse: parseReelNote },
 };
 
-/** The course's notes folder in the default knowledge-base checkout (~/Github/knowledge-bases). */
-export const knowledgeBaseDir = (course: CourseId, home: string): string =>
-  join(
-    home,
-    "Github/knowledge-bases",
-    COURSES[course].kbPath,
-    READERS[course].dir
-  );
+/** Default knowledge-base checkout: ~/Github/knowledge-bases, or $ACADEMY_KB_ROOT when set. */
+export const knowledgeBaseRoot = (
+  home: string,
+  env: Readonly<Record<string, string | undefined>> = {}
+): string => {
+  const root = env["ACADEMY_KB_ROOT"]?.trim();
+  return root === undefined || root === ""
+    ? join(home, "Github/knowledge-bases")
+    : root;
+};
+
+/** The course's notes folder in the knowledge-base checkout (default: ~/Github/knowledge-bases). */
+export const knowledgeBaseDir = (
+  course: CourseId,
+  home: string,
+  root: string = knowledgeBaseRoot(home)
+): string => join(root, COURSES[course].kbPath, READERS[course].dir);
 
 /** Every source of the course from its knowledge-base notes folder, in file-name order. */
 export const readKnowledgeBaseSources = (
@@ -186,17 +197,16 @@ export const buildSources = (
   );
   const kb = positional[0] ?? knowledgeBaseDir(course, home);
   const output = SOURCES_OUTPUT[course];
+  if (output === undefined)
+    throw new Error(
+      `course ${course} keeps its sources in the knowledge base, not in the repository; check them with bun run vertex:academy:import -- --course ${course} --dry-run`
+    );
   const out = join(root, output.path);
 
   const sources = readKnowledgeBaseSources(course, kb);
 
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(
-    out,
-    output.format === "ts"
-      ? sourcesModule(course, sources)
-      : `${JSON.stringify(sources, null, 2)}\n`
-  );
+  writeFileSync(out, `${JSON.stringify(sources, null, 2)}\n`);
   stdout.write(`wrote ${sources.length} sources to ${out}\n`);
 };
 
@@ -217,11 +227,11 @@ export const runBuildSourcesEntrypoint = ({
 };
 
 runBuildSourcesEntrypoint({
-  isMain: import.meta.main,
   argv: process.argv,
+  isMain: import.meta.main,
   options: {
-    root: resolve(import.meta.dirname, "../.."),
     home: homedir(),
+    root: resolve(import.meta.dirname, "../.."),
     stdout: process.stdout,
   },
 });

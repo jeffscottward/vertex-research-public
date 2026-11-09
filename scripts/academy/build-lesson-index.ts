@@ -15,7 +15,7 @@ import {
   type CourseId,
 } from "../../packages/academy/src/courses.ts";
 import { LessonSpecSchema } from "../../packages/academy/src/index.ts";
-import { SOURCES_OUTPUT, specIndexPath } from "./course-files.ts";
+import { SOURCE_ID_FILES, specIndexPath } from "./course-files.ts";
 import { sceneErrors } from "./spec-checks.ts";
 
 interface Writer {
@@ -145,7 +145,7 @@ const readSourceCourses = async (
 ): Promise<Map<string, CourseId>> => {
   const sourceCourses = new Map<string, CourseId>();
   for (const course of COURSE_LIST) {
-    const output = SOURCES_OUTPUT[course.id];
+    const output = SOURCE_ID_FILES[course.id];
     const path = join(root, output.path);
     const sources = existsSync(path)
       ? ((await readData(path, output.format, "SOURCES")) as {
@@ -157,7 +157,7 @@ const readSourceCourses = async (
       if (other === undefined) sourceCourses.set(sourceId, course.id);
       else
         errors.push(
-          `${output.path}: sourceId ${sourceId} already listed by ${SOURCES_OUTPUT[other].path}`
+          `${output.path}: sourceId ${sourceId} already listed by ${SOURCE_ID_FILES[other].path}`
         );
     }
   }

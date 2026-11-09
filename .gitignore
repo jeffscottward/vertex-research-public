@@ -67,6 +67,9 @@ __pycache__/
 
 # Vertex Academy rendered media (MP4, VTT, thumbnails); see docs/vertex-academy.md
 apps/web/public/academy-media/
+# Academy database-course captions and transcripts stay in the knowledge base (owner decision
+# 2026-11-08); scripts/ci/private-academy-sources.test.ts fails if a snapshot is committed.
+scripts/academy/lessons/*/sources.generated.ts
 
 # Private broker, account and portfolio data (restored from the pre-rebuild
 # rules). Ignore is not redaction; verify before publishing.

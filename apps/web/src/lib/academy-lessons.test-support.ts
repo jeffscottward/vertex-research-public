@@ -9,7 +9,7 @@ import {
 } from "@darkfactory/academy/lessons";
 
 import { ALL_ACADEMY_LESSONS } from "../../../../packages/academy/src/lessons/database-courses.test-support.ts";
-import { SOURCES as QUANTFINANCETOGO_SOURCES } from "../../../../scripts/academy/lessons/quantfinancetogo/sources.generated.ts";
+import { SOURCES as QUANTFINANCETOGO_SOURCES } from "../../../../scripts/academy/lessons/quantfinancetogo/sources.fixture.ts";
 import type {
   AcademyCourseLessons,
   AcademyLessonPage,

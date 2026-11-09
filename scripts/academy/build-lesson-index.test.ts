@@ -77,8 +77,8 @@ let stderr: string[];
 
 const options = (): LessonIndexOptions => ({
   root,
-  stdout: { write: (text: string) => stdout.push(text) },
   stderr: { write: (text: string) => stderr.push(text) },
+  stdout: { write: (text: string) => stdout.push(text) },
 });
 
 const generated = (files: readonly string[]) =>
@@ -118,7 +118,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  rmSync(root, { force: true, recursive: true });
 });
 
 const addBrokenSpecs = () => {
@@ -236,7 +236,7 @@ describe("buildLessonIndex", () => {
 
 describe("buildLessonIndex with a second course", () => {
   const QFTG_DIR = "scripts/academy/lessons/quantfinancetogo";
-  const QFTG_SOURCES = `${QFTG_DIR}/sources.generated.ts`;
+  const QFTG_SOURCES = `${QFTG_DIR}/sources.fixture.ts`;
   const QFTG_INDEX = `${QFTG_DIR}/specs.generated.ts`;
   const writeQftgSources = (sources: readonly unknown[]) =>
     writeFileSync(
@@ -286,8 +286,8 @@ describe("buildLessonIndex with a second course", () => {
 
   it("refuses a wrong course, another course's source, a reused slug or a source listed twice", async () => {
     addCourse({
-      "no-course.ts": { ...qftgSpec("no-course"), course: undefined },
       "dyr-source.ts": qftgSpec("dyr-source", readSpec(SLUG_A).sourceId),
+      "no-course.ts": { ...qftgSpec("no-course"), course: undefined },
       [`${SLUG_B}.ts`]: qftgSpec(SLUG_B, "QftgReel02"),
       // A JSON file in a TypeScript course folder is not a spec.
       "stray.json": qftgSpec("stray"),
@@ -314,16 +314,16 @@ describe("runLessonIndexEntrypoint", () => {
   it("does nothing when imported", async () => {
     const exitState: { exitCode?: number } = {};
     await runLessonIndexEntrypoint({
-      isMain: undefined,
       argv: ["bun", "build-lesson-index.ts"],
-      options: options(),
       exitState,
+      isMain: undefined,
+      options: options(),
     });
     await runLessonIndexEntrypoint({
-      isMain: false,
       argv: ["bun", "build-lesson-index.ts"],
-      options: options(),
       exitState,
+      isMain: false,
+      options: options(),
     });
     expect(exitState).toEqual({});
     expect(existsSync(out)).toBe(false);
@@ -335,10 +335,10 @@ describe("runLessonIndexEntrypoint", () => {
     writeFileSync(out, "stale");
     const entry = (...args: string[]) =>
       runLessonIndexEntrypoint({
-        isMain: true,
         argv: ["bun", "scripts/academy/build-lesson-index.ts", ...args],
-        options: options(),
         exitState,
+        isMain: true,
+        options: options(),
       });
     await entry("--check");
     expect(exitState.exitCode).toBe(1);

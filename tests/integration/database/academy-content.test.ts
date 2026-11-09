@@ -20,7 +20,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { importAcademyCourses } from "../../../scripts/academy/import-lessons.ts";
-import { DATABASE_COURSE_CONTENT } from "../../../scripts/academy/lessons/index.ts";
+import { DATABASE_COURSE_FIXTURE_CONTENT } from "../../../scripts/academy/lessons/index.ts";
 
 // Academy content tables (migration 0058) on a real database: repository reads and the import write,
 // the checks and foreign keys behind them, and the guarded rollback.
@@ -41,7 +41,7 @@ const database = (): Database => {
   return resource.db;
 };
 
-const QFTG = DATABASE_COURSE_CONTENT.quantfinancetogo;
+const QFTG = DATABASE_COURSE_FIXTURE_CONTENT.quantfinancetogo;
 if (QFTG === undefined)
   throw new Error("QuantFinanceToGo import input missing");
 
@@ -74,7 +74,9 @@ describe("academy content repository (Postgres)", () => {
 
   it("imports the QuantFinanceToGo course, then leaves an unchanged re-import alone", async () => {
     const repository = createAcademyContentRepository(database());
-    const [first] = await importAcademyCourses(repository);
+    const [first] = await importAcademyCourses(repository, {
+      content: DATABASE_COURSE_FIXTURE_CONTENT,
+    });
     expect(first).toEqual({
       course: "quantfinancetogo",
       sources: {

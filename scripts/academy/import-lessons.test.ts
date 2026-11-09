@@ -21,7 +21,7 @@ import {
 } from "./import-lessons.ts";
 import {
   type CourseContent,
-  DATABASE_COURSE_CONTENT,
+  DATABASE_COURSE_FIXTURE_CONTENT,
 } from "./lessons/index.ts";
 import type * as SpecChecks from "./spec-checks.ts";
 
@@ -43,7 +43,7 @@ type Spec = Readonly<
 >;
 type Source = Readonly<Record<string, unknown> & { sourceId: string }>;
 
-const QFTG = DATABASE_COURSE_CONTENT.quantfinancetogo as CourseContent;
+const QFTG = DATABASE_COURSE_FIXTURE_CONTENT.quantfinancetogo as CourseContent;
 const ALL_SPECS = QFTG.specs as readonly Spec[];
 const ALL_SOURCES = QFTG.sources as readonly Source[];
 // A small course: the first two lessons and their sources.
@@ -53,14 +53,14 @@ const SOURCES = SPECS.map(
     ALL_SOURCES.find((source) => source.sourceId === spec.sourceId) as Source
 );
 const SMALL: Readonly<Partial<Record<"quantfinancetogo", CourseContent>>> = {
-  quantfinancetogo: { specs: SPECS, sources: SOURCES },
+  quantfinancetogo: { sources: SOURCES, specs: SPECS },
 };
 const [FIRST] = SPECS as [Spec, Spec];
 
 const RESULT = (course: string): AcademyCourseImportResult => ({
   course,
-  sources: { created: 2, updated: 0, unchanged: 0, deleted: 0 },
-  specs: { created: 1, updated: 1, unchanged: 0, deleted: 1 },
+  sources: { created: 2, deleted: 0, unchanged: 0, updated: 0 },
+  specs: { created: 1, deleted: 1, unchanged: 0, updated: 1 },
 });
 
 let stdout: string[];
@@ -73,8 +73,8 @@ let importError: unknown;
 
 const io = (env: NodeJS.ProcessEnv = {}): AcademyImportIo => ({
   env,
-  stdout: { write: (text: string) => stdout.push(text) > 0 },
   stderr: { write: (text: string) => stderr.push(text) > 0 },
+  stdout: { write: (text: string) => stdout.push(text) > 0 },
 });
 const DATABASE = { DATABASE_URL: "postgres://academy.test/vertex" };
 
@@ -94,8 +94,10 @@ const openStore = (databaseUrl: string): AcademyContentStore => {
 const run = (
   args: readonly string[],
   env?: NodeJS.ProcessEnv,
-  content: Readonly<Partial<Record<"quantfinancetogo", CourseContent>>> = SMALL
-) => runAcademyImport(args, io(env), { content, home, openStore });
+  specs: Readonly<Partial<Record<"quantfinancetogo", readonly unknown[]>>> = {
+    quantfinancetogo: SPECS,
+  }
+) => runAcademyImport(args, io(env), { home, openStore, specs });
 
 const reelNote = (postId: string) =>
   [
@@ -112,6 +114,15 @@ const reelNote = (postId: string) =>
     "",
   ].join("\n");
 
+/** Writes one reel note per source id into a knowledge-base folder. */
+const writeNotes = (dir: string, sourceIds: readonly string[]) => {
+  mkdirSync(dir, { recursive: true });
+  for (const id of sourceIds)
+    writeFileSync(join(dir, `ig-${id}.md`), reelNote(id));
+};
+const ids = (sources: readonly unknown[] | undefined) =>
+  (sources ?? []).map((source) => (source as Source).sourceId);
+
 beforeEach(() => {
   stdout = [];
   stderr = [];
@@ -120,11 +131,13 @@ beforeEach(() => {
   closed = 0;
   importError = undefined;
   home = mkdtempSync(join(tmpdir(), "academy-import-"));
+  // The default knowledge base holds the notes of the small course's two reels.
+  writeNotes(knowledgeBaseDir("quantfinancetogo", home), ids(SOURCES));
 });
 
 afterEach(() => {
   faults.clear();
-  rmSync(home, { recursive: true, force: true });
+  rmSync(home, { force: true, recursive: true });
 });
 
 describe("runAcademyImport", () => {
@@ -139,7 +152,8 @@ describe("runAcademyImport", () => {
     );
   });
 
-  it("validates the committed course on --dry-run without a database", async () => {
+  it("validates the committed specs with the knowledge-base sources on --dry-run, without a database", async () => {
+    writeNotes(knowledgeBaseDir("quantfinancetogo", home), ids(ALL_SOURCES));
     expect(await runAcademyImport(["--dry-run"], io(), { home })).toBe(0);
     expect(stdout).toEqual([
       `quantfinancetogo: valid, would store ${ALL_SOURCES.length} sources and ${ALL_SPECS.length} lessons\n`,
@@ -149,7 +163,7 @@ describe("runAcademyImport", () => {
       await run(["--dry-run", "--prune", "--course", "quantfinancetogo"])
     ).toBe(0);
     expect(stdout).toEqual([
-      "quantfinancetogo: valid, would store 2 sources and 2 lessons and prune the rest\n",
+      `quantfinancetogo: valid, would store ${ALL_SOURCES.length} sources and 2 lessons and prune the rest\n`,
     ]);
     expect(opened).toEqual([]);
   }, 30_000);
@@ -160,9 +174,15 @@ describe("runAcademyImport", () => {
     expect(imported).toEqual([
       {
         course: "quantfinancetogo",
-        specs: SPECS,
-        sources: SOURCES,
         prune: false,
+        // In file-name order (ig-<id>.md).
+        sources: [...ids(SOURCES)].sort().map((sourceId) =>
+          expect.objectContaining({
+            sourceId,
+            transcript: [{ start: 0, text: "Part one" }],
+          })
+        ),
+        specs: SPECS,
       },
     ]);
     expect(stdout).toEqual([
@@ -178,9 +198,8 @@ describe("runAcademyImport", () => {
 
   it("reads the sources from a knowledge-base folder with --kb", async () => {
     const kb = join(home, "notes");
-    mkdirSync(kb);
-    writeFileSync(join(kb, "ig-DKbNote0001.md"), reelNote("DKbNote0001"));
-    const sourcesOnly = { quantfinancetogo: { specs: [], sources: SOURCES } };
+    writeNotes(kb, ["DKbNote0001"]);
+    const sourcesOnly = { quantfinancetogo: [] };
     expect(
       await run(
         ["--course", "quantfinancetogo", "--kb", kb],
@@ -196,13 +215,7 @@ describe("runAcademyImport", () => {
       }),
     ]);
 
-    // "default": the course's folder in ~/Github/knowledge-bases.
-    const defaultKb = knowledgeBaseDir("quantfinancetogo", home);
-    mkdirSync(defaultKb, { recursive: true });
-    writeFileSync(
-      join(defaultKb, "ig-DKbDefault1.md"),
-      reelNote("DKbDefault1")
-    );
+    // "default": the course's folder in ~/Github/knowledge-bases (two notes, from beforeEach).
     expect(
       await run(
         ["--dry-run", "--kb", "default", "--course", "quantfinancetogo"],
@@ -211,8 +224,36 @@ describe("runAcademyImport", () => {
       )
     ).toBe(0);
     expect(stdout.at(-1)).toBe(
+      "quantfinancetogo: valid, would store 2 sources and 0 lessons\n"
+    );
+    // $ACADEMY_KB_ROOT moves the default checkout (the rig's knowledge base).
+    const rig = join(home, "rig-kb");
+    writeNotes(knowledgeBaseDir("quantfinancetogo", home, rig), [
+      "DKbRig00001",
+    ]);
+    expect(
+      await run(["--dry-run"], { ACADEMY_KB_ROOT: rig }, sourcesOnly)
+    ).toBe(0);
+    expect(stdout.at(-1)).toBe(
       "quantfinancetogo: valid, would store 1 sources and 0 lessons\n"
     );
+  });
+
+  it("refuses a missing or empty knowledge-base folder with exit 2", async () => {
+    const missing = join(home, "nowhere");
+    expect(await run(["--dry-run"], { ACADEMY_KB_ROOT: missing })).toBe(2);
+    expect(stderr[0]).toContain(
+      `course quantfinancetogo reads its sources from the knowledge base, but ${knowledgeBaseDir("quantfinancetogo", home, missing)} does not exist; pass --kb <dir> or set ACADEMY_KB_ROOT`
+    );
+    const empty = join(home, "empty");
+    mkdirSync(empty);
+    expect(
+      await run(["--dry-run", "--course", "quantfinancetogo", "--kb", empty])
+    ).toBe(2);
+    expect(stderr.at(-1)).toContain(
+      `course quantfinancetogo: no knowledge-base notes in ${empty}`
+    );
+    expect(opened).toEqual([]);
   });
 
   it.each([
@@ -242,20 +283,15 @@ describe("runAcademyImport", () => {
     expect(opened).toEqual([]);
   });
 
-  it("names a database course without import input", async () => {
+  it("names a database course without lesson specs", async () => {
     expect(await run(["--dry-run"], {}, {})).toBe(2);
     expect(stderr[0]).toContain(
-      "course quantfinancetogo has no import input (scripts/academy/lessons/index.ts)"
+      "course quantfinancetogo has no lesson specs (scripts/academy/lessons/index.ts)"
     );
   });
 
   it("refuses invalid content before opening the database", async () => {
-    const invalid = {
-      quantfinancetogo: {
-        specs: [{ ...FIRST, kind: "nope" }],
-        sources: SOURCES,
-      },
-    };
+    const invalid = { quantfinancetogo: [{ ...FIRST, kind: "nope" }] };
     expect(await run([], DATABASE, invalid)).toBe(2);
     expect(stderr[0]).toContain("academy quantfinancetogo import is invalid");
     stderr = [];
@@ -297,9 +333,9 @@ describe("importAcademyCourses", () => {
     expect(imported).toEqual([
       {
         course: "quantfinancetogo",
-        specs: SPECS,
-        sources: SOURCES,
         prune: false,
+        sources: SOURCES,
+        specs: SPECS,
       },
     ]);
     await importAcademyCourses(repository, {
@@ -309,8 +345,11 @@ describe("importAcademyCourses", () => {
     });
     expect(imported[1]?.prune).toBe(true);
     await expect(
-      importAcademyCourses(repository, { courses: [] })
+      importAcademyCourses(repository, { content: SMALL, courses: [] })
     ).resolves.toEqual([]);
+    await expect(
+      importAcademyCourses(repository, { content: {} })
+    ).rejects.toThrow("course quantfinancetogo has no import input");
   });
 
   it("imports nothing when a course fails its checks", async () => {
