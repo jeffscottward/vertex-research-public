@@ -39,10 +39,7 @@ PRIMARY_STRATEGY = "ghlz"
 GATE = {"oosSharpeMin": 0.5, "deflatedSharpeMin": 0.95, "monteCarloDrawdownP5Min": -0.35,
         "neighbourShareMin": 0.75, "costStressMultiple": 2.0}
 MIN_TRADES = 100
-LD34_STUDY_CANDIDATES = (
-    Path.home() / "Documents" / "reports" / "web" / "vertex-reel-dffcosd" / "run2" / "study.json",
-    Path.home() / "Documents" / "reports" / "web" / "vertex-reel-dffcosd" / "final" / "study.json",
-)
+CORE7_RERUN = "research/backtests/core7/rerun-results.json"  # json-data-ignore: committed research artifact (comparison source label)
 STRATEGY_NAMES = {sid: name for sid, name, _ in STRATEGIES}
 
 Log = Callable[[str], None]
@@ -317,14 +314,14 @@ def verdict_of(primary: dict, dsr: dict, checks: list[dict], options: dict, trad
 
 def library_rows(repo: Path) -> list[dict]:
     """Buy-and-hold and library strategy rows of the committed Core 7 re-run (research artifact)."""
-    path = repo / "research" / "backtests" / "core7" / "rerun-results.json"  # json-data-ignore: committed research artifact, read for a comparison table; the app never reads it
+    path = repo / CORE7_RERUN
     data = json.loads(path.read_text())
     rows = []
     for universe in data["buyAndHold"]:
         s = universe["combined"]["summary"]
         rows.append({"name": f"Buy and hold, {universe['label']} ({s['start']} to {s['end']})"[:80],
                      "kind": "buy-and-hold", "sharpe": s["sharpe"], "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"],
-                     "source": "research/backtests/core7/rerun-results.json"})
+                     "source": CORE7_RERUN})
     for strategy in data["strategies"]:
         for universe in strategy.get("universes", []):
             if universe.get("id") != "core7-etf-twins":
@@ -333,18 +330,8 @@ def library_rows(repo: Path) -> list[dict]:
             window = f"{s.get('start', '?')[:4]}-{s.get('end', '?')[:4]}"
             rows.append({"name": f"{strategy['name']} (library, ETF twins, daily, {window})"[:80], "kind": "library",
                          "sharpe": s["sharpe"], "cagr": s["cagr"], "maxDrawdown": s["maxDrawdown"],
-                         "source": "research/backtests/core7/rerun-results.json"})
+                         "source": CORE7_RERUN})
     return rows
-
-
-def ld34_rows() -> list[dict]:
-    for path in LD34_STUDY_CANDIDATES:
-        if path.exists():
-            study = json.loads(path.read_text())
-            rows = [dict(row, source=str(path)) for row in study.get("comparison", [])
-                    if row.get("kind") == "strategy" and str(row.get("name", "")).startswith("LD34")]
-            return rows[:2]
-    return []
 
 
 # ------------------------------------------------------------------------------------------------
@@ -457,7 +444,7 @@ def run_study(ran: str, *, root: str | None = None, workers: int = 8, repo: Path
     if opt_points:
         equity_series["Buy and hold SPY (options window)"] = m.rebase(m.window(bh.get("SPY", []), opt_points))
     comparison = _comparison(results, keys, curves, bh, options, repo)
-    ld_rows = ld34_rows()
+    ld_rows: list[dict] = []  # LD34 is compared in the report; this runner reads no other study files (AGENTS.md rule 13)
     commit = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=False, capture_output=True,
                             text=True).stdout.strip()
     dhash = data_hash(keys, root)
