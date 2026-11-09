@@ -320,6 +320,50 @@ class OptionsTest(unittest.TestCase):
             clock.key(15.0)
 
 
+def _nautilus_installed() -> bool:
+    import os
+
+    from strategies.qc_ports import nautilus_runner
+
+    if os.environ.get("VERTEX_REQUIRE_NAUTILUS") == "1":
+        nautilus_runner.require()
+        return True
+    try:
+        nautilus_runner.require()
+    except nautilus_runner.NautilusUnavailable:
+        return False
+    return True
+
+
+@unittest.skipUnless(_nautilus_installed(), "nautilus-trader 1.227.0 not installed")
+class NautilusBookingTest(unittest.TestCase):
+    def test_same_day_spreads_book_in_nautilus_like_the_ledger(self) -> None:
+        days = ["2024-01-08", "2024-01-09", "2024-01-10", "2024-01-11"]
+        rows = []
+        for i, day in enumerate(days):
+            day_rows = flat_day(day, 400.0 + i)
+            day_rows[-1] = day_rows[-1][:5] + (400.0 + i + (2.0 if i % 2 else -3.0), 1.0)
+            rows += day_rows
+        etf = options.EtfClock(bars_from(rows))
+        market = spy_market(days)
+        events = [options.OptionEvent("US500", "SPY", "long" if i % 2 else "short", ny_ms(day, "15:30"))
+                  for i, day in enumerate(days[1:], start=1)]
+        events.append(options.OptionEvent("SPY", "SPY", "long", ny_ms("2024-01-10", "15:45")))
+        spreads, skipped = options.price_events(events, {"SPY": etf}, {"SPY": market})
+        self.assertEqual((len(spreads), skipped), (4, []))
+        closes = [ny_ms(day, "16:00") for day in days]
+        booked = options.book(spreads, closes, 100_000.0)
+        ledger, naut = booked["ledger"], booked["nautilus"]
+        self.assertEqual(len(naut.trades), 4)
+        for a, b in zip(ledger.equity, naut.equity):
+            self.assertLessEqual(abs(a - b), 1e-6 * max(abs(a), 1.0))
+        self.assertEqual([d for d, _ in booked["points"]], days)
+        self.assertEqual(booked["points"], booked["ledgerPoints"])
+        self.assertEqual(booked["points"][0][1], 100_000.0)
+        self.assertEqual(max(naut.open_positions), 2)  # the 15:30 and 15:45 spreads of 2024-01-10 overlap
+        self.assertEqual(len(options.spread_returns(naut, 100_000.0)), 4)
+
+
 class MetricsTest(unittest.TestCase):
     def test_sum_legs(self) -> None:
         long = [("2024-01-01", 1.0), ("2024-01-02", 1.1), ("2024-01-03", 1.1)]
