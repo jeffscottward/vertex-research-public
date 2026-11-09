@@ -390,7 +390,7 @@ No flag is used. No flag is connected to an engine, to the regime composite or t
 
 ## Deviations
 
-- Before the first run (commit `50c23daf`): rule A6 said "the first 200 days of a series have no signal". SMA200 is defined from the 200th day, so the text now says "a day with fewer than 200 closes up to it has no signal".
+- Before the first run (in the commit that added the rules code): rule A6 said "the first 200 days of a series have no signal". SMA200 is defined from the 200th day, so the text now says "a day with fewer than 200 closes up to it has no signal".
 - Rule G4 is applied to the price series, to `close` and to `adj_close`. `^IRX` is a yield: a value of 0 or below is valid and is kept; a missing value is dropped. The loader counts the dropped bars (the "Data" table); no file has one.
 - Rule C8 says the window starts on "the first day with a known state". Rule C5 takes the position of a day from the state of the day before, so the window starts one trading day later: the first state is known at the 2003-01-21 close and the first return is that of 2003-01-22.
 - Added after the run and marked as such: the holdout rows of the best grid cells and the note on the open episode (test A), the sentence on the share of top-like days (test B), the `WTREGEN` check of claim 3. None of them changes a verdict.
