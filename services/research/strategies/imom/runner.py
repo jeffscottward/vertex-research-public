@@ -95,11 +95,15 @@ def run_leg(data: SessionBars, item: Instrument, params: Params, side: str, cost
 
 
 def run_job(job: tuple) -> dict[str, Any]:
-    """Worker entry (picklable): (market key, params JSON, side, cost multiple, data root[, data source])."""
+    """Worker entry (picklable): (market key, params JSON, side, cost multiple, data root[, data source[,
+    slippage bps per side]]). The slippage override replaces the market's own (the ZAB study fixes 1 bp)."""
     key, fields, side, cost_multiple, root, *rest = job
     source = rest[0] if rest else DUKASCOPY
+    item = instrument(key, source)
+    if len(rest) > 1 and rest[1] is not None:
+        item = dataclasses.replace(item, slippage_bps=float(rest[1]))
     params = params_from_json(fields)
-    return run_leg(load_bars(key, root, source=source), instrument(key, source), params, side, cost_multiple)
+    return run_leg(load_bars(key, root, source=source), item, params, side, cost_multiple)
 
 
 __all__ = ["CAPITAL", "ENGINE_ID", "cost_profile", "daily_last", "run_job", "run_leg", "spec_of"]

@@ -142,8 +142,9 @@ def plan_jobs(keys: Sequence[str], primary: str = PRIMARY) -> tuple[list[tuple[s
 
 
 def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, workers: int, log: Log,
-             primary: str = PRIMARY, source: str = DUKASCOPY) -> dict:
-    payload = [(key, params_to_json(params), side, mult, root, source) for key, params, side, mult in jobs]
+             primary: str = PRIMARY, source: str = DUKASCOPY, slippage_bps: float | None = None) -> dict:
+    payload = [(key, params_to_json(params), side, mult, root, source, slippage_bps)
+               for key, params, side, mult in jobs]
     out: dict[tuple, dict] = {}
     # The longest markets first so the pool stays busy.
     order = sorted(range(len(jobs)), key=lambda i: (jobs[i][0] != primary, jobs[i][0]))
