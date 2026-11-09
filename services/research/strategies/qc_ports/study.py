@@ -2,14 +2,13 @@
 
     python -m strategies.qc_ports study --ran 2026-11-08 [--no-nautilus] [--report]
 
-Pipeline per run (ideas.RunSpec): each leg's DSL definition is compiled by
-nautilus_backtest/signals.py on the leg's bars with the series context (data
-files plus the derived `qc:` series of ideas.py), the leg policy turns signal
-bars into SignalEvents, book.py prices them, ledger.py books them on the SPY
-trading days from the run start to the last bar, and nautilus_runner.py books
-them again; a run is accepted only when both agree on every trade and on daily
-equity (1e-6 relative). Metrics use n_trials = 32 and the measured variance of
-the per-day Sharpe ratio across the 32 counted runs.
+Pipeline per run (ideas.RunSpec): the run is one strategy DSL definition with an options block and
+a portfolio block; portfolio.run_definition compiles each run leg with nautilus_backtest/signals.py
+on the data files (no other signal code), turns the signal bars into SignalEvents by the portfolio
+policy, prices them with book.py, books them with ledger.py on the SPY trading days from the run
+start to the last bar, and books them again with nautilus_runner.py; a run is accepted only when
+both agree on every trade and on daily equity (1e-6 relative). Metrics use n_trials = 32 and the
+measured variance of the per-day Sharpe ratio across the 32 counted runs.
 
 Output: JSON lines on stdout, one `kind: "qc-port"` document per idea (the
 ResearchStudyDocumentSchema of packages/api, for `bun run
@@ -22,7 +21,6 @@ holds its member until its priced exit; such refusals are counted in `skipped`.
 """
 from __future__ import annotations
 
-import dataclasses
 import hashlib
 import json
 import math
@@ -32,16 +30,16 @@ from datetime import date
 from statistics import median, stdev, variance
 
 from nautilus_backtest import signals as sig
-from nautilus_backtest.bars import Bars as DslBars
 
 from . import ideas as qi
-from .book import PricedTrade, SignalEvent, build_book
-from .data import Bars, Market, align, data_root, load_bars, load_context, load_market
-from .ledger import LedgerResult, run_ledger
-from .metrics import TRADING_DAYS, max_drawdown, summarize
+from . import portfolio as pf
+from .book import PricedTrade
+from .data import Bars, Market, align, data_root
+from .ledger import LedgerResult
+from .metrics import TRADING_DAYS, max_drawdown
 
 __all__ = [
-    "N_TRIALS", "Outcome", "StudyData", "compile_signals", "documents", "dsl_bars", "equity_points", "leg_trades",
+    "N_TRIALS", "Outcome", "StudyData", "compile_signals", "documents", "equity_points", "execute",
     "load_study_data", "quintile_table", "run_family", "verdict", "vix_percentile", "window_stats",
 ]
 
@@ -49,9 +47,7 @@ N_TRIALS = 32
 EQUITY_POINTS_MAX = 400
 NOTES_MAX = 4000
 DOC_MAX_BYTES = 200 * 1024
-PARITY_REL_TOL = 1e-6
-DAY_MS = 86_400_000
-EPOCH = date(1970, 1, 1)
+PARITY_REL_TOL = pf.PARITY_REL_TOL
 PASS_SHARPE = 0.5
 PASS_DEFLATED = 0.9
 PASS_DRAWDOWN = -0.25
@@ -62,38 +58,11 @@ CRITERIA = {"minSharpe": PASS_SHARPE, "minDeflatedSharpe": PASS_DEFLATED, "maxDr
 
 # --------------------------------------------------------------------------- DSL compile
 
-def dsl_bars(dates: Sequence[str], open_: Sequence[float], high: Sequence[float], low: Sequence[float],
-             close: Sequence[float]) -> DslBars:
-    """Daily bars for signals.py: t = UTC midnight of each date in epoch ms."""
-    t = tuple(float((date.fromisoformat(day) - EPOCH).days * DAY_MS) for day in dates)
-    return DslBars(t=t, o=tuple(open_), h=tuple(high), l=tuple(low), c=tuple(close))
-
-
-def compile_signals(bars: DslBars, definition: Mapping, context: Mapping[str, Mapping[str, float]],
+def compile_signals(bars, definition: Mapping, context: Mapping[str, Mapping[str, float]],
                     symbol: str) -> tuple[list[bool], list[bool]]:
-    """(entry, exit) per bar of the definition, compiled by signals.compile_strategy.
-
-    `series` filters on derived ids (ideas.DERIVED_PREFIX) are not in the product DSL enum: they are
-    evaluated by the DSL's own series evaluator (signals._series_mask, the code of a native `series`
-    filter) on the derived context and ANDed into the entries, as compile_strategy ANDs filters.
-    """
-    filters = list(definition.get("filters") or ())
-    derived = [item for item in filters if qi.is_derived(item)]
-    native = [item for item in filters if item not in derived]
-    compiled = sig.compile_strategy(bars, {**definition, "filters": native}, None, context, symbol)
-    entries = [value == 1 for value in compiled.signals]
-    exits = [value == 1 for value in compiled.exits]
-    if derived:
-        bar_dates = [sig._utc_date(t) for t in bars.t]
-        for item in derived:
-            series_id = item["series"]
-            if series_id not in context:
-                raise ValueError(f"No derived series {series_id}")
-            normalized = {"type": "series", "series": series_id,
-                          "condition": sig._normalize_condition(item["condition"])}
-            mask = sig._series_mask(normalized, context, bar_dates, False)
-            entries = [entry and passed == 1 for entry, passed in zip(entries, mask)]
-    return entries, exits
+    """(entry, exit) per bar of the definition, compiled by signals.compile_strategy."""
+    compiled = sig.compile_strategy(bars, definition, None, context, symbol)
+    return [value == 1 for value in compiled.signals], [value == 1 for value in compiled.exits]
 
 
 # --------------------------------------------------------------------------- data
@@ -107,6 +76,7 @@ class StudyData:
     facts: qi.Facts
     tables: Mapping[str, object]
     manifest: str
+    dataset: pf.Dataset
 
 
 def _on_calendar(values_by_date: Mapping[str, float], dates: Sequence[str]) -> list[float | None]:
@@ -125,52 +95,21 @@ def _index_of(dates: Sequence[str], day: str) -> int | None:
     return at if at < len(dates) and dates[at] == day else None
 
 
-def derive(spy_dates: Sequence[str], bars: Mapping[str, Bars], markets: Mapping[str, Market],
-           context: Mapping[str, Mapping[str, float]]) -> tuple[dict, qi.Facts, dict]:
-    """Derived `qc:` series, the eligibility dates of the runs and the descriptive tables."""
-    ends = qi.month_end_indices(spy_dates)
+def derive(dataset: pf.Dataset, markets: Mapping[str, Market]) -> tuple[qi.Facts, dict]:
+    """The start dates of the runs and the descriptive tables of the reports."""
+    spy_dates = dataset.calendar
+    context = dataset.series
+    ends = pf.month_end_indices(spy_dates)
     end_dates = [spy_dates[index] for index in ends]
-    months = [day[:7] for day in end_dates]
-    adj = {symbol: dict(zip(bars[symbol].dates, bars[symbol].adj_close)) for symbol in qi.CORE7}
-    adj_ends = {symbol: _on_calendar(adj[symbol], end_dates) for symbol in qi.CORE7}
-    live = {symbol: [_iv_live(markets[symbol], day) for day in end_dates] for symbol in qi.CORE7}
-    derived: dict[str, dict[str, float]] = {}
-    starts: dict[str, dict[str, str]] = {}
     tables: dict[str, object] = {}
-
     iv_start = {symbol: next(day for day, value in zip(markets[symbol].dates, markets[symbol].iv_index)
                              if value is not None) for symbol in qi.CORE7}
+    starts = {idea: pf.first_signal_dates(made, dataset) for idea, made in qi.ELIGIBILITY.items()}
 
-    # Asset-class trend: 10 month-end closes of the member and its IV index live.
-    starts["qc-asset-class-trend"] = {}
-    for symbol in qi.CORE7:
-        seen = 0
-        for k, day in enumerate(end_dates):
-            seen += adj_ends[symbol][k] is not None
-            if seen >= 10 and live[symbol][k]:
-                starts["qc-asset-class-trend"][symbol] = day
-                break
-
-    # Futures trend and carry on the SPY calendar.
-    starts["qc-futures-trend-carry"] = {}
-    for symbol in qi.CORE7:
-        future = align(context[qi.FUTURE_OF[symbol]], spy_dates)
-        etf = _on_calendar(adj[symbol], spy_dates)
-        values = qi.futures_trend_carry(future, etf, ends)
-        trend, carry = {}, {}
-        for index, (t_value, c_value) in values.items():
-            trend[spy_dates[index]] = t_value
-            carry[spy_dates[index]] = c_value
-        derived[f"{qi.DERIVED_PREFIX}futTrend:{symbol}"] = trend
-        derived[f"{qi.DERIVED_PREFIX}futCarry:{symbol}"] = carry
-        first = next((day for k, day in enumerate(end_dates) if day in trend and live[symbol][k]), None)
-        if first is not None:
-            starts["qc-futures-trend-carry"][symbol] = first
-
-    # Gold Fed model: first month-end with GVZ live and an EY_TNX_RATIO value; last input month-end.
+    # Gold Fed model: the ratio at the month-ends of the run; last input month-end.
     ratio = context["EY_TNX_RATIO"]
-    gold = [k for k, day in enumerate(end_dates) if live["GLD"][k] and day in ratio]
-    starts["qc-gold-fed-model"] = {"GLD": end_dates[gold[0]]}
+    live = [_iv_live(markets["GLD"], day) for day in end_dates]
+    gold = [k for k, day in enumerate(end_dates) if live[k] and day in ratio]
     gold_last = max(day for day in end_dates if day in ratio)
     in_gold = [ratio[end_dates[k]] > 2 for k in gold]
     tables["goldRatio"] = {
@@ -180,45 +119,23 @@ def derive(spy_dates: Sequence[str], bars: Mapping[str, Bars], markets: Mapping[
         "inMonths": [end_dates[k][:7] for k, flag in zip(gold, in_gold) if flag],
     }
 
-    # Oil regression on the month-end grid.
-    starts["qc-oil-predicts-equity"] = {}
+    # Oil regression coefficients on the month-end grid (reported; the signal is the DSL forecast).
     bill = align(context["IRX"], end_dates)
-    oil_table = {}
-    for symbol in ("SPY", "QQQ"):
-        predictions = qi.oil_predictions(adj_ends["USO"], adj_ends[symbol], bill)
-        derived[f"{qi.DERIVED_PREFIX}oilPrediction:{symbol}"] = {
-            end_dates[k]: value[3] for k, value in predictions.items()}
-        first = next((end_dates[k] for k in sorted(predictions) if live[symbol][k]), None)
-        starts["qc-oil-predicts-equity"][symbol] = first
-        oil_table[symbol] = {end_dates[k]: value for k, value in predictions.items()}
-    tables["oil"] = oil_table
-
-    # Momentum and seasonality selections.
-    for idea, name, table in (
-            ("qc-momentum-rotation", "momentum", qi.momentum_table(adj_ends, live, qi.CORE7)),
-            ("qc-same-month-seasonality", "season", qi.season_table(adj_ends, months, live, qi.CORE7))):
-        starts[idea] = {}
-        for symbol in qi.CORE7:
-            derived[f"{qi.DERIVED_PREFIX}{name}Selected:{symbol}"] = {
-                day: float(row[symbol].selected) for day, row in zip(end_dates, table)}
-            derived[f"{qi.DERIVED_PREFIX}{name}Eligible:{symbol}"] = {
-                day: float(row[symbol].eligible) for day, row in zip(end_dates, table)}
-            first = next((day for day, row in zip(end_dates, table) if row[symbol].eligible), None)
-            if first is not None:
-                starts[idea][symbol] = first
-        tables[name] = {"held": [(day, sorted(s for s in qi.CORE7 if row[s].selected))
-                                 for day, row in zip(end_dates, table)]}
+    adj = {symbol: _on_calendar(context[f"{symbol}:TR"], end_dates) for symbol in ("USO", "SPY", "QQQ")}
+    tables["oil"] = {symbol: {end_dates[k]: value for k, value in
+                              qi.oil_predictions(adj["USO"], adj[symbol], bill).items()}
+                     for symbol in ("SPY", "QQQ")}
 
     # IV rank join: the first bar where the DSL ivRank (length 252) is defined.
     join = {}
     probe = qi.definition("ivRank defined", qi.PUT_CREDIT, filters=[{"type": "ivRank", "length": 252, "min": 0}])
     for symbol in qi.CORE7:
-        bar = bars[symbol]
-        entries, _ = compile_signals(dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close), probe, context,
+        bar = dataset.bars[symbol]
+        entries, _ = compile_signals(pf.dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close), probe, context,
                                      symbol)
         join[symbol] = next(day for day, flag in zip(bar.dates, entries) if flag)
     facts = qi.Facts(iv_start=iv_start, iv_rank_join=join, starts=starts, gold_last_input=gold_last)
-    return derived, facts, tables
+    return facts, tables
 
 
 def manifest_digest(root=None) -> str:
@@ -227,100 +144,11 @@ def manifest_digest(root=None) -> str:
 
 
 def load_study_data(root=None) -> StudyData:
-    bars = {symbol: load_bars(symbol, root) for symbol in qi.CORE7}
-    markets = {symbol: load_market(symbol, root) for symbol in qi.CORE7}
-    context = load_context(root=root)
-    spy_dates = bars["SPY"].dates
-    derived, facts, tables = derive(spy_dates, bars, markets, context)
-    return StudyData(spy_dates, bars, markets, {**context, **derived}, facts, tables, manifest_digest(root))
-
-
-# --------------------------------------------------------------------------- events and trades
-
-def _leg_signals(leg: qi.Leg, data: StudyData) -> tuple[list[bool], list[bool]]:
-    """Entry/exit per bar of the leg's market (monthly frames are mapped back to their month-end bars)."""
-    bar = data.bars[leg.symbol]
-    if leg.frame == "daily":
-        return compile_signals(dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close), leg.definition,
-                               data.context, leg.symbol)
-    if leg.frame != "monthly":
-        raise ValueError(f"Unknown frame {leg.frame}")
-    ends = qi.month_end_indices(bar.dates)
-    closes = [bar.adj_close[index] for index in ends]
-    monthly = dsl_bars([bar.dates[index] for index in ends], closes, closes, closes, closes)
-    month_entries, month_exits = compile_signals(monthly, leg.definition, data.context, leg.symbol)
-    entries = [False] * len(bar.dates)
-    exits = [False] * len(bar.dates)
-    for position, index in enumerate(ends):
-        entries[index] = month_entries[position]
-        exits[index] = month_exits[position]
-    return entries, exits
-
-
-def _in_dates(leg: qi.Leg, day: str) -> bool:
-    return day >= leg.start and (leg.end is None or day <= leg.end)
-
-
-def _next_true(flags: Sequence[bool]) -> list[int | None]:
-    """For each index, the first later index where flags is True."""
-    out: list[int | None] = [None] * len(flags)
-    following = None
-    for index in range(len(flags) - 1, -1, -1):
-        out[index] = following
-        if flags[index]:
-            following = index
-    return out
-
-
-def _sequential(candidates: Sequence[tuple[int, int | None]], symbol: str, leg: qi.Leg,
-                market: Market) -> tuple[list[PricedTrade], list]:
-    """Prices candidates in order, taking one only when the last spread has closed by its signal bar."""
-    trades, skipped = [], []
-    busy = -1
-    for entry, exit_ in candidates:
-        if entry < busy:
-            continue
-        book = build_book([SignalEvent(symbol, entry, exit_)], leg.definition["options"], {symbol: market})
-        if book.trades:
-            trades.append(book.trades[0])
-            busy = book.trades[0].exit_index
-        skipped.extend(book.skipped)
-    return trades, skipped
-
-
-def leg_trades(leg: qi.Leg, data: StudyData) -> tuple[list[PricedTrade], list, int]:
-    """(priced trades, book skips, entry signals) of one leg."""
-    market = data.markets[leg.symbol]
-    dates = market.dates
-    entries, exits = _leg_signals(leg, data)
-    if leg.policy == "roll":
-        ends = qi.month_end_indices(dates)
-        events = []
-        for position, index in enumerate(ends):
-            if entries[index] and _in_dates(leg, dates[index]):
-                following = ends[position + 1] if position + 1 < len(ends) else None
-                events.append(SignalEvent(leg.symbol, index, following))
-        book = build_book(events, leg.definition["options"], {leg.symbol: market})
-        return list(book.trades), list(book.skipped), len(events)
-    if leg.policy == "flat":
-        if leg.cadence == "daily":
-            bars = range(len(dates) - 1)
-        elif leg.cadence == "monthEnd":
-            bars = qi.month_end_indices(dates)
-        else:
-            raise ValueError(f"Unknown cadence {leg.cadence}")
-        following = _next_true(exits) if leg.definition.get("exit") else [None] * len(dates)
-        candidates = [(index, following[index]) for index in bars if entries[index] and _in_dates(leg, dates[index])]
-        trades, skipped = _sequential(candidates, leg.symbol, leg, market)
-        return trades, skipped, len(trades) + len(skipped)
-    if leg.policy == "window":
-        mask = entries[leg.shift:] + [False] * leg.shift
-        last = len(dates) - 1
-        candidates = [(first, end) for first, end in qi.window_spans(mask)
-                      if first > 0 and _in_dates(leg, dates[first]) and end + 1 <= last and end > first]
-        trades, skipped = _sequential(candidates, leg.symbol, leg, market)
-        return trades, skipped, len(candidates)
-    raise ValueError(f"Unknown policy {leg.policy}")
+    dataset = pf.dataset_from_dir(root)
+    markets = {symbol: pf.market_of(dataset, symbol) for symbol in qi.CORE7}
+    facts, tables = derive(dataset, markets)
+    return StudyData(dataset.calendar, {symbol: dataset.bars[symbol] for symbol in qi.CORE7}, markets,
+                     dataset.series, facts, tables, manifest_digest(root), dataset)
 
 
 # --------------------------------------------------------------------------- runs
@@ -335,49 +163,9 @@ class Outcome:
     priced: tuple[PricedTrade, ...] = ()
 
 
-def max_open_risk(result: LedgerResult, priced: Sequence[PricedTrade]) -> float:
-    """Largest share of equity at risk in open spreads at a day's close: sum of contracts * max loss per
-    contract of the trades open after that day's exits and entries, over that day's equity (reported only)."""
-    max_loss = {trade.trade_id: trade.max_loss for trade in priced}
-    spans = [(record["entryDate"], record["exitDate"], record["contracts"] * max_loss[record["id"]])
-             for record in result.trades]
-    worst = 0.0
-    for day, equity in zip(result.dates, result.equity):
-        risk = sum(amount for entry, exit_, amount in spans if entry <= day < exit_)
-        if risk and equity > 0:
-            worst = max(worst, risk / equity)
-    return worst
-
-
-def run_trades(run: qi.RunSpec, data: StudyData) -> tuple[list[PricedTrade], int, dict[str, int]]:
-    collected = []
-    skipped = 0
-    signals: dict[str, int] = {}
-    for order, leg in enumerate(run.legs):
-        trades, skips, count = leg_trades(leg, data)
-        collected.extend((trade.entry_date, order, trade.entry_index, trade) for trade in trades)
-        skipped += len(skips)
-        signals[leg.symbol] = signals.get(leg.symbol, 0) + count
-    collected.sort(key=lambda item: item[:3])
-    trades = [dataclasses.replace(item[3], trade_id=number) for number, item in enumerate(collected, start=1)]
-    return trades, skipped, signals
-
-
 def execute(run: qi.RunSpec, data: StudyData, nautilus: bool = True) -> Outcome:
-    trades, book_skipped, signals = run_trades(run, data)
-    dates = [day for day in data.spy_dates if day >= run.start]
-    result = run_ledger(trades, dates=dates)
-    gap = None
-    if nautilus:
-        from .nautilus_runner import run_nautilus
-
-        other = run_nautilus(trades, dates=dates)
-        gap = max((abs(a - b) / max(abs(a), abs(b)) for a, b in zip(result.equity, other.equity, strict=True)),
-                  default=0.0)
-        same = [(t["id"], t["contracts"]) for t in result.trades] == [(t["id"], t["contracts"]) for t in other.trades]
-        if gap > PARITY_REL_TOL or not same:
-            raise RuntimeError(f"{run.key}: ledger and Nautilus disagree (gap {gap:.3g}, trades match {same})")
-    return Outcome(run, result, book_skipped, signals, gap, tuple(trades))
+    outcome = pf.run_definition(run.definition, data.dataset, start=run.start, nautilus=nautilus)
+    return Outcome(run, outcome.result, outcome.book_skipped, outcome.signals, outcome.nautilus_gap, outcome.priced)
 
 
 def daily_sharpe(result: LedgerResult) -> float:
@@ -404,11 +192,7 @@ def run_family(data: StudyData, nautilus: bool = True, progress=None) -> tuple[d
     trial_variance = variance([daily_sharpe(outcomes[key].result) for key in counted])
     metrics = {}
     for key, outcome in outcomes.items():
-        stats = summarize(outcome.result, N_TRIALS, trial_variance)
-        stats["skipped"] = stats["skipped"] + outcome.book_skipped
-        stats["maxOpenRisk"] = max_open_risk(outcome.result, outcome.priced)
-        stats["staleIvExits"] = sum(1 for trade in outcome.result.trades if trade["exitReason"] == "stale-iv")
-        metrics[key] = stats
+        metrics[key] = pf.run_metrics(outcome, N_TRIALS, trial_variance)
     return outcomes, metrics, trial_variance
 
 
@@ -616,7 +400,7 @@ def vix_tables(data: StudyData, last_month_end: str = "2026-09-30") -> dict:
     vix_dates = sorted(vix)
     vix_values = [vix[day] for day in vix_dates]
     spy_adj = dict(zip(data.bars["SPY"].dates, data.bars["SPY"].adj_close))
-    ends = [data.spy_dates[i] for i in qi.month_end_indices(data.spy_dates)]
+    ends = [data.spy_dates[i] for i in pf.month_end_indices(data.spy_dates)]
     observations = []
     for position in range(len(ends) - 1):
         day, following = ends[position], ends[position + 1]
@@ -652,12 +436,12 @@ def vix_tables(data: StudyData, last_month_end: str = "2026-09-30") -> dict:
 def gate_overlap(data: StudyData) -> dict:
     """Month-ends from 2006-07-31 where the contango gate and the volRegime gate pass (SPY)."""
     bar = data.bars["SPY"]
-    dsl = dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close)
+    dsl = pf.dsl_bars(bar.dates, bar.open, bar.high, bar.low, bar.close)
     masks = {}
     for name in ("vixTermStructure", "volRegime"):
         made = qi.definition(name, qi.PUT_CREDIT, filters=[qi.GATES[name]])
         masks[name], _ = compile_signals(dsl, made, data.context, "SPY")
-    ends = [i for i in qi.month_end_indices(bar.dates) if bar.dates[i] >= "2006-07-31"]
+    ends = [i for i in pf.month_end_indices(bar.dates) if bar.dates[i] >= "2006-07-31"]
     both = sum(1 for i in ends if masks["vixTermStructure"][i] and masks["volRegime"][i])
     only_term = sum(1 for i in ends if masks["vixTermStructure"][i] and not masks["volRegime"][i])
     only_regime = sum(1 for i in ends if masks["volRegime"][i] and not masks["vixTermStructure"][i])
@@ -765,7 +549,7 @@ def _extras(idea: qi.Idea, outcomes: Mapping[str, Outcome], data: StudyData) -> 
                      f"{table['shareIn']:.1%}, min {table['min']:.2f}, max {table['max']:.2f}, last "
                      f"{table['last'][1]:.2f} ({table['last'][0]}); "
                      + ("every month-end of the sample has an input (6-month lag)."
-                        if data.facts.gold_last_input == data.spy_dates[qi.month_end_indices(data.spy_dates)[-1]]
+                        if data.facts.gold_last_input == data.spy_dates[pf.month_end_indices(data.spy_dates)[-1]]
                         else f"no input after {data.facts.gold_last_input}."))
         months = table["inMonths"]
         lines.append(f"- Months in: {len(months)}" + (f", {months[0]} to {months[-1]}" if months else "") + ".")

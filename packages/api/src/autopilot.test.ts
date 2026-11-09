@@ -50,12 +50,17 @@ import { clearInstantBacktestCacheForTesting } from "./server/instant-backtest.t
 import { StrategyDefinitionSchema } from "./strategy-dsl.ts";
 
 // Test controls: force the gate verdict (to reach the refine step) or stall breeding.
-const control = vi.hoisted(() => ({ forcePass: false, stall: false }));
+const control = vi.hoisted(() => ({
+  forcePass: false,
+  gateSeries: [] as unknown[],
+  stall: false,
+}));
 vi.mock("./autopilot-gate.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./autopilot-gate.ts")>();
   return {
     ...actual,
     evaluateGate: (input: Parameters<typeof actual.evaluateGate>[0]) => {
+      control.gateSeries.push(input.series);
       const report = actual.evaluateGate(input);
       return control.forcePass
         ? {
@@ -445,6 +450,7 @@ type Harness = Readonly<{
   handoff?: ReturnType<typeof handoffRepositories>;
   withMarketBars?: boolean;
   sectorRotation?: Repositories["sectorRotation"];
+  dailySeries?: Repositories["marketDailySeries"];
   /** Engine comparison on, with this run storage. */
   comparisonRuns?: Pick<BacktestRunsRepository, "enqueueGroup">;
 }>;
@@ -466,6 +472,9 @@ const clientFor = (options: Harness = {}) => {
     ...(options.sectorRotation === undefined
       ? {}
       : { sectorRotation: options.sectorRotation }),
+    ...(options.dailySeries === undefined
+      ? {}
+      : { marketDailySeries: options.dailySeries }),
     ...(options.comparisonRuns === undefined
       ? {}
       : {
@@ -879,33 +888,24 @@ describe("autopilot procedures", () => {
     ).toBe("failed");
   });
 
-  it("refuses campaign filters that read series it cannot load, at create and at tick", async () => {
+  it("accepts series filters at create and fails a tick whose series cannot be loaded", async () => {
     const memory = memoryAutopilot();
     const client = clientFor({ autopilot: memory.repository });
     for (const filter of [
-      { min: 50, type: "ivRank" as const },
       { maxRatio: 1, type: "vixTermStructure" as const },
       { maxTermRatio: 1, maxVix: 20, type: "volRegime" as const },
-      {
-        condition: {
-          left: { field: "close" as const, type: "price" as const },
-          op: ">" as const,
-          right: { type: "const" as const, value: 0 },
-        },
-        series: "ES=F" as const,
-        type: "series" as const,
-      },
     ])
-      await expectCode(
-        client.autopilot.campaigns.create({
-          filters: [filter],
-          name: "x",
-          symbol: "TEST",
-          timeframe: "1d",
-        }),
-        "VALIDATION_ERROR",
-        `STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ${filter.type} filters need daily series`
-      );
+      expect(
+        (
+          await client.autopilot.campaigns.create({
+            filters: [filter],
+            name: "x",
+            symbol: "TEST",
+            timeframe: "1d",
+          })
+        ).config.filters
+      ).toEqual([expect.objectContaining(filter)]);
+    memory.campaigns.clear();
     // calendarWindow counts trading days: refused on intraday timeframes.
     await expectCode(
       client.autopilot.campaigns.create({
@@ -944,7 +944,9 @@ describe("autopilot procedures", () => {
     const ticked = (await client.autopilot.campaigns.tick({ id: stored.id }))
       .results[0];
     expect(ticked?.status).toBe("failed");
-    expect(ticked?.note).toContain("STRATEGY_SERIES_FILTERS_UNSUPPORTED");
+    expect(ticked?.note).toBe(
+      "Tick failed: Series data is not available for $iv of TEST"
+    );
     expect(
       memory.candidates.filter((row) => row.campaignId === stored.id)
     ).toHaveLength(0);
@@ -1723,6 +1725,129 @@ describe("autopilot gate engine comparison", () => {
     expect(comparisonOf(inSample).key).toBe(comparisonOf(full).key);
     expect(full?.spec.from).toBe("2015-01-01");
     expect((inSample?.spec.to ?? "") < (full?.spec.to ?? "")).toBe(true);
+  });
+
+  it("runs series filters with the store series through gate, neighbours and comparison", async () => {
+    clearInstantBacktestCacheForTesting();
+    const memory = memoryAutopilot();
+    const created: BacktestRunCreateInput[] = [];
+    const enqueueGroup = vi.fn(
+      async (input: Parameters<BacktestRunsRepository["enqueueGroup"]>[0]) => {
+        created.push(...input.runs);
+        return { created: input.runs.length, reused: false, superseded: 0 };
+      }
+    );
+    // Daily VIX and VIX3M on every calendar day of the bars: contango most days.
+    const dates = Array.from({ length: 4000 }, (_, index) =>
+      new Date(Date.UTC(2015, 0, 1) + index * DAY_MS).toISOString().slice(0, 10)
+    );
+    const level = (base: number, swing: number) => ({
+      adjClose: dates.map(() => null),
+      close: dates.map((_, index) => base + swing * Math.sin(index / 17)),
+      dates,
+      high: dates.map(() => null),
+      low: dates.map(() => null),
+      open: dates.map(() => null),
+    });
+    const rows = { VIX: level(18, 4), VIX3M: level(20, 1) };
+    const loadSeries = vi.fn(
+      async (ids: readonly string[]) =>
+        new Map(ids.map((id) => [id, rows[id as keyof typeof rows]]))
+    );
+    const client = clientFor({
+      autopilot: memory.repository,
+      comparisonRuns: { enqueueGroup },
+      dailySeries: {
+        listSeries: vi.fn(),
+        loadSeries,
+        replaceSeries: vi.fn(),
+      } as unknown as NonNullable<Repositories["marketDailySeries"]>,
+    });
+    const filter = { maxRatio: 1, type: "vixTermStructure" as const };
+    await client.autopilot.campaigns.create({
+      budget,
+      filters: [filter],
+      name: "Term",
+      seed: 7,
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    control.forcePass = true;
+    control.gateSeries.length = 0;
+    try {
+      const [result] = (await client.autopilot.campaigns.tick({})).results;
+      expect(result?.status).not.toBe("failed");
+      expect(result?.gated).toBeGreaterThan(0);
+      // One load per tick, for in-sample, gate, neighbour and comparison runs alike.
+      expect(loadSeries).toHaveBeenCalledTimes(1);
+      expect(loadSeries).toHaveBeenCalledWith(["VIX", "VIX3M"], {});
+      // Every gate run read the series; the refined neighbours ran (they would refuse without).
+      expect(control.gateSeries.length).toBeGreaterThan(0);
+      for (const series of control.gateSeries)
+        expect(Object.keys((series as { context: object }).context)).toEqual([
+          "VIX",
+          "VIX3M",
+        ]);
+      expect(memory.candidates.some((row) => row.origin === "neighbour")).toBe(
+        true
+      );
+      for (const row of memory.candidates)
+        expect((row.definition as { filters?: unknown }).filters).toEqual([
+          expect.objectContaining(filter),
+        ]);
+      // The comparison runs carry the filter; their TypeScript side ran with the series.
+      expect(result?.comparison?.error).toBeUndefined();
+      expect(result?.comparison?.queued).toBeGreaterThan(0);
+      expect(created[0]?.spec.rule).toMatchObject({
+        definition: { filters: [expect.objectContaining(filter)] },
+        kind: "dsl",
+      });
+    } finally {
+      control.forcePass = false;
+    }
+  });
+
+  it("retries a tick while the series store is not wired or a series is missing", async () => {
+    clearInstantBacktestCacheForTesting();
+    const memory = memoryAutopilot();
+    const filter = { maxRatio: 1, type: "vixTermStructure" as const };
+    const campaign = await clientFor({
+      autopilot: memory.repository,
+    }).autopilot.campaigns.create({
+      budget,
+      filters: [filter],
+      name: "Term",
+      seed: 7,
+      symbol: "TEST",
+      timeframe: "1d",
+    });
+    const unwired = (
+      await clientFor({
+        autopilot: memory.repository,
+      }).autopilot.campaigns.tick({ id: campaign.id })
+    ).results[0];
+    expect(unwired).toMatchObject({
+      evaluated: 0,
+      note: "The daily series store is not available on this server (needed for VIX, VIX3M); the next tick retries.",
+      status: "running",
+    });
+    const loadSeries = vi.fn(async () => new Map());
+    const missing = (
+      await clientFor({
+        autopilot: memory.repository,
+        dailySeries: {
+          listSeries: vi.fn(),
+          loadSeries,
+          replaceSeries: vi.fn(),
+        } as unknown as NonNullable<Repositories["marketDailySeries"]>,
+      }).autopilot.campaigns.tick({ id: campaign.id })
+    ).results[0];
+    expect(missing).toMatchObject({
+      note: "Series data is not available for VIX; the next tick retries.",
+      status: "running",
+    });
+    expect(loadSeries).toHaveBeenCalledTimes(1);
+    expect(memory.campaigns.get(campaign.id)?.status).toBe("running");
   });
 
   it("keeps the tick when the comparison queue fails", async () => {

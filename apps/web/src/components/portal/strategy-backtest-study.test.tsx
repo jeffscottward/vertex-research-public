@@ -32,6 +32,7 @@ import {
 } from "./filter-studies-section.tsx";
 import {
   NOT_APPROVAL,
+  QcPortDefinitionLink,
   StrategyBacktestStudy,
 } from "./strategy-backtest-study.tsx";
 import { StrategyDetail } from "./strategy-library-detail.tsx";
@@ -266,7 +267,10 @@ describe("StrategyBacktestStudy", () => {
 });
 
 describe("strategy library detail: Backtest study section", () => {
-  const strategy = (tags: string[]): StrategyGetOutput["strategy"] => ({
+  const strategy = (
+    tags: string[],
+    params: StrategyGetOutput["strategy"]["params"] = []
+  ): StrategyGetOutput["strategy"] => ({
     backtestCount: 0,
     createdAt: UPDATED_AT,
     description: "Research only.",
@@ -275,7 +279,7 @@ describe("strategy library detail: Backtest study section", () => {
     kind: "python",
     latestBacktest: null,
     name: "IV-Rank Gate for Credit Spreads",
-    params: [],
+    params,
     presetCount: 0,
     section: "QuantConnect ideas",
     slug: "qc-iv-rank-gate",
@@ -284,10 +288,13 @@ describe("strategy library detail: Backtest study section", () => {
     tags,
     updatedAt: UPDATED_AT,
   });
-  const detailFor = (tags: string[]) => (
+  const detailFor = (
+    tags: string[],
+    params: StrategyGetOutput["strategy"]["params"] = []
+  ) => (
     <StrategyDetail
       describeFailure={() => "failed"}
-      detail={{ backtests: [], presets: [], strategy: strategy(tags) }}
+      detail={{ backtests: [], presets: [], strategy: strategy(tags, params) }}
       gateway={{} as StrategyLibraryGateway}
       onChanged={async () => undefined}
       onClose={() => undefined}
@@ -313,5 +320,85 @@ describe("strategy library detail: Backtest study section", () => {
   it("has no Backtest study section on other entries", async () => {
     const container = await mount(detailFor(["research-only"]));
     expect(container.querySelector("[data-backtest-study-state]")).toBeNull();
+  });
+
+  it("links the stored definition of a qc-port row and still offers no deployment", async () => {
+    const container = await mount(
+      detailFor(["research-only", "quantconnect-idea"], DEFINITION_PARAMS)
+    );
+    expect(
+      container
+        .querySelector("[data-qc-port-definition]")
+        ?.getAttribute("data-qc-port-definition")
+    ).toBe("qc-iv-rank-gate");
+    expect(
+      container
+        .querySelector("[data-qc-port-run-backtest]")
+        ?.getAttribute("href")
+    ).toContain("/backtest-runs?definition=qc-iv-rank-gate&");
+    expect(
+      container.querySelector("[data-strategy-research-only]")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-strategy-request-deployment]")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-strategy-academy-lesson]")
+    ).toBeNull();
+  });
+});
+
+const choice = (name: string, value: string) => ({
+  default: value,
+  name,
+  options: [value],
+  title: name,
+  type: "choice" as const,
+});
+const SHA = "6af3acdf0f0cb18ad993aba2e7919f8630b4774ac019b595cf4d111eac564f03";
+const DEFINITION_PARAMS = [
+  choice("definitionId", "qc-iv-rank-gate"),
+  choice("definitionSha256", SHA),
+  choice("runFrom", "1993-01-29"),
+  choice("initialCapital", "100000"),
+];
+
+describe("QcPortDefinitionLink", () => {
+  it("names the stored definition and links Backtest runs prefilled with it", async () => {
+    const container = await mount(
+      <QcPortDefinitionLink
+        params={DEFINITION_PARAMS}
+        strategyId="strategy-seed-qc-iv-rank-gate"
+      />
+    );
+    expect(
+      container.querySelector("[data-qc-port-definition-ref]")?.textContent
+    ).toBe("Strategy definition: qc-iv-rank-gate (sha 6af3acdf0f0c…)");
+    expect(container.textContent).toContain(
+      "daily bars from 1993-01-29, capital 100,000, no cost. Research only; no orders."
+    );
+    const link = container.querySelector(
+      "[data-qc-port-run-backtest]"
+    ) as HTMLAnchorElement;
+    expect(link.textContent).toBe("Run backtest");
+    expect(link.getAttribute("href")).toBe(
+      `/backtest-runs?definition=qc-iv-rank-gate&sha=${SHA}&strategy=strategy-seed-qc-iv-rank-gate&timeframe=1d&from=1993-01-29&initialCapital=100000&costBps=0`
+    );
+  });
+
+  it("leaves out a missing run start and capital, and shows nothing without a definition", async () => {
+    const container = await mount(
+      <QcPortDefinitionLink
+        params={DEFINITION_PARAMS.slice(0, 2)}
+        strategyId="s-1"
+      />
+    );
+    expect(container.textContent).toContain(
+      "this definition on daily bars, no cost."
+    );
+    const empty = await mount(
+      <QcPortDefinitionLink params={[]} strategyId="s-1" />
+    );
+    expect(empty.innerHTML).toBe("");
   });
 });

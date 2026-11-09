@@ -4,18 +4,30 @@ import { describe, expect, it } from "vitest";
 import { canonicalJson, sha256Hex } from "./canonical-json.ts";
 import {
   parseStrategyDefinitionText,
+  resolveStrategySeries,
   STRATEGY_CALENDAR_INTRADAY_REFUSAL,
   STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
   STRATEGY_DAILY_TIMEFRAMES,
+  STRATEGY_DSL_MAX_EXPR_DEPTH,
+  STRATEGY_DSL_MAX_EXPR_NODES,
+  STRATEGY_FUTURE_TWIN,
   STRATEGY_IV_INDEX,
+  STRATEGY_MONTHLY_INDICATOR_MESSAGE,
   STRATEGY_OPTION_IS_DEBIT,
   STRATEGY_OPTIONS_REFUSAL,
+  STRATEGY_OPTIONS_TIMEFRAME_REFUSAL,
   STRATEGY_OPTIONS_UNSUPPORTED,
   STRATEGY_SERIES_FILTERS_UNSUPPORTED,
   STRATEGY_SERIES_IDS,
   STRATEGY_TEMPLATES,
+  STRATEGY_TOTAL_RETURN,
   StrategyDefinitionSchema,
+  type StrategyExprInput,
+  StrategyExprSchema,
   serverStrategyRefusal,
+  strategyExprSeries,
+  strategyExprSize,
+  strategySeriesRefs,
   validateStrategyDefinition,
 } from "./strategy-dsl.ts";
 
@@ -350,7 +362,7 @@ describe("series and calendar filters", () => {
   });
 
   it("lists the series ids and IV indices of the contract", () => {
-    expect(STRATEGY_SERIES_IDS).toHaveLength(25);
+    expect(STRATEGY_SERIES_IDS).toHaveLength(32);
     for (const index of Object.values(STRATEGY_IV_INDEX))
       expect(STRATEGY_SERIES_IDS).toContain(index);
     expect(STRATEGY_IV_INDEX).toMatchObject({ QQQ: "VXN", SPY: "VIX" });
@@ -682,7 +694,7 @@ describe("serverStrategyRefusal", () => {
     ).toEqual({
       code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
       message:
-        "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ivRank, vixTermStructure filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.",
+        "STRATEGY_SERIES_FILTERS_UNSUPPORTED: the ivRank, vixTermStructure filters need daily series that this path does not load; backtest runs and the research runners load them. sectorQuadrant and calendarWindow filters work here.",
     });
   });
 });
@@ -757,6 +769,917 @@ describe("options bounds", () => {
     ["a fractional exitDte", { exitDte: 1.5 }, false],
   ])("%s", (_, change, valid) => {
     expect(ok({ ...base, ...change })).toBe(valid);
+  });
+});
+
+describe("expression trees", () => {
+  const close = { field: "close", type: "price" } as const;
+  const zero = { type: "const", value: 0 } as const;
+  const series = (ref: string, offset?: number): StrategyExprInput =>
+    ({
+      series: ref,
+      type: "series",
+      ...(offset === undefined ? {} : { offset }),
+    }) as StrategyExprInput;
+  /** `depth` levels: change of change of ... of the close. */
+  const nested = (depth: number): StrategyExprInput => {
+    let expr: StrategyExprInput = close;
+    for (let level = 1; level < depth; level += 1)
+      expr = { length: 1, of: expr, type: "change" };
+    return expr;
+  };
+  /** A math tree of `leaves` close leaves (2 × leaves − 1 nodes), at most 6 levels for 32 leaves. */
+  const wide = (leaves: number): StrategyExprInput => {
+    let level: StrategyExprInput[] = Array.from(
+      { length: leaves },
+      () => close
+    );
+    while (level.length > 1) {
+      const next: StrategyExprInput[] = [];
+      for (let index = 0; index + 1 < level.length; index += 2)
+        next.push({
+          left: level[index] as StrategyExprInput,
+          op: "add",
+          right: level[index + 1] as StrategyExprInput,
+          type: "math",
+        });
+      if (level.length % 2 === 1) next.push(level.at(-1) as StrategyExprInput);
+      level = next;
+    }
+    return level[0] as StrategyExprInput;
+  };
+  const condition = (
+    left: StrategyExprInput,
+    right: StrategyExprInput = zero
+  ) => ({
+    ...minimal,
+    entry: { all: [{ left, op: ">", right }] },
+  });
+  const issues = (value: unknown) => {
+    const result = validateStrategyDefinition(value);
+    return result.ok
+      ? []
+      : result.issues.map((issue) => `${issue.path}: ${issue.message}`);
+  };
+  const regression: StrategyExprInput = {
+    lag: 1,
+    length: 20,
+    type: "regression",
+    x: series("$future"),
+    y: { length: 1, of: close, type: "change" },
+  };
+  const every: StrategyExprInput = {
+    left: {
+      left: { length: 252, of: series("$tr"), offset: 1, type: "change" },
+      op: "div",
+      right: { length: 20, of: series("VIX", 2), type: "returnStdev" },
+      type: "math",
+    },
+    op: "sub",
+    right: {
+      left: regression,
+      op: "mul",
+      right: { minCount: 3, monthsAhead: 1, of: close, type: "seasonal" },
+      type: "math",
+    },
+    type: "math",
+  };
+
+  it("parses every expression type and keeps the canonical JSON of the input", () => {
+    const parsed = StrategyDefinitionSchema.parse(condition(every));
+    expect(parsed.entry.all[0]?.left).toEqual(every);
+    expect(canonicalJson(parsed.entry.all[0]?.left)).toBe(canonicalJson(every));
+    expect(StrategyExprSchema.parse(series("$iv"))).toEqual(series("$iv"));
+    // Leaves inside a tree get their defaults.
+    expect(
+      StrategyExprSchema.parse({
+        length: 2,
+        of: { length: 5, name: "sma", type: "indicator" },
+        type: "returnStdev",
+      })
+    ).toEqual({
+      length: 2,
+      of: { length: 5, name: "sma", source: "close", type: "indicator" },
+      type: "returnStdev",
+    });
+  });
+
+  it("measures depth and nodes and lists the series in tree order", () => {
+    expect(strategyExprSize(close)).toEqual({ depth: 1, nodes: 1 });
+    expect(strategyExprSize(every)).toEqual({ depth: 5, nodes: 13 });
+    expect(strategyExprSize(nested(STRATEGY_DSL_MAX_EXPR_DEPTH))).toEqual({
+      depth: 6,
+      nodes: 6,
+    });
+    expect(strategyExprSeries(every)).toEqual(["$tr", "VIX", "$future"]);
+    expect(strategyExprSeries(close)).toEqual([]);
+  });
+
+  it.each([
+    ["an unknown series", series("BTC"), "entry.all.0.left.series"],
+    ["a negative offset", series("VIX", -1), "entry.all.0.left.offset"],
+    [
+      "an unknown math op",
+      { left: close, op: "pow", right: close, type: "math" },
+      "entry.all.0.left.op",
+    ],
+    [
+      "a zero change length",
+      { length: 0, of: close, type: "change" },
+      "entry.all.0.left.length",
+    ],
+    [
+      "a returnStdev of one return",
+      { length: 1, of: close, type: "returnStdev" },
+      "entry.all.0.left.length",
+    ],
+    [
+      "a regression of two points",
+      { ...regression, length: 2 },
+      "entry.all.0.left.length",
+    ],
+    [
+      "a negative regression lag",
+      { ...regression, lag: -1 },
+      "entry.all.0.left.lag",
+    ],
+    [
+      "a seasonal 12 months ahead",
+      { minCount: 1, monthsAhead: 12, of: close, type: "seasonal" },
+      "entry.all.0.left.monthsAhead",
+    ],
+    [
+      "a seasonal without values",
+      { minCount: 0, monthsAhead: 0, of: close, type: "seasonal" },
+      "entry.all.0.left.minCount",
+    ],
+    [
+      "an unknown key",
+      { length: 1, of: close, type: "change", window: 3 },
+      "entry.all.0.left",
+    ],
+    [
+      "a bad nested leaf",
+      { length: 1, of: { field: "volume", type: "price" }, type: "change" },
+      "entry.all.0.left.of.field",
+    ],
+  ])("rejects %s", (_label, left, path) => {
+    const result = validateStrategyDefinition(
+      condition(left as StrategyExprInput)
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok)
+      expect(result.issues.map((issue) => issue.path)).toContain(path);
+  });
+
+  it("limits the depth of each expression and the nodes of a condition", () => {
+    expect(issues(condition(nested(STRATEGY_DSL_MAX_EXPR_DEPTH)))).toEqual([]);
+    expect(issues(condition(nested(STRATEGY_DSL_MAX_EXPR_DEPTH + 1)))).toEqual([
+      "entry.all.0: An expression may nest at most 6 levels",
+    ]);
+    expect(issues(condition(close, nested(7)))).toEqual([
+      "entry.all.0: An expression may nest at most 6 levels",
+    ]);
+    // 39 nodes on the left and the constant: 40.
+    expect(strategyExprSize(wide(20)).nodes).toBe(39);
+    expect(issues(condition(wide(20)))).toEqual([]);
+    expect(strategyExprSize(wide(21))).toEqual({ depth: 6, nodes: 41 });
+    expect(issues(condition(wide(20), close))).toEqual([]);
+    expect(issues(condition(wide(20), wide(2)))).toEqual([
+      `entry.all.0: A condition may hold at most ${STRATEGY_DSL_MAX_EXPR_NODES} expression nodes`,
+    ]);
+  });
+
+  it("lets a series filter read a relative ref, but the close only", () => {
+    const filter = (left: StrategyExprInput, ref = "$iv") => ({
+      ...minimal,
+      filters: [
+        {
+          condition: { left, op: "<", right: zero },
+          series: ref,
+          type: "series",
+        },
+      ],
+    });
+    expect(issues(filter(close))).toEqual([]);
+    expect(issues(filter(close, "$tr"))).toEqual([]);
+    expect(issues(filter(close, "BTC"))).toEqual([
+      expect.stringMatching(/^filters\.0\.series: /u),
+    ]);
+    const closeOnly =
+      "filters.0.condition: A series condition reads the series close only: use the close price and close-sourced indicators other than atr, adx and rvol";
+    for (const left of [
+      series("VIX"),
+      { left: close, op: "add", right: close, type: "math" },
+      { length: 2, of: close, type: "returnStdev" },
+    ] as StrategyExprInput[])
+      expect(issues(filter(left))).toEqual([closeOnly]);
+  });
+
+  it("resolves the relative refs per symbol", () => {
+    expect(resolveStrategySeries("VIX", undefined)).toBe("VIX");
+    expect(resolveStrategySeries("SPY:TR", "QQQ")).toBe("SPY:TR");
+    expect(resolveStrategySeries("$tr", "SPY")).toBe("SPY:TR");
+    expect(resolveStrategySeries("$iv", "GLD")).toBe("GVZ");
+    expect(resolveStrategySeries("$future", "USO")).toBe("CL=F");
+    expect(resolveStrategySeries("$future", undefined)).toBeUndefined();
+    expect(resolveStrategySeries("$iv", "XLK")).toBeUndefined();
+    for (const table of [
+      STRATEGY_TOTAL_RETURN,
+      STRATEGY_FUTURE_TWIN,
+      STRATEGY_IV_INDEX,
+    ]) {
+      expect(Object.keys(table).sort()).toEqual([
+        "DIA",
+        "GLD",
+        "IWM",
+        "QQQ",
+        "SLV",
+        "SPY",
+        "USO",
+      ]);
+      for (const id of Object.values(table))
+        expect(STRATEGY_SERIES_IDS).toContain(id);
+    }
+  });
+});
+
+describe("portfolio block", () => {
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    shortDelta: 0.2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+  const always = {
+    left: { field: "close", type: "price" },
+    op: ">",
+    right: { type: "const", value: 0 },
+  };
+  const opex = { type: "calendarWindow", window: "opexWeek" };
+  const leg = { entry: { all: [always] }, filters: [opex], options };
+  const withPortfolio = (portfolio: Record<string, unknown>, extra = {}) => ({
+    ...minimal,
+    entry: { all: [always] },
+    filters: [opex],
+    options,
+    portfolio,
+    ...extra,
+  });
+  const issues = (value: unknown) => {
+    const result = validateStrategyDefinition(value);
+    return result.ok
+      ? []
+      : result.issues.map((issue) => `${issue.path}: ${issue.message}`);
+  };
+
+  it("accepts each policy with its own fields and keeps optional fields absent", () => {
+    for (const portfolio of [
+      { policy: "roll", symbols: ["SPY"] },
+      {
+        frame: "monthly",
+        legs: [leg],
+        policy: "roll",
+        select: {
+          score: {
+            length: 1,
+            of: { series: "$tr", type: "series" },
+            type: "change",
+          },
+          tieBreak: { series: "$iv", type: "series" },
+          top: 2,
+        },
+        symbols: ["SPY", "QQQ", "GLD"],
+      },
+      { cadence: "monthEnd", policy: "flat", symbols: ["USO"] },
+      { policy: "window", shift: 5, symbols: ["SPY", "IWM"] },
+      { legs: [leg, leg, leg], policy: "window", shift: 1, symbols: ["DIA"] },
+    ]) {
+      const result = validateStrategyDefinition(withPortfolio(portfolio));
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.definition.portfolio).toEqual(portfolio);
+    }
+  });
+
+  it.each([
+    [{ policy: "hold", symbols: ["SPY"] }, "portfolio.policy"],
+    [{ policy: "roll", symbols: [] }, "portfolio.symbols"],
+    [{ policy: "roll", symbols: ["XLK"] }, "portfolio.symbols.0"],
+    [
+      { policy: "roll", symbols: ["SPY", "SPY"] },
+      "portfolio.symbols: Portfolio symbols must not repeat",
+    ],
+    [
+      { policy: "flat", symbols: ["SPY"] },
+      "portfolio.cadence: cadence is required with the flat policy and only there",
+    ],
+    [
+      { cadence: "daily", policy: "roll", symbols: ["SPY"] },
+      "portfolio.cadence: cadence is required with the flat policy and only there",
+    ],
+    [
+      { frame: "monthly", policy: "window", symbols: ["SPY"] },
+      "portfolio.frame: frame monthly needs the roll policy",
+    ],
+    [
+      {
+        policy: "window",
+        select: { score: { field: "close", type: "price" }, top: 1 },
+        symbols: ["SPY"],
+      },
+      "portfolio.select: select needs the roll policy",
+    ],
+    [
+      { policy: "roll", shift: 1, symbols: ["SPY"] },
+      "portfolio.shift: shift needs the window policy",
+    ],
+    [{ policy: "window", shift: 6, symbols: ["SPY"] }, "portfolio.shift"],
+    [
+      { legs: [leg, leg, leg, leg], policy: "roll", symbols: ["SPY"] },
+      "portfolio.legs",
+    ],
+    [
+      {
+        legs: [{ ...leg, entry: { all: [] } }],
+        policy: "roll",
+        symbols: ["SPY"],
+      },
+      "portfolio.legs.0.entry.all",
+    ],
+    [
+      { legs: [{ entry: leg.entry }], policy: "roll", symbols: ["SPY"] },
+      "portfolio.legs.0.options",
+    ],
+    [
+      {
+        policy: "roll",
+        select: { score: { field: "close", type: "price" }, top: 8 },
+        symbols: ["SPY"],
+      },
+      "portfolio.select.top",
+    ],
+  ])("rejects %j", (portfolio, expected) => {
+    const found = issues(withPortfolio(portfolio));
+    expect(
+      found.some(
+        (issue) => issue === expected || issue.startsWith(`${expected}: `)
+      )
+    ).toBe(true);
+  });
+
+  it("limits the selection scores like a condition side", () => {
+    let deep: StrategyExprInput = { field: "close", type: "price" };
+    for (let level = 1; level <= STRATEGY_DSL_MAX_EXPR_DEPTH; level += 1)
+      deep = { length: 1, of: deep, type: "change" };
+    const select = (score: StrategyExprInput, tieBreak?: StrategyExprInput) =>
+      withPortfolio({
+        policy: "roll",
+        select: {
+          score,
+          top: 1,
+          ...(tieBreak === undefined ? {} : { tieBreak }),
+        },
+        symbols: ["SPY"],
+      });
+    expect(issues(select(deep))).toEqual([
+      "portfolio.select.score: An expression may nest at most 6 levels",
+    ]);
+    expect(issues(select({ field: "close", type: "price" }, deep))).toEqual([
+      "portfolio.select.tieBreak: An expression may nest at most 6 levels",
+    ]);
+  });
+
+  it("needs an options block", () => {
+    const { options: _, ...noOptions } = withPortfolio({
+      policy: "roll",
+      symbols: ["SPY"],
+    });
+    expect(issues(noOptions)).toEqual([
+      "portfolio: A portfolio block trades option verticals; add an options block",
+    ]);
+  });
+
+  it.each([
+    [
+      "an offset close",
+      {
+        entry: {
+          all: [
+            { ...always, left: { field: "close", offset: 1, type: "price" } },
+          ],
+        },
+      },
+    ],
+    [
+      "an open",
+      {
+        entry: { all: [{ ...always, left: { field: "open", type: "price" } }] },
+      },
+    ],
+    [
+      "an indicator",
+      {
+        entry: {
+          all: [
+            { ...always, left: { length: 2, name: "sma", type: "indicator" } },
+          ],
+        },
+      },
+    ],
+    ["a >= entry", { entry: { all: [{ ...always, op: ">=" }] } }],
+    [
+      "a close > 1 entry",
+      { entry: { all: [{ ...always, right: { type: "const", value: 1 } }] } },
+    ],
+    [
+      "a close > close entry",
+      {
+        entry: {
+          all: [{ ...always, right: { field: "close", type: "price" } }],
+        },
+      },
+    ],
+    ["two entry conditions", { entry: { all: [always, always] } }],
+    ["an exit", { exit: { any: [always] } }],
+    ["no filters", { filters: undefined }],
+    ["a series filter", { filters: [opex, { max: 30, type: "ivRank" }] }],
+  ])("refuses a shifted window whose leg has %s", (_label, change) => {
+    const message =
+      "portfolio.shift: A shifted window reads ahead: every leg needs the entry close > 0, no exit and calendarWindow filters only";
+    const portfolio = { policy: "window", shift: 2, symbols: ["SPY"] };
+    expect(issues(withPortfolio(portfolio))).toEqual([]);
+    expect(issues(withPortfolio(portfolio, change))).toEqual([message]);
+    expect(
+      issues(
+        withPortfolio({ ...portfolio, legs: [leg, { ...leg, ...change }] })
+      )
+    ).toEqual([message]);
+    // Without a shift the same legs are fine.
+    expect(
+      issues(
+        withPortfolio({
+          legs: [{ ...leg, ...change }],
+          policy: "window",
+          symbols: ["SPY"],
+        })
+      )
+    ).toEqual([]);
+  });
+
+  it("takes an explicit offset 0 on a shifted window entry as no offset", () => {
+    const zero = {
+      entry: {
+        all: [
+          { ...always, left: { field: "close", offset: 0, type: "price" } },
+        ],
+      },
+    };
+    const portfolio = { policy: "window", shift: 2, symbols: ["SPY"] };
+    expect(issues(withPortfolio(portfolio, zero))).toEqual([]);
+    expect(
+      issues(withPortfolio({ ...portfolio, legs: [{ ...leg, ...zero }] }))
+    ).toEqual([]);
+  });
+
+  it.each(["atr", "adx", "rvol"])(
+    "refuses %s anywhere in a monthly frame definition",
+    (name) => {
+      const indicator = { length: 5, name, type: "indicator" };
+      const condition = { ...always, left: indicator };
+      const message = `portfolio.frame: ${STRATEGY_MONTHLY_INDICATOR_MESSAGE}`;
+      const roll = { policy: "roll", symbols: ["SPY"] };
+      const monthly = { ...roll, frame: "monthly" };
+      // Daily bars have a range and volume.
+      expect(
+        issues(withPortfolio(roll, { entry: { all: [condition] } }))
+      ).toEqual([]);
+      expect(
+        issues(withPortfolio(monthly, { entry: { all: [condition] } }))
+      ).toEqual([message]);
+      expect(
+        issues(withPortfolio(monthly, { exit: { any: [condition] } }))
+      ).toEqual([message]);
+      expect(
+        issues(
+          withPortfolio({
+            ...monthly,
+            legs: [{ ...leg, exit: { any: [condition] } }],
+          })
+        )
+      ).toEqual([message]);
+      const nested = {
+        left: indicator,
+        op: "div",
+        right: { type: "const", value: 2 },
+        type: "math",
+      };
+      expect(
+        issues(withPortfolio({ ...monthly, select: { score: nested, top: 1 } }))
+      ).toEqual([message]);
+      expect(
+        issues(
+          withPortfolio({
+            ...monthly,
+            select: {
+              score: { series: "$tr", type: "series" },
+              tieBreak: indicator,
+              top: 1,
+            },
+          })
+        )
+      ).toEqual([message]);
+    }
+  );
+
+  it("keeps other indicators on the monthly frame", () => {
+    const sma = { length: 5, name: "sma", type: "indicator" };
+    expect(
+      issues(
+        withPortfolio(
+          { frame: "monthly", policy: "roll", symbols: ["SPY"] },
+          { entry: { all: [{ ...always, left: sma }] } }
+        )
+      )
+    ).toEqual([]);
+  });
+
+  it("refuses a 20000-level selection score without overflowing the stack", () => {
+    let deep: unknown = { series: "$tr", type: "series" };
+    for (let level = 0; level < 20_000; level += 1)
+      deep = { length: 1, of: deep, type: "change" };
+    const message = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+    const roll = { policy: "roll", symbols: ["SPY"] };
+    expect(
+      issues(withPortfolio({ ...roll, select: { score: deep, top: 1 } }))
+    ).toEqual([`portfolio.select.score: ${message}`]);
+    expect(
+      issues(
+        withPortfolio({
+          ...roll,
+          select: {
+            score: { series: "$tr", type: "series" },
+            tieBreak: deep,
+            top: 1,
+          },
+        })
+      )
+    ).toEqual([`portfolio.select.tieBreak: ${message}`]);
+  });
+
+  it("limits the nodes of a selection score", () => {
+    const full = (depth: number): unknown =>
+      depth === 1
+        ? { series: "$tr", type: "series" }
+        : {
+            left: full(depth - 1),
+            op: "add",
+            right: full(depth - 1),
+            type: "math",
+          };
+    // 1 + 31 + 15 = 47 nodes, 6 levels.
+    const score = { left: full(5), op: "add", right: full(4), type: "math" };
+    expect(
+      issues(
+        withPortfolio({
+          policy: "roll",
+          select: { score, top: 1 },
+          symbols: ["SPY"],
+        })
+      )
+    ).toEqual([
+      `portfolio.select.score: A condition may hold at most ${STRATEGY_DSL_MAX_EXPR_NODES} expression nodes`,
+    ]);
+  });
+});
+
+describe("deeply nested expressions", () => {
+  const message = `An expression may nest at most ${STRATEGY_DSL_MAX_EXPR_DEPTH} levels`;
+  const nest = (levels: number, wrap: (of: unknown) => unknown) => {
+    let expr: unknown = { field: "close", type: "price" };
+    for (let level = 0; level < levels; level += 1) expr = wrap(expr);
+    return expr;
+  };
+  const one = { type: "const", value: 1 };
+
+  it.each([
+    ["change", (of: unknown) => ({ length: 1, of, type: "change" })],
+    [
+      "math",
+      (left: unknown) => ({ left, op: "add", right: one, type: "math" }),
+    ],
+    [
+      "regression",
+      (y: unknown) => ({ lag: 0, length: 3, type: "regression", x: one, y }),
+    ],
+  ])(
+    "refuses 20000 levels of %s on either side without overflowing the stack",
+    (_label, wrap) => {
+      const deep = nest(20_000, wrap);
+      for (const condition of [
+        { left: deep, op: ">", right: one },
+        { left: one, op: ">", right: deep },
+      ] as const) {
+        const result = StrategyDefinitionSchema.safeParse({
+          ...minimal,
+          entry: { all: [condition] },
+        });
+        expect(result.success).toBe(false);
+        expect(
+          result.error?.issues.map((issue) => [
+            issue.path.join("."),
+            issue.message,
+          ])
+        ).toEqual([["entry.all.0", message]]);
+      }
+    }
+  );
+
+  it("still accepts the deepest allowed expression", () => {
+    const deep = nest(STRATEGY_DSL_MAX_EXPR_DEPTH - 1, (of) => ({
+      length: 1,
+      of,
+      type: "change",
+    }));
+    const result = StrategyDefinitionSchema.safeParse({
+      ...minimal,
+      entry: { all: [{ left: deep, op: ">", right: one }] },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("leaves a missing or non-object child to the parse, not to the depth check", () => {
+    for (const child of [{}, { of: null }, { of: 5 }]) {
+      // The broken node sits at the deepest allowed level.
+      const broken = nest(STRATEGY_DSL_MAX_EXPR_DEPTH - 1, (of) => ({
+        length: 1,
+        of,
+        type: "change",
+      }));
+      let node = broken as { of: unknown };
+      for (let level = 2; level < STRATEGY_DSL_MAX_EXPR_DEPTH; level += 1)
+        node = node.of as { of: unknown };
+      node.of = { length: 1, type: "change", ...child };
+      const result = StrategyDefinitionSchema.safeParse({
+        ...minimal,
+        entry: { all: [{ left: broken, op: ">", right: one }] },
+      });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues.map((issue) => issue.message)).not.toContain(
+        message
+      );
+    }
+  });
+});
+
+describe("resolveStrategySeries", () => {
+  it("reads only own symbols of the relative tables", () => {
+    for (const ref of ["$tr", "$iv", "$future"] as const)
+      for (const symbol of [
+        "constructor",
+        "toString",
+        "__proto__",
+        "hasOwnProperty",
+      ])
+        expect(resolveStrategySeries(ref, symbol)).toBeUndefined();
+    expect(resolveStrategySeries("$tr", "SPY")).toBe("SPY:TR");
+  });
+});
+
+describe("strategySeriesRefs", () => {
+  const close = { field: "close", type: "price" } as const;
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    shortDelta: 0.2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+
+  it("lists filters, condition expressions, legs and the selection, first use first", () => {
+    const definition = StrategyDefinitionSchema.parse({
+      ...minimal,
+      entry: {
+        all: [
+          {
+            left: { series: "ES=F", type: "series" },
+            op: ">",
+            right: {
+              length: 3,
+              of: { series: "$tr", type: "series" },
+              type: "change",
+            },
+          },
+        ],
+      },
+      exit: {
+        any: [
+          { left: close, op: "<", right: { series: "$iv", type: "series" } },
+        ],
+      },
+      filters: [
+        { max: 30, type: "ivRank" },
+        { maxTermRatio: 1, maxVix: 20, type: "volRegime" },
+        { quadrants: ["leading"], sector: "XLK", type: "sectorQuadrant" },
+      ],
+      options,
+      portfolio: {
+        legs: [
+          {
+            entry: {
+              all: [
+                {
+                  left: close,
+                  op: ">",
+                  right: { series: "GC=F", type: "series" },
+                },
+              ],
+            },
+            filters: [
+              { maxRatio: 1, type: "vixTermStructure" },
+              {
+                condition: { left: close, op: ">", right: close },
+                series: "TNX",
+                type: "series",
+              },
+            ],
+            options,
+          },
+        ],
+        policy: "roll",
+        select: {
+          score: { series: "IRX", type: "series" },
+          tieBreak: { series: "EY_TNX_RATIO", type: "series" },
+          top: 1,
+        },
+        symbols: ["SPY"],
+      },
+    });
+    expect(strategySeriesRefs(definition)).toEqual([
+      "$iv",
+      "VIX",
+      "VIX3M",
+      "SPY",
+      "ES=F",
+      "$tr",
+      "TNX",
+      "GC=F",
+      "IRX",
+      "EY_TNX_RATIO",
+    ]);
+    expect(strategySeriesRefs({})).toEqual([]);
+    expect(
+      strategySeriesRefs({
+        portfolio: StrategyDefinitionSchema.parse({
+          ...minimal,
+          options,
+          portfolio: {
+            policy: "roll",
+            select: { score: { series: "VXN", type: "series" }, top: 1 },
+            symbols: ["QQQ"],
+          },
+        }).portfolio,
+      })
+    ).toEqual(["VXN"]);
+  });
+});
+
+describe("serverStrategyRefusal with support flags", () => {
+  const options = {
+    dte: { min: 21, target: 45 },
+    maxLossPct: 2,
+    shortDelta: 0.2,
+    structure: "putCreditVertical" as const,
+    widthSigma: 0.5,
+  };
+  const reads = StrategyDefinitionSchema.parse({
+    ...minimal,
+    entry: {
+      all: [
+        {
+          left: { series: "$tr", type: "series" },
+          op: ">",
+          right: { type: "const", value: 1 },
+        },
+      ],
+    },
+  });
+  const always = {
+    left: { field: "close", type: "price" },
+    op: ">",
+    right: { type: "const", value: 0 },
+  };
+  const readsVix = {
+    left: { field: "close", type: "price" },
+    op: "<",
+    right: { series: "VIX", type: "series" },
+  };
+  const seriesExpressions =
+    "STRATEGY_SERIES_FILTERS_UNSUPPORTED: series expressions need daily series that this path does not load; backtest runs and the research runners load them. sectorQuadrant and calendarWindow filters work here.";
+
+  it("refuses options without the options runner and off daily bars", () => {
+    const withOptions = { ...reads, options };
+    expect(serverStrategyRefusal(withOptions, "1d", { series: true })).toBe(
+      STRATEGY_OPTIONS_REFUSAL
+    );
+    expect(
+      serverStrategyRefusal(withOptions, "1w", { options: true, series: true })
+    ).toBe(STRATEGY_OPTIONS_TIMEFRAME_REFUSAL);
+    expect(
+      serverStrategyRefusal(withOptions, undefined, {
+        options: true,
+        series: true,
+      })
+    ).toBeUndefined();
+    expect(
+      serverStrategyRefusal(withOptions, "1d", { options: true })?.message
+    ).toBe(seriesExpressions);
+  });
+
+  it("refuses series expressions and series filters without series support", () => {
+    expect(serverStrategyRefusal(reads)).toEqual({
+      code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
+      message: seriesExpressions,
+    });
+    expect(
+      serverStrategyRefusal(reads, "1d", { series: true })
+    ).toBeUndefined();
+    expect(
+      serverStrategyRefusal({
+        filters: [
+          {
+            condition: StrategyDefinitionSchema.parse(minimal).entry
+              .all[0] as never,
+            series: "VIX",
+            type: "series",
+          },
+        ],
+      })?.message
+    ).toMatch(/^STRATEGY_SERIES_FILTERS_UNSUPPORTED: the series filters need/u);
+    const calendar = {
+      ...reads,
+      filters: [
+        { type: "calendarWindow" as const, window: "opexWeek" as const },
+      ],
+    };
+    expect(serverStrategyRefusal(calendar, "5m", { series: true })).toBe(
+      STRATEGY_CALENDAR_INTRADAY_REFUSAL
+    );
+    expect(serverStrategyRefusal(calendar, "5m")?.message).toBe(
+      seriesExpressions
+    );
+  });
+
+  it.each([
+    ["entry.all", { entry: { all: [readsVix] } }],
+    ["entry.any", { entry: { all: [always], any: [always, readsVix] } }],
+    ["exit.any", { exit: { any: [readsVix] } }],
+  ])("refuses a series read in %s", (_list, change) => {
+    const definition = StrategyDefinitionSchema.parse({
+      ...minimal,
+      entry: { all: [always] },
+      ...change,
+    });
+    expect(serverStrategyRefusal(definition)?.message).toBe(seriesExpressions);
+    expect(
+      serverStrategyRefusal(definition, "1d", { series: true })
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["a leg entry.all", { entry: { all: [readsVix] } }],
+    ["a leg exit.any", { exit: { any: [readsVix] } }],
+  ])("refuses a series read in %s", (_list, change) => {
+    const definition = StrategyDefinitionSchema.parse({
+      ...minimal,
+      entry: { all: [always] },
+      options,
+      portfolio: {
+        legs: [{ entry: { all: [always] }, options, ...change }],
+        policy: "roll",
+        symbols: ["SPY"],
+      },
+    });
+    expect(
+      serverStrategyRefusal(definition, "1d", { options: true })?.message
+    ).toBe(seriesExpressions);
+  });
+
+  it("refuses management and maxLeverage with an options block", () => {
+    const withStop = { ...minimal, options, stopLoss: { kind: "pct", pct: 2 } };
+    expect(issuesOf({ ...withStop, management: { breakevenR: 1 } })).toContain(
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+    );
+    // maxLeverage lives in riskPct sizing only, which an options block refuses.
+    expect(
+      issuesOf({
+        ...minimal,
+        options,
+        sizing: { maxLeverage: 2, mode: "riskPct", riskPct: 1 },
+      })
+    ).toContain(
+      "sizing: Option strategies size by options.maxLossPct; remove the riskPct sizing"
+    );
   });
 });
 

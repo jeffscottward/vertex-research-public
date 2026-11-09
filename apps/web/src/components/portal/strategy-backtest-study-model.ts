@@ -1,13 +1,64 @@
 // What: display rows for a qc-port backtest study (researchStudies.get, kind "qc-port") on the
 // strategy library detail of a QuantConnect idea port. Pure mapping; the document is validated by
 // the API (QcPortStudySchema). Research only: a study verdict grants no trading authority.
-import type { QcPortStudy } from "@darkfactory/api";
+import type { QcPortStudy, StrategyParamOutput } from "@darkfactory/api";
 
+import { definitionRunHref } from "./backtest-runs-model.ts";
 import { formatRatio, formatSignedPercent } from "./strategy-library-model.ts";
 import type { JournalPoint } from "./trade-journal-model.ts";
 
 /** Strategy library entries with this tag have a backtest study stored under their slug. */
 export const QC_IDEA_TAG = "quantconnect-idea";
+
+/**
+ * The stored strategy definition of a qc-port library row: fixed choice params (migration 0059)
+ * definitionId, definitionSha256, runFrom and initialCapital.
+ */
+export type QcPortDefinitionRef = Readonly<{
+  definitionId: string;
+  sha256: string;
+  runFrom: string | null;
+  initialCapital: number | null;
+}>;
+
+/** The definition a row links to; null without definitionId and definitionSha256 params. */
+export const qcPortDefinitionRef = (
+  params: readonly StrategyParamOutput[]
+): QcPortDefinitionRef | null => {
+  const value = (name: string): string | null => {
+    const param = params.find((entry) => entry.name === name);
+    return param === undefined ? null : String(param.default);
+  };
+  const definitionId = value("definitionId");
+  const sha256 = value("definitionSha256");
+  if (definitionId === null || sha256 === null) return null;
+  const capital = Number(value("initialCapital") ?? Number.NaN);
+  return {
+    definitionId,
+    initialCapital: Number.isFinite(capital) ? capital : null,
+    runFrom: value("runFrom"),
+    sha256,
+  };
+};
+
+/**
+ * Backtest runs, prefilled with the stored definition: daily bars, from the study's run start, its
+ * capital and no cost; the page takes the first portfolio symbol and the latest stored date.
+ */
+export const qcPortRunHref = (
+  ref: QcPortDefinitionRef,
+  strategyId: string
+): string =>
+  definitionRunHref({
+    costBps: 0,
+    from: ref.runFrom,
+    id: ref.definitionId,
+    initialCapital: ref.initialCapital,
+    sha256: ref.sha256,
+    strategyId,
+    symbol: null,
+    timeframe: "1d",
+  });
 
 export type QcPortRunRow = Readonly<{
   key: string;

@@ -3,6 +3,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 
 import type { z } from "zod";
 import { appContract } from "./contract.ts";
+import { StrategyExprSchema } from "./strategy-dsl.ts";
 import {
   DatasetManifestSchema,
   ResearchEvidenceSchema,
@@ -135,6 +136,15 @@ export const OPENAPI_INFO = {
   version: "0.3.1",
 } as const;
 
+/**
+ * The strategy expression tree is recursive (z.lazy). Unrolled at every use it grows the document
+ * by megabytes, so it is one component per strategy that refers to itself.
+ */
+const COMMON_SCHEMAS = {
+  StrategyExpr: { schema: StrategyExprSchema, strategy: "input" },
+  StrategyExprOutput: { schema: StrategyExprSchema, strategy: "output" },
+} as const;
+
 export const buildOpenApiDocument = async (): Promise<OpenAPI.Document> => {
   const converter = new ZodToJsonSchemaConverter();
   const generator = new OpenAPIGenerator({
@@ -161,7 +171,10 @@ export const buildOpenApiDocument = async (): Promise<OpenAPI.Document> => {
       converter,
     ],
   });
-  return await generator.generate(appContract, { info: OPENAPI_INFO });
+  return await generator.generate(appContract, {
+    commonSchemas: COMMON_SCHEMAS,
+    info: OPENAPI_INFO,
+  });
 };
 
 const sortJson = (value: unknown): unknown => {

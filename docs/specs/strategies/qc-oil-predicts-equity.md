@@ -11,7 +11,7 @@ Status: research only. No live or paper orders. No broker changes. No engine is 
 
 ## Classification
 
-- Type: standalone monthly predictive regression (computed in the runner; the DSL `series` filter reads the prediction as a derived series).
+- Type: standalone monthly predictive regression (the DSL `regression` expression on the monthly frame since card vertex-qc-ports-opt3; the first run computed it in the runner and read it as a derived series, with identical results).
 - Direction: long, defined risk (call debit verticals only).
 
 Basis codes: S = stated by the source page; O = set by the owner's port request (2026-11-08); A = Vertex default, fixed before the first run.
@@ -82,7 +82,7 @@ Planned paths; this spec is committed before the code.
 
 Run 2026-11-08 with `python -m strategies.qc_ports study --ran 2026-11-08` (services/research), data manifest sha256(SHA256SUMS) `95fc3a54ce009761b2818f8fd79c0cfb2880eb5d86aba33099e60f56b0c55348`, data to 2026-11-06, code revision `b1d945c50bfceac8d482ac5b013dcfa89469893e` (run id `qc-ports-2026-11-08-b1d945c50bfc`). The JSON document of the same command (without --report) goes to Postgres `research_studies` (id `qc-oil-predicts-equity`) through `bun run vertex:research-studies:import`. Deflated Sharpe: n_trials 32, variance of the per-day Sharpe across the 32 runs 0.000218. Ledger and NautilusTrader agreed on every trade and on daily equity (1e-6 relative).
 
-Implementation: `services/research/strategies/qc_ports/ideas.py` (DSL definitions, derived series, runs) and `study.py` (compile with `nautilus_backtest/signals.py`, book, ledger, Nautilus parity, metrics). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Max open risk = the largest share of equity at risk (contracts x max loss) in open spreads at any close (reported only, no cap). The 60-month OLS prediction is computed in Python and read by the DSL `series` filter `qc:oilPrediction:<ETF>` > 0.
+Implementation: `services/research/strategies/qc_ports/ideas.py` (each run is one strategy DSL definition with an options block and a portfolio block; run A is stored as the definition `qc-oil-predicts-equity`) and `portfolio.py` (compile with `nautilus_backtest/signals.py`, policies, book, ledger, Nautilus parity, metrics); the same definition runs in backtest runs (TypeScript options engine and the Nautilus worker). One open spread per member is decided from the priced book; a spread the ledger refuses for size (0 contracts) still holds its member until its priced exit, and such refusals count in Skipped (with book skips such as a missing IV index value). Max open risk = the largest share of equity at risk (contracts x max loss) in open spreads at any close (reported only, no cap). The 60-month OLS prediction is computed in Python and read by the DSL `series` filter `qc:oilPrediction:<ETF>` > 0.
 
 |Run|From|CAGR|Sharpe|Deflated Sharpe|Max drawdown|Worst month|Trades|Win rate|Exposure|Skipped|Max open risk|Stale-IV exits|
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
