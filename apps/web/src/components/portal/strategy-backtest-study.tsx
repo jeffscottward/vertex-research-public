@@ -3,9 +3,14 @@
 // What: "Backtest study" section of the strategy library detail for entries tagged
 // quantconnect-idea. Loads the qc-port study stored under the strategy slug
 // (researchStudies.get, operator-only) and shows its verdict, runs, gate effects and monthly
-// equity. Read-only research: no arm, deploy or order control lives here. New studies are stored
-// with `bun run vertex:research-studies:import`.
-import { isQcPortStudy, type ResearchStudyDocument } from "@darkfactory/api";
+// equity, plus the stored strategy definition of the row (QcPortDefinitionLink: Run backtest opens
+// Backtest runs prefilled with it). Read-only research: no arm, deploy or order control lives here.
+// New studies are stored with `bun run vertex:research-studies:import`.
+import {
+  isQcPortStudy,
+  type ResearchStudyDocument,
+  type StrategyParamOutput,
+} from "@darkfactory/api";
 import {
   Button,
   cn,
@@ -32,6 +37,8 @@ import {
 import { describePortfolioMonitorFailure } from "./portfolio-monitor-client.ts";
 import {
   type QcPortStudyViewModel,
+  qcPortDefinitionRef,
+  qcPortRunHref,
   toQcPortStudyViewModel,
 } from "./strategy-backtest-study-model.ts";
 import { formatSignedPercent } from "./strategy-library-model.ts";
@@ -45,6 +52,51 @@ const numCell = "px-2 py-1 text-right font-mono";
 /** Shown in every state of the section. */
 export const NOT_APPROVAL =
   "A backtest result is not approval to trade (research only).";
+
+/**
+ * The stored strategy definition of a qc-port row and a link that opens Backtest runs with it.
+ * Rows without the definition params (before migration 0059) show nothing. A backtest run is
+ * research only; this offers no deploy or order control.
+ */
+export const QcPortDefinitionLink = ({
+  params,
+  strategyId,
+}: Readonly<{
+  params: readonly StrategyParamOutput[];
+  strategyId: string;
+}>) => {
+  const ref = qcPortDefinitionRef(params);
+  if (ref === null) return null;
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border p-3"
+      data-qc-port-definition={ref.definitionId}
+    >
+      <div className="min-w-0 space-y-1 text-xs [overflow-wrap:anywhere]">
+        <p data-qc-port-definition-ref="">
+          Strategy definition:{" "}
+          <span className="font-mono">{ref.definitionId}</span> (sha{" "}
+          <span className="font-mono">{ref.sha256.slice(0, 12)}…</span>)
+        </p>
+        <p className="text-muted-foreground">
+          Run backtest opens Backtest runs with this definition on daily bars
+          {ref.runFrom === null ? "" : ` from ${ref.runFrom}`}
+          {ref.initialCapital === null
+            ? ""
+            : `, capital ${ref.initialCapital.toLocaleString("en-US")}`}
+          , no cost. Research only; no orders.
+        </p>
+      </div>
+      <a
+        className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-sm underline-offset-2 hover:underline"
+        data-qc-port-run-backtest=""
+        href={qcPortRunHref(ref, strategyId)}
+      >
+        Run backtest
+      </a>
+    </div>
+  );
+};
 
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 120;

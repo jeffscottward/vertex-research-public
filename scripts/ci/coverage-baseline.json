@@ -313,12 +313,6 @@
       "functions": 86.66,
       "statements": 90.76
     },
-    "apps/web/src/components/portal/strategy-library-detail.tsx": {
-      "lines": 90.2,
-      "branches": 74.59,
-      "functions": 87.17,
-      "statements": 89.72
-    },
     "apps/web/src/components/portal/strategy-library-model.ts": {
       "lines": 100.0,
       "branches": 91.83,

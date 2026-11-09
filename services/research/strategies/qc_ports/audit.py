@@ -27,6 +27,7 @@ from collections.abc import Iterator, Mapping, Sequence
 
 from . import ideas as qi
 from . import options as om
+from . import portfolio as pf
 from . import study
 from .book import (
     PricedTrade,
@@ -105,7 +106,7 @@ def _sharpe(result) -> float | None:
 def known_edge(data: study.StudyData) -> list[dict]:
     """SPY call debit verticals opened monthly in strong up years (both expressions of the study)."""
     market = data.markets["SPY"]
-    ends = qi.month_end_indices(market.dates)
+    ends = pf.month_end_indices(market.dates)
     spy = dict(zip(data.bars["SPY"].dates, data.bars["SPY"].adj_close))
     rows = []
     for label, first, last in STRONG_YEARS:
@@ -182,10 +183,11 @@ def audit(data: study.StudyData) -> dict:
     runs = {key: outcome.run for key, outcome in outcomes.items()}
     per_idea = {}
     sensitivity_keys = {key for idea in qi.IDEAS for label, key in idea.runs if label in ("A", "B")}
-    priced = {key: study.run_trades(runs[key], data)[0] for key in sensitivity_keys | {"opex-week/B", "put-credit/B"}}
+    priced = {key: list(outcomes[key].priced) for key in sensitivity_keys | {"opex-week/B", "put-credit/B"}}
     gross = {key: _scored(gross_trades(priced[key]), runs[key], data, variance_)[1] for key in sensitivity_keys}
     with model_override(atm_factor=1.0, skew=0.0):
-        flat = {key: _scored(study.run_trades(runs[key], data)[0], runs[key], data, variance_)[1]
+        flat = {key: _scored(list(pf.run_definition(runs[key].definition, data.dataset, start=runs[key].start).priced),
+                             runs[key], data, variance_)[1]
                 for key in sorted(sensitivity_keys)}
     for idea in qi.IDEAS:
         a, b = idea.key("A"), idea.key("B")

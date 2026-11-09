@@ -90,6 +90,8 @@ const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   forward_drift_monitors: "id",
   market_bar_series: "id",
   market_bars: "series_id,t",
+  market_daily_points: "series_id,date",
+  market_daily_series: "id",
   notification_admissions:
     "tenant_key,recipient_key,channel,purpose,idempotency_key",
   notification_authority_current:

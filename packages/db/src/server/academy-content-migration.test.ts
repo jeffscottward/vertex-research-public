@@ -8,13 +8,13 @@ import { academyLessonSources, academyLessonSpecs } from "../schema/index.ts";
 const dialect = new PgDialect();
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
-const migration = read("../../migrations/0060_academy_content.sql");
-const rollback = read("../../rollback/0060_academy_content.down.sql");
+const migration = read("../../migrations/0062_academy_content.sql");
+const rollback = read("../../rollback/0062_academy_content.down.sql");
 const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
   entries: { idx: number; tag: string; when: number }[];
 };
 
-describe("0060_academy_content migration", () => {
+describe("0062_academy_content migration", () => {
   it.each([
     ["academy_lesson_sources", academyLessonSources],
     ["academy_lesson_specs", academyLessonSpecs],
@@ -83,15 +83,15 @@ describe("0060_academy_content migration", () => {
     expect(migration).not.toContain(";;");
   });
 
-  it("is journaled last as idx 60 after 0059, and later, so databases that ran 0059 still apply it", () => {
+  it("is journaled last as idx 62 after 0061, and later, so databases that ran 0061 still apply it", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0060_academy_content"
+      (entry) => entry.tag === "0062_academy_content"
     );
-    expect(journal.entries[index]).toMatchObject({ idx: 60 });
+    expect(journal.entries[index]).toMatchObject({ idx: 62 });
     expect(index).toBe(journal.entries.length - 1);
     expect(journal.entries[index - 1]).toMatchObject({
-      idx: 59,
-      tag: "0059_strategy_catalog_ld34",
+      idx: 61,
+      tag: "0061_qc_port_definitions",
     });
     expect(journal.entries[index]?.when).toBeGreaterThan(
       journal.entries[index - 1]?.when ?? Number.POSITIVE_INFINITY

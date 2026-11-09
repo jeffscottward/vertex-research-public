@@ -39,6 +39,7 @@ import {
   serverStrategyRefusal,
 } from "../strategy-dsl.ts";
 import {
+  AUTOPILOT_SUPPORT,
   type AutopilotRunnerDependencies,
   seriesKey,
   tickAutopilotCampaign,
@@ -95,13 +96,15 @@ const runnerFor = (
   context: ApiContext,
   failures: Failures
 ): AutopilotRunnerDependencies => {
-  const { marketBars, sectorRotation } = context.repositories;
+  const { marketBars, marketDailySeries, sectorRotation } =
+    context.repositories;
   if (marketBars === undefined) throw failures.STORAGE_ERROR();
   return {
     autopilot: repositoryFor(context, failures),
     clock: () => performance.now(),
     generateId: () => crypto.randomUUID(),
     marketBars,
+    ...(marketDailySeries === undefined ? {} : { marketDailySeries }),
     ...(sectorRotation === undefined ? {} : { sectorRotation }),
   };
 };
@@ -110,10 +113,11 @@ const create = api.autopilot.campaigns.create
   .use(requireOperator)
   .handler(async ({ context, input, errors }) => {
     const failures = errors as unknown as Failures;
-    // Campaign filters join every candidate; the runner loads sector points only.
+    // Campaign filters join every candidate; the runner loads sector points and daily series.
     const refusal = serverStrategyRefusal(
       { filters: input.filters },
-      input.timeframe
+      input.timeframe,
+      AUTOPILOT_SUPPORT
     );
     if (refusal !== undefined)
       throw failures.VALIDATION_ERROR({ message: refusal.message });

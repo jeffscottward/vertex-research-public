@@ -2144,6 +2144,66 @@ export const marketBars = pgTable(
   ]
 );
 
+// Stored daily research series of the QuantConnect idea ports (ETFs, continuous futures,
+// volatility and rate indices, and derived series such as EY_TNX_RATIO). One row per series with
+// the source file's SHA-256 for provenance; points keep every row whose close is a finite number,
+// with open, high, low and adj_close null where the source has no usable value. Research input
+// only; nothing here places orders.
+export const MARKET_DAILY_SERIES_KINDS = [
+  "etf",
+  "future",
+  "index",
+  "derived",
+] as const;
+export type MarketDailySeriesKind = (typeof MARKET_DAILY_SERIES_KINDS)[number];
+
+export const marketDailySeries = pgTable(
+  "market_daily_series",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").$type<MarketDailySeriesKind>().notNull(),
+    source: text("source").notNull(),
+    sourceSha256: text("source_sha256").notNull(),
+    pointCount: integer("point_count").notNull(),
+    firstDate: date("first_date", { mode: "string" }).notNull(),
+    lastDate: date("last_date", { mode: "string" }).notNull(),
+    importedAt: utcTimestamp("imported_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "market_daily_series_text_check",
+      sql`${table.id} ~ '^[A-Z0-9._^=-]{1,20}$' and ${table.kind} in ('etf', 'future', 'index', 'derived') and char_length(trim(${table.source})) between 1 and 300 and ${table.sourceSha256} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      "market_daily_series_range_check",
+      sql`${table.pointCount} >= 1 and ${table.firstDate} <= ${table.lastDate} and (${table.pointCount} > 1 or ${table.firstDate} = ${table.lastDate})`
+    ),
+  ]
+);
+
+export const marketDailyPoints = pgTable(
+  "market_daily_points",
+  {
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => marketDailySeries.id, { onDelete: "cascade" }),
+    date: date("date", { mode: "string" }).notNull(),
+    open: doublePrecision("open"),
+    high: doublePrecision("high"),
+    low: doublePrecision("low"),
+    close: doublePrecision("close").notNull(),
+    adjClose: doublePrecision("adj_close"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seriesId, table.date] }),
+    // NaN sorts above Infinity in Postgres, so `< 'Infinity'` also refuses NaN.
+    check(
+      "market_daily_points_finite_check",
+      sql`${table.close} > '-Infinity'::float8 and ${table.close} < 'Infinity'::float8 and (${table.open} is null or (${table.open} > '-Infinity'::float8 and ${table.open} < 'Infinity'::float8)) and (${table.high} is null or (${table.high} > '-Infinity'::float8 and ${table.high} < 'Infinity'::float8)) and (${table.low} is null or (${table.low} > '-Infinity'::float8 and ${table.low} < 'Infinity'::float8)) and (${table.adjClose} is null or (${table.adjClose} > '-Infinity'::float8 and ${table.adjClose} < 'Infinity'::float8))`
+    ),
+  ]
+);
+
 // Backtest runs started from the portal or MCP. A row is created queued, claimed once, then
 // completed or failed. The spec and the strategy revision snapshot are written at submit time and
 // never updated; only status, timing, error and report change. Research only; no order path.

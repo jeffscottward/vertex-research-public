@@ -82,7 +82,7 @@ type CourseListing = AcademyCourseLessons &
 
 /**
  * One course's listing for the /academy index. Unlike loadCourseLessons, a failed database read
- * (for example a web deploy before migration 0060) marks only that course unavailable, so the
+ * (for example a web deploy before migration 0062) marks only that course unavailable, so the
  * other courses still list.
  */
 export const loadCourseListing = async (

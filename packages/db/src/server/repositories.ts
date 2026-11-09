@@ -121,6 +121,10 @@ import {
   type MarketBarsRepository,
 } from "./market-bars.ts";
 import {
+  createMarketDailySeriesRepository,
+  type MarketDailySeriesRepository,
+} from "./market-daily-series.ts";
+import {
   type BacktestRunsRepository,
   createBacktestRunsRepository,
 } from "./backtest-runs.ts";
@@ -4289,6 +4293,7 @@ export type Repositories = Readonly<{
   assistant?: AssistantRepository;
   strategyLibrary?: StrategyLibraryRepository;
   marketBars?: MarketBarsRepository;
+  marketDailySeries?: MarketDailySeriesRepository;
   backtestRuns?: BacktestRunsRepository;
   forwardDrift?: ForwardDriftRepository;
   agentModelRuns?: AgentModelRunsRepository;
@@ -4337,6 +4342,10 @@ export const createRepositories = (
   ),
   assistant: createAssistantRepository(database, dependencies),
   marketBars: createMarketBarsRepository(database, dependencies.now),
+  marketDailySeries: createMarketDailySeriesRepository(
+    database,
+    dependencies.now
+  ),
   backtestRuns: createBacktestRunsRepository(
     database,
     resolveDependencies(dependencies)

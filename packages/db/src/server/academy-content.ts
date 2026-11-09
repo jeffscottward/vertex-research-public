@@ -4,7 +4,7 @@
 // Every source is validated with LessonSourceSchema and every spec with LessonSpecSchema before the
 // transaction opens, so no writer can store a spec the lesson page cannot draw from. The stored spec
 // is the parsed one (defaults applied) and its spec_hash is the sha256 of its canonical JSON.
-// See: packages/db/migrations/0060_academy_content.sql; docs/vertex-academy.md#lesson-storage.
+// See: packages/db/migrations/0062_academy_content.sql; docs/vertex-academy.md#lesson-storage.
 // Research and education only: nothing here places, changes or cancels an order.
 import {
   LessonSourceSchema,

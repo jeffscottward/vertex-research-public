@@ -16,6 +16,7 @@ import type { StrategyDefinition } from "../strategy-dsl.ts";
 import {
   runStrategyDefinition,
   type SectorQuadrantSeries,
+  type StrategySeriesInput,
 } from "../strategy-dsl-compile.ts";
 
 // Autopilot gate shadow runs (engine comparison). For each candidate a tick gated, the gate's two
@@ -23,6 +24,8 @@ import {
 // out-of-sample part. Each slice is a date range, so the TypeScript side is computed on exactly
 // the bars of that date range (for daily bars the same bars as the gate's call). At most
 // ENGINE_COMPARISON_GATE_RUNS_MAX runs per tick; the runs record how many the cap left out.
+// Candidates whose filters read daily series run with the campaign's series input here; the
+// Nautilus claim loads the same series from the store for its repeat.
 // The group is the campaign. A failure here never changes the tick. Research only.
 
 export type GatedCandidate = Readonly<{
@@ -65,6 +68,8 @@ export const queueGateComparisons = async (
     costBps: number;
     bars: BarColumns;
     sectorQuadrants: SectorQuadrantSeries | undefined;
+    /** Daily series of the campaign filters; undefined when they read none. */
+    series?: StrategySeriesInput | undefined;
     candidates: readonly GatedCandidate[];
     clock: () => number;
   }>
@@ -85,7 +90,10 @@ export const queueGateComparisons = async (
           candidate.definition,
           input.costBps,
           undefined,
-          input.sectorQuadrants
+          input.sectorQuadrants,
+          undefined,
+          input.series === undefined ? {} : { series: true },
+          input.series
         )
       );
       return {

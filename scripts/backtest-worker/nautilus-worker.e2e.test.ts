@@ -158,10 +158,11 @@ describe.skipIf(python === undefined)(
       if (
         input === undefined ||
         !("result" in input) ||
+        "kind" in input.result ||
         half === undefined ||
         !("result" in half)
       )
-        throw new Error("expected two results");
+        throw new Error("expected two equity results");
       expect(input).toMatchObject({ id: "run-1", seriesSha256: SHA });
       expect(input.result.equity).toHaveLength(SIZE);
       expect(half.result.equity).toHaveLength(SIZE / 2);
