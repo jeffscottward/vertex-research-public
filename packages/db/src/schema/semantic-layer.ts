@@ -66,6 +66,22 @@ export const semanticTerms = pgTable(
   ]
 );
 
+/**
+ * What one row of a SQL attribute stands for (migration 0058). A term has at most one attribute per
+ * grain. The backtest terms have two: `strategy` (latest succeeded engine run per linked strategy) and
+ * `run_spec` (latest succeeded engine run per run spec: symbol, timeframe, rule, stop loss, take profit, cost and date range, for runs with no strategy).
+ * The other attributes have one grain each: gate candidate, deployment request, drift monitor.
+ */
+export const SEMANTIC_ATTRIBUTE_GRAINS = [
+  "strategy",
+  "run_spec",
+  "candidate",
+  "request",
+  "monitor",
+] as const;
+export type SemanticAttributeGrainValue =
+  (typeof SEMANTIC_ATTRIBUTE_GRAINS)[number];
+
 export const semanticSqlAttributes = pgTable(
   "semantic_sql_attributes",
   {
@@ -73,15 +89,26 @@ export const semanticSqlAttributes = pgTable(
     termId: text("term_id")
       .notNull()
       .references(() => semanticTerms.id, { onDelete: "cascade" }),
+    grain: text("grain")
+      .$type<SemanticAttributeGrainValue>()
+      .notNull()
+      .default("strategy"),
     description: text("description").notNull(),
     sql: text("sql").notNull(),
     ...certification(),
   },
   (table) => [
-    uniqueIndex("semantic_sql_attributes_term_idx").on(table.termId),
+    uniqueIndex("semantic_sql_attributes_term_grain_idx").on(
+      table.termId,
+      table.grain
+    ),
     check(
       "semantic_sql_attributes_check",
       sql`${table.id} ~ '^[a-z][a-z0-9_]{1,62}$' and length(${table.sql}) between 1 and 8000 and length(${table.description}) between 1 and 2000 and (not ${table.certified} or ${table.certifiedAt} is not null)`
+    ),
+    check(
+      "semantic_sql_attributes_grain_check",
+      sql`${table.grain} in ('strategy', 'run_spec', 'candidate', 'request', 'monitor')`
     ),
   ]
 );

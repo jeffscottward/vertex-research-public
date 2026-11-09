@@ -22,6 +22,7 @@ export const LAB_SEMANTIC_CATALOG: SemanticCatalog = {
       certifiedAt: AT,
       certifiedBy: "demo-operator@example.test",
       description: "Demo SQL for the fake widget count.",
+      grain: "strategy",
       id: "demo_widget_count_sql",
       sql: "select count(*) as value from demo_widgets",
       termId: "demo_widget_count",

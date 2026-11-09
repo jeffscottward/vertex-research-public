@@ -19,7 +19,7 @@ import { EVAL_QUESTIONS, type Grade, gradeAnswer } from "./questions.ts";
 // model sees must equal the recorded ones (else the recording is stale: re-record). Every final answer is
 // graded with the fixed rubric in questions.ts.
 // Acceptance (docs/vertex-rebuild/agent-semantic-layer.md): main set >= 58/60 correct, 0 wrong account
-// answers.
+// answers; engine runs with no strategy (U1-U5) >= 13/15 correct and none wrong.
 
 type RecordedTrial = Readonly<{
   question: string;
@@ -127,5 +127,26 @@ describe("semantic layer eval replay", () => {
         (entry.grade === "wrong" || entry.audit === "wrong")
     );
     expect(wrongAccount).toEqual([]);
+  });
+
+  it("answers backtest questions about engine runs with no strategy: >= 13/15 correct and none wrong", () => {
+    const unlinked = recording.trials.flatMap((trial) => {
+      const question = byId.get(trial.question);
+      if (question?.set !== "unlinked") return [];
+      return [
+        { audit: trial.audit, grade: gradeAnswer(question, trial.answer) },
+      ];
+    });
+    expect(unlinked).toHaveLength(15);
+    expect(
+      unlinked.filter(
+        (entry) => entry.grade === "correct" && entry.audit === "correct"
+      ).length
+    ).toBeGreaterThanOrEqual(13);
+    expect(
+      unlinked.filter(
+        (entry) => entry.grade === "wrong" || entry.audit === "wrong"
+      )
+    ).toEqual([]);
   });
 });

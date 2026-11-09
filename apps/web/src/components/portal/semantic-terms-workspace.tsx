@@ -1,6 +1,10 @@
 "use client";
 
-import { type ApiClient, createApiClient } from "@darkfactory/api";
+import {
+  type ApiClient,
+  createApiClient,
+  SEMANTIC_GRAIN_LABELS,
+} from "@darkfactory/api";
 import {
   Badge,
   Button,
@@ -77,6 +81,8 @@ export const createBrowserSemanticTermsGateway = (): SemanticTermsGateway => {
 
 export const NOT_CERTIFIED_TEXT =
   "Not certified: the assistant gives no value for this term";
+export const ATTRIBUTE_NOT_CERTIFIED_TEXT =
+  "Needs owner certification: the assistant does not run this SQL until an operator certifies it";
 export const CATALOG_UNAVAILABLE_TEXT =
   "Semantic catalog unavailable. The database did not answer; nothing was changed.";
 
@@ -182,6 +188,11 @@ const CertificationBlock = ({
           data-uncertified="true"
         >
           {uncertifiedText}
+          {item.certificationNote === null ? null : (
+            <span className="block font-normal text-muted-foreground">
+              Note: {item.certificationNote}
+            </span>
+          )}
         </p>
       )}
       {canWrite ? (
@@ -352,6 +363,9 @@ const AttributeView = ({
     <h4 className="font-medium text-sm">
       SQL attribute <code className="font-mono">{attribute.id}</code>
     </h4>
+    <p className="text-muted-foreground text-sm" data-grain={attribute.grain}>
+      Rows: {SEMANTIC_GRAIN_LABELS[attribute.grain]}
+    </p>
     <p className="text-sm">{attribute.description}</p>
     <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">
       <code>{attribute.sql}</code>
@@ -361,7 +375,7 @@ const AttributeView = ({
       item={attribute}
       kind="attribute"
       pending={pending}
-      uncertifiedText={NOT_CERTIFIED_TEXT}
+      uncertifiedText={ATTRIBUTE_NOT_CERTIFIED_TEXT}
       write={write}
     />
     <EditForm
@@ -647,11 +661,14 @@ export const SemanticTermsWorkspace = ({
 
   const { data } = state;
   const uncertified = data.terms.filter((term) => !term.certified).length;
+  const uncertifiedSql = data.attributes.filter(
+    (attribute) => !attribute.certified
+  ).length;
   return (
     <CanWriteContext.Provider value={data.canWrite}>
       <div className="space-y-6" data-semantic-state="ready">
         <p className="text-muted-foreground text-sm">
-          {`${data.terms.length} terms, ${uncertified} not certified. The assistant answers only certified terms; editing anything removes its certification.`}
+          {`${data.terms.length} terms, ${uncertified} not certified; ${data.attributes.length} SQL attributes, ${uncertifiedSql} need owner certification. The assistant answers only certified terms and runs only certified SQL; editing anything removes its certification.`}
         </p>
         {notice === null ? null : (
           <p
