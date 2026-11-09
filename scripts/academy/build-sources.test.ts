@@ -168,12 +168,12 @@ describe("readKnowledgeBaseSources (quantfinancetogo)", () => {
         "```text",
         "Part 37: Binomial model option pricing",
         "",
-        "Education only, not financial advice.",
+        "Synthetic caption line.",
         "```",
         "",
         "## Transcript",
         "",
-        "- [00:00] In 1979, three researchers",
+        "- [00:00] Synthetic opening line",
         "- [01:03] the real chance   ",
         "- [1:02:05] an hour in",
         "not a segment",
@@ -205,13 +205,13 @@ describe("readKnowledgeBaseSources (quantfinancetogo)", () => {
     ).toEqual([
       {
         caption:
-          "Part 37: Binomial model option pricing\n\nEducation only, not financial advice.",
+          "Part 37: Binomial model option pricing\n\nSynthetic caption line.",
         course: "quantfinancetogo",
         durationSeconds: 118,
         publishedAt: "2026-10-31",
         sourceId: "Df_Ab-12345",
         transcript: [
-          { start: 0, text: "In 1979, three researchers" },
+          { start: 0, text: "Synthetic opening line" },
           { start: 63, text: "the real chance" },
           { start: 3725, text: "an hour in" },
         ],

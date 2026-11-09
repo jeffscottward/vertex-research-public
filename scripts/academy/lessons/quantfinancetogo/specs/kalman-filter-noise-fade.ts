@@ -104,7 +104,7 @@ export const spec = {
     },
   ],
   summary:
-    "The price you see is truth plus noise. A Kalman filter carries a belief about the hidden price and updates it with every new observation in proportion to how trustworthy that observation is. When an observation lands far from the belief, the strategy in the reel fades it, betting on the noise rather than the trend.",
+    "The price you see is truth plus noise. A Kalman filter keeps an estimate of the hidden price and nudges it toward each new reading, weighting the reading by how reliable it is. When a reading strays far from the estimate, the reel's strategy trades against it, treating the gap as noise, not trend.",
   tags: {
     instruments: ["single-stock"],
     regime: ["any", "range"],

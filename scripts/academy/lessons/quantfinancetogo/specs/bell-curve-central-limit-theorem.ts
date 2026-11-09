@@ -117,7 +117,7 @@ export const spec = {
   takeaways: [
     "Adding random steps gives a bell because many more routes end near the center than at the sides: 924 of the 4,096 routes of a twelve-row board finish in the center.",
     "The steps need not be coin flips: adding up 100 random amounts between -1 and +1 builds the same bell (the central limit theorem).",
-    "About 68% of results land within one standard deviation, 95% within two and 99.7% within three.",
+    "Within one standard deviation fall about 68% of results; within two, 95%; within three, 99.7%.",
     "A stock that swings 16% a year ends within 16% in about 2 years out of 3 and within 32% in 19 out of 20; the bell puts a move beyond 48% at once in about 370 years.",
   ],
   title:

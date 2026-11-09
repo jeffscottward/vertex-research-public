@@ -170,7 +170,7 @@ export const spec = {
   formulas: ["portfolioVariance", "sharpe"],
   takeaways: [
     "Every mix of assets is a point on the risk/return map; the upper edge of all mixes is the efficient frontier.",
-    "Mixing can lower risk below the calmest asset, because the risk of a mix depends on how its assets move together.",
+    "Mixing can lower risk below the calmest asset, since a mix's risk hinges on whether its assets rise and fall in step.",
     "An asset below the edge is beaten by a mix with the same risk and more return.",
     "Markowitz (1952) introduced the idea; the exact frontier can be computed directly by quadratic programming.",
   ],

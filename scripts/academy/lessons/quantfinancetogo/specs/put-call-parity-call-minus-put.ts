@@ -102,7 +102,7 @@ export const spec: LessonSpecInput = {
   steps: [
     {
       caption:
-        "Stock and strike at $100, a 5% rate, one year and 20% volatility.",
+        "Inputs: a $100 stock, a $100 strike, 20% volatility, a 5% rate and one year to expiry.",
       color: "cyan",
       element: "spot",
     },

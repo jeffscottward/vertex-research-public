@@ -89,8 +89,10 @@ QuantFinanceToGo captions and transcripts stay out of this repository.
   reel needs a row there as well as its note in the knowledge base.
 - `scripts/ci/private-academy-sources.test.ts` fails if a sources snapshot, a reel note or a
   non-synthetic fixture is committed; `.gitignore` covers `sources.generated.ts`.
-- Lesson text is paraphrased. On 2026-11-08, no spec repeated 12 or more consecutive words of its
-  reel's transcript or caption (checked against the knowledge base). Keep it that way when authoring.
+- Lesson text is paraphrased. Rule: lowercase, split on any non-alphanumeric character (punctuation
+  included), and no run of 12 or more consecutive words may match any note in the knowledge base's
+  `trading/quantfinancetogo/raw`. On 2026-11-08 every tracked file was scanned locally with that rule
+  and none matched. Keep it that way when authoring.
 - Commits made on the PR branch before this decision still contain a snapshot
   (`sources.quantfinancetogo.generated.ts`, `sources.generated.ts`). Rewriting that history is an
   owner decision; nothing was force-pushed.

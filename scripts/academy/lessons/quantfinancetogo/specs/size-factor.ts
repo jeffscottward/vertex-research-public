@@ -149,7 +149,7 @@ export const spec: LessonSpecInput = {
     },
   ],
   summary:
-    "Part 26 of Quantitative Finance From Scratch. The size portfolio buys the smallest stocks and sells the largest. In real markets the effect became much weaker after it was published in the early eighties.",
+    "Part 26 of Quantitative Finance From Scratch. The size portfolio buys the smallest stocks and sells the largest. In real markets the effect faded sharply once researchers published it in the early 1980s.",
   tags: {
     instruments: ["portfolio"],
     regime: ["any"],

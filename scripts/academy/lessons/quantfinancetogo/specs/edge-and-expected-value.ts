@@ -85,7 +85,7 @@ export const spec = {
     },
     {
       caption:
-        "Luck grows only with the square root of the bets: ±$31.6 after 1,000 spins. After about 1,400 bets the edge is bigger than the luck.",
+        "Luck scales with the square root of the bet count: ±$31.6 after 1,000 spins. Past roughly 1,400 bets, edge outweighs luck.",
       color: "violet",
       element: "band",
     },
@@ -120,7 +120,7 @@ export const spec = {
   takeaways: [
     "An edge is a small positive expected value: a bet on red loses 2.7 cents per $1 on average, which is the casino's 2.7-cent edge.",
     "One outcome proves almost nothing: a player who was up $11 after 47 spins still finished $22 behind.",
-    "The edge grows with every bet while luck grows only with the square root of the number of bets; after about 1,400 bets the edge is bigger.",
+    "Edge adds up bet by bet, while luck scales only with the square root of the bet count; past roughly 1,400 bets, edge wins.",
     "Insurers, market makers and quant funds all hunt for a small edge and then apply it thousands of times over.",
     "An edge only pays if you survive the swings: even the casino was $44 down after its first 2,000 bets.",
   ],

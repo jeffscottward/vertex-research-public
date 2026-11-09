@@ -145,7 +145,7 @@ export const frontierModel = (values: ParamValues, t = 1) => {
     for (let b = 0; a + b <= GRID; b += 1)
       mixes.push(mix([a / GRID, b / GRID, (GRID - a - b) / GRID]));
   const byVol = [...mixes].sort((left, right) => left.vol - right.vol);
-  // Upper edge (as in the lesson): keep a mix only if it earns more than every mix with less risk.
+  // Upper edge (as in the lesson): a mix stays only when no lower-risk mix earns as much.
   const frontier: Mix[] = [];
   for (const candidate of byVol)
     if (candidate.ret > (frontier.at(-1)?.ret ?? Number.NEGATIVE_INFINITY))

@@ -124,7 +124,7 @@ export const spec: LessonSpecInput = {
     },
   ],
   summary:
-    "Part 38. Black-Scholes says implied volatility should be one flat line across strikes. Real markets bend it into a smile, and for index options the low strikes sit much higher: the skew, priced in since the 1987 crash. The test market (15% volatility plus a 1 in 10 yearly chance of a crash of about a quarter) gives about 20% at strike 60, 17.3% at 100 and 15.9% at 140.",
+    "Part 38. Black-Scholes says implied volatility should be one flat line across strikes. Real markets bend it into a smile, and for index options the low strikes sit much higher: the skew, priced in since the 1987 crash. The test market (15% volatility plus a 1 in 10 yearly chance of a crash of about a quarter) gives about 20% at strike 60, 15.9% at 140 and 17.3% at the 100 strike.",
   tags: {
     instruments: ["volatility", "index-options"],
     regime: ["any", "event"],
@@ -142,7 +142,7 @@ export const spec: LessonSpecInput = {
     "Black-Scholes implies one flat volatility across strikes and expiries; real markets bend it.",
     "Implied volatility often rises at both ends (a smile); for stock indexes the low-strike end is much higher (the skew).",
     "Low-strike puts work as crash insurance, and since the 1987 crash that insurance has cost more than one volatility says.",
-    "A model market with rare crashes reproduces the skew; without the crashes the same run gives a flat line near 15%.",
+    "A model market with rare crashes reproduces the skew; drop the crashes and the identical run yields a flat line near 15%.",
   ],
   title:
     "The volatility smile and skew: why implied volatility bends by strike",

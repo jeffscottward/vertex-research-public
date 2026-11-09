@@ -110,7 +110,7 @@ export const spec = {
     },
     {
       caption:
-        "More runs make these numbers more precise, but slowly, as the square root rule says: 100 times the runs, 10 times the precision.",
+        "Extra runs sharpen these numbers, though slowly under the square-root rule: 100× the runs buys 10× the precision.",
       color: "violet",
       element: "pdf",
     },

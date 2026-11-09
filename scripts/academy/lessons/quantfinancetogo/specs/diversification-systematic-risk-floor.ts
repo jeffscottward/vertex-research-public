@@ -70,13 +70,13 @@ export const spec = {
       element: "count",
       color: "blue",
       caption:
-        "All the money in one asset swings 20.0% a year. Split evenly across ten, the risk drops to 12.2%.",
+        "A single-asset holding swings 20.0% a year. Spread equally over ten assets, the risk drops to 12.2%.",
     },
     {
       element: "count",
       color: "blue",
       caption:
-        "20 assets swing 11.6%, 50 swing 11.2% and 100 swing 11.1%: the own pushes partly cancel, the market push does not.",
+        "With 20 assets the swing is 11.6%, with 50 it is 11.2%, with 100 it is 11.1%. The own pushes partly cancel, the market push does not.",
     },
     {
       element: "floor",

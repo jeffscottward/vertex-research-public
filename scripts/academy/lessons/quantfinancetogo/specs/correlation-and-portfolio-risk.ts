@@ -68,7 +68,7 @@ export const spec = {
       element: "mix",
       color: "violet",
       caption:
-        "Half the money in each: the mix swings 19.0% at +0.80, 14.1% at 0 and 10.0% at −0.50, while each asset swings 20%.",
+        "Half the money in each: the mix swings 19.0% at +0.80, 10.0% at −0.50 and 14.1% when correlation is 0, while each asset swings 20%.",
     },
     {
       element: "marker",
@@ -84,7 +84,7 @@ export const spec = {
     "The lower the correlation, the less a 50/50 mix swings: 19.0% at +0.80, 14.1% at 0, 10.0% at −0.50.",
   ],
   caveats: [
-    "Correlations measured in calm times can rise when markets fall (Longin and Solnik, 2001).",
+    "Correlations estimated in quiet periods tend to climb during sell-offs (Longin and Solnik, 2001).",
     "Simulated normal daily returns from one hidden market factor; each run's measured correlation differs a little from the built-in value.",
     "Both assets have the same volatility; the 50/50 numbers in the captions are the formula's values for the reel's inputs.",
   ],

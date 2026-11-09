@@ -118,7 +118,7 @@ export const spec = {
     "Large moves show up in real price changes far more often than a bell curve allows.",
     "With equal volatility, a fat-tailed curve has a higher peak and thicker edges than the bell.",
     "In the creator's 100-year simulation at 1% a day: 0 days beyond 5% on the bell curve, 74 with fat tails (Student t, 3 degrees of freedom).",
-    "A risk model built on the bell curve calls crashes almost impossible; a fat-tailed model makes Black Monday (-22.6%) rare but expected.",
+    "Under a bell-curve risk model, crashes look nearly impossible; a fat-tailed model makes Black Monday (-22.6%) rare but expected.",
   ],
   title: "Fat tails: big daily moves the bell curve calls impossible",
 } satisfies LessonSpecInput;

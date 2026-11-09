@@ -86,7 +86,7 @@ export const spec: LessonSpecInput = {
     },
     {
       caption:
-        "Gamma is one level deeper: 0.0188, so a $1 rise lifts delta from 0.64 to about 0.66. Large gamma, the hedge ages fast.",
+        "Gamma is one level deeper: 0.0188: after a $1 rise, delta moves from 0.64 to roughly 0.66. Large gamma, the hedge ages fast.",
       color: "violet",
       element: "gamma",
     },

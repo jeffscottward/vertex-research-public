@@ -2,7 +2,7 @@ import type { LessonSpecInput } from "../../../../../packages/academy/src/schema
 
 export const spec = {
   caveats: [
-    "Parameter values are typical textbook sizes, not estimates from real data; all market data is simulated.",
+    "The parameters are illustrative textbook-scale values rather than fitted estimates; every market series here is simulated.",
     "The chart's GARCH line uses alpha + gamma/2 (the same average reaction), not the part 39 values the creator compares with.",
     "Leverage (debt weighing more after a fall) is one reason given for the asymmetry; the model only describes it.",
   ],
@@ -136,7 +136,7 @@ export const spec = {
     },
   ],
   summary:
-    "Plain GARCH uses the square of today's move, so a 4% fall and a 4% rise lift tomorrow's forecast equally. GJR-GARCH (Glosten, Jagannathan and Runkle, 1993) adds a weight, gamma, that applies only after a down day. With omega 0.02, alpha 0.02, gamma 0.12 and beta 0.90 on a 1%-a-day market, a 4% rise takes the forecast to about 1.11% and a 4% fall to about 1.78%.",
+    "Plain GARCH uses the square of today's move, so a 4% fall and a 4% rise lift tomorrow's forecast equally. GJR-GARCH (Glosten, Jagannathan and Runkle, 1993) adds a weight, gamma, that applies only after a down day. With beta 0.90, alpha 0.02, gamma 0.12 and omega 0.02 on a 1%-a-day market, a 4% rise takes the forecast to about 1.11% and a 4% fall to about 1.78%.",
   tags: {
     instruments: ["volatility", "portfolio"],
     regime: ["any", "high-vol"],
