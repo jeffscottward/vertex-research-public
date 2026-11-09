@@ -2,6 +2,7 @@ import {
   type BacktestRunSubmitInput,
   type BacktestRunSummary,
   type InstantBacktestSeries,
+  STRATEGY_EVENT_OPERATORS,
   type STRATEGY_INDICATORS,
   STRATEGY_TEMPLATES,
   type StrategyCondition,
@@ -51,9 +52,72 @@ export const INDICATOR_LABELS: Readonly<Record<StrategyIndicator, string>> = {
 export const usesSource = (name: StrategyIndicator): boolean =>
   name !== "atr" && name !== "adx" && name !== "rvol";
 
-/** rvol length counts previous sessions; every other length counts bars. */
-export const lengthUnit = (name: StrategyIndicator): string =>
-  name === "rvol" ? "sessions" : "bars";
+/** rvol length counts previous sessions, a 1d indicator's length days, every other length bars. */
+export const lengthUnit = (
+  name: StrategyIndicator,
+  timeframe?: string
+): string => {
+  if (name === "rvol") return "sessions";
+  return timeframe === "1d" ? "days" : "bars";
+};
+
+type IndicatorExpr = Extract<StrategyExpr, { type: "indicator" }>;
+
+/** Changes the indicator; rvol takes no timeframe, so switching to it drops the timeframe. */
+export const withIndicator = (
+  expr: IndicatorExpr,
+  name: StrategyIndicator
+): IndicatorExpr => {
+  const { timeframe: _timeframe, ...rest } = expr;
+  return name === "rvol" ? { ...rest, name } : { ...expr, name };
+};
+
+/** Changes the operator; oncePerLevel works only with crosses and breaks, so others drop it. */
+export const withOperator = (
+  condition: StrategyCondition,
+  op: StrategyCondition["op"]
+): StrategyCondition => {
+  const { oncePerLevel: _once, ...rest } = condition;
+  return STRATEGY_EVENT_OPERATORS.includes(op)
+    ? { ...condition, op }
+    : { ...rest, op };
+};
+
+/**
+ * Fields of the definition the visual builder does not edit (it keeps them): entry.any,
+ * management, oncePerLevel, an indicator timeframe and maxLeverage. Edit them in the JSON text.
+ */
+export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
+  const conditions = [
+    ...definition.entry.all,
+    ...(definition.entry.any ?? []),
+    ...definition.exit.any,
+  ];
+  const sides = conditions.flatMap((condition) => [
+    condition.left,
+    condition.right,
+  ]);
+  const used: [string, boolean][] = [
+    ["entry.any", definition.entry.any !== undefined],
+    ["management", definition.management !== undefined],
+    [
+      "oncePerLevel",
+      conditions.some((condition) => condition.oncePerLevel !== undefined),
+    ],
+    [
+      "timeframe",
+      sides.some(
+        (expr) => expr.type === "indicator" && expr.timeframe !== undefined
+      ),
+    ],
+    [
+      "maxLeverage",
+      definition.sizing.mode === "riskPct" &&
+        definition.sizing.maxLeverage !== undefined,
+    ],
+  ];
+  return used.filter(([, present]) => present).map(([field]) => field);
+};
 
 type ShiftableExpr = Exclude<StrategyExpr, { type: "const" }>;
 

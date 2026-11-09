@@ -67,7 +67,25 @@ export const STRATEGY_OPERATORS = [
   "<=",
   "crossesAbove",
   "crossesBelow",
+  "breaksAbove",
+  "breaksBelow",
 ] as const;
+/**
+ * Operators that `oncePerLevel` may limit: they hold on one bar of a move. breaksAbove at bar i:
+ * left[i] > right[i] and left[i - 1] <= right[i] (the previous left against the current right);
+ * breaksBelow mirrors it.
+ */
+export const STRATEGY_EVENT_OPERATORS: readonly string[] = [
+  "crossesAbove",
+  "crossesBelow",
+  "breaksAbove",
+  "breaksBelow",
+];
+/**
+ * Indicator timeframes. "1d" computes the indicator on daily bars built from the signal bars (a
+ * session day starts at 17:00 New York); a signal bar reads only days before its own.
+ */
+export const STRATEGY_INDICATOR_TIMEFRAMES = ["1d"] as const;
 
 const LengthSchema = z.number().int().min(1).max(STRATEGY_DSL_MAX_LENGTH);
 /**
@@ -105,6 +123,11 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
        * ignore it. For rvol, `length` is the number of previous sessions in the average.
        */
       source: z.enum(STRATEGY_PRICE_FIELDS).default("close"),
+      /**
+       * Optional with no default. "1d": the indicator runs on daily bars built from the signal
+       * bars (see STRATEGY_INDICATOR_TIMEFRAMES); `length` counts days. Not for rvol.
+       */
+      timeframe: z.enum(STRATEGY_INDICATOR_TIMEFRAMES).optional(),
       type: z.literal("indicator"),
     })
     .strict()
@@ -116,6 +139,10 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
         path: ["length"],
       }
     )
+    .refine((expr) => expr.name !== "rvol" || expr.timeframe === undefined, {
+      message: "rvol has no timeframe; it already compares whole sessions",
+      path: ["timeframe"],
+    })
     .refine(
       (expr) =>
         (expr.name !== "zscore" && expr.name !== "realizedVol") ||
@@ -130,10 +157,26 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
 export const StrategyConditionSchema = z
   .object({
     left: StrategyExprSchema,
+    /**
+     * Optional with no default. When true the condition holds at most once per level: a bar where
+     * it holds is dropped when the same right value (exact) already made it hold on an earlier bar.
+     * Only with crossesAbove, crossesBelow, breaksAbove and breaksBelow.
+     */
+    oncePerLevel: z.boolean().optional(),
     op: z.enum(STRATEGY_OPERATORS),
     right: StrategyExprSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    (condition) =>
+      condition.oncePerLevel !== true ||
+      STRATEGY_EVENT_OPERATORS.includes(condition.op),
+    {
+      message:
+        "oncePerLevel works only with crossesAbove, crossesBelow, breaksAbove and breaksBelow",
+      path: ["oncePerLevel"],
+    }
+  );
 
 /**
  * Daily series that filters may read (Core 7 ETFs, futures, volatility and rate indices, and
@@ -329,6 +372,18 @@ export const SeriesFilterSchema = z
         "A series condition reads the series close only: use the close price and close-sourced indicators other than atr, adx and rvol",
       path: ["condition"],
     }
+  )
+  .refine(
+    (filter) =>
+      filter.condition.oncePerLevel === undefined &&
+      [filter.condition.left, filter.condition.right].every(
+        (expr) => expr.type !== "indicator" || expr.timeframe === undefined
+      ),
+    {
+      message:
+        "A series condition takes no oncePerLevel or timeframe: the series has one value per date",
+      path: ["condition"],
+    }
   );
 
 /** One entry filter. Filters gate entries only; exits are never blocked. */
@@ -437,17 +492,56 @@ const TimeSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/u, "Expected HH:MM (UTC)");
 
+const ManagementLevelSchema = z.number().gt(0).max(100);
+
+/**
+ * Open-position stop management, evaluated at the close of every bar while a position is open
+ * (the entry bar included), after that bar's stop and target check. R = entry price - initial
+ * stop. breakevenR: once the highest high since entry reaches entry + breakevenR × R, the stop
+ * moves up to the entry price. trail: once the highest high reaches entry + activateR × R, the stop
+ * moves up to the highest close since entry minus multiple × ATR(length) of that bar. The stop never
+ * moves down; a new stop applies from the next bar. Needs a stop loss and no options block.
+ */
+export const StrategyManagementSchema = z
+  .object({
+    breakevenR: ManagementLevelSchema.optional(),
+    trail: z
+      .object({
+        activateR: ManagementLevelSchema,
+        length: LengthSchema,
+        multiple: ManagementLevelSchema,
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (management) =>
+      management.trail !== undefined || management.breakevenR !== undefined,
+    { message: "management needs trail, breakevenR or both" }
+  );
+
+export const STRATEGY_DSL_MAX_LEVERAGE = 50;
+
 export const StrategyDefinitionSchema = z
   .object({
     description: z.string().max(2000).optional(),
+    /**
+     * Entry holds when every `all` condition holds and, when `any` is not empty, at least one
+     * `any` condition holds. `any` is optional with no default; `all` may be empty when `any` is not.
+     */
     entry: z
       .object({
-        all: z
+        all: z.array(StrategyConditionSchema).max(STRATEGY_DSL_MAX_CONDITIONS),
+        any: z
           .array(StrategyConditionSchema)
-          .min(1)
-          .max(STRATEGY_DSL_MAX_CONDITIONS),
+          .max(STRATEGY_DSL_MAX_CONDITIONS)
+          .optional(),
       })
-      .strict(),
+      .strict()
+      .refine((entry) => entry.all.length + (entry.any?.length ?? 0) > 0, {
+        message: "Entry needs at least one condition in entry.all or entry.any",
+      }),
     exit: z
       .object({
         any: z
@@ -459,6 +553,8 @@ export const StrategyDefinitionSchema = z
       .default({ any: [] }),
     /** Optional with no default, so definitions without it keep the same canonical JSON. */
     filters: StrategyFiltersSchema.optional(),
+    /** Optional with no default (see StrategyManagementSchema). */
+    management: StrategyManagementSchema.optional(),
     name: z.string().trim().min(1).max(120),
     /**
      * Defined-risk option vertical traded on the signals. Optional with no default, so definitions
@@ -480,6 +576,15 @@ export const StrategyDefinitionSchema = z
         z.object({ mode: z.literal("allIn") }).strict(),
         z
           .object({
+            /**
+             * Optional with no default: cap the position cost at cash × maxLeverage instead of
+             * the cash. The engine charges no financing; the research runner charges it.
+             */
+            maxLeverage: z
+              .number()
+              .min(1)
+              .max(STRATEGY_DSL_MAX_LEVERAGE)
+              .optional(),
             mode: z.literal("riskPct"),
             riskPct: z.number().gt(0).max(100),
           })
@@ -518,6 +623,24 @@ export const StrategyDefinitionSchema = z
         "Option strategies exit by profitTakePct, exitDte and exit conditions; remove the stop loss and take profit",
       path: ["options"],
     }
+  )
+  .refine(
+    (definition) =>
+      definition.management === undefined ||
+      definition.stopLoss.kind !== "none",
+    {
+      message: "management moves the stop loss; add a stop loss",
+      path: ["management"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.management === undefined || definition.options === undefined,
+    {
+      message:
+        "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
+      path: ["management"],
+    }
   );
 
 export type StrategyExpr = z.infer<typeof StrategyExprSchema>;
@@ -533,6 +656,7 @@ export type VolRegimeFilter = z.infer<typeof VolRegimeFilterSchema>;
 export type CalendarWindowFilter = z.infer<typeof CalendarWindowFilterSchema>;
 export type SeriesFilter = z.infer<typeof SeriesFilterSchema>;
 export type StrategyOptions = z.infer<typeof StrategyOptionsSchema>;
+export type StrategyManagement = z.infer<typeof StrategyManagementSchema>;
 export type StrategyDefinitionInput = z.input<typeof StrategyDefinitionSchema>;
 
 export type StrategyValidationIssue = Readonly<{

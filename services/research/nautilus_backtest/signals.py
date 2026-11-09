@@ -49,7 +49,12 @@ INDICATORS = (
     "zscore",
     "realizedVol",
 )
-OPERATORS = (">", ">=", "<", "<=", "crossesAbove", "crossesBelow")
+OPERATORS = (">", ">=", "<", "<=", "crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
+# Operators that oncePerLevel may limit (strategy-dsl.ts STRATEGY_EVENT_OPERATORS).
+EVENT_OPERATORS = ("crossesAbove", "crossesBelow", "breaksAbove", "breaksBelow")
+# Indicator timeframes (STRATEGY_INDICATOR_TIMEFRAMES); a session day starts at 17:00 New York.
+INDICATOR_TIMEFRAMES = ("1d",)
+MAX_LEVERAGE = 50
 MINUTES_PER_DAY = 1440
 MINUTE_MS = 60_000
 HOUR_MS = 3_600_000
@@ -105,6 +110,9 @@ class Compiled:
     stop_distance: tuple[float, ...] | None
     target_distance: tuple[float, ...] | None
     options: dict[str, Any] | None = None
+    # TS PositionManagement: {"breakevenR"?: float, "trail"?: {"activateR", "multiple", "atr"}}
+    # (atr: tuple, the DSL ATR of the signal bars), or None without a management block.
+    management: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -117,6 +125,8 @@ class RunOptions:
     costs: dict | None
     risk_pct: float | None = None
     max_hold_bars: int | None = None
+    # With risk_pct: cap the position cost at cash * max_leverage (1 to 50) instead of the cash.
+    max_leverage: float | None = None
 
 
 # ---------------------------------------------------------------------------------------------
@@ -544,8 +554,35 @@ def compile_rule(bars: Bars, rule: Mapping[str, Any]) -> tuple[int, ...]:
 # Strategy DSL.
 
 
+# Keys of each object the TS schema declares .strict() (unknown keys are an input error).
+_DEFINITION_KEYS = frozenset({"version", "name", "description", "entry", "exit", "filters", "management",
+                              "options", "session", "sizing", "stopLoss", "takeProfit"})
+_EXPR_KEYS = {
+    "price": frozenset({"type", "field", "offset"}),
+    "const": frozenset({"type", "value"}),
+    "indicator": frozenset({"type", "name", "length", "source", "offset", "timeframe"}),
+}
+_CONDITION_KEYS = frozenset({"left", "op", "right", "oncePerLevel"})
+
+
+def _strict(value: Mapping[str, Any], keys: frozenset[str], where: str) -> None:
+    """TS .strict(): rejects keys the schema does not declare."""
+    unknown = sorted(set(value) - keys)
+    if unknown:
+        raise InputError(f"Unknown key in {where}: {unknown[0]}")
+
+
+def _whole(value: Any, low: int, high: int) -> bool:
+    """A whole number from low to high; a float with no fraction counts (JSON has one number type)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value).is_integer() and low <= value <= high
+
+
 def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
     kind = expr.get("type")
+    if kind in _EXPR_KEYS:
+        _strict(expr, _EXPR_KEYS[kind], f"{kind} expression")
     if kind == "price":
         if expr.get("field") not in PRICE_FIELDS:
             raise InputError(f"Unknown price field: {expr.get('field')}")
@@ -566,25 +603,44 @@ def _normalize_expr(expr: Mapping[str, Any]) -> dict[str, Any]:
         if not (isinstance(length, int) and not isinstance(length, bool)) or length < 1:
             if not (isinstance(length, float) and length.is_integer() and length >= 1):
                 raise InputError(f"{name} length must be a whole number of at least 1")
-        return {
+        normalized = {
             "type": "indicator",
             "name": name,
             "length": int(length),
             "source": source,
             "offset": int(expr.get("offset") or 0),
         }
+        timeframe = expr.get("timeframe")
+        if timeframe is not None:
+            if timeframe not in INDICATOR_TIMEFRAMES:
+                raise InputError(f"Unknown indicator timeframe: {timeframe}")
+            if name == "rvol":
+                raise InputError("rvol has no timeframe; it already compares whole sessions")
+            normalized["timeframe"] = timeframe
+        return normalized
     raise InputError(f"Unknown expression type: {kind}")
 
 
 def _normalize_condition(condition: Mapping[str, Any]) -> dict[str, Any]:
+    _strict(condition, _CONDITION_KEYS, "condition")
     op = condition.get("op")
     if op not in OPERATORS:
         raise InputError(f"Unknown operator: {op}")
-    return {
+    normalized = {
         "left": _normalize_expr(condition["left"]),
         "op": op,
         "right": _normalize_expr(condition["right"]),
     }
+    once = condition.get("oncePerLevel")
+    if "oncePerLevel" in condition and not isinstance(once, bool):
+        raise InputError("oncePerLevel must be true or false")
+    if once:
+        if op not in EVENT_OPERATORS:
+            raise InputError(
+                "oncePerLevel works only with crossesAbove, crossesBelow, breaksAbove and breaksBelow"
+            )
+        normalized["oncePerLevel"] = True
+    return normalized
 
 
 def _normalize_level(level: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -664,24 +720,86 @@ def _normalize_filter(item: Mapping[str, Any]) -> dict[str, Any]:
         series = item.get("series")
         if series not in SERIES_IDS:
             raise InputError(f"Unknown series: {series}")
-        condition = _normalize_condition(item["condition"])
+        raw = item["condition"]
+        if "oncePerLevel" in raw or any(
+            isinstance(side, Mapping) and "timeframe" in side for side in (raw.get("left"), raw.get("right"))
+        ):
+            raise InputError(
+                "A series condition takes no oncePerLevel or timeframe: the series has one value per date"
+            )
+        condition = _normalize_condition(raw)
         if not (_close_only(condition["left"]) and _close_only(condition["right"])):
             raise InputError(SERIES_CLOSE_ONLY)
         return {"type": "series", "series": series, "condition": condition}
     raise InputError(f"Unknown filter type: {kind}")
 
 
+def _management_level(value: Any, name: str) -> float:
+    if not (is_finite_number(value) and 0 < value <= 100):
+        raise InputError(f"management {name} must be above 0 and at most 100")
+    return float(value)
+
+
+def _normalize_management(
+    management: Mapping[str, Any] | None, stop_loss: Mapping[str, Any], options: Any
+) -> dict[str, Any] | None:
+    """TS StrategyManagementSchema and its definition refinements; None without a block."""
+    if management is None:
+        return None
+    _strict(management, frozenset({"breakevenR", "trail"}), "management")
+    normalized: dict[str, Any] = {}
+    if "breakevenR" in management:
+        normalized["breakevenR"] = _management_level(management["breakevenR"], "breakevenR")
+    if "trail" in management:
+        trail = management["trail"]
+        if not isinstance(trail, Mapping):
+            raise InputError("management trail must be an object")
+        _strict(trail, frozenset({"activateR", "length", "multiple"}), "management trail")
+        length = trail.get("length")
+        if not _whole(length, 1, 1000):
+            raise InputError("management trail length must be a whole number from 1 to 1000")
+        normalized["trail"] = {
+            "activateR": _management_level(trail.get("activateR"), "trail activateR"),
+            "length": int(length),
+            "multiple": _management_level(trail.get("multiple"), "trail multiple"),
+        }
+    if not normalized:
+        raise InputError("management needs trail, breakevenR or both")
+    if stop_loss["kind"] == "none":
+        raise InputError("management moves the stop loss; add a stop loss")
+    if options is not None:
+        raise InputError(
+            "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+        )
+    return normalized
+
+
 def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
-    """Applies the StrategyDefinitionSchema defaults and rejects unknown names and operators."""
+    """Applies the StrategyDefinitionSchema defaults and rejects unknown names, operators and keys
+    (the TS schema objects are strict; filter and options blocks keep their own checks)."""
+    _strict(definition, _DEFINITION_KEYS, "definition")
     entry = definition.get("entry") or {}
+    _strict(entry, frozenset({"all", "any"}), "entry")
     entry_all = entry.get("all") or []
-    if len(entry_all) == 0:
-        raise InputError("A strategy needs at least one entry condition")
-    exit_any = (definition.get("exit") or {}).get("any") or []
+    entry_any = entry.get("any") or []
+    if len(entry_all) + len(entry_any) == 0:
+        raise InputError("Entry needs at least one condition in entry.all or entry.any")
+    exit_ = definition.get("exit") or {}
+    _strict(exit_, frozenset({"any"}), "exit")
+    exit_any = exit_.get("any") or []
     sizing = definition.get("sizing") or {"mode": "allIn"}
     if sizing.get("mode") == "riskPct":
+        _strict(sizing, frozenset({"mode", "riskPct", "maxLeverage"}), "sizing")
+        max_leverage = sizing.get("maxLeverage")
         sizing = {"mode": "riskPct", "riskPct": float(sizing["riskPct"])}
+        if max_leverage is not None:
+            if not (is_finite_number(max_leverage) and 1 <= max_leverage <= MAX_LEVERAGE):
+                raise InputError(f"maxLeverage must be from 1 to {MAX_LEVERAGE}")
+            sizing["maxLeverage"] = float(max_leverage)
     elif sizing.get("mode") == "allIn":
+        if "maxLeverage" in sizing:
+            raise InputError("maxLeverage needs riskPct sizing")
+        _strict(sizing, frozenset({"mode"}), "sizing")
         sizing = {"mode": "allIn"}
     else:
         raise InputError(f"Unknown sizing mode: {sizing.get('mode')}")
@@ -700,11 +818,16 @@ def normalize_definition(definition: Mapping[str, Any]) -> dict[str, Any]:
                 " remove the stop loss and take profit"
             )
     session = definition.get("session")
+    management = _normalize_management(definition.get("management"), stop_loss, options)
+    entry_out: dict[str, Any] = {"all": [_normalize_condition(c) for c in entry_all]}
+    if entry_any:
+        entry_out["any"] = [_normalize_condition(c) for c in entry_any]
     return {
         "name": definition.get("name"),
-        "entry": {"all": [_normalize_condition(c) for c in entry_all]},
+        "entry": entry_out,
         "exit": {"any": [_normalize_condition(c) for c in exit_any]},
         "filters": filters,
+        "management": management,
         "options": None if options is None else dict(options),
         "session": None if session is None else {"startUtc": session["startUtc"], "endUtc": session["endUtc"]},
         "sizing": sizing,
@@ -726,12 +849,82 @@ def _shift(values: Sequence[float], offset: int) -> Series:
     return out
 
 
+def _indicator_key(expr: Mapping[str, Any]) -> str:
+    """TS indicatorKey: name:length:source, plus :timeframe when set."""
+    timeframe = expr.get("timeframe")
+    suffix = "" if timeframe is None else f":{timeframe}"
+    return f"{expr['name']}:{expr['length']}:{expr['source']}{suffix}"
+
+
+# A session day starts at 17:00 New York: the day key is the New York date of t + 7 hours.
+SESSION_DAY_SHIFT_MS = 7 * HOUR_MS
+
+
+def session_daily_bars(bars: Bars) -> tuple[Bars, list[int]]:
+    """TS sessionDailyBars: daily bars (first open, highest high, lowest low, last close, summed
+    volume when present; time of the first signal bar) and the daily index of every signal bar."""
+    offsets: dict[int, float] = {}
+    day: list[int] = []
+    t: list[float] = []
+    o: list[float] = []
+    h: list[float] = []
+    low_: list[float] = []
+    c: list[float] = []
+    v: list[float] = []
+    key: float | None = None
+    for index in range(len(bars.c)):
+        shifted = bars.t[index] + SESSION_DAY_SHIFT_MS
+        following = math.floor((shifted + _new_york_offset(shifted, offsets)) / DAY_MS)
+        high = bars.h[index]
+        low = bars.l[index]
+        volume = 0.0 if bars.v is None else bars.v[index]
+        if following != key:
+            key = following
+            t.append(bars.t[index])
+            o.append(bars.o[index])
+            h.append(high)
+            low_.append(low)
+            v.append(volume)
+            c.append(0.0)
+        else:
+            if high > h[-1]:
+                h[-1] = high
+            if low < low_[-1]:
+                low_[-1] = low
+            v[-1] = v[-1] + volume
+        c[-1] = bars.c[index]
+        day.append(len(c) - 1)
+    daily = Bars(
+        t=tuple(t), o=tuple(o), h=tuple(h), l=tuple(low_), c=tuple(c),
+        v=None if bars.v is None else tuple(v),
+    )
+    return daily, day
+
+
 class _Evaluator:
     """Evaluates expressions with a cache keyed like the TypeScript SeriesCache."""
 
     def __init__(self, bars: Bars) -> None:
         self.bars = bars
         self.cache: dict[str, Sequence[float]] = {}
+        self._days: tuple[Bars, list[int]] | None = None
+
+    def _daily_indicator(self, expr: Mapping[str, Any]) -> Series:
+        """TS dailyIndicator: highest and lowest read day D, every other indicator day D - 1."""
+        if self._days is None:
+            self._days = session_daily_bars(self.bars)
+        daily_bars, day = self._days
+        count = len(daily_bars.c)
+        if expr["length"] > count:
+            raise InputError(
+                f"{expr['name']} length {expr['length']} is longer than the {count} daily bars"
+            )
+        daily = _Evaluator(daily_bars)._current(
+            {"type": "indicator", "name": expr["name"], "length": expr["length"],
+             "source": expr["source"], "offset": 0}
+        )
+        lag = 0 if expr["name"] in ("highest", "lowest") else 1
+        return [NAN if at - lag < 0 else daily[at - lag] for at in day]
 
     def evaluate(self, expr: Mapping[str, Any]) -> Sequence[float]:
         current = self._current(expr)
@@ -743,7 +936,7 @@ class _Evaluator:
         key = (
             f"price:{expr['field']}@{offset}"
             if expr["type"] == "price"
-            else f"{expr['name']}:{expr['length']}:{expr['source']}@{offset}"
+            else f"{_indicator_key(expr)}@{offset}"
         )
         cached = self.cache.get(key)
         if cached is not None:
@@ -759,11 +952,18 @@ class _Evaluator:
             return _column(bars, expr["field"])
         if expr["type"] == "const":
             return [expr["value"]] * size
+        if expr.get("timeframe") is not None:
+            key = _indicator_key(expr)
+            cached = self.cache.get(key)
+            if cached is None:
+                cached = self._daily_indicator(expr)
+                self.cache[key] = cached
+            return cached
         name = expr["name"]
         length = expr["length"]
         if length > size:
             raise InputError(f"{name} length {length} is longer than the {size} bars")
-        key = f"{name}:{length}:{expr['source']}"
+        key = _indicator_key(expr)
         cached = self.cache.get(key)
         if cached is not None:
             return cached
@@ -809,6 +1009,8 @@ def _compare(op: str, left: float, right: float) -> bool:
 def _compare_series(op: str, left: Sequence[float], right: Sequence[float]) -> list[int]:
     """1 where `left op right` holds. A cross holds now but not on the previous bar."""
     cross = op in ("crossesAbove", "crossesBelow")
+    if op in ("breaksAbove", "breaksBelow"):
+        return _break_series(op, left, right)
     out = [0] * len(left)
     previous = False
     for index in range(len(left)):
@@ -818,11 +1020,42 @@ def _compare_series(op: str, left: Sequence[float], right: Sequence[float]) -> l
     return out
 
 
+def _break_series(op: str, left: Sequence[float], right: Sequence[float]) -> list[int]:
+    """TS breakSeries: breaksAbove at i is left[i] > right[i] and left[i - 1] <= right[i] (the
+    previous left against the current right); breaksBelow mirrors it. False at bar 0 and on NaN."""
+    out = [0] * len(left)
+    above = op == "breaksAbove"
+    for index in range(1, len(left)):
+        now = left[index]
+        level = right[index]
+        before = left[index - 1]
+        fired = (now > level and before <= level) if above else (now < level and before >= level)
+        if fired:
+            out[index] = 1
+    return out
+
+
+def _once_per_level(fired: list[int], right: Sequence[float]) -> list[int]:
+    """TS oncePerLevel: drops a bar where the condition holds when the same right value (exact
+    float) already made it hold on an earlier bar. Changes `fired` in place."""
+    levels: set[float] = set()
+    for index, value in enumerate(fired):
+        if value != 1:
+            continue
+        level = right[index]
+        if level in levels:
+            fired[index] = 0
+        else:
+            levels.add(level)
+    return fired
+
+
 def _condition_series(evaluator: _Evaluator, condition: Mapping[str, Any]) -> list[int]:
     """1 where the condition holds on the bars."""
     left = evaluator.evaluate(condition["left"])
     right = evaluator.evaluate(condition["right"])
-    return _compare_series(condition["op"], left, right)
+    fired = _compare_series(condition["op"], left, right)
+    return _once_per_level(fired, right) if condition.get("oncePerLevel") else fired
 
 
 def _minutes_of(time: str) -> int:
@@ -1214,6 +1447,22 @@ def _distance_series(
     return tuple(value * multiple for value in atr)
 
 
+def _management(evaluator: _Evaluator, management: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """TS managementOf: the engine form of a management block (trail ATR on the signal bars)."""
+    if management is None:
+        return None
+    out: dict[str, Any] = {}
+    if "breakevenR" in management:
+        out["breakevenR"] = management["breakevenR"]
+    trail = management.get("trail")
+    if trail is not None:
+        atr = evaluator.evaluate(
+            {"type": "indicator", "name": "atr", "length": trail["length"], "source": "close", "offset": 0}
+        )
+        out["trail"] = {"activateR": trail["activateR"], "multiple": trail["multiple"], "atr": tuple(atr)}
+    return out
+
+
 def compile_strategy(
     bars: Bars,
     definition: Mapping[str, Any],
@@ -1232,11 +1481,14 @@ def compile_strategy(
     filters = _filter_masks(bars, normalized, sector_quadrants, context, symbol)
     entries = [_condition_series(evaluator, c) for c in normalized["entry"]["all"]] + filters
     exits = [_condition_series(evaluator, c) for c in normalized["exit"]["any"]]
+    any_of = [_condition_series(evaluator, c) for c in normalized["entry"].get("any", [])]
     session = normalized["session"]
     signals = [0] * size
     exit_mask = [0] * size
     for index in range(size):
         enter = all(series[index] == 1 for series in entries) and (
+            not any_of or any(series[index] == 1 for series in any_of)
+        ) and (
             session is None or _in_session(bars.t[index], session)
         )
         leave = any(series[index] == 1 for series in exits)
@@ -1252,6 +1504,7 @@ def compile_strategy(
         stop_distance=_distance_series(evaluator, normalized["stopLoss"]),
         target_distance=_distance_series(evaluator, normalized["takeProfit"]),
         options=normalized["options"],
+        management=_management(evaluator, normalized["management"]),
     )
 
 
@@ -1305,6 +1558,7 @@ def plan_run(bars: Bars, spec: Mapping[str, Any]) -> tuple[Compiled, RunOptions]
             take_profit_pct=target["pct"] if target["kind"] == "pct" else 0,
             costs=costs,
             risk_pct=sizing["riskPct"] if sizing["mode"] == "riskPct" else None,
+            max_leverage=sizing.get("maxLeverage"),
         )
         size = assert_columns(bars)
     else:
@@ -1350,6 +1604,7 @@ __all__ = [
     "relative_strength",
     "relative_volume_at_time",
     "server_refusal",
+    "session_daily_bars",
     "rolling_mean",
     "rolling_zscore",
     "wilder_rsi",

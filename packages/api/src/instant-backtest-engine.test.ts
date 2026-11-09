@@ -9,6 +9,8 @@ import {
   priorExtreme,
   rollingMean,
   runInstantBacktest,
+  runSignalBacktest,
+  type SignalRunOptions,
   wilderRsi,
 } from "./instant-backtest-engine.ts";
 
@@ -734,5 +736,322 @@ describe("runInstantBacktest cost profiles", () => {
         ).toEqual(plain.trades);
       }
     }
+  });
+});
+
+describe("runSignalBacktest stop management", () => {
+  const constant = (size: number, value: number) =>
+    new Float64Array(size).fill(value);
+  const signalsOf = (size: number) => {
+    const signals = new Int8Array(size);
+    signals[0] = 1;
+    return signals;
+  };
+  const run = (
+    rows: readonly Row[],
+    overrides: Partial<SignalRunOptions> = {}
+  ) =>
+    runSignalBacktest(columns(rows), signalsOf(rows.length), {
+      costBps: 0,
+      stopDistance: constant(rows.length, 5),
+      stopLossPct: 0,
+      takeProfitPct: 0,
+      ...overrides,
+    });
+
+  // Entry at the bar 1 open (100) with a 5 stop: R = 5.
+  const breakevenRows: Row[] = [
+    [100, 100, 100, 100],
+    [100, 103, 99, 102],
+    // The high reaches entry + 1R (105); the low (99) is below the entry but the new stop
+    // applies only from the next bar.
+    [102, 106, 99, 104],
+    [104, 104, 99.5, 100],
+    [100, 101, 99.5, 100],
+  ];
+
+  it("moves the stop to the entry once the high reaches entry + breakevenR × R", () => {
+    const { trades } = run(breakevenRows, { management: { breakevenR: 1 } });
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      entryIndex: 1,
+      entryPrice: 100,
+      exitIndex: 3,
+      exitPrice: 100,
+      exitReason: "stop",
+    });
+  });
+
+  it("leaves the stop below a breakeven level the high never reaches", () => {
+    const { trades } = run(breakevenRows, { management: { breakevenR: 2 } });
+    expect(trades[0]).toMatchObject({ exitIndex: 4, exitReason: "end" });
+  });
+
+  it("moves the stop the same way with a cost profile", () => {
+    const { trades } = run(breakevenRows, {
+      costs: { capital: 1000, profile: ZERO_COST_PROFILE },
+      management: { breakevenR: 1 },
+    });
+    expect(trades[0]).toMatchObject({ exitIndex: 3, exitReason: "stop" });
+  });
+
+  it("moves nothing without a stop", () => {
+    const { trades } = runSignalBacktest(
+      columns(breakevenRows),
+      signalsOf(breakevenRows.length),
+      {
+        costBps: 0,
+        management: { breakevenR: 1 },
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades[0]).toMatchObject({ exitIndex: 4, exitReason: "end" });
+  });
+
+  // Entry at 100, stop 95 (R = 5). The trail activates once the high reaches 105.
+  const trailRows: Row[] = [
+    [100, 100, 100, 100],
+    [100, 104, 99, 103],
+    // Active: stop = highest close 105 - 2 × ATR 1 = 103.
+    [103, 106, 102, 105],
+    // Stop = 107 - 2 = 105.
+    [105, 108, 104, 107],
+    // ATR 3 would give 107 - 6 = 101: the stop never moves down.
+    [107, 108, 106, 107],
+    [107, 107, 104.5, 105],
+    [105, 106, 104, 105],
+  ];
+  const trailAtr = Float64Array.from([1, 1, 1, 1, 3, 1, 1]);
+
+  it("trails the highest close by multiple × ATR once activated and never lowers it", () => {
+    const { trades } = run(trailRows, {
+      management: { trail: { activateR: 1, atr: trailAtr, multiple: 2 } },
+    });
+    expect(trades[0]).toMatchObject({
+      exitIndex: 5,
+      exitPrice: 105,
+      exitReason: "stop",
+    });
+  });
+
+  it("does not trail before the high reaches entry + activateR × R", () => {
+    const { trades } = run(trailRows, {
+      management: { trail: { activateR: 2, atr: trailAtr, multiple: 2 } },
+    });
+    expect(trades[0]).toMatchObject({ exitIndex: 6, exitReason: "end" });
+  });
+
+  it("leaves the stop on a NaN ATR", () => {
+    const { trades } = run(trailRows, {
+      management: {
+        trail: {
+          activateR: 1,
+          atr: constant(trailRows.length, Number.NaN),
+          multiple: 2,
+        },
+      },
+    });
+    expect(trades[0]).toMatchObject({ exitIndex: 6, exitReason: "end" });
+  });
+
+  it("combines breakeven and trail, taking the higher stop", () => {
+    const { trades } = run(trailRows, {
+      management: {
+        breakevenR: 1,
+        trail: { activateR: 1, atr: trailAtr, multiple: 2 },
+      },
+    });
+    expect(trades[0]).toMatchObject({ exitIndex: 5, exitPrice: 105 });
+  });
+
+  // Entry 100, stop 95 (R = 5). Bar 1 reaches 106, so breakeven raises the stop to 100 at its
+  // close; bar 2 meets the raised stop in four ways.
+  it.each([
+    ["opens below the raised stop: fills at the open", [98, 99, 97, 98], 98],
+    ["opens exactly at the raised stop", [100, 101, 99, 100], 100],
+    ["touches the raised stop inside the bar", [102, 103, 100, 101], 100],
+  ] as const)("raised stop: bar %s", (_, bar, price) => {
+    const { trades } = run(
+      [[100, 100, 100, 100], [100, 106, 99, 104], bar, [100, 101, 99, 100]],
+      { management: { breakevenR: 1 } }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: price,
+      exitReason: "stop",
+    });
+  });
+
+  it("exits at the next open when the raised stop is above the raising bar's close", () => {
+    // Bar 1 reaches 106 but closes at 99, below the new stop (100); bar 2 opens at 99.5.
+    const { trades } = run(
+      [
+        [100, 100, 100, 100],
+        [100, 106, 98, 99],
+        [99.5, 100.5, 99, 100],
+        [100, 101, 99, 100],
+      ],
+      { management: { breakevenR: 1 } }
+    );
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 99.5,
+      exitReason: "stop",
+    });
+  });
+
+  it("skips NaN highs and closes in the management", () => {
+    const rows: Row[] = breakevenRows.map((row) => [...row]);
+    rows[1] = [100, Number.NaN, 99, Number.NaN];
+    const { trades } = run(rows, { management: { breakevenR: 1 } });
+    expect(trades[0]).toMatchObject({ exitIndex: 3, exitReason: "stop" });
+  });
+
+  it.each([
+    [{ maxLeverage: 2 }, "maxLeverage needs riskPct"],
+    [{ maxLeverage: 0.5, riskPct: 1 }, "maxLeverage must be from 1 to 50"],
+    [{ maxLeverage: 51, riskPct: 1 }, "maxLeverage must be from 1 to 50"],
+    [
+      { maxLeverage: Number.NaN, riskPct: 1 },
+      "maxLeverage must be from 1 to 50",
+    ],
+    [{ management: { breakevenR: 0 } }, "breakevenR must be above 0"],
+    [
+      { management: { breakevenR: Number.POSITIVE_INFINITY } },
+      "breakevenR must be above 0",
+    ],
+    [
+      {
+        management: {
+          trail: { activateR: 0, atr: constant(7, 1), multiple: 1 },
+        },
+      },
+      "trail activateR must be above 0",
+    ],
+    [
+      {
+        management: {
+          trail: { activateR: 1, atr: constant(7, 1), multiple: Number.NaN },
+        },
+      },
+      "trail multiple must be above 0",
+    ],
+    [
+      {
+        management: {
+          trail: { activateR: 1, atr: constant(6, 1), multiple: 1 },
+        },
+      },
+      "trail ATR must match the bar count",
+    ],
+  ] as const)("rejects %o", (overrides, message) => {
+    expect(() => run(trailRows, overrides)).toThrow(
+      new InstantBacktestInputError(message)
+    );
+  });
+});
+
+describe("runSignalBacktest maxLeverage", () => {
+  // Entry at 100 with a stop 1 below: riskPct 10 of equity 1 is 0.1 units, cost 10.
+  const bars = columns([
+    [100, 100, 100, 100],
+    [100, 102, 100, 102],
+    [102, 103, 101, 103],
+  ]);
+  const signals = Int8Array.from([1, 0, 0]);
+  const run = (maxLeverage?: number) =>
+    runSignalBacktest(bars, signals, {
+      costBps: 0,
+      riskPct: 10,
+      stopDistance: new Float64Array(3).fill(1),
+      stopLossPct: 0,
+      takeProfitPct: 0,
+      ...(maxLeverage === undefined ? {} : { maxLeverage }),
+    });
+
+  it("caps the position at the cash without maxLeverage", () => {
+    const { equity, trades } = run();
+    expect(trades[0]?.units).toBeCloseTo(0.01, 12);
+    expect(equity[1]).toBeCloseTo(1.02, 12);
+  });
+
+  it("caps the position at cash × maxLeverage, borrowing into negative rest", () => {
+    const { equity, trades } = run(5);
+    expect(trades[0]?.units).toBeCloseTo(0.05, 12);
+    // rest = 1 - 5 = -4; equity = -4 + 0.05 × 102.
+    expect(equity[1]).toBeCloseTo(1.1, 12);
+    // Closed at the last close: -4 + 0.05 × 103.
+    expect(equity[2]).toBeCloseTo(1.15, 12);
+  });
+
+  it("sizes by risk when the leverage cap is above the risk size", () => {
+    const { equity, trades } = run(20);
+    expect(trades[0]?.units).toBeCloseTo(0.1, 12);
+    // rest = 1 - 10 = -9; equity = -9 + 0.1 × 102.
+    expect(equity[1]).toBeCloseTo(1.2, 12);
+  });
+
+  it("stops trading after a gap through the stop takes equity below 0", () => {
+    // riskPct 10, stop 1 below, 20× cap: 0.1 units cost 10 (rest -9); a gap to 50 fills the stop
+    // at the open: cash -9 + 0.1 × 50 = -4. The signal at bar 3 does not enter.
+    const { equity, trades } = runSignalBacktest(
+      columns([
+        [100, 100, 100, 100],
+        [100, 100, 100, 100],
+        [50, 50, 50, 50],
+        [50, 51, 49, 50],
+        [50, 50, 50, 50],
+      ]),
+      Int8Array.from([1, 0, 0, 1, 0]),
+      {
+        costBps: 0,
+        maxLeverage: 20,
+        riskPct: 10,
+        stopDistance: new Float64Array(5).fill(1),
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      exitIndex: 2,
+      exitPrice: 50,
+      exitReason: "stop",
+    });
+    expect(
+      Array.from(equity, (value) => Math.round(value * 1e9) / 1e9)
+    ).toEqual([1, 1, -4, -4, -4]);
+  });
+
+  it("closes a position at the close when its marked equity reaches 0 (ruin)", () => {
+    // costBps 500, riskPct 50, stop 1 below, 20× cap: spent 20, units 20 × 0.95 / 100 = 0.19,
+    // rest -19. Close 99.5 (stop 99 not reached) marks -19 + 0.19 × 99.5 < 0: exit at that close.
+    const { equity, trades } = runSignalBacktest(
+      columns([
+        [100, 100, 100, 100],
+        [100, 100, 99.5, 99.5],
+        [100, 101, 99.5, 100],
+        [100, 101, 99.5, 100],
+      ]),
+      Int8Array.from([1, 0, 1, 0]),
+      {
+        costBps: 500,
+        maxLeverage: 20,
+        riskPct: 50,
+        stopDistance: new Float64Array(4).fill(1),
+        stopLossPct: 0,
+        takeProfitPct: 0,
+      }
+    );
+    expect(trades).toHaveLength(1);
+    expect(trades[0]).toMatchObject({
+      entryIndex: 1,
+      exitIndex: 1,
+      exitPrice: 99.5,
+      exitReason: "stop",
+    });
+    const cash = -19 + 0.19 * 99.5 * 0.95;
+    for (const value of equity.slice(1)) expect(value).toBeCloseTo(cash, 12);
   });
 });
