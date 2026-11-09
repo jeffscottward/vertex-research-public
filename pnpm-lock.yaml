@@ -739,6 +739,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@darkfactory/academy':
+        specifier: workspace:*
+        version: link:../academy
       '@darkfactory/config':
         specifier: workspace:*
         version: link:../config

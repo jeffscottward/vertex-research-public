@@ -1102,6 +1102,7 @@ describe("feature item mutation repository", () => {
       "optimizationRuns",
       "quantLab",
       "researchStudies",
+      "academyContent",
       "flow",
       "strategyLibrary",
       "deploymentRequests",

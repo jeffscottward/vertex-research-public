@@ -7,7 +7,12 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { lessonVtt, narrationTimingFor } from "@darkfactory/academy";
+import {
+  courseOf,
+  DEFAULT_COURSE_ID,
+  lessonVtt,
+  narrationTimingFor,
+} from "@darkfactory/academy";
 import { ACADEMY_LESSONS } from "@darkfactory/academy/lessons";
 import { bundle } from "@remotion/bundler";
 import {
@@ -49,9 +54,11 @@ export type RenderDependencies = Readonly<{
 type AcademyLesson = (typeof ACADEMY_LESSONS)[number];
 
 /** Spec hash recorded in the manifest; the knowledge-base source does not affect the render.
- * Narration timing changes the timeline, so it is part of the hash. */
+ * Narration timing changes the timeline, so it is part of the hash. The default course is left out
+ * so specs that predate courses keep their recorded hash. */
 export const lessonSpecHash = (lesson: AcademyLesson): string => {
-  const { source: _source, ...spec } = lesson;
+  const { source: _source, course, ...rest } = lesson;
+  const spec = course === DEFAULT_COURSE_ID ? rest : { course, ...rest };
   const narration = narrationTimingFor(lesson);
   return createHash("sha256")
     .update(JSON.stringify(narration === null ? spec : { ...spec, narration }))
@@ -85,8 +92,11 @@ export const renderLessons = async (
     MediaManifestEntry
   >;
 
-  const lessons = ACADEMY_LESSONS.filter(
-    (lesson) => args.includes("--all") || slugs.includes(lesson.slug)
+  // --all renders narrated courses only (courses.ts); others play the live animation on the page.
+  const lessons = ACADEMY_LESSONS.filter((lesson) =>
+    args.includes("--all")
+      ? courseOf(lesson).narrated
+      : slugs.includes(lesson.slug)
   );
   if (lessons.length === 0) {
     dependencies.stderr.write("No lessons selected. Pass --all or slugs.\n");

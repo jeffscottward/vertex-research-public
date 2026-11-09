@@ -11,13 +11,11 @@ const cancelDashboardResponseBody = (response: Response): void => {
 
 const readBoundedDashboardResponse = async (
   response: Response,
-  signal: AbortSignal
+  signal: AbortSignal,
+  maxBytes: number
 ): Promise<Response> => {
   const declaredLength = Number(response.headers.get("content-length"));
-  if (
-    Number.isFinite(declaredLength) &&
-    declaredLength > MAX_DASHBOARD_RESPONSE_BYTES
-  ) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     cancelDashboardResponseBody(response);
     throw new Error("Dashboard response exceeded the safe size limit");
   }
@@ -34,7 +32,7 @@ const readBoundedDashboardResponse = async (
       const result = await reader.read();
       if (result.done) break;
       byteLength += result.value.byteLength;
-      if (byteLength > MAX_DASHBOARD_RESPONSE_BYTES) {
+      if (byteLength > maxBytes) {
         try {
           await reader.cancel();
         } catch (error) {
@@ -68,7 +66,9 @@ export const createAuthenticatedDashboardFetch =
     trustedOrigin: string,
     fetcher: DashboardTransportFetch = globalThis.fetch,
     timeoutMs = DEFAULT_DASHBOARD_TIMEOUT_MS,
-    appEnvironment: string | undefined = globalThis.process?.env?.["APP_ENV"]
+    appEnvironment: string | undefined = globalThis.process?.env?.["APP_ENV"],
+    /** Response size cap; larger reads (the Academy lesson catalog) raise it. */
+    maxResponseBytes = MAX_DASHBOARD_RESPONSE_BYTES
   ): DashboardTransportFetch =>
   async (request) => {
     const controller = new AbortController();
@@ -114,7 +114,8 @@ export const createAuthenticatedDashboardFetch =
       }
       const boundedResponse = await readBoundedDashboardResponse(
         response,
-        controller.signal
+        controller.signal,
+        maxResponseBytes
       );
       if (controller.signal.aborted)
         throw new Error("Dashboard request exceeded the safe deadline");
