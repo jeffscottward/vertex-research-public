@@ -209,6 +209,8 @@ def document(ctx: Context, tables: dict[str, list[dict[str, Any]]], version: str
         if problems:
             ctx.warn(f"{table}: dropped {len(problems)} rows that fail the row schema (first: {problems[0]})")
         out_tables.append({"table": table, "rows": kept})
+    if not any(t["rows"] for t in out_tables):
+        ctx.warn(f"{ctx.job}: every table is empty")
     return {
         "schemaVersion": SCHEMA_VERSION,
         "job": ctx.job,
@@ -224,6 +226,7 @@ def run(
     env: Mapping[str, str] | None = None,
     up: Upstream | None = None,
     today: date | None = None,
+    now: datetime | None = None,
     stdout: TextIO | None = None,
     stderr: TextIO | None = None,
 ) -> int:
@@ -256,6 +259,7 @@ def run(
             scrub = (env.get(sec_guard.CONTACT_ENV, "").strip(),)
         upstream = up or Upstream(scrub=scrub)
         ctx = build_context(args, env, upstream, today or new_york_today())
+        ctx.now = now
     except (ArgumentError, sec_guard.ContactError) as exc:
         stderr.write(f"vertex_openbb: {exc}\n")
         return EXIT_ARGS
@@ -300,7 +304,8 @@ def run(
         return EXIT_UPSTREAM
 
     doc = document(ctx, tables, openbb_version())
-    text = json.dumps(doc, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+    # ASCII escapes: a lone surrogate from an upstream string can never break the stdout encoding.
+    text = json.dumps(doc, ensure_ascii=True, allow_nan=False, separators=(",", ":"))
     for secret in scrub:
         if secret and secret in text:
             stderr.write("vertex_openbb: refusing to print a document that contains the contact address\n")

@@ -16,8 +16,16 @@ import type { DatabaseExecutor } from "./client.ts";
 // them with parseFloat; negative zero is written as a float8 literal because String(-0) is "0".
 
 const INSERT_CHUNK_ROWS = 5000;
-/** sha256 (hex) of the stored rows of one series: `date|open|high|low|close|adj_close` lines. */
-const SERIES_SHA256 = `encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', date::text, coalesce(open::text, ''), coalesce(high::text, ''), coalesce(low::text, ''), close::text, coalesce(adj_close::text, '')), E'\\n' order by date), ''), 'UTF8')), 'hex')`;
+/**
+ * sha256 (hex) of the stored rows of one series: `date|open|high|low|close|adj_close` lines in date
+ * order, null as empty. Dates use to_char and floats the shortest exact text (the write transaction
+ * sets extra_float_digits = 1), so the digest does not depend on DateStyle or session settings.
+ */
+const SERIES_SHA256 = `encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', to_char(date, 'YYYY-MM-DD'), coalesce(open::text, ''), coalesce(high::text, ''), coalesce(low::text, ''), close::text, coalesce(adj_close::text, '')), E'\\n' order by date), ''), 'UTF8')), 'hex')`;
+
+/** Serializes every write of one series (replaceSeries, upsertPoints) inside its transaction. */
+const lockSeries = (id: string): SQL =>
+  sql`select pg_advisory_xact_lock(hashtextextended('market_daily_series:' || ${id}, 0))`;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 export const MARKET_DAILY_SERIES_ID_PATTERN = /^[A-Z0-9._^=-]{1,20}$/u;
 const ISO_DATE_PATTERN = /^([1-9]\d{3})-(\d{2})-(\d{2})$/u;
@@ -31,6 +39,12 @@ export type MarketDailySeries = Readonly<{
   firstDate: string;
   lastDate: string;
   importedAt: Date;
+}>;
+
+/** The series after upsertPoints and the number of points it inserted or updated. */
+export type MarketDailyUpsertResult = Readonly<{
+  series: MarketDailySeries;
+  written: number;
 }>;
 
 export type MarketDailySeriesInput = Readonly<{
@@ -79,14 +93,14 @@ export type MarketDailySeriesRepository = Readonly<{
    * source is the input's source, points are upserted by date (last duplicate wins); when another
    * source owns it (for example a `vertex:series:import` file), only dates after its last_date are
    * appended and stored closes are never overwritten. point_count, first_date, last_date and
-   * source_sha256 (sha256 of the stored rows, `date|open|high|low|close|adj_close` per line in
-   * date order) are then recomputed from storage. `sourceSha256` of the input is used only when no
+   * source_sha256 (SERIES_SHA256) are then recomputed from storage; the result counts the points
+   * inserted or updated. `sourceSha256` of the input is used only when no
    * stored row exists yet and is replaced by the recomputed digest.
    */
   upsertPoints: (
     series: MarketDailySeriesInput,
     points: readonly MarketDailyPoint[]
-  ) => Promise<MarketDailySeries>;
+  ) => Promise<MarketDailyUpsertResult>;
 }>;
 
 export class MarketDailySeriesInputError extends Error {
@@ -275,6 +289,7 @@ export const createMarketDailySeriesRepository = (
       sourceSha256: series.sourceSha256,
     };
     return await database.transaction(async (tx) => {
+      await tx.execute(lockSeries(series.id));
       await tx
         .delete(marketDailySeries)
         .where(eq(marketDailySeries.id, series.id));
@@ -301,9 +316,8 @@ export const createMarketDailySeriesRepository = (
     ].sort((a, b) => a.date.localeCompare(b.date));
     validateMarketDailySeries(series, sorted);
     return await database.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${series.id}))`
-      );
+      await tx.execute(lockSeries(series.id));
+      await tx.execute(sql`set local extra_float_digits = 1`);
       const [stored] = await tx
         .select()
         .from(marketDailySeries)
@@ -317,7 +331,8 @@ export const createMarketDailySeriesRepository = (
         appendAfter === null
           ? sorted
           : sorted.filter((point) => point.date > appendAfter);
-      if (stored !== undefined && writes.length === 0) return stored;
+      if (stored !== undefined && writes.length === 0)
+        return { series: stored, written: 0 };
       if (stored === undefined)
         await tx.insert(marketDailySeries).values({
           firstDate: (sorted[0] as MarketDailyPoint).date,
@@ -368,7 +383,7 @@ export const createMarketDailySeriesRepository = (
         })
         .where(eq(marketDailySeries.id, series.id))
         .returning();
-      return row as MarketDailySeries;
+      return { series: row as MarketDailySeries, written: writes.length };
     });
   },
 });

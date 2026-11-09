@@ -1,4 +1,5 @@
-# Every 5 minutes; each step's every_s and --window decide whether it runs (vertex-openbb.steps).
+# 5 minutes after the previous run ends (OnUnitInactiveSec); each step's every_s and --window decide
+# whether it runs (vertex-openbb.steps).
 [Unit]
 Description=Vertex OpenBB ingest timer (research only)
 

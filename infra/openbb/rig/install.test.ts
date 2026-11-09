@@ -75,6 +75,22 @@ describe("vertex-openbb.steps", () => {
     }
   });
 
+  it("gives every step at least the fetcher deadline plus 90 s", () => {
+    const cli = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../../services/openbb/vertex_openbb/cli.py",
+          import.meta.url
+        )
+      ),
+      "utf8"
+    );
+    const deadline = Number(/^DEFAULT_DEADLINE_S = ([\d.]+)$/mu.exec(cli)?.[1]);
+    expect(deadline).toBe(240);
+    for (const step of steps)
+      expect(step.timeout, step.name).toBeGreaterThanOrEqual(deadline + 90);
+  });
+
   it("runs every SEC job in a stage of its own and nothing else in SEC stages", () => {
     const sec = steps.filter((step) => step.name.startsWith("sec-"));
     const secStages = new Set(sec.map((step) => step.stage));
@@ -102,6 +118,8 @@ describe("vertex-openbb.service", () => {
       Number(directive(service, "TimeoutStartSec"))
     ).toBeGreaterThanOrEqual(needed);
     expect(directive(service, "MemoryMax")).toBe("3G");
+    expect(directive(service, "MemoryHigh")).toBe("2560M");
+    expect(directive(service, "OOMPolicy")).toBe("continue");
     expect(directive(service, "Type")).toBe("oneshot");
     expect(directive(service, "ExecStart")).toBe(
       "%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/.local/share/vertex-openbb/vertex-openbb.steps"
@@ -126,8 +144,11 @@ describe("scripts", () => {
     }
     const install = read("install.sh");
     expect(install).toContain(
-      'uv pip sync --quiet --require-hashes "$base/checkout/$lock"'
+      'uv pip sync --quiet --require-hashes --only-binary :all: --no-config "$base/checkout/$lock"'
     );
+    expect(install).toContain('user="$(id -un)"');
+    expect(install).not.toContain("$USER");
+    expect(install).not.toContain("static interface");
     expect(install).toContain(
       "uv pip install --quiet --no-deps --no-build-isolation"
     );
@@ -167,28 +188,49 @@ const fakeHome = (linger = "yes") => {
     chmodSync(join(bin, name), 0o755);
   };
   fake("bun", `echo "bun $*" >>"${log}"`);
-  fake("flock", `echo "flock $1" >>"${log}"; shift; exec "$@"`);
+  // Logs its full argument list; FAKE_FLOCK_BUSY makes it fail like a held lock (-E code, or 1).
+  fake(
+    "flock",
+    [
+      `echo "flock $*" >>"${log}"`,
+      'code=1; args=("$@")',
+      'while [[ "${1:-}" == -* ]]; do case "$1" in -E) code="$2"; shift 2;; -w) shift 2;; *) shift;; esac; done',
+      'if [[ -n "${FAKE_FLOCK_BUSY:-}" ]]; then exit "$code"; fi',
+      "shift",
+      'if [[ $# -gt 0 ]]; then exec "$@"; fi',
+    ].join("\n")
+  );
   fake("loginctl", `echo ${linger}`);
-  const run = (script: string, args: string[]) =>
+  const run = (
+    script: string,
+    args: string[],
+    extra: Record<string, string> = {}
+  ) =>
     spawnSync("bash", [here(script), ...args], {
       encoding: "utf8",
       env: {
         HOME: home,
         PATH: `${bin}:/usr/bin:/bin`,
-        USER: "tester",
+        ...extra,
       },
     });
   const calls = () => (existsSync(log) ? readFileSync(log, "utf8") : "");
-  return { calls, home, run };
+  const addTickRunner = () => {
+    const runner = join(home, "Github/tools/self-healing-harness/bin");
+    mkdirSync(runner, { recursive: true });
+    writeFileSync(join(runner, "tick-runner"), "#!/bin/sh\n");
+    chmodSync(join(runner, "tick-runner"), 0o755);
+  };
+  return { addTickRunner, calls, home, run };
 };
 
 describe("vertex-openbb-run.sh", () => {
-  it("holds the SEC lock for sec-* jobs only and passes arguments through", () => {
+  it("manual SEC runs wait for the SEC lock; other jobs take no lock", () => {
     const host = fakeHome();
     const sec = host.run("vertex-openbb-run.sh", ["sec-13f", "--dry-run"]);
     expect(sec.status).toBe(0);
     expect(host.calls()).toBe(
-      `flock ${host.home}/.cache/vertex-openbb/sec.lock\nbun run vertex:openbb:tick sec-13f --dry-run\n`
+      `flock ${host.home}/.cache/vertex-openbb/sec.lock ${host.home}/fake-bin/bun run vertex:openbb:tick sec-13f --dry-run\nbun run vertex:openbb:tick sec-13f --dry-run\n`
     );
     expect(existsSync(join(host.home, ".cache/vertex-openbb"))).toBe(true);
     const other = fakeHome();
@@ -197,29 +239,79 @@ describe("vertex-openbb-run.sh", () => {
     expect(`${sec.stdout}${sec.stderr}`).not.toContain("dfk_secret");
   });
 
-  it("exits 2 without the env or key file", () => {
+  it("timer SEC runs wait 20 s for the lock, then skip with exit 0", () => {
+    const host = fakeHome();
+    const timer = { INVOCATION_ID: "abc" };
+    const free = host.run("vertex-openbb-run.sh", ["sec-ftd"], timer);
+    expect(free.status).toBe(0);
+    expect(host.calls().split("\n")[0]).toBe(
+      `flock -w 20 -E 75 ${host.home}/.cache/vertex-openbb/sec.lock ${host.home}/fake-bin/bun run vertex:openbb:tick sec-ftd`
+    );
+    const busy = host.run("vertex-openbb-run.sh", ["sec-ftd"], {
+      ...timer,
+      FAKE_FLOCK_BUSY: "1",
+    });
+    expect(busy.status).toBe(0);
+    expect(busy.stdout).toBe("skip: SEC lock held (manual run in progress)\n");
+    const failing = fakeHome();
+    writeFileSync(
+      join(failing.home, "fake-bin/bun"),
+      "#!/usr/bin/env bash\nexit 1\n"
+    );
+    expect(failing.run("vertex-openbb-run.sh", ["sec-ftd"], timer).status).toBe(
+      1
+    );
+  });
+
+  it("exits 2 without the env or key file, or with an empty key", () => {
     const host = fakeHome();
     rmSync(join(host.home, ".config/vertex/openbb-key"));
     const result = host.run("vertex-openbb-run.sh", ["fed-rates"]);
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("missing");
+    writeFileSync(join(host.home, ".config/vertex/openbb-key"), "\r\n", {
+      mode: 0o600,
+    });
+    const empty = host.run("vertex-openbb-run.sh", ["fed-rates"]);
+    expect(empty.status).toBe(2);
+    expect(empty.stderr).toContain("is empty");
     expect(host.calls()).toBe("");
   });
 });
 
 describe("install.sh preflight", () => {
-  it("exits 2 without tick-runner, then without lingering", () => {
+  it("rejects bad arguments, then a missing tick-runner, then lingering off", () => {
     const host = fakeHome("no");
+    for (const args of [
+      [],
+      ["--enable"],
+      ["deadbeef", "--bogus"],
+      ["a", "--enable", "b"],
+    ])
+      expect(host.run("install.sh", args).status).toBe(2);
     const missing = host.run("install.sh", ["deadbeef"]);
     expect(missing.status).toBe(2);
     expect(missing.stderr).toContain("self-healing-harness");
-    const runner = join(host.home, "Github/tools/self-healing-harness/bin");
-    mkdirSync(runner, { recursive: true });
-    writeFileSync(join(runner, "tick-runner"), "#!/bin/sh\n");
-    chmodSync(join(runner, "tick-runner"), 0o755);
+    host.addTickRunner();
     const noLinger = host.run("install.sh", ["deadbeef"]);
     expect(noLinger.status).toBe(2);
     expect(noLinger.stderr).toContain("loginctl enable-linger");
-    expect(host.run("install.sh", []).status).toBe(2);
+    expect(host.calls()).toBe("");
+  });
+
+  it("holds tick-runner's run lock for the whole install and gives up after 600 s", () => {
+    const host = fakeHome();
+    host.addTickRunner();
+    const busy = host.run("install.sh", ["deadbeef", "--enable"], {
+      FAKE_FLOCK_BUSY: "1",
+    });
+    expect(busy.status).toBe(75);
+    expect(busy.stderr).toContain("run.lock after 600 s");
+    expect(host.calls()).toBe("flock -w 600 9\n");
+    expect(
+      existsSync(
+        join(host.home, ".local/state/tick-runner/vertex-openbb/run.lock")
+      )
+    ).toBe(true);
   });
 });

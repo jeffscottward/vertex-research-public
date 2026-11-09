@@ -66,8 +66,9 @@ describe("market daily series upsertPoints", () => {
       source: "cboe",
       sourceSha256: SHA,
     };
-    // Awaited in order: lock, stored-series select, series insert, points insert, recount.
-    const { calls, database } = createDouble([[], [], [], [], [stored]]);
+    // Awaited in order: lock, extra_float_digits, stored-series select, series insert, points
+    // insert, recount.
+    const { calls, database } = createDouble([[], [], [], [], [], [stored]]);
     const repository = createMarketDailySeriesRepository(database, () => NOW);
     const result = await repository.upsertPoints(
       { id: "VIX", kind: "index", source: " cboe ", sourceSha256: SHA },
@@ -77,9 +78,10 @@ describe("market daily series upsertPoints", () => {
         point("2026-11-06", 19.5, { high: 20, low: 18.9, open: 19.1 }),
       ]
     );
-    expect(result).toEqual(stored);
+    expect(result).toEqual({ series: stored, written: 2 });
     expect(calls.map((call) => call.method)).toEqual([
       "transaction",
+      "execute",
       "execute",
       "select",
       "from",
@@ -95,10 +97,15 @@ describe("market daily series upsertPoints", () => {
       "returning",
     ]);
     const lock = dialect.sqlToQuery(calls[1]?.args[0] as SQL);
-    expect(lock.sql).toBe("select pg_advisory_xact_lock(hashtext($1))");
+    expect(lock.sql).toBe(
+      "select pg_advisory_xact_lock(hashtextextended('market_daily_series:' || $1, 0))"
+    );
     expect(lock.params).toEqual(["VIX"]);
-    expect(calls[5]?.args[0]).toBe(marketDailySeries);
-    expect(calls[6]?.args[0]).toEqual({
+    expect(dialect.sqlToQuery(calls[2]?.args[0] as SQL).sql).toBe(
+      "set local extra_float_digits = 1"
+    );
+    expect(calls[6]?.args[0]).toBe(marketDailySeries);
+    expect(calls[7]?.args[0]).toEqual({
       firstDate: "2026-11-05",
       id: "VIX",
       importedAt: NOW,
@@ -108,8 +115,8 @@ describe("market daily series upsertPoints", () => {
       source: "cboe",
       sourceSha256: SHA,
     });
-    expect(calls[7]?.args[0]).toBe(marketDailyPoints);
-    const rows = calls[8]?.args[0] as Record<string, unknown>[];
+    expect(calls[8]?.args[0]).toBe(marketDailyPoints);
+    const rows = calls[9]?.args[0] as Record<string, unknown>[];
     expect(rows.map((row) => row["date"])).toEqual([
       "2026-11-05",
       "2026-11-06",
@@ -118,11 +125,11 @@ describe("market daily series upsertPoints", () => {
     expect(dialect.sqlToQuery(rows[0]?.["open"] as SQL).sql).toBe(
       "'-0'::float8"
     );
-    const pointConflict = calls[9]?.args[0] as { set: Record<string, SQL> };
+    const pointConflict = calls[10]?.args[0] as { set: Record<string, SQL> };
     expect(dialect.sqlToQuery(pointConflict.set["adjClose"] as SQL).sql).toBe(
       'coalesce(excluded."adj_close", "market_daily_points"."adj_close")'
     );
-    const recount = calls[11]?.args[0] as Record<string, unknown>;
+    const recount = calls[12]?.args[0] as Record<string, unknown>;
     expect(recount["importedAt"]).toBe(NOW);
     const first = dialect.sqlToQuery(recount["firstDate"] as SQL);
     expect(first.sql).toBe(
@@ -130,7 +137,7 @@ describe("market daily series upsertPoints", () => {
     );
     expect(first.params).toEqual(["VIX"]);
     expect(dialect.sqlToQuery(recount["sourceSha256"] as SQL).sql).toContain(
-      "encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', date::text"
+      "encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', to_char(date, 'YYYY-MM-DD')"
     );
   });
 
@@ -145,7 +152,7 @@ describe("market daily series upsertPoints", () => {
       source: "vertex:series:import vix.csv",
       sourceSha256: SHA,
     };
-    const appended = createDouble([[], [imported], [], [imported]]);
+    const appended = createDouble([[], [], [imported], [], [imported]]);
     await createMarketDailySeriesRepository(
       appended.database,
       () => NOW
@@ -162,17 +169,18 @@ describe("market daily series upsertPoints", () => {
     const set = appended.calls.find((call) => call.method === "set")?.args[0];
     expect(Object.keys(set as object)).not.toContain("source");
 
-    const unchanged = createDouble([[], [imported]]);
+    const unchanged = createDouble([[], [], [imported]]);
     const result = await createMarketDailySeriesRepository(
       unchanged.database
     ).upsertPoints(
       { id: "VIX", kind: "index", source: "cboe", sourceSha256: SHA },
       [point("2026-11-04", 18), point("2026-11-05", 99)]
     );
-    expect(result).toBe(imported);
+    expect(result).toEqual({ series: imported, written: 0 });
     expect(unchanged.calls.map((call) => call.method)).not.toContain("insert");
 
     const owned = createDouble([
+      [],
       [],
       [{ ...imported, source: "cboe" }],
       [],

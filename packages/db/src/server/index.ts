@@ -254,6 +254,7 @@ export type {
   MarketDailySeries,
   MarketDailySeriesInput,
   MarketDailySeriesRepository,
+  MarketDailyUpsertResult,
 } from "./market-daily-series.ts";
 export {
   createMarketDailySeriesRepository,
@@ -288,7 +289,6 @@ export type {
 } from "./openbb.ts";
 export {
   createOpenbbRepository,
-  OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_UPSERT_TABLES,
 } from "./openbb.ts";
 export type {

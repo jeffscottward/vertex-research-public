@@ -537,8 +537,13 @@ export const OpenbbCotOutputSchema = z.object({
   ),
 });
 
+/** Explicit history starts: nothing stored is older than 1900. */
+const historyFrom = date.refine((text) => text >= "1900-01-01", {
+  message: "from must be 1900-01-01 or later",
+});
+
 export const OpenbbMacroInputSchema = z.object({
-  from: date.optional(),
+  from: historyFrom.optional(),
   ids: z.array(macroId).min(1).max(100).optional(),
 });
 export const OpenbbMacroOutputSchema = z.object({
@@ -615,11 +620,11 @@ export const OpenbbSecOutputSchema = z.object({
 
 export const OpenbbFactorsInputSchema = z.object({
   frequency: z.enum(OPENBB_FACTOR_FREQUENCIES),
-  from: date.optional(),
+  from: historyFrom.optional(),
 });
 export const OpenbbFactorsOutputSchema = z.object({
-  from: date,
   frequency: z.enum(OPENBB_FACTOR_FREQUENCIES),
+  from: date,
   rows: z.array(OpenbbFactorRowSchema),
 });
 

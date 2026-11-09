@@ -177,7 +177,7 @@ describe("0063 openbb sources (Postgres)", () => {
     await postgres().query(
       "update market_daily_points set adj_close = 17.9 where series_id = 'VIX' and date = '2026-11-05'"
     );
-    const stored = await repository.upsertPoints(series, [
+    const { series: stored, written } = await repository.upsertPoints(series, [
       ...points,
       {
         adjClose: null,
@@ -193,6 +193,7 @@ describe("0063 openbb sources (Postgres)", () => {
       lastDate: "2026-11-09",
       pointCount: 3,
     });
+    expect(written).toBe(3);
     const loaded = await repository.loadSeries(["VIX"]);
     expect(loaded.get("VIX")?.adjClose).toEqual([17.9, null, null]);
     expect(await countRows("market_daily_points")).toBe(3);
@@ -223,10 +224,11 @@ describe("0063 openbb sources (Postgres)", () => {
       source: "cboe",
       sourceSha256: SHA,
     };
-    const stored = await repository.upsertPoints(cboe, [
+    const { series: stored, written } = await repository.upsertPoints(cboe, [
       bar("2026-11-05", 99),
       bar("2026-11-06", 92.25, 91),
     ]);
+    expect(written).toBe(1);
     expect(stored).toMatchObject({
       lastDate: "2026-11-06",
       pointCount: 3,
@@ -247,8 +249,51 @@ describe("0063 openbb sources (Postgres)", () => {
     expect(stored.sourceSha256).toBe(expected);
     // Nothing newer: the series is returned unchanged.
     const again = await repository.upsertPoints(cboe, [bar("2026-11-06", 1)]);
-    expect(again.sourceSha256).toBe(expected);
+    expect(again).toMatchObject({ written: 0 });
+    expect(again.series.sourceSha256).toBe(expected);
     expect(await countRows("market_daily_points")).toBe(6);
+  });
+
+  it("computes the same digest whatever the session's float and date settings", async () => {
+    const close = 0.1 + 0.2; // 0.30000000000000004: extra_float_digits = 0 would print 0.3
+    const name = postgres().databaseName;
+    // New connections of this database start with settings that would change the text of floats
+    // and dates; upsertPoints must not depend on them.
+    await postgres().query(
+      `alter database "${name}" set extra_float_digits = 0`
+    );
+    await postgres().query(
+      `alter database "${name}" set datestyle = 'SQL, DMY'`
+    );
+    const skewed = createNodeDatabase({
+      connectionString: postgres().databaseUrl,
+      maxConnections: 1,
+    });
+    try {
+      const { series } = await createMarketDailySeriesRepository(
+        skewed.db
+      ).upsertPoints(
+        { id: "VXN", kind: "index", source: "cboe", sourceSha256: SHA },
+        [
+          {
+            adjClose: null,
+            close,
+            date: "2026-11-06",
+            high: null,
+            low: null,
+            open: null,
+          },
+        ]
+      );
+      expect(series.sourceSha256).toBe(
+        createHash("sha256")
+          .update(`2026-11-06||||${String(close)}|`)
+          .digest("hex")
+      );
+    } finally {
+      await skewed.close();
+      await postgres().query(`alter database "${name}" reset all`);
+    }
   });
 
   it("reads runs, stats, iv windows, term rows and 13F holders", async () => {
@@ -285,12 +330,12 @@ describe("0063 openbb sources (Postgres)", () => {
       "option_iv_daily",
       days.map((day, index) => ivRow(day, 0.1 + index / 1000))
     );
-    const window = await repository.optionIvDaily(["SPY"], null);
+    const window = await repository.optionIvDaily(["SPY"], null, 252);
     expect(window).toHaveLength(252);
     expect(window[0]?.asOf).toBe(days[8]);
     expect(window.at(-1)?.asOf).toBe(days[259]);
     expect(
-      (await repository.optionIvDaily(["SPY"], days[19] as string)).length
+      (await repository.optionIvDaily(["SPY"], days[19] as string, 252)).length
     ).toBe(20);
 
     const term = (asOf: string, expiration: string) => ({
@@ -386,7 +431,7 @@ describe("0063 openbb sources (Postgres)", () => {
       await postgres().query(`delete from ${table}`);
     await postgres().query(rollbackSql);
     expect(await tables()).toEqual([]);
-    expect(await countRows("market_daily_points")).toBe(6);
+    expect(await countRows("market_daily_points")).toBe(7);
     await postgres().query(migrationSql);
     expect(await tables()).toHaveLength(16);
   });

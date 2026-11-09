@@ -87,6 +87,45 @@ describe("0063 openbb migration", () => {
     );
   });
 
+  it("grants inside the role guard: UPDATE on the daily series tables, insert-only run ledger", () => {
+    const GUARD =
+      "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vertex_research') THEN";
+    const guarded = (text: string): Map<string, string[]> => {
+      const start = text.indexOf(GUARD);
+      expect(start).toBeGreaterThan(-1);
+      const block = text.slice(start, text.indexOf("END IF;", start));
+      const privileges = new Map<string, string[]>();
+      for (const match of block.matchAll(
+        /(GRANT|REVOKE) ([A-Z, ]+) ON TABLE ((?:"[\w.]+"(?:\."\w+")?(?:, )?)+) (?:TO|FROM) "vertex_research"/gu
+      ))
+        for (const table of (match[3] ?? "").matchAll(/"(\w+)"(?!\.)/gu))
+          privileges.set(`${match[1]} ${table[1]}`, [
+            ...(privileges.get(`${match[1]} ${table[1]}`) ?? []),
+            ...(match[2] ?? "").split(", "),
+          ]);
+      return privileges;
+    };
+    const granted = guarded(migration);
+    expect(granted.get("GRANT market_daily_series")).toEqual(["UPDATE"]);
+    expect(granted.get("GRANT market_daily_points")).toEqual(["UPDATE"]);
+    expect(granted.get("GRANT openbb_ingest_runs")).toEqual([
+      "SELECT",
+      "INSERT",
+    ]);
+    for (const config of tables.filter(
+      (table) => table.name !== "openbb_ingest_runs"
+    ))
+      expect(granted.get(`GRANT ${config.name}`)).toEqual([
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+      ]);
+    const revoked = guarded(rollback);
+    expect(revoked.get("REVOKE market_daily_series")).toEqual(["UPDATE"]);
+    expect(revoked.get("REVOKE market_daily_points")).toEqual(["UPDATE"]);
+  });
+
   it("rollback refuses while rows exist and never cascades", () => {
     expect(rollback).toContain(
       "openbb tables are not empty; refusing rollback"
@@ -125,6 +164,34 @@ describe("openbb repository writes", () => {
     expect(Object.keys(conflict.set)).toEqual(["price"]);
     expect(render(conflict.set["price"]).sql).toBe('excluded."price"');
     expect(await repository.upsertRows("sec_ftd", [])).toBe(0);
+    const holdings = createDouble();
+    await createOpenbbRepository(holdings.database).upsertRows(
+      "sec_13f_holdings",
+      [
+        {
+          assetClass: null,
+          cusip: "037833100",
+          filerCik: "1067983",
+          filerName: "Berkshire",
+          issuer: "APPLE INC",
+          optionType: "",
+          periodEnding: "2026-09-30",
+          shares: 1,
+          symbol: null,
+          value: 1,
+          weight: null,
+        },
+      ]
+    );
+    const holdingsSet = (
+      argOf(holdings.calls, "onConflictDoUpdate") as {
+        set: Record<string, SQL>;
+      }
+    ).set;
+    expect(render(holdingsSet["symbol"]).sql).toBe(
+      'coalesce(excluded."symbol", "openbb_sec_13f_holdings"."symbol")'
+    );
+    expect(render(holdingsSet["issuer"]).sql).toBe('excluded."issuer"');
     expect(OPENBB_UPSERT_TABLES).toHaveLength(13);
   });
 
@@ -246,11 +313,11 @@ describe("openbb repository reads", () => {
     expect(await repository.vxCurveDates(null, 6)).toEqual([]);
     expect(await repository.vxCurve([])).toEqual([]);
     expect(await repository.vxCurve(["2026-11-06"])).toHaveLength(1);
-    expect(await repository.optionIvDaily([], null)).toEqual([]);
-    expect(await repository.optionIvDaily(["SPY"], "2026-11-06")).toEqual([
+    expect(await repository.optionIvDaily([], null, 252)).toEqual([]);
+    expect(await repository.optionIvDaily(["SPY"], "2026-11-06", 252)).toEqual([
       { asOf: "2026-11-06", underlying: "SPY" },
     ]);
-    expect(await repository.optionIvDaily(["SPY"], null)).toEqual([]);
+    expect(await repository.optionIvDaily(["SPY"], null, 252)).toEqual([]);
     expect(await repository.optionIvTermLatest("2026-11-06")).toEqual([
       { asOf: "2026-11-06", underlying: "SPY" },
     ]);

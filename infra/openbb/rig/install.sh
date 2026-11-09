@@ -9,15 +9,19 @@
 # --enable also enables and starts vertex-openbb.timer. Needs ~/.config/vertex/openbb.env and
 # ~/.config/vertex/openbb-key (mode 0600); the script checks they exist and never reads the key.
 # Also needs tick-runner (self-healing-harness) and user lingering, so the user timer runs without a
-# login session (`loginctl enable-linger "$USER"`).
+# login session (`loginctl enable-linger "$(id -un)"`). The whole install holds tick-runner's run lock
+# for vertex-openbb (waits up to 600 s), so a timer run never starts on a half-installed checkout.
 set -euo pipefail
 
-sha="${1:-}"
-enable="${2:-}"
-if [[ -z "$sha" ]]; then
+usage() {
   echo "usage: $0 <deployed-sha> [--enable]" >&2
   exit 2
-fi
+}
+sha="${1:-}"
+enable="${2:-}"
+if [[ -z "$sha" || "$sha" == -* || $# -gt 2 ]]; then usage; fi
+if [[ -n "$enable" && "$enable" != "--enable" ]]; then usage; fi
+user="$(id -un)"
 
 repo="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 base="$HOME/.local/share/vertex-openbb"
@@ -39,9 +43,18 @@ if [[ ! -x "$tick_runner" ]]; then
   echo "install: missing $tick_runner (install self-healing-harness first)" >&2
   exit 2
 fi
-if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null || true)" != "yes" ]]; then
-  echo "install: user lingering is off; run: loginctl enable-linger \"\$USER\"" >&2
+if [[ "$(loginctl show-user "$user" -p Linger --value 2>/dev/null || true)" != "yes" ]]; then
+  echo "install: user lingering is off; run: loginctl enable-linger $user" >&2
   exit 2
+fi
+
+# tick-runner takes ~/.local/state/tick-runner/<name>/run.lock (flock -n) for each run; hold it here.
+run_lock_dir="$HOME/.local/state/tick-runner/vertex-openbb"
+mkdir -p "$run_lock_dir"
+exec 9>"$run_lock_dir/run.lock"
+if ! flock -w 600 9; then
+  echo "install: a vertex-openbb run still holds $run_lock_dir/run.lock after 600 s" >&2
+  exit 75
 fi
 
 git -C "$repo" cat-file -e "$sha^{commit}"
@@ -60,9 +73,9 @@ if [[ ! -x "$base/venv/bin/python" ]]; then
 fi
 # sync makes the venv exactly the lock (hash-checked, removes strays); the package itself adds
 # nothing: no dependencies, and setuptools comes from the lock (no build isolation download).
-VIRTUAL_ENV="$base/venv" uv pip sync --quiet --require-hashes "$base/checkout/$lock"
+VIRTUAL_ENV="$base/venv" uv pip sync --quiet --require-hashes --only-binary :all: --no-config "$base/checkout/$lock"
 VIRTUAL_ENV="$base/venv" uv pip install --quiet --no-deps --no-build-isolation "$base/checkout/services/openbb"
-# First import builds OpenBB's static interface inside the venv; do it now, not inside a timed step.
+# Import every module the jobs use once, so a broken venv fails the install, not a timed step.
 "$base/venv/bin/python" -I -m vertex_openbb --warm
 
 install -m 0644 "$base/checkout/infra/openbb/rig/vertex-openbb.steps" "$base/vertex-openbb.steps"

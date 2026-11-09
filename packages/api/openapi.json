@@ -117771,8 +117771,8 @@
                     }
                   },
                   "required": [
-                    "from",
                     "frequency",
+                    "from",
                     "rows"
                   ],
                   "type": "object"

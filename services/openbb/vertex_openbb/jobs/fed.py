@@ -101,7 +101,7 @@ async def regime(ctx: Context) -> dict[str, Rows]:
             ctx.failed(source, exc)
             continue
         if text is None:
-            ctx.failed(source, UpstreamError("not_found", "fredgraph.csv answered 403/404"))
+            ctx.failed(source, UpstreamError("not_found", "fredgraph.csv answered 404"))
             continue
         ctx.take(source, text.splitlines()[1:], lambda t=text, s=series_id: parse_fred_csv(s, t, start.isoformat()), rows)
 

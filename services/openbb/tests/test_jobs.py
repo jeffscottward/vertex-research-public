@@ -47,7 +47,16 @@ def test_fixtures_hold_no_contact_address_and_no_nonfinite_numbers() -> None:
 
 def test_every_job_has_fixtures() -> None:
     assert sorted(p.stem for p in (FIXTURES / "upstream").glob("*.json")) == JOBS
-    assert sorted(p.stem for p in FIXTURES.glob("*.json") if p.stem != "invalid-rows") == JOBS
+    corpora = {"invalid-rows", "valid-edge-rows"}
+    assert sorted(p.stem for p in FIXTURES.glob("*.json") if p.stem not in corpora) == JOBS
+
+
+def test_valid_edge_rows_are_accepted() -> None:
+    corpus = json.loads((FIXTURES / "valid-edge-rows.json").read_text(encoding="utf-8"))
+    assert len(corpus) >= 10
+    for case in corpus:
+        assert set(case) == {"table", "row", "why"}
+        assert rows.row_problem(case["table"], case["row"]) is None, case["why"]
 
 
 def test_invalid_row_corpus_is_rejected() -> None:
@@ -254,3 +263,90 @@ def test_format_change_warns_when_rows_vanish() -> None:
     assert result.code == 0
     assert any("none gave a row (format change?)" in w for w in result.document["warnings"])
     assert result.table("cot_positions")
+
+
+def test_every_table_empty_warns() -> None:
+    from vertex_openbb.upstream import canonical
+
+    params = {"symbol": "VIX", "start_date": "2026-10-29", "end_date": "2026-11-08", "interval": "1d"}
+    key = f"fetcher:cboe:IndexHistorical:{canonical(params)}"
+    result = run(["cboe-vol-indices", "--symbols", "VIX"], [error(key, "empty", "EmptyDataError: none")])
+    assert result.code == 0 and result.table("daily_series") == []
+    assert any("every table is empty" in w for w in result.document["warnings"])
+
+
+def test_regsho_403_rules() -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    fixture = upstream_fixture("finra-short-volume")
+    today = date.fromisoformat(fixture["today"])
+    calls = [dict(c) for c in fixture["calls"]]
+    ny = ZoneInfo("America/New_York")
+
+    def refuse(index: int) -> list[dict]:
+        out = [dict(c) for c in calls]
+        out[index] = error(out[index]["key"], "forbidden", "HTTP 403 from https://cdn.finra.org/x")
+        return out
+
+    # A 403 on an ordinary weekday is a failure, even when later files exist.
+    blocked = run(fixture["argv"], refuse(0), today=today)
+    assert blocked.code == 0 and any("HTTP 403" in w and "not a listed NYSE closure" in w for w in blocked.document["warnings"])
+    # Newest weekday before 20:00 New York time on that day: not published yet, no warning.
+    argv = [*fixture["argv"], "--since", "2026-10-29"]
+    at = lambda hour: datetime(2026, 11, 6, hour, 0, tzinfo=ny)  # noqa: E731
+    early = run(argv, refuse(-1), today=date(2026, 11, 6), now=at(18))
+    assert early.code == 0 and not any("403" in w for w in early.document["warnings"])
+    late = run(argv, refuse(-1), today=date(2026, 11, 6), now=at(21))
+    assert late.code == 0 and any("HTTP 403" in w for w in late.document["warnings"])
+    # Every day refused: every source failed.
+    assert run(fixture["argv"], [error(c["key"], "forbidden", "HTTP 403") for c in calls], today=today).code == 3
+
+
+def _regsho_calls(days: list[str]) -> list[dict]:
+    text = upstream_fixture("finra-short-volume")["calls"][-1]["result"]
+    url = "http:https://cdn.finra.org/equity/regsho/daily/CNMSshvol{}.txt"
+    return [call(url.format(d.replace("-", "")), text.replace("20261106", d.replace("-", ""))) for d in days]
+
+
+def test_regsho_skips_listed_nyse_closures_without_requesting_them() -> None:
+    # 2026-11-26 (Thanksgiving) is not requested: an unrecorded call would exit 1.
+    result = run(["finra-short-volume", "--since", "2026-11-25"], _regsho_calls(["2026-11-25", "2026-11-27"]),
+                 today=date(2026, 11, 27))
+    assert result.code == 0 and result.document["warnings"] == []
+    assert {r["date"] for r in result.table("short_volume_daily")} == {"2026-11-25", "2026-11-27"}
+
+
+def test_regsho_warns_once_beyond_the_closure_list() -> None:
+    result = run(["finra-short-volume", "--since", "2028-12-29"], _regsho_calls(["2028-12-29", "2029-01-01", "2029-01-02"]),
+                 today=date(2029, 1, 2))
+    assert result.code == 0
+    assert [w for w in result.document["warnings"] if "NYSE closure list" in w] == [
+        "finra regsho: no NYSE closure list for 2029; holidays there count as failures"
+    ]
+
+
+def test_nyse_closure_list() -> None:
+    from vertex_openbb.jobs.nyse_closures import CLOSURES
+
+    def year(y: int) -> list[str]:
+        return sorted(d.isoformat()[5:] for d in CLOSURES if d.year == y)
+
+    assert year(2026) == ["01-01", "01-19", "02-16", "04-03", "05-25", "06-19", "07-03", "09-07", "11-26", "12-25"]
+    assert year(2027) == ["01-01", "01-18", "02-15", "03-26", "05-31", "06-18", "07-05", "09-06", "11-25", "12-24"]
+    assert "01-09" in year(2025) and len(year(2025)) == 11
+    assert all(d.weekday() < 5 for d in CLOSURES)
+
+
+def test_lone_surrogate_never_breaks_the_document() -> None:
+    from vertex_openbb.upstream import canonical
+
+    params = {"symbol": "AAPL", "start_date": "2026-10-09", "end_date": "2026-11-08", "use_cache": False}
+    filing = {"filing_date": "2026-11-06", "report_type": "8-K", "accession_number": "0001140361-26-042505",
+              "report_url": "https://www.sec.gov/Archives/edgar/data/320193/000114036126042505/a.htm",
+              "primary_doc_description": "bad \ud800 text" + "x" * 3000}
+    result = run(["sec-filings", "--symbols", "AAPL"], [call(f"fetcher:sec:Filings:{canonical(params)}", [filing])],
+                 env={"VERTEX_RESEARCH_CONTACT_EMAIL": TEST_CONTACT})
+    assert result.code == 0 and result.stdout.isascii()
+    row = result.table("sec_filings")[0]
+    assert len(row["description"].encode("utf-16-le", "surrogatepass")) // 2 <= 2000

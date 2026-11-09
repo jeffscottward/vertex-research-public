@@ -10,9 +10,12 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=%h/Github/tools/self-healing-harness/bin/tick-runner vertex-openbb %h/.local/share/vertex-openbb/vertex-openbb.steps
 # Steps of one stage run in parallel, stages one after another: stage 1 (Cboe, CFTC, Fed) max 420 s,
-# stage 2 (Treasury, OECD, FRED, FINRA, Fama-French) max 240 s, SEC stages 3-6 300 + 300 + 300 + 600 s,
-# plus 10 s per stage = 2220 s; install.test.ts checks the bound.
-TimeoutStartSec=2280
+# stage 2 (Treasury, OECD, FRED, FINRA, Fama-French) max 330 s, SEC stages 3-6 330 + 330 + 330 + 600 s,
+# plus 10 s per stage = 2400 s; install.test.ts checks the bound.
+TimeoutStartSec=2460
+# Memory pressure slows the steps first; at the hard cap the kernel kills one step, not the unit.
+MemoryHigh=2560M
 MemoryMax=3G
+OOMPolicy=continue
 Nice=10
 NoNewPrivileges=yes

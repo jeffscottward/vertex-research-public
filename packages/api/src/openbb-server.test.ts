@@ -96,7 +96,12 @@ const fakes = (): Fakes => ({
     listSeries: vi.fn(async () => []),
     loadSeries: vi.fn(async () => new Map()),
     replaceSeries: vi.fn(),
-    upsertPoints: vi.fn(async () => ({})),
+    upsertPoints: vi.fn(
+      async (_series: unknown, points: readonly { date: string }[]) => ({
+        series: {},
+        written: new Set(points.map((point) => point.date)).size,
+      })
+    ),
   },
 });
 
@@ -218,6 +223,21 @@ const FIXTURE_DIRS = [
 ];
 /** Rows the Python row validator refuses; the Zod row schemas must refuse each one too. */
 const INVALID_ROWS = "invalid-rows.json";
+/** Edge rows the Python row validator accepts; the Zod row schemas must accept each one too. */
+const VALID_EDGE_ROWS = "valid-edge-rows.json";
+const RowCasesSchema = z
+  .array(
+    z.object({
+      row: z.unknown(),
+      table: z.enum(OPENBB_TABLES),
+      why: z.string().min(1),
+    })
+  )
+  .min(1);
+const rowCases = (name: string) =>
+  RowCasesSchema.parse(
+    JSON.parse(readFileSync(new URL(name, PYTHON_FIXTURES), "utf8"))
+  );
 
 describe("openbb contract fixtures", () => {
   it("accepts every fetcher fixture document (one per job) and covers every table", () => {
@@ -225,7 +245,10 @@ describe("openbb contract fixtures", () => {
     const jobs = new Set<string>();
     for (const dir of FIXTURE_DIRS) {
       const names = readdirSync(dir).filter(
-        (name) => name.endsWith(".json") && name !== INVALID_ROWS
+        (name) =>
+          name.endsWith(".json") &&
+          name !== INVALID_ROWS &&
+          name !== VALID_EDGE_ROWS
       );
       for (const name of names) {
         const document = OpenbbBatchDocumentSchema.parse(
@@ -244,22 +267,18 @@ describe("openbb contract fixtures", () => {
   });
 
   it("refuses every row the Python validator refuses", () => {
-    const entries = z
-      .array(
-        z.object({
-          row: z.unknown(),
-          table: z.enum(OPENBB_TABLES),
-          why: z.string().min(1),
-        })
-      )
-      .min(1)
-      .parse(
-        JSON.parse(readFileSync(new URL(INVALID_ROWS, PYTHON_FIXTURES), "utf8"))
-      );
+    const entries = rowCases(INVALID_ROWS);
     const accepted = entries.filter(
       (entry) => OPENBB_ROW_SCHEMAS[entry.table].safeParse(entry.row).success
     );
     expect(accepted.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
+  });
+
+  it("accepts every edge row the Python validator accepts", () => {
+    const refused = rowCases(VALID_EDGE_ROWS).filter(
+      (entry) => !OPENBB_ROW_SCHEMAS[entry.table].safeParse(entry.row).success
+    );
+    expect(refused.map((entry) => `${entry.table}: ${entry.why}`)).toEqual([]);
   });
 
   it("refuses bad rows, empty or oversized chunks and inverted runs", () => {
@@ -446,7 +465,29 @@ describe("openbb writes", () => {
       job: "cboe-vol-indices",
     });
     expect(daily).toEqual({ received: 3, table: "daily_series", written: 2 });
-    expect(repos.series.upsertPoints).toHaveBeenCalledTimes(2);
+    // `written` is what the repository stored (an imported series appends only newer dates).
+    repos.series.upsertPoints.mockResolvedValueOnce({ series: {}, written: 0 });
+    expect(
+      (
+        await client.openbb.ingest({
+          batch: {
+            rows: [
+              {
+                close: 1,
+                date: "2026-11-06",
+                high: null,
+                low: null,
+                open: null,
+                seriesId: "VVIX",
+              },
+            ],
+            table: "daily_series",
+          },
+          job: "cboe-vol-indices",
+        })
+      ).written
+    ).toBe(0);
+    expect(repos.series.upsertPoints).toHaveBeenCalledTimes(3);
     const [series, points] = repos.series.upsertPoints.mock.calls[0] as [
       { sourceSha256: string },
       unknown[],
@@ -732,6 +773,22 @@ describe("openbb reads", () => {
       "2026-11-02",
       "2026-11-03",
       ["fomc_statement"]
+    );
+    // A lone `from` after the default end gets its own 30-day window; an earlier one keeps it.
+    expect(await client.openbb.events({ from: "2027-03-01" })).toMatchObject({
+      from: "2027-03-01",
+      to: "2027-03-31",
+    });
+    expect(await client.openbb.events({ from: "2026-10-01" })).toMatchObject({
+      to: "2026-12-08",
+    });
+    await expectCode(
+      client.openbb.macro({ from: "1899-12-31" }),
+      "BAD_REQUEST"
+    );
+    await expectCode(
+      client.openbb.factors({ frequency: "daily", from: "1850-01-01" }),
+      "BAD_REQUEST"
     );
 
     repos.openbb.shortVolume.mockResolvedValue([

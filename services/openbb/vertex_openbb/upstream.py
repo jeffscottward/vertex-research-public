@@ -38,14 +38,15 @@ CALL_TIMEOUT_S = 90.0
 # Plain HTTP files (FINRA, FRED, TreasuryDirect) go out with the requests default User-Agent: FRED
 # stalls the response for some custom agents (seen 2026-11-08). SEC requests get theirs from
 # sec_guard.
-_MISSING_STATUSES = (403, 404)
+_MISSING_STATUSES = (404,)
 _RETRY_STATUSES = (429, 500, 502, 503, 504)
 # OpenBB errors that mean "the upstream has no data for this query" (not a failure).
 _EMPTY_MESSAGES = ("No Form 4 data was returned for ", "No 13F-HR filings found for ")
 
 
 class UpstreamError(Exception):
-    """An upstream call failed. kind: `empty` (no data), `not_found` (404) or `error`."""
+    """An upstream call failed. kind: `empty` (no data), `not_found` (HTTP 404), `forbidden`
+    (HTTP 403) or `error`."""
 
     def __init__(self, kind: str, message: str) -> None:
         super().__init__(message)
@@ -76,7 +77,7 @@ def classify(exc: BaseException, scrub: tuple[str, ...] = ()) -> UpstreamError:
     if _is_empty_data_error(exc) or (type(exc).__name__ == "OpenBBError" and raw.startswith(_EMPTY_MESSAGES)):
         return UpstreamError("empty", text)
     lowered = text.lower()
-    if "http 404" in lowered or "status code 404" in lowered or "404 client error" in lowered or "not found" in lowered:
+    if "http 404" in lowered or "status code 404" in lowered or "404 client error" in lowered:
         return UpstreamError("not_found", text)
     return UpstreamError("error", text)
 
@@ -198,7 +199,7 @@ class Upstream:
         return await self._call(f"helper:{key}", run)
 
     async def http_text(self, url: str, headers: dict[str, str] | None = None) -> str | None:
-        """GET a text file; None when the upstream answers 403/404 (file not published)."""
+        """GET a text file; None when the upstream answers 404 (file not published). HTTP 403 raises."""
 
         async def run() -> Any:
             return _get_text(url, headers or {})
@@ -229,6 +230,8 @@ def _get_text(url: str, headers: dict[str, str]) -> str | None:
             continue
         if response.status_code in _MISSING_STATUSES:
             return None
+        if response.status_code == 403:  # refused: a failure, never "not published"
+            raise UpstreamError("forbidden", f"HTTP 403 from {url.split('?')[0]}")
         if response.status_code in _RETRY_STATUSES and attempt == 0:
             time.sleep(delay)
             continue

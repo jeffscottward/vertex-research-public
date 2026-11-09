@@ -89,6 +89,10 @@ def test_parse_contracts_skips_non_occ_and_expired() -> None:
 
 def test_values() -> None:
     assert values.num(float("nan")) is None and values.num(float("inf")) is None and values.num(".") is None
+    assert values.num(10**400) is None and values.num("1e400") is None and values.count(10**400) is None
+    assert values.utf16_len("a\U0001F600\ud800") == 4
+    assert values.cut("ab\U0001F600cd", 3) == "ab" and values.cut("abcdef", 4, "…") == "abc…"
+    assert values.cut("x" * 100000, 10) == "x" * 10
     assert values.num("1,234.5") == 1234.5 and values.num(True) is None
     assert values.count(12.6) == 13 and values.count(-1) is None
     assert values.iso_date("20261106") == "2026-11-06" and values.iso_date("2026-02-30") is None
@@ -124,20 +128,29 @@ def test_regsho_and_fred_parsing() -> None:
     assert [r["value"] for r in series.parse_fred_csv("T10Y2Y", csv_text, "2026-01-01")] == [0.5]
 
 
-def test_13f_values_before_2023_are_thousands_and_prn_has_no_shares() -> None:
+def test_13f_units_follow_the_filing_date_and_prn_has_no_shares() -> None:
     data = [
         {"cusip": "037833100", "issuer": "APPLE INC", "value": 100, "security_type": "SH", "principal_amount": 10,
-         "period_ending": "2022-12-31"},
+         "period_ending": "2022-09-30"},
         {"cusip": "037833100", "issuer": "APPLE INC", "value": 50, "security_type": "PRN", "principal_amount": 7,
-         "period_ending": "2022-12-31"},
+         "period_ending": "2022-09-30"},
         {"cusip": "912828XX0", "issuer": "UST NOTE", "value": 5, "security_type": "PRN", "principal_amount": 9,
-         "period_ending": "2022-12-31"},
+         "period_ending": "2022-09-30"},
     ]
-    out = {r["cusip"]: r for r in sec.holdings_rows("1067983", "BERKSHIRE", "2022-12-31", data, {"037833100": "AAPL"})}
+    universe = {"037833100": "AAPL"}
+    # Q3-2022 report filed in November 2022: thousands of dollars.
+    out = {r["cusip"]: r for r in sec.holdings_rows("1067983", "BERKSHIRE", "2022-09-30", data, universe, "2022-11-14")}
     assert out["037833100"]["value"] == 150000 and out["037833100"]["shares"] == 10 and out["037833100"]["symbol"] == "AAPL"
     assert out["912828XX0"]["shares"] is None and out["912828XX0"]["symbol"] is None
-    later = sec.holdings_rows("1067983", "BERKSHIRE", "2023-03-31", [{**data[0], "period_ending": "2023-03-31"}], {})
-    assert later[0]["value"] == 100
+    # Q4-2022 report filed in February 2023: already dollars.
+    q4 = [{**data[0], "period_ending": "2022-12-31"}]
+    assert sec.holdings_rows("1067983", "BERKSHIRE", "2022-12-31", q4, {}, "2023-02-14")[0]["value"] == 100
+    # A filing submitted on 2023-01-02 is still in thousands; on 2023-01-03 in dollars.
+    assert sec.holdings_rows("1067983", "B", "2022-12-31", q4, {}, "2023-01-02")[0]["value"] == 100000
+    assert sec.holdings_rows("1067983", "B", "2022-12-31", q4, {}, "2023-01-03")[0]["value"] == 100
+    # No filing date: periods before 2022-12-31 count as thousands.
+    assert sec.holdings_rows("1067983", "B", "2022-09-30", data[:1], {})[0]["value"] == 100000
+    assert sec.holdings_rows("1067983", "B", "2022-12-31", q4, {})[0]["value"] == 100
 
 
 def test_rates_are_percent_rounded() -> None:
@@ -178,7 +191,7 @@ def test_sec_helpers() -> None:
         ],
         1,
     )
-    assert picked == [("2026-06-30", "https://b")] and len(notes) == 1
+    assert picked == [("2026-06-30", "https://b", "2026-08-14")] and len(notes) == 1
     with pytest.raises(ValueError):
         sec.validate_filers(["12x"])
 
@@ -261,3 +274,27 @@ def test_urllib_redirect_hops(monkeypatch: pytest.MonkeyPatch) -> None:
     finally:
         sec_guard.uninstall()
     assert [r.get_header("User-agent") for r in opened] == ["UA test", None, "UA test"]
+
+
+def test_ftd_links_only_sec_https_and_real_months() -> None:
+    page = (
+        '<a href="/files/data/other/fails-deliver-data/cnsfails202610a.zip">'
+        '<a href="files/data/fails-deliver-data/cnsfails202609b.zip">'
+        '<a href="https://evil.example/cnsfails202609a.zip">'
+        '<a href="http://www.sec.gov/files/cnsfails202608b.zip">'
+        '<a href="/files/data/fails-deliver-data/cnsfails202613a.zip">'
+    )
+    links, skipped = sec.ftd_links(page)
+    assert links == {
+        "202610a": "https://www.sec.gov/files/data/other/fails-deliver-data/cnsfails202610a.zip",
+        "202609b": "https://www.sec.gov/data-research/sec-markets-data/files/data/fails-deliver-data/cnsfails202609b.zip",
+    }
+    assert len(skipped) == 3 and sec.ftd_period_end("202613a") is None and sec.ftd_period_end("202600b") is None
+
+
+def test_row_rules_mirror_the_zod_bounds() -> None:
+    assert rows.row_problem("vx_curve", {"asOf": "2026-11-06", "contractMonth": "2026-11", "price": 0})
+    assert rows.row_problem("daily_series", {"close": 10**400, "date": "2026-11-05", "high": None, "low": None,
+                                             "open": None, "seriesId": "VIX"})
+    assert rows.row_problem("daily_series", {"close": 1, "date": "\uff12026-11-05", "high": None, "low": None,
+                                             "open": None, "seriesId": "VIX"})

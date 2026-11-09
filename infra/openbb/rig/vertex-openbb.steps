@@ -7,22 +7,24 @@
 # FINRA and Fama-French (two stages bound peak memory); SEC steps use their own stages 3-6 so they never
 # run at the same time (SEC fair access: <= 10 requests/s for the whole host; the wrapper also holds a
 # SEC lock against manual backfills).
+# Every timeout is at least the fetcher deadline OPENBB_DEADLINE_S (default 240 s) + 90 s, so the
+# fetcher prints what it has and the tick posts it before tick-runner stops the step.
 # Backfills are manual: vertex-openbb-run <job> --since <date> (see docs/vertex-rebuild/openbb.md).
 cboe-option-iv        420  3600   1  ~/.local/bin/vertex-openbb-run cboe-option-iv --window mon-fri@16:20-21:00
-cboe-vol-indices      240  3600   1  ~/.local/bin/vertex-openbb-run cboe-vol-indices --window mon-fri@16:45-24:00
-cboe-vx-curve         180  3600   1  ~/.local/bin/vertex-openbb-run cboe-vx-curve --window mon-fri@16:30-24:00
-cftc-cot              300  3600   1  ~/.local/bin/vertex-openbb-run cftc-cot --window fri,sat,mon@15:45-24:00
-fed-rates             240  14400  1  ~/.local/bin/vertex-openbb-run fed-rates
-fed-regime            300  21600  1  ~/.local/bin/vertex-openbb-run fed-regime
-fed-events            240  21600  1  ~/.local/bin/vertex-openbb-run fed-events
-treasury-tga          240  14400  2  ~/.local/bin/vertex-openbb-run treasury-tga
-oecd-cli              240  86400  2  ~/.local/bin/vertex-openbb-run oecd-cli
-fred-keyless          240  21600  2  ~/.local/bin/vertex-openbb-run fred-keyless
-finra-otc             240  21600  2  ~/.local/bin/vertex-openbb-run finra-otc
-finra-short-interest  240  43200  2  ~/.local/bin/vertex-openbb-run finra-short-interest
-finra-short-volume    240  10800  2  ~/.local/bin/vertex-openbb-run finra-short-volume
-famafrench            240  86400  2  ~/.local/bin/vertex-openbb-run famafrench
-sec-filings           300  7200   3  ~/.local/bin/vertex-openbb-run sec-filings --window mon-fri@07:00-22:00
-sec-insider           300  21600  4  ~/.local/bin/vertex-openbb-run sec-insider
-sec-ftd               300  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
+cboe-vol-indices      330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vol-indices --window mon-fri@16:45-24:00
+cboe-vx-curve         330  3600   1  ~/.local/bin/vertex-openbb-run cboe-vx-curve --window mon-fri@16:30-24:00
+cftc-cot              330  3600   1  ~/.local/bin/vertex-openbb-run cftc-cot --window fri,sat,mon@15:45-24:00
+fed-rates             330  14400  1  ~/.local/bin/vertex-openbb-run fed-rates
+fed-regime            330  21600  1  ~/.local/bin/vertex-openbb-run fed-regime
+fed-events            330  21600  1  ~/.local/bin/vertex-openbb-run fed-events
+treasury-tga          330  14400  2  ~/.local/bin/vertex-openbb-run treasury-tga
+oecd-cli              330  86400  2  ~/.local/bin/vertex-openbb-run oecd-cli
+fred-keyless          330  21600  2  ~/.local/bin/vertex-openbb-run fred-keyless
+finra-otc             330  21600  2  ~/.local/bin/vertex-openbb-run finra-otc
+finra-short-interest  330  43200  2  ~/.local/bin/vertex-openbb-run finra-short-interest
+finra-short-volume    330  10800  2  ~/.local/bin/vertex-openbb-run finra-short-volume
+famafrench            330  86400  2  ~/.local/bin/vertex-openbb-run famafrench
+sec-filings           330  7200   3  ~/.local/bin/vertex-openbb-run sec-filings --window mon-fri@07:00-22:00
+sec-insider           330  21600  4  ~/.local/bin/vertex-openbb-run sec-insider
+sec-ftd               330  43200  5  ~/.local/bin/vertex-openbb-run sec-ftd
 sec-13f               600  86400  6  ~/.local/bin/vertex-openbb-run sec-13f

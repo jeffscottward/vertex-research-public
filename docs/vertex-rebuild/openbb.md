@@ -31,8 +31,8 @@ The Python fetcher only reads public upstreams and prints to stdout.
 - Exit codes: 0 ok (warnings allowed, including a partial document at the deadline), 1 internal
   error, 2 bad arguments or missing/malformed SEC contact, 3 upstream failed for every source of the
   job. Errors go to stderr. No secret is printed.
-- Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240, below every
-  step timeout) bounds the whole job and prints the rows fetched so far with a warning.
+- Time limits: each upstream call has a 90 s limit; `OPENBB_DEADLINE_S` (default 240; every step
+  timeout is at least this + 90 s, checked by `infra/openbb/rig/install.test.ts`) bounds the whole job and prints the rows fetched so far with a warning.
 - One failing source never drops the others: it is reported as a warning and its rows are left out.
   A source that returns records but no valid row warns `none gave a row (format change?)`.
 - `--warm` imports every fetcher the jobs use, checks the SEC guard hooks and prints
@@ -53,7 +53,7 @@ Default universe:
 
 ## Jobs and schedule
 
-One rig user timer (`infra/openbb/rig/vertex-openbb.timer`, every 5 minutes) starts
+One rig user timer (`infra/openbb/rig/vertex-openbb.timer`, 5 minutes after the previous run ends) starts
 `vertex-openbb.service`, which runs `tick-runner vertex-openbb ~/.local/share/vertex-openbb/vertex-openbb.steps`.
 The steps file (`infra/openbb/rig/vertex-openbb.steps`, format `name timeout_s every_s stage command`)
 holds one step per job: tick-runner runs a step when `every_s` has passed since its last run, steps
@@ -61,11 +61,18 @@ of one stage in parallel and stages one after another (stage 1 Cboe/CFTC/Fed, st
 Treasury/OECD/FRED/FINRA/Fama-French, SEC jobs alone in stages 3-6). Each step runs the wrapper
 `vertex-openbb-run <job> [--window <days>@<HH:MM>-<HH:MM>]`; outside its window the tick prints
 `skip: outside window` and exits 0. The wrapper holds `~/.cache/vertex-openbb/sec.lock` for `sec-*`
-jobs, so a manual SEC backfill never overlaps the timer's SEC stages. The service caps memory at
-`MemoryMax=3G`; `TimeoutStartSec` covers the stage maxima plus 10 s per stage
-(`infra/openbb/rig/install.test.ts` checks it). The fetcher's own deadline `OPENBB_DEADLINE_S`
-(default 240 s) is below every step timeout, so it prints what it has before tick-runner kills it.
-Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering).
+jobs, so a manual SEC backfill never overlaps the timer's SEC stages: a manual run waits for the lock;
+a timer run (systemd sets `INVOCATION_ID`) waits 20 s (`flock -w 20 -E 75`), then prints
+`skip: SEC lock held (manual run in progress)` and exits 0. The service sets `MemoryHigh=2560M`,
+`MemoryMax=3G` and `OOMPolicy=continue` (an out-of-memory kill ends one step, not the run);
+`TimeoutStartSec` covers the stage maxima plus 10 s per stage. Every step timeout is at least the
+fetcher deadline `OPENBB_DEADLINE_S` (default 240 s) + 90 s, so the fetcher prints what it has and the
+tick posts it before tick-runner stops the step (`infra/openbb/rig/install.test.ts` checks both).
+The tick gives each openbb.* call 60 s and refuses fetcher output over 64 MiB (a failed run).
+Install: `infra/openbb/rig/install.sh <sha> [--enable]` (needs tick-runner and user lingering; it
+holds tick-runner's run lock `~/.local/state/tick-runner/vertex-openbb/run.lock` for up to 600 s and
+for the whole install, and syncs the venv with `uv pip sync --require-hashes --only-binary :all:
+--no-config`).
 
 | Job | Source | Tables | Step: stage, every, `--window` (America/New_York), timeout | Default `--since` |
 | --- | --- | --- | --- | --- |
@@ -93,12 +100,15 @@ GVZ OVX VXSLV. They go to the existing `market_daily_series` / `market_daily_poi
 strategy gates (`vixTermStructure`, `volRegime`, the DSL's min-max `ivRank`) read Cboe's own closes without a
 manual import.
 
-Provenance rule (`upsertPoints`, under `pg_advisory_xact_lock(hashtext(id))` per series): a series
+Provenance rule (`upsertPoints`; it and `replaceSeries` take
+`pg_advisory_xact_lock(hashtextextended('market_daily_series:' || id, 0))` first): a series
 missing from storage is created with source `cboe`; a series whose source is `cboe` gets a full
 upsert by date; a series another source owns (a `vertex:series:import` file) keeps its source and its
 stored closes, and openbb.ingest only appends dates after its `last_date`. After every write
 `point_count`, `first_date`, `last_date` and `source_sha256` are recomputed in SQL; the digest is
 sha256 over the stored rows, one `date|open|high|low|close|adj_close` line per date in date order
+(dates as `to_char(date, 'YYYY-MM-DD')`, floats in shortest exact text with `extra_float_digits = 1`
+set in the transaction, so session settings do not change it)
 (null as empty), so it describes the stored series. Re-running `vertex:series:import` replaces the
 whole series (its own source again); the next `cboe-vol-indices` tick re-appends newer dates.
 
@@ -171,7 +181,8 @@ Writes (operator + agent API key, like `sectorRotation.collect`):
   `macro_points` rows carry `{seriesId, date, value, source, name, unit, frequency}`; the server
   upserts `openbb_macro_series` from them. `daily_series` rows carry `{seriesId, date, open, high,
   low, close}` and go through the market daily series repository (`upsertPoints`, kind `index`,
-  source `cboe`). Output `{ table, received, written }`.
+  source `cboe`). Output `{ table, received, written }`; for `daily_series`, `written` counts the points
+  stored (an imported series takes only dates after its `last_date`).
 - `openbb.recordRun` input `{ job, startedAt, finishedAt, status, rowsReceived, rowsWritten, warnings, error, openbbVersion }`.
   Status (set by tick.ts): `failed` when the fetcher exits non-zero, prints a document that fails the
   schema or answers another job, or every ingest chunk fails; `partial` when the document has warnings
@@ -194,11 +205,14 @@ Reads (operator, read-only):
   The /markets 4-week change compares the latest report with the report 4 rows earlier for the same
   market and category (newest first), accepted only when it is 28 ± 3 days older (holiday weeks move
   the report date); else null. The page requests 8 weeks.
-- `openbb.macro` `{ ids?, from? }`: series metadata and points from `from` (default today - 400 days; echoed as `from`).
-- `openbb.events` `{ from?, to?, kinds? }` (default today-7 .. today+30; `from` after `to` is BAD_REQUEST).
+- `openbb.macro` `{ ids?, from? }`: series metadata and points from `from` (default today - 400 days; echoed as `from`;
+  an explicit `from` before 1900-01-01 is BAD_REQUEST, as for factors).
+- `openbb.events` `{ from?, to?, kinds? }` (default today-7 .. today+30; a lone `from` gets
+  `to` = the later of today+30 and from+30; `from` after `to` is BAD_REQUEST).
 - `openbb.shorts` `{ symbol, days (default 60) }`: short volume daily (with `shortRatio` = short / total,
   null when total is 0), short interest, OTC weekly, FTD.
 - `openbb.sec` `{ symbol }`: latest 25 filings, latest 50 insider trades, latest-period 13F rows of tracked filers, FTD.
+  A later 13F batch with a null `symbol` keeps a stored one (`coalesce(excluded.symbol, symbol)`).
   13F holders match by `symbol`; rows with a null symbol fall back to the CUSIPs of the symbol's
   `openbb_sec_ftd` rows, so holders do not depend on the sec-ftd job.
 - `openbb.factors` `{ frequency, from? }`: default `from` today - 400 days (daily) or - 10 years (monthly); echoed as `from`.

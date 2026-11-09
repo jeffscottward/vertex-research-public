@@ -26,14 +26,17 @@ def num(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        result = float(value)
+        try:
+            result = float(value)
+        except OverflowError:  # an int beyond the float range (10**400) is not a finite number
+            return None
     else:
         text = str(value).strip().replace(",", "")
         if text in {"", ".", "-", "NaN", "nan", "N/A", "NA", "null", "None"}:
             return None
         try:
             result = float(text)
-        except ValueError:
+        except (ValueError, OverflowError):
             return None
     return result if math.isfinite(result) else None
 
@@ -109,18 +112,23 @@ def clock(value: Any) -> str | None:
 
 def utf16_len(text: str) -> int:
     """Length in UTF-16 code units (what JavaScript `string.length` and Zod `.max()` count)."""
-    return len(text.encode("utf-16-le")) // 2
+    return len(text.encode("utf-16-le", "surrogatepass")) // 2
 
 
 def cut(text: str, limit: int, ellipsis: str = "") -> str:
-    """`text` cut to at most `limit` UTF-16 code units (with `ellipsis` when cut)."""
+    """`text` cut to at most `limit` UTF-16 code units (with `ellipsis` when cut); one pass."""
     if utf16_len(text) <= limit:
         return text
-    room = limit - utf16_len(ellipsis)
-    out = text
-    while out and utf16_len(out) > room:
-        out = out[:-1]
-    return out.rstrip() + ellipsis
+    room = max(limit - utf16_len(ellipsis), 0)
+    units = 0
+    end = 0
+    for index, char in enumerate(text):
+        width = 2 if ord(char) > 0xFFFF else 1
+        if units + width > room:
+            break
+        units += width
+        end = index + 1
+    return text[:end].rstrip() + ellipsis
 
 
 def plain_text(value: Any, limit: int) -> str | None:

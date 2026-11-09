@@ -94,7 +94,7 @@ async def fred_keyless(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             ctx.failed(f"fred {fred_id}", exc)
             continue
         if text is None:
-            ctx.failed(f"fred {fred_id}", UpstreamError("not_found", "fredgraph.csv answered 403/404"))
+            ctx.failed(f"fred {fred_id}", UpstreamError("not_found", "fredgraph.csv answered 404"))
             continue
         ctx.take(f"fred {fred_id}", text.splitlines()[1:], lambda t=text, s=series_id: parse_fred_csv(s, t, start.isoformat()), rows)
     return {"macro_points": rows}

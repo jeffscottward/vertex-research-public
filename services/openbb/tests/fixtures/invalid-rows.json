@@ -511,5 +511,164 @@
       "value": 2.27
     },
     "why": "frequency not in the enum"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 10.0001,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "atmIv30d above 10"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": -0.01,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 372.52
+    },
+    "why": "negative putIv25d30d"
+  },
+  {
+    "table": "option_iv_daily",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv30d": 0.230973,
+      "callIv25d30d": 0.220094,
+      "callOi": 40283,
+      "callVolume": 20874,
+      "callWall": 385.0,
+      "contracts": 296,
+      "gammaFlip": 370.0,
+      "netGex": 85189846.84,
+      "putIv25d30d": 0.243056,
+      "putOi": 17404,
+      "putVolume": 9055,
+      "putWall": 375.0,
+      "underlying": "GLD",
+      "underlyingPrice": 0
+    },
+    "why": "underlyingPrice zero"
+  },
+  {
+    "table": "option_iv_term",
+    "row": {
+      "asOf": "2026-11-06",
+      "atmIv": 12.5,
+      "atmStrike": 373.0,
+      "callOi": 12691,
+      "callVolume": 13457,
+      "dte": 3,
+      "expiration": "2026-11-09",
+      "putOi": 3330,
+      "putVolume": 6328,
+      "underlying": "GLD"
+    },
+    "why": "atmIv above 10"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": 0
+    },
+    "why": "price zero"
+  },
+  {
+    "table": "vx_curve",
+    "row": {
+      "asOf": "2026-11-06",
+      "contractMonth": "2026-11",
+      "price": -1.5
+    },
+    "why": "negative price"
+  },
+  {
+    "table": "finra_otc_weekly",
+    "row": {
+      "lastUpdated": "2026-10-05",
+      "shares": 27301288,
+      "symbol": "AAPL",
+      "tier": "TTTTTTTTTTTTTTTTTTTT ",
+      "trades": 538096,
+      "venue": "ats",
+      "weekStart": "2026-09-14"
+    },
+    "why": "tier of 21 UTF-16 units before trimming (Zod max runs on the untrimmed value)"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "　",
+      "seriesId": "EFFR",
+      "source": "federal_reserve",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "name of only an ideographic space (JavaScript trim removes it)"
+  },
+  {
+    "table": "macro_points",
+    "row": {
+      "date": "2026-10-09",
+      "frequency": "daily",
+      "name": "Effective federal funds rate",
+      "seriesId": "EFFR",
+      "source": "﻿",
+      "unit": "percent",
+      "value": 3.88
+    },
+    "why": "source of only a byte-order mark (JavaScript trim removes it)"
+  },
+  {
+    "table": "daily_series",
+    "row": {
+      "close": 22.73,
+      "date": "２０２６-11-05",
+      "high": null,
+      "low": null,
+      "open": null,
+      "seriesId": "GVZ"
+    },
+    "why": "date with full-width digits"
+  },
+  {
+    "table": "short_volume_daily",
+    "row": {
+      "date": "2026-10-29",
+      "shortExemptVolume": 33562,
+      "shortVolume": 5760450,
+      "symbol": "ＳPY",
+      "totalVolume": 12426439
+    },
+    "why": "symbol with a full-width letter"
   }
 ]

@@ -59,6 +59,17 @@ const PASSTHROUGH_FLAGS = ["--since", "--symbols", "--filers"] as const;
 const DEFAULT_SERVICE_DIR = new URL("../../services/openbb", import.meta.url)
   .pathname;
 const ERROR_MAX = 4000;
+/** One openbb.* call may take this long before the tick gives up on it. */
+const POST_TIMEOUT_MS = 60_000;
+
+/** The first `max` UTF-16 units of `text`, never ending inside a surrogate pair. */
+export const truncateText = (text: string, max: number): string => {
+  // 0xD800-0xDBFF: the high (first) half of a surrogate pair.
+  const last = text.charCodeAt(max - 1);
+  const end =
+    text.length > max && last >= 0xd8_00 && last <= 0xdb_ff ? max - 1 : max;
+  return text.slice(0, end);
+};
 /** Environment the Python fetcher may see; everything else (the agent key included) stays out. */
 const CHILD_ENV_NAMES = new Set([
   "PATH",
@@ -220,6 +231,7 @@ const call = async (
       "x-api-key": api.apiKey,
     },
     method: "POST",
+    signal: AbortSignal.timeout(POST_TIMEOUT_MS),
   });
   const text = await response.text();
   if (!response.ok)
@@ -249,8 +261,8 @@ const fetchBatch = async (
       }
     );
   } catch (error) {
-    // A missing venv or interpreter: still a recorded, failed run.
-    return { error: `fetcher could not start: ${messageOf(error)}`, ok: false };
+    // A missing venv or interpreter, or stdout over the cap: still a recorded, failed run.
+    return { error: `fetcher failed to run: ${messageOf(error)}`, ok: false };
   }
   if (result.stderr !== "") io.stderr.write(result.stderr);
   if (result.exitCode !== 0)
@@ -372,7 +384,7 @@ export const runOpenbbTick = async (io: OpenbbTickIo): Promise<number> => {
       .flat()
       .join("; ");
     await call(io, api, "recordRun", {
-      error: error === "" ? null : error.slice(0, ERROR_MAX),
+      error: error === "" ? null : truncateText(error, ERROR_MAX),
       finishedAt: io.now().toISOString(),
       job: args.job,
       openbbVersion: document?.openbbVersion ?? null,

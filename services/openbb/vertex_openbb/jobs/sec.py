@@ -5,14 +5,16 @@ All SEC traffic goes through sec_guard (declared User-Agent, <= 8 requests/s).
 
 from __future__ import annotations
 
+import html
 import re
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from ..context import CORE7, ArgumentError, Context
 from ..upstream import UpstreamError
-from ..values import count, iso_date, label, rounded
+from ..values import cut, count, iso_date, label, rounded
 
 # Tracked 13F-HR filers, CIKs checked against data.sec.gov/submissions on 2026-11-08 (name as EDGAR
 # lists it; each had a 13F-HR for period 2026-06-30).
@@ -34,8 +36,12 @@ CUSIPS: dict[str, str] = {
     "NFLX": "64110L106",
 }
 TOP_HOLDINGS = 50
-# 13F-HR `value` is in dollars for periods from 2023-01-01 on and in thousands of dollars before.
-VALUE_IN_DOLLARS_FROM = "2023-01-01"
+# 13F-HR `value` is in dollars in filings submitted on or after 2023-01-03 and in thousands of
+# dollars before (SEC Form 13F instructions, effective 2023-01-03; a Q4-2022 report filed in
+# February 2023 is already in dollars). Without a filing date, periods before 2022-12-31 count as
+# thousands.
+DOLLARS_FILED_FROM = "2023-01-03"
+DOLLARS_PERIOD_FROM = "2022-12-31"
 _ACCESSION_PATH = re.compile(r"/data/(\d+)/(\d{10})(\d{2})(\d{6})/")
 _ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$")
 _FTD_KEY = re.compile(r"^(\d{4})(\d{2})([ab])$")
@@ -71,7 +77,7 @@ def filing_rows(symbol: str, data: list[dict[str, Any]], first: str) -> list[dic
             {
                 "accessionNumber": accession,
                 "cik": cik,
-                "description": description[:2000],
+                "description": cut(description, 2000),
                 "filingDate": filed,
                 "formType": label(item.get("report_type"), 20),
                 "reportDate": iso_date(item.get("report_date")),
@@ -174,19 +180,33 @@ def ftd_period_end(key: str) -> date | None:
     if not match:
         return None
     year, month = int(match[1]), int(match[2])
+    if not 1 <= month <= 12:
+        return None
     if match[3] == "a":
         return date(year, month, 15)
     return date(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)
 
 
-def ftd_links(page: str) -> dict[str, str]:
+def ftd_links(page: str) -> tuple[dict[str, str], list[str]]:
     """`YYYYMM[ab]` -> absolute URL of each fails file linked from the SEC page (SEC moved the
-    newest files to /files/data/other/fails-deliver-data/ in 2026, so names are not built)."""
+    newest files to /files/data/other/fails-deliver-data/ in 2026, so names are not built).
+
+    Only https://www.sec.gov links are kept (relative ones are resolved against the page); links
+    to another host or with a month outside 01..12 are skipped and listed in the second value.
+    """
     links: dict[str, str] = {}
+    skipped: list[str] = []
     for href, key in _FTD_HREF.findall(page):
-        url = href if href.startswith("https://") else "https://www.sec.gov" + (href if href.startswith("/") else "/" + href)
+        url = urljoin(FTD_PAGE, html.unescape(href))
+        parts = urlsplit(url)
+        if parts.scheme != "https" or (parts.hostname or "").lower() != "www.sec.gov":
+            skipped.append(f"{key} (link to another host)")
+            continue
+        if ftd_period_end(key) is None:
+            skipped.append(f"{key} (no such month)")
+            continue
         links.setdefault(key, url)
-    return links
+    return links, skipped
 
 
 async def _ftd_file(url: str, symbols: tuple[str, ...]) -> list[dict[str, Any]]:
@@ -232,15 +252,21 @@ async def ftd(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     listing: dict[str, str] = {}
     try:
         page = await ctx.up.http_text(FTD_PAGE)
-        listing = ftd_links(page or "")
-    except UpstreamError as exc:
-        ctx.warn(f"sec fails-to-deliver page: {exc.message}")
+        listing, skipped = ftd_links(page or "")
+        if skipped:
+            ctx.warn(f"sec fails-to-deliver page: skipped {', '.join(skipped[:10])}")
+    except Exception as exc:  # noqa: BLE001 - page trouble falls back to OpenBB's listing
+        ctx.warn(f"sec fails-to-deliver page: {exc.message if isinstance(exc, UpstreamError) else type(exc).__name__}")
     if not listing:
         ctx.warn("sec fails-to-deliver page listed no files; using OpenBB's data.json listing")  # json-data-ignore: warning text naming SEC's upstream listing, not a file read
         try:
             from openbb_sec.utils.helpers import get_ftd_urls
 
             listing = await ctx.up.helper("sec:ftd_urls", get_ftd_urls)
+            listing = {
+                str(k): str(u) for k, u in (listing or {}).items()
+                if isinstance(u, str) and (urlsplit(u).hostname or "").lower() == "www.sec.gov" and u.startswith("https://")
+            }
         except UpstreamError as exc:
             ctx.failed("sec fails-to-deliver list", exc)
             return {"sec_ftd": []}
@@ -286,7 +312,7 @@ def quarter_ends(start: date, today: date) -> int:
     return max(total, 1)
 
 
-def pick_filings(filings_list: list[dict[str, Any]], limit: int) -> tuple[list[tuple[str, str]], list[str]]:
+def pick_filings(filings_list: list[dict[str, Any]], limit: int) -> tuple[list[tuple[str, str, str | None]], list[str]]:
     """Newest `limit` periods: (period, complete submission URL) of the original 13F-HR each.
 
     Returns (picked, notes); a 13F-HR/A for a picked period is noted, not applied.
@@ -307,7 +333,8 @@ def pick_filings(filings_list: list[dict[str, Any]], limit: int) -> tuple[list[t
             amended[period] = iso_date(item.get("filing_date")) or "?"
     periods = sorted(by_period, reverse=True)[:limit]
     notes = [f"period {p}: 13F-HR/A filed {amended[p]} not applied (original 13F-HR used)" for p in periods if p in amended]
-    return [(p, str(by_period[p]["complete_submission_url"])) for p in periods], notes
+    picked = [(p, str(by_period[p]["complete_submission_url"]), iso_date(by_period[p].get("filing_date"))) for p in periods]
+    return picked, notes
 
 
 async def _parse_13f(url: str) -> list[dict[str, Any]]:
@@ -319,7 +346,8 @@ async def _parse_13f(url: str) -> list[dict[str, Any]]:
 
 
 def holdings_rows(
-    filer_cik: str, filer_name: str, period: str, data: list[dict[str, Any]], universe: dict[str, str]
+    filer_cik: str, filer_name: str, period: str, data: list[dict[str, Any]], universe: dict[str, str],
+    filed: str | None = None,
 ) -> list[dict[str, Any]]:
     """Aggregate per (cusip, option type); keep universe CUSIPs plus the filer's top 50 by value.
 
@@ -338,7 +366,8 @@ def holdings_rows(
         is_shares = str(item.get("security_type") or "").strip().upper() == "SH"
         shares = count(item.get("principal_amount")) if is_shares else None
         period_end = iso_date(item.get("period_ending")) or period
-        if period_end < VALUE_IN_DOLLARS_FROM:
+        in_thousands = filed < DOLLARS_FILED_FROM if filed else period_end < DOLLARS_PERIOD_FROM
+        if in_thousands:
             value = round(value * 1000, 2)  # 13F values were reported in thousands before 2023
         key = (cusip, option)
         row = totals.get(key)
@@ -414,7 +443,7 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
             ctx.ok()
             ctx.warn(f"sec 13f {name}: no 13F-HR filings")
             continue
-        for period, url in picked:
+        for period, url, filed in picked:
             try:
                 data = await ctx.up.helper(f"sec:13f:{url}", lambda u=url: _parse_13f(u))
             except UpstreamError as exc:
@@ -422,7 +451,7 @@ async def form_13f(ctx: Context) -> dict[str, list[dict[str, Any]]]:
                 continue
             ctx.take(
                 f"sec 13f {name} {period}", data or [],
-                lambda d=data, p=period: holdings_rows(cik, name, p, d or [], universe), rows,
+                lambda d=data, p=period, f=filed: holdings_rows(cik, name, p, d or [], universe, f), rows,
             )
     return {"sec_13f_holdings": rows}
 

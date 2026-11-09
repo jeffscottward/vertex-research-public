@@ -10,6 +10,7 @@ import { appContract } from "../contract.ts";
 import {
   OPENBB_CORE7,
   OPENBB_IV_PERCENTILE_MIN_SESSIONS,
+  OPENBB_IV_PERCENTILE_SESSIONS,
   OPENBB_VOL_INDEX_IDS,
 } from "../contracts/openbb.ts";
 import type { ApiContext } from "./context.ts";
@@ -142,7 +143,9 @@ const ingest = api.openbb.ingest
           adjClose: null,
         }));
         try {
-          await series.upsertPoints(
+          // Points of a series another source owns are appended only after its last date, so
+          // `written` counts what was stored, not what was sent.
+          const result = await series.upsertPoints(
             {
               id,
               kind: "index",
@@ -151,12 +154,12 @@ const ingest = api.openbb.ingest
             },
             points
           );
+          written += result.written;
         } catch (error) {
           if (error instanceof MarketDailySeriesInputError)
             throw failures.BAD_REQUEST({ message: `${id}: ${error.message}` });
           throw error;
         }
-        written += new Set(points.map((point) => point.date)).size;
       }
     } else if (batch.table === "macro_points")
       written = await openbb.upsertMacroPoints(batch.rows);
@@ -203,7 +206,7 @@ const volContext = api.openbb.volContext
         ...(asOf === null ? {} : { to: asOf }),
       }),
       openbb.vxCurveDates(asOf, VX_EARLIER_SESSIONS + 1),
-      openbb.optionIvDaily(OPENBB_CORE7, asOf),
+      openbb.optionIvDaily(OPENBB_CORE7, asOf, OPENBB_IV_PERCENTILE_SESSIONS),
       openbb.optionIvTermLatest(asOf),
     ]);
     const indices = OPENBB_VOL_INDEX_IDS.flatMap((id) => {
@@ -301,7 +304,10 @@ const events = api.openbb.events
   .handler(async ({ context, input, errors }) => {
     const { openbb } = repositoriesFor(context, errors as unknown as Failures);
     const from = input.from ?? nyDate(-7);
-    const to = input.to ?? nyDate(30);
+    // A lone `from` beyond the default end gets a 30-day window of its own.
+    const defaultTo = nyDate(30);
+    const ownWindow = nyDate(30, from);
+    const to = input.to ?? (ownWindow > defaultTo ? ownWindow : defaultTo);
     return {
       events: await openbb.events(from, to, input.kinds ?? null),
       from,
@@ -363,8 +369,8 @@ const factors = api.openbb.factors
           : -DEFAULT_HISTORY_DAYS
       );
     return {
-      from,
       frequency: input.frequency,
+      from,
       rows: await openbb.factors(input.frequency, from),
     };
   });

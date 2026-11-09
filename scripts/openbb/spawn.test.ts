@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { spawnOpenbbFetcher } from "./spawn.ts";
+import {
+  createOpenbbFetcherSpawn,
+  OPENBB_STDOUT_MAX_BYTES,
+  spawnOpenbbFetcher,
+} from "./spawn.ts";
 
 const env = { PATH: process.env["PATH"] };
 
@@ -36,6 +40,21 @@ describe("spawnOpenbbFetcher", () => {
     await expect(
       spawnOpenbbFetcher("sh", ["-c", "kill -TERM $$"], { cwd: "/", env })
     ).resolves.toMatchObject({ exitCode: 1 });
+  });
+
+  it("kills the fetcher and rejects when stdout passes the cap", async () => {
+    expect(OPENBB_STDOUT_MAX_BYTES).toBe(64 * 1024 * 1024);
+    const capped = createOpenbbFetcherSpawn(1024);
+    await expect(
+      capped("sh", ["-c", "exec yes"], {
+        cwd: "/",
+        env,
+      })
+    ).rejects.toThrow("fetcher stdout exceeded 1024 bytes");
+    // Multi-byte UTF-8 split across chunks still decodes once, at the end.
+    await expect(
+      capped("sh", ["-c", "printf 'caf\\303\\251'"], { cwd: "/", env })
+    ).resolves.toMatchObject({ stdout: "café" });
   });
 
   it("rejects when the command cannot start", async () => {

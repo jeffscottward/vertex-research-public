@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   insideOpenbbWindow,
-  openbbChildEnv,
   type OpenbbSpawnResult,
   type OpenbbTickIo,
+  openbbChildEnv,
   runOpenbbTick,
+  truncateText,
 } from "./tick.ts";
 
 const KEY = "dfk_openbb_tick_secret";
@@ -145,6 +146,16 @@ describe("openbb tick window", () => {
   });
 });
 
+describe("truncateText", () => {
+  it("cuts at the limit without splitting a surrogate pair", () => {
+    expect(truncateText("abcdef", 4)).toBe("abcd");
+    expect(truncateText("abc", 4)).toBe("abc");
+    // "😀" is two UTF-16 units; a cut between them drops the whole character.
+    expect(truncateText("ab😀cd", 3)).toBe("ab");
+    expect(truncateText("ab😀cd", 4)).toBe("ab😀");
+  });
+});
+
 describe("openbb tick arguments", () => {
   it("exits 2 on bad arguments", async () => {
     for (const argv of [
@@ -262,6 +273,7 @@ describe("openbb tick posting", () => {
       "x-api-key": KEY,
     });
     expect(ingests[0]?.input).toMatchObject({ job: "cboe-vx-curve" });
+    expect(ingests[0]?.init.signal).toBeInstanceOf(AbortSignal);
     expect(recorded(run.posts)).toMatchObject({
       error: null,
       finishedAt: FRIDAY_1720.toISOString(),
@@ -432,12 +444,12 @@ describe("openbb tick posting", () => {
     };
     expect(await runOpenbbTick(io)).toBe(1);
     expect(recorded(run.posts)).toMatchObject({
-      error: "fetcher could not start: spawn refused",
+      error: "fetcher failed to run: spawn refused",
       rowsReceived: 0,
       status: "failed",
     });
     expect(run.err).toEqual([
-      "openbb tick failed: fetcher could not start: spawn refused\n",
+      "openbb tick failed: fetcher failed to run: spawn refused\n",
     ]);
   });
 
@@ -446,9 +458,12 @@ describe("openbb tick posting", () => {
       AWS_SECRET_ACCESS_KEY: "x",
       HOME: "/home/test",
       HTTPS_PROXY: "http://proxy",
+      http_proxy: "http://proxy",
+      https_proxy: "http://proxy",
       LANG: "C.UTF-8",
       LC_ALL: "C.UTF-8",
       NO_PROXY: "localhost",
+      no_proxy: "localhost",
       OPENBB_DEADLINE_S: "240",
       OPENBB_PYTHON: "/opt/python",
       OPENBB_STOCK_UNIVERSE: "AAPL",
@@ -457,13 +472,10 @@ describe("openbb tick posting", () => {
       SSL_CERT_DIR: "/etc/ssl",
       SSL_CERT_FILE: "/etc/ssl/ca.pem",
       TZ: "UTC",
+      UNSET: undefined,
       VERTEX_AGENT_API_KEY: KEY,
       VERTEX_ORIGIN: ORIGIN,
       VERTEX_RESEARCH_CONTACT_EMAIL: "me@domain.test",
-      http_proxy: "http://proxy",
-      https_proxy: "http://proxy",
-      no_proxy: "localhost",
-      UNSET: undefined,
     });
     expect(Object.keys(env).sort()).toEqual([
       "HOME",

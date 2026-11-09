@@ -7,7 +7,8 @@
 # OPENBB_STOCK_UNIVERSE) and the operator agent write key from ~/.config/vertex/openbb-key (both 0600).
 # The key goes to the tick client through the environment only; nothing prints it. sec-* jobs hold
 # ~/.cache/vertex-openbb/sec.lock, so a manual SEC backfill never overlaps the timer's SEC stages
-# (SEC fair access is per host).
+# (SEC fair access is per host): a manual run waits for the lock; a timer run (systemd sets
+# INVOCATION_ID) waits 20 s, then skips with exit 0.
 set -euo pipefail
 
 base="$HOME/.local/share/vertex-openbb"
@@ -26,6 +27,10 @@ set -a
 . "$env_file"
 set +a
 VERTEX_AGENT_API_KEY="$(tr -d '\r\n' <"$key_file")"
+if [[ -z "$VERTEX_AGENT_API_KEY" ]]; then
+  echo "vertex-openbb-run: $key_file is empty" >&2
+  exit 2
+fi
 export VERTEX_AGENT_API_KEY
 export OPENBB_PYTHON="$base/venv/bin/python"
 export OPENBB_SERVICE_DIR="$base/checkout/services/openbb"
@@ -35,7 +40,19 @@ if [[ -z "$bun_bin" ]]; then bun_bin="$HOME/.local/share/mise/shims/bun"; fi
 
 cd "$base/checkout"
 if [[ "${1:-}" == sec-* ]]; then
+  sec_lock="$HOME/.cache/vertex-openbb/sec.lock"
   mkdir -p "$HOME/.cache/vertex-openbb"
-  exec flock "$HOME/.cache/vertex-openbb/sec.lock" "$bun_bin" run vertex:openbb:tick "$@"
+  if [[ -z "${INVOCATION_ID:-}" ]]; then
+    # Manual run: wait for the timer's SEC step to finish.
+    exec flock "$sec_lock" "$bun_bin" run vertex:openbb:tick "$@"
+  fi
+  # Under systemd: a manual SEC run holds the lock; skip this step instead of waiting it out.
+  status=0
+  flock -w 20 -E 75 "$sec_lock" "$bun_bin" run vertex:openbb:tick "$@" || status=$?
+  if [[ "$status" -eq 75 ]]; then
+    echo "skip: SEC lock held (manual run in progress)"
+    exit 0
+  fi
+  exit "$status"
 fi
 exec "$bun_bin" run vertex:openbb:tick "$@"

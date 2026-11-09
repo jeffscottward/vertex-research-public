@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from ..context import Context
@@ -131,24 +131,49 @@ def parse_regsho(text: str, symbols: set[str]) -> list[dict[str, Any]]:
     return rows
 
 
+REGSHO_PUBLISHED_BY_HOUR = 20  # FINRA posts the day's file by early evening, New York time
+
+
 async def short_volume(ctx: Context) -> dict[str, list[dict[str, Any]]]:
-    """FINRA Reg SHO consolidated NMS daily short volume file (not in OpenBB); holidays skipped."""
+    """FINRA Reg SHO consolidated NMS daily short volume file (not in OpenBB).
+
+    Listed NYSE full-day closures (nyse_closures.py) are not requested. FINRA's file server answers
+    403 for a file that does not exist: on the newest weekday before 20:00 New York time that means
+    "not published yet" (no warning); any other 403 is a failed source.
+    """
+    from zoneinfo import ZoneInfo
+
+    from .nyse_closures import YEARS, is_closed
+
     symbols = set(ctx.symbol_list(ctx.core_and_stocks))
     start = ctx.start(10)
     rows = ctx.table("short_volume_daily")
-    missing = []
-    for day in weekdays(start, ctx.today):
+    days = weekdays(start, ctx.today)
+    uncovered = sorted({d.year for d in days} - YEARS)
+    if uncovered:
+        ctx.warn(f"finra regsho: no NYSE closure list for {', '.join(map(str, uncovered))}; holidays there count as failures")
+    days = [d for d in days if not is_closed(d)]
+    newest = days[-1] if days else None
+    now = (ctx.now or datetime.now(ZoneInfo("America/New_York"))).astimezone(ZoneInfo("America/New_York"))
+    missing: list[str] = []
+    for day in days:
+        source = f"finra regsho {day.isoformat()}"
         url = REGSHO_URL.format(day=day.strftime("%Y%m%d"))
         try:
             text = await ctx.up.http_text(url)
         except UpstreamError as exc:
-            ctx.failed(f"finra regsho {day.isoformat()}", exc)
+            if exc.kind == "forbidden" and day == newest and day == now.date() and now.hour < REGSHO_PUBLISHED_BY_HOUR:
+                ctx.ok()  # today's file is not posted yet
+                continue
+            if exc.kind == "forbidden":
+                exc = UpstreamError("forbidden", f"{exc.message} (not a listed NYSE closure)")
+            ctx.failed(source, exc)
             continue
         if text is None:
             ctx.ok()
             missing.append(day.isoformat())
             continue
-        ctx.take(f"finra regsho {day.isoformat()}", text.splitlines()[1:], lambda t=text: parse_regsho(t, symbols), rows)
+        ctx.take(source, text.splitlines()[1:], lambda t=text: parse_regsho(t, symbols), rows)
     if missing:
         recent = ctx.today - timedelta(days=1)
         older = [d for d in missing if d < recent.isoformat()]

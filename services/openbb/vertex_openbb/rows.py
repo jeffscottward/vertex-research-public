@@ -28,17 +28,17 @@ FACTORS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf", "mom")
 
 # JavaScript Number.MAX_SAFE_INTEGER: Zod 4 `.int()` accepts only safe integers.
 MAX_SAFE_INTEGER = 2**53 - 1
-_DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
-SYMBOL = re.compile(r"^[A-Z0-9.^=-]{1,16}$")
-_ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$")
-_CUSIP = re.compile(r"^[0-9A-Z]{9}$")
-_CIK = re.compile(r"^\d{1,10}$")
-_MACRO_ID = re.compile(r"^[A-Z0-9_]{1,40}$")
-_MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
-_KIND = re.compile(r"^[a-z0-9_]{1,40}$")
-_CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
-_MARKET = re.compile(r"^[A-Z0-9]{1,8}$")
-_MARKET_CODE = re.compile(r"^[0-9A-Z]{1,12}$")
+_DATE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$", re.ASCII)
+SYMBOL = re.compile(r"^[A-Z0-9.^=-]{1,16}$", re.ASCII)
+_ACCESSION = re.compile(r"^\d{10}-\d{2}-\d{6}$", re.ASCII)
+_CUSIP = re.compile(r"^[0-9A-Z]{9}$", re.ASCII)
+_CIK = re.compile(r"^\d{1,10}$", re.ASCII)
+_MACRO_ID = re.compile(r"^[A-Z0-9_]{1,40}$", re.ASCII)
+_MONTH = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$", re.ASCII)
+_KIND = re.compile(r"^[a-z0-9_]{1,40}$", re.ASCII)
+_CLOCK = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$", re.ASCII)
+_MARKET = re.compile(r"^[A-Z0-9]{1,8}$", re.ASCII)
+_MARKET_CODE = re.compile(r"^[0-9A-Z]{1,12}$", re.ASCII)
 
 
 class Field:
@@ -56,8 +56,14 @@ class Field:
         if kind == "date":
             return isinstance(value, str) and _real_date(value)
         if kind == "finite":
-            ok = _finite(value)
-            return ok and (not self.options.get("nonnegative") or value >= 0)
+            if not _finite(value):
+                return False
+            low, high = self.options.get("min"), self.options.get("max")
+            if self.options.get("positive") and not value > 0:
+                return False
+            if self.options.get("nonnegative") and value < 0:
+                return False
+            return (low is None or value >= low) and (high is None or value <= high)
         if kind == "count":
             return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_SAFE_INTEGER
         if kind == "regex":
@@ -65,7 +71,9 @@ class Field:
         if kind == "enum":
             return value in self.options["values"]
         if kind == "label":
-            return isinstance(value, str) and 1 <= utf16_len(value.strip()) <= self.options["max"]
+            # Zod: utf16Text(max).trim().min(1): the untrimmed value is at most `max` UTF-16 units
+            # and the value trimmed of JavaScript whitespace is not empty.
+            return isinstance(value, str) and utf16_len(value) <= self.options["max"] and bool(value.strip(JS_WHITESPACE))
         if kind == "text":
             return isinstance(value, str) and utf16_len(value) <= self.options["max"]
         if kind == "https":
@@ -74,7 +82,12 @@ class Field:
 
 
 def _finite(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:  # int beyond the float range
+        return False
 
 
 def _real_date(value: str) -> bool:
@@ -87,6 +100,9 @@ def _real_date(value: str) -> bool:
     return True
 
 
+# Characters JavaScript's String.prototype.trim removes (WhiteSpace + LineTerminator).
+JS_WHITESPACE = "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+
 D = Field("date")
 D_NULL = Field("date", nullable=True)
 F = Field("finite")
@@ -94,6 +110,8 @@ F_NULL = Field("finite", nullable=True)
 C = Field("count")
 C_NULL = Field("count", nullable=True)
 SYM = Field("regex", pattern=SYMBOL)
+IV = Field("finite", nullable=True, min=0, max=10)  # decimal IV; 10 = 1,000 %
+PRICE = Field("finite", positive=True)
 
 
 def _label(limit: int, nullable: bool = False) -> Field:
@@ -106,16 +124,16 @@ TABLES: dict[str, dict[str, Field]] = {
         "seriesId": Field("enum", values=VOL_INDEX_IDS),
     },
     "vx_curve": {
-        "asOf": D, "contractMonth": Field("regex", pattern=_MONTH), "price": F,
+        "asOf": D, "contractMonth": Field("regex", pattern=_MONTH), "price": PRICE,
     },
     "option_iv_daily": {
-        "asOf": D, "atmIv30d": F_NULL, "callIv25d30d": F_NULL, "callOi": C, "callVolume": C,
+        "asOf": D, "atmIv30d": IV, "callIv25d30d": IV, "callOi": C, "callVolume": C,
         "callWall": F_NULL, "contracts": C, "gammaFlip": F_NULL, "netGex": F_NULL,
-        "putIv25d30d": F_NULL, "putOi": C, "putVolume": C, "putWall": F_NULL,
-        "underlying": SYM, "underlyingPrice": F,
+        "putIv25d30d": IV, "putOi": C, "putVolume": C, "putWall": F_NULL,
+        "underlying": SYM, "underlyingPrice": PRICE,
     },
     "option_iv_term": {
-        "asOf": D, "atmIv": F_NULL, "atmStrike": F_NULL, "callOi": C, "callVolume": C,
+        "asOf": D, "atmIv": IV, "atmStrike": F_NULL, "callOi": C, "callVolume": C,
         "dte": C, "expiration": D, "putOi": C, "putVolume": C, "underlying": SYM,
     },
     "cot_positions": {

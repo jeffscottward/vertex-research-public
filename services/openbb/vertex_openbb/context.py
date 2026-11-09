@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .upstream import Upstream, UpstreamError
+from .values import cut
 
 CORE7 = ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")
 STOCKS = ("AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO", "COST", "NFLX")
@@ -30,6 +31,8 @@ class Context:
     filers: tuple[str, ...] | None = None
     env: Mapping[str, str] = field(default_factory=dict)
     stocks: tuple[str, ...] = STOCKS
+    # Wall-clock time in America/New_York (None: read the clock when needed; tests fix it).
+    now: datetime | None = None
     warnings: list[str] = field(default_factory=list)
     sources_ok: int = 0
     sources_failed: int = 0
@@ -45,9 +48,7 @@ class Context:
         return self.tables.setdefault(name, [])
 
     def warn(self, message: str) -> None:
-        text = " ".join(str(message).split())
-        if len(text) > MAX_WARNING_CHARS:
-            text = text[: MAX_WARNING_CHARS - 1] + "…"
+        text = cut(" ".join(str(message).split()), MAX_WARNING_CHARS, "…")
         if text not in self.warnings:
             self.warnings.append(text)
 

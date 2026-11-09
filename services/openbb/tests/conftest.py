@@ -6,7 +6,7 @@ import io
 import json
 import socket
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,10 +74,11 @@ def run(
     today: date = date(2026, 11, 8),
     env: dict[str, str] | None = None,
     delay_s: float = 0.0,
+    now: datetime | None = None,
 ) -> Result:
     out, err = io.StringIO(), io.StringIO()
     up = ReplayUpstream(calls or [], delay_s=delay_s)
-    code = cli.run(argv, env=env if env is not None else {}, up=up, today=today, stdout=out, stderr=err)
+    code = cli.run(argv, env=env if env is not None else {}, up=up, today=today, now=now, stdout=out, stderr=err)
     return Result(code, out.getvalue(), err.getvalue())
 
 

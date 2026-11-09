@@ -40,9 +40,6 @@ import type { DatabaseExecutor } from "./client.ts";
 // macro_points also upserts its series row and recomputes first/last date and point count.
 // Reads serve the operator procedures openbb.*. Research only: nothing here places orders.
 
-/** Rows of the session window the IV percentile reads (one trading year). */
-export const OPENBB_IV_PERCENTILE_SESSIONS = 252;
-
 type Insert<T extends PgTable> = T["$inferInsert"];
 type Select<T extends PgTable> = T["$inferSelect"];
 
@@ -69,6 +66,8 @@ const UPSERT_TABLES = {
     table: openbbOptionIvTerm,
   },
   sec_13f_holdings: {
+    // A later batch without the CUSIP's ticker never erases one already stored.
+    keepWhenNull: ["symbol"],
     keys: ["filerCik", "periodEnding", "cusip", "optionType"],
     table: openbbSec13fHoldings,
   },
@@ -161,10 +160,11 @@ export type OpenbbRepository = Readonly<{
   /** Up to `limit` stored VX curve dates on or before `asOf`, newest first. */
   vxCurveDates: (asOf: string | null, limit: number) => Promise<string[]>;
   vxCurve: (asOfs: readonly string[]) => Promise<OpenbbVxCurveRow[]>;
-  /** The newest OPENBB_IV_PERCENTILE_SESSIONS rows on or before `asOf` per underlying, oldest first. */
+  /** The newest `sessions` rows on or before `asOf` per underlying, oldest first. */
   optionIvDaily: (
     underlyings: readonly string[],
-    asOf: string | null
+    asOf: string | null,
+    sessions: number
   ) => Promise<OpenbbOptionIvDailyRow[]>;
   /** Term rows of the newest date on or before `asOf`. */
   optionIvTermLatest: (asOf: string | null) => Promise<OpenbbOptionIvTermRow[]>;
@@ -261,17 +261,23 @@ const lastPerKey = <Row extends Record<string, unknown>>(
   return [...byKey.values()];
 };
 
-/** `excluded.<column>` for every non-key column: the ON CONFLICT DO UPDATE set. */
+/**
+ * `excluded.<column>` for every non-key column: the ON CONFLICT DO UPDATE set. Columns in
+ * `keepWhenNull` keep the stored value when the new row has null.
+ */
 const excludedSet = (
   table: PgTable,
-  keys: readonly string[]
+  keys: readonly string[],
+  keepWhenNull: readonly string[]
 ): Record<string, SQL> =>
   Object.fromEntries(
     Object.entries(getTableColumns(table))
       .filter(([property]) => !keys.includes(property))
       .map(([property, column]) => [
         property,
-        sql.raw(`excluded."${column.name}"`),
+        keepWhenNull.includes(property)
+          ? sql`coalesce(${sql.raw(`excluded."${column.name}"`)}, ${column})`
+          : sql.raw(`excluded."${column.name}"`),
       ])
   );
 
@@ -405,7 +411,7 @@ export const createOpenbbRepository = (
       .from(openbbMacroSeries)
       .where(ids === null ? undefined : inArray(openbbMacroSeries.id, [...ids]))
       .orderBy(asc(openbbMacroSeries.id)),
-  optionIvDaily: async (underlyings, asOf) => {
+  optionIvDaily: async (underlyings, asOf, sessions) => {
     if (underlyings.length === 0) return [];
     const ranked = database
       .select({
@@ -426,7 +432,7 @@ export const createOpenbbRepository = (
     const rows = await database
       .select()
       .from(ranked)
-      .where(lte(ranked.session, OPENBB_IV_PERCENTILE_SESSIONS))
+      .where(lte(ranked.session, sessions))
       .orderBy(asc(ranked.underlying), asc(ranked.asOf));
     return rows.map(({ session: _session, ...row }) => row);
   },
@@ -576,14 +582,22 @@ export const createOpenbbRepository = (
   },
   upsertRows: async (tableName, rows) => {
     if (rows.length === 0) return 0;
-    const { keys, table } = UPSERT_TABLES[tableName];
+    const {
+      keepWhenNull = [],
+      keys,
+      table,
+    }: Readonly<{
+      keepWhenNull?: readonly string[];
+      keys: readonly string[];
+      table: PgTable;
+    }> = UPSERT_TABLES[tableName];
     const unique = lastPerKey(rows as readonly Record<string, unknown>[], keys);
     const columns = getTableColumns(table) as Record<string, PgColumn>;
     await database
       .insert(table)
       .values(unique as never)
       .onConflictDoUpdate({
-        set: excludedSet(table, keys),
+        set: excludedSet(table, keys, keepWhenNull),
         target: keys.map((key) => columns[key] as PgColumn),
       });
     return unique.length;
