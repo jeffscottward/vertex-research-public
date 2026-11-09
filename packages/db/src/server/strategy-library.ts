@@ -3,12 +3,16 @@
 import {
   STRATEGY_KINDS,
   STRATEGY_PARAM_TYPES,
+  STRATEGY_PRIORITIES,
   STRATEGY_STATUSES,
+  type StrategyExternalValidation,
+  type StrategyExternalValidationMetric,
   type StrategyKind,
   type StrategyParam,
   type StrategyParamType,
   type StrategyParamValue,
   type StrategyPresetValues,
+  type StrategyPriority,
   type StrategyStatus,
 } from "../schema/index.ts";
 import { required as requirePresent } from "./required.ts";
@@ -27,6 +31,23 @@ const STRATEGY_PARAM_OPTION_MAX_LENGTH = 100;
 const STRATEGY_PRESET_NAME_MAX_LENGTH = 80;
 export const STRATEGY_PRESETS_MAX = 50;
 export const STRATEGY_SEARCH_MAX_LENGTH = 100;
+const STRATEGY_EXTERNAL_SOURCE_URL_MAX_LENGTH = 300;
+const STRATEGY_EXTERNAL_SOURCE_TITLE_MAX_LENGTH = 200;
+const STRATEGY_EXTERNAL_SOURCE_AUTHOR_MAX_LENGTH = 120;
+const STRATEGY_EXTERNAL_METHOD_MAX_LENGTH = 1000;
+const STRATEGY_EXTERNAL_METRICS_MAX = 12;
+const STRATEGY_EXTERNAL_METRIC_LABEL_MAX_LENGTH = 60;
+const STRATEGY_EXTERNAL_METRIC_VALUE_MAX_LENGTH = 80;
+const ISO_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const EXTERNAL_VALIDATION_KEYS = [
+  "sourceUrl",
+  "sourceTitle",
+  "sourceAuthor",
+  "publishedOn",
+  "claimedMethod",
+  "claimedMetrics",
+] as const;
+const EXTERNAL_METRIC_KEYS = ["label", "value"] as const;
 const STRATEGY_PARAM_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const STRATEGY_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SOURCE_PATH_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.\-/]*$/;
@@ -130,6 +151,134 @@ export const normalizeStrategyStatus = (value: unknown): StrategyStatus => {
   if (!includesValue(STRATEGY_STATUSES, value))
     fail(`status must be one of ${STRATEGY_STATUSES.join(", ")}`);
   return value as StrategyStatus;
+};
+
+export const normalizeStrategyPriority = (value: unknown): StrategyPriority => {
+  if (!includesValue(STRATEGY_PRIORITIES, value))
+    fail(`priority must be one of ${STRATEGY_PRIORITIES.join(", ")}`);
+  return value as StrategyPriority;
+};
+
+const strictRecord = (
+  value: unknown,
+  keys: readonly string[],
+  field: string
+): Record<string, unknown> => {
+  if (!isRecord(value)) fail(`${field} must be an object`);
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!keys.includes(key))
+      fail(`${field}.${key.slice(0, 40)} is not a recognized field`);
+  }
+  return record;
+};
+
+const httpsUrl = (value: unknown, field: string, max: number): string => {
+  const url = text(value, field, max);
+  if (!URL.canParse(url) || new URL(url).protocol !== "https:")
+    fail(`${field} must be an https URL`);
+  return url;
+};
+
+// 2026-02-30 parses in some runtimes and rolls over to March; the round trip refuses it.
+const isCalendarDay = (value: string): boolean => {
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
+};
+
+// A real calendar day written YYYY-MM-DD.
+const isoDay = (value: unknown, field: string): string => {
+  if (
+    typeof value !== "string" ||
+    !ISO_DAY_PATTERN.test(value) ||
+    !isCalendarDay(value)
+  ) {
+    fail(`${field} must be a calendar date written YYYY-MM-DD`);
+  }
+  return value as string;
+};
+
+const normalizeExternalMetrics = (
+  value: unknown,
+  field: string
+): StrategyExternalValidationMetric[] => {
+  if (!Array.isArray(value) || value.length === 0)
+    fail(`${field} must be a non-empty array`);
+  const metrics = value as unknown[];
+  if (metrics.length > STRATEGY_EXTERNAL_METRICS_MAX)
+    fail(`${field} must not exceed ${STRATEGY_EXTERNAL_METRICS_MAX} entries`);
+  return metrics.map((entry, index) => {
+    const at = `${field}[${index}]`;
+    const record = strictRecord(entry, EXTERNAL_METRIC_KEYS, at);
+    return {
+      label: text(
+        record["label"],
+        `${at}.label`,
+        STRATEGY_EXTERNAL_METRIC_LABEL_MAX_LENGTH
+      ),
+      value: text(
+        record["value"],
+        `${at}.value`,
+        STRATEGY_EXTERNAL_METRIC_VALUE_MAX_LENGTH
+      ),
+    };
+  });
+};
+
+// A third party's claim about the strategy; never a Vertex validation. undefined stays undefined
+// (unchanged); null means no external claim. Unknown keys are refused.
+export const normalizeStrategyExternalValidation = (
+  value: unknown
+): StrategyExternalValidation | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const field = "externalValidation";
+  const record = strictRecord(value, EXTERNAL_VALIDATION_KEYS, field);
+  return {
+    sourceUrl: httpsUrl(
+      record["sourceUrl"],
+      `${field}.sourceUrl`,
+      STRATEGY_EXTERNAL_SOURCE_URL_MAX_LENGTH
+    ),
+    sourceTitle: text(
+      record["sourceTitle"],
+      `${field}.sourceTitle`,
+      STRATEGY_EXTERNAL_SOURCE_TITLE_MAX_LENGTH
+    ),
+    sourceAuthor: text(
+      record["sourceAuthor"],
+      `${field}.sourceAuthor`,
+      STRATEGY_EXTERNAL_SOURCE_AUTHOR_MAX_LENGTH
+    ),
+    publishedOn: isoDay(record["publishedOn"], `${field}.publishedOn`),
+    claimedMethod: text(
+      record["claimedMethod"],
+      `${field}.claimedMethod`,
+      STRATEGY_EXTERNAL_METHOD_MAX_LENGTH
+    ),
+    claimedMetrics: normalizeExternalMetrics(
+      record["claimedMetrics"],
+      `${field}.claimedMetrics`
+    ),
+  };
+};
+
+// A row read from storage: a priority or external claim that does not parse is an error.
+export const parseStoredStrategyFields = (
+  row: Readonly<{ priority?: unknown; externalValidation?: unknown }>
+): Readonly<{
+  priority: StrategyPriority;
+  externalValidation: StrategyExternalValidation | null;
+}> => {
+  return {
+    priority: normalizeStrategyPriority(row.priority),
+    externalValidation:
+      normalizeStrategyExternalValidation(row.externalValidation ?? null) ??
+      null,
+  };
 };
 
 export const normalizeStrategyDescription = (

@@ -13,13 +13,17 @@ import type { Database } from "./client.ts";
 import { createStrategyLibraryRepository } from "./repositories.ts";
 import {
   DatabaseConflictError,
+  DatabasePersistenceError,
   InvalidRepositoryInputError,
 } from "./repository-errors.ts";
 import {
+  normalizeStrategyExternalValidation,
   normalizeStrategyParams,
   normalizeStrategyPresetValues,
+  normalizeStrategyPriority,
   normalizeStrategySourceRef,
   normalizeStrategyTags,
+  parseStoredStrategyFields,
   StrategyInputError,
   slugifyStrategyName,
 } from "./strategy-library.ts";
@@ -106,6 +110,25 @@ const pgError = (code: string) => {
     [],
     Object.assign(new Error("pg"), { code })
   );
+};
+
+// What every stored strategy row carries since migration 0065.
+const plain = { priority: "normal", externalValidation: null };
+const ADDED_BY_0065 = [
+  "priority",
+  "external_validation",
+  "strategies_priority_check",
+];
+const claim = {
+  sourceUrl: "https://youtu.be/XLMG6-SATRk",
+  sourceTitle: "I Backtested 10,000 Strategies",
+  sourceAuthor: "Lil Fish, YouTube",
+  publishedOn: "2026-09-24",
+  claimedMethod: "10,500 strategies ranked by total net R.",
+  claimedMetrics: [
+    { label: "Rank", value: "1 of 10,500" },
+    { label: "Win rate", value: "14%" },
+  ],
 };
 
 const lookback = {
@@ -301,6 +324,155 @@ describe("strategy fields", () => {
     }
   });
 
+  it("accepts normal and high priority only", () => {
+    expect(normalizeStrategyPriority("normal")).toBe("normal");
+    expect(normalizeStrategyPriority("high")).toBe("high");
+    for (const bad of ["urgent", "", "HIGH", 1, null, undefined]) {
+      expect(() => normalizeStrategyPriority(bad), String(bad)).toThrow(
+        /priority must be one of normal, high/
+      );
+    }
+    return expect(() => normalizeStrategyPriority("low")).toThrow(
+      StrategyInputError
+    );
+  });
+
+  it("keeps a valid external claim, trims its text and passes null and undefined through", () => {
+    expect(normalizeStrategyExternalValidation(claim)).toEqual(claim);
+    expect(
+      normalizeStrategyExternalValidation({
+        ...claim,
+        sourceTitle: "  Padded title ",
+        claimedMetrics: [{ label: " Rank ", value: " 1 " }],
+      })
+    ).toEqual({
+      ...claim,
+      sourceTitle: "Padded title",
+      claimedMetrics: [{ label: "Rank", value: "1" }],
+    });
+    expect(normalizeStrategyExternalValidation(null)).toBeNull();
+    expect(normalizeStrategyExternalValidation(undefined)).toBeUndefined();
+    return expect(
+      normalizeStrategyExternalValidation({
+        ...claim,
+        claimedMetrics: Array.from({ length: 12 }, (_, index) => ({
+          label: `m${index}`,
+          value: "v",
+        })),
+      })?.claimedMetrics
+    ).toHaveLength(12);
+  });
+
+  it("rejects each invalid external claim field", () => {
+    const metric = { label: "Rank", value: "1" };
+    const cases: [unknown, RegExp][] = [
+      ["a claim", /externalValidation must be an object/],
+      [[claim], /externalValidation must be an object/],
+      [{ ...claim, verified: true }, /externalValidation\.verified is not/],
+      [
+        { ...claim, sourceUrl: "http://youtu.be/x" },
+        /sourceUrl must be an https URL/,
+      ],
+      [{ ...claim, sourceUrl: "not a url" }, /sourceUrl must be an https URL/],
+      [{ ...claim, sourceUrl: 7 }, /sourceUrl must be a string/],
+      [
+        { ...claim, sourceUrl: `https://x.test/${"a".repeat(300)}` },
+        /sourceUrl must not exceed 300/,
+      ],
+      [{ ...claim, sourceTitle: " " }, /sourceTitle must not be blank/],
+      [
+        { ...claim, sourceTitle: "t".repeat(201) },
+        /sourceTitle must not exceed 200/,
+      ],
+      [{ ...claim, sourceAuthor: undefined }, /sourceAuthor must be a string/],
+      [
+        { ...claim, sourceAuthor: "a".repeat(121) },
+        /sourceAuthor must not exceed 120/,
+      ],
+      [
+        { ...claim, publishedOn: "24.09.2026" },
+        /publishedOn must be a calendar date/,
+      ],
+      [
+        { ...claim, publishedOn: "2026-13-01" },
+        /publishedOn must be a calendar date/,
+      ],
+      [
+        { ...claim, publishedOn: "2026-02-30" },
+        /publishedOn must be a calendar date/,
+      ],
+      [
+        { ...claim, publishedOn: 20_260_924 },
+        /publishedOn must be a calendar date/,
+      ],
+      [{ ...claim, claimedMethod: "" }, /claimedMethod must not be blank/],
+      [
+        { ...claim, claimedMethod: "m".repeat(1001) },
+        /claimedMethod must not exceed 1000/,
+      ],
+      [
+        { ...claim, claimedMethod: "line\nbreak" },
+        /claimedMethod must not contain control/,
+      ],
+      [
+        { ...claim, claimedMetrics: [] },
+        /claimedMetrics must be a non-empty array/,
+      ],
+      [
+        { ...claim, claimedMetrics: "Rank 1" },
+        /claimedMetrics must be a non-empty array/,
+      ],
+      [
+        { ...claim, claimedMetrics: Array.from({ length: 13 }, () => metric) },
+        /claimedMetrics must not exceed 12 entries/,
+      ],
+      [
+        { ...claim, claimedMetrics: ["Rank 1"] },
+        /claimedMetrics\[0\] must be an object/,
+      ],
+      [
+        { ...claim, claimedMetrics: [{ ...metric, unit: "R" }] },
+        /claimedMetrics\[0\]\.unit is not a recognized field/,
+      ],
+      [
+        { ...claim, claimedMetrics: [metric, { label: "", value: "1" }] },
+        /claimedMetrics\[1\]\.label must not be blank/,
+      ],
+      [
+        { ...claim, claimedMetrics: [{ label: "l".repeat(61), value: "1" }] },
+        /label must not exceed 60/,
+      ],
+      [
+        {
+          ...claim,
+          claimedMetrics: [{ label: "Rank", value: "v".repeat(81) }],
+        },
+        /value must not exceed 80/,
+      ],
+      [
+        { ...claim, claimedMetrics: [{ label: "Rank" }] },
+        /claimedMetrics\[0\]\.value must be a string/,
+      ],
+    ];
+    for (const [value, message] of cases) {
+      expect(
+        () => normalizeStrategyExternalValidation(value),
+        String(message)
+      ).toThrow(message);
+    }
+  });
+
+  it("parses the stored priority and claim of a row and refuses a stored value that does not parse", () => {
+    expect(parseStoredStrategyFields(plain)).toEqual(plain);
+    expect(
+      parseStoredStrategyFields({ priority: "high", externalValidation: claim })
+    ).toEqual({ priority: "high", externalValidation: claim });
+    expect(() =>
+      parseStoredStrategyFields({ priority: "normal", externalValidation: {} })
+    ).toThrow(/externalValidation\.sourceUrl must be a string/);
+    return expect(() => parseStoredStrategyFields({})).toThrow(/priority/);
+  });
+
   return it("trims, dedupes and bounds tags", () => {
     expect(normalizeStrategyTags([" regime ", "Regime", "options"])).toEqual([
       "regime",
@@ -320,7 +492,7 @@ describe("strategy library repository", () => {
   const deps = { now: () => FIXED_NOW, generateId: () => "gen-1" };
 
   it("creates with a derived slug and normalized fields", async () => {
-    const double = createDouble([[{ id: "gen-1" }]]);
+    const double = createDouble([[{ id: "gen-1", ...plain }]]);
     await createStrategyLibraryRepository(double.database, deps).create({
       name: " Jump model v2 ",
       kind: "python",
@@ -343,6 +515,8 @@ describe("strategy library repository", () => {
       favorite: false,
       section: "Regime",
       params: [lookback],
+      priority: "normal",
+      externalValidation: null,
       createdAt: FIXED_NOW,
       updatedAt: FIXED_NOW,
     });
@@ -371,9 +545,127 @@ describe("strategy library repository", () => {
     ).rejects.toBeInstanceOf(DatabaseConflictError);
   });
 
+  it("creates and updates the priority and the external claim", async () => {
+    const double = createDouble([
+      [{ id: "gen-1", priority: "high", externalValidation: claim }],
+    ]);
+    const created = await createStrategyLibraryRepository(
+      double.database,
+      deps
+    ).create({
+      name: "Volume spike breakout",
+      kind: "python",
+      priority: "high",
+      externalValidation: { ...claim, sourceAuthor: " Lil Fish, YouTube " },
+    });
+    expect(created).toMatchObject({
+      priority: "high",
+      externalValidation: claim,
+    });
+    expect(double.operations[0]!.values).toMatchObject({
+      priority: "high",
+      externalValidation: claim,
+    });
+    const update = createDouble([[{ id: "s1" }], [{ id: "s1", ...plain }]]);
+    const updated = await createStrategyLibraryRepository(
+      update.database,
+      deps
+    ).update({ id: "s1", priority: "normal", externalValidation: null });
+    expect(updated).toMatchObject(plain);
+    expect(update.operations[1]!.set).toEqual({
+      priority: "normal",
+      externalValidation: null,
+      updatedAt: FIXED_NOW,
+    });
+    const set = createDouble([
+      [{ id: "s1" }],
+      [{ id: "s1", priority: "normal", externalValidation: claim }],
+    ]);
+    await createStrategyLibraryRepository(set.database, deps).update({
+      id: "s1",
+      externalValidation: claim,
+    });
+    expect(set.operations[1]!.set).toEqual({
+      externalValidation: claim,
+      updatedAt: FIXED_NOW,
+    });
+    // The row vanished between the lock and the update: no row comes back.
+    const vanished = createDouble([[{ id: "s1" }], []]);
+    expect(
+      await createStrategyLibraryRepository(vanished.database, deps).update({
+        id: "s1",
+        priority: "high",
+      })
+    ).toBeNull();
+    const repository = createStrategyLibraryRepository(
+      createDouble([]).database
+    );
+    await expect(
+      repository.create({
+        name: "x",
+        kind: "python",
+        priority: "urgent" as never,
+      })
+    ).rejects.toThrow(/Invalid repository input: priority must be one of/);
+    await expect(
+      repository.create({
+        name: "x",
+        kind: "python",
+        externalValidation: { ...claim, sourceUrl: "http://x.test" },
+      })
+    ).rejects.toBeInstanceOf(InvalidRepositoryInputError);
+    await expect(
+      repository.update({ id: "s1", priority: "low" as never })
+    ).rejects.toBeInstanceOf(InvalidRepositoryInputError);
+    return await expect(
+      repository.update({ id: "s1", externalValidation: { claimed: true } })
+    ).rejects.toThrow(/externalValidation\.claimed is not a recognized field/);
+  });
+
+  it("fails a read whose stored priority or claim does not parse and passes other errors on", async () => {
+    const stored = { id: "s1", presetCount: 0, backtestCount: 0 };
+    const badClaim = createDouble([
+      [{ ...stored, priority: "high", externalValidation: { sourceUrl: 1 } }],
+    ]);
+    await expect(
+      createStrategyLibraryRepository(badClaim.database).list()
+    ).rejects.toThrow(
+      "Database operation failed: strategy s1 read (stored externalValidation.sourceUrl must be a string)"
+    );
+    const badPriority = createDouble([
+      [{ ...stored, priority: "urgent", externalValidation: null }],
+    ]);
+    await expect(
+      createStrategyLibraryRepository(badPriority.database).get("s1")
+    ).rejects.toBeInstanceOf(DatabasePersistenceError);
+    const poisoned = {
+      ...stored,
+      externalValidation: null,
+      get priority(): string {
+        throw new TypeError("driver failure");
+      },
+    };
+    await expect(
+      createStrategyLibraryRepository(
+        createDouble([[poisoned]]).database
+      ).list()
+    ).rejects.toThrow(TypeError);
+    const good = createDouble([
+      [{ ...stored, priority: "high", externalValidation: claim }],
+      [],
+    ]);
+    const found = await createStrategyLibraryRepository(good.database).get(
+      "s1"
+    );
+    return expect(found?.strategy).toMatchObject({
+      priority: "high",
+      externalValidation: claim,
+    });
+  });
+
   it("filters by search, status, favorite and unsorted section", async () => {
     const double = createDouble([
-      [{ id: "s1", presetCount: "2", backtestCount: 1 }],
+      [{ id: "s1", presetCount: "2", backtestCount: 1, ...plain }],
     ]);
     const rows = await createStrategyLibraryRepository(double.database).list({
       search: "50%_off",
@@ -405,7 +697,7 @@ describe("strategy library repository", () => {
 
   it("filters by one source tag with a jsonb containment test", async () => {
     const double = createDouble([
-      [{ id: "s1", presetCount: 0, backtestCount: 0 }],
+      [{ id: "s1", presetCount: 0, backtestCount: 0, ...plain }],
     ]);
     await createStrategyLibraryRepository(double.database).list({
       tag: " quantjourney ",
@@ -436,7 +728,7 @@ describe("strategy library repository", () => {
   it("updates fields and returns null for a missing strategy", async () => {
     const double = createDouble([
       [{ id: "s1" }],
-      [{ id: "s1", favorite: true }],
+      [{ id: "s1", favorite: true, ...plain }],
     ]);
     const row = await createStrategyLibraryRepository(
       double.database,
@@ -592,9 +884,13 @@ describe("0019 strategy library migration", () => {
         ...block.slice(0, block.indexOf(");")).matchAll(/^\s{2}"([a-z_]+)" /gm),
       ].map((match) => match[1]);
       expect(columns.sort()).toEqual(
-        config.columns.map((column) => column.name).sort()
+        config.columns
+          .map((column) => column.name)
+          .filter((name) => !ADDED_BY_0065.includes(name))
+          .sort()
       );
       for (const check of config.checks) {
+        if (ADDED_BY_0065.includes(check.name)) continue;
         expect(migration).toContain(`CONSTRAINT "${check.name}" CHECK`);
       }
       for (const index of config.indexes) {
