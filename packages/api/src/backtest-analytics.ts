@@ -816,7 +816,7 @@ export const monteCarlo = (
 };
 
 // Default drawdown budget for sizing: the worst simulated path may lose at most 20% from peak.
-export const MONTE_CARLO_DRAWDOWN_BUDGET = 0.2;
+const MONTE_CARLO_DRAWDOWN_BUDGET = 0.2;
 
 // Sizing reads the worst simulated run only. Drawdown scales about linearly with position size,
 // so the scale is budget / |worst drawdown|, capped at 1 (never size up from a simulation).
