@@ -65,7 +65,7 @@ __all__ = ["ENGINE_ID", "NautilusUnavailable", "RunResult", "require", "run_sign
 
 ENGINE_ID = f"nautilus-trader-{NAUTILUS_VERSION}"
 # Bump when the order or fill model of this module changes.
-MODEL_VERSION = 2
+MODEL_VERSION = 3
 DEFAULT_CAPITAL = 1_000_000.0
 PRECISION = 9
 YEAR_MS = 365.25 * 24 * 60 * 60 * 1000

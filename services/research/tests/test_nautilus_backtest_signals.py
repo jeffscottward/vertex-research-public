@@ -21,6 +21,7 @@ from nautilus_backtest import costs as cost_model
 from nautilus_backtest import signals as sig
 from nautilus_backtest.bars import (
     STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
+    STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
     STRATEGY_OPTIONS_UNSUPPORTED,
     Bars,
     InputError,
@@ -895,3 +896,277 @@ def test_trail_length_accepts_a_whole_float_and_normalizing_is_idempotent() -> N
     normalized = sig.normalize_definition(definition)
     assert normalized["management"]["trail"]["length"] == 14
     assert sig.normalize_definition(normalized) == normalized
+
+
+# Intraday block, session indicators and volTarget: hand-checked cases (the same numbers as the
+# TypeScript "intraday sessions, session indicators, gates and volTarget" tests).
+
+MINUTE_MS = 60_000
+DAY_MS_ = 86_400_000
+# Monday 2026-01-05 09:30 New York (EST, UTC-5).
+NY_0930 = 1_767_623_400_000
+INTRADAY = {"timezone": "America/New_York", "open": "09:30", "close": "11:30", "entryFrom": "10:00", "entryTo": "11:00"}
+CLOSE = {"type": "price", "field": "close"}
+ZERO = {"type": "const", "value": 0}
+VWAP = {"type": "indicator", "name": "vwap"}
+NAN = math.nan
+
+
+def _intraday_bars(rows: list[dict[str, float]], volume: bool = True) -> Bars:
+    """30-minute bars: slot k of day d opens at 09:30 + 30k minutes; high/low = close +- 1."""
+    columns: dict[str, list[float]] = {
+        "t": [NY_0930 + row["day"] * DAY_MS_ + row["slot"] * 30 * MINUTE_MS for row in rows],
+        "o": [row.get("o", row["c"] - 1) for row in rows],
+        "h": [row["c"] + 1 for row in rows],
+        "l": [row["c"] - 1 for row in rows],
+        "c": [row["c"] for row in rows],
+    }
+    if volume:
+        columns["v"] = [row.get("v", 0) for row in rows]
+    return Bars.from_columns(columns)
+
+
+def _day(day: int, open_: float, closes: list[float], slots: list[int] | None = None) -> list[dict[str, float]]:
+    slots = list(range(len(closes))) if slots is None else slots
+    return [{"day": day, "slot": slot, "c": c, **({"o": open_} if index == 0 else {})}
+            for index, (c, slot) in enumerate(zip(closes, slots, strict=True))]
+
+
+# Day 2 has no 10:30 bar (slot 1).
+FOUR_DAYS = [
+    *_day(0, 99, [100, 101, 102, 103]),
+    *_day(1, 104, [105, 106, 107, 108]),
+    *_day(2, 109, [110, 111, 112], [0, 2, 3]),
+    *_day(3, 113, [114, 115, 116, 117]),
+]
+
+
+def test_intraday_sessions_layout_with_an_early_close() -> None:
+    bars = _intraday_bars([
+        {"day": 0, "slot": -1, "c": 98}, *_day(0, 99, [100, 101, 102, 103]), {"day": 0, "slot": 4, "c": 104},
+        *_day(1, 109, [110, 111]),
+    ])
+    sessions = sig.intraday_sessions(bars, INTRADAY)
+    assert sessions is not None
+    assert sessions.duration == 30 * MINUTE_MS
+    assert sessions.open_ms == 570 * MINUTE_MS
+    assert list(sessions.close_ms) == [m * MINUTE_MS for m in (570, 600, 630, 660, 690, 720, 600, 630)]
+    assert list(sessions.session) == [-1, 0, 0, 0, 0, -1, 1, 1]
+    # Day 1 closes early (10:30): its 10:00-10:30 bar is the last of its session day.
+    assert list(sessions.last) == [0, 0, 0, 0, 1, 0, 0, 1]
+    assert list(sessions.day_open) == [99, 109]
+    assert list(sessions.day_close) == [103, 111]
+
+
+def test_intraday_sessions_duration_ties_repeats_and_daily_bars() -> None:
+    tie = sig.intraday_sessions(_intraday_bars(_day(0, 99, [100, 101, 102], [0, 1, 3])), INTRADAY)
+    assert tie is not None and tie.duration == 30 * MINUTE_MS
+    repeated = sig.intraday_sessions(_intraday_bars(_day(0, 99, [100, 100, 101, 102], [0, 0, 2, 4])), INTRADAY)
+    assert repeated is not None and repeated.duration == 60 * MINUTE_MS
+    after_hours = _intraday_bars([{"day": 0, "slot": 4, "c": 100}, {"day": 0, "slot": 5, "c": 101}])
+    outside = sig.intraday_sessions(after_hours, INTRADAY)
+    assert outside is not None and list(outside.session) == [-1, -1] and list(outside.last) == [0, 0]
+    daily = Bars.from_columns({"t": [index * DAY_MS_ for index in range(5)], "o": [1.0] * 5, "h": [1.0] * 5,
+                               "l": [1.0] * 5, "c": [1.0] * 5})
+    assert sig.intraday_sessions(daily, INTRADAY) is None
+
+
+VWAP_ROWS = [
+    {"day": 0, "slot": -1, "c": 98, "v": 50}, {"day": 0, "slot": 0, "c": 100, "o": 99, "v": 0},
+    {"day": 0, "slot": 1, "c": 101, "v": 10}, {"day": 0, "slot": 2, "c": 102, "v": 30},
+    {"day": 0, "slot": 3, "c": 103, "v": 0}, {"day": 0, "slot": 4, "c": 104, "v": 5},
+    {"day": 1, "slot": 0, "c": 110, "v": 5},
+]
+
+
+def test_vwap_weights_the_typical_price_by_volume_per_session_day() -> None:
+    # Typical = close; no volume yet: mean typical 100; then 1010 / 10; (1010 + 3060) / 40 = 101.75.
+    assert_series(sig.session_indicator_series(_intraday_bars(VWAP_ROWS), INTRADAY, VWAP),
+                  [NAN, 100, 101, 101.75, 101.75, NAN, 110], "vwap")
+    assert_series(sig.session_indicator_series(_intraday_bars(VWAP_ROWS, volume=False), INTRADAY, VWAP),
+                  [NAN, 100, 100.5, 101, 101.5, NAN, 110], "vwap without volume")
+
+
+def _session_return(origin: str, to: str, rows: list[dict[str, float]] = FOUR_DAYS) -> Any:
+    expr = {"type": "indicator", "name": "sessionReturn", "from": origin, "to": to}
+    return sig.session_indicator_series(_intraday_bars(rows), INTRADAY, expr)
+
+
+def test_session_return_from_open_prev_close_and_a_time() -> None:
+    assert_series(_session_return("open", "10:30"), [
+        NAN, *[101 / 99 - 1] * 3, NAN, *[106 / 104 - 1] * 3, NAN, NAN, NAN, NAN, *[115 / 113 - 1] * 3,
+    ], "open -> 10:30")
+    assert_series(_session_return("prevClose", "10:30"), [
+        NAN, NAN, NAN, NAN, NAN, *[106 / 103 - 1] * 3, NAN, NAN, NAN, NAN, *[115 / 112 - 1] * 3,
+    ], "prevClose -> 10:30")
+    assert_series(_session_return("10:00", "11:00"), [
+        NAN, NAN, *[102 / 100 - 1] * 2, NAN, NAN, *[107 / 105 - 1] * 2,
+        NAN, *[111 / 110 - 1] * 2, NAN, NAN, *[116 / 114 - 1] * 2,
+    ], "10:00 -> 11:00")
+    # Day 2 has no 10:30 bar: no anchor.
+    assert_series(_session_return("10:30", "11:30"), [
+        NAN, NAN, NAN, 103 / 101 - 1, NAN, NAN, NAN, 108 / 106 - 1, NAN, NAN, NAN, NAN, NAN, NAN, 117 / 115 - 1,
+    ], "10:30 -> 11:30")
+    with_after = [
+        *_day(0, 99, [100, 101, 102, 103]), {"day": 0, "slot": 4, "c": 104}, *_day(1, 104, [105, 106, 107, 108]),
+    ]
+    assert_series(_session_return("open", "11:30", with_after),
+                  [NAN, NAN, NAN, 103 / 99 - 1, NAN, NAN, NAN, NAN, 108 / 104 - 1], "outside the session")
+
+
+def _noise_band(rows: list[dict[str, float]], band: str, length: int, multiple: float | None = None) -> Any:
+    expr = {"type": "indicator", "name": "noiseBand", "band": band, "length": length,
+            **({} if multiple is None else {"multiple": multiple})}
+    return sig.session_indicator_series(_intraday_bars(rows), INTRADAY, expr)
+
+
+def test_noise_band_upper_skips_missing_slots() -> None:
+    # Moves |close / open - 1|: day 0 k/99, day 1 k/104, day 2 (slots 0, 2, 3) 1/109, 2/109, 3/109.
+    assert_series(_noise_band(FOUR_DAYS, "upper", 1), [
+        NAN, NAN, NAN, NAN,
+        104 * (1 + 1 / 99), 104 * (1 + 2 / 99), 104 * (1 + 3 / 99), 104 * (1 + 4 / 99),
+        109 * (1 + 1 / 104), 109 * (1 + 3 / 104), 109 * (1 + 4 / 104),
+        # Day 2 has no slot 1: day 3 reads day 1's move there.
+        113 * (1 + 1 / 109), 113 * (1 + 2 / 104), 113 * (1 + 2 / 109), 113 * (1 + 3 / 109),
+    ], "upper 1")
+
+
+def test_noise_band_lower_with_length_and_multiple() -> None:
+    assert_series(_noise_band(FOUR_DAYS, "lower", 2, 2), [
+        *[NAN] * 8,
+        108 * (1 - (1 / 99 + 1 / 104)), 108 * (1 - (3 / 99 + 3 / 104)), 108 * (1 - (4 / 99 + 4 / 104)),
+        112 * (1 - (1 / 104 + 1 / 109)), 112 * (1 - (2 / 99 + 2 / 104)),
+        112 * (1 - (3 / 104 + 2 / 109)), 112 * (1 - (4 / 104 + 3 / 109)),
+    ], "lower 2 x2")
+
+
+def test_noise_band_never_reads_the_current_day() -> None:
+    moved = [{**row, "c": 150} if row["day"] == 1 and row["slot"] == 0 else row for row in FOUR_DAYS]
+    before = _noise_band(FOUR_DAYS, "upper", 1, 3)
+    after = _noise_band(moved, "upper", 1, 3)
+    assert_series(after[:8], before[:8], "days 0 and 1")
+    assert math.isclose(after[8], 109 * (1 + 3 * 46 / 104), rel_tol=1e-12)
+
+
+GATE_ROWS = [
+    {"day": 0, "slot": -1, "c": 100}, *_day(0, 100, [100] * 4), {"day": 0, "slot": 4, "c": 100},
+    *_day(1, 100, [100] * 2),
+]
+
+
+def _always(**block: Any) -> dict[str, Any]:
+    return {"version": 1, "name": "always", "entry": {"all": [{"left": CLOSE, "op": ">", "right": ZERO}]},
+            "exit": {"any": [{"left": CLOSE, "op": ">", "right": ZERO}]}, "intraday": {**INTRADAY, **block}}
+
+
+@pytest.mark.parametrize(("block", "signals", "exits"), [
+    ({}, [0, 1, 1, 1, -1, 0, 1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
+    # Day 1's 10:30 bar is its last bar: an exit, not an entry.
+    ({"entryFrom": "10:30", "entryTo": "10:30"}, [0, -1, 1, -1, -1, 0, -1, -1], [0, 1, 1, 1, 1, 0, 1, 1]),
+    # 60 and 120 minutes after 09:30: the bars closing at 10:30 and 11:30.
+    ({"decisionEvery": 60}, [0, 0, 1, 0, -1, 0, 0, -1], [0, 0, 1, 0, 1, 0, 0, 1]),
+])
+def test_intraday_gates_entry_window_decision_grid_and_close(block, signals, exits) -> None:
+    compiled = sig.compile_strategy(_intraday_bars(GATE_ROWS), _always(**block))
+    assert list(compiled.signals) == signals
+    assert list(compiled.exits or ()) == exits
+    assert list(compiled.close_at or ()) == [0, 0, 0, 0, 1, 0, 0, 1]
+    assert compiled.leverage is None
+
+
+def test_intraday_block_on_daily_bars_is_refused() -> None:
+    daily = Bars.from_columns({"t": [index * DAY_MS_ for index in range(30)], "o": [1.0] * 30,
+                               "h": [1.0] * 30, "l": [1.0] * 30, "c": [1.0] * 30})
+    for run in (lambda: sig.compile_strategy(daily, _always()),
+                lambda: sig.session_indicator_series(daily, INTRADAY, VWAP)):
+        with pytest.raises(StrategyUnsupportedError) as raised:
+            run()
+        assert raised.value.code == STRATEGY_INTRADAY_DAILY_UNSUPPORTED
+    normalized = sig.normalize_definition(_always())
+    refusal = sig.server_refusal(normalized, "1d")
+    assert refusal is not None and refusal.code == STRATEGY_INTRADAY_DAILY_UNSUPPORTED
+    assert sig.server_refusal(normalized, "5m") is None
+
+
+def test_vol_target_leverage_daily_and_per_session_day() -> None:
+    sizing = {"length": 2, "maxLeverage": 5, "targetPct": 10}
+    first, second = 0.1 / math.sqrt(0.02), 0.1 / math.sqrt(0.005)
+    assert math.isclose(first, math.sqrt(0.5), rel_tol=1e-12) and math.isclose(second, math.sqrt(2), rel_tol=1e-12)
+    daily = Bars.from_columns({"t": [index * DAY_MS_ for index in range(5)], "o": [100.0] * 5, "h": [111.0] * 5,
+                               "l": [98.0] * 5, "c": [100.0, 110.0, 99.0, 99.0, 99.0]})
+    # Returns +10%, -10%; then -10%, 0; then 0, 0 (sigma 0: maxLeverage).
+    assert_series(sig.vol_target_leverage(daily, sizing), [NAN, NAN, first, second, 5.0], "daily")
+    bars = _intraday_bars([*_day(0, 100, [100, 100]), *_day(1, 100, [100, 110]), *_day(2, 100, [100, 99]),
+                           {"day": 3, "slot": -1, "c": 90}, *_day(3, 100, [100, 99])])
+    expected = [NAN, NAN, NAN, NAN, NAN, first, first, first, second]
+    assert_series(sig.vol_target_leverage(bars, sizing, sig.intraday_sessions(bars, INTRADAY)), expected, "sessions")
+    assert_series(sig.vol_target_leverage(bars, sizing), expected, "New York dates")
+    definition = {"version": 1, "name": "volTarget", "entry": {"all": [{"left": CLOSE, "op": ">", "right": ZERO}]},
+                  "intraday": INTRADAY, "sizing": {**sizing, "mode": "volTarget"}}
+    assert_series(sig.compile_strategy(bars, definition).leverage, expected, "compiled")
+
+
+VOL_TARGET = {"mode": "volTarget", "targetPct": 2, "length": 14, "maxLeverage": 4}
+OPTIONS = {"structure": "putCreditVertical", "dte": {"min": 21, "target": 45}, "exitDte": 7, "maxLossPct": 2,
+           "profitTakePct": 50, "shortDelta": 0.2, "widthSigma": 0.5}
+MINIMAL = {
+    "version": 1, "name": "Test",
+    "entry": {"all": [{"left": CLOSE, "op": ">", "right": {"type": "const", "value": 1}}]},
+}
+
+
+def _with_exit(expr: dict[str, Any]) -> dict[str, Any]:
+    return {**MINIMAL, "intraday": INTRADAY, "exit": {"any": [{"left": CLOSE, "op": "<", "right": expr}]}}
+
+
+def test_intraday_side_and_vol_target_normalize_without_defaults() -> None:
+    normalized = sig.normalize_definition({**MINIMAL, "intraday": {**INTRADAY, "decisionEvery": 30},
+                                           "side": "short", "sizing": VOL_TARGET})
+    assert normalized["intraday"] == {**INTRADAY, "decisionEvery": 30}
+    assert normalized["side"] == "short"
+    assert normalized["sizing"] == {"mode": "volTarget", "targetPct": 2.0, "length": 14, "maxLeverage": 4.0}
+    upper = {"type": "indicator", "name": "noiseBand", "band": "upper", "length": 3}
+    plain = sig.normalize_definition(_with_exit(upper))
+    assert plain["exit"]["any"][0]["right"] == upper
+    assert "decisionEvery" not in plain["intraday"]
+
+
+@pytest.mark.parametrize(("definition", "message"), [
+    ({**MINIMAL, "exit": {"any": [{"left": CLOSE, "op": "<", "right": VWAP}]}},
+     "vwap reads the intraday session; add an intraday block"),
+    (_with_exit({"type": "indicator", "name": "sessionReturn", "from": "10:30", "to": "10:30"}),
+     "sessionReturn from must be before to"),
+    (_with_exit({"type": "indicator", "name": "noiseBand", "band": "middle", "length": 3}),
+     "Unknown noiseBand band: middle"),
+    (_with_exit({"type": "indicator", "name": "noiseBand", "band": "upper", "length": 61}),
+     "noiseBand length must be a whole number from 1 to 60"),
+    (_with_exit({"type": "indicator", "name": "noiseBand", "band": "upper", "length": 3, "multiple": 0}),
+     "noiseBand multiple must be above 0 and at most 100"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "timezone": "UTC"}}, 'intraday timezone must be "America/New_York"'),
+    ({**MINIMAL, "intraday": {**INTRADAY, "close": "09:00"}}, "intraday open must be before close"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "entryFrom": "09:30"}},
+     "The entry window must be inside the session: open < entryFrom <= entryTo < close"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "entryTo": "11:30"}},
+     "The entry window must be inside the session: open < entryFrom <= entryTo < close"),
+    ({**MINIMAL, "intraday": {**INTRADAY, "decisionEvery": 391}},
+     "intraday decisionEvery must be a whole number from 1 to 390"),
+    ({**MINIMAL, "sizing": {**VOL_TARGET, "targetPct": 0}}, "volTarget targetPct must be above 0 and at most 100"),
+    ({**MINIMAL, "sizing": {**VOL_TARGET, "length": 1}}, "volTarget length must be a whole number from 2 to 252"),
+    ({**MINIMAL, "sizing": {**VOL_TARGET, "maxLeverage": 51}}, "volTarget maxLeverage must be above 0 and at most 50"),
+    ({**MINIMAL, "side": "both"}, "Unknown side: both"),
+    ({**MINIMAL, "options": OPTIONS, "sizing": VOL_TARGET},
+     "Option strategies size by options.maxLossPct; remove the volTarget sizing"),
+    ({**MINIMAL, "side": "short", "stopLoss": {"kind": "pct", "pct": 2}, "management": {"breakevenR": 1}},
+     "management raises a long stop; a short definition takes no management"),
+    ({**MINIMAL, "side": "short", "options": OPTIONS},
+     "Option strategies take their direction from options.structure; remove side"),
+    ({**MINIMAL, "intraday": INTRADAY, "options": OPTIONS},
+     "Option strategies run on daily bars; remove the intraday block"),
+    ({**MINIMAL, "intraday": INTRADAY,
+      "filters": [{"type": "calendarWindow", "window": "turnOfMonth", "fromDay": -2, "toDay": 3}]},
+     "calendarWindow filters run on daily bars only; remove them or the intraday block"),
+])
+def test_intraday_side_and_vol_target_refusals(definition, message) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
