@@ -35,6 +35,7 @@ class SeriesDataError(InputError):
 STRATEGY_OPTIONS_UNSUPPORTED = "STRATEGY_OPTIONS_UNSUPPORTED"
 STRATEGY_SERIES_FILTERS_UNSUPPORTED = "STRATEGY_SERIES_FILTERS_UNSUPPORTED"
 STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED = "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED"
+STRATEGY_INTRADAY_DAILY_UNSUPPORTED = "STRATEGY_INTRADAY_DAILY_UNSUPPORTED"
 
 
 class StrategyUnsupportedError(InputError):
@@ -70,6 +71,15 @@ def calendar_intraday_unsupported() -> StrategyUnsupportedError:
         STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
         f"{STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED}: calendarWindow filters run on daily bars only;"
         " on intraday bars the UTC date misplaces the exchange session.",
+    )
+
+
+def intraday_daily_unsupported() -> StrategyUnsupportedError:
+    """TS STRATEGY_INTRADAY_DAILY_REFUSAL."""
+    return StrategyUnsupportedError(
+        STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+        f"{STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars"
+        " on one New York date); a daily or weekly run refuses it.",
     )
 
 

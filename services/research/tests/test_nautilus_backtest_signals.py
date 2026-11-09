@@ -333,7 +333,7 @@ SPY_SMA = {"type": "indicator", "name": "sma", "length": 3}
         (lambda: sig.plan_run(bars_of("SPY"), {"rule": {"kind": "smaCross", "fast": 1, "slow": 2}, "stopLossPct": 0, "takeProfitPct": 0, "costBps": 0, "costs": {"profile": cost_model.ZERO_COST_PROFILE, "capital": 0}}), "capital must be above 0"),
         (lambda: sig.compile_strategy(bars_of("gap"), _definition({**SPY_SMA, "length": 50})), "sma length 50 is longer than the 12 bars"),
         (lambda: sig.compile_strategy(Bars.from_columns({k: [1, 2] for k in "tohlc"}), _definition({"type": "indicator", "name": "rvol", "length": 1})), "rvol needs bar volume"),
-        (lambda: sig.compile_strategy(bars_of("SPY"), _definition({"type": "indicator", "name": "vwap", "length": 3})), "Unknown indicator: vwap"),
+        (lambda: sig.compile_strategy(bars_of("SPY"), _definition({"type": "indicator", "name": "macd", "length": 3})), "Unknown indicator: macd"),
         (lambda: sig.compile_strategy(bars_of("SPY"), _definition(SPY_SMA, op="==")), "Unknown operator: =="),
     ],
 )
