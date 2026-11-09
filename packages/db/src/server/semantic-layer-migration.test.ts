@@ -40,6 +40,12 @@ const ATTRIBUTE_IDS = [
   "drift_level",
 ];
 
+/** Added to semantic_sql_attributes by 0058_semantic_unlinked_runs (checked in its own describe). */
+const ADDED_IN_0058 = {
+  checks: ["semantic_sql_attributes_grain_check"],
+  columns: ["grain"],
+};
+
 describe("0056_semantic_layer migration", () => {
   const migration = readFileSync(
     new URL("../../migrations/0056_semantic_layer.sql", import.meta.url),
@@ -84,10 +90,14 @@ describe("0056_semantic_layer migration", () => {
         (match) => match[1]
       );
       expect([...sqlColumns].sort()).toEqual(
-        config.columns.map((column) => column.name).sort()
+        config.columns
+          .map((column) => column.name)
+          .filter((column) => !ADDED_IN_0058.columns.includes(column))
+          .sort()
       );
       expect(config.checks.length).toBeGreaterThan(0);
       for (const check of config.checks) {
+        if (ADDED_IN_0058.checks.includes(check.name)) continue;
         expect(body).toContain(
           `CONSTRAINT "${check.name}" CHECK (${dialect.sqlToQuery(check.value).sql})`
         );
@@ -95,17 +105,14 @@ describe("0056_semantic_layer migration", () => {
     }
   );
 
-  it("matches the drizzle foreign key and unique index", () => {
+  it("matches the drizzle foreign key; its one-attribute-per-term index is replaced in 0058", () => {
     const attributes = getTableConfig(semanticSqlAttributes);
     expect(attributes.foreignKeys).toHaveLength(1);
     expect(migration).toContain(
       `ALTER TABLE "semantic_sql_attributes" ADD CONSTRAINT "${attributes.foreignKeys[0]?.getName()}" FOREIGN KEY ("term_id") REFERENCES "public"."semantic_terms"("id") ON DELETE cascade`
     );
-    expect(attributes.indexes).toHaveLength(1);
-    const [index] = attributes.indexes;
-    expect(index?.config.unique).toBe(true);
     expect(migration).toContain(
-      `CREATE UNIQUE INDEX "${index?.config.name}" ON "semantic_sql_attributes" USING btree ("term_id")`
+      `CREATE UNIQUE INDEX "semantic_sql_attributes_term_idx" ON "semantic_sql_attributes" USING btree ("term_id")`
     );
     expect(getTableConfig(semanticTerms).foreignKeys).toHaveLength(0);
     expect(getTableConfig(semanticRelationships).foreignKeys).toHaveLength(0);
@@ -223,5 +230,130 @@ describe("0056_semantic_layer migration", () => {
       `EXECUTE format('REVOKE CONNECT ON DATABASE %I FROM "vertex_semantic_reader"', current_database());`
     );
     expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DELETE FROM|DROP ROLE/u);
+  });
+});
+
+describe("0058_semantic_unlinked_runs migration", () => {
+  const migration = readFileSync(
+    new URL(
+      "../../migrations/0058_semantic_unlinked_runs.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const rollback = readFileSync(
+    new URL(
+      "../../rollback/0058_semantic_unlinked_runs.down.sql",
+      import.meta.url
+    ),
+    "utf8"
+  );
+  const journal = JSON.parse(
+    readFileSync(
+      new URL("../../migrations/meta/_journal.json", import.meta.url),
+      "utf8"
+    )
+  ) as { entries: { idx: number; tag: string }[] };
+  const sqlBodies = [...migration.matchAll(/\$sql\$([\s\S]*?)\$sql\$/g)].map(
+    (match) => match[1] ?? ""
+  );
+
+  it("adds the drizzle grain column, check and per-grain unique index", () => {
+    const config = getTableConfig(semanticSqlAttributes);
+    const grain = config.columns.find((column) => column.name === "grain");
+    expect(grain?.notNull).toBe(true);
+    expect(migration).toContain(
+      `ALTER TABLE "semantic_sql_attributes" ADD COLUMN "grain" text DEFAULT 'strategy' NOT NULL;`
+    );
+    const grainCheck = config.checks.find(
+      (check) => check.name === "semantic_sql_attributes_grain_check"
+    );
+    expect(grainCheck).toBeDefined();
+    expect(migration).toContain(
+      `ADD CONSTRAINT "semantic_sql_attributes_grain_check" CHECK (${grainCheck ? dialect.sqlToQuery(grainCheck.value).sql : ""})`
+    );
+    expect(config.indexes).toHaveLength(1);
+    const [index] = config.indexes;
+    expect(index?.config.unique).toBe(true);
+    expect(migration).toContain(
+      'DROP INDEX "semantic_sql_attributes_term_idx";'
+    );
+    expect(migration).toContain(
+      `CREATE UNIQUE INDEX "${index?.config.name}" ON "semantic_sql_attributes" USING btree ("term_id","grain")`
+    );
+  });
+
+  it("seeds exactly two run-spec attributes, both NOT certified", () => {
+    const rows = [
+      ...migration.matchAll(
+        /^\s*\('([a-z_0-9]+)', '([a-z_0-9]+)', '([a-z_]+)'/gm
+      ),
+    ].map((match) => match.slice(1, 4));
+    expect(rows).toEqual([
+      ["backtest_sharpe_run_spec", "backtest_sharpe", "run_spec"],
+      ["backtest_max_drawdown_run_spec", "backtest_max_drawdown", "run_spec"],
+    ]);
+    expect(
+      migration.match(
+        /\$sql\$, false, null, null, 'Needs owner certification: /g
+      )
+    ).toHaveLength(2);
+    expect(migration).not.toMatch(/\$sql\$, true,/u);
+    expect(migration).not.toMatch(/DELETE|GRANT|semantic_terms/u);
+  });
+
+  it("fills grain for the 0056 attributes without touching their SQL or certification", () => {
+    const updates = migration.match(/^UPDATE .*$/gmu) ?? [];
+    expect(updates).toEqual([
+      `UPDATE "semantic_sql_attributes" SET "grain" = CASE "id" WHEN 'strategy_gate_pass' THEN 'candidate' WHEN 'deployment_request' THEN 'request' WHEN 'drift_level' THEN 'monitor' ELSE "grain" END WHERE "id" IN ('strategy_gate_pass', 'deployment_request', 'drift_level');--> statement-breakpoint`,
+    ]);
+  });
+
+  it("reads only engine runs without a strategy, latest per full run spec", () => {
+    expect(sqlBodies).toHaveLength(2);
+    for (const body of sqlBodies) {
+      expect(body).toContain(
+        "where run.status = 'succeeded' and run.strategy_id is null and run.report is not null"
+      );
+      expect(body).toContain(
+        "select distinct on (runs.symbol, runs.timeframe, runs.rule, runs.stop_loss_pct, runs.take_profit_pct, runs.cost_bps, runs.date_from, runs.date_to)"
+      );
+      // Only the metrics travel through the window and sort, not the whole report.
+      expect(body).toContain("run.report -> 'metrics' as metrics");
+      expect(body).not.toMatch(/run\.report,|run\.report\s*$/mu);
+      expect(body).not.toMatch(/backtest_results|strategies|\$3/u);
+    }
+    expect(sqlBodies[0]).not.toContain("$2");
+    expect(sqlBodies[1]).toContain("$2::numeric");
+  });
+
+  it("is journaled right after 0057", () => {
+    const index = journal.entries.findIndex(
+      (entry) => entry.tag === "0058_semantic_unlinked_runs"
+    );
+    expect(journal.entries[index - 1]).toMatchObject({
+      tag: "0057_strategy_catalog_qc_ports",
+    });
+  });
+
+  it("has a guarded rollback that refuses on operator work and restores one attribute per term", () => {
+    expect(rollback).toContain(
+      "run-spec SQL attributes have operator work or unknown rows; refusing rollback"
+    );
+    // The guard compares the note with the exact seed note.
+    const seedNote = migration.match(
+      /'(Needs owner certification: [^']+)'/u
+    )?.[1];
+    expect(seedNote).toBeDefined();
+    expect(rollback).toContain(
+      `"certification_note" IS DISTINCT FROM '${seedNote}'`
+    );
+    expect(rollback).toContain(
+      `DELETE FROM "public"."semantic_sql_attributes" WHERE "grain" = 'run_spec' AND "id" IN ('backtest_sharpe_run_spec', 'backtest_max_drawdown_run_spec');`
+    );
+    expect(rollback).toContain(
+      `CREATE UNIQUE INDEX "semantic_sql_attributes_term_idx" ON "public"."semantic_sql_attributes" USING btree ("term_id");`
+    );
+    expect(rollback).not.toMatch(/CASCADE|TRUNCATE|DROP TABLE|DROP ROLE/u);
   });
 });

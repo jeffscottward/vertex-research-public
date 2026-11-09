@@ -142616,6 +142616,33 @@
                             "maxLength": 2000,
                             "type": "string"
                           },
+                          "groupings": {
+                            "items": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "certified": {
+                                  "type": "boolean"
+                                },
+                                "grain": {
+                                  "enum": [
+                                    "strategy",
+                                    "run_spec",
+                                    "candidate",
+                                    "request",
+                                    "monitor"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "certified",
+                                "grain"
+                              ],
+                              "type": "object"
+                            },
+                            "maxItems": 5,
+                            "type": "array"
+                          },
                           "id": {
                             "pattern": "^[a-z][a-z0-9_]{1,62}$",
                             "type": "string"
@@ -142690,6 +142717,7 @@
                         "required": [
                           "certified",
                           "description",
+                          "groupings",
                           "id",
                           "label",
                           "params",
@@ -143134,6 +143162,16 @@
                             "maxLength": 2000,
                             "type": "string"
                           },
+                          "grain": {
+                            "enum": [
+                              "strategy",
+                              "run_spec",
+                              "candidate",
+                              "request",
+                              "monitor"
+                            ],
+                            "type": "string"
+                          },
                           "id": {
                             "pattern": "^[a-z][a-z0-9_]{1,62}$",
                             "type": "string"
@@ -143164,6 +143202,7 @@
                         },
                         "required": [
                           "description",
+                          "grain",
                           "id",
                           "sql",
                           "termId",
@@ -144349,6 +144388,54 @@
                     "certified": {
                       "type": "boolean"
                     },
+                    "groupings": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "attribute": {
+                            "pattern": "^[a-z][a-z0-9_]{1,62}$",
+                            "type": "string"
+                          },
+                          "certified": {
+                            "type": "boolean"
+                          },
+                          "grain": {
+                            "enum": [
+                              "strategy",
+                              "run_spec",
+                              "candidate",
+                              "request",
+                              "monitor"
+                            ],
+                            "type": "string"
+                          },
+                          "rowCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "status": {
+                            "enum": [
+                              "ok",
+                              "unknown",
+                              "not_certified",
+                              "not_run"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "attribute",
+                          "certified",
+                          "grain",
+                          "rowCount",
+                          "status"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 5,
+                      "type": "array"
+                    },
                     "label": {
                       "anyOf": [
                         {
@@ -144384,7 +144471,7 @@
                     "query": {
                       "anyOf": [
                         {
-                          "maxLength": 8200,
+                          "maxLength": 41000,
                           "type": "string"
                         },
                         {
@@ -144471,6 +144558,7 @@
                     "answer",
                     "asOf",
                     "certified",
+                    "groupings",
                     "label",
                     "params",
                     "query",

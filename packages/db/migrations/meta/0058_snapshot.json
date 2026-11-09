@@ -1,5 +1,5 @@
 {
-  "id": "a44df525-6873-4ae7-beb9-d1f8ab148de8",
+  "id": "b0a64020-3495-4100-b8a7-1284626784bf",
   "prevId": "99068347-529d-45a8-aa57-936ea585d00a",
   "version": "7",
   "dialect": "postgresql",
@@ -7612,6 +7612,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "grain": {
+          "name": "grain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'strategy'"
+        },
         "description": {
           "name": "description",
           "type": "text",
@@ -7664,11 +7671,17 @@
         }
       },
       "indexes": {
-        "semantic_sql_attributes_term_idx": {
-          "name": "semantic_sql_attributes_term_idx",
+        "semantic_sql_attributes_term_grain_idx": {
+          "name": "semantic_sql_attributes_term_grain_idx",
           "columns": [
             {
               "expression": "term_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "grain",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7698,6 +7711,10 @@
         "semantic_sql_attributes_check": {
           "name": "semantic_sql_attributes_check",
           "value": "\"semantic_sql_attributes\".\"id\" ~ '^[a-z][a-z0-9_]{1,62}$' and length(\"semantic_sql_attributes\".\"sql\") between 1 and 8000 and length(\"semantic_sql_attributes\".\"description\") between 1 and 2000 and (not \"semantic_sql_attributes\".\"certified\" or \"semantic_sql_attributes\".\"certified_at\" is not null)"
+        },
+        "semantic_sql_attributes_grain_check": {
+          "name": "semantic_sql_attributes_grain_check",
+          "value": "\"semantic_sql_attributes\".\"grain\" in ('strategy', 'run_spec', 'candidate', 'request', 'monitor')"
         }
       },
       "isRLSEnabled": false

@@ -17,9 +17,10 @@ import { call } from "@orpc/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PortfolioMonitorOutput } from "./contracts/portfolio-monitor.ts";
-import type {
-  SemanticParamSpec,
-  SemanticTermQueryInput,
+import {
+  SEMANTIC_QUERY_MAX_ROWS,
+  type SemanticParamSpec,
+  type SemanticTermQueryInput,
 } from "./contracts/semantic-terms.ts";
 import { createApiContext } from "./server/context.ts";
 import { PortfolioMonitorError } from "./server/portfolio-monitor.ts";
@@ -74,6 +75,7 @@ const attributeRow = (
     Pick<SemanticSqlAttributeRow, "termId">
 ): SemanticSqlAttributeRow => ({
   description: `SQL for ${over.termId}`,
+  grain: "strategy",
   id: `${over.termId}_sql`,
   sql: "select 1",
   ...certification(true),
@@ -191,7 +193,7 @@ const repositoryMock = () => {
       const term = TERMS.find((row) => row.id === id);
       if (term === undefined) return null;
       return {
-        attribute: ATTRIBUTES.find((row) => row.termId === id) ?? null,
+        attributes: ATTRIBUTES.filter((row) => row.termId === id),
         term,
       };
     }),
@@ -461,6 +463,7 @@ describe("summarizeTerms and catalogOutput", () => {
     expect(summary).toEqual({
       certified: true,
       description: "Definition of trade_count.",
+      groupings: [{ certified: true, grain: "strategy" }],
       id: "trade_count",
       label: "trade_count",
       params: [SYMBOL_PARAM],
@@ -485,6 +488,7 @@ describe("summarizeTerms and catalogOutput", () => {
       certifiedAt: null,
       certifiedBy: null,
       description: "SQL for fees_paid",
+      grain: "strategy",
       id: "fees_paid_sql",
       sql: "select 1",
       termId: "fees_paid",
@@ -905,6 +909,7 @@ describe("answerTerm", () => {
         "No certified term is named no_such_term. Call terms_list for the catalog; if no term covers the measure, it is not available.",
       asOf: null,
       certified: false,
+      groupings: [],
       label: null,
       params: {},
       query: null,
@@ -963,6 +968,15 @@ describe("answerTerm", () => {
       answer: "1 row(s). Definition of trade_count.",
       asOf: AS_OF,
       certified: true,
+      groupings: [
+        {
+          attribute: "trade_count_sql",
+          certified: true,
+          grain: "strategy",
+          rowCount: 1,
+          status: "ok",
+        },
+      ],
       label: "trade_count",
       params: { symbol: "SPY" },
       query: tradesAttribute.sql,
@@ -1011,6 +1025,255 @@ describe("answerTerm", () => {
       query: "select count(*) ... /* ran */",
       rows: [],
       status: "unknown",
+    });
+  });
+
+  describe("a term with a per-strategy and a per-run-spec SQL attribute", () => {
+    const sharpeTerm = termRow({
+      description: "Sharpe of the latest succeeded engine run per strategy.",
+      id: "backtest_sharpe",
+      params: [
+        {
+          description: "Strategy",
+          name: "strategy",
+          required: false,
+          type: "text",
+        },
+      ],
+      unit: "ratio",
+    });
+    const perStrategy = attributeRow({
+      id: "backtest_sharpe",
+      sql: "select 'ORB' as strategy, 1.2 as sharpe",
+      termId: "backtest_sharpe",
+    });
+    const perRunSpec = attributeRow({
+      grain: "run_spec",
+      id: "backtest_sharpe_run_spec",
+      sql: "select 'SPY' as symbol, 0.8 as sharpe",
+      termId: "backtest_sharpe",
+      ...certification(false),
+    });
+    const sharpeRepository = (runSpecCertified: boolean) => {
+      const repository = repositoryMock();
+      repository.term.mockResolvedValue({
+        attributes: [
+          perStrategy,
+          { ...perRunSpec, ...certification(runSpecCertified) },
+        ],
+        term: sharpeTerm,
+      });
+      return repository;
+    };
+
+    it("runs only the certified attribute and says the run-spec SQL waits for owner certification", async () => {
+      const repository = sharpeRepository(false);
+      repository.runAttribute.mockResolvedValueOnce({
+        query: "ran strategy sql",
+        rows: [],
+        status: "ok",
+        truncated: false,
+      });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(repository.runAttribute).toHaveBeenCalledTimes(1);
+      expect((repository.runAttribute.mock.calls as unknown[][])[0]?.[0]).toBe(
+        perStrategy
+      );
+      expect(output).toMatchObject({
+        answer:
+          "Partial, not a complete answer. Checked: per strategy (engine runs linked to a strategy): no rows match. NOT checked: per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy: that SQL waits for owner certification on /semantic-terms, so rows of that grouping may exist and are not shown. Do not report that there are none. Sharpe of the latest succeeded engine run per strategy.",
+        certified: true,
+        groupings: [
+          {
+            attribute: "backtest_sharpe",
+            certified: true,
+            grain: "strategy",
+            rowCount: 0,
+            status: "ok",
+          },
+          {
+            attribute: "backtest_sharpe_run_spec",
+            certified: false,
+            grain: "run_spec",
+            rowCount: 0,
+            status: "not_certified",
+          },
+        ],
+        query:
+          "-- grain strategy (attribute backtest_sharpe)\nran strategy sql",
+        rows: [],
+        status: "ok",
+      });
+    });
+
+    it("answers rows of both groupings, each with its grain, once both are certified", async () => {
+      const repository = sharpeRepository(true);
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "ran strategy sql",
+          rows: [{ sharpe: 1.2, strategy: "ORB" }],
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "ran run-spec sql",
+          rows: [
+            { sharpe: 0.8, symbol: "SPY" },
+            { sharpe: 0.3, symbol: "QQQ" },
+          ],
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer(
+        { params: { strategy: "ORB" }, term: "backtest_sharpe" },
+        repository
+      );
+      expect(repository.runAttribute).toHaveBeenCalledTimes(2);
+      expect(
+        (repository.runAttribute.mock.calls as unknown[][])[1]?.[1]
+      ).toEqual(["ORB"]);
+      expect(output).toMatchObject({
+        answer:
+          "3 row(s). per strategy (engine runs linked to a strategy): 1 row(s); per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy: 2 row(s). The grain cell of each row names its grouping. Sharpe of the latest succeeded engine run per strategy.",
+        query:
+          "-- grain strategy (attribute backtest_sharpe)\nran strategy sql\n\n-- grain run_spec (attribute backtest_sharpe_run_spec)\nran run-spec sql",
+        rowCount: 3,
+        rows: [
+          { grain: "strategy", sharpe: 1.2, strategy: "ORB" },
+          { grain: "run_spec", sharpe: 0.8, symbol: "SPY" },
+          { grain: "run_spec", sharpe: 0.3, symbol: "QQQ" },
+        ],
+        status: "ok",
+        truncated: false,
+      });
+      expect(Object.keys(output.rows[0] ?? {})[0]).toBe("grain");
+    });
+
+    it("answers unknown with no rows when one grouping fails", async () => {
+      const repository = sharpeRepository(true);
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "ran strategy sql",
+          rows: [{ sharpe: 1.2, strategy: "ORB" }],
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          failure: "timeout",
+          message: "The query ran past 5 s.",
+          query: "ran run-spec sql",
+          status: "failed",
+        });
+      await expect(
+        answer({ term: "backtest_sharpe" }, repository)
+      ).resolves.toMatchObject({
+        answer:
+          "Unknown (per run spec (symbol, timeframe, rule, stop loss, take profit, cost, date range) for engine runs with no strategy): The query ran past 5 s. No value is given.",
+        // The strategy rows ran, but an unknown answer gives no count either.
+        groupings: [
+          { grain: "strategy", rowCount: 0, status: "not_run" },
+          { grain: "run_spec", rowCount: 0, status: "unknown" },
+        ],
+        query: "ran run-spec sql",
+        rowCount: 0,
+        rows: [],
+        status: "unknown",
+      });
+    });
+
+    it("caps the combined rows at the query limit and marks them truncated", async () => {
+      const repository = sharpeRepository(true);
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ n: index }));
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "a",
+          rows: many(60),
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "b",
+          rows: many(60),
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(output.rows).toHaveLength(SEMANTIC_QUERY_MAX_ROWS);
+      expect(output.truncated).toBe(true);
+      // Counts are the rows shown: 60 strategy rows, then 40 of the 60 run-spec rows.
+      expect(output.groupings.map((grouping) => grouping.rowCount)).toEqual([
+        60, 40,
+      ]);
+      expect(output.answer).toContain(
+        "for engine runs with no strategy: 40 row(s) (more not shown)"
+      );
+      expect(
+        output.answer.startsWith(`${SEMANTIC_QUERY_MAX_ROWS}+ row(s).`)
+      ).toBe(true);
+    });
+
+    it("says a grouping was not shown, not that it has no rows, when the row cap is used up", async () => {
+      const repository = sharpeRepository(true);
+      const many = (count: number) =>
+        Array.from({ length: count }, (_, index) => ({ n: index }));
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "a",
+          rows: many(SEMANTIC_QUERY_MAX_ROWS),
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "b",
+          rows: many(5),
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(output.groupings.map((grouping) => grouping.rowCount)).toEqual([
+        SEMANTIC_QUERY_MAX_ROWS,
+        0,
+      ]);
+      expect(output.answer).toContain(
+        "for engine runs with no strategy: not shown (row cap reached)"
+      );
+      expect(output.answer).not.toContain("no rows match");
+    });
+
+    it("keeps the grain cell first even when the SQL returns its own grain column", async () => {
+      const repository = sharpeRepository(true);
+      repository.runAttribute
+        .mockResolvedValueOnce({
+          query: "a",
+          rows: [{ grain: "fake", sharpe: 1 }],
+          status: "ok",
+          truncated: false,
+        })
+        .mockResolvedValueOnce({
+          query: "b",
+          rows: [],
+          status: "ok",
+          truncated: false,
+        });
+      const output = await answer({ term: "backtest_sharpe" }, repository);
+      expect(output.rows).toEqual([{ grain: "strategy", sharpe: 1 }]);
+      expect(output.answer.startsWith("1 row(s).")).toBe(true);
+    });
+
+    it("lists both groupings with their certification in terms_list", () => {
+      const [summary] = summarizeTerms({
+        attributes: [perStrategy, perRunSpec],
+        relationships: [],
+        terms: [sharpeTerm],
+      });
+      expect(summary).toMatchObject({
+        certified: true,
+        groupings: [
+          { certified: true, grain: "strategy" },
+          { certified: false, grain: "run_spec" },
+        ],
+      });
     });
   });
 
@@ -1122,6 +1385,7 @@ describe("answerTerm", () => {
       answer: `Net liquidation of the live IBKR account (vertex-portfolio feed): 250,000.00 USD. As of ${AS_OF}.`,
       asOf: AS_OF,
       certified: true,
+      groupings: [],
       label: "net_liquidation",
       params: {},
       query: "summary.netLiquidation",

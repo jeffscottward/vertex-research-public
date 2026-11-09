@@ -9,17 +9,17 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0058 (LD34 reel strategy) and its guarded rollback on a real database.
+// Data migration 0059 (LD34 reel strategy) and its guarded rollback on a real database.
 const migrationSql = readFileSync(
   new URL(
-    "../../../packages/db/migrations/0058_strategy_catalog_ld34.sql",
+    "../../../packages/db/migrations/0059_strategy_catalog_ld34.sql",
     import.meta.url
   ),
   "utf8"
 );
 const rollbackSql = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0058_strategy_catalog_ld34.down.sql",
+    "../../../packages/db/rollback/0059_strategy_catalog_ld34.down.sql",
     import.meta.url
   ),
   "utf8"
@@ -40,7 +40,7 @@ const countRows = async (): Promise<number> => {
   return result[0]?.n ?? Number.NaN;
 };
 
-describe("0058 LD34 catalog row (Postgres)", () => {
+describe("0059 LD34 catalog row (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

@@ -158,24 +158,28 @@ describe("semantic layer catalog reads", () => {
     ]);
   });
 
-  it("returns a term with its attribute, without one, or null", async () => {
-    const term = { id: "pnl" };
-    const attribute = { id: "pnl", sql: "select 1" };
-    const double = createDouble([
-      [{ attribute, term }],
-      [{ attribute: null, term }],
-      [],
-    ]);
+  it("returns a term with its attributes in grain order, without any, or null", async () => {
+    const term = { id: "backtest_sharpe" };
+    const runSpec = { grain: "run_spec", id: "backtest_sharpe_run_spec" };
+    const strategy = { grain: "strategy", id: "backtest_sharpe" };
+    const double = createDouble([[term], [runSpec, strategy], [term], [], []]);
     const repository = createSemanticLayerRepository(double.database, now);
-    await expect(repository.term("pnl")).resolves.toEqual({ attribute, term });
-    await expect(repository.term("pnl")).resolves.toEqual({
-      attribute: null,
+    await expect(repository.term("backtest_sharpe")).resolves.toEqual({
+      attributes: [strategy, runSpec],
+      term,
+    });
+    await expect(repository.term("backtest_sharpe")).resolves.toEqual({
+      attributes: [],
       term,
     });
     await expect(repository.term("missing")).resolves.toBeNull();
-    const [first] = double.operations;
+    // Two reads per known term, one for an unknown id.
+    expect(double.operations).toHaveLength(5);
+    const [first, second] = double.operations;
     expect(first).toMatchObject({ limit: 1, table: semanticTerms });
-    expect(render(first?.where)?.params).toEqual(["pnl"]);
+    expect(render(first?.where)?.params).toEqual(["backtest_sharpe"]);
+    expect(second).toMatchObject({ table: semanticSqlAttributes });
+    expect(render(second?.where)?.params).toEqual(["backtest_sharpe"]);
   });
 });
 
