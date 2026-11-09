@@ -11,6 +11,12 @@ vi.mock("../../../components/portal/flow-workspace.tsx", () => ({
   FlowWorkspace: () => <div data-workspace="flow" />,
 }));
 
+vi.mock("../../../features/openbb/openbb-panels.tsx", () => ({
+  OpenbbShortsPanel: (props: { symbol?: string }) => (
+    <div data-openbb="shorts" data-symbol={props.symbol} />
+  ),
+}));
+
 const testGlobal: typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean } =
   globalThis;
 const roots: Root[] = [];
@@ -37,6 +43,11 @@ describe("flow route files", () => {
     expect(metadata).toEqual({ title: "Flow" });
     expect(container.querySelector("h1")?.textContent).toBe("Flow");
     expect(container.querySelector("[data-workspace]")).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-openbb="shorts"]')
+        ?.getAttribute("data-symbol")
+    ).toBe("SPY");
   });
 
   it("renders an accessible loading state", async () => {
