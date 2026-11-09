@@ -88,4 +88,22 @@ drawdown >= -35 %; >= 75 % of the parameter changes keep Sharpe > 0; Sharpe > 0 
 
 ## Results
 
-Recorded after the run in the stored study (`/library?id=strategy-seed-market-intraday-momentum`).
+Run 2026-11-08 (run id `imom-2026-11-08`, commit `8e984c6d`, NautilusTrader 1.227.0, data hash `sha256:3a1985ed…`). The full study
+is stored in `research_studies` (`/library?id=strategy-seed-market-intraday-momentum&tab=backtests`).
+
+Verdict: **no edge** (OOS Sharpe <= 0 and deflated Sharpe probability < 0.5; 0 of 5 gates pass).
+
+| GHLZ on US500 (primary) | Sharpe | CAGR | Max DD | Trades |
+| --- | --- | --- | --- | --- |
+| In-sample (2012-01 to 2020-12) | -1.75 | -8.0 % | -52.9 % | 2,038 |
+| Out-of-sample (2020-12 to 2026-11) | -2.75 | -10.4 % | -47.9 % | 1,477 |
+| Full | -2.10 | -9.0 % | -75.1 % | 3,514 |
+
+- Gates: deflated Sharpe probability 0.000 over 28 configurations; Monte Carlo P5 max drawdown -81.3 %; 0 % of 9 parameter
+  changes keep Sharpe > 0; Sharpe -4.07 with doubled costs. Walk-forward stitched Sharpe -1.63. Options form (SPY debit verticals)
+  OOS Sharpe -1.83.
+- Before costs the rule is flat to negative (zero-cost Sharpe -0.13 full, -0.45 OOS); the measured CFD spreads (about 5 bp a round
+  trip) turn that into about -9 % a year.
+- Other strategies on US500 (full Sharpe): GHLZ r1+r12 -1.11, ZAB -0.63, ZAB 1x -0.55, BIAS -1.42. ZAB on SPY -0.12. The best of
+  140 runs is ZAB 1x on QQQ (0.56, OOS 0.53), one market out of many tried. Buy and hold: Sharpe 0.90 (futures proxies), 0.63
+  (ETF twins).
