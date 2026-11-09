@@ -2,6 +2,7 @@ import {
   type BacktestRunSubmitInput,
   type BacktestRunSummary,
   type InstantBacktestSeries,
+  isSessionIndicator,
   STRATEGY_EVENT_OPERATORS,
   type STRATEGY_INDICATORS,
   STRATEGY_TEMPLATES,
@@ -9,6 +10,8 @@ import {
   type StrategyDefinition,
   StrategyDefinitionSchema,
   type StrategyExpr,
+  type StrategyIndicatorExpr,
+  type StrategySessionIndicatorExpr,
   type StrategyTemplateId,
 } from "@darkfactory/api";
 
@@ -61,13 +64,11 @@ export const lengthUnit = (
   return timeframe === "1d" ? "days" : "bars";
 };
 
-type IndicatorExpr = Extract<StrategyExpr, { type: "indicator" }>;
-
 /** Changes the indicator; rvol takes no timeframe, so switching to it drops the timeframe. */
 export const withIndicator = (
-  expr: IndicatorExpr,
+  expr: StrategyIndicatorExpr,
   name: StrategyIndicator
-): IndicatorExpr => {
+): StrategyIndicatorExpr => {
   const { timeframe: _timeframe, ...rest } = expr;
   return name === "rvol" ? { ...rest, name } : { ...expr, name };
 };
@@ -85,7 +86,8 @@ export const withOperator = (
 
 /**
  * Fields of the definition the visual builder does not edit (it keeps them): entry.any,
- * management, oncePerLevel, an indicator timeframe and maxLeverage. Edit them in the JSON text.
+ * management, oncePerLevel, an indicator timeframe, maxLeverage, side, the intraday block, the
+ * session indicators and volTarget sizing. Edit them in the JSON text.
  */
 export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
   const conditions = [
@@ -107,7 +109,10 @@ export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
     [
       "timeframe",
       sides.some(
-        (expr) => expr.type === "indicator" && expr.timeframe !== undefined
+        (expr) =>
+          expr.type === "indicator" &&
+          !isSessionIndicator(expr) &&
+          expr.timeframe !== undefined
       ),
     ],
     [
@@ -115,11 +120,19 @@ export const jsonOnlyFields = (definition: StrategyDefinition): string[] => {
       definition.sizing.mode === "riskPct" &&
         definition.sizing.maxLeverage !== undefined,
     ],
+    ["side", definition.side !== undefined],
+    ["intraday", definition.intraday !== undefined],
+    ["session indicators", sides.some((expr) => isSessionIndicator(expr))],
+    ["volTarget", definition.sizing.mode === "volTarget"],
   ];
   return used.filter(([, present]) => present).map(([field]) => field);
 };
 
-type ShiftableExpr = Exclude<StrategyExpr, { type: "const" }>;
+/** Expressions with a bars-ago offset (prices and classic indicators). */
+export type ShiftableExpr = Exclude<
+  StrategyExpr,
+  { type: "const" } | StrategySessionIndicatorExpr
+>;
 
 /**
  * Sets the bars-ago offset from the input text. Empty or 0 removes the key, so the definition JSON

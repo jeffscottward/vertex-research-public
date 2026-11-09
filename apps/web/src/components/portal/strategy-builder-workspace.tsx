@@ -3,6 +3,7 @@
 import {
   type BacktestRun,
   type InstantBacktestSeries,
+  isSessionIndicator,
   parseStrategyDefinitionText,
   STRATEGY_INDICATORS,
   STRATEGY_OPERATORS,
@@ -48,6 +49,7 @@ import {
   readBuilderQuery,
   removeAt,
   replaceAt,
+  type ShiftableExpr,
   templateDefinition,
   toBuilderRunInput,
   usesSource,
@@ -146,7 +148,7 @@ const OffsetField = ({
   onChange,
 }: Readonly<{
   label: string;
-  expr: Exclude<StrategyExpr, { type: "const" }>;
+  expr: ShiftableExpr;
   onChange: (expr: StrategyExpr) => void;
 }>) => (
   <Labeled label={`${label} bars ago`}>
@@ -225,7 +227,12 @@ const ExprEditor = ({
         value={expr.value}
       />
     ) : null}
-    {expr.type === "indicator" ? (
+    {isSessionIndicator(expr) ? (
+      <p className="text-muted-foreground text-sm">
+        {`${label}: ${expr.name}. Edit it in the JSON text.`}
+      </p>
+    ) : null}
+    {expr.type === "indicator" && !isSessionIndicator(expr) ? (
       <>
         <Labeled label={`${label} indicator`}>
           {(id) => (
@@ -776,6 +783,11 @@ export const StrategyBuilderWorkspace = ({
                     >
                       <option value="allIn">Fully invested</option>
                       <option value="riskPct">Risk percent of equity</option>
+                      {draft.sizing.mode === "volTarget" ? (
+                        <option value="volTarget">
+                          Volatility target (edit in the JSON text)
+                        </option>
+                      ) : null}
                     </select>
                   )}
                 </Labeled>

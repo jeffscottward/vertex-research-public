@@ -5,10 +5,12 @@ import {
   SECTOR_ROTATION_SECTORS,
 } from "./contracts/sector-rotation.ts";
 
-// Strategy definition format (version 1): a small declarative, long-only strategy. Entry needs
-// every entry condition on the signal bar; exit needs any exit condition. Conditions compare two
-// expressions (price fields, constants or indicators). The definition compiles to the signal
-// arrays of the instant backtest engine. Research and backtest use only; it never creates orders.
+// Strategy definition format (version 1): a small declarative strategy, long unless `side` is
+// "short". Entry needs every entry condition on the signal bar; exit needs any exit condition.
+// Conditions compare two expressions (price fields, constants or indicators). An optional
+// `intraday` block trades a New York regular session and is flat at its close. The definition
+// compiles to the signal arrays of the instant backtest engine. Research and backtest use only;
+// it never creates orders.
 
 export const STRATEGY_DSL_VERSION = 1;
 export const STRATEGY_DSL_MAX_CONDITIONS = 8;
@@ -87,6 +89,36 @@ export const STRATEGY_EVENT_OPERATORS: readonly string[] = [
  */
 export const STRATEGY_INDICATOR_TIMEFRAMES = ["1d"] as const;
 
+/**
+ * Indicators of the intraday session: they need an `intraday` block (StrategyIntradaySchema) and
+ * read only the regular-session bars of the current New York session day (NaN outside it).
+ * - vwap: sum(typical × volume) / sum(volume) since the session's first regular bar, typical =
+ *   (high + low + close) / 3; the running mean of typical prices while the summed volume is 0 or
+ *   the bars have no volume.
+ * - sessionReturn: price at `to` / price at `from` - 1, from the bar closing at `to` through the
+ *   session end. `from` "prevClose" is the last regular close of the previous session day, "open"
+ *   the open of today's first regular bar, "HH:MM" the close of today's bar closing then; `to` is
+ *   the close of today's bar closing at `to`. NaN when a price is missing.
+ * - noiseBand: for each bar, sigma = mean of |close / session open - 1| at the same minutes since
+ *   the session open over the previous `length` session days that have a bar then (NaN until
+ *   there are `length`). upper = max(session open, previous close) × (1 + multiple × sigma),
+ *   lower = min(session open, previous close) × (1 - multiple × sigma); `multiple` defaults to 1.
+ */
+export const STRATEGY_SESSION_INDICATORS = [
+  "vwap",
+  "sessionReturn",
+  "noiseBand",
+] as const;
+export const STRATEGY_NOISE_BANDS = ["upper", "lower"] as const;
+export const STRATEGY_NOISE_BAND_MAX_LENGTH = 60;
+/** sessionReturn anchors besides a time of day. */
+export const STRATEGY_SESSION_ANCHORS = ["prevClose", "open"] as const;
+
+const NEW_YORK_TIME = /^([01]\d|2[0-3]):[0-5]\d$/u;
+const NewYorkTimeSchema = z
+  .string()
+  .regex(NEW_YORK_TIME, "Expected HH:MM (New York)");
+
 const LengthSchema = z.number().int().min(1).max(STRATEGY_DSL_MAX_LENGTH);
 /**
  * Bars ago: the value at bar i is the series value at bar i - offset (not available before).
@@ -98,6 +130,76 @@ const OffsetSchema = z
   .min(0)
   .max(STRATEGY_DSL_MAX_LENGTH)
   .optional();
+
+/** A classic indicator: `length` bars (or days with timeframe "1d") of one price source. */
+const IndicatorExprSchema = z
+  .object({
+    length: LengthSchema,
+    name: z.enum(STRATEGY_INDICATORS),
+    offset: OffsetSchema,
+    /**
+     * Input price for sma, ema, rsi, highest, lowest, zscore and realizedVol. atr, adx and rvol
+     * ignore it. For rvol, `length` is the number of previous sessions in the average.
+     */
+    source: z.enum(STRATEGY_PRICE_FIELDS).default("close"),
+    /**
+     * Optional with no default. "1d": the indicator runs on daily bars built from the signal
+     * bars (see STRATEGY_INDICATOR_TIMEFRAMES); `length` counts days. Not for rvol.
+     */
+    timeframe: z.enum(STRATEGY_INDICATOR_TIMEFRAMES).optional(),
+    type: z.literal("indicator"),
+  })
+  .strict()
+  .refine(
+    (expr) =>
+      expr.name !== "rvol" || expr.length <= STRATEGY_DSL_MAX_RVOL_SESSIONS,
+    {
+      message: `rvol length must be at most ${STRATEGY_DSL_MAX_RVOL_SESSIONS} sessions`,
+      path: ["length"],
+    }
+  )
+  .refine((expr) => expr.name !== "rvol" || expr.timeframe === undefined, {
+    message: "rvol has no timeframe; it already compares whole sessions",
+    path: ["timeframe"],
+  })
+  .refine(
+    (expr) =>
+      (expr.name !== "zscore" && expr.name !== "realizedVol") ||
+      expr.length >= STRATEGY_DSL_MIN_DEVIATION_LENGTH,
+    {
+      message: `zscore and realizedVol length must be at least ${STRATEGY_DSL_MIN_DEVIATION_LENGTH}`,
+      path: ["length"],
+    }
+  );
+
+/** Session indicators (STRATEGY_SESSION_INDICATORS) take no length, source, offset or timeframe. */
+const VwapExprSchema = z
+  .object({ name: z.literal("vwap"), type: z.literal("indicator") })
+  .strict();
+
+const SessionReturnExprSchema = z
+  .object({
+    from: z.union([z.enum(STRATEGY_SESSION_ANCHORS), NewYorkTimeSchema]),
+    name: z.literal("sessionReturn"),
+    to: NewYorkTimeSchema,
+    type: z.literal("indicator"),
+  })
+  .strict()
+  .refine((expr) => !NEW_YORK_TIME.test(expr.from) || expr.from < expr.to, {
+    message: "sessionReturn from must be before to",
+    path: ["from"],
+  });
+
+const NoiseBandExprSchema = z
+  .object({
+    band: z.enum(STRATEGY_NOISE_BANDS),
+    length: z.number().int().min(1).max(STRATEGY_NOISE_BAND_MAX_LENGTH),
+    /** Optional with no default; absent means 1. */
+    multiple: z.number().gt(0).max(100).optional(),
+    name: z.literal("noiseBand"),
+    type: z.literal("indicator"),
+  })
+  .strict();
 
 export const StrategyExprSchema = z.discriminatedUnion("type", [
   z
@@ -113,46 +215,29 @@ export const StrategyExprSchema = z.discriminatedUnion("type", [
       value: z.number().min(-1e12).max(1e12),
     })
     .strict(),
-  z
-    .object({
-      length: LengthSchema,
-      name: z.enum(STRATEGY_INDICATORS),
-      offset: OffsetSchema,
-      /**
-       * Input price for sma, ema, rsi, highest, lowest, zscore and realizedVol. atr, adx and rvol
-       * ignore it. For rvol, `length` is the number of previous sessions in the average.
-       */
-      source: z.enum(STRATEGY_PRICE_FIELDS).default("close"),
-      /**
-       * Optional with no default. "1d": the indicator runs on daily bars built from the signal
-       * bars (see STRATEGY_INDICATOR_TIMEFRAMES); `length` counts days. Not for rvol.
-       */
-      timeframe: z.enum(STRATEGY_INDICATOR_TIMEFRAMES).optional(),
-      type: z.literal("indicator"),
-    })
-    .strict()
-    .refine(
-      (expr) =>
-        expr.name !== "rvol" || expr.length <= STRATEGY_DSL_MAX_RVOL_SESSIONS,
-      {
-        message: `rvol length must be at most ${STRATEGY_DSL_MAX_RVOL_SESSIONS} sessions`,
-        path: ["length"],
-      }
-    )
-    .refine((expr) => expr.name !== "rvol" || expr.timeframe === undefined, {
-      message: "rvol has no timeframe; it already compares whole sessions",
-      path: ["timeframe"],
-    })
-    .refine(
-      (expr) =>
-        (expr.name !== "zscore" && expr.name !== "realizedVol") ||
-        expr.length >= STRATEGY_DSL_MIN_DEVIATION_LENGTH,
-      {
-        message: `zscore and realizedVol length must be at least ${STRATEGY_DSL_MIN_DEVIATION_LENGTH}`,
-        path: ["length"],
-      }
-    ),
+  z.discriminatedUnion("name", [
+    IndicatorExprSchema,
+    VwapExprSchema,
+    SessionReturnExprSchema,
+    NoiseBandExprSchema,
+  ]),
 ]);
+
+/** A classic indicator expression (not a session indicator). */
+export type StrategyIndicatorExpr = z.infer<typeof IndicatorExprSchema>;
+/** vwap, sessionReturn or noiseBand (STRATEGY_SESSION_INDICATORS). */
+export type StrategySessionIndicatorExpr =
+  | z.infer<typeof VwapExprSchema>
+  | z.infer<typeof SessionReturnExprSchema>
+  | z.infer<typeof NoiseBandExprSchema>;
+
+const SESSION_INDICATOR_NAMES: readonly string[] = STRATEGY_SESSION_INDICATORS;
+
+/** True for vwap, sessionReturn and noiseBand (they need an intraday block). */
+export const isSessionIndicator = (
+  expr: z.infer<typeof StrategyExprSchema>
+): expr is StrategySessionIndicatorExpr =>
+  expr.type === "indicator" && SESSION_INDICATOR_NAMES.includes(expr.name);
 
 export const StrategyConditionSchema = z
   .object({
@@ -348,6 +433,8 @@ const NON_CLOSE_INDICATORS: Readonly<Record<string, true>> = {
 const closeOnly = (expr: z.infer<typeof StrategyExprSchema>): boolean => {
   if (expr.type === "const") return true;
   if (expr.type === "price") return expr.field === "close";
+  // Session indicators read a regular session of intraday bars, which a series does not have.
+  if (isSessionIndicator(expr)) return false;
   return expr.source === "close" && NON_CLOSE_INDICATORS[expr.name] !== true;
 };
 
@@ -377,7 +464,10 @@ export const SeriesFilterSchema = z
     (filter) =>
       filter.condition.oncePerLevel === undefined &&
       [filter.condition.left, filter.condition.right].every(
-        (expr) => expr.type !== "indicator" || expr.timeframe === undefined
+        (expr) =>
+          expr.type !== "indicator" ||
+          isSessionIndicator(expr) ||
+          expr.timeframe === undefined
       ),
     {
       message:
@@ -522,6 +612,102 @@ export const StrategyManagementSchema = z
   );
 
 export const STRATEGY_DSL_MAX_LEVERAGE = 50;
+/** Session minutes of a decision grid: 1 to a whole 6.5-hour session. */
+export const STRATEGY_INTRADAY_MAX_DECISION_MINUTES = 390;
+export const STRATEGY_SIDES = ["long", "short"] as const;
+export const STRATEGY_VOL_TARGET_MIN_LENGTH = 2;
+export const STRATEGY_VOL_TARGET_MAX_LENGTH = 252;
+
+/**
+ * Intraday session (New York time). A bar closes at its time + the bar duration (the most common
+ * spacing of bars on one New York date, ties to the smaller). Regular bars open at or after `open`
+ * and close at or before `close`; other bars never enter, never hold a position and are NaN in the
+ * session indicators. Entries only on regular bars closing in [entryFrom, entryTo] and, with
+ * `decisionEvery`, a whole number of those minutes after `open`; exit conditions only on regular
+ * bars on that grid. Stops and targets stay live. A position open at the close of the last regular
+ * bar of its session day exits at that close (market on close); that bar takes no entry.
+ */
+export const StrategyIntradaySchema = z
+  .object({
+    close: NewYorkTimeSchema,
+    /** Optional with no default: minutes of the decision grid. */
+    decisionEvery: z
+      .number()
+      .int()
+      .min(1)
+      .max(STRATEGY_INTRADAY_MAX_DECISION_MINUTES)
+      .optional(),
+    entryFrom: NewYorkTimeSchema,
+    entryTo: NewYorkTimeSchema,
+    open: NewYorkTimeSchema,
+    timezone: z.literal("America/New_York"),
+  })
+  .strict()
+  .refine((session) => session.open < session.close, {
+    message: "intraday open must be before close",
+    path: ["close"],
+  })
+  .refine(
+    (session) =>
+      session.open < session.entryFrom &&
+      session.entryFrom <= session.entryTo &&
+      session.entryTo < session.close,
+    {
+      message:
+        "The entry window must be inside the session: open < entryFrom <= entryTo < close",
+      path: ["entryFrom"],
+    }
+  );
+
+/**
+ * Volatility-target sizing: at each entry, notional = equity × min(maxLeverage, targetPct / 100 /
+ * sigma), sigma = sample standard deviation of the last `length` completed session-day
+ * close-to-close returns (the close of a day is its last regular bar; without an intraday block
+ * every bar of a New York date counts). No sigma yet means no entry.
+ */
+const VolTargetSizingSchema = z
+  .object({
+    length: z
+      .number()
+      .int()
+      .min(STRATEGY_VOL_TARGET_MIN_LENGTH)
+      .max(STRATEGY_VOL_TARGET_MAX_LENGTH),
+    maxLeverage: z.number().gt(0).max(STRATEGY_DSL_MAX_LEVERAGE),
+    mode: z.literal("volTarget"),
+    targetPct: z.number().gt(0).max(100),
+  })
+  .strict();
+
+type DefinitionExprs = Readonly<{
+  entry: Readonly<{
+    all: readonly StrategyCondition[];
+    any?: readonly StrategyCondition[] | undefined;
+  }>;
+  exit: Readonly<{ any: readonly StrategyCondition[] }>;
+}>;
+
+/** Paths and names of the session indicators in the entry and exit conditions. */
+const sessionIndicatorUses = (
+  definition: DefinitionExprs
+): [(string | number)[], string][] => {
+  const groups: [(string | number)[], readonly StrategyCondition[]][] = [
+    [["entry", "all"], definition.entry.all],
+    [["entry", "any"], definition.entry.any ?? []],
+    [["exit", "any"], definition.exit.any],
+  ];
+  return groups.flatMap(([path, conditions]) =>
+    conditions.flatMap((condition, index) =>
+      (["left", "right"] as const).flatMap(
+        (side): [(string | number)[], string][] => {
+          const expr = condition[side];
+          return isSessionIndicator(expr)
+            ? [[[...path, index, side], expr.name]]
+            : [];
+        }
+      )
+    )
+  );
+};
 
 export const StrategyDefinitionSchema = z
   .object({
@@ -553,6 +739,8 @@ export const StrategyDefinitionSchema = z
       .default({ any: [] }),
     /** Optional with no default, so definitions without it keep the same canonical JSON. */
     filters: StrategyFiltersSchema.optional(),
+    /** Optional with no default (see StrategyIntradaySchema). */
+    intraday: StrategyIntradaySchema.optional(),
     /** Optional with no default (see StrategyManagementSchema). */
     management: StrategyManagementSchema.optional(),
     name: z.string().trim().min(1).max(120),
@@ -571,6 +759,11 @@ export const StrategyDefinitionSchema = z
         message: "Session start and end must differ",
       })
       .optional(),
+    /**
+     * Optional with no default; absent means long. "short" sells at the entry and buys back at
+     * the exit: stops sit above the entry and targets below it.
+     */
+    side: z.enum(STRATEGY_SIDES).optional(),
     sizing: z
       .discriminatedUnion("mode", [
         z.object({ mode: z.literal("allIn") }).strict(),
@@ -589,6 +782,7 @@ export const StrategyDefinitionSchema = z
             riskPct: z.number().gt(0).max(100),
           })
           .strict(),
+        VolTargetSizingSchema,
       ])
       .default({ mode: "allIn" }),
     stopLoss: ExitLevelSchema.default({ kind: "none" }),
@@ -641,7 +835,64 @@ export const StrategyDefinitionSchema = z
         "Option strategies exit by profitTakePct, exitDte and exit conditions; remove management",
       path: ["management"],
     }
-  );
+  )
+  .refine(
+    (definition) =>
+      definition.options === undefined ||
+      definition.sizing.mode !== "volTarget",
+    {
+      message:
+        "Option strategies size by options.maxLossPct; remove the volTarget sizing",
+      path: ["sizing"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.side !== "short" || definition.management === undefined,
+    {
+      message:
+        "management raises a long stop; a short definition takes no management",
+      path: ["management"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.side !== "short" || definition.options === undefined,
+    {
+      message:
+        "Option strategies take their direction from options.structure; remove side",
+      path: ["side"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.intraday === undefined || definition.options === undefined,
+    {
+      message: "Option strategies run on daily bars; remove the intraday block",
+      path: ["intraday"],
+    }
+  )
+  .refine(
+    (definition) =>
+      definition.intraday === undefined ||
+      (definition.filters ?? []).every(
+        (filter) => filter.type !== "calendarWindow"
+      ),
+    {
+      message:
+        "calendarWindow filters run on daily bars only; remove them or the intraday block",
+      path: ["filters"],
+    }
+  )
+  .superRefine((definition, context) => {
+    if (definition.intraday !== undefined) return;
+    for (const [path, name] of sessionIndicatorUses(definition))
+      context.addIssue({
+        code: "custom",
+        message: `${name} reads the intraday session; add an intraday block`,
+        path,
+      });
+  });
 
 export type StrategyExpr = z.infer<typeof StrategyExprSchema>;
 export type StrategyCondition = z.infer<typeof StrategyConditionSchema>;
@@ -657,6 +908,7 @@ export type CalendarWindowFilter = z.infer<typeof CalendarWindowFilterSchema>;
 export type SeriesFilter = z.infer<typeof SeriesFilterSchema>;
 export type StrategyOptions = z.infer<typeof StrategyOptionsSchema>;
 export type StrategyManagement = z.infer<typeof StrategyManagementSchema>;
+export type StrategyIntraday = z.infer<typeof StrategyIntradaySchema>;
 export type StrategyDefinitionInput = z.input<typeof StrategyDefinitionSchema>;
 
 export type StrategyValidationIssue = Readonly<{
@@ -676,12 +928,16 @@ export const STRATEGY_SERIES_FILTERS_UNSUPPORTED =
 /** Refusal code: calendar windows count trading days, which intraday bars in UTC misplace. */
 export const STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED =
   "STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED";
+/** Refusal code: the intraday block needs intraday bars (a daily or weekly run refuses it). */
+export const STRATEGY_INTRADAY_DAILY_UNSUPPORTED =
+  "STRATEGY_INTRADAY_DAILY_UNSUPPORTED";
 
 export type StrategyRefusal = Readonly<{
   code:
     | typeof STRATEGY_OPTIONS_UNSUPPORTED
     | typeof STRATEGY_SERIES_FILTERS_UNSUPPORTED
-    | typeof STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED;
+    | typeof STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED
+    | typeof STRATEGY_INTRADAY_DAILY_UNSUPPORTED;
   message: string;
 }>;
 
@@ -693,6 +949,11 @@ export const STRATEGY_OPTIONS_REFUSAL: StrategyRefusal = {
 export const STRATEGY_CALENDAR_INTRADAY_REFUSAL: StrategyRefusal = {
   code: STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED,
   message: `${STRATEGY_CALENDAR_INTRADAY_UNSUPPORTED}: calendarWindow filters run on daily bars only; on intraday bars the UTC date misplaces the exchange session.`,
+};
+
+export const STRATEGY_INTRADAY_DAILY_REFUSAL: StrategyRefusal = {
+  code: STRATEGY_INTRADAY_DAILY_UNSUPPORTED,
+  message: `${STRATEGY_INTRADAY_DAILY_UNSUPPORTED}: the intraday block needs intraday bars (two or more bars on one New York date); a daily or weekly run refuses it.`,
 };
 
 /** Timeframes of one bar per trading day or longer; every other timeframe is intraday. */
@@ -713,11 +974,13 @@ const READS_SERIES: Readonly<Record<StrategyFilter["type"], boolean>> = {
  * hand-off) cannot run a definition or a campaign filter list, or undefined when they can. They
  * run equity strategies and load sector points only, so they refuse an options block and the
  * ivRank, vixTermStructure, volRegime and series filters. With a `timeframe` that is not daily
- * they also refuse calendarWindow filters. sectorQuadrant filters work everywhere.
+ * they also refuse calendarWindow filters, and with a daily one an intraday block.
+ * sectorQuadrant filters work everywhere.
  */
 export const serverStrategyRefusal = (
   definition: Readonly<{
     filters?: readonly StrategyFilter[] | undefined;
+    intraday?: StrategyIntraday | undefined;
     options?: StrategyOptions | undefined;
   }>,
   timeframe?: string
@@ -734,12 +997,12 @@ export const serverStrategyRefusal = (
       code: STRATEGY_SERIES_FILTERS_UNSUPPORTED,
       message: `${STRATEGY_SERIES_FILTERS_UNSUPPORTED}: the ${types.join(", ")} filters need daily series that the server does not load; only the research runners pass them. sectorQuadrant and calendarWindow filters work here.`,
     };
-  if (
-    timeframe !== undefined &&
-    !STRATEGY_DAILY_TIMEFRAMES.includes(timeframe) &&
-    filters.some((filter) => filter.type === "calendarWindow")
-  )
+  if (timeframe === undefined) return undefined;
+  const daily = STRATEGY_DAILY_TIMEFRAMES.includes(timeframe);
+  if (!daily && filters.some((filter) => filter.type === "calendarWindow"))
     return STRATEGY_CALENDAR_INTRADAY_REFUSAL;
+  if (daily && definition.intraday !== undefined)
+    return STRATEGY_INTRADAY_DAILY_REFUSAL;
   return undefined;
 };
 
