@@ -24560,6 +24560,21 @@
                                     },
                                     "riskOfRuin": {
                                       "type": "number"
+                                    },
+                                    "worst": {
+                                      "properties": {
+                                        "finalPnl": {
+                                          "type": "number"
+                                        },
+                                        "maxDrawdown": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "finalPnl",
+                                        "maxDrawdown"
+                                      ],
+                                      "type": "object"
                                     }
                                   },
                                   "required": [
@@ -24567,9 +24582,22 @@
                                     "maxDrawdown",
                                     "probabilityOfProfit",
                                     "riskOfRuin",
+                                    "worst",
                                     "fan"
                                   ],
                                   "type": "object"
+                                },
+                                "paths": {
+                                  "maximum": 9007199254740991,
+                                  "minimum": -9007199254740991,
+                                  "type": "integer"
+                                },
+                                "pnlSource": {
+                                  "enum": [
+                                    "trades",
+                                    "equity"
+                                  ],
+                                  "type": "string"
                                 },
                                 "reshuffle": {
                                   "properties": {
@@ -24668,6 +24696,21 @@
                                     },
                                     "riskOfRuin": {
                                       "type": "number"
+                                    },
+                                    "worst": {
+                                      "properties": {
+                                        "finalPnl": {
+                                          "type": "number"
+                                        },
+                                        "maxDrawdown": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "finalPnl",
+                                        "maxDrawdown"
+                                      ],
+                                      "type": "object"
                                     }
                                   },
                                   "required": [
@@ -24675,14 +24718,65 @@
                                     "maxDrawdown",
                                     "probabilityOfProfit",
                                     "riskOfRuin",
+                                    "worst",
                                     "fan"
+                                  ],
+                                  "type": "object"
+                                },
+                                "seed": {
+                                  "type": "number"
+                                },
+                                "sizing": {
+                                  "properties": {
+                                    "basis": {
+                                      "const": "worst_run"
+                                    },
+                                    "drawdownBudget": {
+                                      "type": "number"
+                                    },
+                                    "sizeScale": {
+                                      "type": "number"
+                                    },
+                                    "worstMaxDrawdown": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "basis",
+                                    "drawdownBudget",
+                                    "worstMaxDrawdown",
+                                    "sizeScale"
+                                  ],
+                                  "type": "object"
+                                },
+                                "worst": {
+                                  "properties": {
+                                    "finalPnl": {
+                                      "type": "number"
+                                    },
+                                    "maxDrawdown": {
+                                      "type": "number"
+                                    },
+                                    "riskOfRuin": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": [
+                                    "finalPnl",
+                                    "maxDrawdown",
+                                    "riskOfRuin"
                                   ],
                                   "type": "object"
                                 }
                               },
                               "required": [
+                                "paths",
+                                "seed",
+                                "pnlSource",
                                 "reshuffle",
-                                "bootstrap"
+                                "bootstrap",
+                                "worst",
+                                "sizing"
                               ],
                               "type": "object"
                             },
@@ -27515,6 +27609,21 @@
                                         },
                                         "riskOfRuin": {
                                           "type": "number"
+                                        },
+                                        "worst": {
+                                          "properties": {
+                                            "finalPnl": {
+                                              "type": "number"
+                                            },
+                                            "maxDrawdown": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "finalPnl",
+                                            "maxDrawdown"
+                                          ],
+                                          "type": "object"
                                         }
                                       },
                                       "required": [
@@ -27522,9 +27631,22 @@
                                         "maxDrawdown",
                                         "probabilityOfProfit",
                                         "riskOfRuin",
+                                        "worst",
                                         "fan"
                                       ],
                                       "type": "object"
+                                    },
+                                    "paths": {
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    "pnlSource": {
+                                      "enum": [
+                                        "trades",
+                                        "equity"
+                                      ],
+                                      "type": "string"
                                     },
                                     "reshuffle": {
                                       "properties": {
@@ -27623,6 +27745,21 @@
                                         },
                                         "riskOfRuin": {
                                           "type": "number"
+                                        },
+                                        "worst": {
+                                          "properties": {
+                                            "finalPnl": {
+                                              "type": "number"
+                                            },
+                                            "maxDrawdown": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "required": [
+                                            "finalPnl",
+                                            "maxDrawdown"
+                                          ],
+                                          "type": "object"
                                         }
                                       },
                                       "required": [
@@ -27630,14 +27767,65 @@
                                         "maxDrawdown",
                                         "probabilityOfProfit",
                                         "riskOfRuin",
+                                        "worst",
                                         "fan"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "seed": {
+                                      "type": "number"
+                                    },
+                                    "sizing": {
+                                      "properties": {
+                                        "basis": {
+                                          "const": "worst_run"
+                                        },
+                                        "drawdownBudget": {
+                                          "type": "number"
+                                        },
+                                        "sizeScale": {
+                                          "type": "number"
+                                        },
+                                        "worstMaxDrawdown": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "basis",
+                                        "drawdownBudget",
+                                        "worstMaxDrawdown",
+                                        "sizeScale"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "worst": {
+                                      "properties": {
+                                        "finalPnl": {
+                                          "type": "number"
+                                        },
+                                        "maxDrawdown": {
+                                          "type": "number"
+                                        },
+                                        "riskOfRuin": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": [
+                                        "finalPnl",
+                                        "maxDrawdown",
+                                        "riskOfRuin"
                                       ],
                                       "type": "object"
                                     }
                                   },
                                   "required": [
+                                    "paths",
+                                    "seed",
+                                    "pnlSource",
                                     "reshuffle",
-                                    "bootstrap"
+                                    "bootstrap",
+                                    "worst",
+                                    "sizing"
                                   ],
                                   "type": "object"
                                 },

@@ -149,12 +149,35 @@ export type RegimeRow = Readonly<{
   profitFactor: number | null;
 }>;
 export type FanPoint = Readonly<{ step: number } & Percentiles>;
+// `worst` is the single worst simulated path: lowest final P&L and deepest max drawdown seen.
 export type MonteCarloRun = Readonly<{
   finalPnl: Percentiles;
   maxDrawdown: Percentiles;
   probabilityOfProfit: number;
   riskOfRuin: number;
+  worst: Readonly<{ finalPnl: number; maxDrawdown: number }>;
   fan: FanPoint[];
+}>;
+// Position sizing derived from the simulation always reads the WORST run, never the median.
+export type MonteCarloSizing = Readonly<{
+  basis: "worst_run";
+  drawdownBudget: number;
+  worstMaxDrawdown: number;
+  // Multiplier on the backtested position size so the worst simulated drawdown fits the budget.
+  sizeScale: number;
+}>;
+export type MonteCarloSummary = Readonly<{
+  paths: number;
+  seed: number;
+  pnlSource: "trades" | "equity";
+  reshuffle: MonteCarloRun;
+  bootstrap: MonteCarloRun;
+  worst: Readonly<{
+    finalPnl: number;
+    maxDrawdown: number;
+    riskOfRuin: number;
+  }>;
+  sizing: MonteCarloSizing;
 }>;
 export type BenchmarkStats = Readonly<{
   n: number;
@@ -201,10 +224,7 @@ export type BacktestAnalytics = Readonly<{
     profitFactor: Interval | null;
     expectancy: Interval | null;
   }>;
-  monteCarlo: Readonly<{
-    reshuffle: MonteCarloRun;
-    bootstrap: MonteCarloRun;
-  }> | null;
+  monteCarlo: MonteCarloSummary | null;
   benchmark: BenchmarkStats | null;
   // H0: mean per-period return (or Sharpe) <= 0. Stationary bootstrap uses its own seeded stream.
   significance: Readonly<{
@@ -730,6 +750,12 @@ const profitFactorOf = (values: readonly number[]): number => {
   return loss === 0 ? Number.NaN : profit / Math.abs(loss);
 };
 
+const minOf = (values: readonly number[]): number => {
+  let low = Number.POSITIVE_INFINITY;
+  for (const value of values) low = Math.min(low, value);
+  return values.length === 0 ? 0 : low;
+};
+
 // Monte Carlo over trade P&L sequences starting from capital. Drawdown is measured on account equity.
 // `paths` defaults to the analytics path count; the setup replay passes its own.
 export const monteCarlo = (
@@ -781,12 +807,76 @@ export const monteCarlo = (
     maxDrawdown: percentiles(drawdowns),
     probabilityOfProfit: profitable / paths,
     riskOfRuin: ruined / paths,
+    worst: { finalPnl: minOf(finals), maxDrawdown: minOf(drawdowns) },
     fan: stepIndexes.map((tradeIndex, index) => ({
       step: tradeIndex + 1,
       ...percentiles(requireAt(fanSamples, index)),
     })),
   };
 };
+
+// Default drawdown budget for sizing: the worst simulated path may lose at most 20% from peak.
+export const MONTE_CARLO_DRAWDOWN_BUDGET = 0.2;
+
+// Sizing reads the worst simulated run only. Drawdown scales about linearly with position size,
+// so the scale is budget / |worst drawdown|, capped at 1 (never size up from a simulation).
+export const sizeFromWorstRun = (
+  runs: readonly MonteCarloRun[],
+  drawdownBudget = MONTE_CARLO_DRAWDOWN_BUDGET
+): MonteCarloSizing => {
+  const worstMaxDrawdown = minOf(runs.map((run) => run.worst.maxDrawdown));
+  const depth = Math.abs(worstMaxDrawdown);
+  return {
+    basis: "worst_run",
+    drawdownBudget,
+    worstMaxDrawdown,
+    sizeScale: depth === 0 ? 1 : Math.min(1, drawdownBudget / depth),
+  };
+};
+
+const monteCarloSummary = (
+  pnls: readonly number[],
+  capital: number,
+  random: () => number,
+  seed: number,
+  pnlSource: MonteCarloSummary["pnlSource"]
+): MonteCarloSummary => {
+  const reshuffle = monteCarlo(pnls, capital, "reshuffle", random);
+  const bootstrap = monteCarlo(pnls, capital, "bootstrap", random);
+  return {
+    paths: MONTE_CARLO_PATHS,
+    seed,
+    pnlSource,
+    reshuffle,
+    bootstrap,
+    worst: {
+      finalPnl: Math.min(reshuffle.worst.finalPnl, bootstrap.worst.finalPnl),
+      maxDrawdown: Math.min(
+        reshuffle.worst.maxDrawdown,
+        bootstrap.worst.maxDrawdown
+      ),
+      riskOfRuin: Math.max(reshuffle.riskOfRuin, bootstrap.riskOfRuin),
+    },
+    sizing: sizeFromWorstRun([reshuffle, bootstrap]),
+  };
+};
+
+// Monte Carlo runs after every backtest. Trade P&L is shuffled and bootstrapped; a run that
+// stored no trades (equity-only engines) simulates its per-bar equity changes instead.
+const monteCarloInput = (
+  pnls: readonly number[],
+  equity: readonly AnalyticsEquityPoint[]
+): Readonly<{ source: MonteCarloSummary["pnlSource"]; pnls: number[] }> =>
+  pnls.length >= 2
+    ? { source: "trades", pnls: [...pnls] }
+    : {
+        source: "equity",
+        pnls: equity
+          .slice(1)
+          .map(
+            (point, index) => point.equity - requireAt(equity, index).equity
+          ),
+      };
 
 // ---------------------------------------------------------------------------
 // Benchmark comparison: per-period returns over timestamps present in both series; OLS beta.
@@ -946,7 +1036,8 @@ export const computeBacktestAnalytics = (
     }
   }
 
-  const canSimulate = pnls.length >= 2 && capital !== null && capital > 0;
+  const mc = monteCarloInput(pnls, input.equity);
+  const canSimulate = mc.pnls.length >= 2 && capital !== null && capital > 0;
   return {
     method: {
       version: BACKTEST_ANALYTICS_VERSION,
@@ -979,10 +1070,7 @@ export const computeBacktestAnalytics = (
       expectancy: interval(expectancySamples),
     },
     monteCarlo: canSimulate
-      ? {
-          reshuffle: monteCarlo(pnls, capital, "reshuffle", random),
-          bootstrap: monteCarlo(pnls, capital, "bootstrap", random),
-        }
+      ? monteCarloSummary(mc.pnls, capital, random, seed, mc.source)
       : null,
     benchmark:
       input.benchmark === undefined ||
