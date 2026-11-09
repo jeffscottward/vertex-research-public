@@ -754,6 +754,25 @@ describe("source-bound runtime model use", () => {
     missingLink.h.persisted.set("vertex_reviewed_artifact_links", []);
     return await expect(missingLink.accepted()).rejects.toThrow();
   });
+  it("binds uncollected artifact metadata only to the empty collection key", async () => {
+    const f = await acceptedFixture();
+    const [row] = f.h.persisted.get("vertex_artifacts") ?? [];
+    const payload = row?.["payload"];
+    if (!(row && payload) || typeof payload !== "object")
+      throw new Error("fixture lacks artifact row");
+    const metadata = { ...payload, collectionId: null };
+    row["payload"] = metadata;
+    row["metadata_hash"] = await hashArtifact(metadata);
+    await expect(f.accepted()).rejects.toThrow();
+    const mismatchedQueries = f.h.execute.mock.calls.length;
+    row["collection_key"] = "";
+    // Matching empty key passes the artifact binding, then fails at the
+    // still-collected review rather than at the artifact row.
+    await expect(f.accepted()).rejects.toThrow();
+    return expect(
+      f.h.execute.mock.calls.length - mismatchedQueries
+    ).toBeGreaterThan(mismatchedQueries);
+  });
   return it("cannot reuse old rights revision after the current policy changes", async () => {
     const f = await acceptedFixture();
     f.h.rightsRow["payload"] = { ...f.h.rights, version: "2.0.0" };

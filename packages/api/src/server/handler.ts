@@ -48,9 +48,17 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "flow.snapshot",
 ]);
 
-export const isAgentApiKeyProcedurePath = (path: readonly string[]): boolean =>
-  (path.length > 1 && AGENT_API_KEY_PROCEDURE_ROOTS.includes(path[0] ?? "")) ||
-  AGENT_API_KEY_PROCEDURE_PATHS.includes(path.join("."));
+export const isAgentApiKeyProcedurePath = (
+  path: readonly string[]
+): boolean => {
+  const [root] = path;
+  return (
+    (path.length > 1 &&
+      root !== undefined &&
+      AGENT_API_KEY_PROCEDURE_ROOTS.includes(root)) ||
+    AGENT_API_KEY_PROCEDURE_PATHS.includes(path.join("."))
+  );
+};
 
 type ScopeInterceptorOptions = Readonly<{
   context: ApiContext;

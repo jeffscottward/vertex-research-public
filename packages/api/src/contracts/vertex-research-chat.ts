@@ -465,15 +465,14 @@ export const VertexResearchChatListMessagesOutputSchema = z
       return (
         new Set(value.items.map((item) => item.messageId)).size ===
           value.items.length &&
-        value.items.every(
-          (item, index) =>
+        value.items.every((item, index) => {
+          // The first item has no predecessor; later items strictly follow it.
+          const previous = value.items[index - 1]?.sequence;
+          return (
             item.threadId === value.threadId &&
-            (index === 0 ||
-              ordinalBefore(
-                value.items[index - 1]?.sequence ?? "",
-                item.sequence
-              ))
-        )
+            (previous === undefined || ordinalBefore(previous, item.sequence))
+          );
+        })
       );
     },
     {
@@ -521,15 +520,15 @@ export const VertexResearchChatReadTranscriptPageOutputSchema = z
         )
           return false;
         if (
-          !value.items.every(
-            (item, index) =>
+          !value.items.every((item, index) => {
+            const previous = value.items[index - 1];
+            return (
               item.threadId === value.thread.threadId &&
               (item.kind === "advisory-reference"
                 ? value.thread.participantIds.includes(
                     item.author.participantId
                   ) &&
-                  (index === 0 ||
-                    item.parentMessageId === value.items[index - 1]?.messageId)
+                  (index === 0 || item.parentMessageId === previous?.messageId)
                 : item.author.kind === "user" &&
                   item.author.actorId === value.thread.ownerActorId &&
                   item.kind === "statement" &&
@@ -538,10 +537,10 @@ export const VertexResearchChatReadTranscriptPageOutputSchema = z
               chronological(value.thread.createdAt, item.recordedAt) &&
               chronological(item.recordedAt, value.thread.updatedAt) &&
               BigInt(item.sequence) <= highWater &&
-              (index === 0 ||
-                BigInt(item.sequence) ===
-                  BigInt(value.items[index - 1]?.sequence ?? "") + 1n)
-          )
+              (previous === undefined ||
+                BigInt(item.sequence) === BigInt(previous.sequence) + 1n)
+            );
+          })
         )
           return false;
         const tail =

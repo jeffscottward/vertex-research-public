@@ -5,12 +5,14 @@ import {
   decodeBase64,
   hashArtifact,
   rawSha,
+  type NativeRecord,
 } from "./vertex-runtime-epoch-bytes.ts";
 import {
   applyNativeEpochEvent,
   initialNativeEpochState,
 } from "./vertex-runtime-epoch-replay.ts";
 import { reconstructVertexEpochEvidence } from "./vertex-runtime-epoch-evidence.ts";
+import { rebuildEpochSnapshot } from "./vertex-runtime-epoch-snapshot.ts";
 import { verifyVertexEpochApproval } from "./vertex-runtime-epoch-approval.ts";
 import { createVertexRuntimeEpochOperations } from "./vertex-runtime-epoch.ts";
 import type { PersistenceContext } from "@darkfactory/db/server/vertex-epoch";
@@ -275,6 +277,82 @@ describe("concrete native epoch evidence", () => {
       false
     );
     return expect(proof.projections[0]?.["acknowledged"]).toBe(false);
+  });
+  it("rejects an acknowledged projection after pending history in replay mode", async () => {
+    const value = await fixture();
+    const [first] = value.outbox.projections;
+    first.acknowledged = false;
+    value.outbox.projections.push({
+      ...first,
+      publicationSequence: "2",
+      acknowledged: true,
+    });
+    const bytes = canonical(value.outbox);
+    value.fence.nativeOutboxEvidenceSha256 = await rawSha(bytes);
+    return await expect(
+      reconstructVertexEpochEvidence(bytes, canonical(value.fence), now, false)
+    ).rejects.toThrow();
+  });
+  it("rejects native orders whose dispatch flags are not booleans", async () => {
+    const value = await fixture();
+    const [state, target] = [
+      value.outbox.checkpoints[3].payloadBase64,
+      value.outbox.projections[0].payloadBase64,
+    ].map(
+      (payload: string): NativeRecord =>
+        JSON.parse(new TextDecoder().decode(decodeBase64(payload)))
+    );
+    if (!(state && target)) throw new Error("fixture lacks genesis bytes");
+    await expect(
+      rebuildEpochSnapshot(structuredClone(state), target)
+    ).resolves.toEqual(target);
+    const order = {
+      submissionKey: "fixture-order",
+      reservationEventId: "fixture-reservation",
+      admission: {
+        schemaVersion: "1.0.0",
+        admissionId: "fixture-admission",
+        admissionKind: "PAPER-SIMULATION",
+        accountAlias: state["accountAlias"],
+        environment: "paper",
+        simulatorId: state["simulatorId"],
+        streamId: target["streamId"],
+        ownerEpoch: "1",
+        intentId: "fixture-intent",
+        intentSha256: "b".repeat(64),
+        reviewedArtifactSha256: "b".repeat(64),
+        reviewId: "fixture-review",
+        reviewVersion: "1.0.0",
+        actorId: "fixture-actor",
+        policyVersion: "1.0.0",
+        strategyVersion: "fixture-strategy",
+        portfolioSnapshotId: target["snapshotId"],
+        portfolioSequence: "1",
+        maximumLoss: "1",
+        maximumNotional: "1",
+        admittedAt: stamp,
+        expiresAt: "2026-01-01T01:00:00.000000000Z",
+        idempotencyKey: "fixture-idempotency",
+        simulationOnly: true,
+        brokerSubmissionAllowed: false,
+        liveAuthorization: false,
+        executionAuthorized: false,
+      },
+      status: "submitted",
+      reservationState: "reserved",
+      dispatchMarked: true,
+      finalityProven: "false",
+      cancelRequested: false,
+      reconciledEpoch: "1",
+      cashReserve: "1",
+      shareReserve: {},
+    };
+    return await expect(
+      rebuildEpochSnapshot(
+        { ...structuredClone(state), orders: { [order.submissionKey]: order } },
+        target
+      )
+    ).rejects.toThrow();
   });
   it("rejects altered original checkpoint and noncanonical row bytes", async () => {
     const value = await fixture();

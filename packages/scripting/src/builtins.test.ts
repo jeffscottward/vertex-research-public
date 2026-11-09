@@ -174,6 +174,14 @@ describe("markers and strategy", () => {
     expect(env.host.signals.map((s) => s.price)).toEqual([5, null]);
   });
 
+  it("labels a plotchar marker with its char unless text is given", () => {
+    const env = stubEnv("plotchar");
+    call("plotchar", [true, null, "▲"], env);
+    call("plotchar", [true, null, "▲", null, null, null, "buy"], env);
+    call("plotchar", [true], env);
+    expect(env.host.signals.map((s) => s.text)).toEqual(["▲", "buy", ""]);
+  });
+
   it("enters with an empty id and rejects bad directions", () => {
     const env = stubEnv("strategy.entry");
     call("strategy.entry", [null, "long"], env);

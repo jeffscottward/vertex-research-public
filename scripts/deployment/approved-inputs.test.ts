@@ -487,6 +487,28 @@ describe("exact approved source objects", () => {
     ).resolves.toBeDefined();
   });
 
+  it("accepts minimumReleaseAgeExclude only as registry version strings", async () => {
+    const workspace = (minimumReleaseAgeExclude: unknown): string =>
+      JSON.stringify({
+        packages: ["apps/*", "packages/*"],
+        minimumReleaseAgeExclude,
+      });
+    for (const value of ["esbuild", { esbuild: true }, ["../outside"], [7]]) {
+      await expect(
+        materialize(
+          syntheticRevision({ "pnpm-workspace.yaml": workspace(value) })
+        )
+      ).rejects.toThrow("unsupported-lock-acquisition");
+    }
+    return await expect(
+      materialize(
+        syntheticRevision({
+          "pnpm-workspace.yaml": workspace(["esbuild", "@scope/pkg@1.2.3"]),
+        })
+      )
+    ).resolves.toBeDefined();
+  });
+
   it.each([
     {},
     { integrity: "sha512-short" },
