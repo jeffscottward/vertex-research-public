@@ -110,12 +110,14 @@ describe("private Academy sources", () => {
 
   it("tracks no file pairing several fixture reel URLs with a transcript key", async () => {
     const ids = new Set(
-      QUANTFINANCETOGO_FIXTURE.map((source) => {
-        const match = /instagram\.com\/reel\/([A-Za-z0-9_-]+)/u.exec(
-          source.url
-        );
-        return match?.[1] ?? "";
-      }).filter(Boolean)
+      (QUANTFINANCETOGO_FIXTURE as readonly Readonly<{ url: string }>[])
+        .map((source) => {
+          const match = /instagram\.com\/reel\/([A-Za-z0-9_-]+)/u.exec(
+            source.url
+          );
+          return match?.[1] ?? "";
+        })
+        .filter(Boolean)
     );
     const { stdout } = await git([
       "grep",
