@@ -220,6 +220,17 @@ describe("calendar model", () => {
     expect(groupCalendarDays([])).toEqual([]);
   });
 
+  it("orders untimed entries of one day by name", () => {
+    const [day] = groupCalendarDays([
+      economic("2026-11-10", null, "Treasury refunding"),
+      economic("2026-11-10", null, "Fed minutes"),
+    ]);
+    expect(day?.entries.map((entry) => entry.key)).toEqual([
+      "economic:2026-11-10::Fed minutes",
+      "economic:2026-11-10::Treasury refunding",
+    ]);
+  });
+
   it("filters by kind, and All keeps everything", () => {
     const entries = [
       economic("2026-11-10", "08:30 ET", "CPI"),

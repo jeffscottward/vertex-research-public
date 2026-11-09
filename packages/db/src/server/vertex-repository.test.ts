@@ -1020,6 +1020,29 @@ describe("Vertex all-shard collection publication", () => {
     ).rejects.toMatchObject({ code: "integrity" });
     return expect(h.calls).toEqual([]);
   });
+  it("rejects unavailable sources that repeat or are also published as available", async () => {
+    const f = await publicationFixture();
+    const h = harness();
+    const import0 = f.input.imports[0]!;
+    const unavailable = (sourceId: string) => ({
+      sourceId,
+      reason: "provider-unavailable",
+    });
+    for (const unavailableSources of [
+      [unavailable("source-0")],
+      [unavailable("source-missing"), unavailable("source-missing")],
+    ]) {
+      const record = { ...import0.record, unavailableSources };
+      h.accept("KnowledgeImport", record);
+      await expect(
+        h.store.publishCollectionSnapshot({
+          ...f.input,
+          imports: [{ ...import0, record }],
+        })
+      ).rejects.toMatchObject({ code: "integrity" });
+    }
+    return expect(h.calls).toEqual([]);
+  });
   return it("does not synthesize missing source manifests", async () => {
     const f = await publicationFixture();
     const h = harness([{ match: /from "vertex_artifacts"/, rows: [] }]);
