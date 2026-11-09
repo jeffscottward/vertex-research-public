@@ -64,7 +64,7 @@ export const RESEARCH_TOOLS: readonly McpTool[] = Object.freeze([
     name: "strategy_definition_validate",
     title: "Validate strategy definition",
     description:
-      "Check a version-1 strategy definition (the definition of a backtest_runs_submit dsl rule: name, entry.all conditions and optional entry.any conditions (at least one must hold), exit.any conditions, sizing (riskPct sizing takes an optional maxLeverage 1-50), stopLoss, takeProfit, optional management (breakevenR and an ATR trail that raise the stop), optional session) without storing it. Returns ok true with the definition (defaults applied) and its SHA-256, or ok false with every issue and its dot path.",
+      "Check a version-1 strategy definition (the definition of a backtest_runs_submit dsl rule: name, entry.all conditions, exit.any conditions, sizing, stopLoss, takeProfit, optional session) without storing it. Returns ok true with the definition (defaults applied) and its SHA-256, or ok false with every issue and its dot path.",
     procedure: "backtestRuns/definitions/validate",
     input: StrategyDefinitionValidateInputSchema,
     readOnly: true,
