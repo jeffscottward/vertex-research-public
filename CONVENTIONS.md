@@ -96,6 +96,10 @@ pnpm db:renumber                                        # resolves it and stages
 git commit --no-edit
 ```
 
-`db:renumber` keeps the base's migrations as they are and moves this branch's new ones behind them: next free numbers, `when` newer than the base's last entry (Drizzle skips an entry whose `when` is not newer than the last applied one), renamed SQL, snapshot and rollback files, every tracked reference to the old tag rewritten, and each snapshot's `prevId` pointing at the snapshot before it. It prints the lines that still name the old number in prose (`check the old number: ...`); fix those by hand, and re-run a generator whose output embeds the number. A second run changes nothing.
+`db:renumber` keeps the base's migrations as they are and moves this branch's new ones behind them: next free numbers, `when` newer than the base's last entry (Drizzle skips an entry whose `when` is not newer than the last applied one), renamed SQL, snapshot and rollback files, every reference to the old tag in tracked text files rewritten, and each snapshot's `prevId` pointing at the snapshot before it. It prints the lines that still name the old number (`check the old number: ...`; some hits are other numbers): fix the real ones by hand, and re-run a generator whose output embeds the number. A second run with the same base changes nothing.
+
+The base is `MERGE_HEAD` during the merge, else origin/HEAD; pass `--base <ref>` for another one. It writes nothing and stops when a migration it would move is already on `MERGE_HEAD`, on origin/HEAD or on its local branch (the base you passed is older than the one you merged), when two of the branch's migrations share a number and its snapshot, or when a snapshot still has conflict markers.
+
+A database that already applied the branch's migration under its old number (a local or preview database) would apply it again under the new number and fail: reset that database after a renumber.
 
 A migration's own test checks its SQL and rollback, not its place in the journal: `packages/db/src/server/migration-journal.test.ts` checks the order, so do not pin the previous or next journal entry, or a list of later tags, in a feature test.

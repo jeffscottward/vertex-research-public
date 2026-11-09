@@ -76,7 +76,7 @@ describe("planRenumber", () => {
       ours,
       sqlTags: ["0000_a", "0001_mine"],
     });
-    expect(plan).toEqual({ journal: ours, moves: [] });
+    expect(plan).toEqual({ journal: ours, own: ["0001_mine"], moves: [] });
   });
 
   it("orders migrations that share a number by name and fills in entries the branch journal lacks", () => {
@@ -195,7 +195,12 @@ const BASE_ENTRIES = [
 
 /** main has 0000_a and 0001_b; `feature` adds 0002_mine and 0003_more, main then adds 0002_theirs. */
 const createRepository = (
-  options: { conflictInB?: boolean; mineSnapshot?: boolean } = {}
+  options: {
+    conflictInB?: boolean;
+    mineSnapshot?: boolean;
+    sharedNumber?: boolean;
+    theirsSnapshot?: boolean;
+  } = {}
 ): string => {
   const root = mkdtempSync(join(tmpdir(), "db-renumber-"));
   directories.push(root);
@@ -224,6 +229,9 @@ const createRepository = (
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(x int);\n" }
         : {}),
+      ...(options.sharedNumber
+        ? { "packages/db/migrations/0002_zz.sql": "CREATE TABLE zz();\n" }
+        : {}),
       ...(options.mineSnapshot === false
         ? {}
         : { [`${META}/0002_snapshot.json`]: snapshotFile("M0", "B0") }),
@@ -237,6 +245,7 @@ const createRepository = (
       "src/mine.test.ts":
         'read("migrations/0002_mine.sql"); // migration 0002\n',
       "docs/notes.md": "0002_mine_extra is another name\n",
+      "assets/blob.bin": "0002_mine\u0000binary\n",
     },
     "feature migrations"
   );
@@ -249,7 +258,9 @@ const createRepository = (
       ...(options.conflictInB
         ? { "packages/db/migrations/0001_b.sql": "CREATE TABLE b(y int);\n" }
         : {}),
-      [`${META}/0002_snapshot.json`]: snapshotFile("T0", "B0"),
+      ...(options.theirsSnapshot === false
+        ? {}
+        : { [`${META}/0002_snapshot.json`]: snapshotFile("T0", "B0") }),
       [JOURNAL]: journalFile([...BASE_ENTRIES, ["0002_theirs", 350]]),
     },
     "base migration 0002"
@@ -327,6 +338,7 @@ describe("runRenumber", () => {
     expect(read(root, "docs/notes.md")).toBe(
       "0002_mine_extra is another name\n"
     );
+    expect(read(root, "assets/blob.bin")).toBe("0002_mine\u0000binary\n");
     // A file that still conflicts gets the new tag but stays unresolved.
     expect(read(root, "README.md")).toContain("readme 0003_mine");
     expect(unmergedPaths(root)).toEqual(["README.md"]);
@@ -395,6 +407,19 @@ describe("runRenumber", () => {
     ]);
   });
 
+  it("moves the branch's snapshot when the base's migration has none", () => {
+    const root = createRepository({ theirsSnapshot: false });
+    mergeMain(root);
+    expect(unmergedPaths(root)).toEqual(["README.md", JOURNAL]);
+
+    expect(run(root).code).toBe(0);
+
+    expect(existsSync(join(root, `${META}/0002_snapshot.json`))).toBe(false);
+    expect(read(root, `${META}/0003_snapshot.json`)).toBe(
+      snapshotFile("M0", "B0")
+    );
+  });
+
   it("leaves the base's snapshot in place when the branch's migration has none", () => {
     const root = createRepository({ mineSnapshot: false });
     mergeMain(root);
@@ -442,13 +467,85 @@ describe("runRenumber", () => {
     );
   });
 
-  it("rejects a snapshot without ids", () => {
+  it("rejects a snapshot without ids before it writes anything", () => {
     const root = createRepository();
     mergeMain(root);
     put(root, { [`${META}/0009_snapshot.json`]: "{}\n" });
     expect(run(root).stderr).toEqual([
-      `db:renumber: ${META}/0009_snapshot.json has no id/prevId`,
+      `db:renumber: ${META}/0009_snapshot.json has no id/prevId (does it still conflict?)`,
     ]);
+    expect(read(root, "src/mine.test.ts")).toContain("0002_mine");
+    expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
+      true
+    );
+  });
+
+  it("refuses a --base older than the merged branch instead of renumbering the base's migrations", () => {
+    const root = createRepository();
+    mergeMain(root);
+    expect(run(root, "--base", "main~1").stderr).toEqual([
+      "db:renumber: 0002_theirs already on MERGE_HEAD, so not this branch's; pass --base MERGE_HEAD",
+    ]);
+    expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
+      true
+    );
+  });
+
+  it("refuses a stale origin/HEAD after the merge commit when the local base branch is newer", () => {
+    const root = createRepository();
+    mergeMain(root);
+    run(root);
+    put(root, { "README.md": "readme\n" });
+    git(root, "add", "README.md");
+    git(root, "commit", "-q", "--no-edit");
+    git(root, "update-ref", "refs/remotes/origin/main", "main~1");
+    git(
+      root,
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main"
+    );
+    expect(run(root).stderr).toEqual([
+      "db:renumber: 0002_theirs already on main, so not this branch's; pass --base main",
+    ]);
+  });
+
+  it("refuses two branch migrations that share a number and its snapshot", () => {
+    const root = createRepository({ sharedNumber: true });
+    mergeMain(root);
+    expect(run(root).stderr).toEqual([
+      `db:renumber: two of this branch's migrations share ${META}/0002_snapshot.json; give one of them another number by hand first`,
+    ]);
+  });
+
+  it("ignores GIT_DIR from a Git hook and reports a git that cannot start", () => {
+    const root = createRepository();
+    const other = createRepository();
+    mergeMain(root);
+    const saved = {
+      GIT_DIR: process.env["GIT_DIR"],
+      PATH: process.env["PATH"],
+    };
+    try {
+      process.env["GIT_DIR"] = join(other, ".git");
+      expect(run(root).code).toBe(0);
+      process.env["PATH"] = join(root, "no-bin");
+      expect(run(root).stderr[0]).toMatch(
+        /^db:renumber: git rev-parse --show-toplevel did not run: /u
+      );
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+    expect(existsSync(join(root, "packages/db/migrations/0003_mine.sql"))).toBe(
+      true
+    );
+    expect(git(other, "status", "--porcelain")).toBe("");
   });
 
   it("lets unexpected file system errors through", () => {
