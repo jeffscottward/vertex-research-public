@@ -153,6 +153,34 @@ describe("0065 volume spike breakout catalog row (Postgres)", () => {
     return expect(row?.kind).toBe("object");
   });
 
+  it("clears a claim through the repository as SQL NULL, which the check accepts", async () => {
+    if (resource === undefined) throw new Error("Database not started");
+    const repository = createStrategyLibraryRepository(resource.db);
+    const created = await repository.create({
+      name: "Claim to clear",
+      kind: "python",
+      externalValidation: {
+        sourceUrl: "https://video.example.test/claim",
+        sourceTitle: "A claim",
+        sourceAuthor: "Someone",
+        publishedOn: "2026-09-24",
+        claimedMethod: "One backtest.",
+        claimedMetrics: [{ label: "Rank", value: "1" }],
+      },
+    });
+    expect(created.externalValidation?.sourceTitle).toBe("A claim");
+    const cleared = await repository.update({
+      id: created.id,
+      externalValidation: null,
+    });
+    expect(cleared?.externalValidation).toBeNull();
+    const [stored] = await postgres().query<{ sql_null: boolean }>(
+      `select external_validation is null as sql_null from strategies where id = '${created.id}'`
+    );
+    expect(stored?.sql_null).toBe(true);
+    await postgres().query(`delete from strategies where id = '${created.id}'`);
+  });
+
   it("refuses the rollback while the row was edited", async () => {
     await postgres().query(
       "update strategies set updated_at = updated_at + interval '1 second' where slug = 'volume-spike-breakout'"
