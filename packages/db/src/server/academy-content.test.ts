@@ -52,6 +52,11 @@ const createDouble = (outcomes: Outcome[], transactionError?: Error) => {
   };
   const database = {
     ...chain,
+    // The import's advisory lock: recorded, consumes no queued result.
+    execute: async (query: unknown) => {
+      calls.push(["execute", query]);
+      return [];
+    },
     then: undefined,
     transaction: async (run: (transaction: unknown) => Promise<unknown>) => {
       calls.push(["transaction", undefined]);
@@ -281,6 +286,7 @@ describe("academy content repository", () => {
     });
     expect(double.names()).toEqual([
       "transaction",
+      "execute",
       "select",
       "from",
       "where",
@@ -298,10 +304,10 @@ describe("academy content repository", () => {
       "onConflictDoUpdate",
       "returning",
     ]);
-    expect(double.calls[2]?.[1]).toBe(academyLessonSources);
-    expect(double.calls[6]?.[1]).toBe(academyLessonSpecs);
-    expect(double.calls[9]?.[1]).toBe(academyLessonSources);
-    expect(double.calls[13]?.[1]).toBe(academyLessonSpecs);
+    expect(double.calls[3]?.[1]).toBe(academyLessonSources);
+    expect(double.calls[7]?.[1]).toBe(academyLessonSpecs);
+    expect(double.calls[10]?.[1]).toBe(academyLessonSources);
+    expect(double.calls[14]?.[1]).toBe(academyLessonSpecs);
   });
 
   it("refuses to move another course's sources or lessons", async () => {
@@ -340,7 +346,7 @@ describe("academy content repository", () => {
       specs: { created: 0, deleted: 1, unchanged: 1, updated: 1 },
     });
     expect(double.names().filter((name) => name === "delete")).toHaveLength(2);
-    expect(double.calls[9]).toEqual(["delete", academyLessonSpecs]);
+    expect(double.calls[10]).toEqual(["delete", academyLessonSpecs]);
     expect(double.calls.at(-3)).toEqual(["delete", academyLessonSources]);
   });
 
@@ -371,7 +377,7 @@ describe("academy content repository", () => {
       sources: { created: 0, deleted: 0, unchanged: 0, updated: 0 },
       specs: { created: 0, deleted: 0, unchanged: 0, updated: 0 },
     });
-    expect(double.names()).toEqual(["transaction"]);
+    expect(double.names()).toEqual(["transaction", "execute"]);
   });
 
   it("validates before opening a transaction", async () => {
