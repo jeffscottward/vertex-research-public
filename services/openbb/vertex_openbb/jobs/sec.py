@@ -236,7 +236,7 @@ async def ftd(ctx: Context) -> dict[str, list[dict[str, Any]]]:
     except UpstreamError as exc:
         ctx.warn(f"sec fails-to-deliver page: {exc.message}")
     if not listing:
-        ctx.warn("sec fails-to-deliver page listed no files; using OpenBB's data.json listing")
+        ctx.warn("sec fails-to-deliver page listed no files; using OpenBB's data.json listing")  # json-data-ignore: warning text naming SEC's upstream listing, not a file read
         try:
             from openbb_sec.utils.helpers import get_ftd_urls
 
@@ -369,7 +369,7 @@ def holdings_rows(
 
 async def _filer_name(ctx: Context, cik: str) -> str | None:
     """EDGAR name of a CIK not in FILERS (also confirms the CIK exists)."""
-    url = f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json"
+    url = f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json"  # json-data-ignore: SEC EDGAR HTTP endpoint fetched over the network, not a stored data file
 
     async def fetch() -> dict[str, Any]:
         from openbb_core.provider.utils.helpers import amake_request
