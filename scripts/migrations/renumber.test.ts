@@ -481,17 +481,26 @@ describe("runRenumber", () => {
   });
 
   const sharedMessage = (ref: string): string =>
-    `db:renumber: 0002_theirs already on ${ref}. Run db:renumber on the feature branch after merging the base into it; if ${ref} is newer than the base you passed, pass --base ${ref}.`;
+    `db:renumber: 0002_theirs already on ${ref}, so not this branch's own. Run db:renumber on the feature branch after \`git merge <base>\`; when ${ref} is the newer base, pass --base ${ref}.`;
+
+  /** Runs db:renumber, expects exit 1 with `message`, and checks that it changed no file. */
+  const expectRefusal = (root: string, argv: string[], message: string) => {
+    const before =
+      git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff");
+    expect(run(root, ...argv)).toEqual({
+      code: 1,
+      stdout: [],
+      stderr: [message],
+    });
+    expect(
+      git(root, "status", "--porcelain=v1", "-uall") + git(root, "diff")
+    ).toBe(before);
+  };
 
   it("refuses a --base older than the merged branch instead of renumbering the base's migrations", () => {
     const root = createRepository();
     mergeMain(root);
-    expect(run(root, "--base", "main~1").stderr).toEqual([
-      sharedMessage("MERGE_HEAD"),
-    ]);
-    expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
-      true
-    );
+    expectRefusal(root, ["--base", "main~1"], sharedMessage("MERGE_HEAD"));
   });
 
   it("refuses a stale origin/HEAD after the merge commit when the local base branch is newer", () => {
@@ -508,7 +517,7 @@ describe("runRenumber", () => {
       "refs/remotes/origin/HEAD",
       "refs/remotes/origin/main"
     );
-    expect(run(root).stderr).toEqual([sharedMessage("main")]);
+    expectRefusal(root, [], sharedMessage("main"));
   });
 
   it("refuses to renumber the base branch's own migrations when run on the base branch", () => {
@@ -522,58 +531,99 @@ describe("runRenumber", () => {
     );
     git(root, "checkout", "-q", "main");
     expect(() => git(root, "merge", "-q", "--no-edit", "feature")).toThrow();
-    expect(run(root).stderr).toEqual([sharedMessage("origin/main")]);
+    expectRefusal(root, [], sharedMessage("origin/main"));
   });
 
-  it("refuses to run during a rebase, where the conflict stages are swapped, also in a linked worktree", () => {
+  it("refuses to run during a rebase in that worktree only, where the conflict stages are swapped", () => {
     const root = createRepository();
-    const linked = join(root, "linked");
+    const linked = join(
+      mkdtempSync(join(tmpdir(), "db-renumber-linked-")),
+      "w"
+    );
+    directories.push(dirname(linked));
     git(root, "worktree", "add", "-q", "-b", "feature-2", linked, "feature");
-    for (const checkout of [root, linked]) {
-      expect(() => git(checkout, "rebase", "-q", "main")).toThrow();
-      expect(unmergedPaths(checkout)).toContain(JOURNAL);
-      expect(run(checkout)).toEqual({
-        code: 1,
-        stdout: [],
-        stderr: [
-          "db:renumber: a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber.",
-        ],
-      });
-      expect(
-        existsSync(join(checkout, "packages/db/migrations/0002_mine.sql"))
-      ).toBe(true);
-    }
+    expect(() => git(linked, "rebase", "-q", "main")).toThrow();
+    expect(unmergedPaths(linked)).toContain(JOURNAL);
+    expectRefusal(
+      linked,
+      [],
+      "db:renumber: a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber."
+    );
+    // The main worktree is not rebasing: it gets past the rebase check.
+    expect(run(root, "--base", "main").stderr).toEqual([
+      "db:renumber: the base migrations 0002_theirs are not in this checkout; merge the base branch first",
+    ]);
   });
+
+  const sharedNumberMessage = `db:renumber: two of this branch's migrations share the number of ${META}/0002_snapshot.json; give one of them another number by hand first`;
 
   it.each([
-    ["conflicts", {}],
-    ["belongs to the branch only", { theirsSnapshot: false }],
+    ["conflicts with the base's", {}],
+    ["is the branch's only", { theirsSnapshot: false }],
   ])(
-    "refuses two branch migrations with one number when their snapshot %s",
+    "refuses two branch migrations with one number when the snapshot file %s",
     (_, options) => {
       const root = createRepository({ sharedNumber: true, ...options });
       mergeMain(root);
-      expect(run(root).stderr).toEqual([
-        `db:renumber: two of this branch's migrations share the number of ${META}/0002_snapshot.json; give one of them another number by hand first`,
-      ]);
+      expectRefusal(root, [], sharedNumberMessage);
     }
   );
 
+  it("refuses two branch migrations with one number when only one of them moves", () => {
+    // Against the first commit, 0002_mine keeps its number and only 0002_zz moves.
+    const root = createRepository({ sharedNumber: true });
+    expectRefusal(root, ["--base", "main~1"], sharedNumberMessage);
+  });
+
   it.each([
-    ["the base's", { mineSnapshot: false }],
-    ["none", { mineSnapshot: false, theirsSnapshot: false }],
+    [
+      "the base's",
+      { mineSnapshot: false },
+      [
+        snapshotFile("A0", ZERO),
+        snapshotFile("B0", "A0"),
+        snapshotFile("T0", "B0"),
+      ],
+    ],
+    [
+      "missing",
+      { mineSnapshot: false, theirsSnapshot: false },
+      [snapshotFile("A0", ZERO), snapshotFile("B0", "A0")],
+    ],
   ])(
-    "renumbers two branch migrations with one number when the snapshot is %s",
-    (_, options) => {
+    "renumbers two branch migrations with one number when the snapshot file is %s",
+    (_, options, snapshots) => {
       const root = createRepository({ sharedNumber: true, ...options });
       mergeMain(root);
-      expect(
-        run(root).stdout.filter((line) => line.startsWith("moved"))
-      ).toEqual([
+      const result = run(root);
+      expect(result.code).toBe(0);
+      expect(result.stdout.filter((line) => line.startsWith("moved"))).toEqual([
         "moved 0002_mine -> 0003_mine",
         "moved 0002_zz -> 0004_zz",
         "moved 0003_more -> 0005_more",
       ]);
+      expect(
+        readJournal(read(root, JOURNAL))?.entries.map((entry) => entry.tag)
+      ).toEqual([
+        "0000_a",
+        "0001_b",
+        "0002_theirs",
+        "0003_mine",
+        "0004_zz",
+        "0005_more",
+      ]);
+      expect(
+        ["0003_mine", "0004_zz", "0005_more"].map((tag) =>
+          existsSync(join(root, `packages/db/migrations/${tag}.sql`))
+        )
+      ).toEqual([true, true, true]);
+      expect(
+        ["0000", "0001", "0002", "0003", "0004", "0005"]
+          .map((number) => `${META}/${number}_snapshot.json`)
+          .filter((path) => existsSync(join(root, path)))
+          .map((path) => read(root, path))
+      ).toEqual(snapshots);
+      expect(unmergedPaths(root)).toEqual(["README.md"]);
     }
   );
 

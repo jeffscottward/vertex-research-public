@@ -190,7 +190,7 @@ const upstreamOf = (git: Git): string | undefined => {
  * A stale `--base` (or a stale origin/HEAD after the merge commit) would make the base's newest
  * migrations look like this branch's and renumber them; so would running on the base branch itself.
  * Refuse when a migration counted as the branch's is already on the merged branch, on origin/HEAD or
- * on its local branch.
+ * on its local branch. Without origin/HEAD only MERGE_HEAD is checked.
  */
 const assertNotShared = (git: Git, own: readonly string[]): void => {
   const upstream = upstreamOf(git) ?? "";
@@ -202,7 +202,7 @@ const assertNotShared = (git: Git, own: readonly string[]): void => {
     const shared = own.filter((tag) => tags.has(tag));
     if (shared.length > 0) {
       throw new RenumberError(
-        `${shared.join(", ")} already on ${ref}. Run db:renumber on the feature branch after merging the base into it; if ${ref} is newer than the base you passed, pass --base ${ref}.`
+        `${shared.join(", ")} already on ${ref}, so not this branch's own. Run db:renumber on the feature branch after \`git merge <base>\`; when ${ref} is the newer base, pass --base ${ref}.`
       );
     }
   }
