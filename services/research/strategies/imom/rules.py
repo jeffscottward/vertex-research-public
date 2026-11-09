@@ -42,10 +42,14 @@ GAPS: list[dict[str, str]] = [
     {"gap": "No rules of its own in the reel", "choice": "Test the paper on screen (GHLZ), the best-known tradable "
      "intraday-momentum rule (ZAB, named in the task) and a reconstruction of the shown bias panel (BIAS)."},
     {"gap": "Intraday history (Vertex has none stored)", "choice": "Dukascopy public 1-minute bid/ask candles, mid "
-     "aggregated to 5 minutes, 09:30-16:00 New York; US500 CFD from 2012, ETF twins from 2017. An IBKR 5-minute "
-     "backfill is a follow-up."},
+     "aggregated to 5 minutes, 09:30-16:00 New York; US500 CFD from 2012, ETF twins from 2017. IBKR 5-minute "
+     "bars: see 'Data source (--source)'."},
     {"gap": "Instrument", "choice": "Primary: the US500 index CFD as the ES proxy (instrument on screen, longest "
      "history). Also the Core 7 futures proxies and the Core 7 ETF twins (SPY, QQQ, DIA, IWM, GLD, SLV, USO)."},
+    {"gap": "Data source (--source)", "choice": "dukascopy (default): as above, primary US500. ibkr: IBKR 5-minute "
+     "TRADES bars of the Core 7 ETF twins with a file, same session/holiday/split rules; primary GHLZ on SPY, options "
+     "on the same SPY bars; spread = median BID_ASK sample spread in the first 60 % of the SPY window (SPY's if a "
+     "symbol has none), half per side, + 0.25 bp slippage per side, IBKR Pro Fixed fees; run id imom-ibkr-<date>."},
     {"gap": "Holidays and half days", "choice": "NYSE holidays and closures dropped; early closes (13:00) keep bars to "
      "13:00, so GHLZ and BIAS do not trade them (the paper drops half days); sessions with < 30 bars dropped."},
     {"gap": "Fills", "choice": "Signals at a bar close fill at the next 5-minute bar open; the 16:00 exit is a "

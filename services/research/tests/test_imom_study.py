@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from strategies.imom import bias, data, definition, metrics, options, rules, study
+from strategies.imom import bias, data, definition, metrics, options, rules, runner, study
 from strategies.qc_ports.data import Market
 
 NY = ZoneInfo("America/New_York")
@@ -506,6 +506,303 @@ class RulesTest(unittest.TestCase):
         for row in rules.GAPS:
             self.assertLessEqual(len(row["gap"]), 300)
             self.assertLessEqual(len(row["choice"]), 400)
+
+
+# ------------------------------------------------------------------------------------------------
+# IBKR source (synthetic ibkr5m files)
+
+
+def ibkr_bars_of(day: str, price=lambda i: 100.0 + i * 0.01, start: str = "09:30", end: str = "16:00",
+                 offset: int = 0) -> list[tuple]:
+    """IBKR-style 5-minute bars (UTC ms of the bar open, o, h, l, c, v) of one New York day."""
+    first, last = ny_ms(day, start), ny_ms(day, end)
+    out = []
+    for i, t in enumerate(range(first, last, 300_000)):
+        p = price(offset + i)
+        out.append((t, p, p + 0.02, p - 0.02, p + 0.01, 10.0))
+    return out
+
+
+def write_ibkr(path: Path, rows: list[tuple]) -> None:
+    import gzip
+
+    with gzip.open(path, "wt", newline="") as fh:
+        fh.write("timestamp,open,high,low,close,volume\n")
+        for t, o, h, low, c, v in rows:
+            fh.write(f"{t},{o!r},{h!r},{low!r},{c!r},{v!r}\n")
+
+
+def bidask_rows(day: str, spreads_bps: list[float], mid: float = 100.0, start: str = "10:00") -> list[tuple]:
+    """BID_ASK sample bars: open = time-average bid, close = time-average ask, at the given spreads (bps of mid)."""
+    t0 = ny_ms(day, start)
+    out = []
+    for i, bps in enumerate(spreads_bps):
+        half = mid * bps / 1e4 / 2
+        out.append((t0 + i * 300_000, mid - half, mid + half, mid - half, mid + half, 0.0))
+    return out
+
+
+IBKR_DAYS = ["2024-07-01", "2024-07-02", "2024-07-03", "2024-07-04", "2024-07-05", "2024-07-08", "2024-07-09",
+             "2024-07-10"]
+
+
+def spy_ibkr_rows() -> list[tuple]:
+    rows = []
+    for day in IBKR_DAYS:
+        if day == "2024-07-05":
+            rows += ibkr_bars_of(day, end="11:00")  # 18 bars: dropped
+        elif day == "2024-07-09":
+            rows += ibkr_bars_of(day, price=lambda i: 800.0 + i * 0.01)  # split-like gap: dropped
+        elif day == "2024-07-10":
+            rows += ibkr_bars_of(day, price=lambda i: 800.0)
+        else:
+            rows += ibkr_bars_of(day)  # 07-03 early close (cut at 13:00), 07-04 holiday (dropped)
+    return rows
+
+
+class IbkrSourceTest(unittest.TestCase):
+    def setUp(self) -> None:
+        import tempfile
+
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "ibkr5m"
+        self.root.mkdir()
+        write_ibkr(self.root / "SPY.csv.gz", spy_ibkr_rows())
+        # In-sample SPY spreads 1, 2, 4 bps; one out-of-sample row at 50 bps must not count.
+        write_ibkr(self.root / "SPY-bidask.csv.gz",
+                   bidask_rows("2024-07-01", [1.0, 2.0, 4.0]) + bidask_rows("2024-07-10", [50.0]))
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_loads_five_minute_bars_with_the_session_rules(self) -> None:
+        bars = data.load_bars("SPY", self.root, source="ibkr")
+        days: dict[str, int] = {}
+        for day, _ in data.local_times(bars.t):
+            days[day] = days.get(day, 0) + 1
+        # Holiday, short session and the gap session are dropped; the early close keeps 42 bars to 13:00; the
+        # session after the gap compares with the gap session's close and stays.
+        self.assertEqual(days, {"2024-07-01": 78, "2024-07-02": 78, "2024-07-03": 42, "2024-07-08": 78,
+                                "2024-07-10": 78})
+        local = data.local_times(bars.t)
+        self.assertEqual(local[0], ("2024-07-01", 570))
+        self.assertEqual(local[77], ("2024-07-01", 955))
+        first = ibkr_bars_of("2024-07-01")[0]
+        self.assertEqual((bars.t[0], bars.o[0], bars.h[0], bars.l[0], bars.c[0], bars.v[0]),
+                         (float(first[0]), *first[1:]))
+        self.assertTrue((self.root.parent / "m5-cache" / "ibkr-SPY.pkl").exists())
+        self.assertEqual(data.load_bars("SPY", self.root, source="ibkr"), bars)
+        self.assertEqual(data.load_bars("SPY", self.root, source="ibkr", cache=False), bars)
+
+    def test_spread_is_the_in_sample_bidask_median(self) -> None:
+        cut = data.ibkr_cut_ms(self.root)
+        first, last = ny_ms("2024-07-01", "09:30"), ny_ms("2024-07-10", "15:55")
+        self.assertAlmostEqual(cut, first + 0.6 * (last - first))
+        spread, origin = data.ibkr_spread("SPY", self.root)
+        self.assertEqual(origin, "measured")
+        self.assertAlmostEqual(spread, 2.0, places=9)  # median of 1, 2, 4; the 50 bp row is out-of-sample
+        self.assertAlmostEqual(data.load_bars("SPY", self.root, source="ibkr").spread_bps, spread)
+        # Everything in sample would move the median.
+        self.assertAlmostEqual(data.bidask_median_bps(self.root / "SPY-bidask.csv.gz", float("inf")), 3.0)
+
+    def test_spread_falls_back_to_spy_and_is_recorded(self) -> None:
+        write_ibkr(self.root / "QQQ.csv.gz", ibkr_bars_of("2024-07-01") + ibkr_bars_of("2024-07-02"))
+        write_ibkr(self.root / "DIA.csv.gz", ibkr_bars_of("2024-07-01") + ibkr_bars_of("2024-07-02"))
+        write_ibkr(self.root / "DIA-bidask.csv.gz", bidask_rows("2024-07-10", [9.0]))  # out-of-sample only
+        write_ibkr(self.root / "IWM.csv.gz", ibkr_bars_of("2024-07-01") + ibkr_bars_of("2024-07-02"))
+        write_ibkr(self.root / "IWM-bidask.csv.gz", bidask_rows("2024-07-02", [5.0, 7.0]))
+        self.assertEqual(data.ibkr_spread("QQQ", self.root), (data.ibkr_spread("SPY", self.root)[0], "SPY fallback"))
+        self.assertEqual(data.ibkr_spread("DIA", self.root)[1], "SPY fallback")
+        spread, origin = data.ibkr_spread("IWM", self.root)
+        self.assertEqual(origin, "measured")
+        self.assertAlmostEqual(spread, 6.0, places=9)
+        self.assertAlmostEqual(data.load_bars("QQQ", self.root, source="ibkr").spread_bps, 2.0, places=9)
+        # SPY itself needs an in-sample sample.
+        (self.root / "SPY-bidask.csv.gz").unlink()
+        with self.assertRaises(FileNotFoundError):
+            data.ibkr_spread("QQQ", self.root)
+
+    def test_market_selection_costs_and_hash(self) -> None:
+        write_ibkr(self.root / "QQQ.csv.gz", ibkr_bars_of("2024-07-01") + ibkr_bars_of("2024-07-02"))
+        self.assertEqual([i.key for i in data.instruments("ibkr")], list(data.ETF_TWINS))
+        keys = [i.key for i in data.instruments("ibkr") if data.available(i.key, self.root, "ibkr")]
+        self.assertEqual(keys, ["SPY", "QQQ"])
+        self.assertFalse(data.available("US500", self.root, "ibkr"))
+        self.assertFalse(data.available("SPY", self.root))  # the Dukascopy files are not there
+        spy = data.instrument("SPY", "ibkr")
+        self.assertEqual((spy.source, spy.twin, spy.asset_class, spy.slippage_bps), ("SPY", "SPY", "etf", 0.25))
+        profile = runner.cost_profile(spy, 2.0)
+        self.assertEqual((profile["spreadBps"], profile["slippage"]), (2.0, {"kind": "bps", "bps": 0.25}))
+        duka = runner.cost_profile(data.BY_KEY["SPY"], 2.0)
+        same = {k: v for k, v in duka.items() if k not in ("label", "slippage")}
+        self.assertEqual({k: v for k, v in profile.items() if k not in ("label", "slippage")}, same)
+        self.assertEqual(runner.cost_profile(spy, 2.0, 2.0)["slippage"]["bps"], 0.5)
+        self.assertEqual([p.name for p in data.input_files(keys, self.root, "ibkr")],
+                         ["SPY.csv.gz", "SPY-bidask.csv.gz", "QQQ.csv.gz"])
+        before = data.data_hash(keys, self.root, "ibkr")
+        self.assertTrue(before.startswith("sha256:"))
+        write_ibkr(self.root / "SPY-bidask.csv.gz", bidask_rows("2024-07-01", [3.0]))
+        self.assertNotEqual(data.data_hash(keys, self.root, "ibkr"), before)
+        with self.assertRaises(ValueError):
+            data.instruments("polygon")
+
+    def test_primary_switch(self) -> None:
+        self.assertEqual(data.primary_of("ibkr"), "SPY")
+        duka_jobs, duka_configs = study.plan_jobs([i.key for i in data.INSTRUMENTS])
+        ibkr_jobs, ibkr_configs = study.plan_jobs(list(data.ETF_TWINS), "SPY")
+        self.assertEqual(len(ibkr_configs), len(duka_configs))
+
+        def on(jobs, key):
+            return sorted((study.leg_id(k, p, s, mlt)[1:] for k, p, s, mlt in jobs if k == key))
+
+        # Everything the Dukascopy study runs on US500 runs on SPY under IBKR; no US500 run at all.
+        self.assertEqual(on(ibkr_jobs, "SPY"), on(duka_jobs, "US500"))
+        self.assertEqual(on(ibkr_jobs, "US500"), [])
+        self.assertEqual(on(ibkr_jobs, "QQQ"), on(duka_jobs, "QQQ"))
+        checks = [{"check": f"c{i}", "result": "r", "pass": True} for i in range(5)]
+        summary = {"outOfSample": {"sharpe": 1.0}}
+        _, reason = study.verdict_of(summary, {"probability": 0.99}, checks, summary, 500, "SPY")
+        self.assertIn("on GHLZ SPY", reason)
+
+    def test_cli_source_switch(self) -> None:
+        from strategies.imom import __main__ as cli
+
+        calls = []
+        original = study.main_study
+        study.main_study = lambda *args: calls.append(args) or 0
+        try:
+            cli.main(["study", "--ran", "2026-11-09"])
+            cli.main(["study", "--ran", "2026-11-09", "--source", "ibkr", "--workers", "2",
+                      "--compare-row", "GHLZ US500=0.31,0.012,-0.21", "--compare-row", "ZAB SPY=0.5,0.03,-0.1"])
+            with self.assertRaises(SystemExit):
+                cli.main(["study", "--ran", "2026-11-09", "--source", "polygon"])
+        finally:
+            study.main_study = original
+        self.assertEqual(calls, [("2026-11-09", 8, None, "dukascopy", []),
+                                 ("2026-11-09", 2, None, "ibkr",
+                                  ["GHLZ US500=0.31,0.012,-0.21", "ZAB SPY=0.5,0.03,-0.1"])])
+
+    def test_compare_rows_from_the_command_line(self) -> None:
+        row = study.parse_compare_row(" ZAB 1x SPY = 0.42, -0.015 ,-0.3")
+        self.assertEqual(row, {"name": "ZAB 1x SPY (Dukascopy, CFD costs)", "kind": "strategy", "sharpe": 0.42,
+                               "cagr": -0.015, "maxDrawdown": -0.3,
+                               "source": "Dukascopy run of this study (command line)"})
+        for bad in ("GHLZ US500", "=0.1,0.1,-0.1", "GHLZ=0.1,0.1", "GHLZ=0.1,0.1,-21", "GHLZ=nan,0.1,-0.1",
+                    "GHLZ=a,0.1,-0.1", "GHLZ=0.1,-1.5,-0.1", "X" * 70 + "=0.1,0.1,-0.1"):
+            with self.assertRaises(ValueError, msg=bad):
+                study.parse_compare_row(bad)
+
+    def test_default_source_is_unchanged(self) -> None:
+        self.assertEqual(data.primary_of(), "US500")
+        self.assertIs(data.instruments(), data.INSTRUMENTS)
+        self.assertIs(data.instrument("SPY"), data.BY_KEY["SPY"])
+        self.assertEqual(data.instrument("SPY").slippage_bps, 1.0)
+        self.assertEqual(study.plan_jobs([i.key for i in data.INSTRUMENTS]),
+                         study.plan_jobs([i.key for i in data.INSTRUMENTS], "US500"))
+        doc = synthetic_document()
+        self.assertTrue(doc["forms"][0]["description"].startswith("Dukascopy 5-minute bid/ask mid bars"))
+        self.assertEqual(doc["equityLabel"], "GHLZ on the US500 CFD (ES proxy), long and short legs summed, net of costs")
+        self.assertNotIn("Data source: IBKR", doc["notes"])
+        self.assertIn("Primary GHLZ US500", doc["notes"])
+        _, reason = study.verdict_of({"outOfSample": {"sharpe": -1.0}}, {"probability": 0.1},
+                                     [{"check": "c", "result": "r", "pass": False}] * 5,
+                                     {"outOfSample": {"sharpe": 0.0}}, 500)
+        self.assertIn("on GHLZ US500", reason)
+
+    def test_ibkr_document_wording(self) -> None:
+        base = synthetic_document()
+        detail = {"primary": {"market": "SPY", "split": {"isFrom": "2012-01-17", "isTo": "2020-12-31",
+                                                           "oosFrom": "2020-12-31", "oosTo": "2026-11-06"},
+                              "is": {"sharpe": 0.3}, "oos": {"sharpe": 0.1},
+                              "full": {"sharpe": 0.3, "cagr": 0.01, "maxDd": -0.2, "trades": 10},
+                              "options": {"trades": 5, "outOfSample": {"sharpe": 0.1}, "ledgerNautilusMaxGap": 0.0}},
+                  "missingMarkets": ["DIA"], "spreadOrigins": {"SPY": "measured", "QQQ": "SPY fallback"}}
+        primary = [(f"20{12 + i // 12:02d}-{i % 12 + 1:02d}-15", 1.0 + 0.01 * i) for i in range(60)]
+        doc = study.document("2026-11-09", base["forms"][0]["runs"], base["forms"][1]["runs"], base["sensitivity"],
+                             [{"check": r["check"], "result": r["result"], "pass": r["pass"]} for r in base["robustness"]],
+                             "no-edge", "Because.", primary, [], [],
+                             {"commit": "0" * 40, "engine": "e", "dataHash": "sha256:x", "runId": "imom-ibkr-2026-11-09"},
+                             detail, {}, ["SPY", "QQQ"], source="ibkr")
+        self.assertEqual(doc["id"], "market-intraday-momentum")
+        self.assertTrue(doc["forms"][0]["description"].startswith("IBKR 5-minute TRADES bars"))
+        self.assertIn("SPY", doc["equityLabel"])
+        self.assertTrue(doc["notes"].startswith("Data source: IBKR"))
+        self.assertIn("Spread from SPY (no own sample): QQQ.", doc["notes"])
+        self.assertIn("Primary GHLZ SPY", doc["notes"])
+        self.assertIn("IBKR volume", doc["notes"])
+        self.assertLessEqual(len(doc["forms"][0]["description"]), 600)
+        self.assertTrue(any(g["gap"].startswith("Data source (--source)") for g in rules.GAPS))
+
+
+@unittest.skipUnless(_nautilus_installed(), "nautilus-trader 1.227.0 not installed")
+class IbkrStudyRunTest(unittest.TestCase):
+    def test_ibkr_study_runs_on_spy_with_the_report_keys(self) -> None:
+        import tempfile
+
+        days, d = [], date(2024, 1, 2)
+        while len(days) < 70:
+            if not data.is_closed(d) and not data.is_early_close(d):
+                days.append(d.isoformat())
+            d = date.fromordinal(d.toordinal() + 1)
+
+        def price(i: int) -> float:
+            return 100.0 * (1 + 0.02 * math.sin(i / 37.0) + 0.004 * math.sin(i / 5.3))
+
+        captured: dict = {}
+        original_document, original_options = study.document, study.options_form
+
+        def capture(*args, **kwargs):
+            captured["detail"], captured["source"] = args[11], kwargs.get("source", args[14] if len(args) > 14 else None)
+            return original_document(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "ibkr5m"
+            root.mkdir()
+            spy = [row for n, day in enumerate(days) for row in ibkr_bars_of(day, price, offset=n * 78)]
+            write_ibkr(root / "SPY.csv.gz", spy)
+            write_ibkr(root / "SPY-bidask.csv.gz", bidask_rows(days[0], [2.0, 2.0]))
+            qqq = [row for n, day in enumerate(days) for row in ibkr_bars_of(day, lambda i: price(i + 11), offset=n * 78)]
+            write_ibkr(root / "QQQ.csv.gz", qqq)
+            study.document = capture
+            study.options_form = lambda *args, **kwargs: {}
+            try:
+                doc = study.run_study("2026-11-09", root=str(root), workers=2, repo=REPO, log=lambda _: None,
+                                      source="ibkr",
+                                      extra_comparison=[study.parse_compare_row("GHLZ US500=0.31,0.012,-0.21")])
+            finally:
+                study.document, study.options_form = original_document, original_options
+        detail = captured["detail"]
+        self.assertEqual(captured["source"], "ibkr")
+        for key in ("verdict", "verdictReason", "gates", "primary", "equity", "drawdown", "runs", "walkForward",
+                    "sensitivity", "monteCarlo", "deflatedSharpe", "comparison", "provenance", "source"):
+            self.assertIn(key, detail)
+        for key in ("market", "strategy", "is", "oos", "full"):
+            self.assertIn(key, detail["primary"])
+        self.assertEqual(detail["source"], "ibkr")
+        self.assertEqual((detail["primary"]["market"], detail["primary"]["strategy"]), ("SPY", "GHLZ"))
+        self.assertEqual(detail["spreadOrigins"], {"SPY": "measured", "QQQ": "SPY fallback"})
+        self.assertEqual(sorted(detail["missingMarkets"]), ["DIA", "GLD", "IWM", "SLV", "USO"])
+        self.assertAlmostEqual(detail["primary"]["spreadBps"], 2.0, places=9)
+        self.assertEqual({r["market"] for r in detail["runs"]}, {"SPY", "QQQ"})
+        self.assertEqual(doc["id"], "market-intraday-momentum")
+        self.assertEqual(doc["provenance"]["runId"], "imom-ibkr-2026-11-09")
+        self.assertEqual(detail["provenance"]["runId"], "imom-ibkr-2026-11-09")
+        self.assertTrue(doc["provenance"]["dataHash"].startswith("sha256:"))
+        self.assertIn("GHLZ SPY (underlying, net of costs)", detail["equity"])
+        self.assertIn("on GHLZ SPY", doc["verdictReason"])
+        names = [r["name"] for r in doc["comparison"]]
+        self.assertEqual(names[0], "GHLZ on SPY (underlying)")
+        self.assertEqual(names[len(definition.STRATEGIES)], "GHLZ US500 (Dukascopy, CFD costs)")
+        self.assertEqual(len(names), len(set(names)))  # no duplicate SPY rows when SPY is the primary
+        self.assertIn("GHLZ US500 (Dukascopy, CFD costs)", [r["name"] for r in detail["comparison"]])
+        payload = json.dumps(study.finite(doc, log=lambda _: None), allow_nan=False)
+        bun = shutil.which("bun")
+        if bun is None or not (REPO / "node_modules").exists():
+            self.skipTest("bun and the workspace node_modules are needed for the schema check")
+        proc = subprocess.run([bun, "run", "vertex:research-studies:import", "--dry-run"], input=payload, text=True,
+                              capture_output=True, cwd=REPO, timeout=300, check=False)
+        self.assertEqual(proc.returncode, 0, proc.stderr[-2000:])
+        self.assertIn('"dryRun":true', proc.stdout)
 
 
 if __name__ == "__main__":
