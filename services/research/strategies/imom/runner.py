@@ -3,7 +3,8 @@ engine (research only, no orders).
 
 Costs: the measured median bid/ask spread of the market (half per side, data.py), 1 bp slippage per
 side, and for the ETF twins the IBKR Pro Fixed US stock commission and regulatory fees (existing preset). Source
-`ibkr`: the in-sample IBKR BID_ASK median spread (half per side) and 0.25 bp slippage per side, same commission preset.
+`ibkr`: the in-sample IBKR BID_ASK median spread (half per side) and 0.25 bp slippage per side, same commission preset;
+a job's slippage override replaces it (the pre-registered ZAB study runs at 1 bp, zab_study.py).
 The cost stress doubles spread and slippage. Starting capital 100,000 USD per leg. No overnight financing:
 every position is flat at the 16:00 close (market-on-close fill at the last regular bar's close).
 """
@@ -18,7 +19,7 @@ from nautilus_backtest.engine import ENGINE_ID, run_signal_backtest
 from nautilus_backtest.signals import plan_run
 
 from . import bias as bias_signal
-from .data import DEFAULT_SOURCE, Instrument, SessionBars, instrument, load_bars, local_times
+from .data import DUKASCOPY, Instrument, SessionBars, instrument, load_bars, local_times
 from .definition import Bias, Params, definition, params_from_json, params_to_json
 
 CAPITAL = 100_000.0
@@ -91,15 +92,20 @@ def run_leg(data: SessionBars, item: Instrument, params: Params, side: str, cost
         "stats": result.stats,
         "spreadBps": data.spread_bps,
         "bars": len(bars),
+        "slippageBps": item.slippage_bps * cost_multiple,
     }
 
 
 def run_job(job: tuple) -> dict[str, Any]:
-    """Worker entry (picklable): (market key, params JSON, side, cost multiple, data root[, data source])."""
+    """Worker entry (picklable): (market key, params JSON, side, cost multiple, data root[, data source[,
+    slippage bps per side]]). The slippage override replaces the market's own (the ZAB study fixes 1 bp)."""
     key, fields, side, cost_multiple, root, *rest = job
-    source = rest[0] if rest else DEFAULT_SOURCE
+    source = rest[0] if rest else DUKASCOPY
+    item = instrument(key, source)
+    if len(rest) > 1 and rest[1] is not None:
+        item = dataclasses.replace(item, slippage_bps=float(rest[1]))
     params = params_from_json(fields)
-    return run_leg(load_bars(key, root, source=source), instrument(key, source), params, side, cost_multiple)
+    return run_leg(load_bars(key, root, source=source), item, params, side, cost_multiple)
 
 
 __all__ = ["CAPITAL", "ENGINE_ID", "cost_profile", "daily_last", "run_job", "run_leg", "spec_of"]

@@ -24,6 +24,7 @@ from pathlib import Path
 from . import metrics as m
 from .data import (
     DEFAULT_SOURCE,
+    DUKASCOPY,
     ETF_TWINS,
     FUTURES_PROXIES,
     IBKR,
@@ -64,7 +65,7 @@ CORE7_RERUN = "research/backtests/core7/rerun-results.json"  # json-data-ignore:
 STRATEGY_NAMES = {sid: name for sid, name, _ in STRATEGIES}
 # Source-dependent wording of the document (the Dukascopy text is the original study's).
 TEXT = {
-    DEFAULT_SOURCE: {
+    DUKASCOPY: {
         "primaryName": "US500 CFD",
         "equityLabel": "GHLZ on the US500 CFD (ES proxy), long and short legs summed, net of costs",
         "underlying": ("Dukascopy 5-minute bid/ask mid bars, New York session; GHLZ and ZAB as DSL definitions "
@@ -141,8 +142,9 @@ def plan_jobs(keys: Sequence[str], primary: str = PRIMARY) -> tuple[list[tuple[s
 
 
 def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, workers: int, log: Log,
-             primary: str = PRIMARY, source: str = DEFAULT_SOURCE) -> dict:
-    payload = [(key, params_to_json(params), side, mult, root, source) for key, params, side, mult in jobs]
+             primary: str = PRIMARY, source: str = DUKASCOPY, slippage_bps: float | None = None) -> dict:
+    payload = [(key, params_to_json(params), side, mult, root, source, slippage_bps)
+               for key, params, side, mult in jobs]
     out: dict[tuple, dict] = {}
     # The longest markets first so the pool stays busy.
     order = sorted(range(len(jobs)), key=lambda i: (jobs[i][0] != primary, jobs[i][0]))
@@ -157,7 +159,7 @@ def _run_all(jobs: Sequence[tuple[str, Params, str, float]], root: str | None, w
 
 
 def _warm_cache(keys: Sequence[str], root: str | None, workers: int, log: Log,
-                source: str = DEFAULT_SOURCE) -> None:
+                source: str = DUKASCOPY) -> None:
     with ProcessPoolExecutor(max_workers=min(workers, len(keys))) as pool:
         for key, n in zip(keys, pool.map(_bar_count, [(k, root, source) for k in keys])):
             log(f"data {key}: {n} five-minute bars")
@@ -165,7 +167,7 @@ def _warm_cache(keys: Sequence[str], root: str | None, workers: int, log: Log,
 
 def _bar_count(job: tuple) -> int:
     key, root, *rest = job
-    return len(load_bars(key, root, source=rest[0] if rest else DEFAULT_SOURCE))
+    return len(load_bars(key, root, source=rest[0] if rest else DUKASCOPY))
 
 
 # ------------------------------------------------------------------------------------------------
@@ -195,7 +197,7 @@ def _exposure(legs: Sequence[dict]) -> float:
 
 
 def underlying_row(results: Results, key: str, sid: str, params: Params, bh: Sequence,
-                   source: str = DEFAULT_SOURCE) -> dict:
+                   source: str = DUKASCOPY) -> dict:
     points = results.points(key, params)
     s = m.summary(points)
     trades = results.trades(key, params)
@@ -237,7 +239,7 @@ def _option_job(job: tuple) -> tuple[str, str, dict | None, list]:
     from .options import EtfClock, OptionEvent, book, price_events, spread_returns
 
     sid, key, twin, entries, root, *rest = job
-    etf = EtfClock(load_bars(twin, root, source=rest[0] if rest else DEFAULT_SOURCE))
+    etf = EtfClock(load_bars(twin, root, source=rest[0] if rest else DUKASCOPY))
     events = [OptionEvent(key, twin, side, entry_ms) for side, entry_ms in entries]
     spreads, skipped = price_events(events, {twin: etf}, {twin: load_market(twin)})
     if not spreads:
@@ -257,7 +259,7 @@ def _option_job(job: tuple) -> tuple[str, str, dict | None, list]:
 
 
 def options_form(results: Results, keys: Sequence[str], root: str | None, log: Log, workers: int = 8,
-                 source: str = DEFAULT_SOURCE) -> dict:
+                 source: str = DUKASCOPY) -> dict:
     """Same-day debit verticals on the ETF twin of every signal market, per strategy (one book per pair)."""
     jobs = []
     for sid, _, params in STRATEGIES:
@@ -280,7 +282,7 @@ def options_form(results: Results, keys: Sequence[str], root: str | None, log: L
     return out
 
 
-def option_row(sid: str, key: str, booked: dict, bh: Sequence, source: str = DEFAULT_SOURCE) -> dict:
+def option_row(sid: str, key: str, booked: dict, bh: Sequence, source: str = DUKASCOPY) -> dict:
     points = booked["points"]
     s = m.summary(points)
     trades = booked["nautilus"].trades
@@ -589,7 +591,7 @@ def _part(s: dict, trades: dict) -> dict:
 
 
 def _comparison(results: Results, keys: Sequence[str], curves: Mapping, bh: Mapping, options: Mapping,
-                repo: Path, primary: str = PRIMARY, source: str = DEFAULT_SOURCE) -> list[dict]:
+                repo: Path, primary: str = PRIMARY, source: str = DUKASCOPY) -> list[dict]:
     rows = []
     for sid, name, _ in STRATEGIES:
         s = m.stats(curves[(sid, primary)])
@@ -629,7 +631,7 @@ def _comparison(results: Results, keys: Sequence[str], curves: Mapping, bh: Mapp
 
 def document(ran: str, rows: list, opt_rows: list, sens_rows: list, checks: list, verdict: str, reason: str,
              primary: list, comparison: list, ld_rows: list, provenance: dict, detail: dict, curves: Mapping,
-             keys: Sequence[str], source: str = DEFAULT_SOURCE) -> dict:
+             keys: Sequence[str], source: str = DUKASCOPY) -> dict:
     from .rules import GAPS, RULES
 
     text = TEXT[check_source(source)]
@@ -678,7 +680,7 @@ def _empty_option_row() -> dict:
             "oosSharpe": None, "oosCagr": None, "buyHoldCagr": None, "buyHoldSharpe": None}
 
 
-def notes(detail: dict, curves: Mapping, keys: Sequence[str], source: str = DEFAULT_SOURCE) -> str:
+def notes(detail: dict, curves: Mapping, keys: Sequence[str], source: str = DUKASCOPY) -> str:
     p = detail["primary"]
     pk = p.get("market", PRIMARY)
     lines = [
