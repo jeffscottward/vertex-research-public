@@ -141,6 +141,11 @@ Deploy order: run both steps **before** the web deploy that reads these tables.
    or CI.
 3. Deploy the web app.
 
+Local databases that ran the pre-merge `0058_academy_content` (before the renumber to 0059): apply
+`packages/db/rollback/0059_academy_content.down.sql` (delete academy rows first if it refuses), delete
+the old ledger row for that migration from `drizzle.__drizzle_migrations` (match its hash), run
+`bun run db:migrate`, then re-run `bun run vertex:academy:import`.
+
 If the web app ships first anyway, `/academy` still lists Define Your Risk, and a course whose read
 fails (tables missing: `STORAGE_ERROR`) shows "Course unavailable" there. A database course with no
 rows shows "Course content not imported yet" on `/academy` and on `/academy/c/<course>`. Until the

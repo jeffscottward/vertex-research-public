@@ -2,8 +2,8 @@
 -- Refuses while either Academy content table holds a row, so imported lessons are never silently
 -- discarded: delete them first (they are reproducible with `bun run vertex:academy:import`), knowing
 -- the database courses' pages then show no lessons. No cascading drops, truncation or conditional
--- drops. Drizzle ledger reconciliation is deliberately not automated: after this rollback the 0058 row
--- stays in drizzle.__drizzle_migrations, so `db:migrate` skips 0058 and the tables stay missing
+-- drops. Drizzle ledger reconciliation is deliberately not automated: after this rollback the 0059 row
+-- stays in drizzle.__drizzle_migrations, so `db:migrate` skips 0059 and the tables stay missing
 -- (academy.lessons and academy.lesson answer STORAGE_ERROR). To re-apply, delete that ledger row
 -- (match its hash) first, then run `db:migrate`. Outside discoverable migrations.
 BEGIN;
