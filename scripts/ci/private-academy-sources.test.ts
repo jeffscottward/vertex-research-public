@@ -9,10 +9,24 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import { COURSE_LIST } from "../../packages/academy/src/courses.ts";
-import {
-  FIXTURE_TEXT,
-  SOURCES as QUANTFINANCETOGO_FIXTURE,
-} from "../academy/lessons/quantfinancetogo/sources.fixture.ts";
+import { SOURCES_OUTPUT } from "../academy/course-files.ts";
+import * as fixtureModule from "../academy/lessons/quantfinancetogo/sources.fixture.ts";
+
+const { FIXTURE_TEXT, SOURCES: QUANTFINANCETOGO_FIXTURE } = fixtureModule;
+const FIXTURE_PATH =
+  "scripts/academy/lessons/quantfinancetogo/sources.fixture.ts";
+const FIXTURE_KEYS = [
+  "caption",
+  "course",
+  "durationSeconds",
+  "publishedAt",
+  "sourceId",
+  "transcript",
+  "url",
+];
+const REEL_ID = /instagram\.com\/reel\/([A-Za-z0-9_-]+)/gu;
+const readTracked = async (path: string): Promise<string> =>
+  (await git(["show", `:${path}`])).stdout;
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const execFileAsync = promisify(execFile);
@@ -61,21 +75,80 @@ describe("private Academy sources", () => {
   });
 
   it("ignores a locally built QuantFinanceToGo snapshot", async () => {
-    await expect(
-      git([
-        "check-ignore",
-        "-q",
-        "--no-index",
-        "scripts/academy/lessons/quantfinancetogo/sources.generated.ts",
-      ])
-    ).resolves.toBeDefined();
+    for (const path of [
+      "scripts/academy/lessons/quantfinancetogo/sources.generated.ts",
+      ...DATABASE_COURSES.map(
+        (course) =>
+          `packages/academy/src/lessons/sources.${course}.generated.ts`
+      ),
+    ])
+      await expect(
+        git(["check-ignore", "-q", "--no-index", path])
+      ).resolves.toBeDefined();
+  });
+
+  it("gives no database course a committed sources output", () => {
+    for (const course of DATABASE_COURSES)
+      expect(SOURCES_OUTPUT[course]).toBeUndefined();
+  });
+
+  it("tracks no raw-transcript note outside the fixture", async () => {
+    const found = await git([
+      "grep",
+      "-l",
+      "-E",
+      "type:[[:space:]]*raw-transcript",
+      "--",
+      ".",
+      `:(exclude)${FIXTURE_PATH}`,
+    ]).catch((error: { code?: number }) => {
+      if (error.code === 1) return { stdout: "" };
+      throw error;
+    });
+    expect(found.stdout.split("\n").filter(Boolean)).toEqual([]);
+  });
+
+  it("tracks no file pairing several fixture reel URLs with a transcript key", async () => {
+    const ids = new Set(
+      QUANTFINANCETOGO_FIXTURE.map((source) => {
+        const match = /instagram\.com\/reel\/([A-Za-z0-9_-]+)/u.exec(
+          source.url
+        );
+        return match?.[1] ?? "";
+      }).filter(Boolean)
+    );
+    const { stdout } = await git([
+      "grep",
+      "-l",
+      "-z",
+      "instagram.com/reel/",
+    ]).catch((error: { code?: number }) => {
+      if (error.code === 1) return { stdout: "" };
+      throw error;
+    });
+    const offenders: string[] = [];
+    for (const path of stdout.split("\0").filter(Boolean)) {
+      if (path === FIXTURE_PATH) continue;
+      const text = await readTracked(path);
+      const hits = [...text.matchAll(REEL_ID)].filter((m) =>
+        ids.has(m[1] ?? "")
+      );
+      if (hits.length >= 2 && /["']?\btranscript\b["']?\s*:/u.test(text))
+        offenders.push(path);
+    }
+    expect(offenders).toEqual([]);
   });
 
   it("keeps the QuantFinanceToGo fixture synthetic: placeholder caption and transcript only", () => {
+    expect(Object.keys(fixtureModule).sort()).toEqual([
+      "FIXTURE_TEXT",
+      "SOURCES",
+    ]);
     expect(QUANTFINANCETOGO_FIXTURE.length).toBeGreaterThan(0);
     for (const source of QUANTFINANCETOGO_FIXTURE as readonly Readonly<
       Record<string, unknown>
     >[]) {
+      expect(Object.keys(source).sort()).toEqual(FIXTURE_KEYS);
       expect(source["caption"]).toBe(FIXTURE_TEXT);
       expect(source["transcript"]).toEqual([{ start: 0, text: FIXTURE_TEXT }]);
     }

@@ -196,7 +196,8 @@ export const buildSources = (
       courseIndex < 0 || (index !== courseIndex && index !== courseIndex + 1)
   );
   const kb = positional[0] ?? knowledgeBaseDir(course, home);
-  const output = SOURCES_OUTPUT[course];
+  const output =
+    COURSES[course].store === "database" ? undefined : SOURCES_OUTPUT[course];
   if (output === undefined)
     throw new Error(
       `course ${course} keeps its sources in the knowledge base, not in the repository; check them with bun run vertex:academy:import -- --course ${course} --dry-run`

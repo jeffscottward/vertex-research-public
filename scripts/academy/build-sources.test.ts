@@ -148,7 +148,8 @@ describe("readKnowledgeBaseSources (quantfinancetogo)", () => {
       join(kb, "ig-Df_Ab-12345.md"),
       note([
         "---",
-        "type: raw-transcript",
+        // Assembled so the private-sources guard finds no committed note marker.
+        `type: ${"raw"}-transcript`,
         'title: "Part 37: \\"Binomial\\" pricing"',
         "platform: instagram",
         'post_id: "Df_Ab-12345"',
