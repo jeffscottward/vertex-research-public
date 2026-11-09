@@ -433,6 +433,61 @@ class FiveMinuteBarsTest(unittest.TestCase):
         self.assertEqual(flip[0].exit_ms, flip[1].entry_ms)
 
 
+class EtfStopFillTest(unittest.TestCase):
+    """The stop-fill information row on 5-minute bars (the IBKR ETF path)."""
+
+    def test_half_way_fill_uses_the_extreme_of_the_five_minute_bar(self) -> None:
+        tape = morning(5).candle(low=95.5).flat(4).spike_up().flat(8)  # a stop at 96 in a bar with low 95.5; a time exit
+        m = tape.minutes()
+        trades = rules.run_rule(rules.frame(m), SMALL, *WEEK)
+        self.assertEqual([t.reason for t in trades], ["stop", "time"])
+        calendar = runner.calendar_of(m, *WEEK)
+        costs = {"vertex": rules.Costs(per_unit=0.25), "source": rules.source_costs(SMALL)}
+        raw = study.stop_fill_raw(m, calendar, trades, costs)
+        self.assertEqual((raw["fraction"], raw["stops"]), (0.5, 1))
+        self.assertAlmostEqual(raw["meanExtraLossPerStopR"], 0.25 / 5)  # 96 -> 95.75 on a 5-point stop
+        self.assertAlmostEqual(raw["r"]["vertex"]["totalR"], -5.25 / 5 - 0.1 + 0.0 - 0.1)
+        self.assertAlmostEqual(raw["r"]["source"]["meanR"], (-5.25 / 5 - 0.084 - 0.084) / 2)
+        self.assertEqual(raw["dated"], [(MONDAY, -5.25 / 5 - 0.1), (MONDAY, -0.1)])
+        self.assertEqual(raw["datedModel"][0], (MONDAY, -1.0 - 0.1))
+        view = study.stop_fill_view(raw, 0.12, "5-minute")
+        for key in ("fraction", "stops", "meanExtraLossPerStopR", "trades", "meanR", "meanRSourceCosts", "totalR",
+                    "sharpe", "oosSharpe", "cagr", "maxDrawdown", "sameMethodModelSharpe", "nautilusModelSharpe",
+                    "label", "bar", "r", "grossR"):
+            self.assertIn(key, view)
+        self.assertEqual((view["trades"], view["bar"], view["nautilusModelSharpe"]), (2, "5-minute", 0.12))
+        self.assertAlmostEqual(view["meanR"], (-5.25 / 5 - 0.2) / 2)
+        self.assertIn("5-minute bar", view["label"])
+        self.assertIn("same-method", view["label"])
+        self.assertNotIn("dated", view)
+        self.assertNotIn("days", raw.keys() & view.keys())
+        # No stop, nothing changes.
+        calm = morning(5).flat(8).minutes()
+        calm_trades = rules.run_rule(rules.frame(calm), SMALL, *WEEK)
+        calm_raw = study.stop_fill_raw(calm, runner.calendar_of(calm, *WEEK), calm_trades, costs)
+        self.assertEqual((calm_raw["stops"], calm_raw["meanExtraLossPerStopR"]), (0, 0.0))
+        self.assertEqual(calm_raw["dated"], calm_raw["datedModel"])
+
+    def test_etf_text_shows_exact_and_half_way_fills_and_never_cuts(self) -> None:
+        def twin(name: str) -> dict:
+            return {"market": name, "trades": 200, "meanR": 0.272, "sharpe": 0.28,
+                    "stopFill": {"meanR": 0.101, "sharpe": 0.09}}
+
+        text = study.etf_twins_text([twin("SPY"), twin("QQQ"), twin("IWM")], ["DIA", "GLD", "SLV", "USO"])
+        self.assertIn("QQQ 200 trades +0.27R 0.28 / +0.10R 0.09", text)
+        self.assertIn("exact stop fill / half-way to the bar extreme", text)
+        self.assertIn("Not testable on this data (no exchange-volume intraday history): DIA, GLD, SLV, USO", text)
+        self.assertLessEqual(len(text), 300)
+        # More tested twins: the shorter wording, still every twin and both numbers.
+        seven = study.etf_twins_text([twin(n) for n in ("SPY", "QQQ", "DIA", "IWM", "GLD", "SLV", "USO")], [])
+        self.assertLessEqual(len(seven), 300)
+        self.assertEqual(seven.count(" / +0.10R 0.09"), 7)
+        self.assertEqual(study.etf_twins_text([], ["SPY"]),
+                         "no twin has IBKR history. Not testable on this data (no exchange-volume intraday history): SPY")
+        with self.assertRaises(ValueError):
+            study.etf_twins_text([twin("SPY"), twin("QQQ"), twin("IWM")], [], limit=60)
+
+
 class CostTest(unittest.TestCase):
     def test_r_multiples_and_source_costs(self) -> None:
         costs = rules.source_costs(rules.Params())
@@ -838,6 +893,44 @@ class DataTest(unittest.TestCase):
             self.assertEqual((loaded.available, len(loaded.minutes)), (True, 2 * 78))
             self.assertEqual(data.ibkr_quoted_spread("SPY", tmp, start, end), {"bps": None, "points": None, "bars": 0})
 
+    def test_an_unreadable_ibkr_file_makes_the_twin_not_testable(self) -> None:
+        wait, data.READ_WAIT = data.READ_WAIT, 0.0
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                good = gzip.compress(b"timestamp,open,high,low,close,volume\n" + b"1514903400000,1,1,1,1,5\n" * 50)
+                (Path(tmp) / "SPY.csv.gz").write_bytes(good[:len(good) // 2])  # cut in the middle of a rewrite
+                end = rules.ny_ms("2026-11-07")
+                bars = data.load_ibkr("SPY", tmp, end)
+                self.assertFalse(bars.available)
+                self.assertIn("could not be read after one retry", bars.reason)
+                self.assertIn("EOFError", bars.reason)
+                (Path(tmp) / "SPY-bidask.csv.gz").write_bytes(good[:20])
+                self.assertEqual(data.ibkr_quoted_spread("SPY", tmp, 0, end)["bps"], None)
+                messages: list[str] = []
+                row = study._ibkr(study.Pool(0), "SPY", tmp, data.IBKR_FROM, rules.ny_ms("2019-01-01"), end,
+                                  (rules.ny_ms("2019-01-01"), rules.ny_ms("2026-03-12")), 0.001, None, messages.append)
+                self.assertEqual(row["status"], data.ETF_UNTESTED)
+                self.assertIn("could not be read", row["reason"])
+                self.assertIn("not testable", messages[0])
+                twins = study.etf_twin_rows(["SPY"], {"SPY": row}, {"SPY": 3}, {})
+                self.assertEqual((twins[0]["status"], twins[0]["dukascopyTrades"]), ("not-testable", 3))
+        finally:
+            data.READ_WAIT = wait
+
+    def test_the_study_warns_about_files_with_missing_months(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_market(root / "m1", "usatechidxusd", Tape().flat(8).minutes(), spread=0.5)
+            window = (rules.ny_ms("2024-03-03"), rules.ny_ms("2024-03-09"))
+            messages: list[str] = []
+            loaded = study._load("NAS100", str(root), str(root / "twins"), *window, window, messages.append)
+            self.assertEqual(loaded["missingMonths"], {})
+            self.assertFalse([m for m in messages if "missing months" in m])
+            (root / "m1" / "usatechidxusd-bid.csv.gz.missing").write_text("2024-02-01\n")
+            loaded = study._load("NAS100", str(root), str(root / "twins"), *window, window, messages.append)
+            self.assertEqual(loaded["missingMonths"], {"usatechidxusd-bid.csv.gz": ["2024-02-01"]})
+            self.assertTrue([m for m in messages if m.startswith("warning: NAS100 was fetched with missing months")])
+
     def test_a_cut_gzip_read_is_retried_once(self) -> None:
         calls = []
 
@@ -1053,6 +1146,25 @@ class FetcherMissingMonthsTest(unittest.TestCase):
                     del os.environ["VERTEX_VOLSPIKE_DATA_ROOT"]
                 else:
                     os.environ["VERTEX_VOLSPIKE_DATA_ROOT"] = before
+            # The record is written before the target: a crash while the target is built cannot hide the hole.
+            crash_target = root / "m1" / "y-bid.csv.gz"
+
+            def crash(target, parts):
+                raise RuntimeError("killed while writing the target")
+
+            assemble, fetch.assemble = fetch.assemble, crash
+            try:
+                with self.assertRaises(RuntimeError):
+                    fetch.fetch_target(root, "y", date(2018, 1, 1), "bid", True)
+            finally:
+                fetch.assemble = assemble
+            self.assertFalse(crash_target.exists())
+            self.assertEqual(fetch.recorded_missing(crash_target), ["2018-02-01"])
+            # The study reads the same record and warns.
+            self.assertEqual(data.missing_months("NAS100", root, root / "twins"), {})
+            (root / "m1" / "usatechidxusd-ask.csv.gz.missing").write_text("2018-02-01\n2018-03-01\n")
+            self.assertEqual(data.missing_months("NAS100", root, root / "twins"),
+                             {"usatechidxusd-ask.csv.gz": ["2018-02-01", "2018-03-01"]})
             # A complete fetch after deleting the target clears the record.
             target.unlink()
             fetch.fetch_month = lambda inst, side, start, end, cwd: [[str(int(datetime(
@@ -1405,6 +1517,9 @@ class StudyRunTest(unittest.TestCase):
         self.assertEqual((volume["lastSessionSpike"], volume["sessionDaysAfterLastSessionSpike"]), ("2024-03-01", 10))
         self.assertIn("2024-03-01", text["Data finding: Dukascopy tick volume regime"])
         self.assertEqual(self.detail["data"]["missingMarkets"], ["QQQ", "SPY"])  # no Dukascopy files for them
+        self.assertEqual(self.detail["data"]["missingMonths"], {})
+        self.assertIn("sha256", self.detail["data"]["hashNote"])
+        self.assertEqual(len(self.detail["data"]["ibkr"]["SPY"]["file"]["sha256OfBarsUsed"]), 64)
         self.assertEqual(self.doc["forms"][1]["runs"][0]["market"], "no priced spreads")
 
     def test_etf_twins_are_ibkr_results_or_a_status_row(self) -> None:
@@ -1423,7 +1538,16 @@ class StudyRunTest(unittest.TestCase):
         self.assertEqual(spy["sessionSpikesByYear"][0]["year"], 2024)
         self.assertGreater(spy["sessionSpikesByYear"][0]["sessionSpikes"], 10)
         self.assertEqual(max(spy["spikeTimes"], key=lambda r: r["spikes"])["time"], "09:30")
+        # The stop-fill information row of the ETF: the same fields as the NAS100 one, on 5-minute bars.
+        fill = spy["stopFill"]
+        self.assertEqual(set(fill), set(self.detail["stopFill"]))
+        self.assertEqual((fill["fraction"], fill["bar"], fill["trades"]), (0.5, "5-minute", spy["trades"]))
+        self.assertEqual(self.detail["stopFill"]["bar"], "1-minute")
+        self.assertLessEqual(fill["meanR"], spy["meanR"] + 1e-9)  # worse fills never help
+        self.assertGreaterEqual(fill["meanExtraLossPerStopR"], 0.0)
+        self.assertAlmostEqual(fill["nautilusModelSharpe"], spy["sharpe"], places=6)
         self.assertEqual((qqq["status"], qqq["reason"], qqq["dukascopyTrades"]), ("not-testable", data.ETF_PENDING, None))
+        self.assertNotIn("stopFill", qqq)
         self.assertNotIn("sharpe", qqq)
         runs = {row["symbol"]: row for row in self.doc["forms"][0]["runs"]}
         self.assertIn("(b) SPY IBKR 5-minute", runs)
@@ -1433,6 +1557,9 @@ class StudyRunTest(unittest.TestCase):
         text = {row["check"]: row["result"] for row in self.doc["robustness"]}
         twins_text = text["Form (b) ETF twins: IBKR 5-minute bars, exchange volume"]
         self.assertIn("SPY", twins_text)
+        self.assertIn("exact stop fill / half-way", twins_text)
+        self.assertIn("SPY (IBKR), stops exactly at the level on 5-minute bars", self.doc["notes"])
+        self.assertIn("same-method Sharpe", self.doc["notes"])
         self.assertIn("Not testable on this data", twins_text)
         self.assertIn("QQQ", twins_text.split("Not testable")[1])
         # The ETF rows do not enter the gates: they are all on the NAS100 primary.

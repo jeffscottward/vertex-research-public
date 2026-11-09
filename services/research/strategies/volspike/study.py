@@ -66,6 +66,7 @@ INFO_COST_TEXT = {"fixedPointsSpread": "the spread as fixed points", "fillMinute
 INFO_COST_LABEL = {"fixedPointsSpread": "Vertex spread as fixed points", "fillMinuteSpread": "Vertex spread at the fill minutes"}
 STOP_FILL_FRACTION = 0.5
 ROBUSTNESS_MAX = 20
+NOTES_MAX = 4000
 STUDY_FILE = "study.json"  # json-data-ignore: report artifact under ~/Documents, outside the repo; the app never reads it
 REPORT_FILE = "report-data.json"  # json-data-ignore: report artifact under ~/Documents, outside the repo; never read by the app
 
@@ -488,6 +489,49 @@ def _empty_option_row() -> dict:
 # Study
 
 
+def stop_fill_raw(m: rules.Minutes, calendar: Sequence[int], trades: Sequence[rules.Trade],
+                  cost_sets: Mapping[str, rules.Costs], fraction: float = STOP_FILL_FRACTION) -> dict:
+    """Information only (rules.py arithmetic, not booked): every stop filled `fraction` of the way from the
+    modelled fill to the extreme of the bar it filled in (a 1-minute bar on the CFDs, a 5-minute bar on the IBKR
+    ETF twins). The trades are the same; only the stop exits are worse. `cost_sets` needs "vertex" and "source".
+    Returns the R statistics and the dated R lists for `stop_fill_view`."""
+
+    def dated(items: Sequence[rules.Trade]) -> list[tuple[str, float]]:
+        exit_days = rules.session_day(np.array([t.exit_ms for t in items], dtype=np.int64)) if items else []
+        return [(rules.day_text(d), t.r_net) for d, t in zip(exit_days, items)]
+
+    worse = {name: rules.worse_stop_fills(m, trades, fraction, cost_sets[name]) for name in ("vertex", "source")}
+    stops = sum(1 for t in trades if t.reason == "stop")
+    return {
+        "fraction": fraction, "days": [rules.day_text(d) for d in calendar], "dated": dated(worse["vertex"]),
+        "datedModel": dated(rules.reprice(trades, cost_sets["vertex"])),
+        "r": {name: mx.r_stats([t.r_net for t in items]) for name, items in worse.items()},
+        "grossR": mx.r_stats([t.r_gross for t in worse["vertex"]])["meanR"], "stops": stops,
+        "meanExtraLossPerStopR": sum(a.r_gross - b.r_gross for a, b in zip(trades, worse["vertex"])) / max(1, stops),
+    }
+
+
+def stop_fill_view(raw: Mapping, nautilus_sharpe: float, bar: str = "1-minute") -> dict:
+    """The stop-fill information row: R statistics of the worse fills and, from an R curve that books each trade
+    on its exit day (`metrics.r_curve`), Sharpe, OOS Sharpe, CAGR and max drawdown. `sameMethodModelSharpe` is the
+    same arithmetic on the modelled fills, next to the Nautilus Sharpe of the booked run."""
+    fill = dict(raw)
+    days, dated, model = fill.pop("days"), fill.pop("dated"), fill.pop("datedModel")
+    stats = mx.split_summary(mx.r_curve(days, dated, runner.RISK_PCT / 100))
+    model_stats = mx.split_summary(mx.r_curve(days, model, runner.RISK_PCT / 100))
+    fill.update({
+        "label": f"stops filled half-way from the modelled fill to the extreme of the {bar} bar (information only, "
+                 "rules.py arithmetic, same-method Sharpe)",
+        "bar": bar, "sharpe": stats["full"]["sharpe"], "oosSharpe": stats["outOfSample"]["sharpe"],
+        "cagr": stats["full"]["cagr"], "maxDrawdown": stats["full"]["maxDrawdown"],
+        "trades": fill["r"]["vertex"]["trades"], "meanR": fill["r"]["vertex"]["meanR"],
+        "meanRSourceCosts": fill["r"]["source"]["meanR"], "totalR": fill["r"]["vertex"]["totalR"],
+        "sameMethodModelSharpe": model_stats["full"]["sharpe"],
+        "sameMethodModelOosSharpe": model_stats["outOfSample"]["sharpe"], "nautilusModelSharpe": nautilus_sharpe,
+    })
+    return fill
+
+
 def _cost_view(costs: rules.Costs, price: float | None, stop: float | None) -> dict:
     """A cost set in numbers: per side, and per round trip in points and in R at `price` with stop distance `stop`."""
     trip = costs.round_trip(rules.LONG, price, price, stop or 0.0) if price else None
@@ -583,8 +627,11 @@ def _load(key: str, root: str | None, twin_root: str | None, start_ms: int, end_
     log(f"data {key}: {len(m):,} one-minute bars {data.summary_of(bars)['firstBar']} to "
         f"{data.summary_of(bars)['lastBar']}, {len(fr.cd):,} 15-minute candles, in-sample median spread "
         f"{_fmt(spread['bps'], '.3f')} bp ({_fmt(spread['points'], '.4g')} price units)")
+    holes = data.missing_months(key, root, twin_root)
+    if holes:
+        log(f"warning: {key} was fetched with missing months, the results have a hole there: {holes}")
     return {"bars": bars, "m": m, "fr": fr, "calendar": calendar, "windowBars": part.stop - part.start,
-            "spread": spread, "closes": runner.daily_closes(m, calendar)}
+            "spread": spread, "closes": runner.daily_closes(m, calendar), "missingMonths": holes}
 
 
 def _primary(pool: Pool, key: str, root: str | None, twin_root: str | None, start: str, end: str, start_ms: int,
@@ -668,23 +715,7 @@ def _primary(pool: Pool, key: str, root: str | None, twin_root: str | None, star
                  for name, costs in info_costs.items()}
     # Information only (rules.py arithmetic, not booked): every stop filled half-way from the modelled fill to
     # the extreme of its bar. The trades are the same; only the stop exits are worse.
-    days = [rules.day_text(d) for d in calendar]
-
-    def dated(trades: Sequence[rules.Trade]) -> list[tuple[str, float]]:
-        exit_days = rules.session_day(np.array([t.exit_ms for t in trades], dtype=np.int64)) if trades else []
-        return [(rules.day_text(d), t.r_net) for d, t in zip(exit_days, trades)]
-
-    worse = {name: rules.worse_stop_fills(m, base_trades, STOP_FILL_FRACTION, cost_sets[name])
-             for name in ("vertex", "source")}
-    stop_fill = {
-        "fraction": STOP_FILL_FRACTION, "days": days, "dated": dated(worse["vertex"]),
-        "datedModel": dated(rules.reprice(base_trades, vertex)),
-        "r": {name: mx.r_stats([t.r_net for t in trades]) for name, trades in worse.items()},
-        "grossR": mx.r_stats([t.r_gross for t in worse["vertex"]])["meanR"],
-        "stops": sum(1 for t in base_trades if t.reason == "stop"),
-        "meanExtraLossPerStopR": (sum(a.r_gross - b.r_gross for a, b in zip(base_trades, worse["vertex"]))
-                                  / max(1, sum(1 for t in base_trades if t.reason == "stop"))),
-    }
+    stop_fill = stop_fill_raw(m, calendar, base_trades, {"vertex": vertex, "source": cost_sets["source"]})
     out = {
         "key": key, "label": data.instrument(key).label, "calendar": [rules.day_text(d) for d in calendar],
         "closes": loaded["closes"], "spread": loaded["spread"], "medianCloseIs": median_is,
@@ -698,6 +729,7 @@ def _primary(pool: Pool, key: str, root: str | None, twin_root: str | None, star
         "spikeTimes": diagnostics.spike_times(fr, AS_STATED, *is_ms),
         "medianCloseByYear": diagnostics.median_close_by_year(m, STOP_POINTS),
         "candles": len(fr.cd), "splits": list(bars.splits), "windowBars": loaded["windowBars"],
+        "missingMonths": loaded["missingMonths"],
     }
     return out
 
@@ -730,7 +762,7 @@ def _market(pool: Pool, key: str, root: str | None, twin_root: str | None, start
         "costs": vertex, "sourceCostR": source_r, "summary": data.summary_of(bars),
         "spreadSession": diagnostics.session_spread(bars, params, *is_ms),
         "volume": diagnostics.volume_regime(fr, params), "spikeTimes": diagnostics.spike_times(fr, params, *is_ms),
-        "candles": len(fr.cd), "splits": list(bars.splits), "etf": etf,
+        "candles": len(fr.cd), "splits": list(bars.splits), "etf": etf, "missingMonths": loaded["missingMonths"],
     }
 
 
@@ -762,6 +794,9 @@ def _ibkr(pool: Pool, key: str, ibkr_root: str | None, ibkr_from: str, start_ms:
     name = f"{key}-ibkr"
     booked = book_all(pool, m, calendar, part.stop - part.start, [(name, trades, vertex, True)])[name]
     source_r = mx.r_stats([t.r_net for t in rules.reprice(trades, rules.source_costs(params))])
+    stop_fill = stop_fill_view(
+        stop_fill_raw(m, calendar, trades, {"vertex": vertex, "source": rules.source_costs(params)}),
+        mx.stats(booked["points"])["sharpe"], f"{data.IBKR_BAR_MINUTES}-minute")
     log(f"{key} IBKR 5-minute: {len(m):,} bars, {len(fr.cd):,} 15-minute candles, spread {spread['bps']:.3f} bp "
         f"({origin}); {len(trades)} trades, net R per trade "
         f"{_fmt(mx.r_stats([t['rNet'] for t in booked['trades']])['meanR'], '.3f')} (Vertex costs), "
@@ -775,6 +810,7 @@ def _ibkr(pool: Pool, key: str, ibkr_root: str | None, ibkr_from: str, start_ms:
         "summary": {"rows": len(m), "firstBar": first, "lastBar": last}, "candles": len(fr.cd),
         "volume": diagnostics.volume_regime(fr, params), "spikeTimes": diagnostics.spike_times(fr, params, *is_ms),
         "sessionSpikesByYear": diagnostics.session_spikes_by_year(fr, params), "splits": list(loaded.splits),
+        "stopFill": stop_fill,
     }
 
 
@@ -795,6 +831,30 @@ def etf_twin_rows(keys: Sequence[str], ibkr: Mapping[str, Mapping], dukascopy_tr
             row.update(stats.get(key, {}))
         rows.append(row)
     return rows
+
+
+def etf_twins_text(tested: Sequence[Mapping], untested: Sequence[str], limit: int = 300) -> str:
+    """The ETF-twin robustness text: per tested twin the booked result (stops exactly at the level) and, after
+    the slash, the information row with stops filled half-way to the 5-minute bar extreme (same-method Sharpe).
+    A shorter wording is used when the long one does not fit; it raises instead of cutting the text."""
+    if not tested:
+        heads = [("no twin has IBKR history", "")]
+    else:
+        heads = [
+            ("R per trade, Sharpe, exact stop fill / half-way to the bar extreme: ", " trades"),
+            ("R, Sharpe, exact stop fill / half-way: ", ""),
+        ]
+    tails = ["", ""]
+    if untested:
+        tails = [f". Not testable on this data (no exchange-volume intraday history): {', '.join(untested)}",
+                 f". Not testable here: {', '.join(untested)}"]
+    for (head, word), tail in zip(heads * 2, [tails[0]] * len(heads) + [tails[1]] * len(heads)):
+        body = "; ".join(f"{t['market']} {t['trades']}{word} {_fmt(t['meanR'], '+.2f')}R {_fmt(t['sharpe'])} / "
+                         f"{_fmt(t['stopFill']['meanR'], '+.2f')}R {_fmt(t['stopFill']['sharpe'])}" for t in tested)
+        text = head + body + tail
+        if len(text) <= limit:
+            return text
+    raise ValueError(f"The ETF-twin text has {len(text)} characters; the contract allows {limit}")
 
 
 def _row_label(key: str) -> tuple[str, str]:
@@ -904,18 +964,7 @@ def _detail(ran: str, repo: Path, root: str | None, primary: dict, others: Mappi
         sens_rows.append({"param": "costs", "value": INFO_COST_LABEL[name][:40], "sharpe": row["sharpe"],
                           "cagr": max(-1.0, row["cagr"]), "maxDrawdown": row["maxDrawdown"], "trades": row["trades"]})
     # Information only: stops filled half-way to the bar extreme (rules.py arithmetic on an R curve).
-    fill = dict(primary["stopFill"])
-    fill_days, fill_dated, model_dated = fill.pop("days"), fill.pop("dated"), fill.pop("datedModel")
-    fill_stats = mx.split_summary(mx.r_curve(fill_days, fill_dated, runner.RISK_PCT / 100))
-    model_stats = mx.split_summary(mx.r_curve(fill_days, model_dated, runner.RISK_PCT / 100))
-    fill.update({
-        "label": "stops filled half-way from the modelled fill to the bar extreme (information only, rules.py)",
-        "sharpe": fill_stats["full"]["sharpe"], "oosSharpe": fill_stats["outOfSample"]["sharpe"],
-        "cagr": fill_stats["full"]["cagr"], "maxDrawdown": fill_stats["full"]["maxDrawdown"],
-        "trades": fill["r"]["vertex"]["trades"], "meanR": fill["r"]["vertex"]["meanR"],
-        "meanRSourceCosts": fill["r"]["source"]["meanR"], "totalR": fill["r"]["vertex"]["totalR"],
-        "sameMethodModelSharpe": model_stats["full"]["sharpe"], "nautilusModelSharpe": summary["vertex"]["full"]["sharpe"],
-    })
+    fill = stop_fill_view(primary["stopFill"], summary["vertex"]["full"]["sharpe"])
     sens_rows.append({"param": "stop fill (information)", "value": "half-way to the bar extreme",
                       "sharpe": fill["sharpe"], "cagr": max(-1.0, fill["cagr"]), "maxDrawdown": fill["maxDrawdown"],
                       "trades": fill["trades"]})
@@ -1058,6 +1107,8 @@ def _detail(ran: str, repo: Path, root: str | None, primary: dict, others: Mappi
             "sessionSpikesByYear": item["sessionSpikesByYear"], "spikeTimes": item["spikeTimes"],
             "volumeMonths": item["volume"]["months"], "lastSessionSpike": item["volume"]["lastSessionSpike"],
             "fills": "5-minute bars (signal candles: 15 minutes, built from them)",
+            # Information only: without this row the ETF result is untested against fill optimism.
+            "stopFill": item["stopFill"],
         }
     etf_twins = etf_twin_rows(etf_keys, ibkr, {k: v["trades"] for k, v in etf_info.items()}, etf_stats)
     for row in etf_twins:
@@ -1191,6 +1242,11 @@ def _detail(ran: str, repo: Path, root: str | None, primary: dict, others: Mappi
             "spikeTimes": {key: primary["spikeTimes"],
                            **{mkey: item["spikeTimes"] for mkey, item in dukascopy.items()}},
             "missingMarkets": list(missing),
+            # Files fetched with --allow-missing: file name -> months without bars (empty when every file is complete).
+            "missingMonths": {name: months for item in (primary, *dukascopy.values())
+                              for name, months in item["missingMonths"].items()},
+            "hashNote": ("provenance.dataHash covers the fetched Dukascopy files under m1/; each IBKR twin carries "
+                         "the sha256 of the bars it used in data.ibkr and etfTwins"),
         },
         "document": {"rows": rows, "optionRows": option_rows, "sensitivity": sens_rows, "comparison": comparison,
                      "equity": mx.monthly(points) if len(points) > 1 else [],
@@ -1253,10 +1309,7 @@ def robustness_of(detail: Mapping) -> list[dict]:
     untested = [t["market"] for t in twins if t["status"] != data.ETF_TESTED]
     rows.append({
         "check": "Form (b) ETF twins: IBKR 5-minute bars, exchange volume", "pass": None,
-        "result": ("; ".join(f"{t['market']} {t['trades']} trades, {_fmt(t['meanR'], '+.2f')}R per trade, Sharpe "
-                             f"{_fmt(t['sharpe'])}" for t in tested) or "no twin has IBKR history")
-                  + (f". Not testable on this data (no exchange-volume intraday history): {', '.join(untested)}"
-                     if untested else "")})
+        "result": etf_twins_text(tested, untested)})
     claim = d["claim"]
     rows.append({
         "check": "Deflated Sharpe of the source's claimed result", "pass": None,
@@ -1350,12 +1403,23 @@ def notes(detail: Mapping) -> str:
         + "; ".join(f"{t['market']}: {'tested on IBKR' if t['status'] == data.ETF_TESTED else 'not testable'}"
                     f" (Dukascopy tick-volume trades: {t['dukascopyTrades'] if t['dukascopyTrades'] is not None else 'n/a'})"
                     for t in detail.get("etfTwins", [])) + ".",
+        *[f"{t['market']} (IBKR), stops exactly at the level on 5-minute bars: {_fmt(t['meanR'], '+.3f')}R per trade, "
+          f"Sharpe {_fmt(t['sharpe'])}, OOS {_fmt(t['oosSharpe'])}; information row, stops half-way to the bar extreme "
+          f"({_fmt(t['stopFill']['meanExtraLossPerStopR'], '.2f')}R more per stop; rules.py, same-method Sharpe): "
+          f"{_fmt(t['stopFill']['meanR'], '+.3f')}R, {_fmt(t['stopFill']['sharpe'])}, OOS "
+          f"{_fmt(t['stopFill']['oosSharpe'])}."
+          for t in detail.get("etfTwins", []) if t["status"] == data.ETF_TESTED],
         f"Markets: {', '.join(dict.fromkeys([key, *[row['market'] for row in detail['markets']]]))}."
-        + (f" Missing data: {', '.join(detail['data']['missingMarkets'])}." if detail["data"]["missingMarkets"] else ""),
+        + (f" Missing data: {', '.join(detail['data']['missingMarkets'])}." if detail["data"]["missingMarkets"] else "")
+        + (f" Files fetched with missing months (a hole in the results): {detail['data']['missingMonths']}."
+           if detail["data"].get("missingMonths") else ""),
         "Weekly equity in R, expectancy by year, the control distribution, per-market tables and the volume and "
         "spread diagnostics: the report data of the run (outside the repository).",
     ]
-    return "\n".join(lines)[:4000]
+    text = "\n".join(lines)
+    if len(text) > NOTES_MAX:
+        raise ValueError(f"The notes have {len(text)} characters; the contract allows {NOTES_MAX}: shorten, do not cut")
+    return text
 
 
 def document(ran: str, detail: Mapping) -> dict:
@@ -1590,6 +1654,6 @@ def main_report(ran: str, out: Path, workers: int = DEFAULT_WORKERS) -> int:
 
 
 __all__ = ["CONTROL_RUNS", "DEFAULT_WORKERS", "GATE", "MIN_TRADES", "SLUG", "SPEC_PATH", "WINDOWS", "assemble",
-           "checks_of", "claim_table", "config_id", "control_runs", "control_summary", "document", "finite",
-           "main_report", "main_study", "part_of", "robustness_of", "run_row", "run_study", "validate_document",
-           "verdict_of", "verdict_rule"]
+           "checks_of", "claim_table", "config_id", "control_runs", "control_summary", "document", "etf_twin_rows",
+           "etf_twins_text", "finite", "main_report", "main_study", "part_of", "robustness_of", "run_row", "run_study",
+           "stop_fill_raw", "stop_fill_view", "validate_document", "verdict_of", "verdict_rule"]

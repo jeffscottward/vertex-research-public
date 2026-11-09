@@ -169,12 +169,13 @@ def fetch_target(root: Path, inst: str, first: date, side: str, allow_missing: b
     if failed and not allow_missing:
         log(root, f"INCOMPLETE {inst} {side}: {len(failed)} months missing, target not written")
         return failed
-    rows = assemble(target, have)
     if failed:
+        # The record of the hole is written BEFORE the target appears: a crash in between cannot hide it.
         tmp = missing_file(target).with_name(missing_file(target).name + ".tmp")
         tmp.write_text("\n".join(failed) + "\n")
         tmp.replace(missing_file(target))
-    else:
+    rows = assemble(target, have)
+    if not failed:
         missing_file(target).unlink(missing_ok=True)
     for part in have:
         part.unlink()

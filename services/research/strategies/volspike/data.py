@@ -92,6 +92,20 @@ def files_of(key: str, root: str | os.PathLike | None = None,
     return folder / f"{source}-bid.csv.gz", folder / f"{source}-ask.csv.gz"
 
 
+def missing_months(key: str, root: str | os.PathLike | None = None,
+                   twin_root: str | os.PathLike | None = None) -> dict[str, list[str]]:
+    """Months a market's files were written without (fetch_data.py --allow-missing): file name -> ISO first
+    days, from the `<file>.missing` record next to each file. Empty when the files are complete."""
+    out: dict[str, list[str]] = {}
+    for path in files_of(key, root, twin_root):
+        record = path.with_name(path.name + ".missing")
+        if record.exists():
+            months = [line.strip() for line in record.read_text().splitlines() if line.strip()]
+            if months:
+                out[path.name] = months
+    return out
+
+
 def available(key: str, root: str | os.PathLike | None = None, twin_root: str | os.PathLike | None = None) -> bool:
     return all(path.exists() for path in files_of(key, root, twin_root))
 
@@ -270,10 +284,14 @@ def ibkr_file(key: str, ibkr_root: str | os.PathLike | None = None, sample: bool
     return folder / (f"{key}-bidask.csv.gz" if sample else f"{key}.csv.gz")
 
 
-def read_once(path: Path, *, retries: int = 1, wait: float = 2.0, reader=None) -> bytes:
+READ_WAIT = 2.0  # seconds before the one retry of a cut read
+
+
+def read_once(path: Path, *, retries: int = 1, wait: float | None = None, reader=None) -> bytes:
     """The whole decompressed file, read once into memory. A cut gzip stream (another job is rewriting the
-    file) is read again after `wait` seconds, `retries` times."""
+    file) is read again after `wait` seconds (READ_WAIT), `retries` times."""
     reader = reader or (lambda p: gzip.decompress(p.read_bytes()))
+    wait = READ_WAIT if wait is None else wait
     for attempt in range(retries + 1):
         try:
             return reader(path)
@@ -349,13 +367,21 @@ def ibkr_bars(key: str, cols: dict[str, np.ndarray], start_ms: int, end_ms: int,
     return IbkrBars(key, minutes, None, sha256=digest.hexdigest(), splits=splits, **described)
 
 
+READ_ERRORS = (EOFError, OSError, zlib.error, ValueError)  # a cut or broken gzip stream, a file that does not parse
+
+
 def load_ibkr(key: str, ibkr_root: str | os.PathLike | None, end_ms: int, from_day: str = IBKR_FROM) -> IbkrBars:
     """IBKR 5-minute bars of one ETF twin for the study: from `from_day` (2018-01-01; that year warms the
-    indicators up) to before `end_ms`. The file must start within two days of `from_day`, else it is pending."""
+    indicators up) to before `end_ms`. The file must start within two days of `from_day`, else it is pending.
+    A file that cannot be read after the retry makes the twin not testable; it does not stop the study."""
     path = ibkr_file(key, ibkr_root)
     if not path.exists():
         return IbkrBars(key, None, ETF_PENDING if key in IBKR_TWINS else ETF_NOT_TESTABLE)
-    cols = parse_bars(read_once(path))
+    try:
+        cols = parse_bars(read_once(path))
+    except READ_ERRORS as error:
+        return IbkrBars(key, None, f"the IBKR file could not be read after one retry ({type(error).__name__}); "
+                                   + ETF_NOT_TESTABLE)
     start_ms = rules.ny_ms(from_day)
     return ibkr_bars(key, cols, start_ms, end_ms, start_ms + 2 * rules.DAY_MS)
 
@@ -376,7 +402,11 @@ def ibkr_quoted_spread(key: str, ibkr_root: str | os.PathLike | None, start_ms: 
     path = ibkr_file(key, ibkr_root, sample=True)
     if not path.exists():
         return {"bps": None, "points": None, "bars": 0}
-    return quoted_spread(parse_bars(read_once(path)), start_ms, end_ms)
+    try:
+        return quoted_spread(parse_bars(read_once(path)), start_ms, end_ms)
+    except READ_ERRORS:
+        # No usable sample: the caller falls back to the Dukascopy spread.
+        return {"bps": None, "points": None, "bars": 0}
 
 
 __all__ = [
@@ -384,6 +414,7 @@ __all__ = [
     "ETF_TESTED", "ETF_TWINS", "ETF_UNTESTED", "IBKR_BAR_MINUTES", "IBKR_FROM", "IBKR_TWINS", "OPTIONS_TWIN", "PRIMARY",
     "SOURCE_MARKETS", "IbkrBars", "MarketBars", "adjust_splits", "available", "combined_hash", "data_hash",
     "data_root", "file_hashes", "files_of", "ibkr_bars", "ibkr_file", "ibkr_quoted_spread", "instrument", "is_etf",
-    "load_ibkr", "load_market", "mid_bars", "parse_bars", "quoted_spread", "read_once", "read_side", "regular_hours",
+    "load_ibkr", "load_market", "mid_bars", "missing_months", "parse_bars", "quoted_spread", "read_once", "read_side",
+    "regular_hours",
     "sha256_of", "spread_at", "spread_stats", "summary_of", "window_slice",
 ]
