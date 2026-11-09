@@ -1,0 +1,846 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-short-volume",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "short_volume_daily",
+      "rows": [
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 33562,
+          "shortVolume": 5760450,
+          "symbol": "AAPL",
+          "totalVolume": 12426439
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 47077,
+          "shortVolume": 9429438,
+          "symbol": "AMZN",
+          "totalVolume": 26922307
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 6400,
+          "shortVolume": 1823988,
+          "symbol": "AVGO",
+          "totalVolume": 6413939
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 189,
+          "shortVolume": 274202,
+          "symbol": "COST",
+          "totalVolume": 548474
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 1237,
+          "shortVolume": 743204,
+          "symbol": "DIA",
+          "totalVolume": 1022463
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 13298,
+          "shortVolume": 3156678,
+          "symbol": "GLD",
+          "totalVolume": 4158841
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 3210969,
+          "shortVolume": 27430929,
+          "symbol": "GOOGL",
+          "totalVolume": 57652982
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 2319,
+          "shortVolume": 4013517,
+          "symbol": "IWM",
+          "totalVolume": 6913318
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 64231,
+          "shortVolume": 3905586,
+          "symbol": "META",
+          "totalVolume": 12621087
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 21107,
+          "shortVolume": 6681747,
+          "symbol": "MSFT",
+          "totalVolume": 16148122
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 148997,
+          "shortVolume": 6255007,
+          "symbol": "NFLX",
+          "totalVolume": 18013618
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 65165,
+          "shortVolume": 10848010,
+          "symbol": "NVDA",
+          "totalVolume": 28251035
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 25904,
+          "shortVolume": 7339962,
+          "symbol": "QQQ",
+          "totalVolume": 10652247
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 17514,
+          "shortVolume": 3392690,
+          "symbol": "SLV",
+          "totalVolume": 6622274
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 27059,
+          "shortVolume": 7249470,
+          "symbol": "SPY",
+          "totalVolume": 11383043
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 34507,
+          "shortVolume": 5968829,
+          "symbol": "TSLA",
+          "totalVolume": 11071126
+        },
+        {
+          "date": "2026-10-29",
+          "shortExemptVolume": 87,
+          "shortVolume": 695549,
+          "symbol": "USO",
+          "totalVolume": 1366531
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 57831,
+          "shortVolume": 9308158,
+          "symbol": "AAPL",
+          "totalVolume": 18981058
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 43464,
+          "shortVolume": 15543814,
+          "symbol": "AMZN",
+          "totalVolume": 43163260
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 6235,
+          "shortVolume": 4610287,
+          "symbol": "AVGO",
+          "totalVolume": 12338445
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 1425,
+          "shortVolume": 517591,
+          "symbol": "COST",
+          "totalVolume": 1159850
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 256,
+          "shortVolume": 1110651,
+          "symbol": "DIA",
+          "totalVolume": 1754564
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 5374,
+          "shortVolume": 3316138,
+          "symbol": "GLD",
+          "totalVolume": 5222067
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 1202863,
+          "shortVolume": 7676807,
+          "symbol": "GOOGL",
+          "totalVolume": 26030577
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 4502,
+          "shortVolume": 3445273,
+          "symbol": "IWM",
+          "totalVolume": 5947703
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 21312,
+          "shortVolume": 3956412,
+          "symbol": "META",
+          "totalVolume": 10412879
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 17980,
+          "shortVolume": 3670922,
+          "symbol": "MSFT",
+          "totalVolume": 10649951
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 192958,
+          "shortVolume": 6175627,
+          "symbol": "NFLX",
+          "totalVolume": 18704941
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 236068,
+          "shortVolume": 23786748,
+          "symbol": "NVDA",
+          "totalVolume": 62914909
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 46613,
+          "shortVolume": 20683025,
+          "symbol": "QQQ",
+          "totalVolume": 28905208
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 22974,
+          "shortVolume": 7585336,
+          "symbol": "SLV",
+          "totalVolume": 13758044
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 32349,
+          "shortVolume": 14518061,
+          "symbol": "SPY",
+          "totalVolume": 22833696
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 65003,
+          "shortVolume": 10584158,
+          "symbol": "TSLA",
+          "totalVolume": 19985796
+        },
+        {
+          "date": "2026-10-30",
+          "shortExemptVolume": 573,
+          "shortVolume": 808895,
+          "symbol": "USO",
+          "totalVolume": 1608008
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 56407,
+          "shortVolume": 9786762,
+          "symbol": "AAPL",
+          "totalVolume": 22593771
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 94184,
+          "shortVolume": 7904692,
+          "symbol": "AMZN",
+          "totalVolume": 26299947
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 11210,
+          "shortVolume": 1131961,
+          "symbol": "AVGO",
+          "totalVolume": 6990537
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 1951,
+          "shortVolume": 553141,
+          "symbol": "COST",
+          "totalVolume": 1047477
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 2159,
+          "shortVolume": 904969,
+          "symbol": "DIA",
+          "totalVolume": 1321756
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 8069,
+          "shortVolume": 1240872,
+          "symbol": "GLD",
+          "totalVolume": 2642792
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 32502,
+          "shortVolume": 4434479,
+          "symbol": "GOOGL",
+          "totalVolume": 18125710
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 4304,
+          "shortVolume": 4745042,
+          "symbol": "IWM",
+          "totalVolume": 6833278
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 17530,
+          "shortVolume": 2187958,
+          "symbol": "META",
+          "totalVolume": 7400829
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 26454,
+          "shortVolume": 2474206,
+          "symbol": "MSFT",
+          "totalVolume": 12155826
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 88076,
+          "shortVolume": 4370744,
+          "symbol": "NFLX",
+          "totalVolume": 16864380
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 108482,
+          "shortVolume": 13232397,
+          "symbol": "NVDA",
+          "totalVolume": 44791860
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 40069,
+          "shortVolume": 12378403,
+          "symbol": "QQQ",
+          "totalVolume": 19909345
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 16064,
+          "shortVolume": 2697182,
+          "symbol": "SLV",
+          "totalVolume": 8479565
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 32862,
+          "shortVolume": 10721064,
+          "symbol": "SPY",
+          "totalVolume": 19334798
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 43297,
+          "shortVolume": 12086162,
+          "symbol": "TSLA",
+          "totalVolume": 21595428
+        },
+        {
+          "date": "2026-11-02",
+          "shortExemptVolume": 10999,
+          "shortVolume": 1415649,
+          "symbol": "USO",
+          "totalVolume": 2592234
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 54503,
+          "shortVolume": 13594112,
+          "symbol": "AAPL",
+          "totalVolume": 24126045
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 55592,
+          "shortVolume": 4843071,
+          "symbol": "AMZN",
+          "totalVolume": 15528088
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 8987,
+          "shortVolume": 1175162,
+          "symbol": "AVGO",
+          "totalVolume": 5728073
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 425,
+          "shortVolume": 238173,
+          "symbol": "COST",
+          "totalVolume": 559016
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 78,
+          "shortVolume": 423082,
+          "symbol": "DIA",
+          "totalVolume": 1007378
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 12011,
+          "shortVolume": 853922,
+          "symbol": "GLD",
+          "totalVolume": 1702059
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 32788,
+          "shortVolume": 4259012,
+          "symbol": "GOOGL",
+          "totalVolume": 14427712
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 4679,
+          "shortVolume": 3798699,
+          "symbol": "IWM",
+          "totalVolume": 5309843
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 15757,
+          "shortVolume": 2304207,
+          "symbol": "META",
+          "totalVolume": 5835853
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 10841,
+          "shortVolume": 2064048,
+          "symbol": "MSFT",
+          "totalVolume": 7047626
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 48917,
+          "shortVolume": 4242731,
+          "symbol": "NFLX",
+          "totalVolume": 13604807
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 72718,
+          "shortVolume": 8958375,
+          "symbol": "NVDA",
+          "totalVolume": 32856854
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 20584,
+          "shortVolume": 5303502,
+          "symbol": "QQQ",
+          "totalVolume": 10283138
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 31060,
+          "shortVolume": 3336753,
+          "symbol": "SLV",
+          "totalVolume": 5938063
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 4793,
+          "shortVolume": 4747502,
+          "symbol": "SPY",
+          "totalVolume": 11280055
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 49497,
+          "shortVolume": 6756319,
+          "symbol": "TSLA",
+          "totalVolume": 12035559
+        },
+        {
+          "date": "2026-11-03",
+          "shortExemptVolume": 3111,
+          "shortVolume": 461783,
+          "symbol": "USO",
+          "totalVolume": 998879
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 171462,
+          "shortVolume": 17472975,
+          "symbol": "AAPL",
+          "totalVolume": 33182523
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 125648,
+          "shortVolume": 8448799,
+          "symbol": "AMZN",
+          "totalVolume": 34585671
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 10255,
+          "shortVolume": 1931104,
+          "symbol": "AVGO",
+          "totalVolume": 8319133
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 1477,
+          "shortVolume": 344682,
+          "symbol": "COST",
+          "totalVolume": 759026
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 4454,
+          "shortVolume": 1821294,
+          "symbol": "DIA",
+          "totalVolume": 2395913
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 2186,
+          "shortVolume": 2471769,
+          "symbol": "GLD",
+          "totalVolume": 3765310
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 37240,
+          "shortVolume": 4526034,
+          "symbol": "GOOGL",
+          "totalVolume": 19774033
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 6415,
+          "shortVolume": 6643111,
+          "symbol": "IWM",
+          "totalVolume": 9751760
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 18463,
+          "shortVolume": 3768127,
+          "symbol": "META",
+          "totalVolume": 9441901
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 53506,
+          "shortVolume": 7829358,
+          "symbol": "MSFT",
+          "totalVolume": 19441330
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 150173,
+          "shortVolume": 5424579,
+          "symbol": "NFLX",
+          "totalVolume": 18279919
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 194734,
+          "shortVolume": 15899029,
+          "symbol": "NVDA",
+          "totalVolume": 53211115
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 34921,
+          "shortVolume": 13308255,
+          "symbol": "QQQ",
+          "totalVolume": 21524178
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 24992,
+          "shortVolume": 3113475,
+          "symbol": "SLV",
+          "totalVolume": 6768896
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 25758,
+          "shortVolume": 12629115,
+          "symbol": "SPY",
+          "totalVolume": 20916587
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 67525,
+          "shortVolume": 10513343,
+          "symbol": "TSLA",
+          "totalVolume": 19863997
+        },
+        {
+          "date": "2026-11-04",
+          "shortExemptVolume": 2795,
+          "shortVolume": 1783575,
+          "symbol": "USO",
+          "totalVolume": 3731757
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 84778,
+          "shortVolume": 13267391,
+          "symbol": "AAPL",
+          "totalVolume": 25742889
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 93537,
+          "shortVolume": 10825798,
+          "symbol": "AMZN",
+          "totalVolume": 35724312
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 209088,
+          "shortVolume": 4823854,
+          "symbol": "AVGO",
+          "totalVolume": 20348737
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 3602,
+          "shortVolume": 909017,
+          "symbol": "COST",
+          "totalVolume": 1618407
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 4411,
+          "shortVolume": 2243496,
+          "symbol": "DIA",
+          "totalVolume": 4681674
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 13985,
+          "shortVolume": 2146007,
+          "symbol": "GLD",
+          "totalVolume": 4074359
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 84140,
+          "shortVolume": 5618397,
+          "symbol": "GOOGL",
+          "totalVolume": 21509830
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 21692,
+          "shortVolume": 9975564,
+          "symbol": "IWM",
+          "totalVolume": 14469176
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 16731,
+          "shortVolume": 4031642,
+          "symbol": "META",
+          "totalVolume": 11184459
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 43520,
+          "shortVolume": 4436210,
+          "symbol": "MSFT",
+          "totalVolume": 15739999
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 166561,
+          "shortVolume": 6184071,
+          "symbol": "NFLX",
+          "totalVolume": 17802816
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 497626,
+          "shortVolume": 32779930,
+          "symbol": "NVDA",
+          "totalVolume": 126646347
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 129596,
+          "shortVolume": 31786626,
+          "symbol": "QQQ",
+          "totalVolume": 47316077
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 22448,
+          "shortVolume": 3753256,
+          "symbol": "SLV",
+          "totalVolume": 8069635
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 135652,
+          "shortVolume": 22821706,
+          "symbol": "SPY",
+          "totalVolume": 40733090
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 1298519,
+          "shortVolume": 15580919,
+          "symbol": "TSLA",
+          "totalVolume": 33335420
+        },
+        {
+          "date": "2026-11-05",
+          "shortExemptVolume": 9074,
+          "shortVolume": 964755,
+          "symbol": "USO",
+          "totalVolume": 1921811
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 72657,
+          "shortVolume": 5591999,
+          "symbol": "AAPL",
+          "totalVolume": 13374136
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 54499,
+          "shortVolume": 5784318,
+          "symbol": "AMZN",
+          "totalVolume": 15103210
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 131255,
+          "shortVolume": 1847556,
+          "symbol": "AVGO",
+          "totalVolume": 11147816
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 1151,
+          "shortVolume": 466159,
+          "symbol": "COST",
+          "totalVolume": 820725
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 2325,
+          "shortVolume": 648397,
+          "symbol": "DIA",
+          "totalVolume": 1264466
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 5159,
+          "shortVolume": 1619972,
+          "symbol": "GLD",
+          "totalVolume": 2643184
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 6798,
+          "shortVolume": 4167786,
+          "symbol": "GOOGL",
+          "totalVolume": 12334444
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 8272,
+          "shortVolume": 4195428,
+          "symbol": "IWM",
+          "totalVolume": 8026699
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 7068,
+          "shortVolume": 2583974,
+          "symbol": "META",
+          "totalVolume": 5819630
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 10905,
+          "shortVolume": 3332503,
+          "symbol": "MSFT",
+          "totalVolume": 8810247
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 95491,
+          "shortVolume": 3483182,
+          "symbol": "NFLX",
+          "totalVolume": 13789152
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 128637,
+          "shortVolume": 26022397,
+          "symbol": "NVDA",
+          "totalVolume": 70084635
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 34513,
+          "shortVolume": 15690124,
+          "symbol": "QQQ",
+          "totalVolume": 27071619
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 7152,
+          "shortVolume": 1759424,
+          "symbol": "SLV",
+          "totalVolume": 3729461
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 17581,
+          "shortVolume": 7516658,
+          "symbol": "SPY",
+          "totalVolume": 17607126
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 1156178,
+          "shortVolume": 8275733,
+          "symbol": "TSLA",
+          "totalVolume": 16470545
+        },
+        {
+          "date": "2026-11-06",
+          "shortExemptVolume": 1977,
+          "shortVolume": 549963,
+          "symbol": "USO",
+          "totalVolume": 1280704
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

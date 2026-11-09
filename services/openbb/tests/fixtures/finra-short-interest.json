@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-short-interest",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "short_interest",
+      "rows": [
+        {
+          "avgDailyVolume": 45135477,
+          "daysToCover": 2.85,
+          "previousShortInterest": 139749097,
+          "settlementDate": "2026-09-15",
+          "shortInterest": 128753092,
+          "symbol": "AAPL"
+        },
+        {
+          "avgDailyVolume": 40427733,
+          "daysToCover": 2.46,
+          "previousShortInterest": 81719964,
+          "settlementDate": "2026-09-15",
+          "shortInterest": 99297854,
+          "symbol": "SPY"
+        },
+        {
+          "avgDailyVolume": 39858260,
+          "daysToCover": 3.03,
+          "previousShortInterest": 128753092,
+          "settlementDate": "2026-09-30",
+          "shortInterest": 120763539,
+          "symbol": "AAPL"
+        },
+        {
+          "avgDailyVolume": 48804519,
+          "daysToCover": 2.02,
+          "previousShortInterest": 99297854,
+          "settlementDate": "2026-09-30",
+          "shortInterest": 98476070,
+          "symbol": "SPY"
+        },
+        {
+          "avgDailyVolume": 35498663,
+          "daysToCover": 3.71,
+          "previousShortInterest": 120763539,
+          "settlementDate": "2026-10-15",
+          "shortInterest": 131591865,
+          "symbol": "AAPL"
+        },
+        {
+          "avgDailyVolume": 37499320,
+          "daysToCover": 2.48,
+          "previousShortInterest": 98476070,
+          "settlementDate": "2026-10-15",
+          "shortInterest": 92995326,
+          "symbol": "SPY"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
