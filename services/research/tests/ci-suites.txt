@@ -98,4 +98,5 @@ tests/test_qc_ports_ideas.py
 tests/test_qc_ports_study.py
 tests/test_qc_ports_metrics.py
 tests/test_ld34_study.py
+tests/test_imom_study.py
 tests/test_qc_ports_audit.py
