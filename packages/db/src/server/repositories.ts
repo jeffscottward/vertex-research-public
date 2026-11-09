@@ -249,6 +249,10 @@ import {
   type ResearchStudyRepository,
 } from "./research-studies.ts";
 import {
+  type AcademyContentRepository,
+  createAcademyContentRepository,
+} from "./academy-content.ts";
+import {
   createSectorRotationRepository,
   type SectorRotationRepository,
 } from "./sector-rotation.ts";
@@ -4283,6 +4287,7 @@ export type Repositories = Readonly<{
   optimizationRuns?: OptimizationRunsRepository;
   quantLab?: QuantLabReadRepository;
   researchStudies?: ResearchStudyRepository;
+  academyContent?: AcademyContentRepository;
   flow?: FlowRepository;
   deploymentRequests?: DeploymentRequestsRepository;
   assistant?: AssistantRepository;
@@ -4328,6 +4333,7 @@ export const createRepositories = (
   optimizationRuns: createOptimizationRunsRepository(database, dependencies),
   quantLab: createQuantLabReadRepository(database),
   researchStudies: createResearchStudyRepository(database),
+  academyContent: createAcademyContentRepository(database),
   flow: createFlowRepository(database),
   strategyLibrary: createStrategyLibraryRepository(database, dependencies),
   deploymentRequests: createDeploymentRequestsRepository(

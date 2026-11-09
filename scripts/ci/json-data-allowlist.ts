@@ -608,9 +608,6 @@ export const RUNTIME_JSON_READERS: Readonly<Record<string, readonly string[]>> =
       "./specs/would-you-buy-it-today.json",
     ],
     "packages/academy/src/timeline.ts": ["./lessons/narration-timing.json"],
-    "packages/api/src/server/academy.ts": [
-      "packages/academy/src/lessons/specs/${lesson.slug}.json",
-    ],
     "packages/api/src/server/engines.ts": ["status.json"],
     "packages/api/src/server/market-context.ts": ["markets.json"],
     "packages/api/src/server/research-lenses.ts": [

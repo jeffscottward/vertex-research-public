@@ -2636,6 +2636,2313 @@
         ]
       }
     },
+    "/academy/lessons": {
+      "get": {
+        "operationId": "academy.lessons",
+        "parameters": [
+          {
+            "allowEmptyValue": true,
+            "allowReserved": true,
+            "in": "query",
+            "name": "course",
+            "required": true,
+            "schema": {
+              "enum": [
+                "dyr",
+                "quantfinancetogo"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "course": {
+                      "enum": [
+                        "dyr",
+                        "quantfinancetogo"
+                      ],
+                      "type": "string"
+                    },
+                    "lessons": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "course": {
+                            "enum": [
+                              "dyr",
+                              "quantfinancetogo"
+                            ],
+                            "type": "string"
+                          },
+                          "kind": {
+                            "enum": [
+                              "strategy",
+                              "concept"
+                            ],
+                            "type": "string"
+                          },
+                          "publishedAt": {
+                            "type": "string"
+                          },
+                          "sceneType": {
+                            "enum": [
+                              "payoff",
+                              "compare",
+                              "greeks",
+                              "distribution",
+                              "ivrv",
+                              "gex",
+                              "portfolio",
+                              "pricepath",
+                              "quant"
+                            ],
+                            "type": "string"
+                          },
+                          "slug": {
+                            "maxLength": 60,
+                            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                            "type": "string"
+                          },
+                          "structure": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "long_call",
+                                  "long_put",
+                                  "call_debit_spread",
+                                  "put_debit_spread",
+                                  "put_credit_spread",
+                                  "call_credit_spread",
+                                  "iron_condor",
+                                  "iron_butterfly",
+                                  "long_straddle",
+                                  "short_strangle",
+                                  "covered_call",
+                                  "cash_secured_put",
+                                  "collar",
+                                  "protective_put",
+                                  "pmcc",
+                                  "deep_itm_call",
+                                  "synthetic_long",
+                                  "ratio_call_spread",
+                                  "calendar_call"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "tags": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "instruments": {
+                                "items": {
+                                  "enum": [
+                                    "single-stock",
+                                    "etf",
+                                    "index-options",
+                                    "0dte",
+                                    "futures",
+                                    "leaps",
+                                    "spreads",
+                                    "covered-calls",
+                                    "cash-secured-puts",
+                                    "hedging",
+                                    "synthetics",
+                                    "volatility",
+                                    "portfolio"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxItems": 5,
+                                "type": "array"
+                              },
+                              "regime": {
+                                "items": {
+                                  "enum": [
+                                    "any",
+                                    "bullish",
+                                    "bearish",
+                                    "range",
+                                    "high-vol",
+                                    "low-vol",
+                                    "regime-change",
+                                    "event"
+                                  ],
+                                  "type": "string"
+                                },
+                                "maxItems": 3,
+                                "minItems": 1,
+                                "type": "array"
+                              },
+                              "risk": {
+                                "enum": [
+                                  "defined",
+                                  "undefined",
+                                  "hedged",
+                                  "stock-like",
+                                  "none"
+                                ],
+                                "type": "string"
+                              },
+                              "timeframe": {
+                                "enum": [
+                                  "intraday",
+                                  "days",
+                                  "weeks",
+                                  "months",
+                                  "years"
+                                ],
+                                "type": "string"
+                              },
+                              "topics": {
+                                "default": [],
+                                "items": {
+                                  "maxLength": 24,
+                                  "minLength": 2,
+                                  "type": "string"
+                                },
+                                "maxItems": 6,
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "regime",
+                              "instruments",
+                              "timeframe",
+                              "risk"
+                            ],
+                            "type": "object"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "course",
+                          "slug",
+                          "title",
+                          "summary",
+                          "kind",
+                          "tags",
+                          "sceneType",
+                          "structure",
+                          "publishedAt"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 500,
+                      "type": "array"
+                    },
+                    "sourceCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "course",
+                    "sourceCount",
+                    "lessons"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid Academy request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Lesson or data not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Request conflicts with a rule gate",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Academy storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "List the lessons of one Academy course (operator-only)",
+        "tags": [
+          "Academy"
+        ]
+      }
+    },
+    "/academy/lessons/{slug}": {
+      "get": {
+        "operationId": "academy.lesson",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "maxLength": 60,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "next": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "slug": {
+                              "maxLength": 60,
+                              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "slug",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "previous": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "properties": {
+                            "slug": {
+                              "maxLength": 60,
+                              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "slug",
+                            "title"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "source": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "caption": {
+                          "maxLength": 5000,
+                          "type": "string"
+                        },
+                        "course": {
+                          "enum": [
+                            "dyr",
+                            "quantfinancetogo"
+                          ],
+                          "type": "string"
+                        },
+                        "duplicateOf": {
+                          "maxLength": 20,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "durationSeconds": {
+                          "maximum": 86400,
+                          "minimum": 0,
+                          "type": "number"
+                        },
+                        "publishedAt": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z)?$",
+                          "type": "string"
+                        },
+                        "sourceId": {
+                          "pattern": "^[A-Za-z0-9_-]{5,20}$",
+                          "type": "string"
+                        },
+                        "transcript": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "start": {
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              "text": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "start",
+                              "text"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 2000,
+                          "type": "array"
+                        },
+                        "url": {
+                          "maxLength": 500,
+                          "pattern": "^https:\\/\\/",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "course",
+                        "sourceId",
+                        "url",
+                        "caption",
+                        "publishedAt",
+                        "durationSeconds",
+                        "transcript"
+                      ],
+                      "type": "object"
+                    },
+                    "spec": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "backtest": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "note": {
+                              "maxLength": 240,
+                              "type": "string"
+                            },
+                            "rules": {
+                              "additionalProperties": {
+                                "type": "number"
+                              },
+                              "default": {},
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "type": "object"
+                            },
+                            "scenario": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "maxLength": 60,
+                                  "minLength": 3,
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "label",
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "structure": {
+                              "enum": [
+                                "long_call",
+                                "long_put",
+                                "call_debit_spread",
+                                "put_debit_spread",
+                                "put_credit_spread",
+                                "call_credit_spread",
+                                "iron_condor",
+                                "iron_butterfly",
+                                "long_straddle",
+                                "short_strangle",
+                                "covered_call",
+                                "cash_secured_put",
+                                "collar",
+                                "protective_put",
+                                "pmcc",
+                                "deep_itm_call",
+                                "synthetic_long",
+                                "ratio_call_spread",
+                                "calendar_call"
+                              ],
+                              "type": "string"
+                            },
+                            "tickers": {
+                              "items": {
+                                "pattern": "^[A-Z][A-Z0-9.^-]{0,9}$",
+                                "type": "string"
+                              },
+                              "maxItems": 5,
+                              "minItems": 1,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "structure",
+                            "tickers",
+                            "scenario"
+                          ],
+                          "type": "object"
+                        },
+                        "caveats": {
+                          "default": [],
+                          "items": {
+                            "maxLength": 240,
+                            "minLength": 8,
+                            "type": "string"
+                          },
+                          "maxItems": 4,
+                          "type": "array"
+                        },
+                        "course": {
+                          "default": "dyr",
+                          "enum": [
+                            "dyr",
+                            "quantfinancetogo"
+                          ],
+                          "type": "string"
+                        },
+                        "formulas": {
+                          "items": {
+                            "enum": [
+                              "blackScholes",
+                              "delta",
+                              "gamma",
+                              "theta",
+                              "vega",
+                              "putCallParity",
+                              "breakevenCall",
+                              "breakevenPut",
+                              "verticalMaxProfit",
+                              "expectedMove",
+                              "probabilityOfProfit",
+                              "expectedValue",
+                              "realizedVol",
+                              "vrp",
+                              "gex",
+                              "kelly",
+                              "recovery",
+                              "positionSize",
+                              "extrinsic",
+                              "annualizedYield",
+                              "randomWalk",
+                              "sqrtTime",
+                              "normalPdf",
+                              "gbm",
+                              "ornsteinUhlenbeck",
+                              "presentValue",
+                              "logReturn",
+                              "volDrag",
+                              "sharpe",
+                              "portfolioVariance",
+                              "correlation",
+                              "diversification",
+                              "capm",
+                              "apt",
+                              "riskParity",
+                              "blackLitterman",
+                              "beta",
+                              "regression",
+                              "factorModel",
+                              "longShort",
+                              "tStat",
+                              "dataSnooping",
+                              "valueAtRisk",
+                              "expectedShortfall",
+                              "studentT",
+                              "garch",
+                              "gjrGarch",
+                              "volTarget",
+                              "kalman",
+                              "zScore",
+                              "walkForward",
+                              "slippage",
+                              "impliedVol",
+                              "binomialTree",
+                              "gammaPnl"
+                            ],
+                            "type": "string"
+                          },
+                          "maxItems": 6,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "kind": {
+                          "enum": [
+                            "strategy",
+                            "concept"
+                          ],
+                          "type": "string"
+                        },
+                        "params": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "default": {
+                                "anyOf": [
+                                  {
+                                    "type": "number"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ]
+                              },
+                              "help": {
+                                "maxLength": 200,
+                                "type": "string"
+                              },
+                              "id": {
+                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                "type": "string"
+                              },
+                              "kind": {
+                                "default": "number",
+                                "enum": [
+                                  "number",
+                                  "select",
+                                  "text"
+                                ],
+                                "type": "string"
+                              },
+                              "label": {
+                                "maxLength": 40,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "max": {
+                                "type": "number"
+                              },
+                              "min": {
+                                "type": "number"
+                              },
+                              "options": {
+                                "items": {
+                                  "maxLength": 24,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                "maxItems": 12,
+                                "type": "array"
+                              },
+                              "step": {
+                                "exclusiveMinimum": 0,
+                                "type": "number"
+                              },
+                              "unit": {
+                                "enum": [
+                                  "$",
+                                  "%",
+                                  "days",
+                                  "x",
+                                  "contracts",
+                                  "shares",
+                                  "pts",
+                                  "trades"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "label",
+                              "default"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 16,
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "scene": {
+                          "anyOf": [
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "legs": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "dte": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "call",
+                                          "put",
+                                          "stock"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "qty": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ],
+                                        "default": 1
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "long",
+                                          "short"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "side"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "type": {
+                                  "const": "payoff"
+                                },
+                                "view": {
+                                  "default": "2d",
+                                  "enum": [
+                                    "2d",
+                                    "3d"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "legs"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "a": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "label": {
+                                      "maxLength": 32,
+                                      "type": "string"
+                                    },
+                                    "legs": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "dte": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          },
+                                          "iv": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "call",
+                                              "put",
+                                              "stock"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                          },
+                                          "qty": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ],
+                                            "default": 1
+                                          },
+                                          "side": {
+                                            "enum": [
+                                              "long",
+                                              "short"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "strike": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "side"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 6,
+                                      "minItems": 1,
+                                      "type": "array"
+                                    }
+                                  },
+                                  "required": [
+                                    "label",
+                                    "legs"
+                                  ],
+                                  "type": "object"
+                                },
+                                "b": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "label": {
+                                      "maxLength": 32,
+                                      "type": "string"
+                                    },
+                                    "legs": {
+                                      "items": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "dte": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          },
+                                          "iv": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          },
+                                          "kind": {
+                                            "enum": [
+                                              "call",
+                                              "put",
+                                              "stock"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "label": {
+                                            "maxLength": 32,
+                                            "type": "string"
+                                          },
+                                          "qty": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ],
+                                            "default": 1
+                                          },
+                                          "side": {
+                                            "enum": [
+                                              "long",
+                                              "short"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          "strike": {
+                                            "anyOf": [
+                                              {
+                                                "type": "number"
+                                              },
+                                              {
+                                                "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                                "type": "string"
+                                              }
+                                            ]
+                                          }
+                                        },
+                                        "required": [
+                                          "kind",
+                                          "side"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "maxItems": 6,
+                                      "minItems": 1,
+                                      "type": "array"
+                                    }
+                                  },
+                                  "required": [
+                                    "label",
+                                    "legs"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": {
+                                  "const": "compare"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "a",
+                                "b"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "greek": {
+                                  "default": "delta",
+                                  "enum": [
+                                    "delta",
+                                    "gamma",
+                                    "theta",
+                                    "vega"
+                                  ],
+                                  "type": "string"
+                                },
+                                "legs": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "dte": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "call",
+                                          "put",
+                                          "stock"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "qty": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ],
+                                        "default": 1
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "long",
+                                          "short"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "side"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "type": {
+                                  "const": "greeks"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "legs"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "legs": {
+                                  "default": [],
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "dte": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "call",
+                                          "put",
+                                          "stock"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "qty": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ],
+                                        "default": 1
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "long",
+                                          "short"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "side"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "type": "array"
+                                },
+                                "type": {
+                                  "const": "distribution"
+                                }
+                              },
+                              "required": [
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "type": {
+                                  "const": "ivrv"
+                                }
+                              },
+                              "required": [
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "type": {
+                                  "const": "gex"
+                                },
+                                "view": {
+                                  "default": "2d",
+                                  "enum": [
+                                    "2d",
+                                    "3d"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "mode": {
+                                  "enum": [
+                                    "equity",
+                                    "recovery",
+                                    "allocation"
+                                  ],
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "portfolio"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "mode"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "events": {
+                                  "default": [],
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "color": {
+                                        "enum": [
+                                          "green",
+                                          "red",
+                                          "blue",
+                                          "amber",
+                                          "violet",
+                                          "cyan",
+                                          "gold",
+                                          "gray"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "day": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "label": {
+                                        "maxLength": 40,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "day",
+                                      "label",
+                                      "color"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "type": "array"
+                                },
+                                "legs": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "dte": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "iv": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      },
+                                      "kind": {
+                                        "enum": [
+                                          "call",
+                                          "put",
+                                          "stock"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "maxLength": 32,
+                                        "type": "string"
+                                      },
+                                      "qty": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ],
+                                        "default": 1
+                                      },
+                                      "side": {
+                                        "enum": [
+                                          "long",
+                                          "short"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "strike": {
+                                        "anyOf": [
+                                          {
+                                            "type": "number"
+                                          },
+                                          {
+                                            "pattern": "^[a-zA-Z][a-zA-Z0-9]{0,23}$",
+                                            "type": "string"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "kind",
+                                      "side"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 6,
+                                  "minItems": 1,
+                                  "type": "array"
+                                },
+                                "type": {
+                                  "const": "pricepath"
+                                },
+                                "waypoints": {
+                                  "default": [],
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "day": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": 0,
+                                        "type": "integer"
+                                      },
+                                      "movePct": {
+                                        "maximum": 500,
+                                        "minimum": -90,
+                                        "type": "number"
+                                      }
+                                    },
+                                    "required": [
+                                      "day",
+                                      "movePct"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 12,
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "legs"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "additionalProperties": false,
+                              "properties": {
+                                "mode": {
+                                  "enum": [
+                                    "gbm",
+                                    "meanrev",
+                                    "walk",
+                                    "compound",
+                                    "drag",
+                                    "logreturns",
+                                    "blend",
+                                    "diversify",
+                                    "frontier",
+                                    "riskparity",
+                                    "sml",
+                                    "factor",
+                                    "regression",
+                                    "significance",
+                                    "snooping",
+                                    "filter",
+                                    "tail",
+                                    "volcluster",
+                                    "voltarget",
+                                    "landscape",
+                                    "orderbook",
+                                    "pairs",
+                                    "binomial",
+                                    "hedge",
+                                    "smile"
+                                  ],
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "const": "quant"
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "mode"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "slug": {
+                          "maxLength": 60,
+                          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                          "type": "string"
+                        },
+                        "sourceId": {
+                          "maxLength": 20,
+                          "minLength": 5,
+                          "type": "string"
+                        },
+                        "steps": {
+                          "items": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "caption": {
+                                "maxLength": 160,
+                                "minLength": 8,
+                                "type": "string"
+                              },
+                              "color": {
+                                "enum": [
+                                  "green",
+                                  "red",
+                                  "blue",
+                                  "amber",
+                                  "violet",
+                                  "cyan",
+                                  "gold",
+                                  "gray"
+                                ],
+                                "type": "string"
+                              },
+                              "element": {
+                                "maxLength": 24,
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "seconds": {
+                                "default": 4.5,
+                                "maximum": 10,
+                                "minimum": 2,
+                                "type": "number"
+                              },
+                              "time": {
+                                "prefixItems": [
+                                  {
+                                    "maximum": 1,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  },
+                                  {
+                                    "maximum": 1,
+                                    "minimum": 0,
+                                    "type": "number"
+                                  }
+                                ],
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "caption",
+                              "element",
+                              "color"
+                            ],
+                            "type": "object"
+                          },
+                          "maxItems": 9,
+                          "minItems": 3,
+                          "type": "array"
+                        },
+                        "summary": {
+                          "maxLength": 400,
+                          "minLength": 20,
+                          "type": "string"
+                        },
+                        "tags": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "instruments": {
+                              "items": {
+                                "enum": [
+                                  "single-stock",
+                                  "etf",
+                                  "index-options",
+                                  "0dte",
+                                  "futures",
+                                  "leaps",
+                                  "spreads",
+                                  "covered-calls",
+                                  "cash-secured-puts",
+                                  "hedging",
+                                  "synthetics",
+                                  "volatility",
+                                  "portfolio"
+                                ],
+                                "type": "string"
+                              },
+                              "maxItems": 5,
+                              "type": "array"
+                            },
+                            "regime": {
+                              "items": {
+                                "enum": [
+                                  "any",
+                                  "bullish",
+                                  "bearish",
+                                  "range",
+                                  "high-vol",
+                                  "low-vol",
+                                  "regime-change",
+                                  "event"
+                                ],
+                                "type": "string"
+                              },
+                              "maxItems": 3,
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "risk": {
+                              "enum": [
+                                "defined",
+                                "undefined",
+                                "hedged",
+                                "stock-like",
+                                "none"
+                              ],
+                              "type": "string"
+                            },
+                            "timeframe": {
+                              "enum": [
+                                "intraday",
+                                "days",
+                                "weeks",
+                                "months",
+                                "years"
+                              ],
+                              "type": "string"
+                            },
+                            "topics": {
+                              "default": [],
+                              "items": {
+                                "maxLength": 24,
+                                "minLength": 2,
+                                "type": "string"
+                              },
+                              "maxItems": 6,
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "regime",
+                            "instruments",
+                            "timeframe",
+                            "risk"
+                          ],
+                          "type": "object"
+                        },
+                        "takeaways": {
+                          "items": {
+                            "maxLength": 200,
+                            "minLength": 8,
+                            "type": "string"
+                          },
+                          "maxItems": 5,
+                          "minItems": 2,
+                          "type": "array"
+                        },
+                        "title": {
+                          "maxLength": 90,
+                          "minLength": 4,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "slug",
+                        "sourceId",
+                        "title",
+                        "summary",
+                        "kind",
+                        "tags",
+                        "scene",
+                        "params",
+                        "steps",
+                        "formulas",
+                        "takeaways"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "spec",
+                    "source",
+                    "previous",
+                    "next"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "BAD_REQUEST"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Invalid Academy request",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 400
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "400"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "UNAUTHORIZED"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Authentication required",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 401
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "401"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "FORBIDDEN"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Forbidden",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 403
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "403"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "NOT_FOUND"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Lesson or data not found",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 404
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "404"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "CONFLICT"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Request conflicts with a rule gate",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 409
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "409"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "code": {
+                          "const": "STORAGE_ERROR"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": true
+                        },
+                        "message": {
+                          "default": "Academy storage unavailable",
+                          "type": "string"
+                        },
+                        "status": {
+                          "const": 503
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "data": {},
+                        "defined": {
+                          "const": false
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "defined",
+                        "code",
+                        "status",
+                        "message"
+                      ],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "503"
+          }
+        },
+        "summary": "Read one Academy lesson with its knowledge-base source and course neighbours (operator-only)",
+        "tags": [
+          "Academy"
+        ]
+      }
+    },
     "/academy/tickers": {
       "get": {
         "operationId": "academy.tickers",

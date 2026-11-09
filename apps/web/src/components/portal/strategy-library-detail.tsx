@@ -1,5 +1,6 @@
 "use client";
 
+import { lessonSlugOfStrategy } from "@darkfactory/academy/courses";
 import {
   STRATEGY_STATUS_VALUES,
   type StrategyGetOutput,
@@ -954,6 +955,8 @@ export const StrategyDetail = ({
   researchStudies,
 }: StrategyDetailProps) => {
   const { strategy } = detail;
+  // Lesson behind an Academy strategy of any course (dyr-*, qftg-*, ...), or null.
+  const academyLesson = lessonSlugOfStrategy(strategy.slug);
   const onTabKey = (event: KeyboardEvent<HTMLDivElement>): void => {
     const next = tabKeyTarget(event.key, tab);
     if (next === null) return;
@@ -998,21 +1001,21 @@ export const StrategyDetail = ({
             >
               Research only: no deployment
             </span>
-          ) : strategy.slug.startsWith("dyr-") ? (
-            <a
-              className={linkButton}
-              data-strategy-academy-lesson={strategy.slug}
-              href={`/academy/${strategy.slug.slice(4)}#deploy`}
-            >
-              Deploy from the Academy lesson
-            </a>
-          ) : (
+          ) : academyLesson === null ? (
             <a
               className={linkButton}
               data-strategy-request-deployment={strategy.id}
               href={newRequestHref(strategy.id)}
             >
               Request paper deployment
+            </a>
+          ) : (
+            <a
+              className={linkButton}
+              data-strategy-academy-lesson={strategy.slug}
+              href={`/academy/${academyLesson}#deploy`}
+            >
+              Deploy from the Academy lesson
             </a>
           )}
           <Button onClick={onClose} type="button" variant="secondary">

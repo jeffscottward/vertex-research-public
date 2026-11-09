@@ -1,13 +1,18 @@
+import { execFile } from "node:child_process";
 import { rm } from "node:fs/promises";
-import { createNodeDatabase } from "@darkfactory/db/server";
+import { promisify } from "node:util";
+import {
+  createAcademyContentRepository,
+  createNodeDatabase,
+} from "@darkfactory/db/server";
 import { migrate } from "@darkfactory/db/server/migration";
 import {
   createPostgresTestDatabase,
   dropPostgresTestDatabase,
 } from "@darkfactory/testkit/postgres";
+import { importAcademyCourses } from "../../scripts/academy/import-lessons.ts";
+import { DATABASE_COURSE_FIXTURE_CONTENT } from "../../scripts/academy/lessons/index.ts";
 import { e2eEnvironment } from "./env.ts";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { resetDatabase } from "./helpers/database.ts";
 import {
   FAKE_ASSISTANT_MODEL_HOST,
@@ -51,6 +56,11 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     });
     try {
       await migrate(resource.db);
+      // Database-backed Academy courses (QuantFinanceToGo) with synthetic sources: CI has no knowledge
+      // base, and the real transcripts never enter the repository. Resets never truncate them.
+      await importAcademyCourses(createAcademyContentRepository(resource.db), {
+        content: DATABASE_COURSE_FIXTURE_CONTENT,
+      });
     } finally {
       await resource.close();
     }

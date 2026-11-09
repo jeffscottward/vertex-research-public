@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ACADEMY_LESSONS } from "./lessons/index.ts";
+import { ALL_ACADEMY_LESSONS as ACADEMY_LESSONS } from "./lessons/database-courses.test-support.ts";
 import { defaultValues, payoffSummary, resolveLegs } from "./position.ts";
 import {
   buildScene,

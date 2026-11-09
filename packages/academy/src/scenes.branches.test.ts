@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { lessonBySlug } from "./lessons/index.ts";
 import { defaultValues, type ParamValues } from "./position.ts";
+import type { DataTable } from "./scene-kit.ts";
 import { buildScene, gammaFlip, gexProfile } from "./scenes.ts";
 import type { LessonSpec, Scene } from "./schema.ts";
-import { buildTables, type DataTable } from "./tables.ts";
+import { buildTables } from "./tables.ts";
 
 const base = lessonBySlug("theta-is-the-price-of-gamma");
 if (base === null) throw new Error("fixture lesson missing");

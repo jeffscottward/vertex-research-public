@@ -435,6 +435,13 @@
       "when": 1794187392028,
       "tag": "0061_qc_port_definitions",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1794187452028,
+      "tag": "0062_academy_content",
+      "breakpoints": true
     }
   ]
 }
