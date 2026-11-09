@@ -480,11 +480,14 @@ describe("runRenumber", () => {
     );
   });
 
+  const sharedMessage = (ref: string): string =>
+    `db:renumber: 0002_theirs already on ${ref}. Run db:renumber on the feature branch after merging the base into it; if ${ref} is newer than the base you passed, pass --base ${ref}.`;
+
   it("refuses a --base older than the merged branch instead of renumbering the base's migrations", () => {
     const root = createRepository();
     mergeMain(root);
     expect(run(root, "--base", "main~1").stderr).toEqual([
-      "db:renumber: 0002_theirs already on MERGE_HEAD, so not this branch's; pass --base MERGE_HEAD",
+      sharedMessage("MERGE_HEAD"),
     ]);
     expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
       true
@@ -505,34 +508,74 @@ describe("runRenumber", () => {
       "refs/remotes/origin/HEAD",
       "refs/remotes/origin/main"
     );
-    expect(run(root).stderr).toEqual([
-      "db:renumber: 0002_theirs already on main, so not this branch's; pass --base main",
-    ]);
+    expect(run(root).stderr).toEqual([sharedMessage("main")]);
   });
 
-  it("refuses to run during a rebase, where the conflict stages are swapped", () => {
+  it("refuses to renumber the base branch's own migrations when run on the base branch", () => {
     const root = createRepository();
-    expect(() => git(root, "rebase", "-q", "main")).toThrow();
-    expect(unmergedPaths(root)).toContain(JOURNAL);
-    expect(run(root)).toEqual({
-      code: 1,
-      stdout: [],
-      stderr: [
-        "db:renumber: a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber.",
-      ],
-    });
-    expect(existsSync(join(root, "packages/db/migrations/0002_mine.sql"))).toBe(
-      true
+    git(root, "update-ref", "refs/remotes/origin/main", "main");
+    git(
+      root,
+      "symbolic-ref",
+      "refs/remotes/origin/HEAD",
+      "refs/remotes/origin/main"
     );
+    git(root, "checkout", "-q", "main");
+    expect(() => git(root, "merge", "-q", "--no-edit", "feature")).toThrow();
+    expect(run(root).stderr).toEqual([sharedMessage("origin/main")]);
   });
 
-  it("refuses two branch migrations that share a number and its snapshot", () => {
-    const root = createRepository({ sharedNumber: true });
-    mergeMain(root);
-    expect(run(root).stderr).toEqual([
-      `db:renumber: two of this branch's migrations share ${META}/0002_snapshot.json; give one of them another number by hand first`,
-    ]);
+  it("refuses to run during a rebase, where the conflict stages are swapped, also in a linked worktree", () => {
+    const root = createRepository();
+    const linked = join(root, "linked");
+    git(root, "worktree", "add", "-q", "-b", "feature-2", linked, "feature");
+    for (const checkout of [root, linked]) {
+      expect(() => git(checkout, "rebase", "-q", "main")).toThrow();
+      expect(unmergedPaths(checkout)).toContain(JOURNAL);
+      expect(run(checkout)).toEqual({
+        code: 1,
+        stdout: [],
+        stderr: [
+          "db:renumber: a rebase is in progress. Run `git rebase --abort`, then `git merge <base>` and db:renumber.",
+        ],
+      });
+      expect(
+        existsSync(join(checkout, "packages/db/migrations/0002_mine.sql"))
+      ).toBe(true);
+    }
   });
+
+  it.each([
+    ["conflicts", {}],
+    ["belongs to the branch only", { theirsSnapshot: false }],
+  ])(
+    "refuses two branch migrations with one number when their snapshot %s",
+    (_, options) => {
+      const root = createRepository({ sharedNumber: true, ...options });
+      mergeMain(root);
+      expect(run(root).stderr).toEqual([
+        `db:renumber: two of this branch's migrations share the number of ${META}/0002_snapshot.json; give one of them another number by hand first`,
+      ]);
+    }
+  );
+
+  it.each([
+    ["the base's", { mineSnapshot: false }],
+    ["none", { mineSnapshot: false, theirsSnapshot: false }],
+  ])(
+    "renumbers two branch migrations with one number when the snapshot is %s",
+    (_, options) => {
+      const root = createRepository({ sharedNumber: true, ...options });
+      mergeMain(root);
+      expect(
+        run(root).stdout.filter((line) => line.startsWith("moved"))
+      ).toEqual([
+        "moved 0002_mine -> 0003_mine",
+        "moved 0002_zz -> 0004_zz",
+        "moved 0003_more -> 0005_more",
+      ]);
+    }
+  );
 
   it("ignores GIT_DIR from a Git hook and reports a git that cannot start", () => {
     const root = createRepository();

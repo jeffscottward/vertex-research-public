@@ -188,8 +188,9 @@ const upstreamOf = (git: Git): string | undefined => {
 
 /**
  * A stale `--base` (or a stale origin/HEAD after the merge commit) would make the base's newest
- * migrations look like this branch's and renumber them. Refuse when a migration counted as the
- * branch's is already on the merged branch, on origin/HEAD or on its local branch.
+ * migrations look like this branch's and renumber them; so would running on the base branch itself.
+ * Refuse when a migration counted as the branch's is already on the merged branch, on origin/HEAD or
+ * on its local branch.
  */
 const assertNotShared = (git: Git, own: readonly string[]): void => {
   const upstream = upstreamOf(git) ?? "";
@@ -201,7 +202,7 @@ const assertNotShared = (git: Git, own: readonly string[]): void => {
     const shared = own.filter((tag) => tags.has(tag));
     if (shared.length > 0) {
       throw new RenumberError(
-        `${shared.join(", ")} already on ${ref}, so not this branch's; pass --base ${ref}`
+        `${shared.join(", ")} already on ${ref}. Run db:renumber on the feature branch after merging the base into it; if ${ref} is newer than the base you passed, pass --base ${ref}.`
       );
     }
   }
@@ -262,14 +263,34 @@ type MovingFile = Readonly<{
 }>;
 
 /**
- * Reads the branch's SQL, rollback and snapshot files of each move. When the base added a file under
- * the same path (add/add conflict), the path keeps the base's version and the branch's version moves.
+ * Reads the branch's SQL, rollback and snapshot files of each move, with the new tags. When the base
+ * added a file under the same path (add/add conflict), the path keeps the base's version and the
+ * branch's version moves. Two of the branch's migrations with one number cannot tell whose snapshot
+ * file it is, so that case stops.
  */
 const collectMoves = (
   workspace: Workspace,
-  moves: readonly Move[]
+  plan: RenumberPlan,
+  rewrite: (text: string) => string
 ): MovingFile[] => {
-  const moving = moves.flatMap((move) => {
+  const numbers = plan.own.map((tag) => tag.slice(0, 4));
+  const sharedSnapshots = [
+    ...new Set(
+      numbers.filter((number, index) => numbers.indexOf(number) !== index)
+    ),
+  ]
+    .map((number) => `${META}/${number}_snapshot.json`)
+    .filter(
+      (path) =>
+        workspace.unmerged.has(path) ||
+        (!workspace.baseFiles.has(path) && workspace.read(path) !== undefined)
+    );
+  if (sharedSnapshots.length > 0) {
+    throw new RenumberError(
+      `two of this branch's migrations share the number of ${sharedSnapshots.join(", ")}; give one of them another number by hand first`
+    );
+  }
+  return plan.moves.flatMap((move) => {
     const pairs: ReadonlyArray<readonly [string, string]> = [
       [`${MIGRATIONS}/${move.from}.sql`, `${MIGRATIONS}/${move.to}.sql`],
       [
@@ -289,19 +310,11 @@ const collectMoves = (
           ? undefined
           : workspace.read(from);
       const baseText = conflicted ? workspace.stage(3, from) : undefined;
-      return text === undefined ? [] : [{ from, to, text, baseText }];
+      return text === undefined
+        ? []
+        : [{ from, to, text: rewrite(text), baseText }];
     });
   });
-  const shared = moving.filter(
-    (file, index) =>
-      moving.findIndex((other) => other.from === file.from) !== index
-  );
-  if (shared.length > 0) {
-    throw new RenumberError(
-      `two of this branch's migrations share ${shared.map((file) => file.from).join(", ")}; give one of them another number by hand first`
-    );
-  }
-  return moving;
 };
 
 /**
@@ -459,8 +472,6 @@ const renumber = (
   });
   // Everything that can refuse runs before the first write.
   assertNotShared(git, plan.own);
-  const moving = collectMoves(workspace, plan.moves);
-  const snapshots = chainSnapshots(workspace, moving);
   const targets = new Map(plan.moves.map((move) => [move.from, move.to]));
   const pattern = new RegExp(
     `(?<![A-Za-z0-9_])(${plan.moves.map((move) => move.from).join("|")})(?![A-Za-z0-9_])`,
@@ -470,6 +481,8 @@ const renumber = (
     text.replace(pattern, (tag) =>
       required(targets.get(tag), `new tag for ${tag}`)
     );
+  const moving = collectMoves(workspace, plan, rewrite);
+  const snapshots = chainSnapshots(workspace, moving);
 
   rewriteReferences(workspace, plan.moves, rewrite);
   for (const file of moving) {
@@ -481,7 +494,7 @@ const renumber = (
     workspace.touched.add(file.from);
   }
   for (const file of moving) {
-    workspace.write(file.to, rewrite(file.text));
+    workspace.write(file.to, file.text);
     workspace.touched.add(file.to);
   }
   for (const [path, text] of snapshots) {
