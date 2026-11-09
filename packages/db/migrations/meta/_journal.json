@@ -442,6 +442,13 @@
       "when": 1794187452028,
       "tag": "0062_academy_content",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1794196338071,
+      "tag": "0063_openbb_sources",
+      "breakpoints": true
     }
   ]
 }

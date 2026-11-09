@@ -16,6 +16,8 @@ import type { DatabaseExecutor } from "./client.ts";
 // them with parseFloat; negative zero is written as a float8 literal because String(-0) is "0".
 
 const INSERT_CHUNK_ROWS = 5000;
+/** sha256 (hex) of the stored rows of one series: `date|open|high|low|close|adj_close` lines. */
+const SERIES_SHA256 = `encode(sha256(convert_to(coalesce(string_agg(concat_ws('|', date::text, coalesce(open::text, ''), coalesce(high::text, ''), coalesce(low::text, ''), close::text, coalesce(adj_close::text, '')), E'\\n' order by date), ''), 'UTF8')), 'hex')`;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 export const MARKET_DAILY_SERIES_ID_PATTERN = /^[A-Z0-9._^=-]{1,20}$/u;
 const ISO_DATE_PATTERN = /^([1-9]\d{3})-(\d{2})-(\d{2})$/u;
@@ -68,6 +70,20 @@ export type MarketDailySeriesRepository = Readonly<{
     range?: MarketDailyRange
   ) => Promise<Map<string, MarketDailyColumns>>;
   replaceSeries: (
+    series: MarketDailySeriesInput,
+    points: readonly MarketDailyPoint[]
+  ) => Promise<MarketDailySeries>;
+  /**
+   * Writes points of one series under a per-series advisory lock and creates the series when
+   * missing (kind and source of the input). A stored series keeps its kind and source. When its
+   * source is the input's source, points are upserted by date (last duplicate wins); when another
+   * source owns it (for example a `vertex:series:import` file), only dates after its last_date are
+   * appended and stored closes are never overwritten. point_count, first_date, last_date and
+   * source_sha256 (sha256 of the stored rows, `date|open|high|low|close|adj_close` per line in
+   * date order) are then recomputed from storage. `sourceSha256` of the input is used only when no
+   * stored row exists yet and is replaced by the recomputed digest.
+   */
+  upsertPoints: (
     series: MarketDailySeriesInput,
     points: readonly MarketDailyPoint[]
   ) => Promise<MarketDailySeries>;
@@ -277,6 +293,82 @@ export const createMarketDailySeriesRepository = (
         );
       }
       return row;
+    });
+  },
+  upsertPoints: async (series, points) => {
+    const sorted = [
+      ...new Map(points.map((point) => [point.date, point])).values(),
+    ].sort((a, b) => a.date.localeCompare(b.date));
+    validateMarketDailySeries(series, sorted);
+    return await database.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${series.id}))`
+      );
+      const [stored] = await tx
+        .select()
+        .from(marketDailySeries)
+        .where(eq(marketDailySeries.id, series.id));
+      // Another source owns this series: append newer dates only, never overwrite its closes.
+      const appendAfter =
+        stored === undefined || stored.source === series.source.trim()
+          ? null
+          : stored.lastDate;
+      const writes =
+        appendAfter === null
+          ? sorted
+          : sorted.filter((point) => point.date > appendAfter);
+      if (stored !== undefined && writes.length === 0) return stored;
+      if (stored === undefined)
+        await tx.insert(marketDailySeries).values({
+          firstDate: (sorted[0] as MarketDailyPoint).date,
+          id: series.id,
+          importedAt: now(),
+          kind: series.kind,
+          lastDate: (sorted.at(-1) as MarketDailyPoint).date,
+          pointCount: sorted.length,
+          source: series.source.trim(),
+          sourceSha256: series.sourceSha256,
+        });
+      for (let start = 0; start < writes.length; start += INSERT_CHUNK_ROWS) {
+        await tx
+          .insert(marketDailyPoints)
+          .values(
+            writes.slice(start, start + INSERT_CHUNK_ROWS).map((point) => ({
+              adjClose: float8(point.adjClose),
+              close: float8(point.close),
+              date: point.date,
+              high: float8(point.high),
+              low: float8(point.low),
+              open: float8(point.open),
+              seriesId: series.id,
+            }))
+          )
+          .onConflictDoUpdate({
+            set: {
+              // A source without adjusted closes keeps the one already stored.
+              adjClose: sql`coalesce(excluded."adj_close", ${marketDailyPoints.adjClose})`,
+              close: sql.raw(`excluded."close"`),
+              high: sql.raw(`excluded."high"`),
+              low: sql.raw(`excluded."low"`),
+              open: sql.raw(`excluded."open"`),
+            },
+            target: [marketDailyPoints.seriesId, marketDailyPoints.date],
+          });
+      }
+      const aggregate = (expression: string) =>
+        sql`(select ${sql.raw(expression)} from ${marketDailyPoints} where ${eq(marketDailyPoints.seriesId, series.id)})`;
+      const [row] = await tx
+        .update(marketDailySeries)
+        .set({
+          firstDate: aggregate("min(date)"),
+          importedAt: now(),
+          lastDate: aggregate("max(date)"),
+          pointCount: aggregate("count(*)::int"),
+          sourceSha256: aggregate(SERIES_SHA256),
+        })
+        .where(eq(marketDailySeries.id, series.id))
+        .returning();
+      return row as MarketDailySeries;
     });
   },
 });
