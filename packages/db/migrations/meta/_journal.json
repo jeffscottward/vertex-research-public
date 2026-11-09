@@ -439,8 +439,15 @@
     {
       "idx": 62,
       "version": "7",
+      "when": 1794187452028,
+      "tag": "0062_academy_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
       "when": 1794188005216,
-      "tag": "0062_strategy_catalog_market_intraday_momentum",
+      "tag": "0063_strategy_catalog_market_intraday_momentum",
       "breakpoints": true
     }
   ]

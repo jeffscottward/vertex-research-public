@@ -12,6 +12,14 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./schema": {
+      "import": "./src/schema.ts",
+      "default": "./src/schema.ts"
+    },
+    "./courses": {
+      "import": "./src/courses.ts",
+      "default": "./src/courses.ts"
+    },
     "./chart": {
       "import": "./src/chart/index.ts",
       "default": "./src/chart/index.ts"

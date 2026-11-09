@@ -62,6 +62,8 @@ const EXPECTED_TABLES = [
 // constraints (Vertex uniqueness uses named unique indexes).
 const VERTEX_PRIMARY_KEYS: Readonly<Record<string, string>> = {
   agent_model_run_events: "id",
+  academy_lesson_sources: "source_id",
+  academy_lesson_specs: "slug",
   agent_model_runs: "id",
   agent_task_events: "id",
   agent_tasks: "id",
@@ -744,7 +746,13 @@ describe("DF-031 through DF-039 ordinary Postgres persistence", {
     for (const [tableName, columns] of Object.entries(VERTEX_PRIMARY_KEYS)) {
       expectedKeys.push(`p:${tableName}:${columns}`);
     }
-    expectedKeys.push("u:rate_limit:key", "u:session:token", "u:user:email");
+    expectedKeys.push(
+      // Target of academy_lesson_specs_source_fk (a lesson's course is its source's course).
+      "u:academy_lesson_sources:source_id,course",
+      "u:rate_limit:key",
+      "u:session:token",
+      "u:user:email"
+    );
     expectedKeys.sort();
 
     return expect(actualKeys).toEqual(expectedKeys);

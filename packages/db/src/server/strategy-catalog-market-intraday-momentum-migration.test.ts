@@ -10,14 +10,14 @@ import {
   normalizeStrategyTags,
 } from "./strategy-library.ts";
 
-// Data migration 0062: the market intraday momentum reel strategy (card vertex-reel-backtest-dffkn31). Research only.
+// Data migration 0063: the market intraday momentum reel strategy (card vertex-reel-backtest-dffkn31). Research only.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migration = read(
-  "../../migrations/0062_strategy_catalog_market_intraday_momentum.sql"
+  "../../migrations/0063_strategy_catalog_market_intraday_momentum.sql"
 );
 const rollback = read(
-  "../../rollback/0062_strategy_catalog_market_intraday_momentum.down.sql"
+  "../../rollback/0063_strategy_catalog_market_intraday_momentum.down.sql"
 );
 const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
   entries: { idx: number; tag: string }[];
@@ -29,7 +29,7 @@ const ROW =
   /\('(strategy-seed-[a-z0-9-]+)', '([a-z0-9-]+)', '((?:[^']|'')+)', '((?:[^']|'')+)', '(python)', '([a-z_]+)', '([^']+)', '(\[[^\]]*\])'::jsonb, '([^']+)', '\[\]'::jsonb\)/g;
 const rows = [...migration.matchAll(ROW)];
 
-describe("0062_strategy_catalog_market_intraday_momentum", () => {
+describe("0063_strategy_catalog_market_intraday_momentum", () => {
   it("inserts one research-only row that passes the repository field rules", () => {
     expect(rows).toHaveLength(1);
     const [
@@ -83,14 +83,12 @@ describe("0062_strategy_catalog_market_intraday_momentum", () => {
     ]);
   });
 
-  it("is journaled after the QC port definitions", () => {
+  it("is journaled after the academy content", () => {
     const index = journal.entries.findIndex(
-      (entry) => entry.tag === "0062_strategy_catalog_market_intraday_momentum"
+      (entry) => entry.tag === "0063_strategy_catalog_market_intraday_momentum"
     );
     expect(index).toBeGreaterThan(0);
-    return expect(journal.entries[index - 1]?.tag).toBe(
-      "0061_qc_port_definitions"
-    );
+    return expect(journal.entries[index - 1]?.tag).toBe("0062_academy_content");
   });
 
   it("never overwrites an existing slug", () => {

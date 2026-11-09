@@ -9,17 +9,17 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0062 (market intraday momentum reel strategy) and its guarded rollback on a real database.
+// Data migration 0063 (market intraday momentum reel strategy) and its guarded rollback on a real database.
 const migrationSql = readFileSync(
   new URL(
-    "../../../packages/db/migrations/0062_strategy_catalog_market_intraday_momentum.sql",
+    "../../../packages/db/migrations/0063_strategy_catalog_market_intraday_momentum.sql",
     import.meta.url
   ),
   "utf8"
 );
 const rollbackSql = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0062_strategy_catalog_market_intraday_momentum.down.sql",
+    "../../../packages/db/rollback/0063_strategy_catalog_market_intraday_momentum.down.sql",
     import.meta.url
   ),
   "utf8"
@@ -40,7 +40,7 @@ const countRows = async (): Promise<number> => {
   return result[0]?.n ?? Number.NaN;
 };
 
-describe("0062 market intraday momentum catalog row (Postgres)", () => {
+describe("0063 market intraday momentum catalog row (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

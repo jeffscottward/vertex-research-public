@@ -1,9 +1,222 @@
 {
-  "id": "94f6b001-6c0e-4d38-ad00-cb1bd460e557",
+  "id": "ebb20d57-cd44-451f-9047-fe22f42e8315",
   "prevId": "91c6fc68-0e54-409c-a7b6-19d0bb11e903",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.academy_lesson_sources": {
+      "name": "academy_lesson_sources",
+      "schema": "",
+      "columns": {
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "course": {
+          "name": "course",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "caption": {
+          "name": "caption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_seconds": {
+          "name": "duration_seconds",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transcript": {
+          "name": "transcript",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duplicate_of": {
+          "name": "duplicate_of",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "academy_lesson_sources_course_idx": {
+          "name": "academy_lesson_sources_course_idx",
+          "columns": [
+            {
+              "expression": "course",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "academy_lesson_sources_source_course_key": {
+          "name": "academy_lesson_sources_source_course_key",
+          "nullsNotDistinct": false,
+          "columns": ["source_id", "course"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "academy_lesson_sources_fields_check": {
+          "name": "academy_lesson_sources_fields_check",
+          "value": "\"academy_lesson_sources\".\"source_id\" ~ '^[A-Za-z0-9_-]{5,20}$' and \"academy_lesson_sources\".\"course\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(\"academy_lesson_sources\".\"course\") <= 40 and \"academy_lesson_sources\".\"url\" ~ '^https://' and length(\"academy_lesson_sources\".\"url\") <= 500 and length(\"academy_lesson_sources\".\"caption\") <= 5000 and \"academy_lesson_sources\".\"published_at\" ~ '^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z)?$' and \"academy_lesson_sources\".\"duration_seconds\" >= 0 and \"academy_lesson_sources\".\"duration_seconds\" <= 86400 and (\"academy_lesson_sources\".\"duplicate_of\" is null or \"academy_lesson_sources\".\"duplicate_of\" <> \"academy_lesson_sources\".\"source_id\")"
+        },
+        "academy_lesson_sources_transcript_check": {
+          "name": "academy_lesson_sources_transcript_check",
+          "value": "jsonb_typeof(\"academy_lesson_sources\".\"transcript\") = 'array' and octet_length(\"academy_lesson_sources\".\"transcript\"::text) <= 262144"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.academy_lesson_specs": {
+      "name": "academy_lesson_specs",
+      "schema": "",
+      "columns": {
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "course": {
+          "name": "course",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spec": {
+          "name": "spec",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spec_hash": {
+          "name": "spec_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "academy_lesson_specs_source_idx": {
+          "name": "academy_lesson_specs_source_idx",
+          "columns": [
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "academy_lesson_specs_course_idx": {
+          "name": "academy_lesson_specs_course_idx",
+          "columns": [
+            {
+              "expression": "course",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "academy_lesson_specs_source_fk": {
+          "name": "academy_lesson_specs_source_fk",
+          "tableFrom": "academy_lesson_specs",
+          "tableTo": "academy_lesson_sources",
+          "columnsFrom": ["source_id", "course"],
+          "columnsTo": ["source_id", "course"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "academy_lesson_specs_fields_check": {
+          "name": "academy_lesson_specs_fields_check",
+          "value": "\"academy_lesson_specs\".\"slug\" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(\"academy_lesson_specs\".\"slug\") <= 60 and \"academy_lesson_specs\".\"spec_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "academy_lesson_specs_spec_check": {
+          "name": "academy_lesson_specs_spec_check",
+          "value": "jsonb_typeof(\"academy_lesson_specs\".\"spec\") = 'object' and octet_length(\"academy_lesson_specs\".\"spec\"::text) <= 131072 and coalesce(\"academy_lesson_specs\".\"spec\" ->> 'slug', '') = \"academy_lesson_specs\".\"slug\" and coalesce(\"academy_lesson_specs\".\"spec\" ->> 'sourceId', '') = \"academy_lesson_specs\".\"source_id\" and coalesce(\"academy_lesson_specs\".\"spec\" ->> 'course', '') = \"academy_lesson_specs\".\"course\""
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.account": {
       "name": "account",
       "schema": "",
@@ -9224,133 +9437,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.user_preferences": {
-      "name": "user_preferences",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "theme": {
-          "name": "theme",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'system'"
-        },
-        "font_size": {
-          "name": "font_size",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'default'"
-        },
-        "density": {
-          "name": "density",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'default'"
-        },
-        "radius": {
-          "name": "radius",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'medium'"
-        },
-        "email_notifications": {
-          "name": "email_notifications",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "product_updates": {
-          "name": "product_updates",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "analytics_consent": {
-          "name": "analytics_consent",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "personalization_consent": {
-          "name": "personalization_consent",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "profile_visibility": {
-          "name": "profile_visibility",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'private'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "user_preferences_user_id_user_id_fk": {
-          "name": "user_preferences_user_id_user_id_fk",
-          "tableFrom": "user_preferences",
-          "columnsFrom": ["user_id"],
-          "tableTo": "user",
-          "columnsTo": ["id"],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "user_preferences_theme_check": {
-          "name": "user_preferences_theme_check",
-          "value": "\"user_preferences\".\"theme\" in (\n        'system', 'default-light', 'default-dark', 'graphite', 'dracula',\n        'monokai', 'tokyo-night', 'one-dark', 'night-owl', 'synthwave-84',\n        'github-dark', 'github-light'\n      )"
-        },
-        "user_preferences_font_size_check": {
-          "name": "user_preferences_font_size_check",
-          "value": "\"user_preferences\".\"font_size\" in ('small', 'default', 'large')"
-        },
-        "user_preferences_density_check": {
-          "name": "user_preferences_density_check",
-          "value": "\"user_preferences\".\"density\" in ('compact', 'default', 'comfortable')"
-        },
-        "user_preferences_radius_check": {
-          "name": "user_preferences_radius_check",
-          "value": "\"user_preferences\".\"radius\" in ('none', 'small', 'medium', 'large')"
-        },
-        "user_preferences_profile_visibility_check": {
-          "name": "user_preferences_profile_visibility_check",
-          "value": "\"user_preferences\".\"profile_visibility\" in ('private', 'members', 'public')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.user": {
       "name": "user",
       "schema": "",
@@ -9486,6 +9572,133 @@
         "user_status_check": {
           "name": "user_status_check",
           "value": "\"user\".\"status\" in ('active', 'suspended', 'deactivated')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.user_preferences": {
+      "name": "user_preferences",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "theme": {
+          "name": "theme",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'system'"
+        },
+        "font_size": {
+          "name": "font_size",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'default'"
+        },
+        "density": {
+          "name": "density",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'default'"
+        },
+        "radius": {
+          "name": "radius",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'medium'"
+        },
+        "email_notifications": {
+          "name": "email_notifications",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "product_updates": {
+          "name": "product_updates",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "analytics_consent": {
+          "name": "analytics_consent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "personalization_consent": {
+          "name": "personalization_consent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "profile_visibility": {
+          "name": "profile_visibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'private'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_preferences_user_id_user_id_fk": {
+          "name": "user_preferences_user_id_user_id_fk",
+          "tableFrom": "user_preferences",
+          "columnsFrom": ["user_id"],
+          "tableTo": "user",
+          "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_preferences_theme_check": {
+          "name": "user_preferences_theme_check",
+          "value": "\"user_preferences\".\"theme\" in (\n        'system', 'default-light', 'default-dark', 'graphite', 'dracula',\n        'monokai', 'tokyo-night', 'one-dark', 'night-owl', 'synthwave-84',\n        'github-dark', 'github-light'\n      )"
+        },
+        "user_preferences_font_size_check": {
+          "name": "user_preferences_font_size_check",
+          "value": "\"user_preferences\".\"font_size\" in ('small', 'default', 'large')"
+        },
+        "user_preferences_density_check": {
+          "name": "user_preferences_density_check",
+          "value": "\"user_preferences\".\"density\" in ('compact', 'default', 'comfortable')"
+        },
+        "user_preferences_radius_check": {
+          "name": "user_preferences_radius_check",
+          "value": "\"user_preferences\".\"radius\" in ('none', 'small', 'medium', 'large')"
+        },
+        "user_preferences_profile_visibility_check": {
+          "name": "user_preferences_profile_visibility_check",
+          "value": "\"user_preferences\".\"profile_visibility\" in ('private', 'members', 'public')"
         }
       },
       "isRLSEnabled": false

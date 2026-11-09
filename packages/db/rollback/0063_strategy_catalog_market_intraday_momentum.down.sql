@@ -1,4 +1,4 @@
--- Guarded reversal of 0062_strategy_catalog_market_intraday_momentum only.
+-- Guarded reversal of 0063_strategy_catalog_market_intraday_momentum only.
 -- Deletes the catalog row only while it was not edited and no preset, spec, backtest, backtest run,
 -- optimization run, deployment request or Autopilot candidate references it (no silent SET NULL).
 -- The backtest study in research_studies (id market-intraday-momentum) is kept; it has no link to the row.

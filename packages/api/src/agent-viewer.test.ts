@@ -214,6 +214,8 @@ describe("agent viewer read-only gate", () => {
 });
 
 const REVIEWED_READS: readonly string[] = [
+  "academy.lesson",
+  "academy.lessons",
   "academy.tickers",
   "account.addresses.list",
   "account.profile.get",
