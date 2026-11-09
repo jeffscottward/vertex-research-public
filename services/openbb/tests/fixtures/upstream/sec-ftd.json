@@ -1,0 +1,2894 @@
+{
+  "job": "sec-ftd",
+  "today": "2026-11-08",
+  "argv": ["sec-ftd"],
+  "env": {
+    "VERTEX_RESEARCH_CONTACT_EMAIL": "fixtures@example.invalid"
+  },
+  "exitCode": 0,
+  "calls": [
+    {
+      "key": "http:https://www.sec.gov/data-research/sec-markets-data/fails-deliver-data",
+      "result": "<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202610a.zip\" download>October 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202609b.zip\" download>September 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/other/fails-deliver-data/cnsfails202609a.zip\" download>September 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202608b.zip\" download>August 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202608a.zip\" download>August 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202607b.zip\" download>July 2026, second half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202607a.zip\" download>July 2026, first half</a>\n<td headers=\"view-field-display-title-table-column\" class=\"views-field views-field-field-display-title\">  <a href=\"/files/data/fails-deliver-data/cnsfails202606b.zip\" download>June 2026, second half</a>\n"
+    },
+    {
+      "key": "helper:sec:ftd:202610a:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "result": [
+        {
+          "date": "2026-10-01",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 2628.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 344.08
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 54801.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 249.15
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 25.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 725.18
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 4008.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 54.51
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 475.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 277.89
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 1410.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 512.9
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1093.0,
+          "description": "NETFLIX COM INC",
+          "price": 69.58
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 300.0,
+          "description": "NVIDIA CORP",
+          "price": 228.38
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 60319.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 762.63
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 3020.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 380.84
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 25.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 354.81
+        },
+        {
+          "date": "2026-10-01",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 221458.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 145.66
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 1137.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 338.24
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 1150.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 248.23
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 156354.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 330.32
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 441.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 914.94
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 4817.0,
+          "description": "INVESCO QQQ TR",
+          "price": 742.03
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 220483.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 55.02
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 32034.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 279.02
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 7022.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 512.8
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 545.0,
+          "description": "NETFLIX COM INC",
+          "price": 67.85
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 38491.0,
+          "description": "NVIDIA CORP",
+          "price": 230.86
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 12.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 508.62
+        },
+        {
+          "date": "2026-10-02",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 348699.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 150.02
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 1610.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 333.69
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 1200.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 355.14
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 100.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 920.65
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 8571.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 728.08
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 65162.0,
+          "description": "INVESCO QQQ TR",
+          "price": 749.58
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 164271.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 281.52
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 135349.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 517.53
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 274.0,
+          "description": "NETFLIX COM INC",
+          "price": 67.06
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 63726.0,
+          "description": "NVIDIA CORP",
+          "price": 233.95
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 5943.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 769.64
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 15352.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 380.14
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 8.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 511.1
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 219841.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 370.59
+        },
+        {
+          "date": "2026-10-05",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 427295.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 147.37
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 66.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 346.47
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 57.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 251.4
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 1519.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 332.89
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 1420.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 362.51
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 3.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 923.52
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 1452.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 741.9
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 14516.0,
+          "description": "INVESCO QQQ TR",
+          "price": 756.2
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 3471.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 283.38
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 85.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 525.18
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1262.0,
+          "description": "NETFLIX COM INC",
+          "price": 67.5
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 13455.0,
+          "description": "NVIDIA CORP",
+          "price": 238.9
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 2970.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 774.83
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 100.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 512.11
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 2786.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 378.73
+        },
+        {
+          "date": "2026-10-06",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 3.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 143.99
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 51.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 347.68
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 69.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 333.63
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 1.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 375.81
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 92.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 738.88
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 7391.0,
+          "description": "INVESCO QQQ TR",
+          "price": 759.66
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 74795.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 281.34
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 248.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 529.3
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 143.0,
+          "description": "NETFLIX COM INC",
+          "price": 68.69
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 1782.0,
+          "description": "NVIDIA CORP",
+          "price": 239.24
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 4508.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 779.09
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 100.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 382.27
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 1865.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 380.68
+        },
+        {
+          "date": "2026-10-07",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 19584.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 144.91
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 4298.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 350.5
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 19155.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 259.92
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 6046.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 336.67
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 3600.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 376.51
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 3.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 942.25
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 45.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 721.31
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 212112.0,
+          "description": "INVESCO QQQ TR",
+          "price": 757.73
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 2.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 53.82
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 274.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 277.7
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 100.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 529.76
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 4372.0,
+          "description": "NETFLIX COM INC",
+          "price": 69.7
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 2166.0,
+          "description": "NVIDIA CORP",
+          "price": 237.47
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 101039.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 777.22
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 56386.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 511.02
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 371.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 377.81
+        },
+        {
+          "date": "2026-10-08",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 46644.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 143.91
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 437.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 348.29
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 2.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 340.42
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 2522.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 360.14
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 90.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 720.89
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 300.0,
+          "description": "INVESCO QQQ TR",
+          "price": 747.58
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 12318.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 53.45
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 419165.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 277.57
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 1081.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 522.61
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 4245.0,
+          "description": "NETFLIX COM INC",
+          "price": 71.57
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 1059.0,
+          "description": "NVIDIA CORP",
+          "price": 230.48
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 85.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 773.93
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 125821.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 378.62
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 24177.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 375.0
+        },
+        {
+          "date": "2026-10-09",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 286745.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 147.58
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 6288.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 352.72
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 1077.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 259.53
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 1.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 340.97
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 955.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 354.73
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 7194.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 959.44
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 76235.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 742.96
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 10.0,
+          "description": "INVESCO QQQ TR",
+          "price": 746.04
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 4847.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 54.35
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 413.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 541.15
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 37699.0,
+          "description": "NETFLIX COM INC",
+          "price": 70.61
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 7747.0,
+          "description": "NVIDIA CORP",
+          "price": 226.32
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 14192.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 778.1
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 3097.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 378.03
+        },
+        {
+          "date": "2026-10-13",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 6346.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 151.03
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 293.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 353.78
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 224.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 258.58
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 5.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 341.27
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 10036.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 357.31
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 796.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 762.5
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 100.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 53.49
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 3889.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 276.7
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 118.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 543.45
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1173.0,
+          "description": "NETFLIX COM INC",
+          "price": 70.46
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 876.0,
+          "description": "NVIDIA CORP",
+          "price": 228.52
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 2.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 778.01
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 21622.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 381.67
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 21004.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 516.21
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 338.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 375.23
+        },
+        {
+          "date": "2026-10-14",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 86830.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 153.09
+        }
+      ]
+    },
+    {
+      "key": "helper:sec:ftd:202609b:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "result": [
+        {
+          "date": "2026-09-15",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 200.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 349.39
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 201.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 333.08
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 56.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 344.72
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 3022.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 665.6
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 3994138.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 287.91
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 1800.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 505.41
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 83716.0,
+          "description": "NETFLIX COM INC",
+          "price": 80.32
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 1141653.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 760.88
+        },
+        {
+          "date": "2026-09-15",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 34161.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 156.66
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 18721.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 248.42
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 100.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 331.34
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 575.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 339.27
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 3429.0,
+          "description": "INVESCO QQQ TR",
+          "price": 704.54
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 37740.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 57.53
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 298903.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 285.14
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1.0,
+          "description": "NETFLIX COM INC",
+          "price": 77.9
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 5369.0,
+          "description": "NVIDIA CORP",
+          "price": 212.17
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 21430.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 394.15
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 1072.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 356.58
+        },
+        {
+          "date": "2026-09-16",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 152649.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 161.86
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 100.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 342.87
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 140.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 245.96
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 29.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 332.41
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 4008.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 673.31
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 5806.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 57.05
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 2154548.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 754.05
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 207111.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 391.74
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 190.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 358.08
+        },
+        {
+          "date": "2026-09-17",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 33655.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 156.17
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 70.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 251.19
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 52.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 347.3
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 285.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 682.31
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 335113.0,
+          "description": "INVESCO QQQ TR",
+          "price": 716.92
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 9152.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 58.97
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 79689.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 285.43
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 261.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 497.75
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 935.0,
+          "description": "NETFLIX COM INC",
+          "price": 75.31
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 1812.0,
+          "description": "NVIDIA CORP",
+          "price": 219.34
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 771602.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 762.6
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 541.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 518.35
+        },
+        {
+          "date": "2026-09-18",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 33994.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 155.31
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 16281.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 349.54
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 2478.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 253.71
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 39300.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 336.13
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 1000.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 357.61
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 9643.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 895.31
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 149.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 665.75
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 5198915.0,
+          "description": "INVESCO QQQ TR",
+          "price": 721.45
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 4248299.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 59.93
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 1810719.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 284.1
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 83182.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 493.78
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 62215.0,
+          "description": "NETFLIX COM INC",
+          "price": 71.79
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 133400.0,
+          "description": "NVIDIA CORP",
+          "price": 222.27
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 297611.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 761.69
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 341900.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 401.17
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 2545.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 515.88
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 49666.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 364.27
+        },
+        {
+          "date": "2026-09-21",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 248216.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 153.82
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 500.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 354.97
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 2089.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 258.45
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 610.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 338.98
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 34157.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 741.25
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 4352675.0,
+          "description": "INVESCO QQQ TR",
+          "price": 741.47
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 4190.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 285.58
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 3300.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 501.61
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 12884.0,
+          "description": "NETFLIX COM INC",
+          "price": 73.36
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 18801.0,
+          "description": "NVIDIA CORP",
+          "price": 227.38
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 10210.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 773.5
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 45564.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 398.38
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 2574.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 519.78
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 8902.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 375.3
+        },
+        {
+          "date": "2026-09-22",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 28260.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 148.16
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 70.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 351.16
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 3553499.0,
+          "description": "INVESCO QQQ TR",
+          "price": 747.46
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 4101.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 287.21
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 50.0,
+          "description": "NETFLIX COM INC",
+          "price": 72.16
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 232477.0,
+          "description": "NVIDIA CORP",
+          "price": 228.87
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 54144.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 773.38
+        },
+        {
+          "date": "2026-09-23",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 9405.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 144.08
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 898701.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 337.02
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 732.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 904.7
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 200.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 744.1
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 597.0,
+          "description": "INVESCO QQQ TR",
+          "price": 741.21
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 399752.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 58.16
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 535.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 281.92
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 100.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 500.59
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 2205.0,
+          "description": "NETFLIX COM INC",
+          "price": 71.36
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 500.0,
+          "description": "NVIDIA CORP",
+          "price": 225.51
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 503.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 767.81
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 1138.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 514.3
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 3279.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 380.12
+        },
+        {
+          "date": "2026-09-24",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 118394.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 148.83
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 455.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 342.36
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 180.0,
+          "description": "INVESCO QQQ TR",
+          "price": 741.1
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 18662.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 281.66
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 929.0,
+          "description": "NETFLIX COM INC",
+          "price": 71.72
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 32480.0,
+          "description": "NVIDIA CORP",
+          "price": 224.58
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 44.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 767.18
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 47453.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 512.68
+        },
+        {
+          "date": "2026-09-25",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 482132.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 153.09
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 101.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 343.92
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 491.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 249.67
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 3800.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 341.07
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 25.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 352.81
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 915.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 922.77
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 23301.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 751.66
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 24692.0,
+          "description": "INVESCO QQQ TR",
+          "price": 744.5
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 319.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 58.14
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 54006.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 281.97
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 13508.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 516.17
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 146.0,
+          "description": "NETFLIX COM INC",
+          "price": 71.15
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 4024.0,
+          "description": "NVIDIA CORP",
+          "price": 225.07
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 60765.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 771.35
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 35725.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 393.41
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 6126.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 517.49
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 24958.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 372.11
+        },
+        {
+          "date": "2026-09-28",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 35025.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 148.33
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 612.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 342.75
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 7.0,
+          "description": "INVESCO QQQ TR",
+          "price": 736.53
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 4376.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 54.95
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 478.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 509.22
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 12832.0,
+          "description": "NETFLIX COM INC",
+          "price": 69.23
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 1500.0,
+          "description": "NVIDIA CORP",
+          "price": 228.86
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 1948579.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 765.61
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 17.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 357.45
+        },
+        {
+          "date": "2026-09-29",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 12139.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 150.01
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 21.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 340.92
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 217.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 329.4
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "22160K105",
+          "symbol": "COST",
+          "quantity": 46.0,
+          "description": "COSTCO WHOLESALE CORP-NEW",
+          "price": 924.59
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 30.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 738.79
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 204030.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 279.01
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1196.0,
+          "description": "NETFLIX COM INC",
+          "price": 70.3
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 110.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 764.2
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 22412.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 382.89
+        },
+        {
+          "date": "2026-09-30",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 318843.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 143.35
+        }
+      ]
+    },
+    {
+      "key": "helper:sec:ftd:202609a:SPY,QQQ,DIA,IWM,GLD,SLV,USO,AAPL,MSFT,NVDA,AMZN,GOOGL,META,TSLA,AVGO,COST,NFLX",
+      "result": [
+        {
+          "date": "2026-09-01",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 492.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 370.34
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 6578.0,
+          "description": "INVESCO QQQ TR",
+          "price": 716.76
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 600.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 60.13
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 1168916.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 293.93
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 3568.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 507.29
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 931.0,
+          "description": "NETFLIX COM INC",
+          "price": 81.05
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 1551.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 767.05
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 5200.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 367.95
+        },
+        {
+          "date": "2026-09-01",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 118238.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 133.7
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 5765.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 254.92
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 38624.0,
+          "description": "INVESCO QQQ TR",
+          "price": 707.64
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 42926.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 501.02
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 222666.0,
+          "description": "NETFLIX COM INC",
+          "price": 80.81
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 3000.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 396.75
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 13.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 527.75
+        },
+        {
+          "date": "2026-09-02",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 572346.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 141.0
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 112.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 254.98
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 1332.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 324.96
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 8524.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 367.24
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 2650.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 592.85
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 37044.0,
+          "description": "INVESCO QQQ TR",
+          "price": 709.24
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 2900.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 294.01
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 1693.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 496.82
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 185.0,
+          "description": "NETFLIX COM INC",
+          "price": 82.73
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 7800.0,
+          "description": "NVIDIA CORP",
+          "price": 224.41
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 49938.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 530.62
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 1.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 357.01
+        },
+        {
+          "date": "2026-09-03",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 759352.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 141.15
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 5217.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 342.48
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 93.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 328.21
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 1381.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 357.16
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 253.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 610.68
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 953798.0,
+          "description": "INVESCO QQQ TR",
+          "price": 717.67
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 1.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 60.55
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 70935.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 295.19
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 1025.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 510.12
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1805.0,
+          "description": "NETFLIX COM INC",
+          "price": 82.67
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 3159.0,
+          "description": "NVIDIA CORP",
+          "price": 228.45
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 5251.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 773.17
+        },
+        {
+          "date": "2026-09-04",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 571374.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 142.09
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 33.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 338.46
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 300.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 258.51
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 567.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 357.9
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 26242.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 616.77
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 6258408.0,
+          "description": "INVESCO QQQ TR",
+          "price": 718.96
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 2036.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 59.82
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 36793.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 296.01
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 8878.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 499.7
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1166.0,
+          "description": "NETFLIX COM INC",
+          "price": 78.25
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 203811.0,
+          "description": "NVIDIA CORP",
+          "price": 230.36
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 20.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 770.19
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 175.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 534.08
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 390.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 354.08
+        },
+        {
+          "date": "2026-09-08",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 209271.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 141.96
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 1.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 613.48
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 1164442.0,
+          "description": "INVESCO QQQ TR",
+          "price": 718.36
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 1904.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 59.37
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 1010244.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 294.67
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 4354.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 493.95
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 41142.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 765.96
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 253894.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 399.72
+        },
+        {
+          "date": "2026-09-09",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 83492.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 146.03
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 469.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 315.34
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 700.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 653.69
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 34350.0,
+          "description": "INVESCO QQQ TR",
+          "price": 716.31
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 14100.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 60.72
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 2728267.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 290.64
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1961.0,
+          "description": "NETFLIX COM INC",
+          "price": 76.03
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 12564.0,
+          "description": "NVIDIA CORP",
+          "price": 223.67
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 1.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 762.4
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 22530.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 403.35
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "88160R101",
+          "symbol": "TSLA",
+          "quantity": 3.0,
+          "description": "TESLA INC COM STK (TX)",
+          "price": 367.81
+        },
+        {
+          "date": "2026-09-10",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 269.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 149.97
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 13.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 332.6
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 2134.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 326.57
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 3045.0,
+          "description": "INVESCO QQQ TR",
+          "price": 708.69
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "46428Q109",
+          "symbol": "SLV",
+          "quantity": 1.0,
+          "description": "ISHARES SILVER TRUST",
+          "price": 57.5
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 3232454.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 287.7
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 93.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 492.44
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 102596.0,
+          "description": "NETFLIX COM INC",
+          "price": 76.01
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 376.0,
+          "description": "NVIDIA CORP",
+          "price": 218.36
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 44176.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 757.83
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "78463V107",
+          "symbol": "GLD",
+          "quantity": 2869.0,
+          "description": "SPDR GOLD TR, SPDR GOLD SHS",
+          "price": 396.36
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 167768.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 520.75
+        },
+        {
+          "date": "2026-09-11",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 126835.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 158.38
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "02079K305",
+          "symbol": "GOOGL",
+          "quantity": 2660.0,
+          "description": "ALPHABET INC CAP STK CL A",
+          "price": 338.5
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "023135106",
+          "symbol": "AMZN",
+          "quantity": 193.0,
+          "description": "AMAZON COM INC;COM USD0.01",
+          "price": 256.78
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "037833100",
+          "symbol": "AAPL",
+          "quantity": 15390.0,
+          "description": "APPLE INC;COM NPV",
+          "price": 332.27
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "11135F101",
+          "symbol": "AVGO",
+          "quantity": 956.0,
+          "description": "BROADCOM INC COM (DE)",
+          "price": 361.99
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "30303M102",
+          "symbol": "META",
+          "quantity": 13800.0,
+          "description": "META PLATFORMS, INC. CLASS A C",
+          "price": 648.03
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "46090E103",
+          "symbol": "QQQ",
+          "quantity": 767045.0,
+          "description": "INVESCO QQQ TR",
+          "price": 714.88
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "464287655",
+          "symbol": "IWM",
+          "quantity": 825370.0,
+          "description": "ISHARES RUSSELL 2000 ETF",
+          "price": 288.89
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "594918104",
+          "symbol": "MSFT",
+          "quantity": 6700.0,
+          "description": "MICROSOFT CORP;COM USD0.000012",
+          "price": 495.63
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "64110L106",
+          "symbol": "NFLX",
+          "quantity": 1.0,
+          "description": "NETFLIX COM INC",
+          "price": 77.4
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "67066G104",
+          "symbol": "NVDA",
+          "quantity": 300.0,
+          "description": "NVIDIA CORP",
+          "price": 218.29
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "78462F103",
+          "symbol": "SPY",
+          "quantity": 4591440.0,
+          "description": "STATE STREET SPDR S&P 500 ETF ",
+          "price": 764.29
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "78467X109",
+          "symbol": "DIA",
+          "quantity": 210.0,
+          "description": "STATE STR SPDR DOW JONES INDL ",
+          "price": 525.79
+        },
+        {
+          "date": "2026-09-14",
+          "cusip": "91232N207",
+          "symbol": "USO",
+          "quantity": 30455.0,
+          "description": "UNITED STATES OIL FUND LP",
+          "price": 154.9
+        }
+      ]
+    }
+  ]
+}

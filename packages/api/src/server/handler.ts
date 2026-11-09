@@ -23,6 +23,7 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
   "todos",
   "priceAlerts",
   "agentModelRuns",
+  "openbb",
 ]);
 
 // Single procedures outside those roots that keys may call. The Autopilot scheduler ticks running
@@ -34,6 +35,8 @@ export const AGENT_API_KEY_PROCEDURE_ROOTS: readonly string[] = Object.freeze([
 // write key and research agents read lists, screens and the buy proposal with a read key; pickLists.syncBucket stays
 // session-only, so a key never edits baskets. The flow timer (infra/flow/quantvps) samples with a write
 // key (flow.collect) and research agents read flow.snapshot with a read key.
+// openbb.* is a root: the OpenBB tick (scripts/openbb/tick.ts) writes ingest and recordRun with a
+// write key, and research agents read the other openbb.* procedures with a read key.
 export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "autopilot.campaigns.tick",
   "sectorRotation.collect",
@@ -48,9 +51,17 @@ export const AGENT_API_KEY_PROCEDURE_PATHS: readonly string[] = Object.freeze([
   "flow.snapshot",
 ]);
 
-export const isAgentApiKeyProcedurePath = (path: readonly string[]): boolean =>
-  (path.length > 1 && AGENT_API_KEY_PROCEDURE_ROOTS.includes(path[0] ?? "")) ||
-  AGENT_API_KEY_PROCEDURE_PATHS.includes(path.join("."));
+export const isAgentApiKeyProcedurePath = (
+  path: readonly string[]
+): boolean => {
+  const [root] = path;
+  return (
+    (path.length > 1 &&
+      root !== undefined &&
+      AGENT_API_KEY_PROCEDURE_ROOTS.includes(root)) ||
+    AGENT_API_KEY_PROCEDURE_PATHS.includes(path.join("."))
+  );
+};
 
 type ScopeInterceptorOptions = Readonly<{
   context: ApiContext;
@@ -68,7 +79,7 @@ export const agentApiKeyScopeInterceptor = (
     return Promise.reject(
       new ORPCError("FORBIDDEN", {
         message:
-          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.* and agentModelRuns.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect and flow.snapshot",
+          "API keys may call only agentOps.*, papers.*, strategyLibrary.*, marketData.*, backtestRuns.*, todos.*, priceAlerts.*, agentModelRuns.* and openbb.* procedures, and autopilot.campaigns.tick, sectorRotation.collect, sectorRotation.recordChatDelivery, sectorRotation.snapshot, clickLog.query, pickLists.import, pickLists.list, pickLists.proposal, pickLists.screen, flow.collect and flow.snapshot",
       })
     );
   }

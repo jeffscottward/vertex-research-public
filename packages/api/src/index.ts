@@ -119,6 +119,7 @@ export * from "./backtest-report-depth.ts";
 export * from "./contracts/academy.ts";
 export * from "./strategy-dsl.ts";
 export * from "./contracts/research-lenses.ts";
+export * from "./contracts/openbb.ts";
 export * from "./contracts/sector-rotation.ts";
 export * from "./flow-trade-signing.ts";
 export * from "./contracts/congress-trades.ts";

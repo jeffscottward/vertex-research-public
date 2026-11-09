@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-short-volume",
+  "openbbVersion": "1.4.0",
+  "tables": [
+    {
+      "table": "short_volume_daily",
+      "rows": [
+        {
+          "date": "2026-11-06",
+          "symbol": "SPY",
+          "shortVolume": 23456789,
+          "shortExemptVolume": 123456,
+          "totalVolume": 45678901
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

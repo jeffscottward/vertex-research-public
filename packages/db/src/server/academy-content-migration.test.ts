@@ -83,6 +83,8 @@ describe("0062_academy_content migration", () => {
     expect(migration).not.toContain(";;");
   });
 
+  // A migration test pins its own position and order, never "last in the journal": later
+  // migrations follow it (the drizzle migrator applies entries newer than the last one applied).
   it("is journaled as idx 62 after 0061, and later, so databases that ran 0061 still apply it", () => {
     const index = journal.entries.findIndex(
       (entry) => entry.tag === "0062_academy_content"

@@ -1,0 +1,3433 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "fed-regime",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "macro_points",
+      "rows": [
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.476
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.48
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.49
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.506
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.52
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.531
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.538
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.542
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.545
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.549
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.554
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.558
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.56
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.558
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.552
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.541
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.528
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.514
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.5
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.487
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.474
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.464
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.454
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.443
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "weekly",
+          "name": "Chicago Fed Adjusted National Financial Conditions Index (FRED ANFCI)",
+          "seriesId": "ANFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.435
+        },
+        {
+          "date": "2025-10-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2025-10-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-10-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2025-10-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-11-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2025-11-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-11-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-11-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2025-12-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-12-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-12-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2025-12-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-01-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-01-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2026-01-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-01-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.07
+        },
+        {
+          "date": "2026-01-30",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-02-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2026-02-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-02-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-02-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2026-03-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-03-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.17
+        },
+        {
+          "date": "2026-03-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-03-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-04-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-04-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-04-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-04-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.15
+        },
+        {
+          "date": "2026-05-08",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.18
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.19
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.17
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.18
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.15
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.19
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.21
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.19
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.21
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.18
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.17
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.17
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.17
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.2
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.22
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.26
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Market Distress Index",
+          "seriesId": "CBDI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2025-10-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-10-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.07
+        },
+        {
+          "date": "2025-10-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2025-10-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2025-11-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2025-11-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2025-11-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-11-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2025-12-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2025-12-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2025-12-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2025-12-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2026-01-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-01-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.07
+        },
+        {
+          "date": "2026-01-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-01-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2026-01-30",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-02-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-02-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.07
+        },
+        {
+          "date": "2026-02-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-02-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-03-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-03-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2026-03-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2026-03-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-04-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2026-04-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-04-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-04-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-05-08",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.06
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.08
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.04
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.19
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, high yield",
+          "seriesId": "CBDI_HY",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.16
+        },
+        {
+          "date": "2025-10-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.1
+        },
+        {
+          "date": "2025-10-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.15
+        },
+        {
+          "date": "2025-10-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-10-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-11-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2025-11-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.13
+        },
+        {
+          "date": "2025-11-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-11-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2025-12-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2025-12-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.15
+        },
+        {
+          "date": "2025-12-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.15
+        },
+        {
+          "date": "2025-12-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-01-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.14
+        },
+        {
+          "date": "2026-01-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-01-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-01-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-01-30",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.12
+        },
+        {
+          "date": "2026-02-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.11
+        },
+        {
+          "date": "2026-02-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-02-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.09
+        },
+        {
+          "date": "2026-02-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.21
+        },
+        {
+          "date": "2026-03-06",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.21
+        },
+        {
+          "date": "2026-03-13",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.29
+        },
+        {
+          "date": "2026-03-20",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.28
+        },
+        {
+          "date": "2026-03-27",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-04-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.22
+        },
+        {
+          "date": "2026-04-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-04-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.19
+        },
+        {
+          "date": "2026-04-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.2
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-05-08",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.21
+        },
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.26
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.26
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.3
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.33
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.3
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.27
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.29
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.24
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.27
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.27
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.23
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.28
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.31
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.28
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "New York Fed Corporate Bond Distress Index, investment grade",
+          "seriesId": "CBDI_IG",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.25
+        },
+        {
+          "date": "2025-11-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.247317
+        },
+        {
+          "date": "2025-12-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.21575
+        },
+        {
+          "date": "2026-01-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.218199
+        },
+        {
+          "date": "2026-02-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.207034
+        },
+        {
+          "date": "2026-03-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.203809
+        },
+        {
+          "date": "2026-04-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.214364
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.225855
+        },
+        {
+          "date": "2026-06-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.232322
+        },
+        {
+          "date": "2026-07-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.211432
+        },
+        {
+          "date": "2026-08-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.203342
+        },
+        {
+          "date": "2026-09-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.201681
+        },
+        {
+          "date": "2026-10-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.211437
+        },
+        {
+          "date": "2026-11-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, core CPI (month over month)",
+          "seriesId": "CLEV_CORE_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.204076
+        },
+        {
+          "date": "2025-11-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.321542
+        },
+        {
+          "date": "2025-12-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.204578
+        },
+        {
+          "date": "2026-01-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.134979
+        },
+        {
+          "date": "2026-02-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.248613
+        },
+        {
+          "date": "2026-03-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.844072
+        },
+        {
+          "date": "2026-04-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.448127
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.459027
+        },
+        {
+          "date": "2026-06-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": -0.061291
+        },
+        {
+          "date": "2026-07-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.086513
+        },
+        {
+          "date": "2026-08-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.359181
+        },
+        {
+          "date": "2026-09-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.530663
+        },
+        {
+          "date": "2026-10-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.242106
+        },
+        {
+          "date": "2026-11-01",
+          "frequency": "monthly",
+          "name": "Cleveland Fed inflation nowcast, CPI (month over month)",
+          "seriesId": "CLEV_CPI_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 0.188148
+        },
+        {
+          "date": "2025-10-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.08417
+        },
+        {
+          "date": "2025-11-30",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.145243
+        },
+        {
+          "date": "2025-12-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.554576
+        },
+        {
+          "date": "2026-01-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.429718
+        },
+        {
+          "date": "2026-02-28",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.533102
+        },
+        {
+          "date": "2026-03-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.641964
+        },
+        {
+          "date": "2026-04-30",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.805532
+        },
+        {
+          "date": "2026-05-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.801677
+        },
+        {
+          "date": "2026-06-30",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.202562
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 0.95113
+        },
+        {
+          "date": "2026-08-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.271031
+        },
+        {
+          "date": "2026-09-30",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.36118
+        },
+        {
+          "date": "2026-10-31",
+          "frequency": "monthly",
+          "name": "New York Fed Global Supply Chain Pressure Index",
+          "seriesId": "GSCPI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": 1.261911
+        },
+        {
+          "date": "2025-11-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.724132
+        },
+        {
+          "date": "2025-12-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.700102
+        },
+        {
+          "date": "2026-01-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.650759
+        },
+        {
+          "date": "2026-02-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.558261
+        },
+        {
+          "date": "2026-03-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.579747
+        },
+        {
+          "date": "2026-04-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.718713
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.877266
+        },
+        {
+          "date": "2026-06-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.759798
+        },
+        {
+          "date": "2026-07-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.838531
+        },
+        {
+          "date": "2026-08-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.942109
+        },
+        {
+          "date": "2026-09-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.987546
+        },
+        {
+          "date": "2026-10-01",
+          "frequency": "monthly",
+          "name": "Kansas City Fed Financial Stress Index",
+          "seriesId": "KCFSI",
+          "source": "federal_reserve",
+          "unit": "index",
+          "value": -0.885048
+        },
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.508
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.507
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.506
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.505
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.504
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.506
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.509
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.515
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.521
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.527
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.533
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.538
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.542
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.546
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.547
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.545
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.54
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.532
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.522
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.51
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.498
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.487
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.477
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.467
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "weekly",
+          "name": "Chicago Fed National Financial Conditions Index (FRED NFCI)",
+          "seriesId": "NFCI",
+          "source": "fred",
+          "unit": "index",
+          "value": -0.459
+        },
+        {
+          "date": "2025-10-10",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.23
+        },
+        {
+          "date": "2025-10-17",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.25
+        },
+        {
+          "date": "2025-10-24",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.26
+        },
+        {
+          "date": "2025-10-31",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.26
+        },
+        {
+          "date": "2025-11-07",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.1
+        },
+        {
+          "date": "2025-11-14",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.1
+        },
+        {
+          "date": "2025-11-21",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.31
+        },
+        {
+          "date": "2025-11-28",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.33
+        },
+        {
+          "date": "2025-12-05",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 1.73
+        },
+        {
+          "date": "2025-12-12",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 1.81
+        },
+        {
+          "date": "2025-12-19",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 1.71
+        },
+        {
+          "date": "2025-12-26",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.07
+        },
+        {
+          "date": "2026-01-02",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.17
+        },
+        {
+          "date": "2026-01-09",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.61
+        },
+        {
+          "date": "2026-01-16",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.75
+        },
+        {
+          "date": "2026-01-23",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.73
+        },
+        {
+          "date": "2026-01-30",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.73
+        },
+        {
+          "date": "2026-02-06",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.59
+        },
+        {
+          "date": "2026-02-13",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.63
+        },
+        {
+          "date": "2026-02-20",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.37
+        },
+        {
+          "date": "2026-02-27",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.38
+        },
+        {
+          "date": "2026-03-06",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.23
+        },
+        {
+          "date": "2026-03-13",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.09
+        },
+        {
+          "date": "2026-03-20",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.07
+        },
+        {
+          "date": "2026-03-27",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.09
+        },
+        {
+          "date": "2026-04-03",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.82
+        },
+        {
+          "date": "2026-04-10",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.6
+        },
+        {
+          "date": "2026-04-17",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.75
+        },
+        {
+          "date": "2026-04-24",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.81
+        },
+        {
+          "date": "2026-05-01",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.52
+        },
+        {
+          "date": "2026-05-08",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.59
+        },
+        {
+          "date": "2026-05-15",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.61
+        },
+        {
+          "date": "2026-05-22",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.61
+        },
+        {
+          "date": "2026-05-29",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.5
+        },
+        {
+          "date": "2026-06-05",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.67
+        },
+        {
+          "date": "2026-06-12",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.7
+        },
+        {
+          "date": "2026-06-19",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.68
+        },
+        {
+          "date": "2026-06-26",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.7
+        },
+        {
+          "date": "2026-07-03",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.37
+        },
+        {
+          "date": "2026-07-10",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.36
+        },
+        {
+          "date": "2026-07-17",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.6
+        },
+        {
+          "date": "2026-07-24",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.62
+        },
+        {
+          "date": "2026-07-31",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.52
+        },
+        {
+          "date": "2026-08-07",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.24
+        },
+        {
+          "date": "2026-08-14",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.14
+        },
+        {
+          "date": "2026-08-21",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.27
+        },
+        {
+          "date": "2026-08-28",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.22
+        },
+        {
+          "date": "2026-09-04",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.26
+        },
+        {
+          "date": "2026-09-11",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.26
+        },
+        {
+          "date": "2026-09-18",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.33
+        },
+        {
+          "date": "2026-09-25",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.33
+        },
+        {
+          "date": "2026-10-02",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.54
+        },
+        {
+          "date": "2026-10-09",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.83
+        },
+        {
+          "date": "2026-10-16",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.82
+        },
+        {
+          "date": "2026-10-23",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.81
+        },
+        {
+          "date": "2026-10-30",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.9
+        },
+        {
+          "date": "2026-11-06",
+          "frequency": "weekly",
+          "name": "New York Fed Staff Nowcast, real GDP growth (current quarter, SAAR)",
+          "seriesId": "NY_GDP_NOWCAST",
+          "source": "federal_reserve",
+          "unit": "percent",
+          "value": 2.94
+        },
+        {
+          "date": "2025-10-08",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6172999712068.2
+        },
+        {
+          "date": "2025-10-15",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6172918357078.6
+        },
+        {
+          "date": "2025-10-22",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6169453082095.0
+        },
+        {
+          "date": "2025-10-29",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6156810230860.0
+        },
+        {
+          "date": "2025-11-05",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6152547435360.0
+        },
+        {
+          "date": "2025-11-12",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6152547435360.0
+        },
+        {
+          "date": "2025-11-19",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6150185950445.5
+        },
+        {
+          "date": "2025-11-26",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6133944510441.3
+        },
+        {
+          "date": "2025-12-03",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6131249892641.3
+        },
+        {
+          "date": "2025-12-10",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6131249892641.3
+        },
+        {
+          "date": "2025-12-17",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6146028978269.5
+        },
+        {
+          "date": "2025-12-24",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6166258135690.6
+        },
+        {
+          "date": "2025-12-31",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6154707149716.8
+        },
+        {
+          "date": "2026-01-07",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6162872149716.8
+        },
+        {
+          "date": "2026-01-14",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6171037149716.8
+        },
+        {
+          "date": "2026-01-21",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6187229351709.1
+        },
+        {
+          "date": "2026-01-28",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6190323453361.0
+        },
+        {
+          "date": "2026-02-04",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6205548453362.0
+        },
+        {
+          "date": "2026-02-11",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6222156453362.0
+        },
+        {
+          "date": "2026-02-18",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6230184367675.9
+        },
+        {
+          "date": "2026-02-25",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6232895305852.3
+        },
+        {
+          "date": "2026-03-04",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6247655305852.3
+        },
+        {
+          "date": "2026-03-11",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6262341305852.3
+        },
+        {
+          "date": "2026-03-18",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6269019321350.4
+        },
+        {
+          "date": "2026-03-25",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6271471713765.8
+        },
+        {
+          "date": "2026-04-01",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6286268713765.8
+        },
+        {
+          "date": "2026-04-08",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6302410713765.8
+        },
+        {
+          "date": "2026-04-15",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6305828246505.2
+        },
+        {
+          "date": "2026-04-22",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6315271944189.4
+        },
+        {
+          "date": "2026-04-29",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6308113595894.6
+        },
+        {
+          "date": "2026-05-06",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6315698595894.6
+        },
+        {
+          "date": "2026-05-13",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6330872595894.6
+        },
+        {
+          "date": "2026-05-20",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6334049133676.1
+        },
+        {
+          "date": "2026-05-27",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6324463782284.8
+        },
+        {
+          "date": "2026-06-03",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6331014782284.8
+        },
+        {
+          "date": "2026-06-10",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6340878782284.8
+        },
+        {
+          "date": "2026-06-17",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6347528314584.1
+        },
+        {
+          "date": "2026-06-24",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6344345567445.7
+        },
+        {
+          "date": "2026-07-01",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6334472175083.1
+        },
+        {
+          "date": "2026-07-08",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6344428175083.1
+        },
+        {
+          "date": "2026-07-15",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6354496725040.4
+        },
+        {
+          "date": "2026-07-22",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6356127853425.2
+        },
+        {
+          "date": "2026-07-29",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6345647243485.0
+        },
+        {
+          "date": "2026-08-05",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6356005243485.0
+        },
+        {
+          "date": "2026-08-12",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6364637243485.0
+        },
+        {
+          "date": "2026-08-19",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6368753087439.8
+        },
+        {
+          "date": "2026-08-26",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6355853153593.9
+        },
+        {
+          "date": "2026-09-02",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6362218153593.9
+        },
+        {
+          "date": "2026-09-09",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6362218153593.9
+        },
+        {
+          "date": "2026-09-16",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6364278356116.0
+        },
+        {
+          "date": "2026-09-23",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6365055221192.6
+        },
+        {
+          "date": "2026-09-30",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6358573997880.2
+        },
+        {
+          "date": "2026-10-07",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6360519997880.2
+        },
+        {
+          "date": "2026-10-14",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6364481996014.1
+        },
+        {
+          "date": "2026-10-21",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6363842057526.7
+        },
+        {
+          "date": "2026-10-28",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6355840126861.2
+        },
+        {
+          "date": "2026-11-04",
+          "frequency": "weekly",
+          "name": "System Open Market Account holdings, total par value",
+          "seriesId": "SOMA_TOTAL",
+          "source": "federal_reserve",
+          "unit": "usd",
+          "value": 6357617126861.2
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

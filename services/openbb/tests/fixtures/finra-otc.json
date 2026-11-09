@@ -1,0 +1,283 @@
+{
+  "schemaVersion": "openbb-batch.v1",
+  "job": "finra-otc",
+  "openbbVersion": "2.0.1",
+  "tables": [
+    {
+      "table": "finra_otc_weekly",
+      "rows": [
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 27301288,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 538096,
+          "venue": "ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 64841301,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 1633465,
+          "venue": "non_ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 5595894,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 90370,
+          "venue": "ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 11653032,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 323932,
+          "venue": "non_ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 61320718,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 494943,
+          "venue": "ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-05",
+          "shares": 89630535,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 782165,
+          "venue": "non_ats",
+          "weekStart": "2026-09-14"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 23199499,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 457534,
+          "venue": "ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 47265779,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 1360679,
+          "venue": "non_ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 4608918,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 81679,
+          "venue": "ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 9777516,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 314565,
+          "venue": "non_ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 49321823,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 475627,
+          "venue": "ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-12",
+          "shares": 59906140,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 882940,
+          "venue": "non_ats",
+          "weekStart": "2026-09-21"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 27684623,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 522286,
+          "venue": "ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 52326117,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 1423000,
+          "venue": "non_ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 6458663,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 101437,
+          "venue": "ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 11443058,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 360956,
+          "venue": "non_ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 58189109,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 515080,
+          "venue": "ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-19",
+          "shares": 50564787,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 2712883,
+          "venue": "non_ats",
+          "weekStart": "2026-09-28"
+        },
+        {
+          "lastUpdated": "2026-10-26",
+          "shares": 26620276,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 501406,
+          "venue": "ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-10-26",
+          "shares": 53642706,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 1341562,
+          "venue": "non_ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-10-26",
+          "shares": 4650299,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 78981,
+          "venue": "ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-10-26",
+          "shares": 9123907,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 310055,
+          "venue": "non_ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-10-26",
+          "shares": 39417910,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 446502,
+          "venue": "ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-10-27",
+          "shares": 39810279,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 810597,
+          "venue": "non_ats",
+          "weekStart": "2026-10-05"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 34912671,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 620539,
+          "venue": "ats",
+          "weekStart": "2026-10-12"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 61665665,
+          "symbol": "AAPL",
+          "tier": "T1",
+          "trades": 1427252,
+          "venue": "non_ats",
+          "weekStart": "2026-10-12"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 5334146,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 87682,
+          "venue": "ats",
+          "weekStart": "2026-10-12"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 10028753,
+          "symbol": "GLD",
+          "tier": "T1",
+          "trades": 307844,
+          "venue": "non_ats",
+          "weekStart": "2026-10-12"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 48147874,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 469185,
+          "venue": "ats",
+          "weekStart": "2026-10-12"
+        },
+        {
+          "lastUpdated": "2026-11-02",
+          "shares": 43949568,
+          "symbol": "SPY",
+          "tier": "T1",
+          "trades": 806078,
+          "venue": "non_ats",
+          "weekStart": "2026-10-12"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}
