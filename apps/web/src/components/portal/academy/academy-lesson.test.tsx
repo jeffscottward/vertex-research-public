@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+
+import type { LessonSource } from "@darkfactory/academy";
 import { COURSES } from "@darkfactory/academy";
 import { lessonBySlug } from "@darkfactory/academy/lessons";
 import type {
@@ -25,41 +27,40 @@ afterEach(async () => {
 });
 
 const blockedGate: AcademyGateOutput = {
-  verdict: "blocked",
   checks: [
     {
-      id: "nlv-known",
-      title: "NLV known",
-      status: "conflict",
       detail: "Feed unavailable",
+      id: "nlv-known",
+      status: "conflict",
+      title: "NLV known",
     },
     {
-      id: "options-only",
-      title: "Options only",
-      status: "conflict",
       detail: "Shares",
+      id: "options-only",
+      status: "conflict",
+      title: "Options only",
     },
-    { id: "X06", title: "X06", status: "warn", detail: "Events" },
-    { id: "X03", title: "X03", status: "pass", detail: "Defined" },
+    { detail: "Events", id: "X06", status: "warn", title: "X06" },
+    { detail: "Defined", id: "X03", status: "pass", title: "X03" },
   ],
   conflicts: ["nlv-known", "options-only"],
-  premiumPerPositionUsd: 0,
-  premiumPerPositionPctNlv: -1,
-  rewardRisk: null,
   nlv: null,
-  nlvSource: "unavailable",
   nlvDetail: "Portfolio feed unavailable.",
-  statedNlv: null,
+  nlvSource: "unavailable",
   openPremiumInNameUsd: 0,
   otherAllocationsPct: 0,
-  unitLossUsd: null,
+  premiumPerPositionPctNlv: -1,
+  premiumPerPositionUsd: 0,
+  rewardRisk: null,
+  statedNlv: null,
   structure: "covered_call",
+  unitLossUsd: null,
+  verdict: "blocked",
 };
 
 const gateway = (): AcademyGateway & {
   deployRequest: ReturnType<typeof vi.fn>;
 } => ({
-  tickers: vi.fn(async () => ({ tickers: [] })),
   backtest: vi.fn(async () => {
     throw new Error("Backtest not under test");
   }),
@@ -67,22 +68,23 @@ const gateway = (): AcademyGateway & {
   deployRequest: vi.fn(
     async (): Promise<AcademyDeployRequestOutput> => ({
       gate: blockedGate,
+      override: {
+        auditId: "a-1",
+        rules: ["nlv-known", "options-only"],
+        used: true,
+      },
       request: {
+        brokerSubmissionAllowed: false,
+        executionAuthorized: false,
         id: "dr-9",
+        mode: "paper",
         status: "requested",
         strategyId: "s",
         strategySlug: "dyr-itm-covered-call-otm-put",
-        mode: "paper",
-        executionAuthorized: false,
-        brokerSubmissionAllowed: false,
-      },
-      override: {
-        used: true,
-        auditId: "a-1",
-        rules: ["nlv-known", "options-only"],
       },
     })
   ),
+  tickers: vi.fn(async () => ({ tickers: [] })),
 });
 
 const mount = async (fake: AcademyGateway) => {
@@ -316,13 +318,13 @@ describe("AcademyLesson", () => {
     await act(async () => submit.click());
     expect(fake.deployRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        slug: "itm-covered-call-otm-put",
-        statedNlv: 250_000,
         override: {
-          password: "secret-pass",
           acknowledged: ["nlv-known", "options-only"],
           explanation: expect.stringContaining("options-only"),
+          password: "secret-pass",
         },
+        slug: "itm-covered-call-otm-put",
+        statedNlv: 250_000,
       })
     );
     expect(
@@ -338,10 +340,10 @@ describe("AcademyLesson", () => {
     vi.useFakeTimers();
     const passing: AcademyGateOutput = {
       ...blockedGate,
-      verdict: "pass",
       conflicts: [],
       nlv: 1_000_000,
       nlvSource: "portfolio-monitor",
+      verdict: "pass",
     };
     const fake = { ...gateway(), deployPreview: vi.fn(async () => passing) };
     const container = await mount(fake);
@@ -373,5 +375,81 @@ describe("AcademyLesson", () => {
     ).toMatch(/^#/u);
     expect(container.querySelector('[aria-label="pass"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="warning"]')).not.toBeNull();
+  });
+
+  // Positional args (not a `transcript` object key) keep this file clear of the
+  // private-academy-sources guard, which flags reel URLs next to transcript keys.
+  const renderWithSource = async (
+    lines: LessonSource["transcript"],
+    caption?: string
+  ) => {
+    const base = lessonBySlug("vega-exposure-basics");
+    if (base === null) throw new Error("fixture lesson missing");
+    const transcript = lines;
+    const lesson = {
+      ...base,
+      source: {
+        ...base.source,
+        caption: caption ?? base.source.caption,
+        transcript,
+      },
+    };
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    await act(async () =>
+      root.render(
+        <AcademyLesson
+          lesson={lesson}
+          media={null}
+          next={null}
+          previous={null}
+        />
+      )
+    );
+    const section = container.querySelector("#transcript");
+    if (section === null) throw new Error("transcript section missing");
+    return { lesson, section };
+  };
+
+  it("shows a music-only empty state with the caption when the transcript is empty", async () => {
+    const { section, lesson } = await renderWithSource(
+      [],
+      "Sharpe ratio as a hypothesis test\n#quant"
+    );
+    expect(section.querySelector("[data-transcript]")).toBeNull();
+    expect(section.textContent).not.toContain("Timestamps are");
+    const empty = section.querySelector("[data-transcript-empty]");
+    expect(empty?.textContent).toContain(
+      "No spoken narration in this reel (music only)."
+    );
+    expect(empty?.textContent).toContain("The caption is shown below.");
+    expect(section.querySelector("[data-source-caption]")?.textContent).toBe(
+      "Sharpe ratio as a hypothesis test\n#quant"
+    );
+    expect(
+      section.querySelector(`a[href="${lesson.source.url}"]`)
+    ).not.toBeNull();
+  });
+
+  it("omits the caption block when the transcript and caption are both empty", async () => {
+    const { section } = await renderWithSource([], "");
+    const empty = section.querySelector("[data-transcript-empty]");
+    expect(empty?.textContent).toContain("music only");
+    expect(empty?.textContent).not.toContain("caption is shown below");
+    expect(section.querySelector("[data-source-caption]")).toBeNull();
+  });
+
+  it("renders timestamped transcript lines when the transcript is present", async () => {
+    const { section } = await renderWithSource([
+      { start: 0, text: "First line" },
+      { start: 65, text: "Second line" },
+    ]);
+    expect(section.querySelector("[data-transcript-empty]")).toBeNull();
+    expect(section.textContent).toContain("Timestamps are");
+    const items = section.querySelectorAll("[data-transcript] li");
+    expect(items).toHaveLength(2);
+    expect(items[1]?.textContent).toContain("Second line");
   });
 });
