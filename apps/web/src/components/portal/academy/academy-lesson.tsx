@@ -220,27 +220,48 @@ export const AcademyLesson = ({
               <ExternalLink aria-hidden className="size-3" />
             </a>{" "}
             · published {lesson.source.publishedAt.slice(0, 10)} ·{" "}
-            {clock(lesson.source.durationSeconds)}.{" "}
-            {course.timestamps === "estimated"
-              ? "Timestamps are estimated from word position (speech-to-text without segment times)."
-              : "Timestamps are the speech-to-text segment start times."}
+            {clock(lesson.source.durationSeconds)}.
+            {lesson.source.transcript.length === 0
+              ? null
+              : course.timestamps === "estimated"
+                ? " Timestamps are estimated from word position (speech-to-text without segment times)."
+                : " Timestamps are the speech-to-text segment start times."}
           </p>
-          <ol
-            className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
-            data-transcript
-          >
-            {lesson.source.transcript.map((line) => (
-              <li
-                className="flex gap-3"
-                key={`${line.start}-${line.text.slice(0, 12)}`}
-              >
-                <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
-                  {clock(line.start)}
-                </span>
-                <span>{line.text}</span>
-              </li>
-            ))}
-          </ol>
+          {lesson.source.transcript.length === 0 ? (
+            <div className="flex flex-col gap-2 text-sm" data-transcript-empty>
+              <p className="text-muted-foreground">
+                No spoken narration in this reel (music only).
+                {lesson.source.caption.trim() === ""
+                  ? null
+                  : " The caption is shown below."}
+              </p>
+              {lesson.source.caption.trim() === "" ? null : (
+                <blockquote
+                  className="whitespace-pre-line border-border border-l-2 pl-3"
+                  data-source-caption
+                >
+                  {lesson.source.caption.trim()}
+                </blockquote>
+              )}
+            </div>
+          ) : (
+            <ol
+              className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm"
+              data-transcript
+            >
+              {lesson.source.transcript.map((line) => (
+                <li
+                  className="flex gap-3"
+                  key={`${line.start}-${line.text.slice(0, 12)}`}
+                >
+                  <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
+                    {clock(line.start)}
+                  </span>
+                  <span>{line.text}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </Section>
         <nav
           aria-label="More lessons"
