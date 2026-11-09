@@ -26,7 +26,7 @@ const rollbackSql = readFileSync(
 );
 const definitionsRollbackSql = readFileSync(
   new URL(
-    "../../../packages/db/rollback/0059_qc_port_definitions.down.sql",
+    "../../../packages/db/rollback/0061_qc_port_definitions.down.sql",
     import.meta.url
   ),
   "utf8"
@@ -69,16 +69,16 @@ describe("0057 qc-port catalog rows (Postgres)", () => {
     return expect(await countRows()).toBe(11);
   });
 
-  it("refuses the rollback while the 0059 definitions exist", async () => {
+  it("refuses the rollback while the 0061 definitions exist", async () => {
     await expect(postgres().query(rollbackSql)).rejects.toThrow(
-      /the qc-port definitions of 0059 still exist; roll back 0059 first/u
+      /the qc-port definitions of 0061 still exist; roll back 0061 first/u
     );
     // The refused rollback leaves its BEGIN open on this connection; end it.
     await postgres().query("ROLLBACK");
     expect(await countRows()).toBe(11);
     await postgres().query(definitionsRollbackSql);
     const [left] = await postgres().query<{ n: number }>(
-      "select count(*)::int as n from strategy_definition_revisions where created_by = 'migration:0059'"
+      "select count(*)::int as n from strategy_definition_revisions where created_by = 'migration:0061'"
     );
     expect(left?.n).toBe(0);
   });

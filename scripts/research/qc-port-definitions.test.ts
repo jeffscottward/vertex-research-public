@@ -18,7 +18,7 @@ const migration = readFileSync(MIGRATION_URL, "utf8");
 const rollback = readFileSync(ROLLBACK_URL, "utf8");
 
 const ROW =
-  /\('qc-def-(qc-[a-z0-9-]+)-r1', '(qc-[a-z0-9-]+)', 1, '((?:[^']|'')+)', '((?:[^']|'')+)'::jsonb, '([0-9a-f]{64})', '((?:[^']|'')+)', 'migration:0059'\)/gu;
+  /\('qc-def-(qc-[a-z0-9-]+)-r1', '(qc-[a-z0-9-]+)', 1, '((?:[^']|'')+)', '((?:[^']|'')+)'::jsonb, '([0-9a-f]{64})', '((?:[^']|'')+)', 'migration:0061'\)/gu;
 const NOTE =
   /^Research run A of (qc-[a-z0-9-]+): from (\d{4}-\d{2}-\d{2}), capital 100000, data to (\d{4}-\d{2}-\d{2}) \(research_studies (qc-[a-z0-9-]+)\)$/u;
 
@@ -104,7 +104,7 @@ const pythonSpawn = (date = `${DATA_TO}\n`): Spawn =>
       : { status: 0, stderr: "", stdout: date }
   );
 
-describe("committed migration 0059", () => {
+describe("committed migration 0061", () => {
   it("stores the 11 ideas sorted by id with one data-to date", () => {
     expect(stored.map((row) => row.idea)).toEqual([...QC_PORT_IDEAS]);
     expect(new Set(stored.map((row) => row.dataTo)).size).toBe(1);
@@ -139,7 +139,7 @@ describe("committed migration 0059", () => {
       });
       expect(params[3].default).toBe("100000");
       expect(migration).toContain(
-        `WHERE "id" = 'strategy-seed-${revision.idea}' AND "params" = '[]'::jsonb AND EXISTS (SELECT 1 FROM "strategy_definition_revisions" r WHERE r."id" = '${revision.id}' AND r."sha256" = '${revision.sha256}' AND r."created_by" = 'migration:0059');`
+        `WHERE "id" = 'strategy-seed-${revision.idea}' AND "params" = '[]'::jsonb AND EXISTS (SELECT 1 FROM "strategy_definition_revisions" r WHERE r."id" = '${revision.id}' AND r."sha256" = '${revision.sha256}' AND r."created_by" = 'migration:0061');`
       );
     }
   });

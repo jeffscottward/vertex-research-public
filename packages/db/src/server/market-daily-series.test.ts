@@ -386,25 +386,25 @@ describe("market daily tables", () => {
   });
 });
 
-describe("0058_market_daily_series migration", () => {
+describe("0060_market_daily_series migration", () => {
   const read = (path: string) =>
     readFileSync(new URL(path, import.meta.url), "utf8");
-  const migration = read("../../migrations/0058_market_daily_series.sql");
-  const rollback = read("../../rollback/0058_market_daily_series.down.sql");
+  const migration = read("../../migrations/0060_market_daily_series.sql");
+  const rollback = read("../../rollback/0060_market_daily_series.down.sql");
   const journal = JSON.parse(read("../../migrations/meta/_journal.json")) as {
     entries: Array<{ idx: number; tag: string }>;
   };
 
-  it("creates both tables with their checks and is journaled at index 58", () => {
+  it("creates both tables with their checks and is journaled at index 60", () => {
     expect(migration).toContain('CREATE TABLE "market_daily_series"');
     expect(migration).toContain('CREATE TABLE "market_daily_points"');
     expect(migration).toContain("'^[A-Z0-9._^=-]{1,20}$'");
     expect(migration).toContain("in ('etf', 'future', 'index', 'derived')");
     expect(migration).toContain("< 'Infinity'::float8");
     expect(migration).toContain("ON DELETE cascade");
-    expect(journal.entries[58]).toMatchObject({
-      idx: 58,
-      tag: "0058_market_daily_series",
+    expect(journal.entries[60]).toMatchObject({
+      idx: 60,
+      tag: "0060_market_daily_series",
     });
   });
 

@@ -25,6 +25,7 @@ const fixture = (name: string) =>
   );
 const SEEDED = fixture("adx-filter-study.json");
 const QC_PORT = fixture("qc-port-study.json");
+const STRATEGY_BACKTEST = fixture("strategy-backtest-study.json");
 const qcPortLine = (id: string) =>
   JSON.stringify({
     ...(JSON.parse(QC_PORT) as object),
@@ -140,6 +141,57 @@ describe("parseStudyDocuments", () => {
     expect(() => parseStudyDocuments(many)).toThrow(
       /stdin has 101 JSON lines; the limit is 100/u
     );
+  });
+});
+describe("strategy-backtest study import", () => {
+  it("accepts a pretty-printed strategy-backtest study and a JSON line next to other kinds", () => {
+    expect(parseStudyDocuments(STRATEGY_BACKTEST)).toEqual([
+      JSON.parse(STRATEGY_BACKTEST),
+    ]);
+    const lines = [
+      JSON.stringify(JSON.parse(STRATEGY_BACKTEST)),
+      qcPortLine("qc-opex-week"),
+    ].join("\n");
+    expect(parseStudyDocuments(lines).map((study) => study.id)).toEqual([
+      "ld34-nested-donchian-breakout",
+      "qc-opex-week",
+    ]);
+  });
+
+  it("rejects an invalid strategy-backtest study and names the field", () => {
+    const study = JSON.parse(STRATEGY_BACKTEST) as Record<string, unknown>;
+    expect(() =>
+      parseStudyDocuments(JSON.stringify({ ...study, verdict: "PASS" }))
+    ).toThrow(/The study document is not valid:\n.*\n.*→ at verdict/u);
+    expect(() =>
+      parseStudyDocuments(JSON.stringify({ ...study, id: "ld34" }))
+    ).toThrow(/Expected id to equal the spec slug[\s\S]*→ at id/u);
+  });
+
+  it("stores the study under its slug with its spec and run date", async () => {
+    const dryRun = cli(chunks(STRATEGY_BACKTEST), {});
+    await expect(
+      runResearchStudiesImport(["--dry-run"], dryRun.io, storeDouble().open)
+    ).resolves.toBe(0);
+    const row = {
+      id: "ld34-nested-donchian-breakout",
+      ranOn: "2026-11-08",
+      specRef: "docs/specs/strategies/ld34-nested-donchian-breakout.md",
+    };
+    expect(JSON.parse(dryRun.out.join(""))).toEqual({ ...row, dryRun: true });
+    const store = storeDouble();
+    const run = cli(chunks(STRATEGY_BACKTEST));
+    await expect(
+      runResearchStudiesImport([], run.io, store.open)
+    ).resolves.toBe(0);
+    expect(store.upsertMany).toHaveBeenCalledWith([
+      { ...row, summary: JSON.parse(STRATEGY_BACKTEST) },
+    ]);
+    expect(JSON.parse(run.out.join(""))).toMatchObject({
+      created: true,
+      id: row.id,
+    });
+    expect(store.close).toHaveBeenCalledTimes(1);
   });
 });
 

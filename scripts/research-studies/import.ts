@@ -3,10 +3,13 @@
 //   python -m strategies.filter_study_summary --daily <adx_filter_run output> \
 //     --intraday <rvol_intraday output> --ran 2026-10-31 \
 //   | DATABASE_URL=postgres://... bun run vertex:research-studies:import
+// A strategy-backtest study is one JSON document, stored the same way:
+//   DATABASE_URL=postgres://... bun run vertex:research-studies:import < study.json
 // stdin holds one JSON document (pretty-printed or not) or JSON lines (one document per line, for
 // example every qc-port study of a run). Each document is checked with ResearchStudyDocumentSchema
-// (@darkfactory/api: a filter study, or a qc-port backtest study with `kind: "qc-port"`); nothing is
-// stored unless every document is valid. All are then upserted by id in one database transaction
+// (@darkfactory/api: a filter study, a qc-port backtest study with `kind: "qc-port"` or a strategy
+// backtest study with `kind: "strategy-backtest"`); nothing is stored unless every document is
+// valid. All are then upserted by id in one database transaction
 // (a new id adds a study, a known id replaces it); when any write fails, none is stored.
 // --dry-run checks the documents and prints what would be stored, without a database.
 // Research records only: nothing here places or routes orders.
@@ -25,7 +28,7 @@ import { z } from "zod";
 
 export const RESEARCH_STUDIES_IMPORT_USAGE = [
   "Usage: <study document or JSON lines on stdin> | DATABASE_URL=postgres://... bun run vertex:research-studies:import [--dry-run]",
-  'A document is a filter study (services/research/strategies/filter_study_summary.py) or a qc-port backtest study (kind "qc-port").',
+  'A document is a filter study (services/research/strategies/filter_study_summary.py), a qc-port backtest study (kind "qc-port") or a strategy backtest study (kind "strategy-backtest").',
 ].join("\n");
 
 /** Most documents accepted in one JSON lines input. */

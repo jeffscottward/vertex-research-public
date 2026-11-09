@@ -15,15 +15,15 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Migration 0058 (daily research series of the QuantConnect idea ports), its guarded rollback, and
+// Migration 0060 (daily research series of the QuantConnect idea ports), its guarded rollback, and
 // the repository's exact float8 round trip on a real database.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
-  "../../../packages/db/migrations/0058_market_daily_series.sql"
+  "../../../packages/db/migrations/0060_market_daily_series.sql"
 );
 const rollbackSql = read(
-  "../../../packages/db/rollback/0058_market_daily_series.down.sql"
+  "../../../packages/db/rollback/0060_market_daily_series.down.sql"
 );
 const SHA = "c".repeat(64);
 
@@ -73,7 +73,7 @@ const countRows = async (table: string): Promise<number> => {
   return row?.n ?? Number.NaN;
 };
 
-describe("0058 market daily series (Postgres)", () => {
+describe("0060 market daily series (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({

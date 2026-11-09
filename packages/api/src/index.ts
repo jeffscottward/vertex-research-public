@@ -134,6 +134,7 @@ export * from "./contracts/strategy-library.ts";
 export * from "./contracts/vertex-chart-read.ts";
 export * from "./contracts/vertex-experience.ts";
 export * from "./contracts/vertex-notification-read.ts";
+export { SEMANTIC_GRAIN_LABELS } from "./contracts/semantic-terms.ts";
 export * from "./contracts/vertex-research-chat.ts";
 export * from "./contracts/vertex-research-chat-conversation.ts";
 export * from "./contracts/vertex-research-chat-debate.ts";

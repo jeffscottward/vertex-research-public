@@ -191,6 +191,161 @@ const dailyRows = (rows: [number, number, number, number][]): BarColumns => {
   });
 };
 
+// Indicator timeframe "1d", breaksAbove/breaksBelow, oncePerLevel, entry.any, management and
+// maxLeverage: LD34 (nested Donchian long-only breakout) as stated, on hourly bars.
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * Hourly bars around the clock from Sunday 21:00 to Friday 21:00 UTC (an FX week) over 400
+ * calendar days: the session days (17:00 New York) cross both daylight saving changes, and more
+ * than 260 of them make the 200-day levels active. The trend changes every 480 hours and every
+ * open gaps a little from the previous close. Prices have 4 decimals.
+ */
+const hourlyBars = (): BarColumns => {
+  const random = randomFrom(34);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  const columns: Columns = { c: [], h: [], l: [], o: [], t: [], v: [] };
+  const start = Date.UTC(2023, 0, 1);
+  let price = 100;
+  let drift = 0;
+  for (let hour = 0; hour < 400 * 24; hour += 1) {
+    if (hour % 480 === 0) drift = (random() - 0.4) * 0.0008;
+    const t = start + hour * HOUR_MS;
+    const weekday = new Date(t).getUTCDay();
+    const utcHour = new Date(t).getUTCHours();
+    if (
+      weekday === 6 ||
+      (weekday === 5 && utcHour >= 21) ||
+      (weekday === 0 && utcHour < 21)
+    )
+      continue;
+    const open = round(price * (1 + (random() - 0.5) * 0.002));
+    const close = round(open * (1 + drift + (random() - 0.5) * 0.008));
+    columns.t.push(t);
+    columns.o.push(open);
+    columns.h.push(round(Math.max(open, close) * (1 + random() * 0.003)));
+    columns.l.push(round(Math.min(open, close) * (1 - random() * 0.003)));
+    columns.c.push(close);
+    columns.v.push(Math.floor(100 + random() * 900));
+    price = close;
+  }
+  return toBars(columns);
+};
+
+const breakoutLevel = (name: "highest" | "lowest", length: number) => ({
+  left: { field: "close", type: "price" },
+  oncePerLevel: true,
+  op: "breaksAbove",
+  right: {
+    length,
+    name,
+    source: name === "highest" ? "high" : "low",
+    timeframe: "1d",
+    type: "indicator",
+  },
+});
+
+/** LD34 as stated (docs/vertex-rebuild/strategy-definitions.md, "LD34 example"). */
+const LD34: Json = {
+  entry: {
+    all: [],
+    any: [
+      ...[20, 50, 100, 200].map((length) => breakoutLevel("highest", length)),
+      ...[20, 50, 100, 200].map((length) => breakoutLevel("lowest", length)),
+    ],
+  },
+  management: {
+    breakevenR: 2,
+    trail: { activateR: 1, length: 14, multiple: 2 },
+  },
+  name: "LD34 nested Donchian long-only breakout",
+  sizing: { maxLeverage: 20, mode: "riskPct", riskPct: 1 },
+  stopLoss: { kind: "atr", length: 14, multiple: 2 },
+  version: 1,
+};
+
+const daily = (name: string, length: number, extra: object = {}) => ({
+  length,
+  name,
+  timeframe: "1d",
+  type: "indicator",
+  ...extra,
+});
+
+/**
+ * Every daily indicator but rvol, offsets, entry.all with entry.any, crosses and breaks. The
+ * thresholds let it enter (realizedVol is annualized percent, mostly 15 to 25 on these bars);
+ * the rsi cross has no oncePerLevel because its level is a constant, which would allow one entry
+ * in total.
+ */
+const MIXED_DAILY: Json = {
+  entry: {
+    all: [
+      {
+        left: daily("zscore", 20),
+        op: ">",
+        right: { type: "const", value: -2 },
+      },
+      { left: daily("adx", 14), op: ">", right: { type: "const", value: 10 } },
+      {
+        left: daily("realizedVol", 20),
+        op: "<",
+        right: { type: "const", value: 30 },
+      },
+      {
+        left: daily("atr", 14, { offset: 5 }),
+        op: ">",
+        right: { type: "const", value: 0 },
+      },
+      {
+        left: daily("sma", 10),
+        op: ">=",
+        right: daily("ema", 30, { offset: 24 }),
+      },
+    ],
+    any: [
+      {
+        left: { field: "close", type: "price" },
+        oncePerLevel: true,
+        op: "breaksBelow",
+        right: daily("lowest", 5, { source: "low" }),
+      },
+      {
+        left: daily("rsi", 14),
+        op: "crossesBelow",
+        right: { type: "const", value: 45 },
+      },
+      {
+        left: { field: "close", type: "price" },
+        oncePerLevel: true,
+        op: "crossesAbove",
+        right: daily("highest", 10),
+      },
+    ],
+  },
+  exit: {
+    any: [
+      {
+        left: { field: "close", type: "price" },
+        op: "breaksBelow",
+        right: daily("lowest", 10, { source: "low" }),
+      },
+    ],
+  },
+  management: { breakevenR: 1 },
+  name: "Daily levels on hourly bars",
+  stopLoss: { kind: "pct", pct: 2 },
+  takeProfit: { kind: "pct", pct: 3 },
+  version: 1,
+};
+
+const reelDefinitions: { id: string; definition: Json; symbol: string }[] = [
+  { definition: LD34, id: "reel:ld34", symbol: "hourly" },
+  { definition: LD34, id: "reel:ld34", symbol: "SPY" },
+  { definition: MIXED_DAILY, id: "reel:mixedDaily", symbol: "hourly" },
+];
+
 const SMA_CROSS: InstantRule = { fast: 10, kind: "smaCross", slow: 30 };
 const BREAKOUT_TREND: InstantRule = {
   entryLookback: 20,
@@ -1341,6 +1496,7 @@ const seriesEntry = {
   name: "Series expression",
   version: 1,
 };
+const seriesRead = exprCondition(priceExpr("close"), "<", seriesOf("VIX"));
 const calendarEntry = {
   entry: { all: [always] },
   filters: [{ type: "calendarWindow", window: "opexWeek" }],
@@ -1385,6 +1541,38 @@ const refusalCases: readonly RefusalCase[] = [
     timeframe: "1d",
   },
   { definition: seriesEntry, id: "expressions:none" },
+  {
+    // entry.any and exit.any read series too.
+    definition: {
+      ...calendarEntry,
+      entry: { all: [always], any: [always, seriesRead] },
+    },
+    id: "expressions:entryAny",
+  },
+  {
+    definition: { ...calendarEntry, exit: { any: [seriesRead] } },
+    id: "expressions:exitAny",
+  },
+  {
+    definition: {
+      ...calendarEntry,
+      options: OPTIONS_BLOCK,
+      portfolio: {
+        legs: [
+          {
+            entry: { all: [always] },
+            exit: { any: [seriesRead] },
+            options: OPTIONS_BLOCK,
+          },
+        ],
+        policy: "roll",
+        symbols: ["SPY"],
+      },
+    },
+    id: "portfolio:legExitSeries",
+    support: { options: true },
+    timeframe: "1d",
+  },
   {
     definition: seriesEntry,
     id: "expressions:series",
@@ -1712,6 +1900,21 @@ const buildCompiled = (
         ...(compiled.portfolio === undefined
           ? {}
           : { portfolio: compiled.portfolio }),
+        ...(compiled.management === undefined
+          ? {}
+          : {
+              management: {
+                ...compiled.management,
+                ...(compiled.management.trail === undefined
+                  ? {}
+                  : {
+                      trail: {
+                        ...compiled.management.trail,
+                        atr: list(compiled.management.trail.atr),
+                      },
+                    }),
+              },
+            }),
       };
     });
   };
@@ -1734,7 +1937,10 @@ const buildCompiled = (
       });
     }
   }
-  for (const { id, definition, symbol } of extraDefinitions) {
+  for (const { id, definition, symbol } of [
+    ...extraDefinitions,
+    ...reelDefinitions,
+  ]) {
     compiled.push({
       definition,
       id,
@@ -2077,6 +2283,26 @@ const buildEngine = (
     assertGapExit(id, first.trades[0], reason, price);
   }
 
+  // LD34 on hourly and daily bars, with a cost profile, and a variant with breakeven and a target.
+  dslCase(
+    "reel:ld34:hourly",
+    "hourly",
+    baseSpec({ definition: LD34, kind: "dsl" })
+  );
+  dslCase("reel:ld34:hourly:ibkr", "hourly", {
+    ...baseSpec({ definition: LD34, kind: "dsl" }),
+    costs: {
+      capital: 100_000,
+      profile: COST_PROFILE_PRESETS["ibkr-pro-tiered-us-stock"],
+    },
+  });
+  dslCase("reel:ld34:SPY", "SPY", baseSpec({ definition: LD34, kind: "dsl" }));
+  dslCase(
+    "reel:mixedDaily:hourly",
+    "hourly",
+    baseSpec({ definition: MIXED_DAILY, kind: "dsl" })
+  );
+
   return engine;
 };
 
@@ -2141,6 +2367,7 @@ const buildGolden = (io: GoldenIo): string => {
     bothHit: bothHitBars(),
     calendar: calendarBars(),
     gap: gapBars(),
+    hourly: hourlyBars(),
     intraday,
     monthly: monthlyBars(),
     QQQ: readCsv(csv("QQQ-1d.csv"), BAR_COUNT),

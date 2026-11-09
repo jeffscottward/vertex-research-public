@@ -411,15 +411,29 @@
     {
       "idx": 58,
       "version": "7",
-      "when": 1794172911599,
-      "tag": "0058_market_daily_series",
+      "when": 1794175510865,
+      "tag": "0058_semantic_unlinked_runs",
       "breakpoints": true
     },
     {
       "idx": 59,
       "version": "7",
-      "when": 1794174147046,
-      "tag": "0059_qc_port_definitions",
+      "when": 1794183643223,
+      "tag": "0059_strategy_catalog_ld34",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794187385935,
+      "tag": "0060_market_daily_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794187392028,
+      "tag": "0061_qc_port_definitions",
       "breakpoints": true
     }
   ]

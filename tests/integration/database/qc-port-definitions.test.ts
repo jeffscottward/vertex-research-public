@@ -9,14 +9,14 @@ import {
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// Data migration 0059 (qc-port run A definitions linked from the library) and its guarded rollback.
+// Data migration 0061 (qc-port run A definitions linked from the library) and its guarded rollback.
 const read = (path: string) =>
   readFileSync(new URL(path, import.meta.url), "utf8");
 const migrationSql = read(
-  "../../../packages/db/migrations/0059_qc_port_definitions.sql"
+  "../../../packages/db/migrations/0061_qc_port_definitions.sql"
 );
 const rollbackSql = read(
-  "../../../packages/db/rollback/0059_qc_port_definitions.down.sql"
+  "../../../packages/db/rollback/0061_qc_port_definitions.down.sql"
 );
 const catalogRollbackSql = read(
   "../../../packages/db/rollback/0057_strategy_catalog_qc_ports.down.sql"
@@ -52,7 +52,7 @@ const expectRefused = async (pattern: RegExp) => {
   await postgres().query("ROLLBACK");
 };
 
-describe("0059 qc-port definitions (Postgres)", () => {
+describe("0061 qc-port definitions (Postgres)", () => {
   beforeAll(async () => {
     testDatabase = await createPostgresTestDatabase();
     resource = createNodeDatabase({
@@ -80,7 +80,7 @@ describe("0059 qc-port definitions (Postgres)", () => {
     }>(
       `select r.sha256, r.name, r.definition, s.params, s.updated_at <> s.created_at as edited
        from strategy_definition_revisions r join strategies s on s.id = 'strategy-seed-' || r.definition_id
-       where r.id = 'qc-def-${IDEA}-r1' and r.revision = 1 and r.created_by = 'migration:0059'`
+       where r.id = 'qc-def-${IDEA}-r1' and r.revision = 1 and r.created_by = 'migration:0061'`
     );
     expect(row?.definition["name"]).toBe(row?.name);
     expect(row?.edited).toBe(false);
@@ -106,8 +106,8 @@ describe("0059 qc-port definitions (Postgres)", () => {
     expect(row?.name).toBe("x");
   });
 
-  it("refuses the rollback while library params differ from what 0059 set", async () => {
-    await expectRefused(/library params were changed after 0059/u);
+  it("refuses the rollback while library params differ from what 0061 set", async () => {
+    await expectRefused(/library params were changed after 0061/u);
     await postgres().query(
       `update strategies set params = '[]'::jsonb where id = 'strategy-seed-${IDEA}'`
     );
@@ -129,12 +129,12 @@ describe("0059 qc-port definitions (Postgres)", () => {
     );
     await expectRefused(/later revisions or rows by other authors/u);
     await postgres().query(
-      `update strategy_definition_revisions set created_by = 'migration:0059' where id = 'qc-def-${IDEA}-r1'`
+      `update strategy_definition_revisions set created_by = 'migration:0061' where id = 'qc-def-${IDEA}-r1'`
     );
     expect(await revisions()).toBe(11);
   });
 
-  it("links library params only when the matching 0059 revision is present", async () => {
+  it("links library params only when the matching 0061 revision is present", async () => {
     const [original] = await postgres().query<{ sha256: string }>(
       `select sha256 from strategy_definition_revisions where id = 'qc-def-${IDEA}-r1'`
     );

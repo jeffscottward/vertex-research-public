@@ -1,4 +1,4 @@
--- Guarded reversal of 0058_market_daily_series only.
+-- Guarded reversal of 0060_market_daily_series only.
 -- Refuses while any stored daily series or point exists so imported history is never silently
 -- discarded. Drizzle ledger reconciliation is deliberately not automated. Outside discoverable migrations.
 BEGIN;

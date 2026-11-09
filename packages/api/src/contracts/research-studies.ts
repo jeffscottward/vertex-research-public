@@ -282,9 +282,224 @@ export const QcPortStudySchema = z
   });
 export type QcPortStudy = z.infer<typeof QcPortStudySchema>;
 
+export const STRATEGY_BACKTEST_STUDY_KIND = "strategy-backtest";
+export const STRATEGY_BACKTEST_RULES_MAX = 30;
+export const STRATEGY_BACKTEST_GAPS_MAX = 30;
+export const STRATEGY_BACKTEST_FORMS_MAX = 4;
+export const STRATEGY_BACKTEST_RUNS_MAX = 40;
+export const STRATEGY_BACKTEST_ROBUSTNESS_MAX = 20;
+export const STRATEGY_BACKTEST_SENSITIVITY_MAX = 80;
+export const STRATEGY_BACKTEST_COMPARISON_MAX = 30;
+export const STRATEGY_BACKTEST_EQUITY_MAX = 400;
+export const STRATEGY_BACKTEST_NOTES_MAX = 4000;
+
+/** A strategy spec path; the captured slug is the study id (and the strategy library slug). */
+export const STRATEGY_BACKTEST_SPEC_PATTERN =
+  /^docs\/specs\/strategies\/([a-z0-9-]+)\.md$/u;
+
+/** Non-empty text without leading or trailing whitespace, at most `max` characters. */
+const Trimmed = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .max(max)
+    .refine(
+      (text) => text.trim() === text,
+      "Expected no leading or trailing whitespace"
+    );
+// A drawdown of a strategy-backtest study: a negative fraction, or 0 for none.
+const Loss = z.number().min(-1).max(0);
+// A compound annual growth rate cannot lose more than everything.
+const Cagr = z.number().min(-1);
+
+/** One backtest run of one form of the strategy on one symbol. */
+export const StrategyBacktestRunSchema = z
+  .object({
+    buyHoldCagr: Cagr.nullable(),
+    buyHoldSharpe: z.number().nullable(),
+    cagr: Cagr,
+    exposure: Fraction,
+    from: DateText,
+    market: Trimmed(60),
+    maxDrawdown: Loss,
+    // Out-of-sample results (the later part of a time split); null when the run has no out-of-sample part.
+    oosCagr: Cagr.nullable(),
+    oosSharpe: z.number().nullable(),
+    // Null when the run has no losing trade.
+    profitFactor: z.number().nonnegative().nullable(),
+    sharpe: z.number(),
+    symbol: Trimmed(40),
+    to: DateText,
+    trades: z.number().int().nonnegative(),
+    winRate: Fraction,
+  })
+  .strict()
+  .refine((run) => run.from <= run.to, {
+    message: "Expected from on or before to",
+    path: ["to"],
+  });
+export type StrategyBacktestRun = z.infer<typeof StrategyBacktestRunSchema>;
+
+/** One way of trading the strategy: as stated on the underlying, or the Vertex options form. */
+export const StrategyBacktestFormSchema = z
+  .object({
+    description: Trimmed(600),
+    key: z.enum(["underlying", "options"]),
+    label: Trimmed(120),
+    runs: z
+      .array(StrategyBacktestRunSchema)
+      .min(1)
+      .max(STRATEGY_BACKTEST_RUNS_MAX),
+  })
+  .strict();
+export type StrategyBacktestForm = z.infer<typeof StrategyBacktestFormSchema>;
+
+/** Where a strategy-backtest study came from, so a stored result can be traced and re-run. */
+export const StrategyBacktestProvenanceSchema = z
+  .object({
+    // Git commit SHA (7 to 40 hex characters) of the code that ran the study.
+    commit: z.string().regex(/^[0-9a-f]{7,40}$/u),
+    // Hash of the input data, for example "sha256:3f1c…".
+    dataHash: Trimmed(80),
+    // Backtest engine and version, for example "nautilus_trader 1.221.0".
+    engine: Trimmed(80),
+    runId: Trimmed(80),
+  })
+  .strict();
+export type StrategyBacktestProvenance = z.infer<
+  typeof StrategyBacktestProvenanceSchema
+>;
+
+/**
+ * One strategy backtest study, for example a strategy taken from a video: the rules as stated with
+ * their source, the gaps and the defaults chosen, the backtest runs of each form (as stated and the
+ * Vertex options form), robustness checks, parameter sensitivity, a comparison with buy-and-hold and
+ * library strategies, and a monthly equity and drawdown curve. Numbers are fractions (0.12 = 12 %);
+ * drawdowns are negative fractions or 0. The verdict is the researcher's (edge, no edge or needs
+ * more data); it grants no trading authority.
+ */
+export const StrategyBacktestStudySchema = z
+  .object({
+    comparison: z
+      .array(
+        z
+          .object({
+            cagr: Cagr,
+            kind: z.enum(["buy-and-hold", "library", "strategy"]),
+            maxDrawdown: Loss,
+            name: Trimmed(80),
+            sharpe: z.number(),
+          })
+          .strict()
+      )
+      .max(STRATEGY_BACKTEST_COMPARISON_MAX),
+    equity: z
+      .array(
+        z
+          .object({
+            drawdown: Loss,
+            month: MonthText,
+            // Return since the start (0 = the starting equity).
+            value: z.number().min(-1),
+          })
+          .strict()
+      )
+      .min(2)
+      .max(STRATEGY_BACKTEST_EQUITY_MAX)
+      .refine(
+        (points) =>
+          points.every(
+            (point, index) =>
+              index === 0 ||
+              (points[index - 1] as typeof point).month < point.month
+          ),
+        "Expected equity months in increasing order"
+      ),
+    equityLabel: Trimmed(200),
+    forms: z
+      .array(StrategyBacktestFormSchema)
+      .min(1)
+      .max(STRATEGY_BACKTEST_FORMS_MAX)
+      .refine(
+        (forms) => new Set(forms.map((form) => form.key)).size === forms.length,
+        "Expected each form key once"
+      ),
+    gaps: z
+      .array(z.object({ choice: Trimmed(400), gap: Trimmed(300) }).strict())
+      .max(STRATEGY_BACKTEST_GAPS_MAX),
+    id: ResearchStudyIdSchema,
+    kind: z.literal(STRATEGY_BACKTEST_STUDY_KIND),
+    notes: z.string().max(STRATEGY_BACKTEST_NOTES_MAX),
+    provenance: StrategyBacktestProvenanceSchema,
+    ran: DateText,
+    robustness: z
+      .array(
+        z
+          .object({
+            check: Trimmed(80),
+            // null: informational, neither a pass nor a fail.
+            pass: z.boolean().nullable(),
+            result: Trimmed(300),
+          })
+          .strict()
+      )
+      .max(STRATEGY_BACKTEST_ROBUSTNESS_MAX),
+    rules: z
+      .array(
+        z
+          .object({
+            item: Trimmed(60),
+            rule: Trimmed(400),
+            source: Trimmed(200),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(STRATEGY_BACKTEST_RULES_MAX),
+    sensitivity: z
+      .array(
+        z
+          .object({
+            cagr: Cagr,
+            maxDrawdown: Loss,
+            param: Trimmed(60),
+            sharpe: z.number(),
+            trades: z.number().int().nonnegative(),
+            value: Trimmed(40),
+          })
+          .strict()
+      )
+      .max(STRATEGY_BACKTEST_SENSITIVITY_MAX),
+    source: z
+      .object({
+        label: Trimmed(200),
+        url: z.url({ protocol: /^https$/u }).max(300),
+      })
+      .strict(),
+    spec: z
+      .string()
+      .regex(STRATEGY_BACKTEST_SPEC_PATTERN)
+      .max(RESEARCH_STUDY_SPEC_MAX),
+    title: Trimmed(200),
+    verdict: z.enum(["edge", "no-edge", "needs-more-data"]),
+    verdictReason: Trimmed(1000),
+  })
+  .strict()
+  .superRefine((study, context) => {
+    const slug = STRATEGY_BACKTEST_SPEC_PATTERN.exec(study.spec)?.[1];
+    if (slug !== study.id)
+      context.addIssue({
+        code: "custom",
+        message: `Expected id to equal the spec slug ${slug}`,
+        path: ["id"],
+      });
+  });
+export type StrategyBacktestStudy = z.infer<typeof StrategyBacktestStudySchema>;
+
 /** Any stored study document; `kind` selects the schema (absent means a filter study). */
 export const ResearchStudyDocumentSchema = z.discriminatedUnion("kind", [
   QcPortStudySchema,
+  StrategyBacktestStudySchema,
   FilterStudySchema,
 ]);
 export type ResearchStudyDocument = z.infer<typeof ResearchStudyDocumentSchema>;
@@ -292,6 +507,11 @@ export type ResearchStudyDocument = z.infer<typeof ResearchStudyDocumentSchema>;
 export const isQcPortStudy = (
   study: ResearchStudyDocument
 ): study is QcPortStudy => study.kind === QC_PORT_STUDY_KIND;
+
+export const isStrategyBacktestStudy = (
+  study: ResearchStudyDocument
+): study is StrategyBacktestStudy =>
+  study.kind === STRATEGY_BACKTEST_STUDY_KIND;
 
 export const ResearchStudyGetInputSchema = z
   .object({ id: ResearchStudyIdSchema })

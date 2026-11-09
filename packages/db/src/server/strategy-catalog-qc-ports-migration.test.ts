@@ -56,13 +56,13 @@ describe("0057_strategy_catalog_qc_ports", () => {
     return expect(migration).toContain('ON CONFLICT ("slug") DO NOTHING');
   });
 
-  it("refuses the rollback while the 0059 definitions exist, before deleting anything", () => {
+  it("refuses the rollback while the 0061 definitions exist, before deleting anything", () => {
     const guard = rollback.indexOf(
-      `FROM "public"."strategy_definition_revisions" d WHERE d."created_by" = 'migration:0059'`
+      `FROM "public"."strategy_definition_revisions" d WHERE d."created_by" = 'migration:0061'`
     );
     expect(guard).toBeGreaterThan(-1);
     expect(rollback).toContain(
-      "the qc-port definitions of 0059 still exist; roll back 0059 first"
+      "the qc-port definitions of 0061 still exist; roll back 0061 first"
     );
     expect(guard).toBeLessThan(
       rollback.indexOf('DELETE FROM "public"."strategies"')

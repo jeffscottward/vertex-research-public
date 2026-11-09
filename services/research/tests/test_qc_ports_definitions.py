@@ -1,4 +1,4 @@
-"""Migration 0059 stores run A of each qc-ports idea: the stored definitions must not drift from ideas.py."""
+"""Migration 0061 stores run A of each qc-ports idea: the stored definitions must not drift from ideas.py."""
 import json
 import re
 from pathlib import Path
@@ -8,10 +8,10 @@ import pytest
 from strategies.qc_ports import data as qd
 from strategies.qc_ports import ideas as qi
 
-MIGRATION = Path(__file__).resolve().parents[3] / "packages" / "db" / "migrations" / "0059_qc_port_definitions.sql"
+MIGRATION = Path(__file__).resolve().parents[3] / "packages" / "db" / "migrations" / "0061_qc_port_definitions.sql"
 ROW = re.compile(
     r"\('qc-def-(qc-[a-z0-9-]+)-r1', '(qc-[a-z0-9-]+)', 1, '((?:[^']|'')+)', '((?:[^']|'')+)'::jsonb, "
-    r"'([0-9a-f]{64})', '((?:[^']|'')+)', 'migration:0059'\)"
+    r"'([0-9a-f]{64})', '((?:[^']|'')+)', 'migration:0061'\)"
 )
 NOTE = re.compile(r"^Research run A of (qc-[a-z0-9-]+): from (\d{4}-\d{2}-\d{2}), capital 100000, "
                   r"data to (\d{4}-\d{2}-\d{2}) \(research_studies (qc-[a-z0-9-]+)\)$")
@@ -72,5 +72,5 @@ def test_library_links_require_the_stored_revision():
     for idea, row in _stored().items():
         guard = (f"WHERE \"id\" = 'strategy-seed-{idea}' AND \"params\" = '[]'::jsonb AND EXISTS "
                  f"(SELECT 1 FROM \"strategy_definition_revisions\" r WHERE r.\"id\" = 'qc-def-{idea}-r1' "
-                 f"AND r.\"sha256\" = '{row['sha256']}' AND r.\"created_by\" = 'migration:0059');")
+                 f"AND r.\"sha256\" = '{row['sha256']}' AND r.\"created_by\" = 'migration:0061');")
         assert guard in text, idea

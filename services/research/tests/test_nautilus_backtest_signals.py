@@ -671,6 +671,282 @@ def test_plan_run_checks_a_known_timeframe() -> None:
 
 
 # ---------------------------------------------------------------------------------------------
+# DSL extensions (strategy-dsl.ts): indicator timeframe 1d, breaksAbove/breaksBelow,
+# oncePerLevel, entry.any, management and maxLeverage. Same cases as strategy-dsl-compile.test.ts.
+
+HOUR = 3_600_000.0
+DAY = 86_400_000.0
+NAN = math.nan
+DAY_HIGH = [12.0, 15.0, 11.0, 14.0, 13.0]
+DAY_LOW = [8.0, 9.0, 7.0, 10.0, 6.0]
+DAY_CLOSE = [10.0, 14.0, 8.0, 12.0, 9.0]
+CLOSE = {"type": "price", "field": "close"}
+OPEN = {"type": "price", "field": "open"}
+
+
+def _ms(year: int, month: int, day: int) -> float:
+    return float((date(year, month, day) - date(1970, 1, 1)).days) * DAY
+
+
+def _session_bars(volume: bool = False) -> Bars:
+    """Five session days (17:00 New York, 22:00 UTC in January) of three bars: 22:00 UTC the
+    evening before, 10:00 UTC and 21:00 UTC."""
+    columns: dict[str, list[float]] = {key: [] for key in "tohlc"}
+    for day in range(5):
+        start = _ms(2024, 1, 2 + day)
+        high, low, close = DAY_HIGH[day], DAY_LOW[day], DAY_CLOSE[day]
+        columns["t"] += [start - 2 * HOUR, start + 10 * HOUR, start + 21 * HOUR]
+        columns["o"] += [close, close, close]
+        columns["h"] += [high - 1, high, high - 1]
+        columns["l"] += [low + 1, low + 1, low]
+        columns["c"] += [low + 1, high - 1, close]
+    if volume:
+        columns["v"] = [100.0] * 15
+    return Bars.from_columns(columns)
+
+
+def _per_bar(per_day: list[float]) -> list[float]:
+    return [value for value in per_day for _ in range(3)]
+
+
+def _entry(entry: dict[str, Any], **extra: Any) -> dict[str, Any]:
+    return {"version": 1, "name": "x", "entry": entry, **extra}
+
+
+def _signals(bars: Bars, entry: dict[str, Any]) -> list[int]:
+    return list(sig.compile_strategy(bars, sig.normalize_definition(_entry(entry))).signals)
+
+
+def _equal_bars(bars: Bars, expr: dict[str, Any], expected: list[float]) -> list[int]:
+    """1 on the bars where expr equals expected (NaN: not available); the open carries expected."""
+    probe = Bars(t=bars.t, o=tuple(-1.0 if math.isnan(x) else x for x in expected), h=bars.h,
+                 l=bars.l, c=bars.c, v=bars.v)
+    return _signals(probe, {"all": [{"left": expr, "op": ">=", "right": OPEN},
+                                    {"left": expr, "op": "<=", "right": OPEN}]})
+
+
+def _available(expected: list[float]) -> list[int]:
+    return [0 if math.isnan(value) else 1 for value in expected]
+
+
+def _daily(name: str, length: int, **extra: Any) -> dict[str, Any]:
+    return {"type": "indicator", "name": name, "length": length, "timeframe": "1d", **extra}
+
+
+def test_session_daily_bars_start_at_17_00_new_york() -> None:
+    daily, day = sig.session_daily_bars(_session_bars(volume=True))
+    assert day == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4]
+    assert list(daily.h) == DAY_HIGH
+    assert list(daily.l) == DAY_LOW
+    assert list(daily.c) == DAY_CLOSE
+    assert list(daily.o) == DAY_CLOSE
+    assert daily.v == (300.0,) * 5
+    assert daily.t[0] == _ms(2024, 1, 2) - 2 * HOUR
+    assert sig.session_daily_bars(_session_bars())[0].v is None
+    # 21:00 UTC is 17:00 New York in July (a new day) and 16:00 in January (the same day).
+    for start, days in ((_ms(2024, 7, 1), [0, 1]), (_ms(2024, 1, 2), [0, 0])):
+        pair = Bars.from_columns({"t": [start + 20 * HOUR, start + 21 * HOUR], "o": [5, 6], "h": [5, 6],
+                                  "l": [5, 6], "c": [5, 6]})
+        assert sig.session_daily_bars(pair)[1] == days
+
+
+def test_daily_highest_and_lowest_read_day_d() -> None:
+    highest = _per_bar([NAN, NAN, 15, 15, 14])
+    lowest = _per_bar([NAN, NAN, 8, 7, 7])
+    assert _equal_bars(_session_bars(), _daily("highest", 2, source="high"), highest) == _available(highest)
+    assert _equal_bars(_session_bars(), _daily("lowest", 2, source="low"), lowest) == _available(lowest)
+
+
+def test_other_daily_indicators_read_day_d_minus_1() -> None:
+    previous_close = _per_bar([NAN, 10, 14, 8, 12])
+    mean = _per_bar([NAN, NAN, 12, 11, 10])
+    assert _equal_bars(_session_bars(), _daily("sma", 1), previous_close) == _available(previous_close)
+    assert _equal_bars(_session_bars(), _daily("sma", 2), mean) == _available(mean)
+    shifted = ([NAN] + _per_bar([NAN, 10, 14, 8, 12]))[:15]
+    assert _equal_bars(_session_bars(), _daily("sma", 1, offset=1), shifted) == _available(shifted)
+
+
+def test_daily_series_are_shared_across_conditions() -> None:
+    expr = _daily("sma", 1)
+    entry = {"all": [
+        {"left": expr, "op": ">", "right": {"type": "const", "value": 9}},
+        {"left": expr, "op": "<", "right": {"type": "const", "value": 13}},
+        {"left": _daily("highest", 1, source="high"), "op": ">", "right": {"type": "const", "value": 0}},
+    ]}
+    assert _signals(_session_bars(), entry) == _per_bar([0, 1, 0, 0, 1])
+
+
+def test_daily_length_counts_daily_bars() -> None:
+    with pytest.raises(InputError) as raised:
+        _equal_bars(_session_bars(), _daily("sma", 6), [NAN] * 15)
+    assert str(raised.value) == "sma length 6 is longer than the 5 daily bars"
+
+
+def _price_bars(open_: list[float], close: list[float]) -> Bars:
+    return Bars.from_columns({
+        "t": [index * DAY for index in range(len(close))], "o": open_, "c": close,
+        "h": [max(a, b) for a, b in zip(open_, close)], "l": [min(a, b) for a, b in zip(open_, close)],
+    })
+
+
+LEVELS = _price_bars([11, 9, 11, 13, 10, 9], [10, 10, 12, 12, 9, 8])
+
+
+def _one(condition: dict[str, Any]) -> dict[str, Any]:
+    return {"all": [condition]}
+
+
+def test_breaks_compare_the_previous_left_with_the_current_right() -> None:
+    assert _signals(LEVELS, _one({"left": CLOSE, "op": "breaksAbove", "right": OPEN})) == [0, 0, 1, 0, 0, 0]
+    assert _signals(LEVELS, _one({"left": CLOSE, "op": "crossesAbove", "right": OPEN})) == [0, 1, 0, 0, 0, 0]
+    # breaksBelow never holds at bar 0 (close 10 is below open 11 there).
+    assert _signals(LEVELS, _one({"left": CLOSE, "op": "breaksBelow", "right": OPEN})) == [0, 0, 0, 0, 1, 1]
+
+
+def test_breaks_never_hold_on_nan() -> None:
+    rising = _price_bars([1, 2, 3, 4], [1, 2, 3, 4])
+    zero = {"type": "const", "value": 0}
+    sma = {"type": "indicator", "name": "sma", "length": 2}
+    assert _signals(rising, _one({"left": sma, "op": "breaksAbove", "right": zero})) == [0, 0, 0, 0]
+    assert _signals(rising, _one({"left": CLOSE, "op": "breaksBelow", "right": {**sma, "length": 3}})) == [0] * 4
+    assert _signals(rising, _one({"left": zero, "op": "breaksBelow", "right": sma})) == [0, 0, 0, 0]
+
+
+def test_once_per_level_drops_a_repeat_at_the_same_right_value() -> None:
+    bars = _price_bars([10, 10, 10, 10, 12, 12, 12, 12], [9, 11, 9, 11, 9, 13, 9, 13])
+    cross = {"left": CLOSE, "op": "crossesAbove", "right": OPEN}
+    assert _signals(bars, _one(cross)) == [0, 1, 0, 1, 0, 1, 0, 1]
+    assert _signals(bars, _one({**cross, "oncePerLevel": True})) == [0, 1, 0, 0, 0, 1, 0, 0]
+    assert _signals(bars, _one({**cross, "oncePerLevel": False, "op": "breaksAbove"})) == [0, 1, 0, 1, 0, 1, 0, 1]
+
+
+def _above(value: float) -> dict[str, Any]:
+    return {"left": CLOSE, "op": ">", "right": {"type": "const", "value": value}}
+
+
+def _below(value: float) -> dict[str, Any]:
+    return {"left": CLOSE, "op": "<", "right": {"type": "const", "value": value}}
+
+
+def test_entry_any_holds_when_one_condition_holds_and_combines_with_all() -> None:
+    ramp = _price_bars([1, 2, 3, 4, 5], [1, 2, 3, 4, 5])
+    assert _signals(ramp, {"all": [], "any": [_above(3.5), _below(1.5)]}) == [1, 0, 0, 1, 1]
+    assert _signals(ramp, {"all": [_above(1.5)], "any": [_above(3.5), _below(1.5)]}) == [0, 0, 0, 1, 1]
+    assert _signals(ramp, {"all": [_above(1.5)], "any": []}) == [0, 1, 1, 1, 1]
+
+
+def test_management_compiles_like_typescript() -> None:
+    bars = bars_of("SPY")
+    stop = {"kind": "pct", "pct": 2}
+    breakeven = sig.normalize_definition(_entry(_one(_above(0)), stopLoss=stop, management={"breakevenR": 1.5}))
+    assert sig.compile_strategy(bars, breakeven).management == {"breakevenR": 1.5}
+    trail = sig.normalize_definition(_entry(_one(_above(0)), stopLoss=stop, management={
+        "trail": {"activateR": 1, "length": 3, "multiple": 2}}))
+    compiled = sig.compile_strategy(bars, trail).management
+    assert compiled is not None and set(compiled) == {"trail"}
+    assert compiled["trail"]["activateR"] == 1 and compiled["trail"]["multiple"] == 2
+    assert list(compiled["trail"]["atr"]) == list(sig.average_true_range_dsl(bars, 3))
+    assert sig.compile_strategy(bars, sig.normalize_definition(_entry(_one(_above(0))))).management is None
+
+
+def test_plan_run_passes_max_leverage() -> None:
+    definition = _entry(_one(_above(0)), stopLoss={"kind": "pct", "pct": 2},
+                        sizing={"mode": "riskPct", "riskPct": 1, "maxLeverage": 20})
+    _, options = sig.plan_run(bars_of("SPY"), {"rule": {"kind": "dsl", "definition": definition}, "costBps": 0,
+                                               "costs": None})
+    assert options.max_leverage == 20
+    assert options.risk_pct == 1
+
+
+BREAKOUT = {"left": CLOSE, "op": "breaksAbove", "oncePerLevel": True,
+            "right": _daily("highest", 20, source="high")}
+WITH_STOP = {"stopLoss": {"kind": "pct", "pct": 2}}
+
+
+@pytest.mark.parametrize(
+    ("definition", "message"),
+    [
+        (_entry(_one({**BREAKOUT, "right": {"type": "indicator", "name": "rvol", "length": 5, "timeframe": "1d"}})),
+         "rvol has no timeframe; it already compares whole sessions"),
+        (_entry(_one({**BREAKOUT, "right": _daily("highest", 20, timeframe="1h")})),
+         "Unknown indicator timeframe: 1h"),
+        (_entry(_one({**BREAKOUT, "op": ">="})),
+         "oncePerLevel works only with crossesAbove, crossesBelow, breaksAbove and breaksBelow"),
+        (_entry(_one({**BREAKOUT, "oncePerLevel": 1})), "oncePerLevel must be true or false"),
+        (_entry({"all": [], "any": []}), "Entry needs at least one condition in entry.all or entry.any"),
+        (_entry(_one(_above(0)), management={"breakevenR": 1}), "management moves the stop loss; add a stop loss"),
+        (_entry(_one(_above(0)), management={}, **WITH_STOP), "management needs trail, breakevenR or both"),
+        (_entry(_one(_above(0)), management={"breakevenR": 0}, **WITH_STOP),
+         "management breakevenR must be above 0 and at most 100"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "multiple": 2}}, **WITH_STOP),
+         "management trail length must be a whole number from 1 to 1000"),
+        (_entry(_one(_above(0)), sizing={"mode": "riskPct", "riskPct": 1, "maxLeverage": 0.5}, **WITH_STOP),
+         "maxLeverage must be from 1 to 50"),
+        (_entry(_one(_above(0)), sizing={"mode": "riskPct", "riskPct": 1, "maxLeverage": 51}, **WITH_STOP),
+         "maxLeverage must be from 1 to 50"),
+    ],
+)
+def test_dsl_extension_input_errors(definition: dict[str, Any], message: str) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
+
+
+SERIES_CONDITION = {"left": CLOSE, "op": "crossesAbove", "right": {"type": "indicator", "name": "sma", "length": 5}}
+
+
+@pytest.mark.parametrize(
+    ("definition", "message"),
+    [
+        ({**_entry(_one(_above(0))), "extra": 1}, "Unknown key in definition: extra"),
+        (_entry({"all": [_above(0)], "none": []}), "Unknown key in entry: none"),
+        ({**_entry(_one(_above(0))), "exit": {"any": [], "all": []}}, "Unknown key in exit: all"),
+        (_entry(_one({**_above(0), "note": "x"})), "Unknown key in condition: note"),
+        (_entry(_one({**_above(0), "left": {**CLOSE, "timeframe": "1d"}})), "Unknown key in price expression: timeframe"),
+        (_entry(_one({**_above(0), "right": {"type": "const", "value": 0, "offset": 1}})),
+         "Unknown key in const expression: offset"),
+        (_entry(_one({**_above(0), "left": {**SPY_SMA, "period": 3}})), "Unknown key in indicator expression: period"),
+        (_entry(_one({**BREAKOUT, "oncePerLevel": None})), "oncePerLevel must be true or false"),
+        (_entry(_one(_above(0)), management={"breakevenR": 1, "lock": 1}, **WITH_STOP),
+         "Unknown key in management: lock"),
+        (_entry(_one(_above(0)), management={"breakevenR": None}, **WITH_STOP),
+         "management breakevenR must be above 0 and at most 100"),
+        (_entry(_one(_above(0)), management={"trail": None}, **WITH_STOP), "management trail must be an object"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": 14, "multiple": 2, "x": 1}},
+                **WITH_STOP), "Unknown key in management trail: x"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": 14.5, "multiple": 2}},
+                **WITH_STOP), "management trail length must be a whole number from 1 to 1000"),
+        (_entry(_one(_above(0)), management={"trail": {"activateR": 1, "length": True, "multiple": 2}},
+                **WITH_STOP), "management trail length must be a whole number from 1 to 1000"),
+        (_entry(_one(_above(0)), sizing={"mode": "allIn", "maxLeverage": 2}), "maxLeverage needs riskPct sizing"),
+        (_entry(_one(_above(0)), sizing={"mode": "allIn", "riskPct": 1}), "Unknown key in sizing: riskPct"),
+        (_entry(_one(_above(0)), sizing={"mode": "riskPct", "riskPct": 1, "cap": 2}, **WITH_STOP),
+         "Unknown key in sizing: cap"),
+        (_entry(_one(_above(0)), filters=[{"type": "series", "series": "VIX", "condition": {
+            **SERIES_CONDITION, "oncePerLevel": True}}]),
+         "A series condition takes no oncePerLevel or timeframe: the series has one value per date"),
+        (_entry(_one(_above(0)), filters=[{"type": "series", "series": "VIX", "condition": {
+            **SERIES_CONDITION, "right": {**SERIES_CONDITION["right"], "timeframe": "1d"}}}]),
+         "A series condition takes no oncePerLevel or timeframe: the series has one value per date"),
+    ],
+)
+def test_definition_keys_are_strict_like_the_typescript_schema(definition: dict[str, Any], message: str) -> None:
+    with pytest.raises(InputError) as raised:
+        sig.normalize_definition(definition)
+    assert str(raised.value) == message
+
+
+def test_trail_length_accepts_a_whole_float_and_normalizing_is_idempotent() -> None:
+    definition = _entry({"all": [], "any": [BREAKOUT]}, stopLoss={"kind": "atr", "length": 14, "multiple": 2},
+                        sizing={"mode": "riskPct", "riskPct": 1, "maxLeverage": 20},
+                        management={"breakevenR": 2, "trail": {"activateR": 1, "length": 14.0, "multiple": 2}},
+                        description="LD34")
+    normalized = sig.normalize_definition(definition)
+    assert normalized["management"]["trail"]["length"] == 14
+    assert sig.normalize_definition(normalized) == normalized
+
+
+# ---------------------------------------------------------------------------------------------
 # Expression trees, relative refs, calendars and the portfolio block (strategy-dsl.ts 1.2).
 
 CLOSE = {"type": "price", "field": "close"}
@@ -931,6 +1207,41 @@ def test_server_refusal_support_flags() -> None:
     assert timeframe is not None and timeframe.code == "STRATEGY_OPTIONS_TIMEFRAME_UNSUPPORTED"
 
 
+READS_VIX = {"left": CLOSE, "op": "<", "right": {"type": "series", "series": "VIX"}}
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"entry": {"all": [READS_VIX]}},
+        {"entry": {"all": [ALWAYS], "any": [ALWAYS, READS_VIX]}},
+        {"exit": {"any": [READS_VIX]}},
+        {"options": OPTIONS, "portfolio": {"policy": "roll", "symbols": ["SPY"],
+                                           "legs": [{"entry": {"all": [READS_VIX]}, "options": OPTIONS}]}},
+        {"options": OPTIONS, "portfolio": {"policy": "roll", "symbols": ["SPY"],
+                                           "legs": [{"entry": {"all": [ALWAYS]}, "exit": {"any": [READS_VIX]},
+                                                     "options": OPTIONS}]}},
+    ],
+    ids=["entry.all", "entry.any", "exit.any", "leg entry.all", "leg exit.any"],
+)
+def test_server_refusal_sees_a_series_read_in_every_condition_list(change: dict[str, Any]) -> None:
+    definition = sig.normalize_definition({"version": 1, "name": "x", "entry": {"all": [ALWAYS]}, **change})
+    support = {"options": True} if "options" in change else {}
+    refusal = sig.server_refusal(definition, "1d", support)
+    assert refusal is not None and "series expressions need daily series" in str(refusal)
+    assert sig.server_refusal(definition, "1d", {**support, "series": True}) is None
+
+
+def test_options_refuse_management_and_max_leverage() -> None:
+    stop = {"kind": "pct", "pct": 2}
+    with pytest.raises(InputError, match="remove management$"):
+        sig.normalize_definition({**_filtered(), "options": OPTIONS, "management": {"breakevenR": 1}})
+    # maxLeverage lives in riskPct sizing only, which an options block refuses.
+    with pytest.raises(InputError, match="remove the riskPct sizing$"):
+        sig.normalize_definition({**_filtered(), "options": OPTIONS, "stopLoss": stop,
+                                  "sizing": {"mode": "riskPct", "riskPct": 1, "maxLeverage": 2}})
+
+
 def test_plan_run_loads_series_with_a_context() -> None:
     definition = _definition({"type": "math", "op": "sub", "left": {"type": "series", "series": "$tr"},
                               "right": {"type": "series", "series": "$tr", "offset": 1}})
@@ -1076,6 +1387,42 @@ def test_monthly_frame_refuses_bar_range_indicators_anywhere(name: str) -> None:
             sig.normalize_definition(definition)
     sma = {**indicator, "name": "sma"}
     sig.normalize_definition(_portfolio_definition(monthly, entry={"all": [{**ALWAYS, "left": sma}]}))
+
+
+def test_portfolio_and_series_checks_cover_entry_any() -> None:
+    """strategy-dsl.ts calendarOnly, definitionExprs and strategySeriesRefs read entry.any too."""
+    shifted = {"policy": "window", "shift": 2, "symbols": ["SPY"]}
+    with pytest.raises(InputError, match="^A shifted window reads ahead"):
+        sig.normalize_definition(_portfolio_definition(shifted, entry={"all": [ALWAYS], "any": [ALWAYS]}))
+    atr = {**ALWAYS, "left": {"type": "indicator", "name": "atr", "length": 5}}
+    monthly = {"policy": "roll", "frame": "monthly", "symbols": ["SPY"]}
+    with pytest.raises(InputError, match=f"^{re.escape(sig.MONTHLY_INDICATOR_MESSAGE)}$"):
+        sig.normalize_definition(_portfolio_definition(monthly, entry={"all": [ALWAYS], "any": [atr]}))
+    vix = {**ALWAYS, "right": {"type": "series", "series": "VIX"}}
+    normalized = sig.normalize_definition({"name": "any", "entry": {"all": [], "any": [vix]}})
+    assert sig.strategy_series_refs(normalized) == ["VIX"]
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"entry": {"all": [{**ALWAYS, "right": {"type": "series", "series": "VIX", "lag": 1}}]}},
+         "Unknown key in series expression: lag"),
+        ({"entry": {"all": [{**ALWAYS, "right": {"type": "math", "op": "add", "left": CLOSE, "right": ZERO,
+                                                 "offset": 1}}]}},
+         "Unknown key in math expression: offset"),
+        ({"portfolio": {"policy": "roll", "symbols": ["SPY"],
+                        "legs": [{"entry": {"all": [ALWAYS]}, "options": OPTIONS, "weight": 1}]}},
+         "Unknown key in portfolio leg: weight"),
+        ({"portfolio": {"policy": "roll", "symbols": ["SPY"],
+                        "legs": [{"entry": {"all": [ALWAYS], "any": [ALWAYS]}, "options": OPTIONS}]}},
+         "Unknown key in portfolio leg entry: any"),
+    ],
+)
+def test_strict_keys_cover_trees_and_portfolio_legs(change: dict[str, Any], message: str) -> None:
+    """The TS expression trees and portfolio legs are .strict() like the other schema objects."""
+    with pytest.raises(InputError, match=f"^{re.escape(message)}$"):
+        sig.normalize_definition({**_portfolio_definition({"policy": "roll", "symbols": ["SPY"]}), **change})
 
 
 def test_a_shifted_window_takes_an_explicit_offset_0_as_no_offset() -> None:

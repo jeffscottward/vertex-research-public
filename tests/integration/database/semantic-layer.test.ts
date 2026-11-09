@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 
-import { strategies } from "@darkfactory/db/schema";
+import {
+  type SemanticAttributeGrainValue,
+  strategies,
+} from "@darkfactory/db/schema";
 import {
   createNodeDatabase,
   createSemanticLayerRepository,
@@ -45,20 +48,33 @@ const database = (): Database => {
   return resource.db;
 };
 
-const run = async (termId: string, params: (string | number | null)[]) => {
-  const entry = await repository.term(termId);
-  if (entry?.attribute === null || entry === null) {
-    throw new Error(`no SQL attribute for ${termId}`);
+/** Runs one SQL attribute of a term: the given grain, else the first (`strategy` before `run_spec`). */
+const run = async (
+  termId: string,
+  params: (string | number | null)[],
+  grain?: SemanticAttributeGrainValue
+) => {
+  const attributes = (await repository.term(termId))?.attributes ?? [];
+  const attribute =
+    grain === undefined
+      ? attributes[0]
+      : attributes.find((row) => row.grain === grain);
+  if (attribute === undefined) {
+    throw new Error(`no ${grain ?? ""} SQL attribute for ${termId}`);
   }
-  return reader.run(entry.attribute, params, RUN);
+  return reader.run(attribute, params, RUN);
 };
 
 let strategiesBefore = 0;
 const strategyCount = async () =>
   (await database().select({ id: strategies.id }).from(strategies)).length;
 
-const okRows = async (termId: string, params: (string | number | null)[]) => {
-  const result = await run(termId, params);
+const okRows = async (
+  termId: string,
+  params: (string | number | null)[],
+  grain?: SemanticAttributeGrainValue
+) => {
+  const result = await run(termId, params, grain);
   if (result.status !== "ok") throw new Error(JSON.stringify(result));
   return result.rows;
 };
@@ -87,7 +103,7 @@ describe("semantic layer (Postgres)", () => {
       await dropPostgresTestDatabase(testDatabase);
   });
 
-  it("seeds ten certified terms, one SQL attribute per Postgres term and six joins on real columns", async () => {
+  it("seeds ten certified terms, one SQL attribute per Postgres term plus two run-spec ones, and six joins on real columns", async () => {
     const catalog = await repository.catalog();
     expect(catalog.terms.map((term) => [term.id, term.source])).toEqual([
       ["backtest_max_drawdown", "postgres"],
@@ -102,16 +118,55 @@ describe("semantic layer (Postgres)", () => {
       ["strategy_gate_pass", "postgres"],
     ]);
     expect(catalog.terms.every((term) => term.certified)).toBe(true);
-    expect(catalog.attributes.map((attribute) => attribute.termId)).toEqual([
-      "backtest_max_drawdown",
-      "backtest_sharpe",
-      "deployment_request",
-      "drift_level",
-      "strategy_gate_pass",
+    expect(
+      catalog.attributes.map((attribute) => [
+        attribute.id,
+        attribute.termId,
+        attribute.grain,
+        attribute.certifiedBy,
+      ])
+    ).toEqual([
+      [
+        "backtest_max_drawdown",
+        "backtest_max_drawdown",
+        "strategy",
+        "migration 0056",
+      ],
+      [
+        "backtest_max_drawdown_run_spec",
+        "backtest_max_drawdown",
+        "run_spec",
+        "eval fixture (stands in for the owner)",
+      ],
+      ["backtest_sharpe", "backtest_sharpe", "strategy", "migration 0056"],
+      [
+        "backtest_sharpe_run_spec",
+        "backtest_sharpe",
+        "run_spec",
+        "eval fixture (stands in for the owner)",
+      ],
+      ["deployment_request", "deployment_request", "request", "migration 0056"],
+      ["drift_level", "drift_level", "monitor", "migration 0056"],
+      [
+        "strategy_gate_pass",
+        "strategy_gate_pass",
+        "candidate",
+        "migration 0056",
+      ],
     ]);
-    expect(catalog.attributes.every((attribute) => attribute.certified)).toBe(
-      true
-    );
+    // 0058 leaves the 0056 rows as they were: only grain is filled in.
+    expect(
+      catalog.attributes
+        .filter((attribute) => attribute.grain !== "run_spec")
+        .every(
+          (attribute) => attribute.certified && attribute.updatedBy === null
+        )
+    ).toBe(true);
+    expect(
+      (await repository.term("backtest_sharpe"))?.attributes.map(
+        (attribute) => attribute.grain
+      )
+    ).toEqual(["strategy", "run_spec"]);
     expect(catalog.relationships).toHaveLength(6);
     const columns = await database().execute<{ name: string }>(
       "select table_name || '.' || column_name as name from information_schema.columns where table_schema = 'public'"
@@ -147,6 +202,67 @@ describe("semantic layer (Postgres)", () => {
     expect(
       worse.map((row) => [row["strategy"], row["max_drawdown_percent"]])
     ).toEqual([["Sector Momentum", 22.5]]);
+  });
+
+  it("backtest_sharpe per run spec: latest succeeded run per full run spec, only runs with no strategy", async () => {
+    const rows = await okRows("backtest_sharpe", [null], "run_spec");
+    expect(
+      rows.map((row) => [
+        row["symbol"],
+        row["timeframe"],
+        row["rule"],
+        row["stop_loss_pct"],
+        row["sharpe"],
+        row["run_id"],
+        row["succeeded_runs_in_spec"],
+        row["newer_runs_not_succeeded"],
+      ])
+    ).toEqual([
+      [
+        "DIA",
+        "1m",
+        "breakout entry 20 exit 10 trend SMA 200",
+        0,
+        1.21,
+        "br_free_dia_1",
+        1,
+        1,
+      ],
+      ["IWM", "1d", "smaCross fast 10 slow 30", 0, 0.71, "br_free_iwm_2", 2, 0],
+      // Same rule as the GLD row below with a 2% stop: a different backtest (sweep cell), its own row.
+      ["GLD", "1d", "smaCross fast 5 slow 20", 2, 0.33, "br_free_gld_2", 1, 0],
+      ["GLD", "1d", "smaCross fast 5 slow 20", 0, -0.12, "br_free_gld_1", 1, 0],
+    ]);
+    expect(rows[0]).toMatchObject({
+      cost_bps: 1,
+      date_from: "2021-01-01",
+      date_to: "2026-09-30",
+      take_profit_pct: 0,
+      engine_version: "vx-engine-1.5",
+      strategy_on_run: null,
+    });
+    expect(
+      (await okRows("backtest_sharpe", ["iwm"], "run_spec")).map(
+        (row) => row["run_id"]
+      )
+    ).toEqual(["br_free_iwm_2"]);
+    // A strategy name matches no run without a strategy.
+    expect(await okRows("backtest_sharpe", ["opening"], "run_spec")).toEqual(
+      []
+    );
+  });
+
+  it("backtest_max_drawdown per run spec reports percent and filters by a threshold", async () => {
+    const worse = await okRows("backtest_max_drawdown", [null, 20], "run_spec");
+    expect(
+      worse.map((row) => [row["symbol"], row["max_drawdown_percent"]])
+    ).toEqual([
+      ["GLD", 41.2],
+      ["IWM", 25.8],
+    ]);
+    expect(
+      await okRows("backtest_max_drawdown", ["DIA", null], "run_spec")
+    ).toMatchObject([{ max_drawdown_percent: 8.3, run_id: "br_free_dia_1" }]);
   });
 
   it("strategy_gate_pass maps verified, rejected and evaluated to passed, failed and not_gated", async () => {
@@ -333,11 +449,13 @@ describe("semantic layer (Postgres)", () => {
         note: "Reviewed.",
       })
     ).toBe("certified");
-    expect((await repository.term("drift_level"))?.attribute).toMatchObject({
-      certificationNote: "Reviewed.",
-      certified: true,
-      certifiedBy: "u_owner",
-    });
+    expect((await repository.term("drift_level"))?.attributes[0]).toMatchObject(
+      {
+        certificationNote: "Reviewed.",
+        certified: true,
+        certifiedBy: "u_owner",
+      }
+    );
     expect(
       await repository.updateTerm("missing_term", { label: "x" }, "u_owner")
     ).toBeNull();

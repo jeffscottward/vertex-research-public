@@ -78,7 +78,7 @@ describe("validateStrategyDefinition", () => {
   });
 
   it.each([
-    ["no entry conditions", { ...minimal, entry: { all: [] } }, "entry.all"],
+    ["no entry conditions", { ...minimal, entry: { all: [] } }, "entry"],
     ["unknown version", { ...minimal, version: 2 }, "version"],
     ["blank name", { ...minimal, name: " " }, "name"],
     ["unknown key", { ...minimal, extra: true }, ""],
@@ -1564,6 +1564,16 @@ describe("serverStrategyRefusal with support flags", () => {
       ],
     },
   });
+  const always = {
+    left: { field: "close", type: "price" },
+    op: ">",
+    right: { type: "const", value: 0 },
+  };
+  const readsVix = {
+    left: { field: "close", type: "price" },
+    op: "<",
+    right: { series: "VIX", type: "series" },
+  };
   const seriesExpressions =
     "STRATEGY_SERIES_FILTERS_UNSUPPORTED: series expressions need daily series that this path does not load; backtest runs and the research runners load them. sectorQuadrant and calendarWindow filters work here.";
 
@@ -1618,5 +1628,242 @@ describe("serverStrategyRefusal with support flags", () => {
     expect(serverStrategyRefusal(calendar, "5m")?.message).toBe(
       seriesExpressions
     );
+  });
+
+  it.each([
+    ["entry.all", { entry: { all: [readsVix] } }],
+    ["entry.any", { entry: { all: [always], any: [always, readsVix] } }],
+    ["exit.any", { exit: { any: [readsVix] } }],
+  ])("refuses a series read in %s", (_list, change) => {
+    const definition = StrategyDefinitionSchema.parse({
+      ...minimal,
+      entry: { all: [always] },
+      ...change,
+    });
+    expect(serverStrategyRefusal(definition)?.message).toBe(seriesExpressions);
+    expect(
+      serverStrategyRefusal(definition, "1d", { series: true })
+    ).toBeUndefined();
+  });
+
+  it.each([
+    ["a leg entry.all", { entry: { all: [readsVix] } }],
+    ["a leg exit.any", { exit: { any: [readsVix] } }],
+  ])("refuses a series read in %s", (_list, change) => {
+    const definition = StrategyDefinitionSchema.parse({
+      ...minimal,
+      entry: { all: [always] },
+      options,
+      portfolio: {
+        legs: [{ entry: { all: [always] }, options, ...change }],
+        policy: "roll",
+        symbols: ["SPY"],
+      },
+    });
+    expect(
+      serverStrategyRefusal(definition, "1d", { options: true })?.message
+    ).toBe(seriesExpressions);
+  });
+
+  it("refuses management and maxLeverage with an options block", () => {
+    const withStop = { ...minimal, options, stopLoss: { kind: "pct", pct: 2 } };
+    expect(issuesOf({ ...withStop, management: { breakevenR: 1 } })).toContain(
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+    );
+    // maxLeverage lives in riskPct sizing only, which an options block refuses.
+    expect(
+      issuesOf({
+        ...minimal,
+        options,
+        sizing: { maxLeverage: 2, mode: "riskPct", riskPct: 1 },
+      })
+    ).toContain(
+      "sizing: Option strategies size by options.maxLossPct; remove the riskPct sizing"
+    );
+  });
+});
+
+describe("DSL extensions: timeframe, breaks, oncePerLevel, entry.any, management, maxLeverage", () => {
+  const close = { field: "close", type: "price" } as const;
+  const dailyHigh = {
+    length: 20,
+    name: "highest",
+    source: "high",
+    timeframe: "1d",
+    type: "indicator",
+  } as const;
+  const breakout = {
+    left: close,
+    oncePerLevel: true,
+    op: "breaksAbove",
+    right: dailyHigh,
+  } as const;
+  const withStop = { ...minimal, stopLoss: { kind: "pct", pct: 2 } } as const;
+
+  it("accepts a daily indicator, breaks with oncePerLevel and entry.any alone", () => {
+    const definition = {
+      ...withStop,
+      entry: {
+        all: [],
+        any: [breakout, { ...breakout, op: "breaksBelow" }],
+      },
+      management: {
+        breakevenR: 2,
+        trail: { activateR: 1, length: 14, multiple: 2 },
+      },
+      sizing: { maxLeverage: 20, mode: "riskPct", riskPct: 1 },
+    };
+    expect(issuesOf(definition)).toEqual([]);
+    expect(StrategyDefinitionSchema.parse(definition).entry.any?.[0]).toEqual(
+      breakout
+    );
+  });
+
+  it("adds no timeframe, oncePerLevel, any, management or maxLeverage by default", () => {
+    const parsed = StrategyDefinitionSchema.parse({
+      ...minimal,
+      sizing: { mode: "riskPct", riskPct: 1 },
+      stopLoss: { kind: "pct", pct: 2 },
+    });
+    expect(parsed.entry).toEqual(minimal.entry);
+    expect("management" in parsed).toBe(false);
+    expect(parsed.sizing).toEqual({ mode: "riskPct", riskPct: 1 });
+  });
+
+  it.each([
+    [
+      "rvol on daily bars",
+      {
+        ...minimal,
+        entry: {
+          all: [
+            {
+              left: {
+                length: 5,
+                name: "rvol",
+                timeframe: "1d",
+                type: "indicator",
+              },
+              op: ">",
+              right: { type: "const", value: 2 },
+            },
+          ],
+        },
+      },
+      "entry.all.0.left.timeframe: rvol has no timeframe; it already compares whole sessions",
+    ],
+    [
+      "an unknown timeframe",
+      {
+        ...minimal,
+        entry: {
+          all: [{ ...breakout, right: { ...dailyHigh, timeframe: "1h" } }],
+        },
+      },
+      'entry.all.0.right.timeframe: Invalid input: expected "1d"',
+    ],
+    [
+      "oncePerLevel on a comparison",
+      {
+        ...minimal,
+        entry: { all: [{ ...breakout, op: ">=" }] },
+      },
+      "entry.all.0.oncePerLevel: oncePerLevel works only with crossesAbove, crossesBelow, breaksAbove and breaksBelow",
+    ],
+    [
+      "no condition in entry.all or entry.any",
+      { ...minimal, entry: { all: [], any: [] } },
+      "entry: Entry needs at least one condition in entry.all or entry.any",
+    ],
+    [
+      "management without a stop",
+      { ...minimal, management: { breakevenR: 1 } },
+      "management: management moves the stop loss; add a stop loss",
+    ],
+    [
+      "an empty management block",
+      { ...withStop, management: {} },
+      "management: management needs trail, breakevenR or both",
+    ],
+    [
+      "a breakeven level of 0",
+      { ...withStop, management: { breakevenR: 0 } },
+      "management.breakevenR: Too small: expected number to be >0",
+    ],
+    [
+      "a trail without its ATR length",
+      { ...withStop, management: { trail: { activateR: 1, multiple: 2 } } },
+      "management.trail.length: Invalid input: expected number, received undefined",
+    ],
+    [
+      "maxLeverage below 1",
+      {
+        ...withStop,
+        sizing: { maxLeverage: 0.5, mode: "riskPct", riskPct: 1 },
+      },
+      "sizing.maxLeverage: Too small: expected number to be >=1",
+    ],
+    [
+      "maxLeverage above 50",
+      { ...withStop, sizing: { maxLeverage: 51, mode: "riskPct", riskPct: 1 } },
+      "sizing.maxLeverage: Too big: expected number to be <=50",
+    ],
+  ])("rejects %s", (_, value, issue) => {
+    expect(issuesOf(value)).toEqual([issue]);
+  });
+
+  it("rejects maxLeverage with allIn sizing", () => {
+    expect(
+      issuesOf({ ...withStop, sizing: { maxLeverage: 2, mode: "allIn" } })
+    ).not.toEqual([]);
+  });
+
+  it("rejects management on an options strategy", () => {
+    expect(
+      issuesOf({
+        ...minimal,
+        management: { breakevenR: 1 },
+        options: {
+          dte: { min: 21, target: 45 },
+          exitDte: 7,
+          maxLossPct: 2,
+          profitTakePct: 50,
+          shortDelta: 0.2,
+          structure: "putCreditVertical",
+          widthSigma: 0.5,
+        },
+      })
+    ).toContain(
+      "management: Option strategies exit by profitTakePct, exitDte and exit conditions; remove management"
+    );
+  });
+
+  it.each([
+    ["oncePerLevel", { oncePerLevel: false }],
+    [
+      "a 1d indicator",
+      { right: { length: 5, name: "sma", timeframe: "1d", type: "indicator" } },
+    ],
+    [
+      "a 1d indicator on the left",
+      { left: { length: 5, name: "sma", timeframe: "1d", type: "indicator" } },
+    ],
+  ])("rejects a series condition with %s", (_, extra) => {
+    expect(
+      issuesOf(
+        withFilters({
+          condition: {
+            left: close,
+            op: "crossesAbove",
+            right: { length: 5, name: "sma", type: "indicator" },
+            ...extra,
+          },
+          series: "VIX",
+          type: "series",
+        })
+      )
+    ).toEqual([
+      "filters.0.condition: A series condition takes no oncePerLevel or timeframe: the series has one value per date",
+    ]);
   });
 });

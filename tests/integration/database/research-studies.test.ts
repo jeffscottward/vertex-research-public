@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+
+import { ResearchStudyDocumentSchema } from "@darkfactory/api";
 import { researchStudies } from "@darkfactory/db/schema";
 import {
   createNodeDatabase,
@@ -12,6 +15,8 @@ import {
   type PostgresTestDatabase,
 } from "@darkfactory/testkit/postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { runResearchStudiesImport } from "../../../scripts/research-studies/import.ts";
 
 let testDatabase: PostgresTestDatabase | undefined;
 let resource: { db: Database; close: () => Promise<void> } | undefined;
@@ -165,6 +170,42 @@ describe("research study repository (Postgres)", () => {
     expect(replaced[0]?.created).toBe(false);
     expect(await database().select().from(researchStudies)).toHaveLength(
       before + 2
+    );
+  });
+
+  it("stores a strategy-backtest study through the import CLI and reads it back unchanged", async () => {
+    const text = readFileSync(
+      new URL(
+        "../../../apps/web/src/features/research-studies/fixtures/strategy-backtest-study.json",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    const out: string[] = [];
+    const err: string[] = [];
+    async function* stdin() {
+      yield text;
+    }
+    const code = await runResearchStudiesImport([], {
+      env: { DATABASE_URL: testDatabase?.databaseUrl },
+      stderr: { write: (line: string) => err.push(line) > 0 },
+      stdin: stdin(),
+      stdout: { write: (line: string) => out.push(line) > 0 },
+    });
+    expect([code, err]).toEqual([0, []]);
+    expect(JSON.parse(out.join(""))).toMatchObject({
+      created: true,
+      id: "ld34-nested-donchian-breakout",
+    });
+    const stored = await createResearchStudyRepository(database()).get(
+      "ld34-nested-donchian-breakout"
+    );
+    expect(stored).toMatchObject({
+      ranOn: "2026-11-08",
+      specRef: "docs/specs/strategies/ld34-nested-donchian-breakout.md",
+    });
+    expect(ResearchStudyDocumentSchema.parse(stored?.summary)).toEqual(
+      JSON.parse(text)
     );
   });
 });

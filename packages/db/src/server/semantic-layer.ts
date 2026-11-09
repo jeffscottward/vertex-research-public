@@ -1,6 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import {
+  SEMANTIC_ATTRIBUTE_GRAINS,
   semanticRelationships,
   semanticSqlAttributes,
   semanticTerms,
@@ -107,10 +108,13 @@ export type SemanticAttributeResult =
 
 export interface SemanticLayerRepository {
   catalog: () => Promise<SemanticCatalog>;
-  /** One term with its SQL attribute (null for feed and none terms), or null when the id is unknown. */
+  /**
+   * One term with its SQL attributes, one per grain in SEMANTIC_ATTRIBUTE_GRAINS order (`strategy`
+   * first; empty for feed and none terms), or null when the id is unknown.
+   */
   term: (id: string) => Promise<Readonly<{
     term: SemanticTermRow;
-    attribute: SemanticSqlAttributeRow | null;
+    attributes: readonly SemanticSqlAttributeRow[];
   }> | null>;
   /** Edits a term and removes its certification. Null when the id is unknown. */
   updateTerm: (
@@ -435,22 +439,30 @@ export const createSemanticLayerRepository = (
       return { attributes, relationships, terms };
     },
     term: async (id) => {
-      const rows = await persistence(
+      const [term] = await persistence(
         "semantic term read",
         database
-          .select({ attribute: semanticSqlAttributes, term: semanticTerms })
+          .select()
           .from(semanticTerms)
-          .leftJoin(
-            semanticSqlAttributes,
-            eq(semanticSqlAttributes.termId, semanticTerms.id)
-          )
           .where(eq(semanticTerms.id, id))
           .limit(1)
       );
-      const [row] = rows;
-      return row === undefined
-        ? null
-        : { attribute: row.attribute, term: row.term };
+      if (term === undefined) return null;
+      const attributes = await persistence(
+        "semantic term read",
+        database
+          .select()
+          .from(semanticSqlAttributes)
+          .where(eq(semanticSqlAttributes.termId, id))
+      );
+      return {
+        attributes: [...attributes].sort(
+          (a, b) =>
+            SEMANTIC_ATTRIBUTE_GRAINS.indexOf(a.grain) -
+            SEMANTIC_ATTRIBUTE_GRAINS.indexOf(b.grain)
+        ),
+        term,
+      };
     },
     updateTerm: async (id, patch, actor) => {
       const [row] = await persistence(

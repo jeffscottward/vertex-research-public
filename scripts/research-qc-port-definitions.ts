@@ -1,4 +1,4 @@
-// Generates migration 0059 (qc-port strategy definitions) and its rollback (research only).
+// Generates migration 0061 (qc-port strategy definitions) and its rollback (research only).
 // See scripts/research/qc-port-definitions.ts.
 import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";

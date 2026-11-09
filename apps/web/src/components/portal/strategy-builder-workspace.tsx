@@ -51,6 +51,7 @@ import {
   type EditableExpr,
   INDICATOR_LABELS,
   isEditableExpr,
+  jsonOnlyFields,
   lengthUnit,
   numberOf,
   openBuilderRun,
@@ -62,8 +63,10 @@ import {
   templateDefinition,
   toBuilderRunInput,
   usesSource,
+  withIndicator,
   withLinkedRun,
   withOffset,
+  withOperator,
 } from "./strategy-builder-model.ts";
 
 // Strategy builder: a visual editor and a text editor for the same strategy definition (version 1).
@@ -92,6 +95,8 @@ const OPERATOR_LABELS: Record<StrategyCondition["op"], string> = {
   "<=": "is at or below",
   ">": "is above",
   ">=": "is at or above",
+  breaksAbove: "breaks above",
+  breaksBelow: "breaks below",
   crossesAbove: "crosses above",
   crossesBelow: "crosses below",
 };
@@ -259,10 +264,9 @@ const ExprEditor = ({
               className={CONTROL}
               id={id}
               onChange={(event) =>
-                onChange({
-                  ...expr,
-                  name: event.target.value as typeof expr.name,
-                })
+                onChange(
+                  withIndicator(expr, event.target.value as typeof expr.name)
+                )
               }
               value={expr.name}
             >
@@ -275,7 +279,7 @@ const ExprEditor = ({
           )}
         </Labeled>
         <NumberField
-          label={`${label} length (${lengthUnit(expr.name)})`}
+          label={`${label} length (${lengthUnit(expr.name, expr.timeframe)})`}
           onChange={(length) => onChange({ ...expr, length })}
           step="1"
           value={expr.length}
@@ -342,10 +346,12 @@ const ConditionList = ({
                 className={CONTROL}
                 id={id}
                 onChange={(event) =>
-                  update({
-                    ...condition,
-                    op: event.target.value as StrategyCondition["op"],
-                  })
+                  update(
+                    withOperator(
+                      condition,
+                      event.target.value as StrategyCondition["op"]
+                    )
+                  )
                 }
                 value={condition.op}
               >
@@ -852,9 +858,18 @@ export const StrategyBuilderWorkspace = ({
                 />
               )}
             </Labeled>
+            {jsonOnlyFields(draft).length > 0 ? (
+              <p className="rounded-md border p-3 text-sm">
+                This definition also uses {jsonOnlyFields(draft).join(", ")}.
+                The visual builder keeps them unchanged; edit them in the
+                definition text.
+              </p>
+            ) : null}
             <ConditionList
               conditions={draft.entry.all}
-              onChange={(all) => edit({ ...draft, entry: { all } })}
+              onChange={(all) =>
+                edit({ ...draft, entry: { ...draft.entry, all } })
+              }
               prefix="Entry"
               title="Enter long when ALL of these are true"
             />
@@ -899,7 +914,10 @@ export const StrategyBuilderWorkspace = ({
                   <NumberField
                     label="Risk per trade (%)"
                     onChange={(riskPct) =>
-                      edit({ ...draft, sizing: { mode: "riskPct", riskPct } })
+                      edit({
+                        ...draft,
+                        sizing: { ...draft.sizing, mode: "riskPct", riskPct },
+                      })
                     }
                     value={draft.sizing.riskPct}
                   />

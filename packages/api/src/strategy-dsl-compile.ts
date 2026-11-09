@@ -2,6 +2,7 @@ import {
   type BarColumns,
   InstantBacktestInputError,
   type InstantRunResult,
+  type PositionManagement,
   priorExtreme,
   rollingMean,
   runSignalBacktest,
@@ -18,6 +19,7 @@ import {
   type StrategyCondition,
   type StrategyDefinition,
   type StrategyExpr,
+  type StrategyManagement,
   type StrategyOptions,
   type StrategyPortfolio,
   type StrategyRefusal,
@@ -442,6 +444,111 @@ type ExprContext = Readonly<{
   frame: () => SeriesFrame;
 }>;
 
+// Indicator timeframe "1d" (strategy-dsl.ts STRATEGY_INDICATOR_TIMEFRAMES).
+
+/** A session day starts at 17:00 New York: the day key is the New York date of t + 7 hours. */
+const SESSION_DAY_SHIFT_MS = 7 * HOUR_MS;
+
+/** Daily bars built from the signal bars, and the daily index of every signal bar. */
+type SessionDays = Readonly<{ bars: BarColumns; day: Int32Array }>;
+
+/**
+ * Daily bars of the signal bars: one per session day (New York date of t + 7 hours, so US
+ * regular-hours bars keep their date and FX or futures days start at 17:00 New York). Daily bar =
+ * first open, highest high, lowest low, last close and summed volume (when present) of its signal
+ * bars; its time is the time of its first signal bar. Input is chronological.
+ */
+const sessionDailyBars = (bars: BarColumns): SessionDays => {
+  const size = bars.c.length;
+  const offsets = new Map<number, number>();
+  const day = new Int32Array(size);
+  const t: number[] = [];
+  const o: number[] = [];
+  const h: number[] = [];
+  const l: number[] = [];
+  const c: number[] = [];
+  const v: number[] = [];
+  let key = Number.NaN;
+  for (let index = 0; index < size; index += 1) {
+    const shifted = (bars.t[index] as number) + SESSION_DAY_SHIFT_MS;
+    const next = Math.floor(
+      (shifted + newYorkOffset(shifted, offsets)) / DAY_MS
+    );
+    const high = bars.h[index] as number;
+    const low = bars.l[index] as number;
+    const volume = bars.v === undefined ? 0 : (bars.v[index] as number);
+    if (next === key) {
+      const last = c.length - 1;
+      if (high > (h[last] as number)) h[last] = high;
+      if (low < (l[last] as number)) l[last] = low;
+      v[last] = (v[last] as number) + volume;
+    } else {
+      key = next;
+      t.push(bars.t[index] as number);
+      o.push(bars.o[index] as number);
+      h.push(high);
+      l.push(low);
+      v.push(volume);
+      c.push(0);
+    }
+    c[c.length - 1] = bars.c[index] as number;
+    day[index] = c.length - 1;
+  }
+  return {
+    bars: {
+      c: Float64Array.from(c),
+      h: Float64Array.from(h),
+      l: Float64Array.from(l),
+      o: Float64Array.from(o),
+      t: Float64Array.from(t),
+      ...(bars.v === undefined ? {} : { v: Float64Array.from(v) }),
+    },
+    day,
+  };
+};
+
+const sessionDays = new WeakMap<SeriesCache, SessionDays>();
+
+/**
+ * Indicator on daily bars, mapped to the signal bars without look-ahead: a bar of day D reads
+ * highest and lowest at day D (their window is the days before D) and every other indicator at day
+ * D - 1, the last completed day (NaN on the first day).
+ */
+const dailyIndicator = (
+  bars: BarColumns,
+  expr: Extract<StrategyExpr, { type: "indicator" }>,
+  cache: SeriesCache
+): Float64Array => {
+  let days = sessionDays.get(cache);
+  if (days === undefined) {
+    days = sessionDailyBars(bars);
+    sessionDays.set(cache, days);
+  }
+  const count = days.bars.c.length;
+  if (expr.length > count) {
+    throw new InstantBacktestInputError(
+      `${expr.name} length ${expr.length} is longer than the ${count} daily bars`
+    );
+  }
+  const daily = evaluateCurrent(
+    days.bars,
+    {
+      length: expr.length,
+      name: expr.name,
+      source: expr.source,
+      type: "indicator",
+    },
+    new Map()
+  );
+  const lag = expr.name === "highest" || expr.name === "lowest" ? 0 : 1;
+  const out = new Float64Array(bars.c.length);
+  for (let index = 0; index < out.length; index += 1) {
+    const at = (days.day[index] as number) - lag;
+    out[index] = at < 0 ? Number.NaN : (daily[at] as number);
+  }
+  return out;
+};
+
 const evaluateLeaf = (
   bars: BarColumns,
   expr: LeafExpr,
@@ -464,7 +571,8 @@ const evaluateLeaf = (
 
 const indicatorKey = (
   expr: Extract<StrategyExpr, { type: "indicator" }>
-): string => `${expr.name}:${expr.length}:${expr.source}`;
+): string =>
+  `${expr.name}:${expr.length}:${expr.source}${expr.timeframe === undefined ? "" : `:${expr.timeframe}`}`;
 
 const evaluateCurrent = (
   bars: BarColumns,
@@ -474,6 +582,12 @@ const evaluateCurrent = (
   const size = bars.c.length;
   if (expr.type === "price") return bars[FIELD_KEY[expr.field]];
   if (expr.type === "const") return new Float64Array(size).fill(expr.value);
+  if (expr.timeframe !== undefined) {
+    const key = indicatorKey(expr);
+    const series = cache.get(key) ?? dailyIndicator(bars, expr, cache);
+    cache.set(key, series);
+    return series;
+  }
   if (expr.length > size) {
     throw new InstantBacktestInputError(
       `${expr.name} length ${expr.length} is longer than the ${size} bars`
@@ -690,6 +804,8 @@ const compareSeries = (
   left: Float64Array,
   right: Float64Array
 ): Uint8Array => {
+  if (op === "breaksAbove" || op === "breaksBelow")
+    return breakSeries(op, left, right);
   const out = new Uint8Array(left.length);
   const cross = op === "crossesAbove" || op === "crossesBelow";
   let previous = false;
@@ -701,16 +817,55 @@ const compareSeries = (
   return out;
 };
 
+/**
+ * breaksAbove at bar i: left[i] > right[i] and left[i - 1] <= right[i] (the previous left against
+ * the current right). breaksBelow: left[i] < right[i] and left[i - 1] >= right[i]. False at bar 0
+ * and whenever a value is NaN.
+ */
+const breakSeries = (
+  op: "breaksAbove" | "breaksBelow",
+  left: Float64Array,
+  right: Float64Array
+): Uint8Array => {
+  const out = new Uint8Array(left.length);
+  for (let index = 1; index < left.length; index += 1) {
+    const now = left[index] as number;
+    const level = right[index] as number;
+    const before = left[index - 1] as number;
+    const fired =
+      op === "breaksAbove"
+        ? now > level && before <= level
+        : now < level && before >= level;
+    if (fired) out[index] = 1;
+  }
+  return out;
+};
+
+/**
+ * oncePerLevel: drops a bar where the condition holds when the same right value (exact double)
+ * already made it hold on an earlier bar. Changes `fired` in place.
+ */
+const oncePerLevel = (fired: Uint8Array, right: Float64Array): Uint8Array => {
+  const levels = new Set<number>();
+  for (let index = 0; index < fired.length; index += 1) {
+    if (fired[index] !== 1) continue;
+    const level = right[index] as number;
+    if (levels.has(level)) fired[index] = 0;
+    else levels.add(level);
+  }
+  return fired;
+};
+
 /** Boolean series of one condition on the bars. */
 const conditionSeries = (
   context: ExprContext,
   condition: StrategyCondition
-): Uint8Array =>
-  compareSeries(
-    condition.op,
-    evaluate(context, condition.left),
-    evaluate(context, condition.right)
-  );
+): Uint8Array => {
+  const left = evaluate(context, condition.left);
+  const right = evaluate(context, condition.right);
+  const fired = compareSeries(condition.op, left, right);
+  return condition.oncePerLevel === true ? oncePerLevel(fired, right) : fired;
+};
 
 const minutesOf = (time: string): number => {
   const [hours, minutes] = time.split(":").map(Number) as [number, number];
@@ -1338,6 +1493,8 @@ export type CompiledStrategy = Readonly<{
   targetDistance?: Float64Array;
   /** The definition's options block, unchanged, for the options runner. */
   options?: StrategyOptions;
+  /** Stop management for the engine (trail ATR on the signal bars), when the definition has it. */
+  management?: PositionManagement;
   /** The definition's portfolio block, unchanged, for the options runner. */
   portfolio?: StrategyPortfolio;
 }>;
@@ -1354,6 +1511,37 @@ const distanceSeries = (
     cache
   );
   return atr.map((value) => value * level.multiple);
+};
+
+/** The engine form of the definition's management: the trail ATR is the DSL ATR of the bars. */
+const managementOf = (
+  bars: BarColumns,
+  management: StrategyManagement | undefined,
+  cache: SeriesCache
+): PositionManagement | undefined => {
+  if (management === undefined) return undefined;
+  const { breakevenR, trail } = management;
+  return {
+    ...(breakevenR === undefined ? {} : { breakevenR }),
+    ...(trail === undefined
+      ? {}
+      : {
+          trail: {
+            activateR: trail.activateR,
+            atr: evaluateLeaf(
+              bars,
+              {
+                length: trail.length,
+                name: "atr",
+                source: "close",
+                type: "indicator",
+              },
+              cache
+            ),
+            multiple: trail.multiple,
+          },
+        }),
+  };
 };
 
 /** A fresh evaluation context; the series frame is built on first use. */
@@ -1383,8 +1571,9 @@ export const evaluateStrategyExpression = (
 ): Float64Array => evaluate(expressionContext(bars, seriesInput), expr).slice();
 
 /**
- * Compiles a validated definition to signals: 1 when every entry condition and filter holds (and the bar is in
- * the session), otherwise -1 when any exit condition holds, otherwise 0. The exit mask keeps exits
+ * Compiles a validated definition to signals: 1 when every entry condition and filter holds, at
+ * least one entry.any condition holds (when there are any) and the bar is in the session,
+ * otherwise -1 when any exit condition holds, otherwise 0. The exit mask keeps exits
  * on bars where the entry conditions also hold, so an open position still exits there.
  */
 export const compileStrategy = (
@@ -1406,11 +1595,15 @@ export const compileStrategy = (
   const exits = definition.exit.any.map((condition) =>
     conditionSeries(context, condition)
   );
+  const anyOf = (definition.entry.any ?? []).map((condition) =>
+    conditionSeries(context, condition)
+  );
   const signals = new Int8Array(size);
   const exitMask = new Uint8Array(size);
   for (let index = 0; index < size; index += 1) {
     const enter =
       entries.every((series) => series[index] === 1) &&
+      (anyOf.length === 0 || anyOf.some((series) => series[index] === 1)) &&
       (definition.session === undefined ||
         inSession(bars.t[index] as number, definition.session));
     const exit = exits.some((series) => series[index] === 1);
@@ -1420,6 +1613,7 @@ export const compileStrategy = (
   }
   const stopDistance = distanceSeries(bars, definition.stopLoss, cache);
   const targetDistance = distanceSeries(bars, definition.takeProfit, cache);
+  const management = managementOf(bars, definition.management, cache);
   return {
     exits: exitMask,
     signals,
@@ -1431,6 +1625,7 @@ export const compileStrategy = (
     ...(definition.portfolio === undefined
       ? {}
       : { portfolio: definition.portfolio }),
+    ...(management === undefined ? {} : { management }),
   };
 };
 
@@ -1477,6 +1672,13 @@ export const runStrategyDefinition = (
       : { targetDistance: compiled.targetDistance }),
     ...(definition.sizing.mode === "riskPct"
       ? { riskPct: definition.sizing.riskPct }
+      : {}),
+    ...(compiled.management === undefined
+      ? {}
+      : { management: compiled.management }),
+    ...(definition.sizing.mode === "riskPct" &&
+    definition.sizing.maxLeverage !== undefined
+      ? { maxLeverage: definition.sizing.maxLeverage }
       : {}),
   });
 };

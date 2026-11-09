@@ -9,9 +9,9 @@ LOCK TABLE "public"."strategies" IN ACCESS EXCLUSIVE MODE;
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM "public"."strategy_definition_revisions" d WHERE d."created_by" = 'migration:0059'
+    SELECT 1 FROM "public"."strategy_definition_revisions" d WHERE d."created_by" = 'migration:0061'
   ) THEN
-    RAISE EXCEPTION 'the qc-port definitions of 0059 still exist; roll back 0059 first';
+    RAISE EXCEPTION 'the qc-port definitions of 0061 still exist; roll back 0061 first';
   END IF;
   IF EXISTS (
     SELECT 1 FROM "public"."strategies" s
