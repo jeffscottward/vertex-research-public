@@ -109,6 +109,7 @@
     "db:generate": "pnpm --filter @darkfactory/db exec bun run db:generate",
     "db:check": "pnpm --filter @darkfactory/db exec bun run db:check",
     "db:migrate": "pnpm --filter @darkfactory/db exec -- bun --env-file=../../.env run db:migrate",
+    "db:renumber": "bun --no-env-file scripts/db-renumber.ts",
     "db:seed": "bun scripts/database/index.ts seed",
     "db:reset": "bun scripts/database/index.ts reset",
     "db:test:up": "docker compose --project-name vertex-research-platform --env-file /dev/null -f infra/docker/postgres.compose.yml up --detach --wait",
