@@ -132,13 +132,13 @@ The E2E global setup (`tests/e2e/global-setup.ts`) runs the same import into the
 after migrating it, with the synthetic fixture sources (CI has no knowledge base). Browser tests see
 the QuantFinanceToGo lessons with placeholder transcripts.
 
-Deploy order: run both steps **before** the web deploy that reads these tables.
+Deploy order: run steps 1-2 before deploying the web app (step 3), which reads these tables.
 
 1. `bun run db:migrate` (applies 0059).
-2. On the rig, against the production `DATABASE_URL`: `bun run vertex:academy:import -- --course
-   quantfinancetogo --kb <rig KB path>/trading/quantfinancetogo/raw`. Alternatively, set
-   `ACADEMY_KB_ROOT=<rig KB path>` and omit `--kb`. The transcripts never pass through the repository
-   or CI.
+2. On the rig, against the production database, validate then import:
+   `DATABASE_URL="$ORIGIN_DATABASE_URL" bun run vertex:academy:import -- --course quantfinancetogo --kb <rig KB>/trading/quantfinancetogo/raw --dry-run`,
+   then the same command without `--dry-run`. Alternatively, set `ACADEMY_KB_ROOT=<rig KB>` and
+   omit `--kb`. The transcripts never pass through the repository or CI.
 3. Deploy the web app.
 
 Local databases that ran the pre-merge `0058_academy_content` (before the renumber to 0059): apply

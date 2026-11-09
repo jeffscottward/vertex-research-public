@@ -3,7 +3,7 @@
 // text. Owner decision (2026-11-08): the real captions and transcripts stay out of this repository;
 // `bun run vertex:academy:import` reads them from the knowledge base (scripts/academy/build-sources.ts
 // parses the notes). A new reel needs a row here as well as its note in the knowledge base.
-// scripts/academy/private-sources.test.ts keeps this file synthetic.
+// scripts/ci/private-academy-sources.test.ts keeps this file synthetic.
 
 /** Placeholder text of every fixture source; nothing here comes from a real caption or transcript. */
 export const FIXTURE_TEXT =
