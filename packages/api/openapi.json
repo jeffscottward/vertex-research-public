@@ -138933,7 +138933,7 @@
                                       ],
                                       "type": "object"
                                     },
-                                    "maxItems": 40,
+                                    "maxItems": 80,
                                     "minItems": 1,
                                     "type": "array"
                                   }
